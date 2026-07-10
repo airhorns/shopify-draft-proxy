@@ -1,0 +1,28 @@
+mutation BulkOperationRootCountProductCreate($product: ProductCreateInput!) {
+  productCreate(product: $product) {
+    product {
+      id
+      title
+      tags
+      metafields(first: 5) {
+        nodes {
+          id
+          namespace
+          key
+          value
+        }
+      }
+      variants(first: 5) {
+        nodes {
+          id
+          title
+          sku
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

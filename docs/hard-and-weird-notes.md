@@ -53,6 +53,18 @@ Historical context: the first product overlay implementation only supported a na
 
 That early subset is not the current product coverage contract. Use `src/content/docs/endpoints/products.md` for supported product roots and validation anchors. The durable lesson here is that every new locally staged write needs downstream read-after-write coverage for the list, search, pagination, and derived-field surfaces it affects.
 
+## Current: Segment Change validation short-circuits CDP query grammar
+
+Admin segment mutations have two validation layers. `segmentCreate` and
+`segmentUpdate` first run Change-level presence and length checks for `name` and
+`query`. CDP query grammar validation only runs after that Change layer passes.
+
+Practical rule: blank or over-long `name` suppresses grammar userErrors for a
+present but malformed query, while blank or over-long `query` remains a
+Change-level error that can be emitted alongside a name error. The checked-in
+anchor is
+`config/parity-specs/segments/segment-create-name-failure-short-circuits-query-grammar.json`.
+
 ## Current: Shopify empty-data behavior is field-specific, not generic
 
 "Return empty data when missing" sounds simple, but in practice Shopify behavior depends on the field shape:
@@ -312,21 +324,22 @@ and mutation/no-mutation behavior.
 ## Current: Selling-plan product membership guardrails can diverge from public Admin probes
 
 Internal source notes for product and variant selling-plan group join/leave roots
-require validation before staging: blank group ID lists, duplicate IDs within one
-request, too many post-join memberships, and leave requests for groups that are
-not direct members should all return payload `userErrors` without changing local
-membership state. The local runtime models that guard contract and covers it with
-focused product mutation tests, but no checked-in products parity fixture is
-retained for those divergent local-only branches.
+described validation before staging: blank group ID lists, duplicate IDs within
+one request, too many post-join memberships, and leave requests for groups that
+are not direct members should all return payload `userErrors` without changing
+local membership state. The local runtime keeps focused product mutation
+coverage for the blank, duplicate, and leave-non-member guardrails, but does not
+enforce the old 31-groups-per-resource cap because public Admin GraphQL did not
+reproduce it.
 
 A live public Admin probe against `harry-test-heelo.myshopify.com` on 2025-01,
 2026-04, and `unstable` did not expose the same branches: duplicate joins,
 leave-non-member requests, and 32-group joins returned empty `userErrors`, and
 the public `SellingPlanGroupUserErrorCode` enum lacked `DUPLICATE`,
-`NOT_A_MEMBER`, and `SELLING_PLAN_GROUPS_TOO_MANY`. Treat the Rust integration
-coverage as the current internal guardrail contract, and re-capture against a
-target that reproduces the internal package behavior before changing those
-codes/messages or adding parity evidence.
+`NOT_A_MEMBER`, and `SELLING_PLAN_GROUPS_TOO_MANY`. A later 2026-04 cap capture
+accepted 32 selling-plan groups joined to one product with empty `userErrors`,
+so `SELLING_PLAN_GROUPS_TOO_MANY` should be treated as an internal-source-only
+branch unless a future public capture reproduces it.
 
 ## Current: Selling-plan group lower-bound validation is create-specific, but update deletes can still reject the final plan
 
@@ -616,6 +629,14 @@ Practical rule:
 
 - model BulkOperation as an app-scoped job history with terminal entries and status-specific payload details, not as a single nullable active job slot.
 
+### Current: BulkOperation search warnings can still match all jobs
+
+A 2026-04 live probe on `harry-test-heelo.myshopify.com` showed that `bulkOperations(query:)` accepts case-insensitive `status:` values and date-only `created_at` comparator terms such as `created_at:>2000-01-01`. Unknown fielded terms such as `made_up:whatever` did not fail closed: Shopify returned the usual job list plus `extensions.search[].warnings[{ code: "invalid_field" }]`.
+
+Practical rule:
+
+- model supported `status:` and `created_at:` filters normally, but keep unsupported fielded terms as warning-backed match-all terms instead of silently matching everything with no `extensions.search` warning
+
 ## Current: Customer mutation payloads normalize tags and phone numbers differently than guessed
 
 The first strict customer CRUD parity promotion exposed two easy local-draft guesses that were wrong for the captured Shopify Admin GraphQL payloads:
@@ -730,6 +751,7 @@ Important live findings:
   - unfiltered/non-empty `draftOrders(first: ...)` and `draftOrdersCount(query: null)` are now captured successfully on this host in `draft-orders-catalog.json` and `draft-orders-count.json`
   - the _filtered_ follow-up probe `draftOrders(first: ..., query: "email:<created draft email>")` still returned `extensions.search[].warnings[{ code: 'invalid_field' }]` instead of a narrow filtered slice
   - a dedicated combined read fixture now preserves that no-op warning branch explicitly in `draft-orders-invalid-email-query.json`: on this host both `draftOrders(query: "email:...")` and `draftOrdersCount(query: "email:...")` keep the same catalog/count baseline while returning matching `extensions.search[]` warning entries for the unsupported `email` field
+  - a later staged-catalog capture on `harry-test-heelo` proved default `ID` ordering, `reverse`, `UPDATED_AT`, pagination windows, `status`, `tag`, date comparators, free text, count alignment, and unknown-field ignore behavior for disposable draft orders; a separate 2026-04 manual probe still returned invalid-field warnings for `total_price`, so do not treat `total_price` as strict live parity evidence without a newer clean capture
   - practical consequence: it is now valid to promote the first unfiltered non-empty catalog/count baseline and the narrow invalid-field warning branch without overclaiming broader `query:` semantics
 - that same split means the draft-order creation phase now grows in three layers:
   1. local read-after-write detail parity for `draftOrder(id:)`
@@ -977,6 +999,7 @@ HAR-237 live probes against Admin GraphQL 2026-04 on `harry-test-heelo.myshopify
 - an empty store returns an empty `carrierServices` connection with empty `nodes`/`edges`, false page booleans, and null cursors
 - `carrierServiceCreate` accepted an inactive app service with `callbackUrl: "https://mock.shop/..."`, returned `formattedName: "<name> (Rates provided by app)"`, and did not need any associated `Location` modeling
 - `carrierServiceUpdate` can change `name`, `callbackUrl`, `active`, and `supportsServiceDiscovery`; immediate downstream detail reads and `carrierServices(query: "active:true")` / `carrierServices(query: "id:<numeric id>")` reflected the update
+- `CarrierServiceSortKeys` introspection exposes `CREATED_AT`, `ID`, and `UPDATED_AT`, but this conformance target returned top-level `Query not supported.` errors for `carrierServices(sortKey: CREATED_AT)` and `carrierServices(sortKey: UPDATED_AT)` in live probes. `sortKey: ID` with `reverse: true` is accepted and returns the higher-id service first.
 - blank create name returned `userErrors[{ field: null, message: "Shipping rate provider name can't be blank", code: "CARRIER_SERVICE_CREATE_FAILED" }]`; a present blank update name similarly returns `field: null`, message `"Shipping rate provider name can't be blank"`, and code `CARRIER_SERVICE_UPDATE_FAILED` while leaving the existing name unchanged
 - `http://` callback URLs returned `message: "Shipping rate provider callback url must use HTTPS"`, while banned hosts such as `https://shopify.com/...` returned `message: "Shipping rate provider callback url invalid host"`; create/update use the corresponding `CARRIER_SERVICE_CREATE_FAILED` / `CARRIER_SERVICE_UPDATE_FAILED` code
 - unknown update returned `userErrors[{ field: null, message: "The carrier or app could not be found.", code: "CARRIER_SERVICE_UPDATE_FAILED" }]`, while unknown delete returned the same message with `field: ["id"]` and `code: "CARRIER_SERVICE_DELETE_FAILED"`
@@ -1542,6 +1565,8 @@ HAR-144 captured product-owner `metafieldDefinition` and `metafieldDefinitions` 
 - `metafieldsCount` and the definition `metafields` connection should be derived from effective product-owned metafields matching the definition namespace/key, so staged product metafield writes become visible through existing definitions
 
 Keep definition lifecycle mutations out of this read slice; create/update/delete/pin/unpin need their own mutation evidence and local staging semantics.
+
+A catalog connection capture with three disposable product definitions showed two non-obvious read quirks: newly created definitions may need a short search-indexing poll before recognized query terms and `sortKey: NAME` reflect them, and an invalid fielded query such as `unknown:value` returns the namespace-filtered rows with an `extensions.search` invalid-field warning instead of failing closed.
 
 ## 19b. Definition pinning uses owner-type positions and compacts on unpin
 
@@ -2573,6 +2598,15 @@ can read the B2B company roots on that store. The capture showed:
   `CompanyContact.customer { id }` in B2B reads. The proxy should model that as
   a contact-local customer reference without inventing broader customer catalog
   rows.
+- HAR-1999's fresh 2026-04 string-validation captures showed public Admin
+  preserves HTML in `companyUpdate(input.note)` and
+  `companyContactCreate(input.title)`: the update note branch ignores HTML and
+  applies only the 5000-character note limit, while contact titles have no
+  observed HTML or 255-character title validation. Standalone
+  `companyContactCreate` still rejects HTML in `firstName` / `lastName` with a
+  generic `INVALID_INPUT` / `Invalid input.` error at `["input"]`; nested
+  `companyCreate(input.companyContact)` reports the analogous parent path under
+  `["input", "companyContact"]`.
 - `companyLocationTaxSettingsUpdate` accepts flat mutation arguments, but the
   captured 2026-04 readback shape is nested under
   `CompanyLocation.taxSettings { taxRegistrationId taxExempt taxExemptions }`;
@@ -2827,6 +2861,17 @@ Observed current-version surface:
 - schema inventory confirms read roots for `market`, `markets`, `catalogs`, `webPresences`, and `marketsResolvedValues`
 - schema inventory confirms current mutation roots for `marketCreate`, `marketUpdate`, `marketDelete`, `webPresenceCreate`, `webPresenceUpdate`, `webPresenceDelete`, `marketLocalizationsRegister`, and `marketLocalizationsRemove`
 - `marketsResolvedValues(buyerSignal: { countryCode: US })` is present in 2026-04 and returned resolved currency/price-inclusivity data on this store, but an empty resolved catalog connection for the captured buyer signal
+- A disposable 2026-04 `marketCreate` probe on `harry-test-heelo.myshopify.com`
+  created an active Brazil region market with
+  `currencySettings: { localCurrencies: true }`, no `baseCurrency`, and
+  explicit `priceInclusions` of `INCLUDES_TAXES_IN_PRICE` plus
+  `INCLUDE_DUTIES_IN_PRICE`. The created Market record defaulted
+  `currencySettings.baseCurrency.currencyCode` to the CAD shop currency and
+  stored both inclusion strategies, but
+  `marketsResolvedValues(buyerSignal: { countryCode: BR })` resolved
+  `priceInclusivity` as `{ dutiesIncluded: false, taxesIncluded: true }`.
+  Public `Shop` does not expose `dutiesIncluded`, so local resolved-values
+  duties should not be inferred directly from the Market duty strategy.
 - top-level `webPresences` can be captured safely with `id`, `subfolderSuffix`, `domain`, `rootUrls`, linked `markets`, `defaultLocale`, and `alternateLocales`
 - `Market.conditions.regionsCondition.regions.nodes` is a `MarketRegion` interface connection in public Admin GraphQL 2026-04. Selecting `code` directly on the interface returns an `undefinedField` schema error; select `id`, `name`, and `__typename` on the interface and `code` through `... on MarketRegionCountry`. A live `marketCreate` / `market(id:)` capture for a Canada region returned `__typename: "MarketRegionCountry"`, `name: "Canada"`, `code: "CA"`, and an opaque `gid://shopify/MarketRegionCountry/...` id on both payload and read-after-write.
 - A 2026-04 `webPresenceCreate(defaultLocale: "it")` probe on `harry-test-heelo.myshopify.com` returned `UNPUBLISHED_LANGUAGE` until `shopLocaleEnable`/`shopLocaleUpdate(published: true)` published Italian; after setup, Shopify accepted Italian as the default locale and cleanup disabled it again.
@@ -3162,7 +3207,7 @@ Captured facts:
 - `MailingAddressInput` accepts `countryCode` and `provinceCode`; the response expands those to full `country` / `province` strings plus `countryCodeV2` / `provinceCode`
 - unknown customer ids on address create return payload `userErrors` with `field: ["customerId"]` and message `Customer does not exist`
 - unknown address ids on update, delete, and default-address selection return top-level GraphQL errors with message `invalid id`, extension code `RESOURCE_NOT_FOUND`, and `data.<root>: null`
-- address ids that exist but belong to a different customer are not top-level errors: update returns `address: null`, delete returns `deletedAddressId: null`, and default-address selection returns the unchanged customer; all three carry payload `userErrors[{ field: ["addressId"], message: "Address does not exist" }]`
+- address ids that exist but belong to a different customer are not top-level errors. If the submitted customer exists, update returns `address: null`, delete returns `deletedAddressId: null`, and default-address selection returns the unchanged customer; all three carry payload `userErrors[{ field: ["addressId"], message: "Address does not exist" }]`. A 2026-04 capture found that if the submitted customer itself is unknown, the same foreign address id yields the customer-scoped payload `userErrors[{ field: ["customerId"], message: "Customer does not exist" }]` first.
 - `{}` creates a blank address and inherits the owning customer's first/last names; explicit empty address strings normalize to `null`
 - invalid `countryCode` and invalid Canadian `provinceCode` return payload userErrors at `["address", "country"]` and `["address", "province"]`; arbitrary postal text is accepted in the captured Canadian branch
 - duplicate `customerAddressCreate` returns payload `userErrors[{ field: ["address"], message: "Address already exists" }]`
@@ -3371,6 +3416,23 @@ Practical rule:
 - model public `commentDelete` as true local deletion, not a `REMOVED` moderation transition; the `REMOVED` state is still useful for legacy snapshots and dependent-destroy guardrails
 - continue to record success-path setup and cleanup for online-store content mutations when broadening validation or publication semantics
 
+### 69b. Nested online-store content connections are real windows, with narrower args than the top-level roots
+
+A 2025-01 live capture for nested online-store content connections showed
+`Blog.articles` and `Article.comments` behaving like ordinary connections for
+`first`, `after`, `before`, `reverse`, and `last` when `before` is supplied.
+The same capture showed `Article.comments(query: "status:SPAM")` filtering the
+nested comment connection.
+
+Captured schema boundaries were narrower than the top-level content roots:
+
+- `Blog.articles(sortKey:)`, `Blog.articles(query:)`, and `Article.comments(sortKey:)` were rejected by Admin GraphQL 2025-01
+- bare `last` without `before` was rejected on both nested connections with `using last without before is not supported`
+
+Practical rule:
+
+- route nested online-store content reads through the shared connection engine so child windows, cursors, and `pageInfo` are computed from the sliced child graph, but do not claim nested `sortKey` or `Blog.articles(query:)` fidelity unless a later schema capture proves those arguments are accepted.
+
 ## 70. Fulfillment-order lifecycle roots split work into replacement orders
 
 HAR-234 captured fulfillment-order lifecycle evidence on Admin GraphQL 2026-04 at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-lifecycle.json`.
@@ -3393,6 +3455,7 @@ Captured facts:
 - `fulfillmentOrderClose` API-service success is captured after submit/accept: Shopify returns `userErrors: []`, changes the fulfillment order to `status: INCOMPLETE` with `requestStatus: CLOSED`, and preserves supported actions in the selected payload instead of returning `status: CLOSED` with an empty action list. The proxy mirrors that captured state for local close staging.
 - Closing an `OPEN` fulfillment order assigned to an API fulfillment-service location is still rejected by Shopify with `The fulfillment order is not in an in progress state.`; do not treat API-service assignment alone as sufficient for close success.
 - `fulfillmentOrderReschedule` has a local scheduled success model and read-after-write runtime tests, but the checked-in Shopify capture still only proves the non-scheduled reschedule guardrail. Do not present the scheduled reschedule success branch as live-captured parity until a real scheduled fulfillment-order setup and cassette exists.
+- `fulfillmentOrdersSetFulfillmentDeadline` accepts an existing fulfillment order after `fulfillmentOrderCancel` leaves it `CLOSED`; Shopify writes `fulfillBy` and returns `success: true` with empty `userErrors`. For syntactically valid but never-created fulfillment-order IDs, Admin GraphQL 2025-01 and 2026-04 return `success: false` with message `Fulfillment orders could not be found.`, `field: null`, and `code: null`; `gid://shopify/FulfillmentOrder/0` is a different top-level invalid-id branch. The checked-in anchor is `config/parity-specs/shipping-fulfillments/fulfillment-order-set-deadline-closed-not-found.json`.
 
 Practical rule:
 
@@ -3445,7 +3508,7 @@ Practical rule:
 
 Admin GraphQL 2026-04 exposes `recipientAttributes.preferredName` for gift-card recipient display text. Internal-source wording may refer to `recipient_name` or `recipientName`, but the public input and field paths use `preferredName`.
 
-The same 2026-04 capture showed recipient-existence validation returns `RECIPIENT_NOT_FOUND` on `["input", "recipientAttributes", "id"]` with message `Recipient could not be found`, without the leading `The` or trailing period present in some internal references. Blank `preferredName` and `message` values return `INVALID` with the standard ActiveModel blank messages. The checked-in anchor is `config/parity-specs/gift-cards/gift-card-recipient-validation.json`.
+The same 2026-04 capture showed recipient-existence validation returns `RECIPIENT_NOT_FOUND` on `["input", "recipientAttributes", "id"]` with message `Recipient could not be found`, without the leading `The` or trailing period present in some internal references. Blank `preferredName` and `message` values return `INVALID` with the standard ActiveModel blank messages. A structurally invalid Customer GID such as `gid://shopify/Customer/no-contact-recipient` does not enter the recipient userError path at all; Admin GraphQL returns a top-level `RESOURCE_NOT_FOUND` error with message `Invalid id: <gid>` and a null root payload. The checked-in anchor is `config/parity-specs/gift-cards/gift-card-recipient-validation.json`.
 
 Practical rule: model the public field paths and messages from the captured Admin API, and keep local recipient existence checks tied to the customer store rather than accepting arbitrary customer GIDs.
 
@@ -3555,6 +3618,7 @@ Captured facts:
 - blank `input.name` returns a mutation-scoped userError with `field: ["input", "name"]` and `code: "BLANK"`
 - omitting `fulfillsOnlineOrders` creates a location whose mutation payload and immediate `location(id:)` read both show `fulfillsOnlineOrders: true`
 - explicitly passing `fulfillsOnlineOrders: false` is reflected in both the mutation payload and immediate read
+- `LocationAddInput.address.countryCode` / `provinceCode` are expanded in the mutation payload and immediate `location(id:)` read. Current 2026-04 capture covers GB with no province, AU/NSW, AE/DU, and a CA location edited from QC to ON with provinceCode only.
 - invalid `address.countryCode: "QQ"` variables are rejected by enum coercion before the resolver; a separate probe with only `address.countryCode: "ZZ"` created a disposable location on this store instead of returning a country-code userError because `ZZ` is a public enum member
 - current 2026-04 schema does not expose `LocationAddInput.capabilities`, `capabilitiesToAdd`, `capabilitiesToRemove`, or `Location.capabilities`; inline unknown input fields return `argumentNotAccepted`, variable unknown input fields return `INVALID_VARIABLE`, and selecting `Location.capabilities` returns `undefinedField`
 
@@ -3991,9 +4055,13 @@ Admin GraphQL 2026-04 on `harry-test-heelo.myshopify.com` returns
 `Bulk mutations cannot contain more than 1 connection.` for
 `bulkOperationRunMutation` inner documents that select a connection nested under
 another connection, such as `productCreate { product { variants { edges { node
-{ media { ... } } } } } }`. The public response does not reach the
-`connection_nested_too_deep` message for that shape because the connection-count
-validator wins first.
+{ media { ... } } } } } }`. The registered
+`bulk-operation-run-mutation-connection-validators` capture also probes nested
+public paths through `ProductCreatePayload.shop.products.variants`,
+`Product.collections.products`, and `Customer.orders.lineItems`; those shapes
+also return the count error. The public response does not reach the
+`connection_nested_too_deep` message for these shapes because the
+connection-count validator wins first.
 
 The same store and a 2025-01 probe showed the same count-first response. Single
 shallow connection selections, and single connections reached through ordinary
@@ -4006,3 +4074,86 @@ Practical rule:
 - keep nested-connection parity targets pinned to the public count-precedence
   response unless a future capture finds a public document that isolates the
   depth message
+
+## 95. Selling-plan group connection args are not symmetric between roots
+
+Admin GraphQL 2026-04 on `harry-test-heelo.myshopify.com` accepts `query`,
+`sortKey`, `reverse`, and cursor windowing on the top-level
+`sellingPlanGroups(...)` connection, but rejects `query` and `sortKey` on the
+nested `Product.sellingPlanGroups(...)` and
+`ProductVariant.sellingPlanGroups(...)` connections. The nested connections did
+accept `reverse` and cursor arguments in the live capture.
+
+The same capture intentionally created alpha, beta, and gamma groups, waited
+after creating gamma, then updated beta's description before reading
+`sellingPlanGroups(query:, sortKey: UPDATED_AT, reverse: true)`. Shopify still
+returned gamma before beta, so a description-only `sellingPlanGroupUpdate` did
+not make the group sort as newer than a later-created group for this connection.
+
+Practical rule:
+
+- implement top-level selling-plan group query/sort/reverse/windowing through
+  the staged connection helper, but keep nested product/variant connections to
+  schema-valid reverse/window behavior unless a future public schema exposes
+  `query` or `sortKey`
+- do not bump a staged selling-plan group's effective timestamp just because a
+  local update or membership mutation touched it; keep `UPDATED_AT` ordering
+  pinned to the stored effective timestamp until a capture proves which mutation
+  families actually move that ordering
+
+## 96. B2B `companyLocations` search can overstate second-page `hasNextPage`
+
+Admin GraphQL 2025-01 live capture for the B2B connection-arguments scenario on
+`harry-test-heelo.myshopify.com` showed immediate search-index lag for freshly
+created `companies(query: "name:<token>")` and
+`companyLocations(query: "name:<token>")` reads; polling resolved the missing
+nodes. After the two expected disposable `companyLocations` nodes were indexed,
+the second `first: 1, after: <page-one-cursor>, query: "name:<token>",
+sortKey: NAME, reverse: true` page still reported `hasNextPage: true` even
+though the node was the second expected match. A wider same-filter probe with
+`first: 10` returned exactly the two disposable locations with
+`hasNextPage: false`.
+
+Practical rule:
+
+- poll B2B search-based live captures until the expected freshly created nodes
+  are visible before recording read-after-write evidence
+- compare the actual windowed nodes and stable pageInfo fields, but do not make
+  the local staged model reproduce the transient root `companyLocations`
+  second-page `hasNextPage` overstatement
+
+## 97. Delivery profile zone countries are sorted in write/read projections
+
+Admin GraphQL 2026-04 live capture for the delivery-profile lifecycle on
+`harry-test-heelo.myshopify.com` sent `countries: [{ code: "US" }, { code:
+"CA" }]` in a delivery profile zone. Shopify returned the zone `countries` and
+the derived `countriesInAnyZone` list as `CA`, then `US`, not in request order.
+
+Practical rule:
+
+- normalize staged delivery-profile zone countries by code before building
+  `DeliveryCountry` records
+- derive `countriesInAnyZone` from the normalized zone country records so
+  downstream delivery-profile reads match the captured order
+
+## 98. Bulk mutation staged-upload validation can hide throttling
+
+Admin GraphQL 2026-04 returns `NO_SUCH_FILE` for
+`bulkOperationRunMutation(stagedUploadPath:)` when the supplied path is missing,
+even when five same-type mutation bulk operations are already non-terminal. The
+`bulk-operation-run-mutation-no-such-file-precedence` capture exists for that
+exact branch.
+
+That does not contradict the `bulk-operation-run-mutation-operation-in-progress`
+and `bulk-operation-run-mutation-concurrency-limit` captures. Those scenarios
+first create and upload a real `BULK_MUTATION_VARIABLES` staged file, so staged
+upload validation passes and the same-type `OPERATION_IN_PROGRESS` throttle is
+the first failing condition.
+
+Practical rule:
+
+- validate the `stagedUploadPath` object and file metadata before same-type
+  mutation throttling
+- when proving the throttle branch, register the staged upload and write a
+  non-empty JSONL body through the public staged-upload route before calling
+  `bulkOperationRunMutation`

@@ -1,0 +1,12 @@
+#graphql
+query ProductNestedConnectionsVariantMediaRead($variantId: ID!) {
+  productVariant(id: $variantId) {
+    media(first: 1) {
+      edges {
+        cursor
+        node { alt mediaContentType status }
+      }
+      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+    }
+  }
+}

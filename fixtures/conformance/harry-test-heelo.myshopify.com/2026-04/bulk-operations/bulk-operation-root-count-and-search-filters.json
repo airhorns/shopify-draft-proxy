@@ -1,0 +1,1243 @@
+{
+  "scenarioId": "bulk-operation-root-count-and-search-filters",
+  "capturedAt": "2026-07-09T22:20:55.596Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "pollConfig": {
+    "pollIntervalMs": 1500,
+    "maxPolls": 60
+  },
+  "setup": {
+    "productCreate": {
+      "operationName": "BulkOperationRootCountProductCreate",
+      "query": "mutation BulkOperationRootCountProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      tags\n      metafields(first: 5) {\n        nodes {\n          id\n          namespace\n          key\n          value\n        }\n      }\n      variants(first: 5) {\n        nodes {\n          id\n          title\n          sku\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "product": {
+          "title": "Bulk root count bulk-root-mre2ls4g-161dh",
+          "tags": ["conformance", "bulk-root-count", "conformance-bulk-root-mre2ls4g-161dh"],
+          "metafields": [
+            {
+              "namespace": "custom",
+              "key": "bulk_child_mre2ls4g_161dh",
+              "type": "single_line_text_field",
+              "value": "bulk child bulk-root-mre2ls4g-161dh"
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10235003797810",
+              "title": "Bulk root count bulk-root-mre2ls4g-161dh",
+              "tags": ["bulk-root-count", "conformance", "conformance-bulk-root-mre2ls4g-161dh"],
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/44894499569970",
+                    "namespace": "custom",
+                    "key": "bulk_child_mre2ls4g_161dh",
+                    "value": "bulk child bulk-root-mre2ls4g-161dh"
+                  }
+                ]
+              },
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51452221686066",
+                    "title": "Default Title",
+                    "sku": null
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 16,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1984,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "productCreateMedia": {
+      "operationName": "BulkOperationRootCountProductCreateMedia",
+      "query": "mutation BulkOperationRootCountProductCreateMedia($productId: ID!, $media: [CreateMediaInput!]!) {\n  productCreateMedia(productId: $productId, media: $media) {\n    media {\n      id\n      alt\n      mediaContentType\n      status\n    }\n    mediaUserErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "productId": "gid://shopify/Product/10235003797810",
+        "media": [
+          {
+            "mediaContentType": "IMAGE",
+            "originalSource": "https://placehold.co/640x480/png?text=bulk-child-bulk-root-mre2ls4g-161dh",
+            "alt": "Bulk child media bulk-root-mre2ls4g-161dh"
+          }
+        ]
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productCreateMedia": {
+            "media": [
+              {
+                "id": "gid://shopify/MediaImage/44017824629042",
+                "alt": "Bulk child media bulk-root-mre2ls4g-161dh",
+                "mediaContentType": "IMAGE",
+                "status": "UPLOADED"
+              }
+            ],
+            "mediaUserErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "productMediaReadyProbes": [
+      {
+        "operationName": "BulkOperationRootCountProductMediaReady",
+        "query": "query BulkOperationRootCountProductChildrenVisible($id: ID!, $namespace: String!) {\n  product(id: $id) {\n    id\n    media(first: 5) {\n      nodes {\n        id\n        alt\n        mediaContentType\n        status\n      }\n    }\n    metafields(first: 5, namespace: $namespace) {\n      nodes {\n        id\n        namespace\n        key\n        value\n      }\n    }\n  }\n}",
+        "variables": {
+          "id": "gid://shopify/Product/10235003797810",
+          "namespace": "custom"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "product": {
+              "id": "gid://shopify/Product/10235003797810",
+              "media": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/MediaImage/44017824629042",
+                    "alt": "Bulk child media bulk-root-mre2ls4g-161dh",
+                    "mediaContentType": "IMAGE",
+                    "status": "PROCESSING"
+                  }
+                ]
+              },
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/44894499569970",
+                    "namespace": "custom",
+                    "key": "bulk_child_mre2ls4g_161dh",
+                    "value": "bulk child bulk-root-mre2ls4g-161dh"
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 7,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1993,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "operationName": "BulkOperationRootCountProductMediaReady",
+        "query": "query BulkOperationRootCountProductChildrenVisible($id: ID!, $namespace: String!) {\n  product(id: $id) {\n    id\n    media(first: 5) {\n      nodes {\n        id\n        alt\n        mediaContentType\n        status\n      }\n    }\n    metafields(first: 5, namespace: $namespace) {\n      nodes {\n        id\n        namespace\n        key\n        value\n      }\n    }\n  }\n}",
+        "variables": {
+          "id": "gid://shopify/Product/10235003797810",
+          "namespace": "custom"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "product": {
+              "id": "gid://shopify/Product/10235003797810",
+              "media": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/MediaImage/44017824629042",
+                    "alt": "Bulk child media bulk-root-mre2ls4g-161dh",
+                    "mediaContentType": "IMAGE",
+                    "status": "PROCESSING"
+                  }
+                ]
+              },
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/44894499569970",
+                    "namespace": "custom",
+                    "key": "bulk_child_mre2ls4g_161dh",
+                    "value": "bulk child bulk-root-mre2ls4g-161dh"
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 7,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1993,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "operationName": "BulkOperationRootCountProductMediaReady",
+        "query": "query BulkOperationRootCountProductChildrenVisible($id: ID!, $namespace: String!) {\n  product(id: $id) {\n    id\n    media(first: 5) {\n      nodes {\n        id\n        alt\n        mediaContentType\n        status\n      }\n    }\n    metafields(first: 5, namespace: $namespace) {\n      nodes {\n        id\n        namespace\n        key\n        value\n      }\n    }\n  }\n}",
+        "variables": {
+          "id": "gid://shopify/Product/10235003797810",
+          "namespace": "custom"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "product": {
+              "id": "gid://shopify/Product/10235003797810",
+              "media": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/MediaImage/44017824629042",
+                    "alt": "Bulk child media bulk-root-mre2ls4g-161dh",
+                    "mediaContentType": "IMAGE",
+                    "status": "READY"
+                  }
+                ]
+              },
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/44894499569970",
+                    "namespace": "custom",
+                    "key": "bulk_child_mre2ls4g_161dh",
+                    "value": "bulk child bulk-root-mre2ls4g-161dh"
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 7,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1993,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    ],
+    "productMediaReady": {
+      "operationName": "BulkOperationRootCountProductMediaReady",
+      "query": "query BulkOperationRootCountProductChildrenVisible($id: ID!, $namespace: String!) {\n  product(id: $id) {\n    id\n    media(first: 5) {\n      nodes {\n        id\n        alt\n        mediaContentType\n        status\n      }\n    }\n    metafields(first: 5, namespace: $namespace) {\n      nodes {\n        id\n        namespace\n        key\n        value\n      }\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/Product/10235003797810",
+        "namespace": "custom"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "product": {
+            "id": "gid://shopify/Product/10235003797810",
+            "media": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MediaImage/44017824629042",
+                  "alt": "Bulk child media bulk-root-mre2ls4g-161dh",
+                  "mediaContentType": "IMAGE",
+                  "status": "READY"
+                }
+              ]
+            },
+            "metafields": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Metafield/44894499569970",
+                  "namespace": "custom",
+                  "key": "bulk_child_mre2ls4g_161dh",
+                  "value": "bulk child bulk-root-mre2ls4g-161dh"
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 7,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1993,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "productVariantUpdate": {
+      "operationName": "BulkOperationRootCountProductVariantUpdate",
+      "query": "mutation BulkOperationRootCountProductVariantUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n  productVariantsBulkUpdate(productId: $productId, variants: $variants) {\n    productVariants {\n      id\n      sku\n      metafields(first: 5, namespace: \"custom\") {\n        nodes {\n          id\n          namespace\n          key\n          value\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "productId": "gid://shopify/Product/10235003797810",
+        "variants": [
+          {
+            "id": "gid://shopify/ProductVariant/51452221686066",
+            "inventoryItem": {
+              "sku": "bulk-variant-bulk-root-mre2ls4g-161dh"
+            },
+            "metafields": [
+              {
+                "namespace": "custom",
+                "key": "bulk_variant_child_mre2ls4g_161dh",
+                "type": "single_line_text_field",
+                "value": "bulk variant child bulk-root-mre2ls4g-161dh"
+              }
+            ]
+          }
+        ]
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productVariantsBulkUpdate": {
+            "productVariants": [
+              {
+                "id": "gid://shopify/ProductVariant/51452221686066",
+                "sku": "bulk-variant-bulk-root-mre2ls4g-161dh",
+                "metafields": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Metafield/44894504091954",
+                      "namespace": "custom",
+                      "key": "bulk_variant_child_mre2ls4g_161dh",
+                      "value": "bulk variant child bulk-root-mre2ls4g-161dh"
+                    }
+                  ]
+                }
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 16,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1984,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "productVariantAppendMedia": {
+      "operationName": "BulkOperationRootCountProductVariantAppendMedia",
+      "query": "mutation BulkOperationRootCountProductVariantAppendMedia($productId: ID!, $variantMedia: [ProductVariantAppendMediaInput!]!) {\n  productVariantAppendMedia(productId: $productId, variantMedia: $variantMedia) {\n    productVariants {\n      id\n      media(first: 5) {\n        nodes {\n          id\n          alt\n          mediaContentType\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "productId": "gid://shopify/Product/10235003797810",
+        "variantMedia": [
+          {
+            "variantId": "gid://shopify/ProductVariant/51452221686066",
+            "mediaIds": ["gid://shopify/MediaImage/44017824629042"]
+          }
+        ]
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productVariantAppendMedia": {
+            "productVariants": [
+              {
+                "id": "gid://shopify/ProductVariant/51452221686066",
+                "media": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/MediaImage/44017824629042",
+                      "alt": "Bulk child media bulk-root-mre2ls4g-161dh",
+                      "mediaContentType": "IMAGE"
+                    }
+                  ]
+                }
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 15,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "productSearchProbes": [
+      {
+        "operationName": "BulkOperationRootCountProductVisible",
+        "query": "query BulkOperationRootCountProductVisible($query: String!) {\n  products(first: 1, query: $query) {\n    nodes {\n      id\n      title\n      tags\n    }\n  }\n}",
+        "variables": {
+          "query": "tag:conformance-bulk-root-mre2ls4g-161dh"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "products": {
+              "nodes": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "operationName": "BulkOperationRootCountProductVisible",
+        "query": "query BulkOperationRootCountProductVisible($query: String!) {\n  products(first: 1, query: $query) {\n    nodes {\n      id\n      title\n      tags\n    }\n  }\n}",
+        "variables": {
+          "query": "tag:conformance-bulk-root-mre2ls4g-161dh"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "products": {
+              "nodes": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "operationName": "BulkOperationRootCountProductVisible",
+        "query": "query BulkOperationRootCountProductVisible($query: String!) {\n  products(first: 1, query: $query) {\n    nodes {\n      id\n      title\n      tags\n    }\n  }\n}",
+        "variables": {
+          "query": "tag:conformance-bulk-root-mre2ls4g-161dh"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "products": {
+              "nodes": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "operationName": "BulkOperationRootCountProductVisible",
+        "query": "query BulkOperationRootCountProductVisible($query: String!) {\n  products(first: 1, query: $query) {\n    nodes {\n      id\n      title\n      tags\n    }\n  }\n}",
+        "variables": {
+          "query": "tag:conformance-bulk-root-mre2ls4g-161dh"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "products": {
+              "nodes": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "operationName": "BulkOperationRootCountProductVisible",
+        "query": "query BulkOperationRootCountProductVisible($query: String!) {\n  products(first: 1, query: $query) {\n    nodes {\n      id\n      title\n      tags\n    }\n  }\n}",
+        "variables": {
+          "query": "tag:conformance-bulk-root-mre2ls4g-161dh"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "products": {
+              "nodes": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "operationName": "BulkOperationRootCountProductVisible",
+        "query": "query BulkOperationRootCountProductVisible($query: String!) {\n  products(first: 1, query: $query) {\n    nodes {\n      id\n      title\n      tags\n    }\n  }\n}",
+        "variables": {
+          "query": "tag:conformance-bulk-root-mre2ls4g-161dh"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "products": {
+              "nodes": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "operationName": "BulkOperationRootCountProductVisible",
+        "query": "query BulkOperationRootCountProductVisible($query: String!) {\n  products(first: 1, query: $query) {\n    nodes {\n      id\n      title\n      tags\n    }\n  }\n}",
+        "variables": {
+          "query": "tag:conformance-bulk-root-mre2ls4g-161dh"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "products": {
+              "nodes": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "operationName": "BulkOperationRootCountProductVisible",
+        "query": "query BulkOperationRootCountProductVisible($query: String!) {\n  products(first: 1, query: $query) {\n    nodes {\n      id\n      title\n      tags\n    }\n  }\n}",
+        "variables": {
+          "query": "tag:conformance-bulk-root-mre2ls4g-161dh"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/10235003797810",
+                  "title": "Bulk root count bulk-root-mre2ls4g-161dh",
+                  "tags": ["bulk-root-count", "conformance", "conformance-bulk-root-mre2ls4g-161dh"]
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    ],
+    "productChildProbes": [
+      {
+        "operationName": "BulkOperationRootCountProductChildrenVisible",
+        "query": "query BulkOperationRootCountProductChildrenVisible($id: ID!, $namespace: String!) {\n  product(id: $id) {\n    id\n    media(first: 5) {\n      nodes {\n        id\n        alt\n        mediaContentType\n        status\n      }\n    }\n    metafields(first: 5, namespace: $namespace) {\n      nodes {\n        id\n        namespace\n        key\n        value\n      }\n    }\n  }\n}",
+        "variables": {
+          "id": "gid://shopify/Product/10235003797810",
+          "namespace": "custom"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "product": {
+              "id": "gid://shopify/Product/10235003797810",
+              "media": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/MediaImage/44017824629042",
+                    "alt": "Bulk child media bulk-root-mre2ls4g-161dh",
+                    "mediaContentType": "IMAGE",
+                    "status": "READY"
+                  }
+                ]
+              },
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/44894499569970",
+                    "namespace": "custom",
+                    "key": "bulk_child_mre2ls4g_161dh",
+                    "value": "bulk child bulk-root-mre2ls4g-161dh"
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 7,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1993,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    ],
+    "productVariantChildProbes": [
+      {
+        "operationName": "BulkOperationRootCountProductVariantChildrenVisible",
+        "query": "query BulkOperationRootCountProductVariantChildrenVisible($id: ID!, $namespace: String!) {\n  productVariant(id: $id) {\n    id\n    sku\n    media(first: 5) {\n      nodes {\n        id\n        alt\n        mediaContentType\n      }\n    }\n    metafields(first: 5, namespace: $namespace) {\n      nodes {\n        id\n        namespace\n        key\n        value\n      }\n    }\n  }\n}",
+        "variables": {
+          "id": "gid://shopify/ProductVariant/51452221686066",
+          "namespace": "custom"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "productVariant": {
+              "id": "gid://shopify/ProductVariant/51452221686066",
+              "sku": "bulk-variant-bulk-root-mre2ls4g-161dh",
+              "media": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/MediaImage/44017824629042",
+                    "alt": "Bulk child media bulk-root-mre2ls4g-161dh",
+                    "mediaContentType": "IMAGE"
+                  }
+                ]
+              },
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/44894504091954",
+                    "namespace": "custom",
+                    "key": "bulk_variant_child_mre2ls4g_161dh",
+                    "value": "bulk variant child bulk-root-mre2ls4g-161dh"
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 7,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1993,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "run": {
+    "variables": {
+      "query": "#graphql\n{\n  products(query: \"tag:conformance-bulk-root-mre2ls4g-161dh\") {\n    edges {\n      node {\n        id\n        title\n        variants {\n          edges {\n            node {\n              id\n              title\n              sku\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n              alt\n              mediaContentType\n            }\n          }\n        }\n        metafields(namespace: \"custom\") {\n          edges {\n            node {\n              id\n              namespace\n              key\n              value\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+    },
+    "response": {
+      "data": {
+        "bulkOperationRunQuery": {
+          "bulkOperation": {
+            "id": "gid://shopify/BulkOperation/8027183546674",
+            "status": "CREATED",
+            "type": "QUERY",
+            "errorCode": null,
+            "createdAt": "2026-07-09T22:20:51Z",
+            "completedAt": null,
+            "objectCount": "0",
+            "rootObjectCount": "0",
+            "fileSize": null,
+            "url": null,
+            "partialDataUrl": null,
+            "query": "#graphql\n{\n  products(query: \"tag:conformance-bulk-root-mre2ls4g-161dh\") {\n    edges {\n      node {\n        id\n        title\n        variants {\n          edges {\n            node {\n              id\n              title\n              sku\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n              alt\n              mediaContentType\n            }\n          }\n        }\n        metafields(namespace: \"custom\") {\n          edges {\n            node {\n              id\n              namespace\n              key\n              value\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "interaction": {
+      "operationName": "BulkOperationRootCountRunQuery",
+      "query": "mutation BulkOperationRootCountRunQuery($query: String!) {\n  bulkOperationRunQuery(query: $query) {\n    bulkOperation {\n      \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "query": "#graphql\n{\n  products(query: \"tag:conformance-bulk-root-mre2ls4g-161dh\") {\n    edges {\n      node {\n        id\n        title\n        variants {\n          edges {\n            node {\n              id\n              title\n              sku\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n              alt\n              mediaContentType\n            }\n          }\n        }\n        metafields(namespace: \"custom\") {\n          edges {\n            node {\n              id\n              namespace\n              key\n              value\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationRunQuery": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/8027183546674",
+              "status": "CREATED",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-07-09T22:20:51Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  products(query: \"tag:conformance-bulk-root-mre2ls4g-161dh\") {\n    edges {\n      node {\n        id\n        title\n        variants {\n          edges {\n            node {\n              id\n              title\n              sku\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n              alt\n              mediaContentType\n            }\n          }\n        }\n        metafields(namespace: \"custom\") {\n          edges {\n            node {\n              id\n              namespace\n              key\n              value\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "statusPolls": [
+      {
+        "operationName": "BulkOperationRootCountStatusPoll1",
+        "query": "query BulkOperationByIdCapture($id: ID!) {\n  bulkOperation(id: $id) {\n    \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n  }\n}",
+        "variables": {
+          "id": "gid://shopify/BulkOperation/8027183546674"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/8027183546674",
+              "status": "CREATED",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-07-09T22:20:51Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  products(query: \"tag:conformance-bulk-root-mre2ls4g-161dh\") {\n    edges {\n      node {\n        id\n        title\n        variants {\n          edges {\n            node {\n              id\n              title\n              sku\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n              alt\n              mediaContentType\n            }\n          }\n        }\n        metafields(namespace: \"custom\") {\n          edges {\n            node {\n              id\n              namespace\n              key\n              value\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "operationName": "BulkOperationRootCountStatusPoll2",
+        "query": "query BulkOperationByIdCapture($id: ID!) {\n  bulkOperation(id: $id) {\n    \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n  }\n}",
+        "variables": {
+          "id": "gid://shopify/BulkOperation/8027183546674"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/8027183546674",
+              "status": "COMPLETED",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-07-09T22:20:51Z",
+              "completedAt": "2026-07-09T22:20:52Z",
+              "objectCount": "4",
+              "rootObjectCount": "1",
+              "fileSize": "679",
+              "url": "https://storage.googleapis.com/shopify-tiers-assets-prod-us-east1/bulk-operation-outputs/e0558bb00b64a1b0bd6d1f2d000a?GoogleAccessId=assets-us-prod%40shopify-tiers.iam.gserviceaccount.com&Expires=1784240452&Signature=Uahts69BcyyTUtkqMak31OJujGpmJrRTETLzIyQco7QDhak75VXy7MZGk2pGjRtGHebji9NRxhNh%2F%2B7c7q2%2BE7SHQL8IzZsxHqkffzn2y%2BdTOKZkkeKqLRzSsinwy8yGFQaWo3fmhxpXPKer9h4uktwW2AU0XIvv3xs3P1v6XFXA%2FdSoMFUGsv7V0a5Gtv6m6h2HPPoAYt9iQ304q0U1AhRempM0ovJiPczvlzDQ8rzTP0qACdC8zbfFuSegAyLiu3CR29jh0DbUDQJjGWHSiu03EDwfYjBtXySldybqSFhFntvxfasR3T4as22Vbccj1E01vz4qZsjf44QWRruc6g%3D%3D&response-content-disposition=attachment%3B+filename%3D%22staging-bulk-8027183546674.jsonl%22%3B+filename%2A%3DUTF-8%27%27staging-bulk-8027183546674.jsonl&response-content-type=application%2Fjsonl",
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  products(query: \"tag:conformance-bulk-root-mre2ls4g-161dh\") {\n    edges {\n      node {\n        id\n        title\n        variants {\n          edges {\n            node {\n              id\n              title\n              sku\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n              alt\n              mediaContentType\n            }\n          }\n        }\n        metafields(namespace: \"custom\") {\n          edges {\n            node {\n              id\n              namespace\n              key\n              value\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    ],
+    "terminalOperation": {
+      "id": "gid://shopify/BulkOperation/8027183546674",
+      "status": "COMPLETED",
+      "type": "QUERY",
+      "errorCode": null,
+      "createdAt": "2026-07-09T22:20:51Z",
+      "completedAt": "2026-07-09T22:20:52Z",
+      "objectCount": "4",
+      "rootObjectCount": "1",
+      "fileSize": "679",
+      "url": "https://storage.googleapis.com/shopify-tiers-assets-prod-us-east1/bulk-operation-outputs/e0558bb00b64a1b0bd6d1f2d000a?GoogleAccessId=assets-us-prod%40shopify-tiers.iam.gserviceaccount.com&Expires=1784240452&Signature=Uahts69BcyyTUtkqMak31OJujGpmJrRTETLzIyQco7QDhak75VXy7MZGk2pGjRtGHebji9NRxhNh%2F%2B7c7q2%2BE7SHQL8IzZsxHqkffzn2y%2BdTOKZkkeKqLRzSsinwy8yGFQaWo3fmhxpXPKer9h4uktwW2AU0XIvv3xs3P1v6XFXA%2FdSoMFUGsv7V0a5Gtv6m6h2HPPoAYt9iQ304q0U1AhRempM0ovJiPczvlzDQ8rzTP0qACdC8zbfFuSegAyLiu3CR29jh0DbUDQJjGWHSiu03EDwfYjBtXySldybqSFhFntvxfasR3T4as22Vbccj1E01vz4qZsjf44QWRruc6g%3D%3D&response-content-disposition=attachment%3B+filename%3D%22staging-bulk-8027183546674.jsonl%22%3B+filename%2A%3DUTF-8%27%27staging-bulk-8027183546674.jsonl&response-content-type=application%2Fjsonl",
+      "partialDataUrl": null,
+      "query": "#graphql\n{\n  products(query: \"tag:conformance-bulk-root-mre2ls4g-161dh\") {\n    edges {\n      node {\n        id\n        title\n        variants {\n          edges {\n            node {\n              id\n              title\n              sku\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n              alt\n              mediaContentType\n            }\n          }\n        }\n        metafields(namespace: \"custom\") {\n          edges {\n            node {\n              id\n              namespace\n              key\n              value\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+    },
+    "result": {
+      "status": 200,
+      "contentType": "application/jsonl",
+      "byteLength": 679,
+      "body": "{\"id\":\"gid:\\/\\/shopify\\/Product\\/10235003797810\",\"title\":\"Bulk root count bulk-root-mre2ls4g-161dh\"}\n{\"id\":\"gid:\\/\\/shopify\\/ProductVariant\\/51452221686066\",\"title\":\"Default Title\",\"sku\":\"bulk-variant-bulk-root-mre2ls4g-161dh\",\"__parentId\":\"gid:\\/\\/shopify\\/Product\\/10235003797810\"}\n{\"id\":\"gid:\\/\\/shopify\\/MediaImage\\/44017824629042\",\"alt\":\"Bulk child media bulk-root-mre2ls4g-161dh\",\"mediaContentType\":\"IMAGE\",\"__parentId\":\"gid:\\/\\/shopify\\/Product\\/10235003797810\"}\n{\"id\":\"gid:\\/\\/shopify\\/Metafield\\/44894499569970\",\"namespace\":\"custom\",\"key\":\"bulk_child_mre2ls4g_161dh\",\"value\":\"bulk child bulk-root-mre2ls4g-161dh\",\"__parentId\":\"gid:\\/\\/shopify\\/Product\\/10235003797810\"}\n",
+      "records": [
+        {
+          "id": "gid://shopify/Product/10235003797810",
+          "title": "Bulk root count bulk-root-mre2ls4g-161dh"
+        },
+        {
+          "id": "gid://shopify/ProductVariant/51452221686066",
+          "title": "Default Title",
+          "sku": "bulk-variant-bulk-root-mre2ls4g-161dh",
+          "__parentId": "gid://shopify/Product/10235003797810"
+        },
+        {
+          "id": "gid://shopify/MediaImage/44017824629042",
+          "alt": "Bulk child media bulk-root-mre2ls4g-161dh",
+          "mediaContentType": "IMAGE",
+          "__parentId": "gid://shopify/Product/10235003797810"
+        },
+        {
+          "id": "gid://shopify/Metafield/44894499569970",
+          "namespace": "custom",
+          "key": "bulk_child_mre2ls4g_161dh",
+          "value": "bulk child bulk-root-mre2ls4g-161dh",
+          "__parentId": "gid://shopify/Product/10235003797810"
+        }
+      ]
+    }
+  },
+  "variantRun": {
+    "variables": {
+      "query": "#graphql\n{\n  productVariants(query: \"sku:bulk-variant-bulk-root-mre2ls4g-161dh\") {\n    edges {\n      node {\n        id\n        sku\n        media {\n          edges {\n            node {\n              id\n              alt\n              mediaContentType\n            }\n          }\n        }\n        metafields(namespace: \"custom\") {\n          edges {\n            node {\n              id\n              namespace\n              key\n              value\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+    },
+    "response": {
+      "data": {
+        "bulkOperationRunQuery": {
+          "bulkOperation": {
+            "id": "gid://shopify/BulkOperation/8027183612210",
+            "status": "CREATED",
+            "type": "QUERY",
+            "errorCode": null,
+            "createdAt": "2026-07-09T22:20:53Z",
+            "completedAt": null,
+            "objectCount": "0",
+            "rootObjectCount": "0",
+            "fileSize": null,
+            "url": null,
+            "partialDataUrl": null,
+            "query": "#graphql\n{\n  productVariants(query: \"sku:bulk-variant-bulk-root-mre2ls4g-161dh\") {\n    edges {\n      node {\n        id\n        sku\n        media {\n          edges {\n            node {\n              id\n              alt\n              mediaContentType\n            }\n          }\n        }\n        metafields(namespace: \"custom\") {\n          edges {\n            node {\n              id\n              namespace\n              key\n              value\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "interaction": {
+      "operationName": "BulkOperationRootCountVariantRunQuery",
+      "query": "mutation BulkOperationRootCountRunQuery($query: String!) {\n  bulkOperationRunQuery(query: $query) {\n    bulkOperation {\n      \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "query": "#graphql\n{\n  productVariants(query: \"sku:bulk-variant-bulk-root-mre2ls4g-161dh\") {\n    edges {\n      node {\n        id\n        sku\n        media {\n          edges {\n            node {\n              id\n              alt\n              mediaContentType\n            }\n          }\n        }\n        metafields(namespace: \"custom\") {\n          edges {\n            node {\n              id\n              namespace\n              key\n              value\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationRunQuery": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/8027183612210",
+              "status": "CREATED",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-07-09T22:20:53Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  productVariants(query: \"sku:bulk-variant-bulk-root-mre2ls4g-161dh\") {\n    edges {\n      node {\n        id\n        sku\n        media {\n          edges {\n            node {\n              id\n              alt\n              mediaContentType\n            }\n          }\n        }\n        metafields(namespace: \"custom\") {\n          edges {\n            node {\n              id\n              namespace\n              key\n              value\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "statusPolls": [
+      {
+        "operationName": "BulkOperationRootCountStatusPoll1",
+        "query": "query BulkOperationByIdCapture($id: ID!) {\n  bulkOperation(id: $id) {\n    \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n  }\n}",
+        "variables": {
+          "id": "gid://shopify/BulkOperation/8027183612210"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/8027183612210",
+              "status": "CREATED",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-07-09T22:20:53Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  productVariants(query: \"sku:bulk-variant-bulk-root-mre2ls4g-161dh\") {\n    edges {\n      node {\n        id\n        sku\n        media {\n          edges {\n            node {\n              id\n              alt\n              mediaContentType\n            }\n          }\n        }\n        metafields(namespace: \"custom\") {\n          edges {\n            node {\n              id\n              namespace\n              key\n              value\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "operationName": "BulkOperationRootCountStatusPoll2",
+        "query": "query BulkOperationByIdCapture($id: ID!) {\n  bulkOperation(id: $id) {\n    \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n  }\n}",
+        "variables": {
+          "id": "gid://shopify/BulkOperation/8027183612210"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/8027183612210",
+              "status": "COMPLETED",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-07-09T22:20:53Z",
+              "completedAt": "2026-07-09T22:20:54Z",
+              "objectCount": "3",
+              "rootObjectCount": "1",
+              "fileSize": "528",
+              "url": "https://storage.googleapis.com/shopify-tiers-assets-prod-us-east1/bulk-operation-outputs/fa4e964b220ad282d987be98f5e5?GoogleAccessId=assets-us-prod%40shopify-tiers.iam.gserviceaccount.com&Expires=1784240454&Signature=KvLEPwHzpAQQSn3mKHJ%2FSQMIHEvkhmP1m8wHWtkU986%2BnfVx%2FX2gEWCTho1moBWZIjtRFniqvhztuWDvpuJ50iRkC64MZCSspXwb3cmF5%2FC2lWcw0epdOQ6ez%2B5MFCxOzN5F1%2FdACHXQLZQbSvdMgLiw536W44fFN%2FS7Lnur4uBgamZZioWpPQp3f45DOWNzzrQ4nHyzlSgN1RzEht4%2B1RvXbLxAhqfne4PUn9Y72P6blS255QrDYAKvzr1NAxKXHR5o5H1dnP5ZELoHerpkstYcthvhH5yN8bWzbPtNmUwgC7CHOoGZQljzt5fMQ%2BALsaKIv6oYvnEpfrteJqV5Pw%3D%3D&response-content-disposition=attachment%3B+filename%3D%22staging-bulk-8027183612210.jsonl%22%3B+filename%2A%3DUTF-8%27%27staging-bulk-8027183612210.jsonl&response-content-type=application%2Fjsonl",
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  productVariants(query: \"sku:bulk-variant-bulk-root-mre2ls4g-161dh\") {\n    edges {\n      node {\n        id\n        sku\n        media {\n          edges {\n            node {\n              id\n              alt\n              mediaContentType\n            }\n          }\n        }\n        metafields(namespace: \"custom\") {\n          edges {\n            node {\n              id\n              namespace\n              key\n              value\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    ],
+    "terminalOperation": {
+      "id": "gid://shopify/BulkOperation/8027183612210",
+      "status": "COMPLETED",
+      "type": "QUERY",
+      "errorCode": null,
+      "createdAt": "2026-07-09T22:20:53Z",
+      "completedAt": "2026-07-09T22:20:54Z",
+      "objectCount": "3",
+      "rootObjectCount": "1",
+      "fileSize": "528",
+      "url": "https://storage.googleapis.com/shopify-tiers-assets-prod-us-east1/bulk-operation-outputs/fa4e964b220ad282d987be98f5e5?GoogleAccessId=assets-us-prod%40shopify-tiers.iam.gserviceaccount.com&Expires=1784240454&Signature=KvLEPwHzpAQQSn3mKHJ%2FSQMIHEvkhmP1m8wHWtkU986%2BnfVx%2FX2gEWCTho1moBWZIjtRFniqvhztuWDvpuJ50iRkC64MZCSspXwb3cmF5%2FC2lWcw0epdOQ6ez%2B5MFCxOzN5F1%2FdACHXQLZQbSvdMgLiw536W44fFN%2FS7Lnur4uBgamZZioWpPQp3f45DOWNzzrQ4nHyzlSgN1RzEht4%2B1RvXbLxAhqfne4PUn9Y72P6blS255QrDYAKvzr1NAxKXHR5o5H1dnP5ZELoHerpkstYcthvhH5yN8bWzbPtNmUwgC7CHOoGZQljzt5fMQ%2BALsaKIv6oYvnEpfrteJqV5Pw%3D%3D&response-content-disposition=attachment%3B+filename%3D%22staging-bulk-8027183612210.jsonl%22%3B+filename%2A%3DUTF-8%27%27staging-bulk-8027183612210.jsonl&response-content-type=application%2Fjsonl",
+      "partialDataUrl": null,
+      "query": "#graphql\n{\n  productVariants(query: \"sku:bulk-variant-bulk-root-mre2ls4g-161dh\") {\n    edges {\n      node {\n        id\n        sku\n        media {\n          edges {\n            node {\n              id\n              alt\n              mediaContentType\n            }\n          }\n        }\n        metafields(namespace: \"custom\") {\n          edges {\n            node {\n              id\n              namespace\n              key\n              value\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+    },
+    "result": {
+      "status": 200,
+      "contentType": "application/jsonl",
+      "byteLength": 528,
+      "body": "{\"id\":\"gid:\\/\\/shopify\\/ProductVariant\\/51452221686066\",\"sku\":\"bulk-variant-bulk-root-mre2ls4g-161dh\"}\n{\"id\":\"gid:\\/\\/shopify\\/MediaImage\\/44017824629042\",\"alt\":\"Bulk child media bulk-root-mre2ls4g-161dh\",\"mediaContentType\":\"IMAGE\",\"__parentId\":\"gid:\\/\\/shopify\\/ProductVariant\\/51452221686066\"}\n{\"id\":\"gid:\\/\\/shopify\\/Metafield\\/44894504091954\",\"namespace\":\"custom\",\"key\":\"bulk_variant_child_mre2ls4g_161dh\",\"value\":\"bulk variant child bulk-root-mre2ls4g-161dh\",\"__parentId\":\"gid:\\/\\/shopify\\/ProductVariant\\/51452221686066\"}\n",
+      "records": [
+        {
+          "id": "gid://shopify/ProductVariant/51452221686066",
+          "sku": "bulk-variant-bulk-root-mre2ls4g-161dh"
+        },
+        {
+          "id": "gid://shopify/MediaImage/44017824629042",
+          "alt": "Bulk child media bulk-root-mre2ls4g-161dh",
+          "mediaContentType": "IMAGE",
+          "__parentId": "gid://shopify/ProductVariant/51452221686066"
+        },
+        {
+          "id": "gid://shopify/Metafield/44894504091954",
+          "namespace": "custom",
+          "key": "bulk_variant_child_mre2ls4g_161dh",
+          "value": "bulk variant child bulk-root-mre2ls4g-161dh",
+          "__parentId": "gid://shopify/ProductVariant/51452221686066"
+        }
+      ]
+    }
+  },
+  "filters": {
+    "completedAfter": {
+      "operationName": "BulkOperationsCompletedAfterFilter",
+      "query": "query BulkOperationsCompletedAfterFilter {\n  bulkOperations(first: 1, query: \"status:completed AND created_at:>=2000-01-01\") {\n    nodes {\n      id\n      status\n      type\n      createdAt\n    }\n  }\n}",
+      "variables": {},
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperations": {
+            "nodes": [
+              {
+                "id": "gid://shopify/BulkOperation/8027183612210",
+                "status": "COMPLETED",
+                "type": "QUERY",
+                "createdAt": "2026-07-09T22:20:53Z"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 3,
+            "actualQueryCost": 3,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1997,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "createdBefore": {
+      "operationName": "BulkOperationsCreatedBeforeFilter",
+      "query": "query BulkOperationsCreatedBeforeFilter {\n  bulkOperations(first: 5, query: \"created_at:<2000-01-01\") {\n    nodes {\n      id\n    }\n  }\n}",
+      "variables": {},
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperations": {
+            "nodes": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 5,
+            "actualQueryCost": 5,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1995,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "unknown": {
+      "operationName": "BulkOperationsUnknownFilterWarning",
+      "query": "query BulkOperationsUnknownFilterWarning {\n  bulkOperations(first: 1, query: \"made_up:value\") {\n    nodes {\n      id\n    }\n  }\n}",
+      "variables": {},
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperations": {
+            "nodes": [
+              {
+                "id": "gid://shopify/BulkOperation/8027183612210"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 3,
+            "actualQueryCost": 3,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1997,
+              "restoreRate": 100
+            }
+          },
+          "search": [
+            {
+              "path": ["bulkOperations"],
+              "query": "made_up:value",
+              "parsed": {
+                "field": "made_up",
+                "match_all": "value"
+              },
+              "warnings": [
+                {
+                  "field": "made_up",
+                  "message": "Invalid search field for this query.",
+                  "code": "invalid_field"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "operationName": "BulkOperationRootCountProductDelete",
+    "query": "mutation BulkOperationRootCountProductDelete($input: ProductDeleteInput!) {\n  productDelete(input: $input) {\n    deletedProductId\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/Product/10235003797810"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "productDelete": {
+          "deletedProductId": "gid://shopify/Product/10235003797810",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

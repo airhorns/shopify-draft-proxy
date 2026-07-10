@@ -329,18 +329,6 @@ impl DraftProxy {
 
     fn customer_payment_method_customer_read(&self, field: &RootFieldSelection) -> Value {
         let customer_id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        // `showRevoked` is an argument on the nested `paymentMethods` connection,
-        // not on the `customer` root field, so read it from that selection.
-        let show_revoked = field
-            .selection
-            .iter()
-            .find(|selection| selection.name == "paymentMethods")
-            .is_some_and(|selection| {
-                matches!(
-                    selection.arguments.get("showRevoked"),
-                    Some(ResolvedValue::Bool(true))
-                )
-            });
         let mut ids = self
             .store
             .staged
@@ -362,18 +350,31 @@ impl DraftProxy {
                 (None, None) => std::cmp::Ordering::Equal,
             }
         });
-        let methods = ids
-            .into_iter()
-            .filter_map(|id| self.store.staged.customer_payment_methods.get(&id).cloned())
-            .filter(|record| show_revoked || record["revokedAt"].is_null())
-            .collect::<Vec<_>>();
-        selected_json(
-            &json!({
-                "id": customer_id,
-                "paymentMethods": { "nodes": methods, "pageInfo": empty_page_info() }
-            }),
-            &field.selection,
-        )
+        selected_payload_json(&field.selection, |selection| {
+            match selection.name.as_str() {
+                "id" => Some(json!(customer_id)),
+                "paymentMethods" => {
+                    let show_revoked = matches!(
+                        selection.arguments.get("showRevoked"),
+                        Some(ResolvedValue::Bool(true))
+                    );
+                    let methods = ids
+                        .iter()
+                        .filter_map(|id| {
+                            self.store.staged.customer_payment_methods.get(id).cloned()
+                        })
+                        .filter(|record| show_revoked || record["revokedAt"].is_null())
+                        .collect::<Vec<_>>();
+                    Some(selected_connection_json_with_args(
+                        methods,
+                        &selection.arguments,
+                        &selection.selection,
+                        value_id_cursor,
+                    ))
+                }
+                _ => None,
+            }
+        })
     }
 
     fn customer_payment_method_read(&self, field: &RootFieldSelection) -> Value {
@@ -536,25 +537,23 @@ impl DraftProxy {
         if has_paypal {
             let paypal =
                 resolved_object_field(&remote_reference, "paypalPaymentMethod").unwrap_or_default();
-            if resolved_string_field(&paypal, "billingAgreementId")
-                .unwrap_or_default()
-                .trim()
-                .is_empty()
-            {
+            if let Some(error) = customer_payment_method_remote_blank_error(
+                &paypal,
+                "billingAgreementId",
+                [
+                    "remote_reference",
+                    "paypal_payment_method",
+                    "billing_agreement_id",
+                ],
+                "billing_agreement_id",
+                "BILLING_AGREEMENT_ID_BLANK",
+            ) {
                 return (
                     self.customer_payment_method_payload(
                         &field.selection,
                         Value::Null,
                         None,
-                        vec![user_error(
-                            [
-                                "remote_reference",
-                                "paypal_payment_method",
-                                "billing_agreement_id",
-                            ],
-                            "billing_agreement_id can't be blank",
-                            Some("BILLING_AGREEMENT_ID_BLANK"),
-                        )],
+                        vec![error],
                     ),
                     None,
                 );
@@ -563,21 +562,19 @@ impl DraftProxy {
         if has_stripe {
             let stripe =
                 resolved_object_field(&remote_reference, "stripePaymentMethod").unwrap_or_default();
-            if resolved_string_field(&stripe, "customerId")
-                .unwrap_or_default()
-                .trim()
-                .is_empty()
-            {
+            if let Some(error) = customer_payment_method_remote_blank_error(
+                &stripe,
+                "customerId",
+                ["remote_reference", "stripe_payment_method", "customer_id"],
+                "customer_id",
+                "STRIPE_CUSTOMER_ID_BLANK",
+            ) {
                 return (
                     self.customer_payment_method_payload(
                         &field.selection,
                         Value::Null,
                         None,
-                        vec![user_error(
-                            ["remote_reference", "stripe_payment_method", "customer_id"],
-                            "customer_id can't be blank",
-                            Some("STRIPE_CUSTOMER_ID_BLANK"),
-                        )],
+                        vec![error],
                     ),
                     None,
                 );

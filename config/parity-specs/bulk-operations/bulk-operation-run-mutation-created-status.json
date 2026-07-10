@@ -1,31 +1,176 @@
 {
   "scenarioId": "bulk-operation-run-mutation-created-status",
-  "operationNames": ["bulkOperationRunMutation"],
+  "operationNames": ["stagedUploadsCreate", "bulkOperationRunMutation", "currentBulkOperation", "products"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "user-errors-parity", "runtime-test-backed-lifecycle"],
+  "assertionKinds": ["payload-shape", "user-errors-parity", "runtime-staging", "read-after-write-parity"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-created-status.json"
   ],
-  "runtimeTestFiles": ["tests/graphql_routes/admin_app_shipping.rs", "js/test/http-adapter.test.ts"],
+  "proxyConfig": {
+    "readMode": "snapshot"
+  },
+  "runtimeTestFiles": [
+    "src/proxy/media_products_saved_searches/bulk_operations.rs",
+    "tests/graphql_routes/admin_app_shipping.rs",
+    "tests/integration/rust-http-adapter-parity.test.ts"
+  ],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-mutation-created-status.graphql",
-    "variablesCapturePath": "$.missingUpload.run.variables"
+    "documentCapturePath": "$.setup.stagedUpload.query",
+    "variablesCapturePath": "$.setup.stagedUpload.variables",
+    "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-750 captures Shopify's immediate CREATED response for a valid bulkOperationRunMutation upload and the missing-staged-upload branch returning bulkOperation: null with NO_SUCH_FILE. The generic parity runner cannot replay the multipart staged-upload byte handoff without a multi-request upload step, so this spec strictly compares the executable missing-upload branch and points to runtime tests for the valid-upload CREATED response plus deterministic terminal read/result artifact behavior.",
+  "notes": "Captures Shopify's staged upload, valid bulkOperationRunMutation CREATED response, completed mutation operation counters, generated result artifact, downstream product read-after-import, and missing-staged-upload branch. Replay earns the upload through stagedUploadsCreate plus the public staged-upload HTTP route before invoking bulkOperationRunMutation and reading the imported product back through products(query:).",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
     "targets": [
       {
+        "name": "created-status-staged-upload-user-errors",
+        "capturePath": "$.setup.stagedUpload.response.data.stagedUploadsCreate.userErrors",
+        "proxyPath": "$.data.stagedUploadsCreate.userErrors"
+      },
+      {
+        "name": "created-status-upload-content",
+        "capturePath": "$.scenarioId",
+        "preserveProxyState": true,
+        "proxyUpload": {
+          "method": "POST",
+          "path": {
+            "fromPrimaryProxyPath": "$.data.stagedUploadsCreate.stagedTargets[0].resourceUrl"
+          },
+          "body": {
+            "fromCapturePath": "$.setup.uploadContent"
+          }
+        }
+      },
+      {
+        "name": "created-status-run-created-response",
+        "capturePath": "$.success.run.response.data.bulkOperationRunMutation",
+        "proxyPath": "$.data.bulkOperationRunMutation",
+        "preserveProxyState": true,
+        "selectedPaths": [
+          "$.bulkOperation.status",
+          "$.bulkOperation.type",
+          "$.bulkOperation.errorCode",
+          "$.bulkOperation.completedAt",
+          "$.bulkOperation.objectCount",
+          "$.bulkOperation.rootObjectCount",
+          "$.bulkOperation.fileSize",
+          "$.bulkOperation.url",
+          "$.bulkOperation.partialDataUrl",
+          "$.bulkOperation.query",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-mutation-created-status.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "mutation": {
+              "fromCapturePath": "$.success.run.variables.mutation"
+            },
+            "path": {
+              "fromPrimaryProxyPath": "$.data.stagedUploadsCreate.stagedTargets[0].parameters[3].value"
+            }
+          }
+        }
+      },
+      {
+        "name": "created-status-terminal-operation-counts",
+        "capturePath": "$.success.terminalOperation",
+        "proxyPath": "$.data.currentBulkOperation",
+        "preserveProxyState": true,
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:BulkOperation",
+            "reason": "The proxy mints a local BulkOperation ID while Shopify returns the live job ID."
+          },
+          {
+            "path": "$.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic local clock for staged operation timestamps."
+          },
+          {
+            "path": "$.completedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy completes local jobs synchronously with a local timestamp."
+          },
+          {
+            "path": "$.fileSize",
+            "matcher": "regex:^[1-9][0-9]*$",
+            "reason": "Result JSONL byte size differs because local synthetic GIDs have different lengths from live Shopify IDs."
+          },
+          {
+            "path": "$.url",
+            "matcher": "non-empty-string",
+            "reason": "The proxy serves result artifacts from its local meta endpoint instead of Shopify object storage."
+          }
+        ],
+        "proxyRequest": {
+          "documentCapturePath": "$.success.currentAfterRun.query",
+          "variablesCapturePath": "$.success.currentAfterRun.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "created-status-result-artifact-row",
+        "capturePath": "$.success.resultRows[0]",
+        "proxyPath": "$.body",
+        "preserveProxyState": true,
+        "expectedDifferences": [
+          {
+            "path": "$.data.productCreate.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy result row carries a synthetic local product ID while Shopify's result row carries the live product ID."
+          }
+        ],
+        "proxyHttpRequest": {
+          "method": "GET",
+          "path": {
+            "fromProxyResponse": "created-status-terminal-operation-counts",
+            "path": "$.data.currentBulkOperation.url"
+          }
+        }
+      },
+      {
+        "name": "created-status-downstream-product-read-after-import",
+        "capturePath": "$.success.downstreamRead.response.data.products",
+        "proxyPath": "$.data.products",
+        "preserveProxyState": true,
+        "expectedDifferences": [
+          {
+            "path": "$.nodes[0].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy mints a synthetic local product ID while Shopify returns the live product ID."
+          }
+        ],
+        "proxyRequest": {
+          "documentCapturePath": "$.success.downstreamRead.query",
+          "variablesCapturePath": "$.success.downstreamRead.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
         "name": "run-mutation-missing-upload-bulk-operation-null",
         "capturePath": "$.missingUpload.run.response.data.bulkOperationRunMutation.bulkOperation",
-        "proxyPath": "$.data.bulkOperationRunMutation.bulkOperation"
+        "proxyPath": "$.data.bulkOperationRunMutation.bulkOperation",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-mutation-created-status.graphql",
+          "variablesCapturePath": "$.missingUpload.run.variables",
+          "apiVersion": "2026-04"
+        }
       },
       {
         "name": "run-mutation-missing-upload-user-errors",
         "capturePath": "$.missingUpload.run.response.data.bulkOperationRunMutation.userErrors",
-        "proxyPath": "$.data.bulkOperationRunMutation.userErrors"
+        "proxyPath": "$.data.bulkOperationRunMutation.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-mutation-created-status.graphql",
+          "variablesCapturePath": "$.missingUpload.run.variables",
+          "apiVersion": "2026-04"
+        }
       }
     ]
   }

@@ -1,46 +1,46 @@
 {
   "metadata": {
     "issue": "HAR-559",
-    "capturedAt": "2026-05-05T02:10:31.602Z",
-    "startedAt": "2026-05-05T02:10:28.073Z",
+    "capturedAt": "2026-07-10T12:53:48.640Z",
+    "startedAt": "2026-07-10T12:53:44.963Z",
     "storeDomain": "harry-test-heelo.myshopify.com",
     "apiVersion": "2026-04",
     "scopedRoots": ["fulfillmentOrderSplit"],
     "createdOrders": [
       {
-        "id": "gid://shopify/Order/8728584192306",
-        "name": "#1079",
-        "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9652906066226",
+        "id": "gid://shopify/Order/8937456009522",
+        "name": "#1781",
+        "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9876549042482",
         "fulfillmentOrderLineItemIds": [
-          "gid://shopify/FulfillmentOrderLineItem/19450952253746",
-          "gid://shopify/FulfillmentOrderLineItem/19450952286514"
+          "gid://shopify/FulfillmentOrderLineItem/20092424159538",
+          "gid://shopify/FulfillmentOrderLineItem/20092424192306"
         ]
       },
       {
-        "id": "gid://shopify/Order/8728584225074",
-        "name": "#1080",
-        "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9652906164530",
-        "fulfillmentOrderLineItemIds": ["gid://shopify/FulfillmentOrderLineItem/19450952384818"]
+        "id": "gid://shopify/Order/8937456238898",
+        "name": "#1782",
+        "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9876549304626",
+        "fulfillmentOrderLineItemIds": ["gid://shopify/FulfillmentOrderLineItem/20092425732402"]
       }
     ],
     "cleanupMergeInputs": [
       {
         "mergeIntents": [
           {
-            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9652906066226"
+            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9876549042482"
           },
           {
-            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9652906197298"
+            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9876549370162"
           }
         ]
       },
       {
         "mergeIntents": [
           {
-            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9652906164530"
+            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9876549304626"
           },
           {
-            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9652906230066"
+            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9876549402930"
           }
         ]
       }
@@ -51,8 +51,8 @@
       "query": "#graphql\n  fragment FulfillmentOrderSplitMultiFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation CreateFulfillmentOrderSplitMultiOrder($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n        fulfillmentOrders(first: 5) {\n          nodes {\n            ...FulfillmentOrderSplitMultiFields\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
       "variables": {
         "order": {
-          "email": "har-559-order-a-20260505021028@example.com",
-          "note": "HAR-559 fulfillment-order split multi order-a 20260505021028",
+          "email": "har-559-order-a-20260710125344@example.com",
+          "note": "HAR-559 fulfillment-order split multi order-a 20260710125344",
           "tags": ["har-559", "fulfillment-order-split-multi", "order-a"],
           "test": true,
           "currency": "USD",
@@ -68,7 +68,7 @@
           "lineItems": [
             {
               "variantId": "gid://shopify/ProductVariant/48540157378793",
-              "title": "HAR-559 split A item 1 20260505021028",
+              "title": "HAR-559 split A item 1 20260710125344",
               "quantity": 2,
               "priceSet": {
                 "shopMoney": {
@@ -81,7 +81,7 @@
             },
             {
               "variantId": "gid://shopify/ProductVariant/51098706739506",
-              "title": "HAR-559 split A item 2 20260505021028",
+              "title": "HAR-559 split A item 2 20260710125344",
               "quantity": 3,
               "priceSet": {
                 "shopMoney": {
@@ -106,15 +106,15 @@
           "data": {
             "orderCreate": {
               "order": {
-                "id": "gid://shopify/Order/8728584192306",
-                "name": "#1079",
+                "id": "gid://shopify/Order/8937456009522",
+                "name": "#1781",
                 "fulfillmentOrders": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/FulfillmentOrder/9652906066226",
+                      "id": "gid://shopify/FulfillmentOrder/9876549042482",
                       "status": "OPEN",
                       "requestStatus": "UNSUBMITTED",
-                      "updatedAt": "2026-05-05T02:10:28Z",
+                      "updatedAt": "2026-07-10T12:53:45Z",
                       "supportedActions": [
                         {
                           "action": "CREATE_FULFILLMENT"
@@ -142,23 +142,23 @@
                       "lineItems": {
                         "nodes": [
                           {
-                            "id": "gid://shopify/FulfillmentOrderLineItem/19450952253746",
+                            "id": "gid://shopify/FulfillmentOrderLineItem/20092424159538",
                             "totalQuantity": 2,
                             "remainingQuantity": 2,
                             "lineItem": {
-                              "id": "gid://shopify/LineItem/19301806342450",
-                              "title": "HAR-559 split A item 1 20260505021028",
+                              "id": "gid://shopify/LineItem/19921804001586",
+                              "title": "HAR-559 split A item 1 20260710125344",
                               "quantity": 2,
                               "fulfillableQuantity": 2
                             }
                           },
                           {
-                            "id": "gid://shopify/FulfillmentOrderLineItem/19450952286514",
+                            "id": "gid://shopify/FulfillmentOrderLineItem/20092424192306",
                             "totalQuantity": 3,
                             "remainingQuantity": 3,
                             "lineItem": {
-                              "id": "gid://shopify/LineItem/19301806375218",
-                              "title": "HAR-559 split A item 2 20260505021028",
+                              "id": "gid://shopify/LineItem/19921804034354",
+                              "title": "HAR-559 split A item 2 20260710125344",
                               "quantity": 3,
                               "fulfillableQuantity": 3
                             }
@@ -190,8 +190,8 @@
       "query": "#graphql\n  fragment FulfillmentOrderSplitMultiFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation CreateFulfillmentOrderSplitMultiOrder($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n        fulfillmentOrders(first: 5) {\n          nodes {\n            ...FulfillmentOrderSplitMultiFields\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
       "variables": {
         "order": {
-          "email": "har-559-order-b-20260505021029@example.com",
-          "note": "HAR-559 fulfillment-order split multi order-b 20260505021029",
+          "email": "har-559-order-b-20260710125346@example.com",
+          "note": "HAR-559 fulfillment-order split multi order-b 20260710125346",
           "tags": ["har-559", "fulfillment-order-split-multi", "order-b"],
           "test": true,
           "currency": "USD",
@@ -207,7 +207,7 @@
           "lineItems": [
             {
               "variantId": "gid://shopify/ProductVariant/48540157378793",
-              "title": "HAR-559 split B item 20260505021029",
+              "title": "HAR-559 split B item 20260710125346",
               "quantity": 3,
               "priceSet": {
                 "shopMoney": {
@@ -232,15 +232,15 @@
           "data": {
             "orderCreate": {
               "order": {
-                "id": "gid://shopify/Order/8728584225074",
-                "name": "#1080",
+                "id": "gid://shopify/Order/8937456238898",
+                "name": "#1782",
                 "fulfillmentOrders": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/FulfillmentOrder/9652906164530",
+                      "id": "gid://shopify/FulfillmentOrder/9876549304626",
                       "status": "OPEN",
                       "requestStatus": "UNSUBMITTED",
-                      "updatedAt": "2026-05-05T02:10:29Z",
+                      "updatedAt": "2026-07-10T12:53:46Z",
                       "supportedActions": [
                         {
                           "action": "CREATE_FULFILLMENT"
@@ -259,21 +259,21 @@
                         }
                       ],
                       "assignedLocation": {
-                        "name": "My Custom Location",
+                        "name": "HAR-654 Main 20260505044352",
                         "location": {
-                          "id": "gid://shopify/Location/106318463282",
-                          "name": "My Custom Location"
+                          "id": "gid://shopify/Location/112833036594",
+                          "name": "HAR-654 Main 20260505044352"
                         }
                       },
                       "lineItems": {
                         "nodes": [
                           {
-                            "id": "gid://shopify/FulfillmentOrderLineItem/19450952384818",
+                            "id": "gid://shopify/FulfillmentOrderLineItem/20092425732402",
                             "totalQuantity": 3,
                             "remainingQuantity": 3,
                             "lineItem": {
-                              "id": "gid://shopify/LineItem/19301806473522",
-                              "title": "HAR-559 split B item 20260505021029",
+                              "id": "gid://shopify/LineItem/19921805574450",
+                              "title": "HAR-559 split B item 20260710125346",
                               "quantity": 3,
                               "fulfillableQuantity": 3
                             }
@@ -306,7 +306,7 @@
       "variables": {
         "fulfillmentOrderSplits": [
           {
-            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9652906066226",
+            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9876549042482",
             "fulfillmentOrderLineItems": []
           }
         ]
@@ -345,10 +345,10 @@
       "variables": {
         "fulfillmentOrderSplits": [
           {
-            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9652906066226",
+            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9876549042482",
             "fulfillmentOrderLineItems": [
               {
-                "id": "gid://shopify/FulfillmentOrderLineItem/19450952253746",
+                "id": "gid://shopify/FulfillmentOrderLineItem/20092424159538",
                 "quantity": 0
               }
             ]
@@ -376,7 +376,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
+                "currentlyAvailable": 1988,
                 "restoreRate": 100
               }
             }
@@ -392,7 +392,7 @@
             "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/999999999999999",
             "fulfillmentOrderLineItems": [
               {
-                "id": "gid://shopify/FulfillmentOrderLineItem/19450952253746",
+                "id": "gid://shopify/FulfillmentOrderLineItem/20092424159538",
                 "quantity": 1
               }
             ]
@@ -420,7 +420,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
+                "currentlyAvailable": 1987,
                 "restoreRate": 100
               }
             }
@@ -433,23 +433,23 @@
       "variables": {
         "fulfillmentOrderSplits": [
           {
-            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9652906066226",
+            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9876549042482",
             "fulfillmentOrderLineItems": [
               {
-                "id": "gid://shopify/FulfillmentOrderLineItem/19450952253746",
+                "id": "gid://shopify/FulfillmentOrderLineItem/20092424159538",
                 "quantity": 1
               },
               {
-                "id": "gid://shopify/FulfillmentOrderLineItem/19450952286514",
+                "id": "gid://shopify/FulfillmentOrderLineItem/20092424192306",
                 "quantity": 1
               }
             ]
           },
           {
-            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9652906164530",
+            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9876549304626",
             "fulfillmentOrderLineItems": [
               {
-                "id": "gid://shopify/FulfillmentOrderLineItem/19450952384818",
+                "id": "gid://shopify/FulfillmentOrderLineItem/20092425732402",
                 "quantity": 2
               }
             ]
@@ -464,10 +464,10 @@
               "fulfillmentOrderSplits": [
                 {
                   "fulfillmentOrder": {
-                    "id": "gid://shopify/FulfillmentOrder/9652906066226",
+                    "id": "gid://shopify/FulfillmentOrder/9876549042482",
                     "status": "OPEN",
                     "requestStatus": "UNSUBMITTED",
-                    "updatedAt": "2026-05-05T02:10:30Z",
+                    "updatedAt": "2026-07-10T12:53:47Z",
                     "supportedActions": [
                       {
                         "action": "CREATE_FULFILLMENT"
@@ -498,23 +498,23 @@
                     "lineItems": {
                       "nodes": [
                         {
-                          "id": "gid://shopify/FulfillmentOrderLineItem/19450952253746",
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20092424159538",
                           "totalQuantity": 1,
                           "remainingQuantity": 1,
                           "lineItem": {
-                            "id": "gid://shopify/LineItem/19301806342450",
-                            "title": "HAR-559 split A item 1 20260505021028",
+                            "id": "gid://shopify/LineItem/19921804001586",
+                            "title": "HAR-559 split A item 1 20260710125344",
                             "quantity": 2,
                             "fulfillableQuantity": 2
                           }
                         },
                         {
-                          "id": "gid://shopify/FulfillmentOrderLineItem/19450952286514",
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20092424192306",
                           "totalQuantity": 2,
                           "remainingQuantity": 2,
                           "lineItem": {
-                            "id": "gid://shopify/LineItem/19301806375218",
-                            "title": "HAR-559 split A item 2 20260505021028",
+                            "id": "gid://shopify/LineItem/19921804034354",
+                            "title": "HAR-559 split A item 2 20260710125344",
                             "quantity": 3,
                             "fulfillableQuantity": 3
                           }
@@ -523,10 +523,10 @@
                     }
                   },
                   "remainingFulfillmentOrder": {
-                    "id": "gid://shopify/FulfillmentOrder/9652906197298",
+                    "id": "gid://shopify/FulfillmentOrder/9876549370162",
                     "status": "OPEN",
                     "requestStatus": "UNSUBMITTED",
-                    "updatedAt": "2026-05-05T02:10:30Z",
+                    "updatedAt": "2026-07-10T12:53:47Z",
                     "supportedActions": [
                       {
                         "action": "CREATE_FULFILLMENT"
@@ -557,23 +557,23 @@
                     "lineItems": {
                       "nodes": [
                         {
-                          "id": "gid://shopify/FulfillmentOrderLineItem/19450952417586",
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20092425797938",
                           "totalQuantity": 1,
                           "remainingQuantity": 1,
                           "lineItem": {
-                            "id": "gid://shopify/LineItem/19301806342450",
-                            "title": "HAR-559 split A item 1 20260505021028",
+                            "id": "gid://shopify/LineItem/19921804001586",
+                            "title": "HAR-559 split A item 1 20260710125344",
                             "quantity": 2,
                             "fulfillableQuantity": 2
                           }
                         },
                         {
-                          "id": "gid://shopify/FulfillmentOrderLineItem/19450952450354",
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20092425830706",
                           "totalQuantity": 1,
                           "remainingQuantity": 1,
                           "lineItem": {
-                            "id": "gid://shopify/LineItem/19301806375218",
-                            "title": "HAR-559 split A item 2 20260505021028",
+                            "id": "gid://shopify/LineItem/19921804034354",
+                            "title": "HAR-559 split A item 2 20260710125344",
                             "quantity": 3,
                             "fulfillableQuantity": 3
                           }
@@ -585,10 +585,10 @@
                 },
                 {
                   "fulfillmentOrder": {
-                    "id": "gid://shopify/FulfillmentOrder/9652906164530",
+                    "id": "gid://shopify/FulfillmentOrder/9876549304626",
                     "status": "OPEN",
                     "requestStatus": "UNSUBMITTED",
-                    "updatedAt": "2026-05-05T02:10:30Z",
+                    "updatedAt": "2026-07-10T12:53:47Z",
                     "supportedActions": [
                       {
                         "action": "CREATE_FULFILLMENT"
@@ -607,21 +607,21 @@
                       }
                     ],
                     "assignedLocation": {
-                      "name": "My Custom Location",
+                      "name": "HAR-654 Main 20260505044352",
                       "location": {
-                        "id": "gid://shopify/Location/106318463282",
-                        "name": "My Custom Location"
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
                       }
                     },
                     "lineItems": {
                       "nodes": [
                         {
-                          "id": "gid://shopify/FulfillmentOrderLineItem/19450952384818",
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20092425732402",
                           "totalQuantity": 1,
                           "remainingQuantity": 1,
                           "lineItem": {
-                            "id": "gid://shopify/LineItem/19301806473522",
-                            "title": "HAR-559 split B item 20260505021029",
+                            "id": "gid://shopify/LineItem/19921805574450",
+                            "title": "HAR-559 split B item 20260710125346",
                             "quantity": 3,
                             "fulfillableQuantity": 3
                           }
@@ -630,10 +630,10 @@
                     }
                   },
                   "remainingFulfillmentOrder": {
-                    "id": "gid://shopify/FulfillmentOrder/9652906230066",
+                    "id": "gid://shopify/FulfillmentOrder/9876549402930",
                     "status": "OPEN",
                     "requestStatus": "UNSUBMITTED",
-                    "updatedAt": "2026-05-05T02:10:30Z",
+                    "updatedAt": "2026-07-10T12:53:47Z",
                     "supportedActions": [
                       {
                         "action": "CREATE_FULFILLMENT"
@@ -655,21 +655,21 @@
                       }
                     ],
                     "assignedLocation": {
-                      "name": "My Custom Location",
+                      "name": "HAR-654 Main 20260505044352",
                       "location": {
-                        "id": "gid://shopify/Location/106318463282",
-                        "name": "My Custom Location"
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
                       }
                     },
                     "lineItems": {
                       "nodes": [
                         {
-                          "id": "gid://shopify/FulfillmentOrderLineItem/19450952483122",
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20092425863474",
                           "totalQuantity": 2,
                           "remainingQuantity": 2,
                           "lineItem": {
-                            "id": "gid://shopify/LineItem/19301806473522",
-                            "title": "HAR-559 split B item 20260505021029",
+                            "id": "gid://shopify/LineItem/19921805574450",
+                            "title": "HAR-559 split B item 20260710125346",
                             "quantity": 3,
                             "fulfillableQuantity": 3
                           }
@@ -689,7 +689,7 @@
               "actualQueryCost": 33,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1967,
+                "currentlyAvailable": 1964,
                 "restoreRate": 100
               }
             }
@@ -706,20 +706,20 @@
           {
             "mergeIntents": [
               {
-                "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9652906066226"
+                "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9876549042482"
               },
               {
-                "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9652906197298"
+                "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9876549370162"
               }
             ]
           },
           {
             "mergeIntents": [
               {
-                "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9652906164530"
+                "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9876549304626"
               },
               {
-                "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9652906230066"
+                "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9876549402930"
               }
             ]
           }
@@ -733,10 +733,10 @@
               "fulfillmentOrderMerges": [
                 {
                   "fulfillmentOrder": {
-                    "id": "gid://shopify/FulfillmentOrder/9652906066226",
+                    "id": "gid://shopify/FulfillmentOrder/9876549042482",
                     "status": "OPEN",
                     "requestStatus": "UNSUBMITTED",
-                    "updatedAt": "2026-05-05T02:10:30Z",
+                    "updatedAt": "2026-07-10T12:53:47Z",
                     "supportedActions": [
                       {
                         "action": "CREATE_FULFILLMENT"
@@ -764,23 +764,23 @@
                     "lineItems": {
                       "nodes": [
                         {
-                          "id": "gid://shopify/FulfillmentOrderLineItem/19450952253746",
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20092424159538",
                           "totalQuantity": 2,
                           "remainingQuantity": 2,
                           "lineItem": {
-                            "id": "gid://shopify/LineItem/19301806342450",
-                            "title": "HAR-559 split A item 1 20260505021028",
+                            "id": "gid://shopify/LineItem/19921804001586",
+                            "title": "HAR-559 split A item 1 20260710125344",
                             "quantity": 2,
                             "fulfillableQuantity": 2
                           }
                         },
                         {
-                          "id": "gid://shopify/FulfillmentOrderLineItem/19450952286514",
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20092424192306",
                           "totalQuantity": 3,
                           "remainingQuantity": 3,
                           "lineItem": {
-                            "id": "gid://shopify/LineItem/19301806375218",
-                            "title": "HAR-559 split A item 2 20260505021028",
+                            "id": "gid://shopify/LineItem/19921804034354",
+                            "title": "HAR-559 split A item 2 20260710125344",
                             "quantity": 3,
                             "fulfillableQuantity": 3
                           }
@@ -791,10 +791,10 @@
                 },
                 {
                   "fulfillmentOrder": {
-                    "id": "gid://shopify/FulfillmentOrder/9652906164530",
+                    "id": "gid://shopify/FulfillmentOrder/9876549304626",
                     "status": "OPEN",
                     "requestStatus": "UNSUBMITTED",
-                    "updatedAt": "2026-05-05T02:10:30Z",
+                    "updatedAt": "2026-07-10T12:53:47Z",
                     "supportedActions": [
                       {
                         "action": "CREATE_FULFILLMENT"
@@ -813,21 +813,21 @@
                       }
                     ],
                     "assignedLocation": {
-                      "name": "My Custom Location",
+                      "name": "HAR-654 Main 20260505044352",
                       "location": {
-                        "id": "gid://shopify/Location/106318463282",
-                        "name": "My Custom Location"
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
                       }
                     },
                     "lineItems": {
                       "nodes": [
                         {
-                          "id": "gid://shopify/FulfillmentOrderLineItem/19450952384818",
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20092425732402",
                           "totalQuantity": 3,
                           "remainingQuantity": 3,
                           "lineItem": {
-                            "id": "gid://shopify/LineItem/19301806473522",
-                            "title": "HAR-559 split B item 20260505021029",
+                            "id": "gid://shopify/LineItem/19921805574450",
+                            "title": "HAR-559 split B item 20260710125346",
                             "quantity": 3,
                             "fulfillableQuantity": 3
                           }
@@ -858,7 +858,7 @@
       {
         "query": "mutation CleanupFulfillmentOrderSplitMultiOrder(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
         "variables": {
-          "orderId": "gid://shopify/Order/8728584192306",
+          "orderId": "gid://shopify/Order/8937456009522",
           "reason": "OTHER",
           "notifyCustomer": false,
           "restock": false
@@ -869,7 +869,7 @@
             "data": {
               "orderCancel": {
                 "job": {
-                  "id": "gid://shopify/Job/1947eeb5-97bc-4746-95f1-1dc74f4f7dc1"
+                  "id": "gid://shopify/Job/5f422435-dd06-4fb1-a097-0273f7890fdd"
                 },
                 "userErrors": []
               }
@@ -891,7 +891,7 @@
       {
         "query": "mutation CleanupFulfillmentOrderSplitMultiOrder(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
         "variables": {
-          "orderId": "gid://shopify/Order/8728584225074",
+          "orderId": "gid://shopify/Order/8937456238898",
           "reason": "OTHER",
           "notifyCustomer": false,
           "restock": false
@@ -902,7 +902,7 @@
             "data": {
               "orderCancel": {
                 "job": {
-                  "id": "gid://shopify/Job/1947eeb5-97bc-4746-95f1-1dc74f4f7dc1"
+                  "id": "gid://shopify/Job/c528f524-7aec-4473-9a61-3d6b4ff131db"
                 },
                 "userErrors": []
               }
@@ -927,18 +927,18 @@
     {
       "operationName": "ShippingFulfillmentOrderHydrate",
       "variables": {
-        "id": "gid://shopify/FulfillmentOrder/9652906066226"
+        "id": "gid://shopify/FulfillmentOrder/9876549042482"
       },
-      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id status requestStatus fulfillAt fulfillBy updatedAt\n      supportedActions { action }\n      assignedLocation { name location { id name } }\n      fulfillmentHolds { id handle reason reasonNotes displayReason heldByApp { id title } heldByRequestingApp }\n      merchantRequests(first: 10) { nodes { kind message requestOptions } }\n      lineItems(first: 20) { nodes { id totalQuantity remainingQuantity lineItem { id title quantity fulfillableQuantity } } }\n      order { id name displayFulfillmentStatus }\n    }\n  }",
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "fulfillmentOrder": {
-              "id": "gid://shopify/FulfillmentOrder/9652906066226",
+              "id": "gid://shopify/FulfillmentOrder/9876549042482",
               "status": "OPEN",
               "requestStatus": "UNSUBMITTED",
-              "updatedAt": "2026-05-05T02:10:28Z",
+              "updatedAt": "2026-07-10T12:53:45Z",
               "supportedActions": [
                 {
                   "action": "CREATE_FULFILLMENT"
@@ -966,23 +966,23 @@
               "lineItems": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/FulfillmentOrderLineItem/19450952253746",
+                    "id": "gid://shopify/FulfillmentOrderLineItem/20092424159538",
                     "totalQuantity": 2,
                     "remainingQuantity": 2,
                     "lineItem": {
-                      "id": "gid://shopify/LineItem/19301806342450",
-                      "title": "HAR-559 split A item 1 20260505021028",
+                      "id": "gid://shopify/LineItem/19921804001586",
+                      "title": "HAR-559 split A item 1 20260710125344",
                       "quantity": 2,
                       "fulfillableQuantity": 2
                     }
                   },
                   {
-                    "id": "gid://shopify/FulfillmentOrderLineItem/19450952286514",
+                    "id": "gid://shopify/FulfillmentOrderLineItem/20092424192306",
                     "totalQuantity": 3,
                     "remainingQuantity": 3,
                     "lineItem": {
-                      "id": "gid://shopify/LineItem/19301806375218",
-                      "title": "HAR-559 split A item 2 20260505021028",
+                      "id": "gid://shopify/LineItem/19921804034354",
+                      "title": "HAR-559 split A item 2 20260710125344",
                       "quantity": 3,
                       "fulfillableQuantity": 3
                     }
@@ -997,18 +997,18 @@
     {
       "operationName": "ShippingFulfillmentOrderHydrate",
       "variables": {
-        "id": "gid://shopify/FulfillmentOrder/9652906164530"
+        "id": "gid://shopify/FulfillmentOrder/9876549304626"
       },
-      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id status requestStatus fulfillAt fulfillBy updatedAt\n      supportedActions { action }\n      assignedLocation { name location { id name } }\n      fulfillmentHolds { id handle reason reasonNotes displayReason heldByApp { id title } heldByRequestingApp }\n      merchantRequests(first: 10) { nodes { kind message requestOptions } }\n      lineItems(first: 20) { nodes { id totalQuantity remainingQuantity lineItem { id title quantity fulfillableQuantity } } }\n      order { id name displayFulfillmentStatus }\n    }\n  }",
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "fulfillmentOrder": {
-              "id": "gid://shopify/FulfillmentOrder/9652906164530",
+              "id": "gid://shopify/FulfillmentOrder/9876549304626",
               "status": "OPEN",
               "requestStatus": "UNSUBMITTED",
-              "updatedAt": "2026-05-05T02:10:29Z",
+              "updatedAt": "2026-07-10T12:53:46Z",
               "supportedActions": [
                 {
                   "action": "CREATE_FULFILLMENT"
@@ -1027,21 +1027,21 @@
                 }
               ],
               "assignedLocation": {
-                "name": "My Custom Location",
+                "name": "HAR-654 Main 20260505044352",
                 "location": {
-                  "id": "gid://shopify/Location/106318463282",
-                  "name": "My Custom Location"
+                  "id": "gid://shopify/Location/112833036594",
+                  "name": "HAR-654 Main 20260505044352"
                 }
               },
               "lineItems": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/FulfillmentOrderLineItem/19450952384818",
+                    "id": "gid://shopify/FulfillmentOrderLineItem/20092425732402",
                     "totalQuantity": 3,
                     "remainingQuantity": 3,
                     "lineItem": {
-                      "id": "gid://shopify/LineItem/19301806473522",
-                      "title": "HAR-559 split B item 20260505021029",
+                      "id": "gid://shopify/LineItem/19921805574450",
+                      "title": "HAR-559 split B item 20260710125346",
                       "quantity": 3,
                       "fulfillableQuantity": 3
                     }

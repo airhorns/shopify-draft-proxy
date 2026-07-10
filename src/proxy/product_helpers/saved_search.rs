@@ -1,4 +1,5 @@
 use super::*;
+use crate::proxy::search::split_search_query_terms;
 
 pub(in crate::proxy) fn saved_search_connection_json(
     records: &[SavedSearchRecord],
@@ -86,6 +87,28 @@ pub(in crate::proxy) fn saved_search_state_from_json(value: &Value) -> Option<Sa
         name: value.get("name")?.as_str()?.to_string(),
         query: value.get("query")?.as_str()?.to_string(),
         resource_type: value.get("resourceType")?.as_str()?.to_string(),
+    })
+}
+
+pub(in crate::proxy) fn saved_search_record_from_node(
+    node: &Value,
+    fallback_resource_type: &str,
+    api_client_id: &str,
+) -> Option<SavedSearchRecord> {
+    let query = node
+        .get("query")
+        .and_then(Value::as_str)
+        .map(|query| normalize_saved_search_query_for_api_client(query, api_client_id))
+        .unwrap_or_default();
+    Some(SavedSearchRecord {
+        id: node.get("id")?.as_str()?.to_string(),
+        name: node.get("name")?.as_str()?.to_string(),
+        query,
+        resource_type: node
+            .get("resourceType")
+            .and_then(Value::as_str)
+            .unwrap_or(fallback_resource_type)
+            .to_string(),
     })
 }
 
@@ -419,6 +442,9 @@ fn saved_search_reserved_filter(resource_type: &str, key: &str) -> bool {
 
 pub(in crate::proxy) fn saved_search_known_filter(resource_type: &str, key: &str) -> bool {
     let base_key = saved_search_base_filter_key(key);
+    if base_key == "default" {
+        return true;
+    }
     match resource_type {
         "PRODUCT" => {
             matches!(
@@ -487,10 +513,14 @@ pub(in crate::proxy) fn saved_search_known_filter(resource_type: &str, key: &str
             "created_at"
                 | "filename"
                 | "id"
+                | "ids"
                 | "media_type"
                 | "original_source"
+                | "original_upload_size"
+                | "product_id"
                 | "status"
                 | "updated_at"
+                | "used_in"
         ),
         "DISCOUNT_REDEEM_CODE" => matches!(
             base_key,
@@ -509,17 +539,15 @@ fn saved_search_base_filter_key(key: &str) -> &str {
 const DEFAULT_SAVED_SEARCH_API_CLIENT_ID: &str = "shopify-draft-proxy-local-app";
 
 pub(in crate::proxy) fn saved_search_request_api_client_id(request: &Request) -> String {
-    request_header(request, "x-shopify-draft-proxy-api-client-id")
+    request_header(request, API_CLIENT_ID_HEADER)
         .map(|value| saved_search_namespace_api_client_id(&value))
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| DEFAULT_SAVED_SEARCH_API_CLIENT_ID.to_string())
 }
 
 fn saved_search_namespace_api_client_id(value: &str) -> String {
-    let tail = value
-        .trim()
-        .strip_prefix("gid://shopify/App/")
-        .unwrap_or_else(|| value.trim());
+    let trimmed = value.trim();
+    let tail = shopify_gid_tail_for_type(trimmed, "App").unwrap_or(trimmed);
     tail.chars()
         .filter(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_'))
         .collect()
@@ -595,7 +623,7 @@ pub(in crate::proxy) fn saved_search_search_terms(query: &str) -> String {
 }
 
 pub(in crate::proxy) fn is_reserved_saved_search_name(resource_type: &str, name: &str) -> bool {
-    let normalized = name.trim().to_lowercase();
+    let normalized = name.to_lowercase();
     let reserved = match resource_type {
         "PRODUCT" => &["all products"][..],
         "ORDER" => &["all"][..],
@@ -776,6 +804,9 @@ pub(in crate::proxy) fn saved_search_filters_for_api_client(
 }
 
 pub(in crate::proxy) fn saved_search_filter_from_token(term: &str) -> Option<(String, String)> {
+    if term == "*" {
+        return Some(("default".to_string(), "true".to_string()));
+    }
     let (raw_key, raw_value) = term.split_once(':')?;
     if raw_key.is_empty() || raw_value.is_empty() {
         return None;
@@ -810,46 +841,85 @@ pub(in crate::proxy) fn saved_search_filter_from_token(term: &str) -> Option<(St
 }
 
 pub(in crate::proxy) fn saved_search_query_tokens(query: &str) -> Vec<String> {
-    let mut tokens = Vec::new();
-    let mut current = String::new();
-    let mut in_quotes = false;
-    for ch in query.chars() {
-        if ch == '"' {
-            in_quotes = !in_quotes;
-            current.push(ch);
-        } else if ch.is_whitespace() && !in_quotes {
-            if !current.is_empty() {
-                tokens.push(std::mem::take(&mut current));
-            }
-        } else {
-            current.push(ch);
-        }
-    }
-    if !current.is_empty() {
-        tokens.push(current);
-    }
-    tokens
+    split_search_query_terms(query, '"')
 }
 
 impl DraftProxy {
-    pub(in crate::proxy) fn saved_search_overlay_read_fields(
-        &self,
+    pub(in crate::proxy) fn saved_search_overlay_read_response(
+        &mut self,
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Response {
+        let fields = root_fields(query, variables).unwrap_or_default();
+        if self.config.read_mode == ReadMode::LiveHybrid
+            && fields.iter().any(|field| is_saved_search_root(&field.name))
+        {
+            let mut response = (self.upstream_transport)(request.clone());
+            if (200..300).contains(&response.status) {
+                self.hydrate_saved_searches_from_response_data(
+                    request,
+                    &fields,
+                    &response.body["data"],
+                );
+                response.body["data"] = self.saved_search_overlay_read_fields(request, &fields);
+            }
+            return response;
+        }
+
+        ok_json(json!({
+            "data": self.saved_search_overlay_read_fields(request, &fields)
+        }))
+    }
+
+    pub(in crate::proxy) fn saved_search_overlay_read_fields(
+        &self,
+        request: &Request,
+        fields: &[RootFieldSelection],
     ) -> Value {
         let api_client_id = saved_search_request_api_client_id(request);
-        let mut fields = serde_json::Map::new();
-        for field in root_fields(query, variables).unwrap_or_default() {
+        let mut data = serde_json::Map::new();
+        for field in fields {
             if !is_saved_search_root(&field.name) {
                 continue;
             }
-            fields.insert(
+            data.insert(
                 field.response_key.clone(),
-                self.saved_search_connection_field(&field, &api_client_id),
+                self.saved_search_connection_field(field, &api_client_id),
             );
         }
-        Value::Object(fields)
+        Value::Object(data)
+    }
+
+    fn hydrate_saved_searches_from_response_data(
+        &mut self,
+        request: &Request,
+        fields: &[RootFieldSelection],
+        data: &Value,
+    ) {
+        let api_client_id = saved_search_request_api_client_id(request);
+        for field in fields {
+            if !is_saved_search_root(&field.name) {
+                continue;
+            }
+            let resource_type = saved_search_resource_type(&field.name);
+            let Some(connection) = data.get(&field.response_key) else {
+                continue;
+            };
+            for node in connection_nodes(connection) {
+                let Some(record) =
+                    saved_search_record_from_node(&node, resource_type, &api_client_id)
+                else {
+                    continue;
+                };
+                if !self.store.staged.saved_searches.is_tombstoned(&record.id) {
+                    self.store
+                        .base
+                        .saved_searches
+                        .insert(record.id.clone(), record);
+                }
+            }
+        }
     }
 
     pub(in crate::proxy) fn saved_search_connection_field(
@@ -914,10 +984,51 @@ impl DraftProxy {
         name: &str,
         except_id: Option<&str>,
     ) -> bool {
-        let candidate = name.trim();
         self.saved_search_records_for_resource(resource_type)
             .iter()
-            .any(|record| Some(record.id.as_str()) != except_id && record.name.trim() == candidate)
+            .any(|record| Some(record.id.as_str()) != except_id && record.name == name)
+    }
+
+    fn saved_search_field_user_errors(
+        &self,
+        operation: SavedSearchQueryValidationOperation,
+        resource_type: &str,
+        name: &str,
+        except_id: Option<&str>,
+    ) -> Vec<Value> {
+        let mut errors = Vec::new();
+        let name_is_blank = name.trim().is_empty();
+        match operation {
+            SavedSearchQueryValidationOperation::Create => {
+                if !name_is_blank && is_reserved_saved_search_name(resource_type, name) {
+                    errors.push(saved_search_name_taken_user_error());
+                }
+                if name_is_blank {
+                    errors.push(saved_search_name_blank_user_error());
+                }
+                if !name_is_blank && self.saved_search_name_exists(resource_type, name, except_id) {
+                    errors.push(saved_search_name_taken_user_error());
+                }
+                if resource_type == "CUSTOMER" {
+                    errors.push(saved_search_customer_deprecated_user_error());
+                }
+            }
+            SavedSearchQueryValidationOperation::Update => {
+                if name_is_blank {
+                    errors.push(saved_search_name_blank_user_error());
+                }
+                if !name_is_blank
+                    && (is_reserved_saved_search_name(resource_type, name)
+                        || self.saved_search_name_exists(resource_type, name, except_id))
+                {
+                    errors.push(saved_search_name_taken_user_error());
+                }
+            }
+        }
+        if name.chars().count() > 40 {
+            errors.push(saved_search_name_too_long_user_error());
+        }
+        errors
     }
 
     pub(in crate::proxy) fn saved_search_mutation_fields(
@@ -961,26 +1072,15 @@ impl DraftProxy {
             ));
         };
         let name = resolved_string_field(&input, "name").unwrap_or_default();
-        let name_is_blank = name.trim().is_empty();
         let search_query = resolved_string_field(&input, "query").unwrap_or_default();
         let resource_type =
             resolved_string_field(&input, "resourceType").unwrap_or_else(|| "PRODUCT".to_string());
-        let mut user_errors = Vec::new();
-        if !name_is_blank && is_reserved_saved_search_name(&resource_type, &name) {
-            user_errors.push(saved_search_name_taken_user_error());
-        }
-        if name_is_blank {
-            user_errors.push(saved_search_name_blank_user_error());
-        }
-        if !name_is_blank && self.saved_search_name_exists(&resource_type, &name, None) {
-            user_errors.push(saved_search_name_taken_user_error());
-        }
-        if resource_type == "CUSTOMER" {
-            user_errors.push(saved_search_customer_deprecated_user_error());
-        }
-        if name.chars().count() > 40 {
-            user_errors.push(saved_search_name_too_long_user_error());
-        }
+        let mut user_errors = self.saved_search_field_user_errors(
+            SavedSearchQueryValidationOperation::Create,
+            &resource_type,
+            &name,
+            None,
+        );
         user_errors.extend(saved_search_query_user_errors(
             SavedSearchQueryValidationOperation::Create,
             &resource_type,
@@ -1049,24 +1149,12 @@ impl DraftProxy {
         let mut updated = existing.clone();
         updated.query =
             normalize_saved_search_query_for_api_client(&requested_query, api_client_id);
-        let mut user_errors = Vec::new();
-        let name_is_blank = requested_name.trim().is_empty();
-        if name_is_blank {
-            user_errors.push(saved_search_name_blank_user_error());
-        }
-        if !name_is_blank
-            && (is_reserved_saved_search_name(&existing.resource_type, &requested_name)
-                || self.saved_search_name_exists(
-                    &existing.resource_type,
-                    &requested_name,
-                    Some(&id),
-                ))
-        {
-            user_errors.push(saved_search_name_taken_user_error());
-        }
-        if requested_name.chars().count() > 40 {
-            user_errors.push(saved_search_name_too_long_user_error());
-        }
+        let mut user_errors = self.saved_search_field_user_errors(
+            SavedSearchQueryValidationOperation::Update,
+            &existing.resource_type,
+            &requested_name,
+            Some(&id),
+        );
         user_errors.extend(saved_search_query_user_errors(
             SavedSearchQueryValidationOperation::Update,
             &existing.resource_type,

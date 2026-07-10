@@ -11,7 +11,7 @@ remain documented with products because they stage product-owned media records.
 
 ### Supported roots
 
-Snapshot/local reads:
+Snapshot/local reads and live-hybrid read-through overlays:
 
 - `files`
 - `fileSavedSearches`
@@ -27,12 +27,38 @@ Local staged mutations:
 ### Behavior notes
 
 - `files` reads serialize normalized `FileRecord` state in snapshot mode and
-  after local file mutations. The local connection uses shared cursor/pageInfo
-  helpers, applies the `reverse` argument over effective in-memory order, and
-  omits files marked deleted by staged `fileDelete`. Full Shopify file search
-  and sort-key semantics are not modeled yet.
-- `fileSavedSearches` currently returns an empty Shopify-like connection in
-  snapshot mode. Saved-search records are not modeled yet.
+  after local file mutations. In LiveHybrid mode, cold reads forward upstream,
+  hydrate observed real Files API records, then apply local staged overlays so
+  real store files are not hidden by an empty local session. The local
+  connection uses shared staged-connection helpers for filtering, sort-key
+  ordering, `reverse`, cursor windows, and pageInfo, and omits files marked
+  deleted by staged `fileDelete`. The local `files(query:)` path supports the
+  documented file filters for staged records: free text, `created_at`,
+  `filename`, `id`, `ids`, `media_type`, `original_source`,
+  `original_upload_size`, `product_id`, `status`, `updated_at`, and `used_in`.
+  Unknown file filters do not fail open; they match no staged files.
+
+- `files(sortKey:)` honors `CREATED_AT`, `FILENAME`, `ID`,
+  `ORIGINAL_UPLOAD_SIZE`, `RELEVANCE`, and `UPDATED_AT` for staged records.
+  `RELEVANCE` falls back to stable ID order because the local query parser does
+  not compute Shopify search relevance scores.
+- `fileSavedSearches` returns an empty Shopify-like connection in snapshot
+  no-data mode. In LiveHybrid `files` reads that also select
+  `fileSavedSearches`, the proxy forwards upstream and hydrates observed FILE
+  saved searches into the saved-search model instead of fabricating an empty
+  connection. Staged FILE saved searches appear in combined `files` /
+  `fileSavedSearches` reads, and `files(savedSearchId:)` resolves the saved
+  search query before applying local filters. When a LiveHybrid
+  `files(savedSearchId:)` read references a saved search not already known to
+  local state, the proxy reads that `SavedSearch` from upstream with `node(id:)`
+  and hydrates it only if Shopify reports a FILE saved search. Unresolvable
+  saved-search IDs and saved searches for other resource types return Shopify's
+  top-level `RESOURCE_NOT_FOUND` shape instead of a successful empty
+  connection. When a captured LiveHybrid read observes the real Shopify row for
+  the same staged FILE saved-search flow, the connection de-duplicates by
+  resource type, name, and normalized query so the real row and synthetic row do
+  not both appear. Unknown saved-search ids match no staged files rather than
+  returning the full file set.
 - `stagedUploadsCreate` returns inert draft-proxy target metadata so clients can
   observe the mutation payload shape without the proxy creating cloud storage
   objects. Returned URLs use `shopify-draft-proxy.local` placeholders. The JS
@@ -135,8 +161,11 @@ Local staged mutations:
   files sourced from a usable URL keep that URL available through
   `MediaImage.image` and `preview.image` immediately; the proxy does not
   suppress the image payload
-  solely because the staged file is still `UPLOADED`. The proxy does not apply
-  the older fabricated 512-character `alt` ceiling on `fileCreate`.
+  solely because the staged file is initially `UPLOADED`. A subsequent
+  `files` poll/read deterministically advances locally staged files to `READY`,
+  matching Shopify's eventual-ready lifecycle enough for polling to terminate
+  and later `fileUpdate` requests to pass the READY gate. The proxy does not
+  apply the older fabricated 512-character `alt` ceiling on `fileCreate`.
 - `fileCreate(files:)` enforces Shopify's captured maximum input array size of 250. A request with 251 entries returns only a top-level
   `MAX_INPUT_SIZE_EXCEEDED` error on path `["fileCreate", "files"]`, omits
   `data`, and does not reserve ids, stage files, or append a mutation-log
@@ -183,6 +212,9 @@ Local staged mutations:
   product reads hydrate referenced products, and file reads hydrate existing
   READY Shopify file records needed for local validation/staging. Supported
   mutation handling still stages locally and does not write upstream at runtime.
+- In LiveHybrid mode, `files` / `fileSavedSearches` reads forward the original
+  query upstream on a cold session, hydrate observed real file and FILE
+  saved-search records, and then serialize the effective local overlay.
 - `fileDelete` marks files deleted in local state so downstream reads and product media references can observe the deletion. In LiveHybrid mode, deletes of product-owned media ids may first hydrate the owning product/media relationship from upstream so the local delete can remove that media node from downstream `product.media` reads. The payload's `deletedFileIds` are rebuilt from the local record's actual Files API type (`MediaImage`, `Video`, `GenericFile`, etc.) rather than echoing a caller-supplied alias GID unchanged.
 - Shopify's backend can reject `fileDelete` with `FILE_LOCKED` while another media-processing mutation owns a per-file lock. The proxy has no concurrent Shopify media-processing jobs or cross-request lock manager, so it does not fabricate `FILE_LOCKED`; this remains an explicit fidelity divergence unless a future local processing model introduces lockable file state.
 - `fileAcknowledgeUpdateFailed(fileIds:)` is currently a local

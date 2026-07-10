@@ -221,15 +221,17 @@ impl NativeDraftProxy {
             headers,
             body: String::new(),
         };
+        // The core always answers with a well-formed commit result body — `ok:
+        // true` (HTTP 200) on full success, or an inspectable `ok: false` (HTTP
+        // 502) carrying `committed`/`failed`/`stopIndex`/`attempts`/`error` when a
+        // staged mutation's replay fails. Return that body verbatim rather than
+        // raising on the non-2xx result: the Ruby wrapper decides success vs
+        // failure from `ok` and raises a typed `CommitError` that keeps the full
+        // result, so the upstream cause is never discarded at the binding (this
+        // is what the JS binding does in `runtime.ts`; the old Ruby binding threw
+        // the detail away).
         let response = self.0.borrow_mut().process_request(request);
-        let body = json_to_ruby(response.body)?;
-        if response.status != 200 || !body.funcall::<_, _, bool>("dig", ("ok",))? {
-            return Err(Error::new(
-                Ruby::get_with(body).exception_runtime_error(),
-                format!("DraftProxy.commit failed with status {}", response.status),
-            ));
-        }
-        Ok(body)
+        json_to_ruby(response.body)
     }
 }
 
@@ -481,6 +483,14 @@ fn native_json_round_trip(value: Value) -> Result<Value, Error> {
 
 #[magnus::init(name = "shopify_draft_proxy_native")]
 fn init(ruby: &Ruby) -> Result<(), Error> {
+    // Mark this extension Ractor-safe so a DraftProxy can be constructed and driven
+    // from a non-main Ractor: each proxy instance owns its state (RefCell<DraftProxy>)
+    // and lives entirely within one Ractor, so there is no shared mutable state to
+    // guard. Without this, magnus defines its C methods Ractor-unsafe and any native
+    // call from a worker Ractor raises Ractor::UnsafeError. magnus 0.8 does not wrap
+    // rb_ext_ractor_safe, so call the raw C API via rb-sys. It must run before any
+    // define_method below, since the flag applies to methods defined afterward.
+    unsafe { rb_sys::rb_ext_ractor_safe(true) };
     let module = ruby.define_module("ShopifyDraftProxy")?;
     let class = module.define_class("DraftProxy", ruby.class_object())?;
     class.define_singleton_method("new", function!(NativeDraftProxy::new, 1))?;

@@ -14,10 +14,6 @@ Content roots:
 - Reads: `article`, `articleAuthors`, `articles`, `articleTags`, `blog`, `blogs`, `blogsCount`, `page`, `pages`, `pagesCount`, `comment`, `comments`
 - Mutations: `articleCreate`, `articleUpdate`, `articleDelete`, `blogCreate`, `blogUpdate`, `blogDelete`, `pageCreate`, `pageUpdate`, `pageDelete`, `commentApprove`, `commentSpam`, `commentNotSpam`, `commentDelete`
 
-URL redirect read roots from the metaobject redirect-new-handle slice:
-
-- Reads: `urlRedirect`, `urlRedirects`
-
 Presentation and integration roots:
 
 - Reads: `theme`, `themes`, `scriptTag`, `scriptTags`, `webPixel`, `serverPixel`, `mobilePlatformApplication`, `mobilePlatformApplications`
@@ -31,7 +27,7 @@ Supported lifecycle mutations are staged locally and logged with the original ra
 
 Effective `Article`, `Blog`, `Comment`, and `Page` records are exposed through generic `node(id:)` / `nodes(ids:)` dispatch. Those reads use the same local content serializers as the dedicated content roots, so staged page/article/blog create and update flows are visible through the Admin `Node` interface without runtime Shopify writes.
 
-URL redirect reads are local overlays for redirect rows staged by supported domain behavior, currently `metaobjectUpdate(..., metaobject: { handle, redirectNewHandle: true })` on online-store-renderable metaobjects. Snapshot mode returns local state only. Live-hybrid mode forwards cold `urlRedirect`/`urlRedirects` reads upstream when no local redirect state or requested local ID is present; once local redirect state exists, `urlRedirects` filters with the shared Admin search-query parser and supports `id:`, `path:`, `target:`, and default text terms. URL redirect create/update/delete/import/bulk-delete mutations remain unsupported and must not be treated as locally modeled lifecycle roots.
+URL redirect mutation/import/bulk-delete roots are registry-tracked but unimplemented in the local runtime. Cold LiveHybrid reads for `urlRedirect`, `urlRedirects`, and `urlRedirectsCount` forward upstream, and cold snapshot reads fail closed instead of emitting local placeholder data. The local runtime does expose staged URL redirects created by supported metaobject online-store handle changes: those staged reads support `urlRedirect(id:)`, `urlRedirects(query:)`, `urlRedirectsCount(query:)`, `path:` and `target:` filters, `ID`/`PATH`/`TARGET` sort keys, `reverse`, and cursor windows for the staged redirect slice. This staged readback does not make URL redirect create/update/delete/import roots supported; those mutations still passthrough or reject according to unsupported-mutation mode.
 
 ### Content read behavior
 
@@ -44,17 +40,19 @@ Snapshot/local empty behavior follows the 2025-01 capture in `fixtures/conforman
 
 Local connection support uses the shared GraphQL connection helpers for selected `nodes`, `edges`, and `pageInfo` fields. The local model supports common sort keys, reverse ordering, and cursor windows. Captured opaque Shopify cursors are not decoded; newly staged local rows use stable synthetic cursor values.
 
-Search/filter support covers the local subset that matters for the captured content lifecycle: default text terms plus fields such as `id`, `title`, `handle`, `created_at`, `updated_at`, `published_at`, `published_status`, `status`, article `author`, `blog_id`, `blog_title`, `tag`, and `tag_not`. Top-level `articles` defaults to published records when no status is requested, while explicit `published_status:published`, `published_status:unpublished`, and `published_status:any` filters control whether published, unpublished, or both states are returned before remaining text terms are applied. Nested blog article reads expose the effective local graph.
+Search/filter support covers the local subset that matters for the captured content lifecycle: default text terms plus fields such as `id`, `title`, `handle`, `created_at`, `updated_at`, `published_at`, `published_status`, `status`, article `author`, `blog_id`, `blog_title`, `tag`, and `tag_not`. Unfiltered top-level `articles` returns published and unpublished effective records; explicit `published_status:published`, `published_status:unpublished`, and `published_status:any` filters control status slices when supplied. Unknown fielded filters are treated as explicit local no-matches instead of silently returning the full local content graph. Nested blog article reads expose the effective local graph.
 
 Nested content behavior:
 
-- `Blog.articles` and `Blog.articlesCount` are derived from effective local articles with that blog as parent
+- `Blog.articles` and `Blog.articlesCount` are derived from effective local articles with that blog as parent. `Blog.articles` uses the shared staged connection path for `first`, `last` with `before`, `after`, `before`, `reverse`, selected `nodes`/`edges`, and computed `pageInfo`; local rows therefore page the same staged article graph exposed by top-level article reads.
 - `Article.blog` resolves through the local blog graph
-- `Article.comments` and `Article.commentsCount` are derived from effective local comments with that article as parent
+- `Article.comments` and `Article.commentsCount` are derived from effective local comments with that article as parent. `Article.comments` uses the same staged connection path for `first`, `last` with `before`, `after`, `before`, `reverse`, selected `nodes`/`edges`, computed `pageInfo`, and supported local `query` filters such as captured comment status filters.
 - `Comment.article` resolves through the local article graph
 - `Article.author`, `articleAuthors`, and `articleTags` are derived from local article data
 
-Top-level `articles` preserves Shopify's published-by-default boundary, but explicit `published_status` query filters can include unpublished records. Nested blog/article helper reads continue to expose the effective local graph so staged unpublished content remains visible through its parent blog and detail relationships.
+Captured Admin GraphQL 2025-01 schema evidence rejects `Blog.articles(sortKey:)`, `Blog.articles(query:)`, and `Article.comments(sortKey:)`, and also rejects bare nested `last` without `before`. Those rejected argument shapes remain schema boundaries rather than local lifecycle support claims.
+
+Top-level `articles` no longer applies a published-only default when `query` is omitted, so staged unpublished content remains visible in unfiltered local catalog reads as well as through parent blog and detail relationships. Explicit `published_status` query filters still narrow the status slice.
 
 Article subresource fidelity covers the Admin GraphQL fields that are actually present in the captured schema:
 
@@ -109,8 +107,9 @@ The normalized local integration graph covers themes, script tags, web pixels, s
 - `webPixelCreate` enforces Shopify Core's one-WebPixel-per-calling-app/api-permission guard in the local staged graph: a duplicate effective WebPixel returns `webPixel: null` plus one `TAKEN` `WebPixelUserError` and does not mint or stage a new WebPixel
 - `webPixelUpdate` parses supplied `settings` JSON before staging. Malformed JSON returns `INVALID_CONFIGURATION_JSON` on `["settings"]`, and valid JSON is stored as parsed JSON rather than as the raw string literal.
 - `webPixelUpdate` validates supplied `runtimeContext` values against any runtime-context declaration carried on the staged WebPixel record (`runtimeContexts` / `runtime_contexts`) and validates known settings keys against any staged extension `settingsDefinition` / `settings_definition` metadata. Type, range, and regex violations return `INVALID_SETTINGS` on `["settings"]`; runtime-context mismatches return `INVALID_RUNTIME_CONTEXT` on `["webPixel", "runtimeContext"]`.
-- WebPixel records persist only WebPixel fields; `webhookEndpointAddress` is kept on ServerPixel records only. Successful local WebPixel create/update responses return `status: "CONNECTED"` and non-null parsed JSON settings, using `{}` when no settings were supplied.
-- `storefrontAccessTokenCreate` stages credential creation locally; create returns a deterministic unique `shpat_<16-hex>` token, non-empty storefront access scopes, and selected `shop { id }`, while `Shop.storefrontAccessTokens` downstream reads and meta state keep generated token values redacted as `shpat_redacted`. `storefrontAccessTokenDelete` remains unsupported and is not locally modeled.
+- WebPixel records persist only WebPixel fields; local create/update stores parsed JSON settings, using `{}` when no settings were supplied, and does not synthesize server-pixel endpoint or status fields.
+- ServerPixel local status is derived from staged endpoint configuration. `serverPixelCreate` has no endpoint argument and returns `DISCONNECTED_UNCONFIGURED`; successful EventBridge or Pub/Sub endpoint updates store the endpoint and return `CONNECTED`. The proxy does not model a configured-but-disconnected transport outage locally.
+- `storefrontAccessTokenCreate` stages credential creation locally; create returns a deterministic unique `shpat_<16-hex>` token and copies observed unauthenticated app grants from `x-shopify-draft-proxy-access-scopes` into `accessScopes`. When no unauthenticated grants are observed, `accessScopes` is empty rather than a canned grant pair. `Shop.storefrontAccessTokens` downstream reads and meta state keep generated token values redacted as `shpat_redacted`. `storefrontAccessTokenDelete` remains unsupported and is not locally modeled.
 - mobile platform application mutations stage Android/Apple verification settings locally and expose union-shaped downstream reads. `mobilePlatformApplicationCreate` rejects inputs that specify neither or both platform branches, rejects blank platform identifiers, enforces the 100-character Android `applicationId` / Apple `appId` cap, requires non-empty Android `sha256CertFingerprints`, requires Apple `appClipApplicationId` when `appClipsEnabled` is true, and caps that app-clip ID at 255 characters. Repeated same-platform creates are accepted as separate records, matching Core's lack of a per-shop platform uniqueness constraint. Updates apply only the matching platform sub-input to the staged record, reject wrong-platform sub-inputs with `INVALID` on `["mobilePlatformApplication"]`, and run the same changed-field model validations before mutating local state.
 
 Snapshot/local empty reads return Shopify-like `null` for missing singular roots and empty connections for catalog roots. Live-hybrid cold reads forward sales-channel roots upstream before falling back to local rendering, then observed records satisfy later reads without another upstream call. Local connection support for `themes`, `scriptTags`, and `mobilePlatformApplications` uses shared cursor/window helpers. `themes` supports local `roles` and `names` filters; `scriptTags` supports local `src` and simple text query filtering.

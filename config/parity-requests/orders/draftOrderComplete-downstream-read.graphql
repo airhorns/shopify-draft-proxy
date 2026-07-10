@@ -6,8 +6,43 @@ query DraftOrderCompleteDownstreamRead($id: ID!) {
     ready
     invoiceUrl
     completedAt
+    lineItemsSubtotalPrice {
+      shopMoney {
+        amount
+        currencyCode
+      }
+      presentmentMoney {
+        amount
+        currencyCode
+      }
+    }
+    totalTax
+    totalTaxSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+      presentmentMoney {
+        amount
+        currencyCode
+      }
+    }
+    subtotalPriceSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+      presentmentMoney {
+        amount
+        currencyCode
+      }
+    }
     totalPriceSet {
       shopMoney {
+        amount
+        currencyCode
+      }
+      presentmentMoney {
         amount
         currencyCode
       }
@@ -38,6 +73,50 @@ query DraftOrderCompleteDownstreamRead($id: ID!) {
       tags
       currentTotalPriceSet {
         shopMoney {
+          amount
+          currencyCode
+        }
+        presentmentMoney {
+          amount
+          currencyCode
+        }
+      }
+      subtotalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+        presentmentMoney {
+          amount
+          currencyCode
+        }
+      }
+      totalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+        presentmentMoney {
+          amount
+          currencyCode
+        }
+      }
+      totalTaxSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+        presentmentMoney {
+          amount
+          currencyCode
+        }
+      }
+      totalReceivedSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+        presentmentMoney {
           amount
           currencyCode
         }

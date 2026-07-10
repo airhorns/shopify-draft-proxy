@@ -18,6 +18,8 @@ use crate::operation_registry::{
 
 pub const DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES: u64 = 104_857_600;
 pub(in crate::proxy) const METAFIELDS_SET_INPUT_LIMIT: usize = 25;
+pub(in crate::proxy) const API_CLIENT_ID_HEADER: &str = "x-shopify-draft-proxy-api-client-id";
+pub(in crate::proxy) const ACCESS_SCOPES_HEADER: &str = "x-shopify-draft-proxy-access-scopes";
 const RUST_STATE_DUMP_SCHEMA: &str = "shopify-draft-proxy-rust-state/v1";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -91,6 +93,25 @@ pub struct Response {
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub headers: BTreeMap<String, String>,
     pub body: Value,
+}
+
+impl DraftProxy {
+    pub fn record_bulk_operation_staged_upload_body(
+        &mut self,
+        staged_upload_path: &str,
+        body: String,
+    ) -> bool {
+        let registered = self
+            .store
+            .staged
+            .bulk_operation_staged_uploads
+            .contains_key(staged_upload_path);
+        self.store
+            .staged
+            .bulk_operation_staged_upload_bodies
+            .insert(staged_upload_path.to_string(), body);
+        registered
+    }
 }
 
 fn primary_root_response_parts(
@@ -194,6 +215,8 @@ struct SellingPlanGroupRecord {
     options: Vec<String>,
     position: i64,
     created_at: String,
+    #[serde(default)]
+    updated_at: String,
     selling_plans: Vec<SellingPlanRecord>,
     product_ids: Vec<String>,
     product_variant_ids: Vec<String>,
@@ -235,7 +258,7 @@ struct ShopPolicyRecord {
     translations: Vec<Value>,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 struct Store {
     base: BaseState,
     staged: StagedState,
@@ -247,6 +270,7 @@ struct BaseState {
     product_variants: OrderedRecords<ProductVariantRecord>,
     saved_searches: OrderedRecords<SavedSearchRecord>,
     shop_policies: OrderedRecords<ShopPolicyRecord>,
+    delivery_profiles: OrderedRecords<Value>,
     gift_cards: BTreeMap<String, Value>,
     gift_card_configuration: Option<Value>,
     shop: Value,
@@ -259,7 +283,7 @@ struct BaseState {
 
 type MetafieldDefinitionKey = (String, String, String);
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 struct StagedState {
     products: StagedRecords<ProductRecord>,
     product_variants: StagedRecords<ProductVariantRecord>,
@@ -316,20 +340,12 @@ struct StagedState {
     // them. Empty for every scenario that does not seed a catalog, leaving the
     // generic staged-segment read path untouched.
     segment_catalog: BTreeMap<String, Value>,
-    // Recorded top-level `collections(query:, sortKey:)` connection snapshots keyed
-    // by GraphQL alias (response key). Like `segment_catalog`, the connection's
-    // opaque cursors encode Shopify-internal search-index values (title-search
-    // case folding, SQL-datetime sort keys) that cannot be reconstructed from
-    // arbitrary store state, so a scenario seeds the recorded connection and the
-    // catalog read resolver projects the requested selection over it. Empty for
-    // every scenario that does not seed a catalog, leaving the upstream-passthrough
-    // collections read path untouched.
-    collection_catalog: BTreeMap<String, Value>,
     collections: StagedRecords<Value>,
     collection_jobs: BTreeMap<String, Value>,
     fulfillment_order_deadlines: BTreeMap<String, String>,
     bulk_operations: BTreeMap<String, Value>,
     bulk_operation_staged_uploads: BTreeMap<String, Option<u64>>,
+    bulk_operation_staged_upload_bodies: BTreeMap<String, String>,
     bulk_operation_results: BTreeMap<String, String>,
     discounts: StagedRecords<Value>,
     discount_code_index: BTreeMap<String, String>,
@@ -348,6 +364,12 @@ struct StagedState {
     // Empty for every scenario that does not seed publications, leaving the
     // existing passthrough behavior for those roots untouched.
     publications: BTreeMap<String, Value>,
+    // Current app publication resolved from `currentAppInstallation.publication`
+    // by current-channel publishable mutations in live-hybrid mode. The separate
+    // resolved flag distinguishes "not looked up yet" from "looked up and Shopify
+    // returned no current publication".
+    current_channel_publication_id: Option<String>,
+    current_channel_publication_resolved: bool,
     // Resource gid (Product/Collection) -> set of publication gids the resource
     // is published on. Seeded from `seedProducts`/`seedCollections`
     // `publicationIds` and mutated by `publishablePublish`/`publishableUnpublish`.
@@ -400,6 +422,7 @@ struct StagedState {
     metafield_definitions: BTreeMap<MetafieldDefinitionKey, Value>,
     metafield_reference_ids: BTreeSet<String>,
     media_files: StagedRecords<Value>,
+    media_ready_on_read: BTreeSet<String>,
     online_store_integrations: BTreeMap<String, Value>,
     online_store_blogs: BTreeMap<String, Value>,
     online_store_blog_order: Vec<String>,
@@ -435,6 +458,7 @@ struct StagedState {
     next_refund_id: u64,
     next_refund_line_item_id: u64,
     next_order_id: u64,
+    next_order_number: u64,
     next_draft_order_id: u64,
     draft_order_tags: BTreeMap<String, Vec<String>>,
     next_draft_order_bulk_tag_job_id: u64,
@@ -469,6 +493,7 @@ struct StagedState {
     function_cart_transform_order: Vec<String>,
     function_fulfillment_constraint_rules: BTreeMap<String, Value>,
     function_fulfillment_constraint_rule_order: Vec<String>,
+    tax_app_configuration: Option<Value>,
     // True once any function lifecycle (validation / cart-transform) has been
     // staged this session. Distinguishes a post-delete local read (serve the
     // empty local result) from a cold read with no local backing (forward to
@@ -489,9 +514,13 @@ struct StagedState {
 struct InventoryTransferRecord {
     id: String,
     name: String,
+    #[serde(default)]
+    created_at: String,
     status: String,
     origin_location_id: String,
     destination_location_id: String,
+    #[serde(default)]
+    tags: Vec<String>,
     line_items: Vec<InventoryTransferLineItemRecord>,
 }
 
@@ -721,174 +750,36 @@ impl<'a, T> IntoIterator for &'a StagedRecords<T> {
     }
 }
 
-impl Default for StagedState {
-    fn default() -> Self {
+impl StagedState {
+    fn new_session() -> Self {
         Self {
-            products: StagedRecords::default(),
-            product_variants: StagedRecords::default(),
-            product_feeds: StagedRecords::default(),
-            selling_plan_groups: StagedRecords::default(),
-            saved_searches: StagedRecords::default(),
-            shop_policies: StagedRecords::default(),
-            shipping_packages: StagedRecords::default(),
-            customers: StagedRecords::default(),
-            customer_addresses: BTreeMap::new(),
-            customer_address_order: BTreeMap::new(),
-            customer_address_owners: BTreeMap::new(),
-            customer_orders: BTreeMap::new(),
-            merged_customer_ids: BTreeMap::new(),
-            customer_merge_requests: BTreeMap::new(),
-            customer_data_erasure_requests: BTreeMap::new(),
-            locally_created_customer_ids: BTreeSet::new(),
-            customers_count_base: None,
-            store_credit_accounts: StagedRecords::default(),
-            store_credit_transactions: BTreeMap::new(),
-            store_credit_transaction_order: Vec::new(),
+            // Most staged collections use their Rust defaults; session counters
+            // intentionally start at Shopify-like first synthetic IDs.
             next_store_credit_account_id: 1,
             next_store_credit_transaction_id: 1,
-            taggable_resources: BTreeMap::new(),
-            carrier_services: StagedRecords::default(),
-            installed_apps: BTreeMap::new(),
-            app_subscriptions: BTreeMap::new(),
-            app_one_time_purchases: BTreeMap::new(),
-            revoked_app_access_scopes: BTreeMap::new(),
-            uninstalled_app_ids: BTreeSet::new(),
-            delegate_access_tokens: BTreeMap::new(),
-            customer_segment_member_queries: BTreeMap::new(),
-            fulfillment_services: StagedRecords::default(),
-            fulfillment_service_locations: StagedRecords::default(),
-            delivery_profiles: StagedRecords::default(),
-            observed_shipping_locations: BTreeMap::new(),
-            observed_shipping_location_order: Vec::new(),
-            locations: StagedRecords::default(),
-            location_limit_reached: false,
-            segments: BTreeMap::new(),
-            segment_catalog: BTreeMap::new(),
-            collection_catalog: BTreeMap::new(),
-            collections: StagedRecords::default(),
-            collection_jobs: BTreeMap::new(),
-            fulfillment_order_deadlines: BTreeMap::new(),
-            bulk_operations: BTreeMap::new(),
-            bulk_operation_staged_uploads: BTreeMap::new(),
-            bulk_operation_results: BTreeMap::new(),
-            discounts: StagedRecords::default(),
-            discount_code_index: BTreeMap::new(),
-            discount_redeem_code_bulk_creations: BTreeMap::new(),
-            gift_cards: BTreeMap::new(),
-            markets: BTreeMap::new(),
-            catalogs: BTreeMap::new(),
-            price_lists: BTreeMap::new(),
-            web_presences: BTreeMap::new(),
-            publication_ids: BTreeSet::new(),
-            created_publication_ids: BTreeSet::new(),
-            publications: BTreeMap::new(),
-            resource_publications: BTreeMap::new(),
-            shop_locales: BTreeMap::new(),
-            localization_translations: Vec::new(),
-            localization_resources: BTreeMap::new(),
-            localization_dirty: false,
-            marketing_activities: StagedRecords::default(),
-            marketing_delete_all_external: false,
-            webhook_subscriptions: BTreeMap::new(),
-            b2b_companies: BTreeMap::new(),
-            b2b_locations: StagedRecords::default(),
-            b2b_contacts: BTreeMap::new(),
-            b2b_contact_roles: BTreeMap::new(),
-            b2b_role_assignments: BTreeMap::new(),
-            b2b_staff_assignments: BTreeMap::new(),
             next_b2b_company_id: 1,
-            inventory_levels: BTreeMap::new(),
-            inventory_level_order: Vec::new(),
-            inventory_level_ids: BTreeMap::new(),
-            inventory_level_cursors: BTreeMap::new(),
-            inactive_inventory_levels: BTreeSet::new(),
-            inventory_quantity_updated_at: BTreeMap::new(),
-            next_inventory_quantity_timestamp: 0,
-            inventory_transfers: BTreeMap::new(),
-            inventory_shipments: BTreeMap::new(),
-            metaobject_definitions: StagedRecords::default(),
-            metaobjects: StagedRecords::default(),
-            url_redirects: BTreeMap::new(),
-            url_redirect_order: Vec::new(),
-            linked_product_option_metaobject_sets: Vec::new(),
-            product_option_linked_metaobject_definition_ids: BTreeSet::new(),
-            owner_metafields: BTreeMap::new(),
-            deleted_owner_metafields: BTreeSet::new(),
-            metafield_definitions: BTreeMap::new(),
-            metafield_reference_ids: BTreeSet::new(),
-            media_files: StagedRecords::default(),
-            online_store_integrations: BTreeMap::new(),
-            online_store_blogs: BTreeMap::new(),
-            online_store_blog_order: Vec::new(),
-            deleted_online_store_blog_ids: BTreeSet::new(),
-            online_store_blogs_count_base: None,
-            online_store_pages: BTreeMap::new(),
-            online_store_page_order: Vec::new(),
-            deleted_online_store_page_ids: BTreeSet::new(),
-            online_store_pages_count_base: None,
-            online_store_articles: BTreeMap::new(),
-            online_store_article_order: Vec::new(),
-            deleted_online_store_article_ids: BTreeSet::new(),
-            online_store_comments: BTreeMap::new(),
-            online_store_comment_order: Vec::new(),
-            deleted_online_store_comment_ids: BTreeSet::new(),
-            product_operations: BTreeMap::new(),
-            product_delete_operations: BTreeMap::new(),
-            mandate_payment_keys: BTreeSet::new(),
-            payment_terms: BTreeMap::new(),
-            payment_terms_owner_index: BTreeMap::new(),
-            payment_reminder_schedule_ids: BTreeSet::new(),
-            payment_customizations: BTreeMap::new(),
-            customer_payment_methods: BTreeMap::new(),
-            customer_payment_method_customer_index: BTreeMap::new(),
             next_customer_payment_method_id: 1,
-            abandonments: BTreeMap::new(),
-            orders: StagedRecords::default(),
-            draft_orders: BTreeMap::new(),
-            returns: BTreeMap::new(),
-            returns_by_order: BTreeMap::new(),
-            reverse_deliveries: BTreeMap::new(),
-            reverse_fulfillment_orders: BTreeMap::new(),
             next_refund_id: 1,
             next_refund_line_item_id: 1,
             next_order_id: 1,
+            next_order_number: 1,
             next_draft_order_id: 1,
-            draft_order_tags: BTreeMap::new(),
             next_draft_order_bulk_tag_job_id: 1,
-            order_customer_orders: BTreeMap::new(),
-            order_customer_cancelled_ids: BTreeSet::new(),
-            order_customer_b2b_order_ids: BTreeSet::new(),
-            order_customer_contact_customer_ids: BTreeSet::new(),
             next_order_customer_order_id: 1,
-            order_edit_existing_order: None,
-            order_edit_existing_calculated_order: None,
-            order_edit_existing_calculated_order_id: None,
-            order_edit_existing_session_order_id: None,
-            order_edit_money_bag_calculated_order_ids: BTreeMap::new(),
             order_payment_next_transaction_id: 3,
-            order_edit_existing_mode: None,
             order_edit_variant_catalog: Value::Object(serde_json::Map::new()),
-            order_edit_author: None,
-            function_validation: None,
-            function_cart_transform: None,
-            function_metadata: BTreeMap::new(),
-            function_metadata_order: Vec::new(),
-            function_validations: BTreeMap::new(),
-            function_validation_order: Vec::new(),
-            function_cart_transforms: BTreeMap::new(),
-            function_cart_transform_order: Vec::new(),
-            function_fulfillment_constraint_rules: BTreeMap::new(),
-            function_fulfillment_constraint_rule_order: Vec::new(),
-            functions_dirty: false,
-            backup_region: Value::Null,
-            flow_signatures: Vec::new(),
-            flow_trigger_receipts: Vec::new(),
-
-            b2b_contact_role_assignments: BTreeMap::new(),
-            deleted_b2b_contact_ids: BTreeSet::new(),
-            deleted_b2b_contact_role_assignment_ids: BTreeSet::new(),
             next_b2b_contact_id: 1,
             next_b2b_contact_role_assignment_id: 1,
+            ..Default::default()
+        }
+    }
+}
+
+impl Default for Store {
+    fn default() -> Self {
+        Self {
+            base: BaseState::default(),
+            staged: StagedState::new_session(),
         }
     }
 }
@@ -951,6 +842,48 @@ fn effective_records<T: Clone>(base: &OrderedRecords<T>, staged: &StagedRecords<
         .filter_map(|id| staged.records.get(id).map(|record| (id.as_str(), record)))
     {
         if staged.is_tombstoned(id) || base.records.contains_key(id) {
+            continue;
+        }
+        records.push(record.clone());
+    }
+    records
+}
+
+fn saved_search_semantic_key(record: &SavedSearchRecord) -> (String, String, String) {
+    (
+        record.resource_type.clone(),
+        record.name.clone(),
+        record.query.clone(),
+    )
+}
+
+fn effective_saved_search_records(
+    base: &OrderedRecords<SavedSearchRecord>,
+    staged: &StagedRecords<SavedSearchRecord>,
+) -> Vec<SavedSearchRecord> {
+    let mut records = Vec::new();
+    let mut observed_keys = BTreeSet::new();
+    for (id, record) in base
+        .order
+        .iter()
+        .filter_map(|id| base.records.get(id).map(|record| (id.as_str(), record)))
+    {
+        if staged.is_tombstoned(id) {
+            continue;
+        }
+        let effective = staged.get(id).unwrap_or(record);
+        observed_keys.insert(saved_search_semantic_key(effective));
+        records.push(effective.clone());
+    }
+    for (id, record) in staged
+        .order
+        .iter()
+        .filter_map(|id| staged.records.get(id).map(|record| (id.as_str(), record)))
+    {
+        if staged.is_tombstoned(id) || base.records.contains_key(id) {
+            continue;
+        }
+        if !observed_keys.insert(saved_search_semantic_key(record)) {
             continue;
         }
         records.push(record.clone());
@@ -1080,7 +1013,7 @@ impl Store {
     }
 
     fn clear_staged(&mut self) {
-        self.staged = StagedState::default();
+        self.staged = StagedState::new_session();
     }
 
     fn replace_base_products(&mut self, products: Vec<ProductRecord>) {
@@ -1117,10 +1050,76 @@ impl Store {
             || !self.staged.publications.is_empty()
     }
 
+    fn has_known_publication_ids(&self) -> bool {
+        !self.base.publication_ids.is_empty()
+            || !self.staged.publication_ids.is_empty()
+            || !self.staged.publications.is_empty()
+    }
+
     fn has_publication_id(&self, id: &str) -> bool {
         self.base.publication_ids.contains(id)
             || self.staged.publication_ids.contains(id)
             || self.staged.publications.contains_key(id)
+    }
+
+    fn default_publication_id(&self) -> Option<&'static str> {
+        let id = "gid://shopify/Publication/1";
+        self.has_publication_id(id).then_some(id)
+    }
+
+    fn current_publication_ids(&self) -> Vec<&str> {
+        if self.staged.current_channel_publication_resolved {
+            return self
+                .staged
+                .current_channel_publication_id
+                .as_deref()
+                .or_else(|| self.default_publication_id())
+                .into_iter()
+                .collect();
+        }
+
+        let mut publication_ids = Vec::new();
+        if !(self.base.publication_count == Some(0) && self.staged.publications.is_empty()) {
+            publication_ids.push(CURRENT_CHANNEL_PUBLICATION_ID);
+        }
+        if let Some(id) = self.default_publication_id() {
+            if !publication_ids.contains(&id) {
+                publication_ids.push(id);
+            }
+        }
+        publication_ids
+    }
+
+    fn resource_is_published_on_current_publication(&self, resource_id: &str) -> bool {
+        let publication_ids = self.current_publication_ids();
+        self.staged
+            .resource_publications
+            .get(resource_id)
+            .is_some_and(|publications| {
+                publication_ids
+                    .iter()
+                    .any(|publication_id| publications.contains(*publication_id))
+            })
+    }
+
+    fn product_is_published_on_current_publication(&self, product: &ProductRecord) -> bool {
+        if product.status != "ACTIVE" {
+            return false;
+        }
+
+        let publication_ids = self.current_publication_ids();
+        publication_ids
+            .iter()
+            .any(|publication_id| product_is_published_on_publication(product, publication_id))
+            || self
+                .staged
+                .resource_publications
+                .get(&product.id)
+                .is_some_and(|publications| {
+                    publication_ids
+                        .iter()
+                        .any(|publication_id| publications.contains(*publication_id))
+                })
     }
 
     fn publication_id_for_channel_id(&self, channel_id: &str) -> Option<String> {
@@ -1156,13 +1155,27 @@ impl Store {
     }
 
     pub(in crate::proxy) fn shop_currency_code(&self) -> String {
+        self.observed_shop_currency_code().unwrap_or_default()
+    }
+
+    pub(in crate::proxy) fn observed_shop_currency_code(&self) -> Option<String> {
         self.base
             .shop
             .get("currencyCode")
             .and_then(Value::as_str)
             .filter(|currency| !currency.is_empty())
-            .unwrap_or("USD")
-            .to_string()
+            .map(str::to_string)
+    }
+
+    pub(in crate::proxy) fn shop_taxes_included(&self) -> Option<bool> {
+        self.base.shop.get("taxesIncluded").and_then(Value::as_bool)
+    }
+
+    pub(in crate::proxy) fn shop_duties_included(&self) -> Option<bool> {
+        self.base
+            .shop
+            .get("dutiesIncluded")
+            .and_then(Value::as_bool)
     }
 
     fn shop_money_format(&self) -> Option<String> {
@@ -1357,7 +1370,7 @@ impl Store {
             .or_insert_with(|| connection_json(product_nodes));
         collection_record.insert(
             "productsCount".to_string(),
-            json!({"count": normalized_products.len(), "precision": "EXACT"}),
+            count_object(normalized_products.len()),
         );
         self.staged
             .collections
@@ -1418,19 +1431,6 @@ impl Store {
             &self.staged.product_variants,
             id,
         )
-    }
-
-    fn product_variants(&self) -> Vec<ProductVariantRecord> {
-        effective_records(&self.base.product_variants, &self.staged.product_variants)
-    }
-
-    fn has_product_variant_reference_state(&self) -> bool {
-        !self.base.product_variants.records.is_empty()
-            || !self.staged.product_variants.is_empty()
-            || self
-                .products()
-                .iter()
-                .any(|product| !product.variants.is_empty())
     }
 
     fn has_product_variant_reference(&self, variant_id: &str) -> bool {
@@ -1753,8 +1753,11 @@ impl Store {
         resource_type: &str,
     ) -> OrderedRecords<SavedSearchRecord> {
         let mut base = OrderedRecords::default();
-        for record in default_saved_searches(resource_type) {
-            base.insert(record.id.clone(), record);
+        let has_base_records = self.has_base_saved_searches_for_resource(resource_type);
+        if !has_base_records {
+            for record in default_saved_searches(resource_type) {
+                base.insert(record.id.clone(), record);
+            }
         }
         for record in self.base.saved_searches.ordered_values() {
             if record.resource_type == resource_type {
@@ -1762,6 +1765,14 @@ impl Store {
             }
         }
         base
+    }
+
+    fn has_base_saved_searches_for_resource(&self, resource_type: &str) -> bool {
+        self.base
+            .saved_searches
+            .ordered_values()
+            .iter()
+            .any(|record| record.resource_type == resource_type)
     }
 
     fn saved_search_by_id(&self, id: &str) -> Option<SavedSearchRecord> {
@@ -1773,12 +1784,16 @@ impl Store {
             .get(id)
             .cloned()
             .or_else(|| self.base.saved_searches.get(id).cloned())
-            .or_else(|| default_saved_search_by_id(id))
+            .or_else(|| {
+                let record = default_saved_search_by_id(id)?;
+                (!self.has_base_saved_searches_for_resource(&record.resource_type))
+                    .then_some(record)
+            })
     }
 
     fn saved_searches_for_resource(&self, resource_type: &str) -> Vec<SavedSearchRecord> {
         let base = self.saved_search_base_with_defaults(resource_type);
-        effective_records(&base, &self.staged.saved_searches)
+        effective_saved_search_records(&base, &self.staged.saved_searches)
             .into_iter()
             .filter(|record| record.resource_type == resource_type)
             .collect()
@@ -1790,8 +1805,10 @@ impl Store {
 
     fn delete_saved_search(&mut self, id: &str) -> bool {
         let had_staged = self.staged.saved_searches.remove_staged(id).is_some();
-        let has_base =
-            self.base.saved_searches.get(id).is_some() || default_saved_search_by_id(id).is_some();
+        let has_default = default_saved_search_by_id(id)
+            .map(|record| !self.has_base_saved_searches_for_resource(&record.resource_type))
+            .unwrap_or(false);
+        let has_base = self.base.saved_searches.get(id).is_some() || has_default;
         if has_base {
             self.staged.saved_searches.tombstone(id.to_string());
         }
@@ -1908,6 +1925,12 @@ fn default_upstream_transport(_request: Request) -> Response {
     json_error(502, "No Rust upstream transport configured")
 }
 
+type RuntimeClock = Arc<dyn Fn() -> time::OffsetDateTime + Send + Sync>;
+
+fn default_runtime_clock() -> time::OffsetDateTime {
+    time::OffsetDateTime::now_utc()
+}
+
 #[derive(Clone)]
 pub struct DraftProxy {
     config: Config,
@@ -1922,6 +1945,8 @@ pub struct DraftProxy {
     /// `restoreState` between a scenario's targets; it is reset on `/__meta/reset`,
     /// which the parity runner issues at the start of every scenario.
     shop_sells_subscriptions: Option<bool>,
+    clock: RuntimeClock,
+    last_mutation_timestamp: Option<time::OffsetDateTime>,
     commit_transport: CommitTransport,
     upstream_transport: UpstreamTransport,
 }
@@ -1940,6 +1965,7 @@ mod json_helpers;
 mod localization_markets_catalogs;
 mod market_unsupported_country_regions;
 mod marketing_webhooks_inventory;
+mod markets_catalog_data;
 mod markets_catalog_helpers;
 mod media_products_saved_searches;
 mod metafield_metaobject_definitions;
@@ -1947,7 +1973,8 @@ mod metafields_orders_payments;
 mod metaobjects;
 mod money;
 mod online_store_content;
-mod online_store_orders_payments;
+mod orders_payments_fulfillment;
+mod phone;
 mod privacy;
 mod product_helpers;
 mod product_operations;
@@ -1957,9 +1984,11 @@ mod resource_ids;
 mod routing;
 mod scalar_helpers;
 mod schema_validation;
+mod search;
 mod selection;
 mod selling_plans;
 mod store_properties;
+mod url_redirects;
 
 pub(in crate::proxy) use self::admin_shipping_gift_cards::*;
 pub(in crate::proxy) use self::app_shipping_helpers::*;
@@ -1971,896 +2000,104 @@ pub(in crate::proxy) use self::functions::*;
 pub(in crate::proxy) use self::json_helpers::*;
 pub(in crate::proxy) use self::localization_markets_catalogs::*;
 pub(in crate::proxy) use self::marketing_webhooks_inventory::*;
+pub(in crate::proxy) use self::markets_catalog_data::*;
 pub(in crate::proxy) use self::markets_catalog_helpers::*;
 pub(in crate::proxy) use self::media_products_saved_searches::*;
 pub(in crate::proxy) use self::metafield_metaobject_definitions::*;
 pub(in crate::proxy) use self::metafields_orders_payments::*;
 pub(in crate::proxy) use self::money::*;
-pub(in crate::proxy) use self::online_store_orders_payments::*;
+pub(in crate::proxy) use self::orders_payments_fulfillment::*;
+pub(in crate::proxy) use self::phone::*;
 pub(in crate::proxy) use self::product_helpers::*;
 pub(in crate::proxy) use self::product_operations::*;
 pub(in crate::proxy) use self::product_options::*;
 pub(in crate::proxy) use self::resolved_values::*;
 pub(in crate::proxy) use self::resource_ids::*;
 pub(in crate::proxy) use self::routing::*;
-#[allow(unused_imports)]
 pub(in crate::proxy) use self::scalar_helpers::*;
 pub(in crate::proxy) use self::schema_validation::*;
 pub(in crate::proxy) use self::selection::*;
 pub(in crate::proxy) use self::store_properties::*;
 
 #[cfg(test)]
-mod store_tests {
+mod upstream_guard_tests {
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
-    fn product(id: &str, title: &str, handle: &str) -> ProductRecord {
-        ProductRecord {
-            id: id.to_string(),
-            created_at: default_product_timestamp(),
-            updated_at: default_product_timestamp(),
-            title: title.to_string(),
-            handle: handle.to_string(),
-            status: "ACTIVE".to_string(),
-            description_html: String::new(),
-            vendor: String::new(),
-            product_type: String::new(),
-            tags: Vec::new(),
-            template_suffix: String::new(),
-            seo_title: String::new(),
-            seo_description: String::new(),
-            total_inventory: 0,
-            tracks_inventory: false,
-            variants: Vec::new(),
-            media: Vec::new(),
-            collections: Vec::new(),
-            extra_fields: BTreeMap::new(),
-        }
-    }
-
-    fn saved_search(id: &str, name: &str, resource_type: &str) -> SavedSearchRecord {
-        SavedSearchRecord {
-            id: id.to_string(),
-            name: name.to_string(),
-            query: "tag:promo".to_string(),
-            resource_type: resource_type.to_string(),
-        }
-    }
-
-    fn snapshot_proxy() -> DraftProxy {
-        DraftProxy::new(Config {
-            read_mode: ReadMode::Snapshot,
-            unsupported_mutation_mode: None,
-            bulk_operation_run_mutation_max_input_file_size_bytes: None,
-            port: 0,
-            shopify_admin_origin: "https://shopify.com".to_string(),
-            snapshot_path: None,
-        })
-    }
-
-    fn request(method: &str, path: &str, body: &str) -> Request {
+    fn graphql_request(query: String) -> Request {
         Request {
-            method: method.to_string(),
-            path: path.to_string(),
+            method: "POST".to_string(),
+            path: "/admin/api/2026-04/graphql.json".to_string(),
             headers: BTreeMap::new(),
-            body: body.to_string(),
+            body: json!({ "query": query }).to_string(),
         }
     }
 
-    fn graphql_request(query: &str, variables: Value) -> Request {
-        request(
-            "POST",
-            "/admin/api/2025-01/graphql.json",
-            &json!({
-                "query": query,
-                "variables": variables
-            })
-            .to_string(),
-        )
+    #[test]
+    fn guarded_upstream_transport_blocks_every_implemented_stage_locally_mutation_root() {
+        let mutation_roots = default_registry()
+            .into_iter()
+            .filter(|entry| entry.implemented && entry.operation_type == OperationType::Mutation)
+            .collect::<Vec<_>>();
+        assert!(
+            !mutation_roots.is_empty(),
+            "default registry should expose implemented mutation roots"
+        );
+
+        for entry in mutation_roots {
+            let forwarded = Arc::new(AtomicUsize::new(0));
+            let transport = super::core::guarded_upstream_transport({
+                let forwarded = Arc::clone(&forwarded);
+                move |_| {
+                    forwarded.fetch_add(1, Ordering::SeqCst);
+                    ok_json(json!({ "data": { "unexpected": true } }))
+                }
+            });
+            let response = transport(graphql_request(format!(
+                "mutation UpstreamSafetyRegression {{ {} {{ __typename }} }}",
+                entry.name
+            )));
+
+            assert_eq!(
+                forwarded.load(Ordering::SeqCst),
+                0,
+                "{} was forwarded through the upstream transport",
+                entry.name
+            );
+            assert_eq!(response.status, 400, "{} should fail closed", entry.name);
+            let message = response.body["errors"][0]["message"]
+                .as_str()
+                .unwrap_or_default();
+            assert!(
+                message.contains(&entry.name),
+                "blocked response for {} should name the root: {message}",
+                entry.name
+            );
+        }
     }
 
     #[test]
-    fn store_effective_products_stage_overrides_base_and_tombstones() {
-        let mut store = Store::default();
-        store.replace_base_products(vec![
-            product("gid://shopify/Product/base-1", "Base one", "base-one"),
-            product("gid://shopify/Product/base-2", "Base two", "base-two"),
-        ]);
-
-        store.stage_product(product(
-            "gid://shopify/Product/base-1",
-            "Updated one",
-            "updated-one",
-        ));
-        store.stage_product(product(
-            "gid://shopify/Product/new",
-            "New product",
-            "new-product",
-        ));
-        store.delete_product("gid://shopify/Product/base-2");
-
-        assert_eq!(
-            store
-                .product_by_id("gid://shopify/Product/base-1")
-                .unwrap()
-                .title,
-            "Updated one"
-        );
-        assert!(store
-            .product_by_id("gid://shopify/Product/base-2")
-            .is_none());
-        assert_eq!(
-            store
-                .product_by_handle("new-product")
-                .map(|record| record.id.as_str()),
-            Some("gid://shopify/Product/new")
-        );
-        assert_eq!(
-            store
-                .products()
-                .iter()
-                .map(|record| record.id.as_str())
-                .collect::<Vec<_>>(),
-            vec!["gid://shopify/Product/base-1", "gid://shopify/Product/new"]
-        );
-        assert_eq!(store.product_count(), 2);
-    }
-
-    #[test]
-    fn store_saved_searches_overlay_defaults_base_and_tombstones_in_order() {
-        let mut store = Store::default();
-        store.base.saved_searches.replace_with_order(
-            BTreeMap::from([(
-                "gid://shopify/SavedSearch/base".to_string(),
-                saved_search("gid://shopify/SavedSearch/base", "Base products", "PRODUCT"),
-            )]),
-            vec!["gid://shopify/SavedSearch/base".to_string()],
-        );
-
-        store.stage_saved_search(saved_search(
-            "gid://shopify/SavedSearch/base",
-            "Updated base products",
-            "PRODUCT",
-        ));
-        store.stage_saved_search(saved_search(
-            "gid://shopify/SavedSearch/new",
-            "New products",
-            "PRODUCT",
-        ));
-        assert!(store.delete_saved_search("gid://shopify/SavedSearch/base"));
-
-        assert!(store
-            .saved_search_by_id("gid://shopify/SavedSearch/base")
-            .is_none());
-        assert_eq!(
-            store
-                .saved_searches_for_resource("PRODUCT")
-                .iter()
-                .map(|record| record.id.as_str())
-                .collect::<Vec<_>>(),
-            vec!["gid://shopify/SavedSearch/new"]
-        );
-    }
-
-    #[test]
-    fn store_clear_staged_resets_overlays_and_tombstones_without_dropping_base() {
-        let mut store = Store::default();
-        store.replace_base_products(vec![product(
-            "gid://shopify/Product/base",
-            "Base product",
-            "base-product",
-        )]);
-        store.stage_product(product(
-            "gid://shopify/Product/base",
-            "Updated product",
-            "updated-product",
-        ));
-        store.delete_product("gid://shopify/Product/base");
-
-        store.clear_staged();
-
-        assert_eq!(
-            store
-                .product_by_id("gid://shopify/Product/base")
-                .unwrap()
-                .title,
-            "Base product"
-        );
-        assert!(store.staged.products.records.is_empty());
-        assert!(store.staged.products.tombstones.is_empty());
-    }
-
-    #[test]
-    fn store_dump_restore_round_trips_order_and_tombstones() {
-        let mut proxy = snapshot_proxy().with_base_products(vec![
-            product("gid://shopify/Product/base-1", "Base one", "base-one"),
-            product("gid://shopify/Product/base-2", "Base two", "base-two"),
-        ]);
-        proxy.store.stage_product(product(
-            "gid://shopify/Product/base-1",
-            "Updated one",
-            "updated-one",
-        ));
-        proxy.store.stage_product(product(
-            "gid://shopify/Product/new",
-            "New product",
-            "new-product",
-        ));
-        proxy.store.delete_product("gid://shopify/Product/base-2");
-        proxy.store.stage_saved_search(saved_search(
-            "gid://shopify/SavedSearch/new",
-            "New products",
-            "PRODUCT",
-        ));
-        proxy.store.staged.locations.insert(
-            "gid://shopify/Location/live".to_string(),
-            json!({"id": "gid://shopify/Location/live", "name": "Live location"}),
-        );
-        proxy.store.staged.locations.insert(
-            "gid://shopify/Location/deleted".to_string(),
-            json!({"id": "gid://shopify/Location/deleted", "name": "Deleted location"}),
-        );
-        proxy
-            .store
-            .staged
-            .locations
-            .tombstone_staged("gid://shopify/Location/deleted");
-        proxy.store.staged.delivery_profiles.insert(
-            "gid://shopify/DeliveryProfile/live".to_string(),
-            json!({"id": "gid://shopify/DeliveryProfile/live", "name": "Live profile"}),
-        );
-        proxy.store.staged.delivery_profiles.insert(
-            "gid://shopify/DeliveryProfile/deleted".to_string(),
-            json!({"id": "gid://shopify/DeliveryProfile/deleted", "name": "Deleted profile"}),
-        );
-        proxy
-            .store
-            .staged
-            .delivery_profiles
-            .tombstone_staged("gid://shopify/DeliveryProfile/deleted");
-        proxy.store.staged.store_credit_accounts.insert(
-            "gid://shopify/StoreCreditAccount/1".to_string(),
-            json!({"id": "gid://shopify/StoreCreditAccount/1"}),
-        );
-        proxy.store.staged.b2b_locations.insert(
-            "gid://shopify/CompanyLocation/1".to_string(),
-            json!({"id": "gid://shopify/CompanyLocation/1"}),
-        );
-        proxy.store.staged.customers.insert(
-            "gid://shopify/Customer/deleted".to_string(),
-            json!({"id": "gid://shopify/Customer/deleted"}),
-        );
-        proxy
-            .store
-            .staged
-            .customers
-            .tombstone_staged("gid://shopify/Customer/deleted");
-        proxy.store.staged.collections.insert(
-            "gid://shopify/Collection/deleted".to_string(),
-            json!({"id": "gid://shopify/Collection/deleted"}),
-        );
-        proxy
-            .store
-            .staged
-            .collections
-            .tombstone_staged("gid://shopify/Collection/deleted");
-
-        let dump = proxy.process_request(request(
-            "POST",
-            "/__meta/dump",
-            &json!({ "createdAt": "2026-05-23T00:00:00.000Z" }).to_string(),
-        ));
-        assert_eq!(
-            dump.body["state"]["baseState"]["productOrder"],
-            json!([
-                "gid://shopify/Product/base-1",
-                "gid://shopify/Product/base-2"
-            ])
-        );
-        assert_eq!(
-            dump.body["state"]["stagedState"]["productOrder"],
-            json!(["gid://shopify/Product/base-1", "gid://shopify/Product/new"])
-        );
-        assert_eq!(
-            dump.body["state"]["stagedState"]["deletedProductIds"],
-            json!(["gid://shopify/Product/base-2"])
-        );
-        assert_eq!(
-            dump.body["state"]["stagedState"]["locationOrder"],
-            json!(["gid://shopify/Location/live"])
-        );
-        assert_eq!(
-            dump.body["state"]["stagedState"]["deletedLocationIds"],
-            json!(["gid://shopify/Location/deleted"])
-        );
-        assert_eq!(
-            dump.body["state"]["stagedState"]["deliveryProfileOrder"],
-            json!(["gid://shopify/DeliveryProfile/live"])
-        );
-        assert_eq!(
-            dump.body["state"]["stagedState"]["deletedDeliveryProfileIds"],
-            json!(["gid://shopify/DeliveryProfile/deleted"])
-        );
-        assert_eq!(
-            dump.body["state"]["stagedState"]["storeCreditAccountOrder"],
-            json!(["gid://shopify/StoreCreditAccount/1"])
-        );
-        assert_eq!(
-            dump.body["state"]["stagedState"]["b2bLocationOrder"],
-            json!(["gid://shopify/CompanyLocation/1"])
-        );
-        assert_eq!(
-            dump.body["state"]["stagedState"]["deletedCustomerIds"],
-            json!(["gid://shopify/Customer/deleted"])
-        );
-        assert_eq!(
-            dump.body["state"]["stagedState"]["deletedCollectionIds"],
-            json!(["gid://shopify/Collection/deleted"])
-        );
-
-        let mut restored = snapshot_proxy();
-        let restore =
-            restored.process_request(request("POST", "/__meta/restore", &dump.body.to_string()));
-        assert_eq!(restore.status, 200);
-        assert_eq!(
-            restored
-                .store
-                .products()
-                .iter()
-                .map(|record| record.id.as_str())
-                .collect::<Vec<_>>(),
-            vec!["gid://shopify/Product/base-1", "gid://shopify/Product/new"]
-        );
-        assert_eq!(
-            restored.store.saved_searches_for_resource("PRODUCT")[0].id,
-            "gid://shopify/SavedSearch/new"
-        );
-        assert_eq!(
-            restored
-                .store
-                .staged
-                .locations
-                .get("gid://shopify/Location/live"),
-            Some(&json!({"id": "gid://shopify/Location/live", "name": "Live location"}))
-        );
-        assert!(restored
-            .store
-            .staged
-            .locations
-            .is_tombstoned("gid://shopify/Location/deleted"));
-        assert!(restored
-            .store
-            .staged
-            .delivery_profiles
-            .is_tombstoned("gid://shopify/DeliveryProfile/deleted"));
-        assert!(restored
-            .store
-            .staged
-            .customers
-            .is_tombstoned("gid://shopify/Customer/deleted"));
-        assert!(restored
-            .store
-            .staged
-            .collections
-            .is_tombstoned("gid://shopify/Collection/deleted"));
-        assert_eq!(
-            restored.store.staged.store_credit_accounts.order,
-            vec!["gid://shopify/StoreCreditAccount/1"]
-        );
-        assert_eq!(
-            restored.store.staged.b2b_locations.order,
-            vec!["gid://shopify/CompanyLocation/1"]
-        );
-    }
-
-    #[test]
-    fn product_downstream_read_uses_staged_store_instead_of_operation_name_fixture() {
-        let mut proxy = snapshot_proxy();
-        let create = proxy.process_request(graphql_request(
-            r#"
-            mutation ProductCreateParityPlan($product: ProductInput!) {
-              productCreate(product: $product) {
-                product {
-                  id
-                }
-                userErrors {
-                  field
-                  message
-                }
-              }
-            }
-            "#,
-            json!({
-                "product": {
-                    "title": "Store backed product",
-                    "handle": "store-backed-product",
-                    "vendor": "Hermes",
-                    "productType": "Proof",
-                    "tags": ["local", "store"],
-                    "seo": {
-                        "title": "Store SEO",
-                        "description": "Projected from store"
-                    }
-                }
-            }),
-        ));
-        let id = create.body["data"]["productCreate"]["product"]["id"]
-            .as_str()
-            .expect("productCreate should return a staged product id")
-            .to_string();
-
-        let read = proxy.process_request(graphql_request(
-            r#"
-            query ProductDetailRead($id: ID!) {
-              product(id: $id) {
-                id
-                title
-                handle
-                vendor
-                productType
-                tags
-                totalInventory
-                tracksInventory
-                onlineStorePreviewUrl
-                category {
-                  id
-                  fullName
-                }
-                seo {
-                  title
-                  description
-                }
-                variants(first: 2) {
-                  nodes {
-                    id
-                  }
-                  pageInfo {
-                    hasNextPage
-                    hasPreviousPage
-                    startCursor
-                    endCursor
-                  }
-                }
-                metafield(namespace: "custom", key: "material") {
-                  value
-                }
-              }
-            }
-            "#,
-            json!({ "id": id }),
-        ));
-
-        assert_eq!(read.status, 200);
-        assert_eq!(read.body["data"]["product"]["id"], json!(id));
-        assert_eq!(
-            read.body["data"]["product"]["title"],
-            json!("Store backed product")
-        );
-        assert_eq!(
-            read.body["data"]["product"]["handle"],
-            json!("store-backed-product")
-        );
-        assert_eq!(read.body["data"]["product"]["vendor"], json!("Hermes"));
-        assert_eq!(read.body["data"]["product"]["productType"], json!("Proof"));
-        assert_eq!(
-            read.body["data"]["product"]["tags"],
-            json!(["local", "store"])
-        );
-        assert_eq!(read.body["data"]["product"]["totalInventory"], json!(0));
-        assert_eq!(
-            read.body["data"]["product"]["tracksInventory"],
-            json!(false)
-        );
-        assert_eq!(
-            read.body["data"]["product"]["onlineStorePreviewUrl"],
-            Value::Null
-        );
-        assert_eq!(read.body["data"]["product"]["category"], Value::Null);
-        assert_eq!(
-            read.body["data"]["product"]["seo"],
-            json!({ "title": "Store SEO", "description": "Projected from store" })
-        );
-        assert_eq!(
-            read.body["data"]["product"]["variants"]["pageInfo"],
-            json!({
-                "hasNextPage": false,
-                "hasPreviousPage": false,
-                "startCursor": "gid://shopify/ProductVariant/2?shopify-draft-proxy=synthetic",
-                "endCursor": "gid://shopify/ProductVariant/2?shopify-draft-proxy=synthetic"
-            })
-        );
-        assert_eq!(
-            read.body["data"]["product"]["variants"]["nodes"],
-            json!([{ "id": "gid://shopify/ProductVariant/2?shopify-draft-proxy=synthetic" }])
-        );
-        assert_eq!(read.body["data"]["product"]["metafield"], Value::Null);
-    }
-
-    #[test]
-    fn product_read_passthroughs_in_live_hybrid_when_there_is_no_local_overlay_state() {
-        let upstream_body = json!({
-            "data": {
-                "product": {
-                    "id": "gid://shopify/Product/upstream",
-                    "title": "Upstream product"
-                }
+    fn guarded_upstream_transport_allows_hydration_queries_and_unknown_mutations() {
+        let forwarded = Arc::new(AtomicUsize::new(0));
+        let transport = super::core::guarded_upstream_transport({
+            let forwarded = Arc::clone(&forwarded);
+            move |_| {
+                forwarded.fetch_add(1, Ordering::SeqCst);
+                ok_json(json!({ "data": { "ok": true } }))
             }
         });
-        let mut proxy = DraftProxy::new(Config {
-            read_mode: ReadMode::LiveHybrid,
-            unsupported_mutation_mode: Some(UnsupportedMutationMode::Passthrough),
-            bulk_operation_run_mutation_max_input_file_size_bytes: None,
-            port: 0,
-            shopify_admin_origin: "https://shopify.com".to_string(),
-            snapshot_path: None,
-        })
-        .with_upstream_transport({
-            let upstream_body = upstream_body.clone();
-            move |_| ok_json(upstream_body.clone())
-        });
 
-        let response = proxy.process_request(graphql_request(
-            r#"
-            query ProductDetailRead($id: ID!) {
-              product(id: $id) {
-                id
-                title
-              }
-            }
-            "#,
-            json!({ "id": "gid://shopify/Product/upstream" }),
+        let query_response = transport(graphql_request(
+            r#"query HydrateOrderForLocalMutation { order(id: "gid://shopify/Order/1") { id } }"#
+                .to_string(),
         ));
+        assert_eq!(query_response.status, 200);
+        assert_eq!(forwarded.load(Ordering::SeqCst), 1);
 
-        assert_eq!(response.status, 200);
-        assert_eq!(response.body, upstream_body);
-    }
-
-    #[test]
-    fn product_variant_downstream_read_uses_staged_variant_state() {
-        let mut proxy = snapshot_proxy();
-
-        let create_product = proxy.process_request(graphql_request(
-            r#"
-            mutation ProductVariantUpdateSetupProduct($product: ProductCreateInput!) {
-              productCreate(product: $product) {
-                product {
-                  id
-                }
-                userErrors {
-                  field
-                  message
-                }
-              }
-            }
-            "#,
-            json!({
-                "product": {
-                    "title": "Store Variant Product",
-                    "status": "ACTIVE"
-                }
-            }),
+        let unknown_mutation_response = transport(graphql_request(
+            "mutation UnsupportedMutationPassthrough { definitelyUnknownRoot { id } }".to_string(),
         ));
-        let product_id = create_product.body["data"]["productCreate"]["product"]["id"]
-            .as_str()
-            .expect("product create should return product id")
-            .to_string();
-
-        let create_variant = proxy.process_request(graphql_request(
-            r#"
-            mutation ProductVariantUpdateSetupVariant($input: ProductVariantInput!) {
-              productVariantCreate(input: $input) {
-                productVariant {
-                  id
-                }
-                userErrors {
-                  field
-                  message
-                }
-              }
-            }
-            "#,
-            json!({
-                "input": {
-                    "productId": product_id,
-                    "title": "Store Red",
-                    "sku": "STORE-DRAFT",
-                    "inventoryItem": {
-                        "tracked": false,
-                        "requiresShipping": true
-                    }
-                }
-            }),
-        ));
-        let variant_id = create_variant.body["data"]["productVariantCreate"]["productVariant"]
-            ["id"]
-            .as_str()
-            .expect("variant create should return variant id")
-            .to_string();
-
-        let update = proxy.process_request(graphql_request(
-            r#"
-            mutation ProductVariantUpdateParityPlan($input: ProductVariantInput!) {
-              productVariantUpdate(input: $input) {
-                product {
-                  id
-                  totalInventory
-                  tracksInventory
-                  variants(first: 10) {
-                    nodes {
-                      id
-                      title
-                      sku
-                    }
-                  }
-                }
-                productVariant {
-                  id
-                  title
-                  sku
-                  barcode
-                  selectedOptions {
-                    name
-                    value
-                  }
-                  inventoryItem {
-                    id
-                    tracked
-                    requiresShipping
-                  }
-                }
-                userErrors {
-                  field
-                  message
-                }
-              }
-            }
-            "#,
-            json!({
-                "input": {
-                    "id": variant_id,
-                    "title": "Store Red",
-                    "sku": "STORE-RED",
-                    "barcode": "store-barcode",
-                    "selectedOptions": [{ "name": "Color", "value": "Store Red" }],
-                    "inventoryItem": {
-                        "tracked": true,
-                        "requiresShipping": false
-                    }
-                }
-            }),
-        ));
-        assert_eq!(
-            update.body["data"]["productVariantUpdate"]["product"]["id"],
-            json!(product_id)
-        );
-
-        let read = proxy.process_request(graphql_request(
-            r#"
-            query ProductVariantUpdateDownstreamRead($id: ID!, $query: String!) {
-              product(id: $id) {
-                id
-                totalInventory
-                tracksInventory
-                variants(first: 10) {
-                  nodes {
-                    id
-                    title
-                    sku
-                    barcode
-                    selectedOptions {
-                      name
-                      value
-                    }
-                    inventoryItem {
-                      id
-                      tracked
-                      requiresShipping
-                    }
-                  }
-                }
-              }
-              products(first: 10, query: $query) {
-                nodes {
-                  id
-                }
-              }
-              skuCount: productsCount(query: $query) {
-                count
-                precision
-              }
-            }
-            "#,
-            json!({ "id": product_id, "query": "sku:STORE-RED" }),
-        ));
-
-        assert_eq!(read.status, 200);
-        assert_eq!(read.body["data"]["product"]["id"], json!(product_id));
-        assert_eq!(read.body["data"]["product"]["tracksInventory"], json!(true));
-        let updated_variant = read.body["data"]["product"]["variants"]["nodes"]
-            .as_array()
-            .and_then(|variants| {
-                variants
-                    .iter()
-                    .find(|variant| variant.get("id") == Some(&json!(variant_id)))
-            })
-            .expect("updated variant should be present in product variants");
-        assert_eq!(updated_variant["title"], json!("Store Red"));
-        assert_eq!(updated_variant["sku"], json!("STORE-RED"));
-        assert_eq!(
-            updated_variant["inventoryItem"]["requiresShipping"],
-            json!(false)
-        );
-        assert_eq!(
-            read.body["data"]["products"]["nodes"],
-            json!([{ "id": product_id }])
-        );
-        assert_eq!(
-            read.body["data"]["skuCount"],
-            json!({ "count": 1, "precision": "EXACT" })
-        );
-    }
-
-    #[test]
-    fn collection_downstream_read_uses_observed_passthrough_membership_state() {
-        let mut proxy = snapshot_proxy().with_base_products(vec![
-            ProductRecord {
-                id: "gid://shopify/Product/first".to_string(),
-                title: "First Product".to_string(),
-                handle: "first-product".to_string(),
-                status: "ACTIVE".to_string(),
-                ..ProductRecord::default()
-            },
-            ProductRecord {
-                id: "gid://shopify/Product/second".to_string(),
-                title: "Second Product".to_string(),
-                handle: "second-product".to_string(),
-                status: "ACTIVE".to_string(),
-                ..ProductRecord::default()
-            },
-        ]);
-
-        let create = proxy.process_request(graphql_request(
-            r#"
-            mutation CollectionCreateForDownstreamRead($input: CollectionInput!) {
-              collectionCreate(input: $input) {
-                collection {
-                  id
-                }
-                userErrors {
-                  field
-                  message
-                }
-              }
-            }
-            "#,
-            json!({
-                "input": {
-                    "title": "Store Backed Collection",
-                    "handle": "store-backed-collection",
-                    "sortOrder": "MANUAL"
-                }
-            }),
-        ));
-        assert_eq!(create.status, 200);
-        assert_eq!(
-            create.body["data"]["collectionCreate"]["userErrors"],
-            json!([])
-        );
-        let collection_id = create.body["data"]["collectionCreate"]["collection"]["id"]
-            .as_str()
-            .expect("collection create should return id")
-            .to_string();
-
-        let mutation = proxy.process_request(graphql_request(
-            r#"
-            mutation CollectionAddProductsParityPlan($id: ID!, $productIds: [ID!]!) {
-              collectionAddProducts(id: $id, productIds: $productIds) {
-                collection {
-                  id
-                  title
-                  handle
-                  products(first: 10) {
-                    nodes {
-                      id
-                      title
-                      handle
-                    }
-                    pageInfo {
-                      hasNextPage
-                      hasPreviousPage
-                    }
-                  }
-                }
-                userErrors {
-                  field
-                  message
-                }
-              }
-            }
-            "#,
-            json!({
-                "id": collection_id,
-                "productIds": ["gid://shopify/Product/first", "gid://shopify/Product/second"]
-            }),
-        ));
-        assert_eq!(mutation.status, 200);
-
-        let read = proxy.process_request(graphql_request(
-            r#"
-            query CollectionAddProductsDownstream($collectionId: ID!, $firstProductId: ID!, $secondProductId: ID!) {
-              collection(id: $collectionId) {
-                id
-                title
-                handle
-                products(first: 10) {
-                  nodes {
-                    id
-                    title
-                    handle
-                  }
-                  pageInfo {
-                    hasNextPage
-                    hasPreviousPage
-                  }
-                }
-              }
-              first: product(id: $firstProductId) {
-                id
-                collections(first: 10) {
-                  nodes {
-                    id
-                    title
-                    handle
-                  }
-                }
-              }
-              second: product(id: $secondProductId) {
-                id
-                collections(first: 10) {
-                  nodes {
-                    id
-                    title
-                    handle
-                  }
-                }
-              }
-            }
-            "#,
-            json!({
-                "collectionId": collection_id,
-                "firstProductId": "gid://shopify/Product/first",
-                "secondProductId": "gid://shopify/Product/second"
-            }),
-        ));
-
-        assert_eq!(read.status, 200);
-        assert_eq!(
-            read.body["data"]["collection"]["products"]["nodes"],
-            json!([
-                {
-                    "id": "gid://shopify/Product/first",
-                    "title": "First Product",
-                    "handle": "first-product"
-                },
-                {
-                    "id": "gid://shopify/Product/second",
-                    "title": "Second Product",
-                    "handle": "second-product"
-                }
-            ])
-        );
-        assert_eq!(
-            read.body["data"]["first"]["collections"]["nodes"],
-            json!([
-                {
-                    "id": collection_id,
-                    "title": "Store Backed Collection",
-                    "handle": "store-backed-collection"
-                }
-            ])
-        );
-        assert_eq!(
-            read.body["data"]["second"]["collections"]["nodes"],
-            read.body["data"]["first"]["collections"]["nodes"]
-        );
+        assert_eq!(unknown_mutation_response.status, 200);
+        assert_eq!(forwarded.load(Ordering::SeqCst), 2);
     }
 }

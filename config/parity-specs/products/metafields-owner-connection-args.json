@@ -1,0 +1,71 @@
+{
+  "scenarioId": "metafields-owner-connection-args",
+  "operationNames": ["metafieldsSet", "metafieldsDelete", "product"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "connection-shape", "pagination-order"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-owner-connection-args.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/metafields-owner-connection-args-set.graphql",
+    "variablesCapturePath": "$.set.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured live product-owner metafields connection argument evidence: raw keys filter exact metafield keys, qualified namespace.key entries filter the matching owner metafields, reverse flips the filtered connection before first-page pagination, and post-delete reads keep keys/reverse filtering over staged removals. Shopify rejects combining namespace with keys, so this scenario keeps that invalid combination out of the successful read target.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "set-payload",
+        "capturePath": "$.set.response.data.metafieldsSet",
+        "proxyPath": "$.data.metafieldsSet"
+      },
+      {
+        "name": "raw-keys-filtered-read",
+        "capturePath": "$.readAfterSet.response.data.product.rawKeys",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/metafields-owner-connection-args-read.graphql",
+          "variablesCapturePath": "$.readAfterSet.variables"
+        },
+        "proxyPath": "$.data.product.rawKeys"
+      },
+      {
+        "name": "qualified-keys-filtered-read",
+        "capturePath": "$.readAfterSet.response.data.product.qualifiedKeys",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/metafields-owner-connection-args-read.graphql",
+          "variablesCapturePath": "$.readAfterSet.variables"
+        },
+        "proxyPath": "$.data.product.qualifiedKeys"
+      },
+      {
+        "name": "reverse-first-page-order",
+        "capturePath": "$.readAfterSet.response.data.product.reversePage",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/metafields-owner-connection-args-read.graphql",
+          "variablesCapturePath": "$.readAfterSet.variables"
+        },
+        "proxyPath": "$.data.product.reversePage"
+      },
+      {
+        "name": "delete-payload",
+        "capturePath": "$.delete.response.data.metafieldsDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/metafields-owner-connection-args-delete.graphql",
+          "variablesCapturePath": "$.delete.variables"
+        },
+        "proxyPath": "$.data.metafieldsDelete"
+      },
+      {
+        "name": "post-delete-keys-reverse-read",
+        "capturePath": "$.readAfterDelete.response.data.product.postDeleteKeysReverse",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/metafields-owner-connection-args-post-delete-read.graphql",
+          "variablesCapturePath": "$.readAfterDelete.variables"
+        },
+        "proxyPath": "$.data.product.postDeleteKeysReverse"
+      }
+    ]
+  }
+}

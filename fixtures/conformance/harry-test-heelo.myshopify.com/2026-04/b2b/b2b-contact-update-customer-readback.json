@@ -1,6 +1,6 @@
 {
   "scenarioId": "b2b-contact-update-customer-readback",
-  "capturedAt": "2026-05-07T13:41:09.499Z",
+  "capturedAt": "2026-07-10T12:42:17.682Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "intent": {
@@ -211,10 +211,10 @@
       "variables": {
         "input": {
           "company": {
-            "name": "B2B contact customer readback 1778161268239"
+            "name": "B2B contact customer readback 1783687336534"
           },
           "companyLocation": {
-            "name": "B2B contact customer readback 1778161268239 HQ"
+            "name": "B2B contact customer readback 1783687336534 HQ"
           }
         }
       }
@@ -224,8 +224,8 @@
       "data": {
         "companyCreate": {
           "company": {
-            "id": "gid://shopify/Company/5447549234",
-            "name": "B2B contact customer readback 1778161268239"
+            "id": "gid://shopify/Company/5741183282",
+            "name": "B2B contact customer readback 1783687336534"
           },
           "userErrors": []
         }
@@ -247,12 +247,12 @@
     "request": {
       "query": "#graphql\n  mutation B2BContactUpdateCustomerReadbackContactCreate($companyId: ID!, $input: CompanyContactInput!) {\n    companyContactCreate(companyId: $companyId, input: $input) {\n      companyContact {\n        id\n        customer {\n          id\n          email\n          firstName\n          lastName\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5447549234",
+        "companyId": "gid://shopify/Company/5741183282",
         "input": {
-          "email": "b2b-contact-customer-old-1778161268239@example.com",
+          "email": "b2b-contact-customer-old-1783687336534@example.com",
           "firstName": "Old",
           "lastName": "Buyer",
-          "phone": "(415) 555-0100"
+          "phone": "(415) 555-1534"
         }
       }
     },
@@ -261,10 +261,10 @@
       "data": {
         "companyContactCreate": {
           "companyContact": {
-            "id": "gid://shopify/CompanyContact/10164633906",
+            "id": "gid://shopify/CompanyContact/10426843442",
             "customer": {
-              "id": "gid://shopify/Customer/10588274688306",
-              "email": "b2b-contact-customer-old-1778161268239@example.com",
+              "id": "gid://shopify/Customer/10945592885554",
+              "email": "b2b-contact-customer-old-1783687336534@example.com",
               "firstName": "Old",
               "lastName": "Buyer"
             }
@@ -289,12 +289,12 @@
     "request": {
       "query": "#graphql\n  mutation B2BContactUpdateCustomerReadbackContactUpdate($companyContactId: ID!, $input: CompanyContactInput!) {\n    companyContactUpdate(companyContactId: $companyContactId, input: $input) {\n      companyContact {\n        id\n        customer {\n          id\n          email\n          firstName\n          lastName\n          phone\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "companyContactId": "gid://shopify/CompanyContact/10164633906",
+        "companyContactId": "gid://shopify/CompanyContact/10426843442",
         "input": {
-          "email": "b2b-contact-customer-new-1778161268239@example.com",
+          "email": "b2b-contact-customer-new-1783687336534@example.com",
           "firstName": "New",
           "lastName": "Name",
-          "phone": "(650) 555-0101"
+          "phone": "(650) 555-1535"
         }
       }
     },
@@ -303,13 +303,13 @@
       "data": {
         "companyContactUpdate": {
           "companyContact": {
-            "id": "gid://shopify/CompanyContact/10164633906",
+            "id": "gid://shopify/CompanyContact/10426843442",
             "customer": {
-              "id": "gid://shopify/Customer/10588274688306",
-              "email": "b2b-contact-customer-new-1778161268239@example.com",
+              "id": "gid://shopify/Customer/10945592885554",
+              "email": "b2b-contact-customer-new-1783687336534@example.com",
               "firstName": "New",
               "lastName": "Name",
-              "phone": "+16505550101"
+              "phone": "+16505551535"
             }
           },
           "userErrors": []
@@ -332,20 +332,20 @@
     "request": {
       "query": "#graphql\n  query B2BContactUpdateCustomerReadbackContactRead($companyContactId: ID!) {\n    companyContact(id: $companyContactId) {\n      id\n      customer {\n        id\n        email\n        firstName\n        lastName\n        phone\n      }\n    }\n  }\n",
       "variables": {
-        "companyContactId": "gid://shopify/CompanyContact/10164633906"
+        "companyContactId": "gid://shopify/CompanyContact/10426843442"
       }
     },
     "response": {
       "status": 200,
       "data": {
         "companyContact": {
-          "id": "gid://shopify/CompanyContact/10164633906",
+          "id": "gid://shopify/CompanyContact/10426843442",
           "customer": {
-            "id": "gid://shopify/Customer/10588274688306",
-            "email": "b2b-contact-customer-new-1778161268239@example.com",
+            "id": "gid://shopify/Customer/10945592885554",
+            "email": "b2b-contact-customer-new-1783687336534@example.com",
             "firstName": "New",
             "lastName": "Name",
-            "phone": "+16505550101"
+            "phone": "+16505551535"
           }
         }
       },
@@ -367,14 +367,14 @@
       "request": {
         "query": "#graphql\n  mutation B2BContactUpdateCustomerReadbackCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Company/5447549234"
+          "id": "gid://shopify/Company/5741183282"
         }
       },
       "response": {
         "status": 200,
         "data": {
           "companyDelete": {
-            "deletedCompanyId": "gid://shopify/Company/5447549234",
+            "deletedCompanyId": "gid://shopify/Company/5741183282",
             "userErrors": []
           }
         },
@@ -392,5 +392,35 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "B2BShopCountryHydrate",
+      "query": "query B2BShopCountryHydrate { shop { shopAddress { countryCodeV2 countryCode } } }",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shop": {
+              "shopAddress": {
+                "countryCodeV2": "CA",
+                "countryCode": "CA"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

@@ -17,7 +17,6 @@ pub(in crate::proxy) use self::delivery_settings::*;
 pub(in crate::proxy) use self::events::*;
 pub(in crate::proxy) use self::payment_customizations::*;
 pub(in crate::proxy) use self::payment_terms::*;
-pub(in crate::proxy) use self::quantity_pricing::*;
 pub(in crate::proxy) use self::quantity_rules::*;
 
 pub(in crate::proxy) fn metafield_compare_digest(value: &str) -> String {
@@ -35,6 +34,86 @@ pub(in crate::proxy) type MetafieldNamespaceKeyValidation = (
     &'static str, // code
     &'static str, // message
 );
+
+#[derive(Clone, Copy)]
+pub(in crate::proxy) struct QuantityBounds {
+    minimum: i64,
+    maximum: Option<i64>,
+    increment: i64,
+}
+
+#[derive(Clone, Copy)]
+pub(in crate::proxy) enum QuantityBoundsViolation {
+    MinimumLessThanOne,
+    IncrementLessThanOne,
+    IncrementGreaterThanMinimum,
+    MinimumGreaterThanMaximum,
+    MinimumNotMultipleOfIncrement,
+    MaximumNotMultipleOfIncrement,
+}
+
+pub(in crate::proxy) fn quantity_bounds_from_rule(
+    rule: &BTreeMap<String, ResolvedValue>,
+) -> QuantityBounds {
+    QuantityBounds {
+        minimum: resolved_int_field(rule, "minimum").unwrap_or(1),
+        maximum: resolved_int_field(rule, "maximum"),
+        increment: resolved_int_field(rule, "increment").unwrap_or(1),
+    }
+}
+
+pub(in crate::proxy) fn quantity_pricing_bounds_violations(
+    bounds: QuantityBounds,
+) -> Option<Vec<QuantityBoundsViolation>> {
+    if bounds.minimum < 1 {
+        return Some(vec![
+            QuantityBoundsViolation::MinimumLessThanOne,
+            QuantityBoundsViolation::IncrementGreaterThanMinimum,
+        ]);
+    }
+    if bounds.increment < 1 {
+        return Some(vec![QuantityBoundsViolation::IncrementLessThanOne]);
+    }
+    if bounds.maximum.is_some_and(|max| bounds.minimum > max) {
+        return Some(vec![QuantityBoundsViolation::MinimumGreaterThanMaximum]);
+    }
+    if bounds.minimum % bounds.increment != 0 {
+        return Some(vec![QuantityBoundsViolation::MinimumNotMultipleOfIncrement]);
+    }
+    if bounds
+        .maximum
+        .is_some_and(|max| max % bounds.increment != 0)
+    {
+        return Some(vec![QuantityBoundsViolation::MaximumNotMultipleOfIncrement]);
+    }
+    None
+}
+
+pub(in crate::proxy) fn quantity_rule_bounds_violations(
+    bounds: QuantityBounds,
+) -> Vec<QuantityBoundsViolation> {
+    let mut violations = Vec::new();
+    if bounds.minimum < 1 {
+        violations.push(QuantityBoundsViolation::MinimumLessThanOne);
+    }
+    if bounds.increment < 1 {
+        violations.push(QuantityBoundsViolation::IncrementLessThanOne);
+    } else if bounds.increment > bounds.minimum {
+        violations.push(QuantityBoundsViolation::IncrementGreaterThanMinimum);
+    }
+    if bounds.maximum.is_some_and(|max| bounds.minimum > max) {
+        violations.push(QuantityBoundsViolation::MinimumGreaterThanMaximum);
+    } else if bounds.increment > 0 && bounds.minimum % bounds.increment != 0 {
+        violations.push(QuantityBoundsViolation::MinimumNotMultipleOfIncrement);
+    } else if bounds.increment > 0
+        && bounds
+            .maximum
+            .is_some_and(|max| max % bounds.increment != 0)
+    {
+        violations.push(QuantityBoundsViolation::MaximumNotMultipleOfIncrement);
+    }
+    violations
+}
 
 pub(in crate::proxy) fn metafield_namespace_key_validation(
     namespace: &str,
@@ -101,6 +180,11 @@ pub(in crate::proxy) fn normalize_metafield_value_string(
     value: &str,
 ) -> String {
     match metafield_type {
+        "number_integer" | "integer" => normalize_integer_value_string(value),
+        "number_decimal" | "float" => truncate_decimal_value_string(value, 9),
+        "boolean" => shopify_boolean_value(value)
+            .map(|value| value.to_string())
+            .unwrap_or_else(|| value.to_string()),
         "date_time" => normalize_date_time_value(value),
         "rating" => normalize_rating_value_string(value),
         _ => {
@@ -136,7 +220,11 @@ pub(in crate::proxy) fn metafield_json_value(metafield_type: &str, value: &str) 
                         .parse::<i64>()
                         .map(Value::from)
                         .unwrap_or_else(|_| Value::String(value.to_string())),
-                    "boolean" => Value::Bool(value == "true"),
+                    "boolean" => match shopify_boolean_value(value) {
+                        Some(true) => Value::Bool(true),
+                        Some(false) => Value::String("false".to_string()),
+                        None => Value::String(value.to_string()),
+                    },
                     _ => Value::String(value.to_string()),
                 }
             }
@@ -152,6 +240,65 @@ fn parse_json_or_string(raw: &str) -> Value {
 /// strings can be assembled by hand while preserving key order.
 fn json_quote(value: &str) -> String {
     Value::String(value.to_string()).to_string()
+}
+
+fn shopify_boolean_value(value: &str) -> Option<bool> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "t" | "true" | "1" => Some(true),
+        "f" | "false" | "0" => Some(false),
+        _ => None,
+    }
+}
+
+fn is_shopify_integer_value(value: &str) -> bool {
+    if value.is_empty() || value.trim() != value {
+        return false;
+    }
+    let unsigned = value.strip_prefix('-').unwrap_or(value);
+    if unsigned.is_empty() {
+        return false;
+    }
+    let (integer_part, fractional_part) = unsigned
+        .split_once('.')
+        .map(|(integer, fraction)| (integer, Some(fraction)))
+        .unwrap_or((unsigned, None));
+    !integer_part.is_empty()
+        && integer_part
+            .chars()
+            .all(|character| character.is_ascii_digit())
+        && fractional_part.is_none_or(|fraction| fraction.chars().all(|character| character == '0'))
+}
+
+fn normalize_integer_value_string(value: &str) -> String {
+    let (sign, unsigned) = value
+        .strip_prefix('-')
+        .map(|unsigned| ("-", unsigned))
+        .unwrap_or(("", value));
+    let integer_part = unsigned
+        .split_once('.')
+        .map(|(head, _)| head)
+        .unwrap_or(unsigned);
+    let significant = integer_part.trim_start_matches('0');
+    let digits = if significant.is_empty() {
+        "0"
+    } else {
+        significant
+    };
+    if sign == "-" && digits != "0" {
+        format!("-{digits}")
+    } else {
+        digits.to_string()
+    }
+}
+
+fn truncate_decimal_value_string(value: &str, max_decimal_places: usize) -> String {
+    let Some((integer, fraction)) = value.split_once('.') else {
+        return value.to_string();
+    };
+    if fraction.len() <= max_decimal_places {
+        return value.to_string();
+    }
+    format!("{}.{}", integer, &fraction[..max_decimal_places])
 }
 
 fn normalize_date_time_value(value: &str) -> String {
@@ -433,12 +580,15 @@ fn list_decimal_json_item(item: &Value) -> Value {
             if let Some(int_value) = number.as_i64() {
                 Value::String(int_value.to_string())
             } else if let Some(float_value) = number.as_f64() {
-                Value::String(shopify_decimal_text(&float_value.to_string()))
+                Value::String(truncate_decimal_value_string(
+                    &shopify_decimal_text(&float_value.to_string()),
+                    9,
+                ))
             } else {
                 item.clone()
             }
         }
-        Value::String(text) => Value::String(text.clone()),
+        Value::String(text) => Value::String(truncate_decimal_value_string(text, 9)),
         _ => item.clone(),
     }
 }
@@ -460,6 +610,37 @@ fn normalize_list_metafield_value_string(type_name: &str, raw: &str) -> String {
                 let parts: Vec<String> = items
                     .iter()
                     .map(|item| list_decimal_json_item(item).to_string())
+                    .collect();
+                format!("[{}]", parts.join(","))
+            }
+            "number_integer" | "integer" => {
+                let parts: Vec<String> = items
+                    .iter()
+                    .map(|item| {
+                        list_item_string_value(item)
+                            .map(|value| normalize_integer_value_string(&value))
+                            .map(|value| {
+                                value
+                                    .parse::<i64>()
+                                    .map(Value::from)
+                                    .unwrap_or_else(|_| Value::String(value))
+                                    .to_string()
+                            })
+                            .unwrap_or_else(|| item.to_string())
+                    })
+                    .collect();
+                format!("[{}]", parts.join(","))
+            }
+            "boolean" => {
+                let parts: Vec<String> = items
+                    .iter()
+                    .map(|item| match item {
+                        Value::Bool(value) => value.to_string(),
+                        Value::String(value) => shopify_boolean_value(value)
+                            .map(|value| value.to_string())
+                            .unwrap_or_else(|| item.to_string()),
+                        _ => item.to_string(),
+                    })
                     .collect();
                 format!("[{}]", parts.join(","))
             }
@@ -497,7 +678,6 @@ fn normalize_list_metafield_value_string(type_name: &str, raw: &str) -> String {
     }
 }
 
-pub(in crate::proxy) const API_CLIENT_ID_HEADER: &str = "x-shopify-draft-proxy-api-client-id";
 pub(in crate::proxy) const APP_NAMESPACE_IDENTITY_REQUIRED_MESSAGE: &str =
     "API client identity is required to resolve or authorize app-reserved namespaces and types.";
 
@@ -522,6 +702,7 @@ pub(in crate::proxy) fn app_metafield_namespace_requires_api_client(
         Some(value) => {
             let value = value.trim();
             value.is_empty()
+                || value == "$app"
                 || value.starts_with("$app:")
                 || app_namespace_api_client_id(value).is_some()
         }
@@ -554,6 +735,9 @@ pub(in crate::proxy) fn canonical_app_metafield_namespace(
                 )
             })
             .unwrap_or_else(|| value.to_string()),
+        Some("$app") => api_client_id
+            .map(|api_client_id| format!("app--{api_client_id}"))
+            .unwrap_or_else(|| "$app".to_string()),
         Some(value) if value.trim().is_empty() => api_client_id
             .map(|api_client_id| format!("app--{api_client_id}"))
             .unwrap_or_default(),
@@ -612,23 +796,17 @@ pub(in crate::proxy) fn metafields_set_coercion_error(
     let message = format!(
         "Variable ${variable_name} of type [MetafieldsSetInput!]! was provided invalid value for {first_index}.{first_field} (Expected value to not be null)"
     );
-    let mut error = serde_json::Map::new();
-    error.insert("message".to_string(), json!(message));
-    if let Some((line, column)) = graphql_variable_definition_location(query, &variable_name) {
-        error.insert(
-            "locations".to_string(),
-            json!([{ "line": line, "column": column }]),
-        );
-    }
-    error.insert(
-        "extensions".to_string(),
-        json!({
-            "code": "INVALID_VARIABLE",
-            "value": value,
-            "problems": problems_json,
-        }),
-    );
-    Some(ok_json(json!({ "errors": [Value::Object(error)] })))
+    let location = graphql_variable_definition_location(query, &variable_name)
+        .map(|(line, column)| SourceLocation { line, column })
+        .unwrap_or(SourceLocation { line: 1, column: 1 });
+    Some(ok_json(json!({
+        "errors": [invalid_variable_error_envelope(
+            message,
+            location,
+            Value::Array(value),
+            Value::Array(problems_json),
+        )]
+    })))
 }
 
 /// Resolves the variable name bound to the `metafields:` argument of a `metafieldsSet`
@@ -731,6 +909,39 @@ where
         .collect()
 }
 
+pub(in crate::proxy) fn metafield_value_error_message<F>(
+    metafield_type: &str,
+    value: &str,
+    reference_exists: &mut F,
+) -> Option<String>
+where
+    F: FnMut(&str) -> bool,
+{
+    if let Some(inner_type) = metafield_type.strip_prefix("list.") {
+        return list_metafield_value_error_message(inner_type, value, reference_exists);
+    }
+    metafield_scalar_value_error(metafield_type, value, reference_exists)
+}
+
+fn list_metafield_value_error_message<F>(
+    inner_type: &str,
+    value: &str,
+    reference_exists: &mut F,
+) -> Option<String>
+where
+    F: FnMut(&str) -> bool,
+{
+    let Ok(Value::Array(items)) = serde_json::from_str::<Value>(value) else {
+        return Some("Value must be a JSON array.".to_string());
+    };
+    if items.len() > 128 {
+        return Some("Value has more than 128 elements.".to_string());
+    }
+    items
+        .iter()
+        .find_map(|item| list_metafield_item_error(inner_type, item, reference_exists))
+}
+
 fn list_metafield_value_user_errors<F>(
     index: usize,
     inner_type: &str,
@@ -787,12 +998,19 @@ where
     match inner_type {
         "number_integer" | "integer" => match item {
             Value::Number(number) if number.as_i64().is_some() => None,
-            Value::String(value) if value.parse::<i64>().is_ok() => None,
+            Value::Number(number)
+                if number
+                    .as_f64()
+                    .is_some_and(|value| value.is_finite() && value.fract() == 0.0) =>
+            {
+                None
+            }
+            Value::String(value) if is_shopify_integer_value(value) => None,
             _ => Some("Value must be an integer.".to_string()),
         },
         "boolean" => match item {
             Value::Bool(_) => None,
-            Value::String(value) if matches!(value.as_str(), "true" | "false") => None,
+            Value::String(value) if shopify_boolean_value(value).is_some() => None,
             _ => Some("Value must be true or false.".to_string()),
         },
         "link" | "rating" if item.is_object() => {
@@ -819,36 +1037,36 @@ where
     F: FnMut(&str) -> bool,
 {
     match metafield_type {
-        "number_integer" | "integer" => value
-            .parse::<i64>()
-            .is_err()
-            .then(|| "Value must be an integer.".to_string()),
+        "number_integer" | "integer" => {
+            (!is_shopify_integer_value(value)).then(|| "Value must be an integer.".to_string())
+        }
         "number_decimal" | "float" => shopify_decimal_error(value),
-        "boolean" => (!matches!(value, "true" | "false"))
+        "boolean" => shopify_boolean_value(value)
+            .is_none()
             .then(|| "Value must be true or false.".to_string()),
         "color" => {
             (!is_shopify_hex_color(value)).then(|| "Value must be a hex color code.".to_string())
         }
-        "date" => (!is_shopify_date(value))
-            .then(|| "Value must be in YYYY-MM-DD format.".to_string()),
+        "date" => {
+            (!is_shopify_date(value)).then(|| "Value must be in YYYY-MM-DD format.".to_string())
+        }
         "date_time" => (!is_shopify_date_time(value)).then(|| {
-            "Value must be in YYYY-MM-DDTHH:MM:SS format.".to_string()
+            "Value must be in “YYYY-MM-DDTHH:MM:SS” format. For example: 2022-06-01T15:30:00"
+                .to_string()
         }),
-        "json" => serde_json::from_str::<Value>(value)
-            .is_err()
-            .then(|| "Value is invalid JSON.".to_string()),
+        "json" => shopify_json_value_error(value),
         "money" | "link" | "rating" => serde_json::from_str::<Value>(value)
             .ok()
             .as_ref()
-            .and_then(|parsed| metafield_scalar_json_value_error(metafield_type, parsed, reference_exists))
+            .and_then(|parsed| {
+                metafield_scalar_json_value_error(metafield_type, parsed, reference_exists)
+            })
             .or_else(|| {
                 serde_json::from_str::<Value>(value)
                     .is_err()
                     .then(|| metafield_json_object_message(metafield_type).to_string())
             }),
-        "url" => (!is_shopify_metafield_url(value)).then(|| {
-            "Value cannot have an empty scheme (protocol), must include one of the following URL schemes: [\"http\", \"https\", \"mailto\", \"sms\", \"tel\"].'".to_string()
-        }),
+        "url" => shopify_metafield_url_value_error(value),
         "single_line_text_field" => {
             if value.trim().is_empty() {
                 Some("Value can't be blank.".to_string())
@@ -862,19 +1080,23 @@ where
             .trim()
             .is_empty()
             .then(|| "Value can't be blank.".to_string()),
-        _ if is_measurement_metafield_type_name(metafield_type) => serde_json::from_str::<Value>(value)
-            .ok()
-            .as_ref()
-            .and_then(|parsed| metafield_scalar_json_value_error(metafield_type, parsed, reference_exists))
-            .or_else(|| {
-                serde_json::from_str::<Value>(value)
-                    .is_err()
-                    .then(|| "Value must be a non-negative number.".to_string())
-            }),
+        _ if is_measurement_metafield_type_name(metafield_type) => {
+            serde_json::from_str::<Value>(value)
+                .ok()
+                .as_ref()
+                .and_then(|parsed| {
+                    metafield_scalar_json_value_error(metafield_type, parsed, reference_exists)
+                })
+                .or_else(|| {
+                    serde_json::from_str::<Value>(value)
+                        .is_err()
+                        .then(|| "Value must be a non-negative number.".to_string())
+                })
+        }
         _ => match metafield_reference_type_name(metafield_type) {
-            Some(_) if !reference_exists(value) => Some(format!(
-                "Value references non-existent resource {value}."
-            )),
+            Some(_) if !reference_exists(value) => {
+                Some(format!("Value references non-existent resource {value}."))
+            }
             _ => None,
         },
     }
@@ -889,8 +1111,7 @@ where
     F: FnMut(&str) -> bool,
 {
     match metafield_type {
-        "money" => (!is_shopify_money_value(parsed))
-            .then(|| metafield_json_object_message(metafield_type).to_string()),
+        "money" => shopify_money_value_error(parsed),
         "link" => (!is_shopify_link_value(parsed))
             .then(|| metafield_json_object_message(metafield_type).to_string()),
         "rating" => shopify_rating_value_error(parsed),
@@ -1500,10 +1721,6 @@ fn list_item_string_value(item: &Value) -> Option<String> {
     }
 }
 
-fn is_shopify_decimal(value: &str) -> bool {
-    shopify_decimal_error(value).is_none()
-}
-
 fn shopify_decimal_error(value: &str) -> Option<String> {
     if value.is_empty() || value.trim() != value {
         return Some("Value must be a decimal.".to_string());
@@ -1569,6 +1786,50 @@ fn is_shopify_date(value: &str) -> bool {
     (1..=days_in_month(year, month)).contains(&day)
 }
 
+fn shopify_json_value_error(value: &str) -> Option<String> {
+    if value.trim().is_empty() {
+        return Some("Value can't be blank.".to_string());
+    }
+    serde_json::from_str::<Value>(value)
+        .err()
+        .map(|error| format!("Value is invalid JSON: {error}."))
+}
+
+const METAFIELD_URL_ALLOWED_SCHEMES_DISPLAY: &str = "http, https, mailto, sms, tel";
+const METAFIELD_URL_ALLOWED_SCHEMES_BRACKETED: &str =
+    "[\"http\", \"https\", \"mailto\", \"sms\", \"tel\"]";
+
+fn shopify_metafield_url_value_error(value: &str) -> Option<String> {
+    if is_shopify_metafield_url(value) {
+        return None;
+    }
+    let Some(scheme) = metafield_url_scheme(value) else {
+        return Some(format!(
+            "Value cannot have an empty scheme (protocol), must include one of the following URL schemes: {METAFIELD_URL_ALLOWED_SCHEMES_BRACKETED}.'"
+        ));
+    };
+    if !matches!(scheme.as_str(), "http" | "https" | "mailto" | "sms" | "tel") {
+        return Some(format!(
+            "Value must be one of the following URL schemes: {METAFIELD_URL_ALLOWED_SCHEMES_DISPLAY}."
+        ));
+    }
+    Some(format!(
+        "Value cannot have an empty scheme (protocol), must include one of the following URL schemes: {METAFIELD_URL_ALLOWED_SCHEMES_BRACKETED}.'"
+    ))
+}
+
+fn metafield_url_scheme(value: &str) -> Option<String> {
+    let (scheme, _) = value.split_once(':')?;
+    if scheme.is_empty()
+        || !scheme.chars().all(|character| {
+            character.is_ascii_alphanumeric() || matches!(character, '+' | '-' | '.')
+        })
+    {
+        return None;
+    }
+    Some(scheme.to_ascii_lowercase())
+}
+
 pub(in crate::proxy) fn is_shopify_metafield_url(value: &str) -> bool {
     let lowered = value.to_ascii_lowercase();
     if lowered.starts_with("http://") || lowered.starts_with("https://") {
@@ -1586,24 +1847,126 @@ pub(in crate::proxy) fn is_shopify_metafield_url(value: &str) -> bool {
     false
 }
 
-pub(in crate::proxy) fn is_shopify_money_value(value: &Value) -> bool {
+const SHOPIFY_MONEY_AMOUNT_BOUND: &str = "1000000000000000000";
+
+fn shopify_money_value_error(value: &Value) -> Option<String> {
     let Some(fields) = value.as_object() else {
-        return false;
+        return Some(metafield_json_object_message("money").to_string());
     };
-    let Some(amount) = fields
-        .get("amount")
-        .and_then(json_number_or_string_value)
-        .filter(|amount| is_shopify_decimal(amount))
-    else {
-        return false;
+    let Some(amount_value) = fields.get("amount") else {
+        return Some(metafield_json_object_message("money").to_string());
     };
+    let Some(amount) = json_number_or_string_value(amount_value) else {
+        return Some("Value must have a numeric amount.".to_string());
+    };
+    if !is_shopify_money_amount_number(&amount) {
+        return Some("Value must have a numeric amount.".to_string());
+    };
+    if shopify_money_amount_out_of_range(&amount) {
+        return Some("Value must be within +/-1000000000000000000.".to_string());
+    }
     let Some(currency_code) = fields.get("currency_code").and_then(Value::as_str) else {
-        return false;
+        return Some("Value must have a currency code.".to_string());
     };
-    !amount.starts_with('-')
-        && currency_code.len() == 3
-        && currency_code.chars().all(|ch| ch.is_ascii_uppercase())
+    let currency_code = currency_code.trim();
+    if currency_code.is_empty() {
+        return Some("Value must have a currency code.".to_string());
+    }
+    if !shopify_money_currency_exists(currency_code) {
+        return Some(format!(
+            "Value contains an invalid currency, {currency_code}."
+        ));
+    }
+    None
 }
+
+fn is_shopify_money_amount_number(value: &str) -> bool {
+    if value.is_empty() || value.trim() != value {
+        return false;
+    }
+    let unsigned = value
+        .strip_prefix('-')
+        .or_else(|| value.strip_prefix('+'))
+        .unwrap_or(value);
+    if unsigned.is_empty() {
+        return false;
+    }
+    let mut parts = unsigned.split('.');
+    let integer_part = parts.next().unwrap_or_default();
+    let fractional_part = parts.next();
+    if parts.next().is_some()
+        || integer_part.is_empty()
+        || !integer_part
+            .chars()
+            .all(|character| character.is_ascii_digit())
+    {
+        return false;
+    }
+    if let Some(fractional_part) = fractional_part {
+        if fractional_part.is_empty()
+            || !fractional_part
+                .chars()
+                .all(|character| character.is_ascii_digit())
+        {
+            return false;
+        }
+    }
+    true
+}
+
+fn shopify_money_amount_out_of_range(value: &str) -> bool {
+    let unsigned = value
+        .strip_prefix('-')
+        .or_else(|| value.strip_prefix('+'))
+        .unwrap_or(value);
+    let (integer_part, fractional_part) = unsigned
+        .split_once('.')
+        .map(|(integer, fraction)| (integer, Some(fraction)))
+        .unwrap_or((unsigned, None));
+    let significant_integer = integer_part.trim_start_matches('0');
+    let integer_digits = if significant_integer.is_empty() {
+        "0"
+    } else {
+        significant_integer
+    };
+    if integer_digits.len() > SHOPIFY_MONEY_AMOUNT_BOUND.len() {
+        return true;
+    }
+    if integer_digits.len() == SHOPIFY_MONEY_AMOUNT_BOUND.len()
+        && integer_digits > SHOPIFY_MONEY_AMOUNT_BOUND
+    {
+        return true;
+    }
+    integer_digits == SHOPIFY_MONEY_AMOUNT_BOUND
+        && fractional_part
+            .is_some_and(|fraction| fraction.chars().any(|character| character != '0'))
+}
+
+pub(in crate::proxy) fn is_shopify_money_value(value: &Value) -> bool {
+    shopify_money_value_error(value).is_none()
+}
+
+fn shopify_money_currency_exists(currency_code: &str) -> bool {
+    let upper = currency_code.to_ascii_uppercase();
+    SHOPIFY_MONEY_CURRENCY_CODES.contains(&upper.as_str())
+}
+
+const SHOPIFY_MONEY_CURRENCY_CODES: &[&str] = &[
+    "AED", "AFN", "ALL", "AMD", "ANG", "AOA", "ARS", "AUD", "AWG", "AZN", "BAM", "BBD", "BDT",
+    "BGN", "BHD", "BIF", "BMD", "BND", "BOB", "BOV", "BRL", "BSD", "BTN", "BWP", "BYN", "BYR",
+    "BZD", "CAD", "CDF", "CHE", "CHF", "CHW", "CLF", "CLP", "CNY", "COP", "COU", "CRC", "CUC",
+    "CUP", "CVE", "CZK", "DJF", "DKK", "DOP", "DZD", "EGP", "ERN", "ETB", "EUR", "FJD", "FKP",
+    "GBP", "GEL", "GHS", "GIP", "GMD", "GNF", "GTQ", "GYD", "HKD", "HNL", "HRK", "HTG", "HUF",
+    "IDR", "ILS", "INR", "IQD", "IRR", "ISK", "JMD", "JOD", "JPY", "KES", "KGS", "KHR", "KMF",
+    "KPW", "KRW", "KWD", "KYD", "KZT", "LAK", "LBP", "LKR", "LRD", "LSL", "LTL", "LVL", "LYD",
+    "MAD", "MDL", "MGA", "MKD", "MMK", "MNT", "MOP", "MRO", "MRU", "MTL", "MUR", "MVR", "MWK",
+    "MXN", "MXV", "MYR", "MZN", "NAD", "NGN", "NIO", "NOK", "NPR", "NZD", "OMR", "PAB", "PEN",
+    "PGK", "PHP", "PKR", "PLN", "PYG", "QAR", "RON", "RSD", "RUB", "RWF", "SAR", "SBD", "SCR",
+    "SDG", "SEK", "SGD", "SHP", "SLE", "SLL", "SOS", "SRD", "SSP", "STD", "STN", "SVC", "SYP",
+    "SZL", "THB", "TJS", "TMT", "TND", "TOP", "TRL", "TRY", "TTD", "TWD", "TZS", "UAH", "UGX",
+    "USD", "USN", "UYI", "UYU", "UYW", "UZS", "VEF", "VED", "VES", "VND", "VUV", "WST", "XAF",
+    "XCD", "XOF", "XPF", "YER", "ZAR", "ZMK", "ZMW", "ZWD", "ZWL",
+];
 
 pub(in crate::proxy) fn is_shopify_link_value(value: &Value) -> bool {
     let Some(fields) = value.as_object() else {
@@ -1797,62 +2160,120 @@ pub(in crate::proxy) fn measurement_units_for_type(type_name: &str) -> &'static 
     }
 }
 
-fn money_bag_currency(money_set: &Value) -> String {
-    money_set["shopMoney"]["currencyCode"]
-        .as_str()
-        .unwrap_or("USD")
-        .to_string()
+fn money_bag_currency(money_set: &Value) -> Option<String> {
+    money_set_shop_currency(money_set)
+}
+
+fn order_create_input_needs_shop_currency_default(
+    order_input: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    if resolved_string_field(order_input, "currency")
+        .or_else(|| resolved_string_field(order_input, "currencyCode"))
+        .is_some()
+    {
+        return false;
+    }
+    let line_has_money_currency = resolved_object_list_field(order_input, "lineItems")
+        .into_iter()
+        .any(|line_item| {
+            resolved_object_field(&line_item, "priceSet")
+                .or_else(|| resolved_object_field(&line_item, "originalUnitPriceSet"))
+                .and_then(|price_set| input_money_currency(&price_set))
+                .is_some()
+        });
+    if line_has_money_currency {
+        return false;
+    }
+    !resolved_object_list_field(order_input, "shippingLines")
+        .into_iter()
+        .any(|shipping_line| {
+            resolved_object_field(&shipping_line, "priceSet")
+                .and_then(|price_set| input_money_currency(&price_set))
+                .is_some()
+        })
 }
 
 fn money_bag_add_decimal_strings(left: &str, right: &str) -> String {
     let total = left.parse::<f64>().unwrap_or(0.0) + right.parse::<f64>().unwrap_or(0.0);
-    format!("{total:.1}")
+    format_money_amount(total)
 }
 
-fn resolved_money_pair(
-    money: Option<BTreeMap<String, ResolvedValue>>,
-    defaults: [&str; 2],
-) -> [String; 2] {
-    let money = money.unwrap_or_default();
-    [
-        resolved_string_field(&money, "amount").unwrap_or_else(|| defaults[0].to_string()),
-        resolved_string_field(&money, "currencyCode").unwrap_or_else(|| defaults[1].to_string()),
-    ]
-}
-
-fn line_item_price_set_values(
-    first_line: &BTreeMap<String, ResolvedValue>,
-    absent_price_set: [&str; 4],
-    shop_defaults: [&str; 2],
-    presentment_defaults: Option<[&str; 2]>,
-) -> [String; 4] {
-    let Some(price_set) = resolved_object_field(first_line, "priceSet") else {
-        return absent_price_set.map(str::to_string);
-    };
-    let [shop_amount, shop_currency] = resolved_money_pair(
-        resolved_object_field(&price_set, "shopMoney"),
-        shop_defaults,
-    );
-    let presentment_default = presentment_defaults
-        .map(|defaults| defaults.map(str::to_string))
-        .unwrap_or_else(|| [shop_amount.clone(), shop_currency.clone()]);
-    let [presentment_amount, presentment_currency] = resolved_money_pair(
-        resolved_object_field(&price_set, "presentmentMoney"),
-        [&presentment_default[0], &presentment_default[1]],
-    );
-    [
+fn line_item_price_values(
+    line_item: &BTreeMap<String, ResolvedValue>,
+    default_shop_currency: &str,
+    default_presentment_currency: &str,
+) -> Option<(f64, String, f64, String)> {
+    let price_set = resolved_object_field(line_item, "priceSet")
+        .or_else(|| resolved_object_field(line_item, "originalUnitPriceSet"))?;
+    let shop_amount = input_money_amount(&price_set).unwrap_or(0.0);
+    let shop_currency =
+        input_money_currency(&price_set).unwrap_or_else(|| default_shop_currency.to_string());
+    let presentment_money = resolved_object_field(&price_set, "presentmentMoney");
+    let presentment_amount = presentment_money
+        .as_ref()
+        .and_then(resolved_money_amount)
+        .unwrap_or(shop_amount);
+    let presentment_currency = presentment_money
+        .as_ref()
+        .and_then(resolved_money_currency)
+        .unwrap_or_else(|| default_presentment_currency.to_string());
+    Some((
         shop_amount,
         shop_currency,
         presentment_amount,
         presentment_currency,
-    ]
+    ))
 }
 
-fn selection_contains_any(selections: &[SelectedField], names: &[&str]) -> bool {
-    selections.iter().any(|selection| {
-        names.contains(&selection.name.as_str())
-            || selection_contains_any(&selection.selection, names)
-    })
+fn line_items_price_set_values(
+    order_input: &BTreeMap<String, ResolvedValue>,
+    absent_price_set: [&str; 4],
+    shop_defaults: [&str; 2],
+    presentment_defaults: Option<[&str; 2]>,
+) -> [String; 4] {
+    let default_shop_currency = shop_defaults[1];
+    let default_presentment_currency = presentment_defaults
+        .as_ref()
+        .map(|defaults| defaults[1])
+        .unwrap_or(default_shop_currency);
+    let mut shop_total = 0.0;
+    let mut presentment_total = 0.0;
+    let mut shop_currency = default_shop_currency.to_string();
+    let mut presentment_currency = default_presentment_currency.to_string();
+    let mut saw_price = false;
+
+    for line_item in resolved_object_list_field(order_input, "lineItems") {
+        let Some((shop_amount, line_shop_currency, presentment_amount, line_presentment_currency)) =
+            line_item_price_values(
+                &line_item,
+                default_shop_currency,
+                default_presentment_currency,
+            )
+        else {
+            continue;
+        };
+        if !saw_price {
+            shop_currency = line_shop_currency;
+            presentment_currency = line_presentment_currency;
+            saw_price = true;
+        }
+        let quantity = resolved_int_field(&line_item, "quantity")
+            .unwrap_or(1)
+            .max(0) as f64;
+        shop_total += shop_amount * quantity;
+        presentment_total += presentment_amount * quantity;
+    }
+
+    if !saw_price {
+        return absent_price_set.map(str::to_string);
+    }
+
+    [
+        format_money_amount(shop_total),
+        shop_currency,
+        format_money_amount(presentment_total),
+        presentment_currency,
+    ]
 }
 
 fn selected_field_contains_only_any(

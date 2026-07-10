@@ -1,11 +1,13 @@
 {
-  "capturedAt": "2026-07-03T02:15:01.149Z",
+  "capturedAt": "2026-07-05T05:44:02.263Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "notes": [
     "Live product merchandising and feedback validation probes recorded by the dedicated product merchandising/feedback conformance script.",
     "The configured store currently rejects productFeedCreate with a payload userError because the channel/spec manages feeds automatically and requires feed webhooks; local productFeedCreate success remains runtime-test-backed.",
-    "Feedback success remains blocked by missing write_resource_feedbacks plus Storefront API / Sales Channel configuration, so this fixture captures schema-level invalid-state parity for the feedback mutation roots."
+    "Missing ProductFeedInput country/language is captured as top-level schema validation before Shopify creates any feed.",
+    "Feedback success remains blocked by missing write_resource_feedbacks plus Storefront API / Sales Channel configuration, so this fixture captures schema-level invalid-state parity for the feedback mutation roots.",
+    "Feedback invalid enum fixture literals and foobar literals are both captured so local errors echo the caller-provided invalid value instead of a canned sentinel."
   ],
   "schemaEvidence": {
     "ProductFeed": {
@@ -100,7 +102,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1989,
+              "currentlyAvailable": 1990,
               "restoreRate": 100
             }
           }
@@ -170,7 +172,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1986,
+              "currentlyAvailable": 1987,
               "restoreRate": 100
             }
           }
@@ -207,7 +209,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1987,
+              "currentlyAvailable": 1986,
               "restoreRate": 100
             }
           }
@@ -285,7 +287,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1986,
+              "currentlyAvailable": 1985,
               "restoreRate": 100
             }
           }
@@ -345,6 +347,100 @@
               "code": "argumentLiteralsIncompatible",
               "typeName": "InputObject",
               "argumentName": "state"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "bulkProductResourceFeedbackCreate-foobar-state",
+      "operationNames": ["bulkProductResourceFeedbackCreate"],
+      "query": "mutation ProductFeedbackFoobarState {\n  bulkProductResourceFeedbackCreate(\n    feedbackInput: [\n      {\n        productId: \"gid://shopify/Product/7001\"\n        state: FOOBAR\n        feedbackGeneratedAt: \"2024-01-01T00:00:00Z\"\n        productUpdatedAt: \"2024-01-01T00:00:00Z\"\n        messages: []\n      }\n    ]\n  ) {\n    feedback {\n      productId\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {},
+      "status": 200,
+      "response": {
+        "errors": [
+          {
+            "message": "Argument 'state' on InputObject 'ProductResourceFeedbackInput' has an invalid value (FOOBAR). Expected type 'ResourceFeedbackState!'.",
+            "locations": [
+              {
+                "line": 4,
+                "column": 7
+              }
+            ],
+            "path": [
+              "mutation ProductFeedbackFoobarState",
+              "bulkProductResourceFeedbackCreate",
+              "feedbackInput",
+              0,
+              "state"
+            ],
+            "extensions": {
+              "code": "argumentLiteralsIncompatible",
+              "typeName": "InputObject",
+              "argumentName": "state"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "shopResourceFeedbackCreate-foobar-state",
+      "operationNames": ["shopResourceFeedbackCreate"],
+      "query": "mutation ShopFeedbackFoobarState {\n  shopResourceFeedbackCreate(input: { state: FOOBAR, feedbackGeneratedAt: \"2024-01-01T00:00:00Z\", messages: [] }) {\n    feedback {\n      state\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {},
+      "status": 200,
+      "response": {
+        "errors": [
+          {
+            "message": "Argument 'state' on InputObject 'ResourceFeedbackCreateInput' has an invalid value (FOOBAR). Expected type 'ResourceFeedbackState!'.",
+            "locations": [
+              {
+                "line": 2,
+                "column": 37
+              }
+            ],
+            "path": ["mutation ShopFeedbackFoobarState", "shopResourceFeedbackCreate", "input", "state"],
+            "extensions": {
+              "code": "argumentLiteralsIncompatible",
+              "typeName": "InputObject",
+              "argumentName": "state"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "productFeedCreate-missing-country-language",
+      "operationNames": ["productFeedCreate"],
+      "query": "mutation ProductFeedCreate($input: ProductFeedInput) {\n  productFeedCreate(input: $input) {\n    productFeed {\n      id\n      country\n      language\n      status\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {}
+      },
+      "status": 200,
+      "response": {
+        "errors": [
+          {
+            "message": "Variable $input of type ProductFeedInput was provided invalid value for language (Expected value to not be null), country (Expected value to not be null)",
+            "locations": [
+              {
+                "line": 1,
+                "column": 28
+              }
+            ],
+            "extensions": {
+              "code": "INVALID_VARIABLE",
+              "value": {},
+              "problems": [
+                {
+                  "path": ["language"],
+                  "explanation": "Expected value to not be null"
+                },
+                {
+                  "path": ["country"],
+                  "explanation": "Expected value to not be null"
+                }
+              ]
             }
           }
         ]

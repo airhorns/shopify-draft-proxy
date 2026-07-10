@@ -1,3 +1,5 @@
+use super::content::online_store_operation_timestamp;
+use super::search::is_online_store_content_query_root;
 use super::*;
 
 impl DraftProxy {
@@ -30,8 +32,7 @@ impl DraftProxy {
                     | "scriptTag"
                     | "webPixel"
                     | "serverPixel"
-                    | "urlRedirect"
-                    | "theme" => {
+                    | "urlRedirect" => {
                         if field.name == "urlRedirect" {
                             self.url_redirect_query_data(std::slice::from_ref(field))
                                 .get(&field.response_key)
@@ -48,69 +49,52 @@ impl DraftProxy {
                                 .unwrap_or(Value::Null)
                         }
                     }
-                    "urlRedirects" => self
+                    "theme" => {
+                        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                        self.store
+                            .staged
+                            .online_store_integrations
+                            .get(&id)
+                            .map(|record| {
+                                selected_online_store_theme_json(record, &field.selection)
+                            })
+                            .unwrap_or(Value::Null)
+                    }
+                    "urlRedirects" | "urlRedirectsCount" => self
                         .url_redirect_query_data(std::slice::from_ref(field))
                         .get(&field.response_key)
                         .cloned()
                         .unwrap_or(Value::Null),
                     "themes" => {
                         let roles = resolved_string_list_arg(&field.arguments, "roles");
-                        let mut records: Vec<Value> = self
-                            .store
-                            .staged
-                            .online_store_integrations
-                            .values()
-                            .filter(|record| is_online_store_theme_record(record))
-                            .filter(|record| {
-                                roles.is_empty()
-                                    || record.get("role").and_then(Value::as_str).is_some_and(
-                                        |role| roles.iter().any(|expected| expected == role),
-                                    )
-                            })
-                            .cloned()
-                            .collect();
-                        records.sort_by_key(value_id_cursor);
-                        selected_connection_json_with_args(
-                            records,
-                            &field.arguments,
-                            &field.selection,
-                            value_id_cursor,
-                        )
+                        self.online_store_theme_connection_value(field, |record| {
+                            roles.is_empty()
+                                || record
+                                    .get("role")
+                                    .and_then(Value::as_str)
+                                    .is_some_and(|role| {
+                                        roles.iter().any(|expected| expected == role)
+                                    })
+                        })
                     }
                     "scriptTags" => {
-                        let mut records: Vec<Value> = self
-                            .store
-                            .staged
-                            .online_store_integrations
-                            .values()
-                            .filter(|record| is_online_store_script_tag_record(record))
-                            .cloned()
-                            .collect();
-                        records.sort_by_key(value_id_cursor);
-                        selected_connection_json_with_args(
-                            records,
-                            &field.arguments,
-                            &field.selection,
-                            value_id_cursor,
+                        let src = resolved_string_field(&field.arguments, "src");
+                        self.online_store_integration_connection_value(
+                            field,
+                            is_online_store_script_tag_record,
+                            |record| {
+                                src.as_ref().is_none_or(|expected| {
+                                    record.get("src").and_then(Value::as_str)
+                                        == Some(expected.as_str())
+                                })
+                            },
                         )
                     }
-                    "mobilePlatformApplications" => {
-                        let mut records: Vec<Value> = self
-                            .store
-                            .staged
-                            .online_store_integrations
-                            .values()
-                            .filter(|record| is_mobile_platform_application_record(record))
-                            .cloned()
-                            .collect();
-                        records.sort_by_key(value_id_cursor);
-                        selected_connection_json_with_args(
-                            records,
-                            &field.arguments,
-                            &field.selection,
-                            value_id_cursor,
-                        )
-                    }
+                    "mobilePlatformApplications" => self.online_store_integration_connection_value(
+                        field,
+                        is_mobile_platform_application_record,
+                        |_| true,
+                    ),
                     _ => Value::Null,
                 }
             };
@@ -246,6 +230,11 @@ impl DraftProxy {
             "mobilePlatformApplications" => {
                 !self.any_sales_channel_record(is_mobile_platform_application_record)
             }
+            "urlRedirect" => {
+                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                id.is_empty() || !self.store.staged.url_redirects.contains_key(&id)
+            }
+            "urlRedirects" | "urlRedirectsCount" => !self.has_staged_url_redirects(),
             _ => false,
         }
     }
@@ -272,6 +261,65 @@ impl DraftProxy {
             .online_store_integrations
             .values()
             .any(predicate)
+    }
+
+    fn online_store_integration_connection_value<P, F>(
+        &self,
+        field: &RootFieldSelection,
+        predicate: P,
+        include: F,
+    ) -> Value
+    where
+        P: Fn(&Value) -> bool,
+        F: Fn(&Value) -> bool,
+    {
+        let mut records = self
+            .store
+            .staged
+            .online_store_integrations
+            .values()
+            .filter(|record| predicate(record))
+            .filter(|record| include(record))
+            .cloned()
+            .collect::<Vec<_>>();
+        records.sort_by_key(value_id_cursor);
+        selected_connection_json_with_args(
+            records,
+            &field.arguments,
+            &field.selection,
+            value_id_cursor,
+        )
+    }
+
+    fn online_store_theme_connection_value<F>(
+        &self,
+        field: &RootFieldSelection,
+        include: F,
+    ) -> Value
+    where
+        F: Fn(&Value) -> bool,
+    {
+        let mut records = self
+            .store
+            .staged
+            .online_store_integrations
+            .values()
+            .filter(|record| is_online_store_theme_record(record))
+            .filter(|record| include(record))
+            .cloned()
+            .collect::<Vec<_>>();
+        records.sort_by_key(value_id_cursor);
+        if resolved_bool_field(&field.arguments, "reverse").unwrap_or(false) {
+            records.reverse();
+        }
+        let (records, page_info) = connection_window(&records, &field.arguments, value_id_cursor);
+        selected_typed_connection_with_page_info(
+            &records,
+            &field.selection,
+            selected_online_store_theme_json,
+            value_id_cursor,
+            page_info,
+        )
     }
 
     fn observe_online_store_sales_channel_response(&mut self, body: &Value) {
@@ -362,18 +410,10 @@ impl DraftProxy {
                     )],
                 );
             }
-            if application_id.len() > MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH {
-                return mobile_app_payload(
-                    &field.selection,
-                    None,
-                    vec![length_user_error(
-                        ["input", "android", "applicationId"],
-                        "Application ID",
-                        LengthUserErrorBound::TooLong {
-                            maximum: MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH,
-                        },
-                    )],
-                );
+            if let Some(error) =
+                mobile_app_id_length_error("android", "applicationId", &application_id)
+            {
+                return mobile_app_payload(&field.selection, None, vec![error]);
             }
             if resolved_string_list_field(android, "sha256CertFingerprints").is_empty() {
                 return mobile_app_payload(
@@ -414,18 +454,8 @@ impl DraftProxy {
                 )],
             );
         }
-        if app_id.len() > MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH {
-            return mobile_app_payload(
-                &field.selection,
-                None,
-                vec![length_user_error(
-                    ["input", "apple", "appId"],
-                    "Application ID",
-                    LengthUserErrorBound::TooLong {
-                        maximum: MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH,
-                    },
-                )],
-            );
+        if let Some(error) = mobile_app_id_length_error("apple", "appId", &app_id) {
+            return mobile_app_payload(&field.selection, None, vec![error]);
         }
         if let Some(error) = validate_mobile_app_clip_application_id(apple, false) {
             return mobile_app_payload(&field.selection, None, vec![error]);
@@ -511,18 +541,10 @@ impl DraftProxy {
                         )],
                     );
                 }
-                if application_id.len() > MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH {
-                    return mobile_app_payload(
-                        &field.selection,
-                        None,
-                        vec![length_user_error(
-                            ["input", "android", "applicationId"],
-                            "Application ID",
-                            LengthUserErrorBound::TooLong {
-                                maximum: MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH,
-                            },
-                        )],
-                    );
+                if let Some(error) =
+                    mobile_app_id_length_error("android", "applicationId", &application_id)
+                {
+                    return mobile_app_payload(&field.selection, None, vec![error]);
                 }
                 record["applicationId"] = json!(application_id);
             }
@@ -554,18 +576,8 @@ impl DraftProxy {
                         )],
                     );
                 }
-                if app_id.len() > MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH {
-                    return mobile_app_payload(
-                        &field.selection,
-                        None,
-                        vec![length_user_error(
-                            ["input", "apple", "appId"],
-                            "Application ID",
-                            LengthUserErrorBound::TooLong {
-                                maximum: MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH,
-                            },
-                        )],
-                    );
+                if let Some(error) = mobile_app_id_length_error("apple", "appId", &app_id) {
+                    return mobile_app_payload(&field.selection, None, vec![error]);
                 }
                 record["appId"] = json!(app_id);
             }
@@ -1207,9 +1219,7 @@ impl DraftProxy {
         let record = json!({
             "__typename": "WebPixel",
             "id": id,
-            "settings": settings,
-            "status": "CONNECTED",
-            "webhookEndpointAddress": null
+            "settings": settings
         });
         self.store
             .staged
@@ -1265,9 +1275,7 @@ impl DraftProxy {
         let record = json!({
             "__typename": "WebPixel",
             "id": id,
-            "settings": settings,
-            "status": "CONNECTED",
-            "webhookEndpointAddress": null
+            "settings": settings
         });
         self.store
             .staged
@@ -1283,7 +1291,12 @@ impl DraftProxy {
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = self.next_online_store_id("ServerPixel");
-        let record = json!({"__typename": "ServerPixel", "id": id, "status": "CONNECTED", "webhookEndpointAddress": null});
+        let record = json!({
+            "__typename": "ServerPixel",
+            "id": id,
+            "status": server_pixel_status_for_endpoint(None),
+            "webhookEndpointAddress": null
+        });
         self.store
             .staged
             .online_store_integrations
@@ -1357,7 +1370,12 @@ impl DraftProxy {
             }
             format!("{project}/{topic}")
         };
-        let record = json!({"__typename": "ServerPixel", "id": id, "status": "CONNECTED", "webhookEndpointAddress": endpoint});
+        let record = json!({
+            "__typename": "ServerPixel",
+            "id": id,
+            "status": server_pixel_status_for_endpoint(Some(&endpoint)),
+            "webhookEndpointAddress": endpoint
+        });
         self.store
             .staged
             .online_store_integrations
@@ -1440,6 +1458,9 @@ fn is_online_store_sales_channel_query_root(root: &str) -> bool {
             | "serverPixel"
             | "theme"
             | "themes"
+            | "urlRedirect"
+            | "urlRedirects"
+            | "urlRedirectsCount"
             | "webPixel"
     )
 }
@@ -1480,4 +1501,97 @@ fn observed_sales_channel_record(record: &Value) -> Option<(String, Value)> {
         _ => return None,
     }
     Some((id, record))
+}
+
+fn selected_online_store_theme_json(record: &Value, selections: &[SelectedField]) -> Value {
+    let mut projected = selected_json(record, selections);
+    let Some(fields) = projected.as_object_mut() else {
+        return projected;
+    };
+    for selection in selections {
+        if selection.name != "files"
+            || !online_store_theme_selection_type_condition_matches(
+                selection.type_condition.as_deref(),
+            )
+        {
+            continue;
+        }
+        fields.insert(
+            selection.response_key.clone(),
+            selected_online_store_theme_files_json(record, selection),
+        );
+    }
+    projected
+}
+
+fn online_store_theme_selection_type_condition_matches(type_condition: Option<&str>) -> bool {
+    matches!(
+        type_condition,
+        None | Some("OnlineStoreTheme" | "Node" | "HasPublishedTranslations")
+    )
+}
+
+fn selected_online_store_theme_files_json(theme: &Value, selection: &SelectedField) -> Value {
+    let filename_patterns = resolved_string_list_arg(&selection.arguments, "filenames");
+    let nodes = theme_file_nodes(theme)
+        .into_iter()
+        .filter(|file| {
+            filename_patterns.is_empty()
+                || file
+                    .get("filename")
+                    .and_then(Value::as_str)
+                    .is_some_and(|filename| {
+                        filename_patterns
+                            .iter()
+                            .any(|pattern| theme_filename_matches(pattern, filename))
+                    })
+        })
+        .collect::<Vec<_>>();
+    let (nodes, page_info) = connection_window(&nodes, &selection.arguments, theme_file_cursor);
+    selected_typed_connection_with_page_info(
+        &nodes,
+        &selection.selection,
+        selected_json,
+        theme_file_cursor,
+        page_info,
+    )
+}
+
+fn theme_file_cursor(file: &Value) -> String {
+    file.get("filename")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn theme_filename_matches(pattern: &str, filename: &str) -> bool {
+    if !pattern.contains('*') {
+        return filename == pattern;
+    }
+
+    let parts = pattern.split('*').collect::<Vec<_>>();
+    let mut remainder = filename;
+    for (index, part) in parts.iter().enumerate() {
+        if part.is_empty() {
+            continue;
+        }
+        if index == 0 && !pattern.starts_with('*') {
+            let Some(next_remainder) = remainder.strip_prefix(part) else {
+                return false;
+            };
+            remainder = next_remainder;
+            continue;
+        }
+        let Some(position) = remainder.find(part) else {
+            return false;
+        };
+        remainder = &remainder[position + part.len()..];
+    }
+
+    if !pattern.ends_with('*') {
+        if let Some(last_part) = parts.iter().rev().find(|part| !part.is_empty()) {
+            return filename.ends_with(last_part);
+        }
+    }
+    true
 }

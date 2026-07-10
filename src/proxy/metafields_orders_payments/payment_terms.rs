@@ -35,9 +35,60 @@ pub(in crate::proxy) fn payment_terms_payload_value(
 fn payment_terms_node_order_paid(node: &Value) -> bool {
     node.get("order")
         .filter(|order| !order.is_null())
-        .and_then(|order| order.get("displayFinancialStatus"))
-        .and_then(Value::as_str)
-        == Some("PAID")
+        .is_some_and(payment_terms_order_paid)
+}
+
+fn payment_terms_order_paid(order: &Value) -> bool {
+    order.get("displayFinancialStatus").and_then(Value::as_str) == Some("PAID")
+}
+
+fn payment_terms_falsey_hint(value: &Value) -> bool {
+    value.as_bool().is_some_and(|allowed| !allowed)
+        || value.as_str().is_some_and(|allowed| {
+            matches!(
+                allowed.trim().to_ascii_lowercase().as_str(),
+                "false" | "0" | "no"
+            )
+        })
+}
+
+fn payment_terms_order_channel_disallowed(order: &Value) -> bool {
+    for key in [
+        "paymentTermsAllowed",
+        "payment_terms_allowed",
+        "__draftProxyPaymentTermsAllowed",
+    ] {
+        if order.get(key).is_some_and(payment_terms_falsey_hint) {
+            return true;
+        }
+    }
+    order
+        .get("customAttributes")
+        .and_then(Value::as_array)
+        .is_some_and(|attributes| {
+            attributes.iter().any(|attribute| {
+                let key = attribute
+                    .get("key")
+                    .or_else(|| attribute.get("name"))
+                    .and_then(Value::as_str);
+                matches!(
+                    key,
+                    Some(
+                        "paymentTermsAllowed"
+                            | "payment_terms_allowed"
+                            | "__draftProxyPaymentTermsAllowed"
+                    )
+                ) && attribute
+                    .get("value")
+                    .is_some_and(payment_terms_falsey_hint)
+            })
+        })
+}
+
+fn payment_terms_node_order_channel_disallowed(node: &Value) -> bool {
+    node.get("order")
+        .filter(|order| !order.is_null())
+        .is_some_and(payment_terms_order_channel_disallowed)
 }
 
 pub(in crate::proxy) fn payment_terms_success_record(
@@ -97,6 +148,32 @@ pub(in crate::proxy) fn payment_terms_success_record(
     })
 }
 
+pub(in crate::proxy) fn payment_terms_record_with_effective_due(
+    payment_terms: &Value,
+    now_epoch: i64,
+) -> Value {
+    let mut record = payment_terms.clone();
+    let mut terms_due = false;
+    if let Some(nodes) = record
+        .get_mut("paymentSchedules")
+        .and_then(|connection| connection.get_mut("nodes"))
+        .and_then(Value::as_array_mut)
+    {
+        for node in nodes {
+            let due = payment_schedule_due_state(
+                node.get("dueAt").and_then(Value::as_str),
+                node.get("completedAt").and_then(Value::as_str),
+                now_epoch,
+            );
+            node["due"] = json!(due);
+            terms_due |= due;
+        }
+    }
+    record["due"] = json!(terms_due);
+    record["overdue"] = json!(terms_due);
+    record
+}
+
 /// Projects the Shopify payment-terms template id onto its (name, type, dueInDays)
 /// tuple. The template catalog is fixed (see the live payment-terms-templates-read
 /// capture): Net N templates carry their day count, Fixed/Due-on-receipt/Due-on-
@@ -149,6 +226,14 @@ fn payment_terms_template_exists(template_id: &str) -> bool {
     PAYMENT_TERMS_TEMPLATE_CATALOG
         .iter()
         .any(|(catalog_tail, ..)| *catalog_tail == tail)
+}
+
+fn payment_terms_template_type(template_id: &str) -> Option<&'static str> {
+    let tail = resource_id_tail(template_id);
+    PAYMENT_TERMS_TEMPLATE_CATALOG
+        .iter()
+        .find(|(catalog_tail, ..)| *catalog_tail == tail)
+        .map(|(_, _, _, _, terms_type)| *terms_type)
 }
 
 /// Projects the fixed payment-terms template catalog for a `paymentTermsTemplates`
@@ -213,20 +298,18 @@ fn add_days_to_iso(iso: &str, days: i64) -> String {
     }
 }
 
-fn payment_schedule_due_state(due_at: Option<&str>, completed_at: Option<&str>) -> bool {
+fn payment_schedule_due_state(
+    due_at: Option<&str>,
+    completed_at: Option<&str>,
+    now_epoch: i64,
+) -> bool {
     if completed_at.is_some() {
         return false;
     }
     let Some(due_at) = due_at else {
         return false;
     };
-    let Some(due_at_epoch) = super::app_shipping_helpers::parse_rfc3339_epoch_seconds(due_at)
-    else {
-        return false;
-    };
-    let Some(now_epoch) =
-        super::app_shipping_helpers::parse_rfc3339_epoch_seconds("2026-07-02T00:00:00Z")
-    else {
+    let Some(due_at_epoch) = super::parse_rfc3339_epoch_seconds(due_at) else {
         return false;
     };
     due_at_epoch <= now_epoch
@@ -242,6 +325,7 @@ fn payment_schedule_node(
     due_in_days: Option<i64>,
     amount: &str,
     currency: &str,
+    now_epoch: i64,
 ) -> Value {
     let issued_at = input_schedule.and_then(|schedule| resolved_string_field(schedule, "issuedAt"));
     let input_due_at = input_schedule.and_then(|schedule| resolved_string_field(schedule, "dueAt"));
@@ -252,7 +336,7 @@ fn payment_schedule_node(
             _ => None,
         },
     };
-    let due = payment_schedule_due_state(due_at.as_deref(), None);
+    let due = payment_schedule_due_state(due_at.as_deref(), None, now_epoch);
     let money = money_value(&normalize_money_amount(amount), currency);
     json!({
         "id": schedule_id,
@@ -309,13 +393,21 @@ pub(in crate::proxy) fn payment_terms_validation_error(
         ));
     }
 
-    match template_id.as_deref() {
-        Some(id) if !payment_terms_template_exists(id) => Some(payment_terms_user_error(
+    let template_id = template_id.as_deref()?;
+    if !payment_terms_template_exists(template_id) {
+        return Some(payment_terms_user_error(
             Value::Null,
             "Could not find payment terms template.",
             unsuccessful_code,
-        )),
-        Some("gid://shopify/PaymentTermsTemplate/7") => {
+        ));
+    }
+
+    let terms_type = payment_terms_template_type(template_id).unwrap_or("NET");
+    let has_due_at = schedules
+        .iter()
+        .any(|schedule| resolved_string_field(schedule, "dueAt").is_some());
+    match terms_type {
+        "FIXED" => {
             let due_at = schedules
                 .first()
                 .and_then(|schedule| resolved_string_field(schedule, "dueAt"));
@@ -329,20 +421,26 @@ pub(in crate::proxy) fn payment_terms_validation_error(
                 None
             }
         }
-        Some("gid://shopify/PaymentTermsTemplate/1") => {
-            let has_due_at = schedules
-                .iter()
-                .any(|schedule| resolved_string_field(schedule, "dueAt").is_some());
-            if has_due_at {
+        "NET" => {
+            let has_schedule_date = schedules.first().is_some_and(|schedule| {
+                resolved_string_field(schedule, "issuedAt").is_some()
+                    || resolved_string_field(schedule, "dueAt").is_some()
+            });
+            if !has_schedule_date {
                 Some(payment_terms_user_error(
                     Value::Null,
-                    "A due date cannot be set with event payment terms.",
+                    "A due date is required with fixed or net payment terms.",
                     unsuccessful_code,
                 ))
             } else {
                 None
             }
         }
+        "RECEIPT" | "FULFILLMENT" if has_due_at => Some(payment_terms_user_error(
+            Value::Null,
+            "A due date cannot be set with event payment terms.",
+            unsuccessful_code,
+        )),
         _ => None,
     }
 }
@@ -380,6 +478,7 @@ pub(in crate::proxy) fn payment_terms_record_from_attrs(
     attrs: &BTreeMap<String, ResolvedValue>,
     amount: &str,
     currency: &str,
+    now_epoch: i64,
 ) -> Value {
     let template_id = resolved_string_field(attrs, "paymentTermsTemplateId").unwrap_or_default();
     let (name, terms_type, due_in_days) = payment_terms_template_projection(&template_id);
@@ -397,6 +496,7 @@ pub(in crate::proxy) fn payment_terms_record_from_attrs(
             due_in_days,
             amount,
             currency,
+            now_epoch,
         );
         json!([node])
     };
@@ -408,43 +508,6 @@ pub(in crate::proxy) fn payment_terms_create_value(
 ) -> Result<(String, String, BTreeMap<String, ResolvedValue>), Value> {
     let reference_id = resolved_string_field(&field.arguments, "referenceId").unwrap_or_default();
     let attrs = payment_terms_attrs_from_create_field(field);
-    if reference_id == "gid://shopify/Order/paid" {
-        return Err(payment_terms_payload_value(
-            Value::Null,
-            vec![payment_terms_user_error(
-                Value::Null,
-                "Cannot create payment terms on an Order that has already been paid in full.",
-                "PAYMENT_TERMS_CREATION_UNSUCCESSFUL",
-            )],
-            &field.selection,
-        ));
-    }
-    if let Some(id) = shopify_gid_tail_for_type(&reference_id, "Order") {
-        if id == "123" {
-            return Err(payment_terms_payload_value(
-                Value::Null,
-                vec![payment_terms_user_error(
-                    Value::Null,
-                    "Cannot find the specific Order with id 123.",
-                    "PAYMENT_TERMS_CREATION_UNSUCCESSFUL",
-                )],
-                &field.selection,
-            ));
-        }
-    }
-    if let Some(id) = shopify_gid_tail_for_type(&reference_id, "DraftOrder") {
-        if id == "999999" {
-            return Err(payment_terms_payload_value(
-                Value::Null,
-                vec![payment_terms_user_error(
-                    Value::Null,
-                    "Cannot find the specific Draft order with id 999999.",
-                    "PAYMENT_TERMS_CREATION_UNSUCCESSFUL",
-                )],
-                &field.selection,
-            ));
-        }
-    }
     if let Some(error) =
         payment_terms_validation_error(&attrs, "PAYMENT_TERMS_CREATION_UNSUCCESSFUL")
     {
@@ -469,20 +532,8 @@ pub(in crate::proxy) fn payment_terms_update_value(
     field: &RootFieldSelection,
 ) -> Result<(String, BTreeMap<String, ResolvedValue>), Value> {
     let (payment_terms_id, attrs) = payment_terms_attrs_from_update_field(field);
-    let error = match payment_terms_id.as_str() {
-        "gid://shopify/PaymentTerms/paid-update" => Some(payment_terms_user_error(
-            Value::Null,
-            "Cannot create payment terms on an Order that has already been paid in full.",
-            "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL",
-        )),
-        "gid://shopify/PaymentTerms/channel-policy-update" => Some(payment_terms_user_error(
-            Value::Null,
-            "Cannot create payment terms on an Order where the sales channel does not allow payment terms.",
-            "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL",
-        )),
-        _ => payment_terms_validation_error(&attrs, "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL"),
-    };
-    if let Some(error) = error {
+    if let Some(error) = payment_terms_validation_error(&attrs, "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL")
+    {
         return Err(payment_terms_payload_value(
             Value::Null,
             vec![error],
@@ -490,6 +541,84 @@ pub(in crate::proxy) fn payment_terms_update_value(
         ));
     }
     Ok((payment_terms_id, attrs))
+}
+
+fn payment_terms_owner_paid_payload(code: &str, selections: &[SelectedField]) -> Value {
+    payment_terms_payload_value(
+        Value::Null,
+        vec![payment_terms_user_error(
+            Value::Null,
+            "Cannot create payment terms on an Order that has already been paid in full.",
+            code,
+        )],
+        selections,
+    )
+}
+
+fn payment_terms_owner_channel_policy_payload(code: &str, selections: &[SelectedField]) -> Value {
+    payment_terms_payload_value(
+        Value::Null,
+        vec![payment_terms_user_error(
+            Value::Null,
+            "Cannot create payment terms on an Order where the sales channel does not allow payment terms.",
+            code,
+        )],
+        selections,
+    )
+}
+
+fn payment_terms_owner_not_found_payload(
+    owner_id: &str,
+    code: &str,
+    selections: &[SelectedField],
+) -> Value {
+    let (resource_name, tail) =
+        if let Some(tail) = shopify_gid_tail_for_type(owner_id, "DraftOrder") {
+            ("Draft order", tail)
+        } else if let Some(tail) = shopify_gid_tail_for_type(owner_id, "Order") {
+            ("Order", tail)
+        } else {
+            ("Order", resource_id_tail(owner_id))
+        };
+    payment_terms_payload_value(
+        Value::Null,
+        vec![payment_terms_user_error(
+            Value::Null,
+            &format!("Cannot find the specific {resource_name} with id {tail}."),
+            code,
+        )],
+        selections,
+    )
+}
+
+fn payment_terms_order_total_price_set(
+    order_input: &BTreeMap<String, ResolvedValue>,
+    shop_currency_code: &str,
+) -> Value {
+    let default_shop_currency = resolved_string_field(order_input, "currency")
+        .or_else(|| resolved_string_field(order_input, "currencyCode"))
+        .unwrap_or_else(|| shop_currency_code.to_string());
+    let default_presentment_currency = resolved_string_field(order_input, "presentmentCurrency")
+        .or_else(|| resolved_string_field(order_input, "presentmentCurrencyCode"))
+        .unwrap_or_else(|| default_shop_currency.clone());
+    let [shop_amount, shop_currency, presentment_amount, presentment_currency] =
+        line_items_price_set_values(
+            order_input,
+            [
+                "0.0",
+                &default_shop_currency,
+                "0.0",
+                &default_presentment_currency,
+            ],
+            ["0.0", &default_shop_currency],
+            Some(["0.0", &default_presentment_currency]),
+        );
+    money_set_pair(
+        &shop_amount,
+        &shop_currency,
+        &presentment_amount,
+        &presentment_currency,
+    )
 }
 
 impl DraftProxy {
@@ -532,6 +661,13 @@ impl DraftProxy {
             if !has_terms_mutation && !has_staged_owner_read {
                 return None;
             }
+            if fields.iter().any(|field| {
+                field.name == "orderCreate"
+                    && resolved_object_field(&field.arguments, "order")
+                        .is_some_and(|input| order_create_input_needs_shop_currency_default(&input))
+            }) {
+                self.hydrate_shop_pricing_state_if_missing(request, true, false);
+            }
             let mut staged_ids = Vec::new();
             let mut logged = false;
             let mut missing_required = false;
@@ -550,25 +686,41 @@ impl DraftProxy {
                         )
                     }
                     "paymentTermsCreate" => match payment_terms_create_value(field) {
-                        Ok((owner_id, terms_id, attrs)) => {
-                            // Hydrate (and stage) the owner so we can read its
-                            // money and financial status. A paid Order is rejected
-                            // before any payment-terms staging happens.
-                            let (amount, currency) =
-                                self.payment_terms_owner_money(request, &owner_id);
-                            if self.payment_terms_owner_is_paid(&owner_id) {
-                                payment_terms_payload_value(
-                                    Value::Null,
-                                    vec![payment_terms_user_error(
-                                        Value::Null,
-                                        "Cannot create payment terms on an Order that has already been paid in full.",
-                                        "PAYMENT_TERMS_CREATION_UNSUCCESSFUL",
-                                    )],
+                        Ok((owner_id, terms_id, attrs)) => match self
+                            .payment_terms_owner_record(request, &owner_id)
+                        {
+                            None => payment_terms_owner_not_found_payload(
+                                &owner_id,
+                                "PAYMENT_TERMS_CREATION_UNSUCCESSFUL",
+                                &field.selection,
+                            ),
+                            Some(owner)
+                                if is_shopify_gid_of_type(&owner_id, "Order")
+                                    && payment_terms_order_paid(&owner) =>
+                            {
+                                payment_terms_owner_paid_payload(
+                                    "PAYMENT_TERMS_CREATION_UNSUCCESSFUL",
                                     &field.selection,
                                 )
-                            } else {
+                            }
+                            Some(owner)
+                                if is_shopify_gid_of_type(&owner_id, "Order")
+                                    && payment_terms_order_channel_disallowed(&owner) =>
+                            {
+                                payment_terms_owner_channel_policy_payload(
+                                    "PAYMENT_TERMS_CREATION_UNSUCCESSFUL",
+                                    &field.selection,
+                                )
+                            }
+                            Some(owner) => {
+                                let (amount, currency) = payment_terms_extract_owner_money(&owner)
+                                    .unwrap_or_else(|| ("0.0".to_string(), "CAD".to_string()));
                                 let record = payment_terms_record_from_attrs(
-                                    &terms_id, &attrs, &amount, &currency,
+                                    &terms_id,
+                                    &attrs,
+                                    &amount,
+                                    &currency,
+                                    self.current_epoch_seconds(),
                                 );
                                 self.store
                                     .staged
@@ -581,9 +733,16 @@ impl DraftProxy {
                                 self.attach_payment_terms_to_owner(&owner_id, Some(record.clone()));
                                 staged_ids.push(terms_id);
                                 logged = true;
-                                payment_terms_payload_value(record, Vec::new(), &field.selection)
+                                payment_terms_payload_value(
+                                    payment_terms_record_with_effective_due(
+                                        &record,
+                                        self.current_epoch_seconds(),
+                                    ),
+                                    Vec::new(),
+                                    &field.selection,
+                                )
                             }
-                        }
+                        },
                         Err(payload) => payload,
                     },
                     "paymentTermsUpdate" => match payment_terms_update_value(field) {
@@ -591,6 +750,9 @@ impl DraftProxy {
                             let owner_id = self.payment_terms_owner_id(&terms_id);
                             let has_staged_record =
                                 self.store.staged.payment_terms.contains_key(&terms_id);
+                            let owner_record = owner_id
+                                .as_deref()
+                                .and_then(|owner| self.payment_terms_owner_record(request, owner));
                             let cold_node = if owner_id.is_none() && !has_staged_record {
                                 self.hydrate_payment_terms_node(request, &terms_id)
                             } else {
@@ -609,28 +771,48 @@ impl DraftProxy {
                                     )],
                                     &field.selection,
                                 )
-                            } else if cold_node
-                                .as_ref()
-                                .is_some_and(payment_terms_node_order_paid)
+                            } else if owner_id
+                                .as_deref()
+                                .is_some_and(|owner| is_shopify_gid_of_type(owner, "Order"))
+                                && owner_record.as_ref().is_some_and(payment_terms_order_paid)
+                                || cold_node
+                                    .as_ref()
+                                    .is_some_and(payment_terms_node_order_paid)
                             {
-                                payment_terms_payload_value(
-                                    Value::Null,
-                                    vec![payment_terms_user_error(
-                                        Value::Null,
-                                        "Cannot create payment terms on an Order that has already been paid in full.",
-                                        "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL",
-                                    )],
+                                payment_terms_owner_paid_payload(
+                                    "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL",
+                                    &field.selection,
+                                )
+                            } else if owner_id
+                                .as_deref()
+                                .is_some_and(|owner| is_shopify_gid_of_type(owner, "Order"))
+                                && owner_record
+                                    .as_ref()
+                                    .is_some_and(payment_terms_order_channel_disallowed)
+                                || cold_node
+                                    .as_ref()
+                                    .is_some_and(payment_terms_node_order_channel_disallowed)
+                            {
+                                payment_terms_owner_channel_policy_payload(
+                                    "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL",
                                     &field.selection,
                                 )
                             } else {
                                 let (amount, currency) = match owner_id.as_deref() {
-                                    Some(owner) => self.payment_terms_owner_money(request, owner),
+                                    Some(_) => owner_record
+                                        .as_ref()
+                                        .and_then(payment_terms_extract_owner_money)
+                                        .unwrap_or_else(|| ("0.0".to_string(), "CAD".to_string())),
                                     None => self
                                         .payment_terms_record_money(&terms_id)
                                         .unwrap_or_else(|| ("0.0".to_string(), "CAD".to_string())),
                                 };
                                 let record = payment_terms_record_from_attrs(
-                                    &terms_id, &attrs, &amount, &currency,
+                                    &terms_id,
+                                    &attrs,
+                                    &amount,
+                                    &currency,
+                                    self.current_epoch_seconds(),
                                 );
                                 self.store
                                     .staged
@@ -644,7 +826,14 @@ impl DraftProxy {
                                 }
                                 staged_ids.push(terms_id);
                                 logged = true;
-                                payment_terms_payload_value(record, Vec::new(), &field.selection)
+                                payment_terms_payload_value(
+                                    payment_terms_record_with_effective_due(
+                                        &record,
+                                        self.current_epoch_seconds(),
+                                    ),
+                                    Vec::new(),
+                                    &field.selection,
+                                )
                             }
                         }
                         Err(payload) => payload,
@@ -726,43 +915,31 @@ impl DraftProxy {
         )
     }
 
-    /// Resolves the owning order/draft money used to denominate a payment
-    /// schedule. Orders carry presentment money (the schedule is presentment-
-    /// denominated); drafts expose shop money. Prefers already-staged owners; in
-    /// live-hybrid replay it hydrates the owner from the cassette and stages it so
-    /// subsequent local reads (and the post-delete cleanup) observe the same
-    /// graph. Falls back to `0.0 CAD` when no owner money is available.
-    fn payment_terms_owner_money(&mut self, request: &Request, owner_id: &str) -> (String, String) {
-        if let Some(money) = self
+    fn payment_terms_owner_record(&mut self, request: &Request, owner_id: &str) -> Option<Value> {
+        if let Some(owner) = self
             .store
             .staged
             .orders
             .get(owner_id)
             .or_else(|| self.store.staged.draft_orders.get(owner_id))
-            .and_then(payment_terms_extract_owner_money)
         {
-            return money;
+            return Some(owner.clone());
         }
-        if let Some(owner) = self.hydrate_payment_terms_owner(request, owner_id) {
-            let money = payment_terms_extract_owner_money(&owner);
-            if owner_id.starts_with("gid://shopify/DraftOrder/") {
-                self.store
-                    .staged
-                    .draft_orders
-                    .entry(owner_id.to_string())
-                    .or_insert(owner);
-            } else {
-                self.store
-                    .staged
-                    .orders
-                    .entry(owner_id.to_string())
-                    .or_insert(owner);
-            }
-            if let Some(money) = money {
-                return money;
-            }
+        let owner = self.hydrate_payment_terms_owner(request, owner_id)?;
+        if is_shopify_gid_of_type(owner_id, "DraftOrder") {
+            self.store
+                .staged
+                .draft_orders
+                .entry(owner_id.to_string())
+                .or_insert_with(|| owner.clone());
+        } else {
+            self.store
+                .staged
+                .orders
+                .entry(owner_id.to_string())
+                .or_insert_with(|| owner.clone());
         }
-        ("0.0".to_string(), "CAD".to_string())
+        Some(owner)
     }
 
     /// Cassette-backed owner hydration: in live-hybrid replay, issue the exact
@@ -774,7 +951,7 @@ impl DraftProxy {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return None;
         }
-        let (query, operation_name) = if owner_id.starts_with("gid://shopify/DraftOrder/") {
+        let (query, operation_name) = if is_shopify_gid_of_type(owner_id, "DraftOrder") {
             (
                 PAYMENT_TERMS_DRAFT_HYDRATE_QUERY,
                 "PaymentTermsDraftHydrate",
@@ -801,19 +978,6 @@ impl DraftProxy {
             .or_else(|| data.get("order"))
             .filter(|owner| !owner.is_null())
             .cloned()
-    }
-
-    /// True when a staged Order owner has been paid in full. Drafts (and orders
-    /// without a recorded financial status) are never "paid" by this check, so it
-    /// is safe to call for any owner type.
-    fn payment_terms_owner_is_paid(&self, owner_id: &str) -> bool {
-        self.store
-            .staged
-            .orders
-            .get(owner_id)
-            .and_then(|owner| owner.get("displayFinancialStatus"))
-            .and_then(Value::as_str)
-            == Some("PAID")
     }
 
     /// Cassette-backed PaymentTerms-node hydration for the cold update path:
@@ -872,7 +1036,13 @@ impl DraftProxy {
     }
 
     fn attach_payment_terms_to_owner(&mut self, owner_id: &str, terms: Option<Value>) {
-        let entry = if owner_id.starts_with("gid://shopify/DraftOrder/") {
+        let terms = terms
+            .as_ref()
+            .map(|terms| {
+                payment_terms_record_with_effective_due(terms, self.current_epoch_seconds())
+            })
+            .unwrap_or(Value::Null);
+        let entry = if is_shopify_gid_of_type(owner_id, "DraftOrder") {
             self.store
                 .staged
                 .draft_orders
@@ -895,7 +1065,25 @@ impl DraftProxy {
                     })
                 })
         };
-        entry["paymentTerms"] = terms.unwrap_or(Value::Null);
+        entry["paymentTerms"] = terms;
+    }
+
+    pub(in crate::proxy) fn payment_terms_owner_record_with_effective_due(
+        &self,
+        owner: &Value,
+    ) -> Value {
+        let mut owner = owner.clone();
+        if let Some(payment_terms) = owner
+            .get("paymentTerms")
+            .filter(|payment_terms| !payment_terms.is_null())
+            .cloned()
+        {
+            owner["paymentTerms"] = payment_terms_record_with_effective_due(
+                &payment_terms,
+                self.current_epoch_seconds(),
+            );
+        }
+        owner
     }
 
     fn selected_payment_terms_owner(
@@ -910,29 +1098,26 @@ impl DraftProxy {
             self.store.staged.orders.get(owner_id)
         };
         record
-            .map(|record| selected_json(record, selection))
+            .map(|record| {
+                selected_json(
+                    &self.payment_terms_owner_record_with_effective_due(record),
+                    selection,
+                )
+            })
             .unwrap_or(Value::Null)
     }
 
     fn stage_payment_terms_order(&mut self, field: &RootFieldSelection) -> Value {
-        let (id, _, first_line) = self.staged_order_input_and_first_line(field);
-        let [shop_amount, shop_currency, presentment_amount, presentment_currency] =
-            line_item_price_set_values(
-                &first_line,
-                ["57.00", "CAD", "57.00", "CAD"],
-                ["42.50", "USD"],
-                Some(["57.00", "CAD"]),
-            );
-        let price_set = money_set_pair(
-            &shop_amount,
-            &shop_currency,
-            &presentment_amount,
-            &presentment_currency,
-        );
+        let (id, order_input, _) = self.staged_order_input_and_first_line(field);
+        let shop_currency_code = self.store.shop_currency_code();
+        let price_set = payment_terms_order_total_price_set(&order_input, &shop_currency_code);
+        let order_name = self.next_order_name();
         let order = json!({
             "id": id,
-            "name": format!("#{}", self.store.staged.orders.len() + 1),
-            "currentTotalPriceSet": price_set,
+            "name": order_name,
+            "currentTotalPriceSet": price_set.clone(),
+            "totalPriceSet": price_set.clone(),
+            "totalOutstandingSet": price_set,
             "paymentTerms": Value::Null
         });
         self.store.staged.orders.insert(

@@ -183,5 +183,5 @@
       }
     ]
   },
-  "notes": "Executable parity replays paymentTermsCreate, paymentTermsUpdate, paymentTermsDelete, and downstream draftOrder(id:) reads against the local proxy using a live 2026-04 Shopify capture from a disposable draft order. The capture confirms Shopify computes NET dueAt from issuedAt plus template due days, replaces the PaymentSchedule id on FIXED update, and returns null paymentTerms after delete."
+  "notes": "Executable parity replays paymentTermsCreate, paymentTermsUpdate, paymentTermsDelete, and downstream draftOrder(id:) reads against the local proxy using a live 2026-04 Shopify capture from a disposable draft order. The capture confirms Shopify computes NET dueAt from issuedAt plus template due days, replaces the PaymentSchedule id on FIXED update, and returns null paymentTerms after delete. Evidence trail: registered capture script scripts/capture-payment-terms-lifecycle-conformance.ts writes the listed fixture through capture-index entry payment-terms-lifecycle; tests/integration/payment-terms-lifecycle-flow.test.ts keeps the local payment-terms lifecycle projection path executable."
 }

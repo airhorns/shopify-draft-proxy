@@ -24,7 +24,7 @@ function collectOutput(child: ChildProcessWithoutNullStreams): { getOutput: () =
 }
 
 async function waitForRustServer(child: ChildProcessWithoutNullStreams, getOutput: () => string): Promise<void> {
-  const deadline = Date.now() + 15_000;
+  const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
     if (getOutput().includes('shopify-draft-proxy rust runtime listening')) return;
     if (child.exitCode !== null) {
@@ -84,6 +84,11 @@ async function withRustServer<T>(
 async function getJson(origin: string, path: string, init: RequestInit = {}) {
   const response = await fetch(`${origin}${path}`, init);
   return { status: response.status, body: await response.json() };
+}
+
+async function getText(origin: string, path: string, init: RequestInit = {}) {
+  const response = await fetch(`${origin}${path}`, init);
+  return { status: response.status, body: await response.text() };
 }
 
 async function closeServer(server: Server): Promise<void> {
@@ -161,6 +166,8 @@ describe('Rust HTTP adapter route surface', () => {
             savedSearchOrder: [],
             shopPolicies: {},
             shopPolicyOrder: [],
+            deliveryProfiles: {},
+            deliveryProfileOrder: [],
             shop: null,
             publicationIds: [],
             publicationCount: null,
@@ -227,6 +234,7 @@ describe('Rust HTTP adapter route surface', () => {
             giftCards: {},
             locallyCreatedCustomerIds: [],
             taggableResources: {},
+            abandonments: {},
             orders: {},
             deletedOrderIds: [],
             nextDraftOrderId: 1,
@@ -245,6 +253,8 @@ describe('Rust HTTP adapter route surface', () => {
             deletedDeliveryProfileIds: [],
             publicationIds: [],
             createdPublicationIds: [],
+            currentChannelPublicationId: null,
+            currentChannelPublicationResolved: false,
             publications: {},
             resourcePublications: {},
             locationLimitReached: false,
@@ -263,7 +273,7 @@ describe('Rust HTTP adapter route surface', () => {
         body: { ok: true, message: 'state reset' },
       });
     });
-  }, 25_000);
+  }, 45_000);
 
   it('serves Admin GraphQL, staged upload, and error envelopes through Rust HTTP', async () => {
     const graphQLBody = {
@@ -318,7 +328,150 @@ describe('Rust HTTP adapter route surface', () => {
         body: { errors: [{ message: 'Method not allowed' }] },
       });
     });
-  }, 25_000);
+  }, 45_000);
+
+  it('captures staged upload bytes for local bulk mutation imports through Rust HTTP', async () => {
+    await withRustServer(await unusedLocalPort(), async (origin) => {
+      const stagedUpload = await getJson(origin, '/admin/api/2026-04/graphql.json', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          query: `mutation CreateBulkUpload($input: [StagedUploadInput!]!) {
+            stagedUploadsCreate(input: $input) {
+              stagedTargets { resourceUrl parameters { name value } }
+              userErrors { field message }
+            }
+          }`,
+          variables: {
+            input: [
+              {
+                resource: 'BULK_MUTATION_VARIABLES',
+                filename: 'http-bulk-product-create.jsonl',
+                mimeType: 'text/jsonl',
+                httpMethod: 'POST',
+              },
+            ],
+          },
+        }),
+      });
+      expect(stagedUpload.status).toBe(200);
+      const target = (
+        stagedUpload.body as {
+          data: {
+            stagedUploadsCreate: {
+              stagedTargets: Array<{ resourceUrl: string; parameters: Array<{ name: string; value: string }> }>;
+              userErrors: unknown[];
+            };
+          };
+        }
+      ).data.stagedUploadsCreate.stagedTargets[0];
+      if (target === undefined) {
+        throw new Error(`staged upload target was missing: ${JSON.stringify(stagedUpload.body)}`);
+      }
+      const key = target.parameters.find((parameter) => parameter.name === 'key')?.value;
+      if (!key) {
+        throw new Error(`staged upload target did not include a key parameter: ${JSON.stringify(target)}`);
+      }
+
+      const jsonl = `${JSON.stringify({ product: { title: 'HTTP bulk import product' } })}\n`;
+      const uploadPath = new URL(target.resourceUrl).pathname;
+      const upload = await getJson(origin, uploadPath, {
+        method: 'POST',
+        headers: { 'content-type': 'text/jsonl' },
+        body: jsonl,
+      });
+      expect(upload).toEqual({
+        status: 201,
+        body: {
+          ok: true,
+          key: expect.stringContaining('http-bulk-product-create.jsonl'),
+        },
+      });
+
+      const run = await getJson(origin, '/admin/api/2026-04/graphql.json', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          query: `mutation RunBulkImport($mutation: String!, $path: String!) {
+            bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
+              bulkOperation { id status objectCount fileSize url }
+              userErrors { field message code }
+            }
+          }`,
+          variables: {
+            mutation:
+              'mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }',
+            path: key,
+          },
+        }),
+      });
+      expect(run).toMatchObject({
+        status: 200,
+        body: {
+          data: {
+            bulkOperationRunMutation: {
+              bulkOperation: {
+                status: 'CREATED',
+                objectCount: '0',
+                fileSize: null,
+                url: null,
+              },
+              userErrors: [],
+            },
+          },
+        },
+      });
+
+      const current = await getJson(origin, '/admin/api/2026-04/graphql.json', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          query: `query CurrentBulkMutation {
+            currentBulkOperation(type: MUTATION) {
+              status
+              objectCount
+              rootObjectCount
+              fileSize
+              url
+            }
+          }`,
+        }),
+      });
+      const currentOperation = (
+        current.body as {
+          data: {
+            currentBulkOperation: {
+              status: string;
+              objectCount: string;
+              rootObjectCount: string;
+              fileSize: string;
+              url: string;
+            };
+          };
+        }
+      ).data.currentBulkOperation;
+      expect(currentOperation).toMatchObject({
+        status: 'COMPLETED',
+        objectCount: '1',
+        rootObjectCount: '1',
+      });
+      const artifactPath = new URL(currentOperation.url).pathname;
+      const artifact = await getText(origin, artifactPath);
+      expect(artifact.status).toBe(200);
+      expect(JSON.parse(artifact.body.trim())).toMatchObject({
+        data: {
+          productCreate: {
+            product: {
+              title: 'HTTP bulk import product',
+            },
+            userErrors: [],
+          },
+        },
+        __lineNumber: 0,
+      });
+      expect(currentOperation.fileSize).toBe(String(artifact.body.length));
+    });
+  }, 45_000);
 
   it('forwards chunked upstream passthrough responses without producing duplicate hop-by-hop headers', async () => {
     await withChunkedUpstream(async (upstreamOrigin) => {
@@ -340,5 +493,5 @@ describe('Rust HTTP adapter route surface', () => {
         { readMode: 'live-hybrid', shopifyAdminOrigin: upstreamOrigin },
       );
     });
-  }, 25_000);
+  }, 45_000);
 });

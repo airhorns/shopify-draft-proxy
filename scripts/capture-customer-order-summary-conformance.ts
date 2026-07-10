@@ -48,9 +48,9 @@ function readPayloadPath<T>(source: unknown, pathSegments: string[], label: stri
   return current as T;
 }
 
-const latestOrderQuery = `#graphql
-  query CustomerOrderSummaryLatestOrder {
-    orders(first: 1, sortKey: CREATED_AT, reverse: true) {
+const orderCandidateQuery = `#graphql
+  query CustomerOrderSummaryOrderCandidates {
+    orders(first: 50, sortKey: CREATED_AT, reverse: true) {
       nodes {
         id
         name
@@ -64,7 +64,7 @@ const latestOrderQuery = `#graphql
 `;
 
 // Byte-for-byte copy of the proxy's ORDER_LIFECYCLE_HYDRATE_QUERY
-// (online_store_orders_payments.rs `OrderManagementDownstreamRead`). The proxy
+// (orders_payments_fulfillment.rs `OrderManagementDownstreamRead`). The proxy
 // forwards this verbatim for a cold `orderCustomerSet` to earn the order from
 // the backend instead of a precondition seed, so the recorded cassette must
 // match the emitted query exactly (cassette matching is byte-exact on the
@@ -109,6 +109,12 @@ const orderLifecycleHydrateQuery = `query OrderManagementDownstreamRead($id: ID!
     }
   }
 }`;
+
+// Byte-for-byte copy of the proxy's SHOP_PRICING_HYDRATE_QUERY
+// (store_properties.rs `DraftProxyShopPricingHydrate`). The customer create path
+// forwards this before staging a local no-order customer when the mutation
+// payload selects `amountSpent`, so the zero MoneyV2 uses the shop currency.
+const shopPricingHydrateQuery = `query DraftProxyShopPricingHydrate { shop { currencyCode taxesIncluded taxShipping } }`;
 
 // Byte-for-byte copy of the proxy's CUSTOMER_COUNT_HYDRATE_QUERY
 // (config/parity-requests/customers/customer-count-hydrate.graphql). The proxy
@@ -223,16 +229,38 @@ async function main(): Promise<void> {
   let customerId: string | null = null;
   let originalCustomerId: string | null = null;
 
-  const latestOrder = await runGraphqlRequest(latestOrderQuery);
-  assertNoTopLevelErrors(latestOrder, 'latest order query');
-  const latestOrderNodes = readPayloadPath<Record<string, unknown>[]>(
-    latestOrder.payload,
-    ['data', 'orders', 'nodes'],
-    'latest order query',
+  const shopPricingHydrate = await runGraphqlRequest(shopPricingHydrateQuery);
+  assertNoTopLevelErrors(shopPricingHydrate, 'shop pricing hydrate');
+  const shopCurrencyCode = readPayloadPath<string>(
+    shopPricingHydrate.payload,
+    ['data', 'shop', 'currencyCode'],
+    'shop pricing hydrate',
   );
-  const firstOrder = latestOrderNodes[0];
+
+  const orderCandidates = await runGraphqlRequest(orderCandidateQuery);
+  assertNoTopLevelErrors(orderCandidates, 'order candidate query');
+  const orderCandidateNodes = readPayloadPath<Record<string, unknown>[]>(
+    orderCandidates.payload,
+    ['data', 'orders', 'nodes'],
+    'order candidate query',
+  );
+  const firstOrder = orderCandidateNodes.find((order) => {
+    const currentTotal = order['currentTotalPriceSet'];
+    const shopMoney =
+      typeof currentTotal === 'object' && currentTotal !== null
+        ? (currentTotal as Record<string, unknown>)['shopMoney']
+        : null;
+    if (typeof shopMoney !== 'object' || shopMoney === null) {
+      return false;
+    }
+    const money = shopMoney as Record<string, unknown>;
+    const amount = typeof money['amount'] === 'string' ? Number.parseFloat(money['amount']) : Number.NaN;
+    return amount === 0 && money['currencyCode'] === shopCurrencyCode;
+  });
   if (!firstOrder || typeof firstOrder['id'] !== 'string') {
-    throw new Error('latest order query did not return an order to mutate for customer summary capture');
+    throw new Error(
+      `order candidate query did not return a zero-total ${shopCurrencyCode} order to mutate for customer summary capture`,
+    );
   }
 
   orderId = firstOrder['id'];
@@ -341,8 +369,15 @@ async function main(): Promise<void> {
           },
           afterRemove: { query: customerSummaryQuery.trim(), response: afterRemove.payload },
           // Real upstream forwards the proxy makes when no precondition seed exists:
-          // the store-wide customersCount baseline and the cold order projection.
+          // the shop-pricing baseline, the store-wide customersCount baseline, and
+          // the cold order projection.
           upstreamCalls: [
+            {
+              operationName: 'DraftProxyShopPricingHydrate',
+              query: shopPricingHydrateQuery,
+              variables: {},
+              response: { status: shopPricingHydrate.status, body: shopPricingHydrate.payload },
+            },
             {
               operationName: 'CustomerCountHydrate',
               query: customerCountHydrateQuery,

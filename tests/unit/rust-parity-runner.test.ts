@@ -3,6 +3,7 @@ import { readdirSync } from 'node:fs';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 
+import { diffValues, parseJsonlRecordsForParity, selectPaths } from '../../scripts/parity-run.js';
 import { recordedCallMatchesBody, validateRecordedUpstreamCalls } from '../../scripts/parity-cassette.js';
 import { paritySpecSchema } from '../../scripts/support/json-schemas.js';
 
@@ -26,6 +27,66 @@ function countParitySpecs(directory: URL): number {
     return entry.isFile() && entry.name.endsWith('.json') ? count + 1 : count;
   }, 0);
 }
+
+describe('parity runner selected path projection', () => {
+  it.each([
+    {
+      label: 'first selected path',
+      proxy: { payload: { title: 'Proxy title', userErrors: [] } },
+      expectedPath: '$.payload.title',
+    },
+    {
+      label: 'last selected path',
+      proxy: { payload: { title: 'Shopify title', userErrors: [{ message: 'Proxy error' }] } },
+      expectedPath: '$.payload.userErrors[0]',
+    },
+  ])('keeps enough selected paths to catch a difference in the $label', ({ proxy, expectedPath }) => {
+    const capture = { payload: { title: 'Shopify title', userErrors: [] } };
+    const selectedPaths = ['$.payload.title', '$.payload.userErrors'];
+
+    expect(diffValues(selectPaths(capture, selectedPaths), selectPaths(proxy, selectedPaths), [])).toEqual([
+      expect.stringContaining(expectedPath),
+    ]);
+  });
+
+  it('projects wildcard array selected paths without losing sibling selections', () => {
+    const value = {
+      userErrors: [
+        { field: ['handle'], code: 'TAKEN', message: 'Handle has already been taken' },
+        { field: ['type'], code: 'INVALID', message: 'Type is invalid' },
+      ],
+    };
+
+    expect(selectPaths(value, ['$.userErrors[*].field', '$.userErrors[*].code'])).toEqual({
+      userErrors: [
+        { field: ['handle'], code: 'TAKEN' },
+        { field: ['type'], code: 'INVALID' },
+      ],
+    });
+  });
+});
+
+describe('parity runner JSONL targets', () => {
+  it('parses JSONL response bodies before selected-path comparison', () => {
+    const capture = '{"title":"Product"}\n{"alt":"Front","__parentId":"gid://shopify/Product/1"}\n';
+    const proxy = '{"title":"Product"}\n{"alt":"Front","__parentId":"gid://shopify/Product/2"}\n';
+    const selectedPaths = ['$[*].title', '$[*].alt', '$[*].__parentId'];
+
+    const diffs = diffValues(
+      selectPaths(parseJsonlRecordsForParity(capture), selectedPaths),
+      selectPaths(parseJsonlRecordsForParity(proxy), selectedPaths),
+      [
+        {
+          path: '$[1].__parentId',
+          matcher: 'shopify-gid:Product',
+          reason: 'Shopify and the proxy allocate different product ids.',
+        },
+      ],
+    );
+
+    expect(diffs).toEqual([]);
+  });
+});
 
 describe('Rust parity runner cassette matching', () => {
   it('accepts Storefront API parity requests as first-class captured scenario inputs', () => {

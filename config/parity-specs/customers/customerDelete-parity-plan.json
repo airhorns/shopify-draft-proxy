@@ -12,16 +12,10 @@
     "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Strict comparison targets cover the staged `customerDelete` mutation payload, immediate downstream `customer`, `customers`, and `customersCount` visibility, and the captured unknown-id validation branch. Expected differences are limited to Shopify shop IDs synthesized by the local proxy.",
+  "notes": "Strict comparison targets cover the staged `customerDelete` mutation payload, including the `shop.id` projected from hydrated shop state, immediate downstream `customer`, `customers`, and `customersCount` visibility, and the captured unknown-id validation branch.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [
-      {
-        "path": "$.customerDelete.shop.id",
-        "matcher": "shopify-gid:Shop",
-        "reason": "The proxy stages customerDelete locally and synthesizes a stable Shop GID instead of Shopify's live Shop GID."
-      }
-    ],
+    "expectedDifferences": [],
     "targets": [
       {
         "name": "mutation-data",

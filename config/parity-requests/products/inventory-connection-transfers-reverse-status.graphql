@@ -1,0 +1,30 @@
+query InventoryConnectionTransfersReverseStatus($query: String!, $statusQuery: String!) {
+  reversePage: inventoryTransfers(first: 1, query: $query, sortKey: NAME, reverse: true) {
+    nodes {
+      id
+      name
+      status
+      totalQuantity
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  statusMatch: inventoryTransfers(first: 5, query: $statusQuery, sortKey: NAME) {
+    nodes {
+      id
+      name
+      status
+      totalQuantity
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

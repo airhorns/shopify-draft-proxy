@@ -444,6 +444,21 @@
             "reason": "The downstream nested CHF account read sees the proxy-created synthetic StoreCreditAccount GID."
           },
           {
+            "path": "$.customer.queriedStoreCreditAccounts.nodes[0].id",
+            "matcher": "shopify-gid:StoreCreditAccount",
+            "reason": "The downstream nested CHF query-filtered account read sees the proxy-created synthetic StoreCreditAccount GID."
+          },
+          {
+            "path": "$.customer.queriedStoreCreditAccounts.pageInfo.startCursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque and the local proxy uses deterministic account-id cursors."
+          },
+          {
+            "path": "$.customer.queriedStoreCreditAccounts.pageInfo.endCursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque and the local proxy uses deterministic account-id cursors."
+          },
+          {
             "path": "$.storeCreditAccount.id",
             "matcher": "shopify-gid:StoreCreditAccount",
             "reason": "The downstream direct account read sees the proxy-created synthetic StoreCreditAccount GID."
@@ -466,8 +481,78 @@
             }
           }
         }
+      },
+      {
+        "name": "cold-existing-customer-credit-data",
+        "capturePath": "$.coldExisting.customerCredit.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/storeCreditAccountCredit-parity.graphql",
+          "variablesCapturePath": "$.coldExisting.customerCredit.request.variables"
+        }
+      },
+      {
+        "name": "cold-existing-customer-readback-data",
+        "capturePath": "$.coldExisting.customerReadback.response.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.customer.queriedStoreCreditAccounts.pageInfo.startCursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque and the local proxy uses deterministic account-id cursors after customer store-credit hydration."
+          },
+          {
+            "path": "$.customer.queriedStoreCreditAccounts.pageInfo.endCursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque and the local proxy uses deterministic account-id cursors after customer store-credit hydration."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/storeCreditAccount-readback-parity.graphql",
+          "variablesCapturePath": "$.coldExisting.customerReadback.request.variables"
+        }
+      },
+      {
+        "name": "cold-existing-account-currency-mismatch-data",
+        "capturePath": "$.coldExisting.accountCurrencyMismatch.response.data",
+        "proxyPath": "$.data",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/storeCreditAccountCredit-parity.graphql",
+          "variablesCapturePath": "$.coldExisting.accountCurrencyMismatch.request.variables"
+        }
+      },
+      {
+        "name": "cold-existing-account-insufficient-funds-data",
+        "capturePath": "$.coldExisting.accountInsufficientDebit.response.data",
+        "proxyPath": "$.data",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/storeCreditAccountDebit-parity.graphql",
+          "variablesCapturePath": "$.coldExisting.accountInsufficientDebit.request.variables"
+        }
+      },
+      {
+        "name": "cold-existing-account-debit-data",
+        "capturePath": "$.coldExisting.accountDebit.response.data",
+        "proxyPath": "$.data",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/storeCreditAccountDebit-parity.graphql",
+          "variablesCapturePath": "$.coldExisting.accountDebit.request.variables"
+        }
+      },
+      {
+        "name": "cold-missing-account-zero-debit-data",
+        "capturePath": "$.coldExisting.missingAccountZeroDebit.response.data",
+        "proxyPath": "$.data",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/storeCreditAccountDebit-parity.graphql",
+          "variablesCapturePath": "$.coldExisting.missingAccountZeroDebit.request.variables"
+        }
       }
     ]
   },
-  "notes": "Captures a disposable-customer store-credit flow. The recorder uses storeCreditAccountCredit with the customer id to make Shopify create a real store credit account, captures account-ID validation branches and owner-ID validation branches, then replays account-ID credit/debit mutations plus downstream direct/nested balance reads. The 2026-04 refresh additionally records creditInput.notify acceptance, public-schema attribution rejection, debitInput unsupported notify/attribution rejection, debitInput unsupported currency asymmetry, debitInput zero/negative amount wording, ACCOUNT_NOT_FOUND precedence over zero amount for missing credit/debit account IDs, EXPIRES_AT_IN_PAST precedence over negative credit amount for an existing account, CREDIT_LIMIT_EXCEEDED for credits at/above Shopify's captured account limit, a CHF owner-id credit success branch outside the old local allow-list, and result-only USDC/XXX credit inputs returning top-level CURRENCY_CODE_INVALID errors. Expected differences are limited to live Shopify IDs versus proxy-local synthetic IDs for locally created customers/accounts and GraphQL location offsets for validation replay documents."
+  "notes": "Captures a disposable-customer store-credit flow. The recorder uses storeCreditAccountCredit with the customer id to make Shopify create a real store credit account, captures account-ID validation branches and owner-ID validation branches, then replays account-ID credit/debit mutations plus downstream direct/nested balance reads. The 2026-04 refresh additionally records creditInput.notify acceptance, public-schema attribution rejection, debitInput unsupported notify/attribution rejection, debitInput unsupported currency asymmetry, debitInput zero/negative amount wording, ACCOUNT_NOT_FOUND precedence over zero amount for missing credit/debit account IDs, EXPIRES_AT_IN_PAST precedence over negative credit amount for an existing account, CREDIT_LIMIT_EXCEEDED for credits at/above Shopify's captured account limit, a CHF owner-id credit success branch outside the old local allow-list, result-only USDC/XXX credit inputs returning top-level CURRENCY_CODE_INVALID errors, and cold existing Customer/StoreCreditAccount mutation-first replay through recorded read-only upstream hydration cassettes. Expected differences are limited to live Shopify IDs versus proxy-local synthetic IDs for locally created customers/accounts, opaque connection cursors, and GraphQL location offsets for validation replay documents."
 }

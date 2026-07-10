@@ -1,0 +1,17 @@
+mutation B2BContactLocationAssignmentsTaxInlineInvalid($companyLocationId: ID!) {
+  companyLocationTaxSettingsUpdate(companyLocationId: $companyLocationId, exemptionsToAssign: [FOO_BAR]) {
+    companyLocation {
+      id
+      taxSettings {
+        taxRegistrationId
+        taxExempt
+        taxExemptions
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

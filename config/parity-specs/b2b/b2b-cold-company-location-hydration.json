@@ -1,0 +1,48 @@
+{
+  "scenarioId": "b2b-cold-company-location-hydration",
+  "operationNames": ["companies", "companyLocationUpdate", "companyLocationTaxSettingsUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["upstream-passthrough", "upstream-hydration-parity", "runtime-staging", "payload-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-cold-company-location-hydration.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/b2b.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/b2b/b2b-cold-companies-read.graphql",
+    "variablesCapturePath": "$.coldCompaniesRead.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Regression coverage for cold B2B state. The first replay request is a companies(first:, query:) read before any staged B2B company exists, so the proxy must forward upstream instead of answering from an empty local graph. Later replay requests use a live-captured CompanyLocation ID, requiring the proxy to hydrate that location through the exact B2BCompanyLocationHydrate cassette before staging companyLocationUpdate and tax settings locally. Before this fix, the cold companies read returned an empty local connection and real non-synthetic company locations returned not-found userErrors.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "cold-companies-read-data",
+        "capturePath": "$.coldCompaniesRead.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "cold-company-location-update-data",
+        "capturePath": "$.locationUpdate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-cold-company-location-update.graphql",
+          "variablesCapturePath": "$.locationUpdate.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cold-company-location-tax-settings-data",
+        "capturePath": "$.taxUpdate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-tax.graphql",
+          "variablesCapturePath": "$.taxUpdate.request.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

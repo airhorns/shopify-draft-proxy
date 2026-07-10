@@ -219,7 +219,7 @@ query OrdersFulfillmentOrderHydrate($id: ID!) {
 `;
 
 // Byte-for-byte copy of the proxy's ORDERS_FULFILLMENT_ORDER_HYDRATE_QUERY
-// (src/proxy/online_store_orders_payments.rs). On a cold fulfillmentCreate the
+// (src/proxy/orders_payments_fulfillment.rs). On a cold fulfillmentCreate the
 // proxy forwards THIS expanded document (operationName ShippingFulfillmentOrderHydrate),
 // not the richer OrdersFulfillmentOrderHydrate above — the latter is only used
 // here for internal status polling. Recording this per fulfillment order at its

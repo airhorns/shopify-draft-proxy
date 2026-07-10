@@ -6,6 +6,7 @@ import path from 'node:path';
 
 import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
+import { readDiscountHydrateDocument } from './discount-hydrate-query.js';
 import { assertDiscountConformanceScopes, probeDiscountConformanceScopes } from './discount-conformance-lib.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
@@ -158,84 +159,7 @@ const automaticDeleteDocument = `#graphql
   }
 `;
 
-const discountHydrateDocument = `#graphql
-  query DiscountHydrate($id: ID!) {
-    codeNode: codeDiscountNode(id: $id) {
-      id
-      codeDiscount {
-        __typename
-        ... on DiscountCodeBasic {
-          title
-          status
-          startsAt
-          endsAt
-          updatedAt
-          codes(first: 250) {
-            nodes {
-              id
-              code
-            }
-          }
-        }
-        ... on DiscountCodeApp {
-          title
-          status
-          startsAt
-          endsAt
-          updatedAt
-        }
-        ... on DiscountCodeBxgy {
-          title
-          status
-          startsAt
-          endsAt
-          updatedAt
-        }
-        ... on DiscountCodeFreeShipping {
-          title
-          status
-          startsAt
-          endsAt
-          updatedAt
-        }
-      }
-    }
-    automaticNode: automaticDiscountNode(id: $id) {
-      id
-      automaticDiscount {
-        __typename
-        ... on DiscountAutomaticBasic {
-          title
-          status
-          startsAt
-          endsAt
-          updatedAt
-        }
-        ... on DiscountAutomaticApp {
-          title
-          status
-          startsAt
-          endsAt
-          updatedAt
-        }
-        ... on DiscountAutomaticBxgy {
-          title
-          status
-          startsAt
-          endsAt
-          updatedAt
-        }
-        ... on DiscountAutomaticFreeShipping {
-          title
-          status
-          startsAt
-          endsAt
-          updatedAt
-        }
-      }
-    }
-  }
-`;
+const discountHydrateDocument = await readDiscountHydrateDocument();
 
 function assertSuccess(result: ConformanceGraphqlResult, context: string): void {
   if (result.status < 200 || result.status >= 300 || result.payload.errors) {

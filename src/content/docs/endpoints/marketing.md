@@ -34,25 +34,26 @@ Snapshot reads are served from normalized marketing activity and event records h
 
 - Missing singular activity/event lookups return `null`.
 - Absent catalogs return non-null empty connections with empty `nodes`/`edges`, false page booleans, and null cursors.
-- Connection serialization preserves selected `nodes`, `edges`, `cursor`, and `pageInfo`. Captured Shopify cursors are reused when present; locally seeded records without captured cursors use stable synthetic `cursor:<gid>` cursors.
-- Local activity filtering supports captured/default text fields, `title`, `app_name`, `id`, date terms, scheduled date terms, exact `tactic`, `marketingActivityIds`, and `remoteIds`.
-- Local event filtering supports default text, `description`, `id`, `started_at`, and exact `type`.
-- Modeled activity sort keys are `CREATED_AT`, `ID`, and `TITLE`. Modeled event sort keys are `ID` and `STARTED_AT`.
+- Connection serialization preserves selected `nodes`, `edges`, `cursor`, and `pageInfo`. Local records use stable synthetic `cursor:<gid>` cursors and honor `first`, `last`, `after`, `before`, `reverse`, and modeled `sortKey` arguments with computed page booleans.
+- Local activity filtering supports `marketingActivityIds`, `remoteIds`, bare/default full-text terms, and keyed query terms for `app_id`, `app_name`, `created_at`, `id`, `marketing_campaign_id`, `scheduled_to_end_at`, `scheduled_to_start_at`, `tactic`, `title`, and `updated_at`. Legacy local query aliases such as `remote_id`, `description`, `status`, and `channel_handle` remain accepted. Unrecognized keyed terms are evaluated as default full-text against the supplied value instead of fail-closing the entire connection.
+- Local event filtering supports bare/default full-text terms plus `description`, `id`, `remote_id`, `channel_handle`, `started_at`, `scheduled_to_end_at`, `scheduled_to_start_at`, `tactic`, and `type`.
+- Modeled activity sort keys are `CREATED_AT` (default), `ID`, and `TITLE`. Modeled event sort keys are `ID` (default) and `STARTED_AT`.
 
 External activity lifecycle:
 
 - External create/update/upsert/delete roots stage `MarketingActivity` and nested `MarketingEvent` records locally from remote ID and UTM attribution evidence.
 - External create/update/upsert preserve supplied request app identity, remote ID, UTM attribution, channel handle, activity-level `adSpend`, schedule input, and `referringDomain` values in staged activity state when supplied. Updates that omit those fields keep the previous staged values; creates that omit optional remote ID or UTM fields keep those values nullable rather than inventing local tracking placeholders. The public 2026-04 schema exposes read-back for `MarketingActivity.adSpend` and nested `MarketingEvent.scheduledToEndAt`, while the currently captured public `MarketingActivity` type does not expose scheduled or referring-domain output fields directly.
+- `MarketingActivity.app` is serialized from the current app model rather than from the raw numeric API client ID. The 2026-04 `marketing-activity-create-external-read-after-write` parity capture asserts the conformance app GID and display title in create, update, singular read, and connection read payloads.
 - Selector resolution by `remoteId`, `marketingActivityId`, and UTM is app-scoped when `x-shopify-draft-proxy-api-client-id` is present. Legacy unowned fixture records remain visible to all callers. This proxy-owned request header is not Shopify parity evidence: a 2026-04 live probe with the conformance app showed Shopify scopes ownership to the OAuth app/token and ignores that custom header, so cross-app local scoping is covered by Rust integration tests rather than a parity spec until a two-installed-app capture harness exists.
 - Multiple selectors must resolve to the same effective activity before validation or staging. Conflicts return `MARKETING_ACTIVITY_DOES_NOT_EXIST` with no local mutation.
 - Upsert creates or updates by `remoteId`; delete can resolve by activity ID or remote ID and applies the same selector consistency rule.
-- `marketingActivitiesDeleteAllExternal` records an in-flight local job and immediately removes the calling app's external activities and events from downstream reads. While the app-scoped in-flight flag exists, that app's external create/update/upsert calls return `DELETE_JOB_ENQUEUED`.
+- `marketingActivitiesDeleteAllExternal` returns a per-invocation synthetic `Job` handle, records an in-flight local job, and immediately removes the calling app's external activities and events from downstream reads. While the app-scoped in-flight flag exists, that app's external create/update/upsert calls return `DELETE_JOB_ENQUEUED`.
 - Status labels are derived from staged activity state rather than copied from a lookup. Native staged activities preserve `targetStatus` when supplied so paused/active/deleted transitions surface local labels.
 - Successful staged lifecycle mutations keep stable synthetic IDs/timestamps and retain original raw mutation bodies in the meta log for commit replay.
 
 External activity validation:
 
-- Create and upsert-create accept any non-empty `channelHandle` when supplied, enforce budget/ad-spend currency agreement, and reject duplicate remote IDs, UTM triplets, and URL parameter values within the requesting app.
+- Create rejects unrecognized `channelHandle` values with `INVALID_CHANNEL_HANDLE` when supplied, enforces budget/ad-spend currency agreement, and rejects duplicate remote IDs, UTM triplets, and URL parameter values within the requesting app. Upsert-create covers the captured currency and duplicate branches; unknown channel-handle upsert remains outside current parity evidence.
 - Update/upsert-update reject immutable `channelHandle`, URL parameter, UTM, hierarchy, parent, currency, and tactic changes according to captured branch-specific userErrors.
 - Non-external records, missing nested marketing events, and parent changes to a different resolved event fail before staging.
 - `remoteUrl` and `remotePreviewImageUrl` accept only `http` and `https` schemes. URL scalar failures remain top-level coercion errors before mutation handling.
@@ -68,7 +69,7 @@ Native/deprecated activity behavior:
 Engagement behavior:
 
 - `marketingEngagementCreate` accepts activity-level selectors by `marketingActivityId` or external activity `remoteId`, validates selector count, and stages engagement records in meta state for supported branches.
-- Channel-handle engagement accepts any non-empty handle. Empty handles return `INVALID_CHANNEL_HANDLE`.
+- Channel-handle engagement rejects unrecognized handles with `INVALID_CHANNEL_HANDLE`; validation runs before input currency checks on channel paths.
 - Currency validation follows captured order: selector-count checks first, channel-handle checks before currency on channel paths, and input currency checks before missing activity lookup on activity/remote paths.
 - On Admin API 2026-04, `MarketingEngagementInput.occurredOn`, `utcOffset`, and `isCumulative` are required schema fields. Omitting any of them returns top-level GraphQL coercion errors before the local handler stages an engagement; successful responses echo the supplied literals without synthesized defaults.
 - Activity-level duplicate same-day writes are accepted locally with latest metric values replacing the local engagement record.

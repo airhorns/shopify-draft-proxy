@@ -5,10 +5,48 @@ require "net/http"
 require "uri"
 
 require_relative "shopify_draft_proxy/version"
-require_relative "shopify_draft_proxy/shopify_draft_proxy_native"
+
+# Install-time-compiled extensions (git/rubygems sources) land in RubyGems' own
+# per-gem extension dir on $LOAD_PATH, not in this gem's lib/. Prefer a plain
+# load-path require so consumers find it, and fall back to require_relative for
+# local `rake native:build` copies that sit next to this file.
+begin
+  require "shopify_draft_proxy/shopify_draft_proxy_native"
+rescue LoadError
+  require_relative "shopify_draft_proxy/shopify_draft_proxy_native"
+end
 
 module ShopifyDraftProxy
   class Error < StandardError; end
+
+  # Raised by {#commit} when the session's staged mutations do not all replay
+  # successfully — the upstream returned a non-2xx status or GraphQL errors for
+  # at least one staged mutation, so the replay stopped. It carries the full
+  # commit result so callers can inspect exactly what happened without parsing a
+  # message string:
+  #
+  #   error.result["committed"] # => count replayed before the stop
+  #   error.result["failed"]    # => count that failed (>= 1)
+  #   error.result["stopIndex"] # => log index the replay stopped at
+  #   error.result["attempts"]  # => per-mutation records; the failing one carries
+  #                             #    { "response" => { "status", "body" } } — the
+  #                             #    real upstream response that caused the stop
+  #   error.result["error"]     # => human-readable reason for the stop
+  #
+  # A failed commit leaves the session's staged state intact so the commit can be
+  # retried after the cause is fixed. This mirrors the JS binding's
+  # `DraftProxyCommitError`, keeping the failure contract consistent across
+  # language bindings.
+  class CommitError < Error
+    # @return [Hash] the structured commit result (`"ok" => false`, plus
+    #   `committed`/`failed`/`stopIndex`/`attempts`/`error`).
+    attr_reader :result
+
+    def initialize(result)
+      @result = result
+      super(result["error"] || "commit stopped before all staged mutations were replayed")
+    end
+  end
 
   Response = Struct.new(:status, :body, :headers, keyword_init: true)
 
@@ -51,6 +89,12 @@ module ShopifyDraftProxy
   class DraftProxy
     DEFAULT_API_VERSION = "2025-01"
 
+    # Version token for a brand-new proxy: zero log entries, none settled, and
+    # the synthetic id counter at its initial value. Mirrors the Rust
+    # `state_version()` format `"<len>:<settled>:<next_synthetic_id>"`, so it is
+    # the baseline to compare a userland dump/restore seed of `nil` against.
+    PRISTINE_STATE_VERSION = "0:0:1"
+
     # Inject the default Net::HTTP transport unless the caller supplied one, so
     # every construction path (create, .new) ends up with a working transport
     # while still letting embedders override it.
@@ -63,6 +107,21 @@ module ShopifyDraftProxy
           options[:transport] = Transports::DEFAULT
         end
         native_new(options)
+      end
+
+      # Compute the state-version token for a state dump Hash: an opaque token
+      # that is equal iff two dumps carry the same persistable state — the same
+      # value the runtime stamps on every response as the `x-sdp-state-version`
+      # header. Callers that drive their own dump/restore persistence use it to
+      # tell whether an operation changed staged state: compare this token for
+      # the seed dump against the response header and persist the new dump only
+      # when they differ. Accepts string- or symbol-keyed dumps.
+      def state_version_of(dump)
+        log = dump["log"] || dump[:log] || {}
+        entries = log["entries"] || log[:entries] || []
+        settled = entries.count { |entry| (entry["status"] || entry[:status]) != "staged" }
+        next_id = dump["nextSyntheticId"] || dump[:nextSyntheticId] || 1
+        "#{entries.length}:#{settled}:#{next_id}"
       end
     end
 
@@ -89,7 +148,14 @@ module ShopifyDraftProxy
     end
 
     def commit(headers: {})
-      native_commit({ "headers" => headers })
+      result = native_commit({ "headers" => headers })
+      # A failed replay leaves the session's staged state untouched so it stays
+      # retryable — raise the typed error carrying the full result. The
+      # committed/failed flips the core made in memory are dropped with the
+      # disposed proxy.
+      raise CommitError, result unless result["ok"]
+
+      result
     end
 
     def dispose

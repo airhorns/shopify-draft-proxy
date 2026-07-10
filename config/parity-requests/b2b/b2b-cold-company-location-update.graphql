@@ -1,0 +1,22 @@
+mutation B2BColdCompanyLocationUpdate($companyLocationId: ID!, $input: CompanyLocationUpdateInput!) {
+  companyLocationUpdate(companyLocationId: $companyLocationId, input: $input) {
+    companyLocation {
+      id
+      name
+      billingAddress {
+        id
+        address1
+      }
+      taxSettings {
+        taxRegistrationId
+        taxExempt
+        taxExemptions
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

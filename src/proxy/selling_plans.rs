@@ -1,6 +1,5 @@
 use super::*;
 
-const MAX_SELLING_PLAN_GROUPS_PER_RESOURCE: usize = 31;
 const MAX_SELLING_PLANS_PER_GROUP: usize = 31;
 const INT32_MIN: i64 = i32::MIN as i64;
 const INT32_MAX: i64 = i32::MAX as i64;
@@ -21,12 +20,11 @@ impl DraftProxy {
                 }
                 "sellingPlanGroups" => {
                     let groups = self.store.selling_plan_groups();
-                    selected_typed_connection_with_args(
-                        &groups,
+                    selected_selling_plan_group_connection(
+                        groups,
                         &field.arguments,
                         &field.selection,
                         |group, selections| self.selling_plan_group_json(group, selections),
-                        |group| group.id.clone(),
                     )
                 }
                 // Membership read-back queries pair `sellingPlanGroup` with sibling
@@ -95,24 +93,12 @@ impl DraftProxy {
     fn selling_plan_group_create(&mut self, field: &RootFieldSelection) -> MutationOutcome {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let payload_selection = &field.selection;
-        let fail = |proxy: &Self, user_errors: Vec<Value>, notes: &'static str| {
-            proxy.selling_plan_failed_outcome(
-                &field.name,
-                selling_plan_group_payload(
-                    None,
-                    user_errors,
-                    payload_selection,
-                    &field.response_key,
-                    proxy,
-                ),
-                notes,
-            )
-        };
         let user_errors =
             selling_plan_group_input_user_errors(&input, SellingPlanInputMode::Create);
         if !user_errors.is_empty() {
-            return fail(
-                self,
+            return self.selling_plan_group_failed_outcome(
+                field,
+                None,
                 user_errors,
                 "Selling plan group input validation failed; original raw mutation retained for observability.",
             );
@@ -122,8 +108,9 @@ impl DraftProxy {
         let product_ids = list_string_field(&resources, "productIds");
         let product_variant_ids = list_string_field(&resources, "productVariantIds");
         if let Some(error) = self.resource_existence_error(&product_ids, ResourceKind::Product) {
-            return fail(
-                self,
+            return self.selling_plan_group_failed_outcome(
+                field,
+                None,
                 vec![error],
                 "Selling plan group resource validation failed; original raw mutation retained for observability.",
             );
@@ -131,8 +118,9 @@ impl DraftProxy {
         if let Some(error) =
             self.resource_existence_error(&product_variant_ids, ResourceKind::ProductVariant)
         {
-            return fail(
-                self,
+            return self.selling_plan_group_failed_outcome(
+                field,
+                None,
                 vec![error],
                 "Selling plan group resource validation failed; original raw mutation retained for observability.",
             );
@@ -169,7 +157,8 @@ impl DraftProxy {
             description: resolved_string_field(&input, "description").unwrap_or_default(),
             options: list_string_field(&input, "options"),
             position: resolved_int_field(&input, "position").unwrap_or(1),
-            created_at,
+            created_at: created_at.clone(),
+            updated_at: created_at,
             name,
             selling_plans,
             product_ids: unique_product_ids,
@@ -180,6 +169,7 @@ impl DraftProxy {
         MutationOutcome::staged(
             selling_plan_group_payload(
                 Some(&group),
+                None,
                 Vec::new(),
                 payload_selection,
                 &field.response_key,
@@ -194,16 +184,10 @@ impl DraftProxy {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let payload_selection = &field.selection;
         let Some(mut group) = self.store.selling_plan_group_by_id(&id).cloned() else {
-            return self.selling_plan_failed_outcome(
-                &field.name,
-                selling_plan_group_update_payload(
-                    None,
-                    None,
-                    vec![group_does_not_exist_error()],
-                    payload_selection,
-                    &field.response_key,
-                    self,
-                ),
+            return self.selling_plan_group_failed_outcome(
+                field,
+                Some(None),
+                vec![group_does_not_exist_error()],
                 "Selling plan group update targeted an unknown group; original raw mutation retained for observability.",
             );
         };
@@ -211,31 +195,19 @@ impl DraftProxy {
         let user_errors =
             selling_plan_group_input_user_errors(&input, SellingPlanInputMode::Update);
         if !user_errors.is_empty() {
-            return self.selling_plan_failed_outcome(
-                &field.name,
-                selling_plan_group_update_payload(
-                    None,
-                    None,
-                    user_errors,
-                    payload_selection,
-                    &field.response_key,
-                    self,
-                ),
+            return self.selling_plan_group_failed_outcome(
+                field,
+                Some(None),
+                user_errors,
                 "Selling plan group input validation failed; original raw mutation retained for observability.",
             );
         }
         let user_errors = selling_plan_group_update_model_user_errors(&group, &input);
         if !user_errors.is_empty() {
-            return self.selling_plan_failed_outcome(
-                &field.name,
-                selling_plan_group_update_payload(
-                    None,
-                    None,
-                    user_errors,
-                    payload_selection,
-                    &field.response_key,
-                    self,
-                ),
+            return self.selling_plan_group_failed_outcome(
+                field,
+                Some(None),
+                user_errors,
                 "Selling plan group update would delete every existing selling plan without a replacement; original raw mutation retained for observability.",
             );
         }
@@ -293,9 +265,9 @@ impl DraftProxy {
         self.store.stage_selling_plan_group(group.clone());
 
         MutationOutcome::staged(
-            selling_plan_group_update_payload(
+            selling_plan_group_payload(
                 Some(&group),
-                Some(deleted_plan_ids),
+                Some(Some(deleted_plan_ids)),
                 Vec::new(),
                 payload_selection,
                 &field.response_key,
@@ -345,37 +317,27 @@ impl DraftProxy {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let ids = list_string_field(&field.arguments, resource_kind.ids_arg());
         let payload_selection = &field.selection;
-        let fail = |proxy: &Self, user_errors: Vec<Value>, notes: &'static str| {
-            proxy.selling_plan_failed_outcome(
-                &field.name,
-                selling_plan_group_payload(
-                    None,
-                    user_errors,
-                    payload_selection,
-                    &field.response_key,
-                    proxy,
-                ),
-                notes,
-            )
-        };
         let Some(mut group) = self.store.selling_plan_group_by_id(&id).cloned() else {
-            return fail(
-                self,
+            return self.selling_plan_group_failed_outcome(
+                field,
+                None,
                 vec![group_does_not_exist_error()],
                 "Selling plan group add targeted an unknown group; original raw mutation retained for observability.",
             );
         };
         if let Some(error) = self.resource_existence_error(&ids, resource_kind) {
-            return fail(
-                self,
+            return self.selling_plan_group_failed_outcome(
+                field,
+                None,
                 vec![error],
                 "Selling plan group membership validation failed; original raw mutation retained for observability.",
             );
         }
         let members = resource_members_mut(&mut group, resource_kind);
         if ids.iter().any(|resource_id| members.contains(resource_id)) {
-            return fail(
-                self,
+            return self.selling_plan_group_failed_outcome(
+                field,
+                None,
                 vec![user_error(
                     [resource_kind.ids_arg()],
                     "Resource has already been taken",
@@ -384,16 +346,6 @@ impl DraftProxy {
                 "Selling plan group membership validation failed; original raw mutation retained for observability.",
             );
         }
-        if self.resource_membership_count_after_add(resource_kind, &ids)
-            > MAX_SELLING_PLAN_GROUPS_PER_RESOURCE
-        {
-            return fail(
-                self,
-                vec![too_many_groups_error(resource_kind.ids_arg())],
-                "Selling plan group membership cap validation failed; original raw mutation retained for observability.",
-            );
-        }
-
         extend_unique_strings(members, ids.clone());
         self.store.stage_selling_plan_group(group.clone());
         let mut staged_ids = vec![group.id.clone()];
@@ -401,6 +353,7 @@ impl DraftProxy {
         MutationOutcome::staged(
             selling_plan_group_payload(
                 Some(&group),
+                None,
                 Vec::new(),
                 payload_selection,
                 &field.response_key,
@@ -511,6 +464,27 @@ impl DraftProxy {
         notes: &'static str,
     ) -> MutationOutcome {
         MutationOutcome::staged(response, LogDraft::failed(root_field, "products", notes))
+    }
+
+    fn selling_plan_group_failed_outcome(
+        &self,
+        field: &RootFieldSelection,
+        deleted_plan_ids: Option<Option<Vec<String>>>,
+        user_errors: Vec<Value>,
+        notes: &'static str,
+    ) -> MutationOutcome {
+        self.selling_plan_failed_outcome(
+            &field.name,
+            selling_plan_group_payload(
+                None,
+                deleted_plan_ids,
+                user_errors,
+                &field.selection,
+                &field.response_key,
+                self,
+            ),
+            notes,
+        )
     }
 
     fn resource_existence_error(
@@ -633,22 +607,15 @@ impl DraftProxy {
                 Some("GROUP_DOES_NOT_EXIST"),
             )];
         }
-        if is_join {
-            let current = self.direct_group_ids_for_resource(resource_kind, resource_id);
-            let additions = group_ids
-                .iter()
-                .filter(|group_id| !current.contains(*group_id))
-                .count();
-            if current.len() + additions > MAX_SELLING_PLAN_GROUPS_PER_RESOURCE {
-                return vec![too_many_groups_error("sellingPlanGroupIds")];
-            }
-        } else if group_ids.iter().any(|group_id| {
-            self.store
-                .selling_plan_group_by_id(group_id)
-                .is_some_and(|group| {
-                    !resource_members(group, resource_kind).contains(&resource_id.to_string())
-                })
-        }) {
+        if !is_join
+            && group_ids.iter().any(|group_id| {
+                self.store
+                    .selling_plan_group_by_id(group_id)
+                    .is_some_and(|group| {
+                        !resource_members(group, resource_kind).contains(&resource_id.to_string())
+                    })
+            })
+        {
             return vec![user_error(
                 ["sellingPlanGroupIds"],
                 "Selling plan group is not a member.",
@@ -656,22 +623,6 @@ impl DraftProxy {
             )];
         }
         Vec::new()
-    }
-
-    fn resource_membership_count_after_add(
-        &self,
-        resource_kind: ResourceKind,
-        resource_ids: &[String],
-    ) -> usize {
-        resource_ids
-            .iter()
-            .map(|resource_id| {
-                self.direct_group_ids_for_resource(resource_kind, resource_id)
-                    .len()
-                    + 1
-            })
-            .max()
-            .unwrap_or(0)
     }
 
     fn direct_group_ids_for_resource(
@@ -688,14 +639,6 @@ impl DraftProxy {
                     .any(|id| id == resource_id)
             })
             .map(|group| group.id)
-            .collect()
-    }
-
-    fn selling_plan_groups_for_product(&self, product_id: &str) -> Vec<SellingPlanGroupRecord> {
-        self.store
-            .selling_plan_groups()
-            .into_iter()
-            .filter(|group| group.product_ids.iter().any(|id| id == product_id))
             .collect()
     }
 
@@ -719,11 +662,7 @@ impl DraftProxy {
         selections: &[SelectedField],
     ) -> Value {
         selected_payload_json(selections, |selection| match selection.name.as_str() {
-            "__typename" => Some(json!("SellingPlanGroup")),
-            "id" => Some(json!(group.id)),
             "appId" => Some(group.app_id.clone().map_or(Value::Null, Value::String)),
-            "name" => Some(json!(group.name)),
-            "merchantCode" => Some(json!(group.merchant_code)),
             "description" => Some(json!(group.description)),
             "options" => Some(json!(group.options)),
             "position" => Some(json!(group.position)),
@@ -778,7 +717,12 @@ impl DraftProxy {
                     &selection.arguments,
                     &selection.selection,
                     |product, selections| {
-                        product_json_with_currency(product, selections, &shop_currency_code)
+                        self.product_json_with_variants_and_currency_context(
+                            product,
+                            &[],
+                            selections,
+                            &shop_currency_code,
+                        )
                     },
                     |product| product.id.clone(),
                 ))
@@ -794,7 +738,7 @@ impl DraftProxy {
                     &selection.arguments,
                     &selection.selection,
                     |variant, selections| {
-                        product_variant_json(
+                        self.product_variant_json_with_current_publication_context(
                             variant,
                             self.store.product_by_id(&variant.product_id),
                             selections,
@@ -810,7 +754,7 @@ impl DraftProxy {
                 selling_plan_json,
                 |plan| plan.id.clone(),
             )),
-            _ => None,
+            _ => selling_plan_group_common_json(group, selection),
         })
     }
 
@@ -820,7 +764,7 @@ impl DraftProxy {
         variants: &[ProductVariantRecord],
         selections: &[SelectedField],
     ) -> Value {
-        let base = product_json_with_variants_and_currency(
+        let base = self.product_json_with_variants_and_currency_context(
             product,
             variants,
             selections,
@@ -839,7 +783,7 @@ impl DraftProxy {
                     .iter()
                     .any(|id| variant_ids.contains(id))
         });
-        let count = self.selling_plan_groups_for_product(&product.id).len();
+        let count = groups.len();
         self.apply_selling_plan_overlay(selections, base, groups, count)
     }
 
@@ -849,7 +793,8 @@ impl DraftProxy {
         product: Option<&ProductRecord>,
         selections: &[SelectedField],
     ) -> Value {
-        let base = product_variant_json(variant, product, selections);
+        let base = self
+            .product_variant_json_with_current_publication_context(variant, product, selections);
         let groups = self.selling_plan_groups_for_nodes_matching(|group| {
             group.product_ids.iter().any(|id| id == &variant.product_id)
                 || group.product_variant_ids.iter().any(|id| id == &variant.id)
@@ -870,12 +815,11 @@ impl DraftProxy {
         let mut object = base.as_object().cloned().unwrap_or_default();
         for selection in selections {
             let value = match selection.name.as_str() {
-                "sellingPlanGroups" => Some(selected_typed_connection_with_args(
-                    &groups,
+                "sellingPlanGroups" => Some(selected_nested_selling_plan_group_connection(
+                    groups.clone(),
                     &selection.arguments,
                     &selection.selection,
                     selling_plan_group_summary_json,
-                    |group| group.id.clone(),
                 )),
                 "sellingPlanGroupsCount" => Some(selected_count_json(count, &selection.selection)),
                 _ => None,
@@ -921,6 +865,299 @@ impl ResourceKind {
             Self::ProductVariant => "productVariant",
         }
     }
+}
+
+fn selected_selling_plan_group_connection<NodeJson>(
+    records: Vec<SellingPlanGroupRecord>,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    root_selection: &[SelectedField],
+    node_json: NodeJson,
+) -> Value
+where
+    NodeJson: Fn(&SellingPlanGroupRecord, &[SelectedField]) -> Value,
+{
+    selected_staged_connection_with_args(
+        records,
+        arguments,
+        root_selection,
+        selling_plan_group_search_decision,
+        selling_plan_group_staged_sort_key,
+        node_json,
+        |group| group.id.clone(),
+    )
+}
+
+fn selected_nested_selling_plan_group_connection<NodeJson>(
+    mut records: Vec<SellingPlanGroupRecord>,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    root_selection: &[SelectedField],
+    node_json: NodeJson,
+) -> Value
+where
+    NodeJson: Fn(&SellingPlanGroupRecord, &[SelectedField]) -> Value,
+{
+    if resolved_bool_field(arguments, "reverse").unwrap_or(false) {
+        records.reverse();
+    }
+    selected_typed_connection_with_args(&records, arguments, root_selection, node_json, |group| {
+        group.id.clone()
+    })
+}
+
+fn selling_plan_group_effective_updated_at(group: &SellingPlanGroupRecord) -> &str {
+    if group.updated_at.is_empty() {
+        &group.created_at
+    } else {
+        &group.updated_at
+    }
+}
+
+fn selling_plan_group_gid_tail_sort_value(id: &str) -> StagedSortValue {
+    resource_id_tail_sort_value(Some(id))
+}
+
+fn selling_plan_group_staged_sort_key(
+    group: &SellingPlanGroupRecord,
+    sort_key: Option<&str>,
+) -> StagedSortKey {
+    let id_sort = selling_plan_group_gid_tail_sort_value(&group.id);
+    let primary = match sort_key.unwrap_or("ID") {
+        "CREATED_AT" => StagedSortValue::String(group.created_at.clone()),
+        "NAME" => StagedSortValue::String(group.name.to_ascii_lowercase()),
+        "UPDATED_AT" => {
+            StagedSortValue::String(selling_plan_group_effective_updated_at(group).to_string())
+        }
+        _ => id_sort.clone(),
+    };
+    vec![primary, id_sort]
+}
+
+fn selling_plan_group_search_decision(
+    group: &SellingPlanGroupRecord,
+    query: Option<&str>,
+) -> StagedSearchDecision {
+    let Some(query) = query else {
+        return StagedSearchDecision::Match;
+    };
+    let query = query.trim();
+    if query.is_empty() {
+        return StagedSearchDecision::Match;
+    }
+
+    for term in query.split_whitespace() {
+        let term = trim_selling_plan_group_search_value(term);
+        if term.is_empty() || term.eq_ignore_ascii_case("AND") {
+            continue;
+        }
+        match selling_plan_group_search_term_decision(group, term) {
+            StagedSearchDecision::Match => {}
+            StagedSearchDecision::NoMatch => return StagedSearchDecision::NoMatch,
+            StagedSearchDecision::Unsupported => return StagedSearchDecision::Unsupported,
+        }
+    }
+
+    StagedSearchDecision::Match
+}
+
+fn selling_plan_group_search_term_decision(
+    group: &SellingPlanGroupRecord,
+    term: &str,
+) -> StagedSearchDecision {
+    let Some((key, value)) = term.split_once(':') else {
+        return StagedSearchDecision::from_bool(selling_plan_group_text_matches(group, term));
+    };
+    let key = key.to_ascii_lowercase();
+    let value = trim_selling_plan_group_search_value(value);
+    if value.is_empty() {
+        return StagedSearchDecision::NoMatch;
+    }
+
+    match key.as_str() {
+        "app_id" => {
+            StagedSearchDecision::from_bool(selling_plan_group_app_id_matches(group, value))
+        }
+        "category" => {
+            StagedSearchDecision::from_bool(selling_plan_group_categories_match(group, value))
+        }
+        "created_at" => {
+            StagedSearchDecision::from_bool(timestamp_search_matches(&group.created_at, value))
+        }
+        "delivery_frequency" => StagedSearchDecision::from_bool(
+            selling_plan_group_delivery_frequency_matches(group, value),
+        ),
+        "id" => StagedSearchDecision::from_bool(resource_id_search_matches(&group.id, value)),
+        "name" => StagedSearchDecision::from_bool(search_text_matches(&group.name, value)),
+        "percentage_off" => {
+            StagedSearchDecision::from_bool(selling_plan_group_percentage_off_matches(group, value))
+        }
+        _ => StagedSearchDecision::Unsupported,
+    }
+}
+
+fn trim_selling_plan_group_search_value(value: &str) -> &str {
+    value
+        .trim()
+        .trim_matches('\'')
+        .trim_matches('"')
+        .trim_matches('(')
+        .trim_matches(')')
+}
+
+fn split_search_comparison(value: &str) -> (&str, &str) {
+    for operator in [">=", "<=", ">", "<"] {
+        if let Some(operand) = value.strip_prefix(operator) {
+            return (operator, trim_selling_plan_group_search_value(operand));
+        }
+    }
+    ("=", value)
+}
+
+fn search_text_matches(haystack: &str, value: &str) -> bool {
+    let needle = trim_selling_plan_group_search_value(value)
+        .trim_end_matches('*')
+        .to_ascii_lowercase();
+    !needle.is_empty() && haystack.to_ascii_lowercase().contains(&needle)
+}
+
+fn selling_plan_group_text_matches(group: &SellingPlanGroupRecord, term: &str) -> bool {
+    let mut haystack = format!(
+        "{} {} {} {}",
+        group.name,
+        group.merchant_code,
+        group.description,
+        group.options.join(" ")
+    );
+    for plan in &group.selling_plans {
+        haystack.push(' ');
+        haystack.push_str(&plan.name);
+        haystack.push(' ');
+        haystack.push_str(&plan.description);
+        haystack.push(' ');
+        haystack.push_str(&plan.category);
+    }
+    search_text_matches(&haystack, term)
+}
+
+fn selling_plan_group_app_id_matches(group: &SellingPlanGroupRecord, value: &str) -> bool {
+    if value.eq_ignore_ascii_case("CURRENT") || value.eq_ignore_ascii_case("ALL") {
+        return true;
+    }
+    group
+        .app_id
+        .as_deref()
+        .map(|app_id| app_id == value || resource_id_tail(app_id) == value)
+        .unwrap_or(false)
+}
+
+fn selling_plan_group_categories_match(group: &SellingPlanGroupRecord, value: &str) -> bool {
+    let values = value
+        .split(',')
+        .map(trim_selling_plan_group_search_value)
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>();
+    !values.is_empty()
+        && group.selling_plans.iter().any(|plan| {
+            values
+                .iter()
+                .any(|value| plan.category.eq_ignore_ascii_case(value))
+        })
+}
+
+fn timestamp_search_matches(timestamp: &str, value: &str) -> bool {
+    let (operator, operand) = split_search_comparison(value);
+    match operator {
+        ">" => timestamp > operand,
+        ">=" => timestamp >= operand,
+        "<" => timestamp < operand,
+        "<=" => timestamp <= operand,
+        _ => timestamp.starts_with(operand),
+    }
+}
+
+fn resource_id_search_matches(id: &str, value: &str) -> bool {
+    let (operator, operand) = split_search_comparison(value);
+    let id_tail = resource_id_tail(id);
+    if operator == "=" {
+        return id == operand || id_tail == resource_id_tail(operand);
+    }
+    let Ok(id_number) = id_tail.parse::<i64>() else {
+        return false;
+    };
+    let Ok(operand_number) = resource_id_tail(operand).parse::<i64>() else {
+        return false;
+    };
+    numeric_comparison_matches(id_number, operator, operand_number, |value, operand| {
+        value == operand
+    })
+}
+
+fn numeric_comparison_matches<T>(
+    value: T,
+    operator: &str,
+    operand: T,
+    is_equal: impl Fn(T, T) -> bool,
+) -> bool
+where
+    T: PartialOrd + Copy,
+{
+    match operator {
+        ">" => value > operand,
+        ">=" => value >= operand,
+        "<" => value < operand,
+        "<=" => value <= operand,
+        _ => is_equal(value, operand),
+    }
+}
+
+fn selling_plan_group_delivery_frequency_matches(
+    group: &SellingPlanGroupRecord,
+    value: &str,
+) -> bool {
+    let needle = value.to_ascii_lowercase();
+    group.selling_plans.iter().any(|plan| {
+        if plan
+            .delivery_policy
+            .to_string()
+            .to_ascii_lowercase()
+            .contains(&needle)
+        {
+            return true;
+        }
+        let interval = plan
+            .delivery_policy
+            .get("interval")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let interval_count = plan
+            .delivery_policy
+            .get("intervalCount")
+            .and_then(Value::as_i64)
+            .unwrap_or(1);
+        needle == interval.to_ascii_lowercase()
+            || needle == format!("{} {}", interval_count, interval).to_ascii_lowercase()
+    })
+}
+
+fn selling_plan_group_percentage_off_matches(group: &SellingPlanGroupRecord, value: &str) -> bool {
+    let (operator, operand) = split_search_comparison(value);
+    let Ok(operand) = operand.parse::<f64>() else {
+        return false;
+    };
+    group
+        .selling_plans
+        .iter()
+        .flat_map(|plan| plan.pricing_policies.iter())
+        .filter(|policy| policy.get("adjustmentType").and_then(Value::as_str) == Some("PERCENTAGE"))
+        .filter_map(|policy| {
+            policy
+                .pointer("/adjustmentValue/percentage")
+                .and_then(Value::as_f64)
+        })
+        .any(|percentage| {
+            numeric_comparison_matches(percentage, operator, operand, |value, operand| {
+                (value - operand).abs() < f64::EPSILON
+            })
+        })
 }
 
 fn mutation_root_field(
@@ -1086,65 +1323,35 @@ fn selling_plan_input_user_errors(
     let index = index.to_string();
     if list_string_field(plan, "options").len() > 3 {
         errors.push(user_error(
-            vec![
-                "input".to_string(),
-                list_field.to_string(),
-                index.clone(),
-                "options".to_string(),
-            ],
+            selling_plan_input_field_path(list_field, &index, "options"),
             "Too many selling plan options (maximum 3 options)",
             Some("TOO_LONG"),
         ));
     }
     let pricing_policies = resolved_object_list_field(plan, "pricingPolicies");
     if pricing_policies.len() > 2 {
-        let message = match mode {
-            SellingPlanInputMode::Create => {
-                "Selling plans to create pricing policies can't have more than 2 pricing policies"
-            }
-            SellingPlanInputMode::Update => {
-                "Selling plans to update pricing policies can't have more than 2 pricing policies"
-            }
-        };
+        let message =
+            pricing_policy_user_error_message(mode, "can't have more than 2 pricing policies");
         errors.push(user_error(
-            vec![
-                "input".to_string(),
-                list_field.to_string(),
-                index.clone(),
-                "pricingPolicies".to_string(),
-            ],
-            message,
+            selling_plan_input_field_path(list_field, &index, "pricingPolicies"),
+            &message,
             Some("SELLING_PLAN_PRICING_POLICIES_LIMIT"),
         ));
     }
     if pricing_policies.len() <= 2 && pricing_policies_must_contain_fixed_error(&pricing_policies) {
-        let message = match mode {
-            SellingPlanInputMode::Create => {
-                "Selling plans to create pricing policies must contain one fixed pricing policy"
-            }
-            SellingPlanInputMode::Update => {
-                "Selling plans to update pricing policies must contain one fixed pricing policy"
-            }
-        };
+        let message =
+            pricing_policy_user_error_message(mode, "must contain one fixed pricing policy");
         errors.push(user_error(
-            vec![
-                "input".to_string(),
-                list_field.to_string(),
-                index.clone(),
-                "pricingPolicies".to_string(),
-            ],
-            message,
+            selling_plan_input_field_path(list_field, &index, "pricingPolicies"),
+            &message,
             Some("SELLING_PLAN_PRICING_POLICIES_MUST_CONTAIN_A_FIXED_PRICING_POLICY"),
         ));
     }
     if let Some(position) = resolved_int_field(plan, "position") {
         if !is_int32(position) {
-            errors.push(position_invalid_error(vec![
-                "input".to_string(),
-                list_field.to_string(),
-                index.clone(),
-                "position".to_string(),
-            ]));
+            errors.push(position_invalid_error(selling_plan_input_field_path(
+                list_field, &index, "position",
+            )));
         }
     }
 
@@ -1168,18 +1375,13 @@ fn selling_plan_input_user_errors(
         }
     }
     if let Some(delivery_recurring) = delivery_recurring.as_ref() {
-        if resolved_int_field(delivery_recurring, "intervalCount") == Some(0) {
-            errors.push(user_error(
-                selling_plan_recurring_field_path(
-                    list_field,
-                    &index,
-                    "deliveryPolicy",
-                    "intervalCount",
-                ),
-                "Interval count must be greater than 0",
-                Some("GREATER_THAN"),
-            ));
-        }
+        validate_recurring_interval_count(
+            &mut errors,
+            delivery_recurring,
+            list_field,
+            &index,
+            "deliveryPolicy",
+        );
         if let Some(cutoff) = resolved_int_field(delivery_recurring, "cutoff") {
             if !is_non_negative_int32(cutoff) {
                 errors.push(range_invalid_error(
@@ -1195,18 +1397,13 @@ fn selling_plan_input_user_errors(
         }
     }
     if let Some(billing_recurring) = billing_recurring.as_ref() {
-        if resolved_int_field(billing_recurring, "intervalCount") == Some(0) {
-            errors.push(user_error(
-                selling_plan_recurring_field_path(
-                    list_field,
-                    &index,
-                    "billingPolicy",
-                    "intervalCount",
-                ),
-                "Interval count must be greater than 0",
-                Some("GREATER_THAN"),
-            ));
-        }
+        validate_recurring_interval_count(
+            &mut errors,
+            billing_recurring,
+            list_field,
+            &index,
+            "billingPolicy",
+        );
         if let Some(min_cycles) = resolved_int_field(billing_recurring, "minCycles") {
             if !is_positive_int32(min_cycles) {
                 errors.push(range_invalid_error(
@@ -1268,6 +1465,14 @@ fn pricing_policies_must_contain_fixed_error(
     contains_recurring && !contains_fixed
 }
 
+fn pricing_policy_user_error_message(mode: SellingPlanInputMode, suffix: &str) -> String {
+    let action = match mode {
+        SellingPlanInputMode::Create => "create",
+        SellingPlanInputMode::Update => "update",
+    };
+    format!("Selling plans to {action} pricing policies {suffix}")
+}
+
 fn is_int32(value: i64) -> bool {
     (INT32_MIN..=INT32_MAX).contains(&value)
 }
@@ -1293,20 +1498,41 @@ fn range_invalid_error(field: Vec<String>, message: &str) -> Value {
     user_error(field, message, Some("INVALID"))
 }
 
+fn selling_plan_input_field_path(list_field: &str, index: &str, field: &str) -> Vec<String> {
+    vec![
+        "input".to_string(),
+        list_field.to_string(),
+        index.to_string(),
+        field.to_string(),
+    ]
+}
+
 fn selling_plan_recurring_field_path(
     list_field: &str,
     index: &str,
     policy_field: &str,
     recurring_field: &str,
 ) -> Vec<String> {
-    vec![
-        "input".to_string(),
-        list_field.to_string(),
-        index.to_string(),
-        policy_field.to_string(),
-        "recurring".to_string(),
-        recurring_field.to_string(),
-    ]
+    let mut field = selling_plan_input_field_path(list_field, index, policy_field);
+    field.push("recurring".to_string());
+    field.push(recurring_field.to_string());
+    field
+}
+
+fn validate_recurring_interval_count(
+    errors: &mut Vec<Value>,
+    recurring: &BTreeMap<String, ResolvedValue>,
+    list_field: &str,
+    index: &str,
+    policy_field: &str,
+) {
+    if resolved_int_field(recurring, "intervalCount") == Some(0) {
+        errors.push(user_error(
+            selling_plan_recurring_field_path(list_field, index, policy_field, "intervalCount"),
+            "Interval count must be greater than 0",
+            Some("GREATER_THAN"),
+        ));
+    }
 }
 
 fn selling_plan_record_from_input(
@@ -1422,20 +1648,12 @@ fn pricing_policies_json(
         .iter()
         .filter_map(|policy| {
             if let Some(fixed) = resolved_object_field(policy, "fixed") {
-                return Some(json!({
-                    "__typename": "SellingPlanFixedPricingPolicy",
-                    "adjustmentType": pricing_policy_adjustment_type(&fixed),
-                    "adjustmentValue": pricing_policy_adjustment_value_json(&fixed, shop_currency_code)
-                }));
+                return Some(fixed_pricing_policy_json(&fixed, shop_currency_code));
             }
             let recurring = resolved_object_field(policy, "recurring")?;
             let after_cycle = resolved_int_field(&recurring, "afterCycle").unwrap_or(0);
             if after_cycle <= 0 {
-                return Some(json!({
-                    "__typename": "SellingPlanFixedPricingPolicy",
-                    "adjustmentType": pricing_policy_adjustment_type(&recurring),
-                    "adjustmentValue": pricing_policy_adjustment_value_json(&recurring, shop_currency_code)
-                }));
+                return Some(fixed_pricing_policy_json(&recurring, shop_currency_code));
             }
             Some(json!({
                 "__typename": "SellingPlanRecurringPricingPolicy",
@@ -1446,6 +1664,17 @@ fn pricing_policies_json(
             }))
         })
         .collect()
+}
+
+fn fixed_pricing_policy_json(
+    policy: &BTreeMap<String, ResolvedValue>,
+    shop_currency_code: &str,
+) -> Value {
+    json!({
+        "__typename": "SellingPlanFixedPricingPolicy",
+        "adjustmentType": pricing_policy_adjustment_type(policy),
+        "adjustmentValue": pricing_policy_adjustment_value_json(policy, shop_currency_code)
+    })
 }
 
 fn pricing_policy_adjustment_type(policy: &BTreeMap<String, ResolvedValue>) -> String {
@@ -1554,13 +1783,6 @@ fn selling_plan_group_summary(
     )
 }
 
-fn resolved_decimal_text_field(
-    input: &BTreeMap<String, ResolvedValue>,
-    key: &str,
-) -> Option<String> {
-    resolved_decimal_text(input.get(key))
-}
-
 fn json_number_value(value: &Value) -> Option<f64> {
     match value {
         Value::Number(number) => number.as_f64(),
@@ -1648,13 +1870,22 @@ fn selling_plan_group_summary_json(
     group: &SellingPlanGroupRecord,
     selections: &[SelectedField],
 ) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
+    selected_payload_json(selections, |selection| {
+        selling_plan_group_common_json(group, selection)
+    })
+}
+
+fn selling_plan_group_common_json(
+    group: &SellingPlanGroupRecord,
+    selection: &SelectedField,
+) -> Option<Value> {
+    match selection.name.as_str() {
         "__typename" => Some(json!("SellingPlanGroup")),
         "id" => Some(json!(group.id)),
         "name" => Some(json!(group.name)),
         "merchantCode" => Some(json!(group.merchant_code)),
         _ => None,
-    })
+    }
 }
 
 fn user_errors_value(payload_selection: &[SelectedField], user_errors: &[Value]) -> Value {
@@ -1665,6 +1896,7 @@ fn user_errors_value(payload_selection: &[SelectedField], user_errors: &[Value])
 
 fn selling_plan_group_payload(
     group: Option<&SellingPlanGroupRecord>,
+    deleted_plan_ids: Option<Option<Vec<String>>>,
     user_errors: Vec<Value>,
     payload_selection: &[SelectedField],
     response_key: &str,
@@ -1675,28 +1907,7 @@ fn selling_plan_group_payload(
     ok_json(json!({
         "data": {
             response_key: selected_payload_json(payload_selection, |selection| match selection.name.as_str() {
-                "sellingPlanGroup" => Some(group.map(|group| proxy.selling_plan_group_json(group, &group_selection)).unwrap_or(Value::Null)),
-                "userErrors" => Some(user_errors_value(payload_selection, user_errors.as_slice())),
-                _ => None,
-            })
-        }
-    }))
-}
-
-fn selling_plan_group_update_payload(
-    group: Option<&SellingPlanGroupRecord>,
-    deleted_plan_ids: Option<Vec<String>>,
-    user_errors: Vec<Value>,
-    payload_selection: &[SelectedField],
-    response_key: &str,
-    proxy: &DraftProxy,
-) -> Response {
-    let group_selection =
-        selected_child_selection(payload_selection, "sellingPlanGroup").unwrap_or_default();
-    ok_json(json!({
-        "data": {
-            response_key: selected_payload_json(payload_selection, |selection| match selection.name.as_str() {
-                "deletedSellingPlanIds" => Some(deleted_plan_ids.clone().map_or(Value::Null, |ids| json!(ids))),
+                "deletedSellingPlanIds" => deleted_plan_ids.as_ref().map(|ids| ids.as_ref().map_or(Value::Null, |ids| json!(ids))),
                 "sellingPlanGroup" => Some(group.map(|group| proxy.selling_plan_group_json(group, &group_selection)).unwrap_or(Value::Null)),
                 "userErrors" => Some(user_errors_value(payload_selection, user_errors.as_slice())),
                 _ => None,
@@ -1789,14 +2000,6 @@ fn group_does_not_exist_error() -> Value {
         ["id"],
         "Selling plan group does not exist.",
         Some("GROUP_DOES_NOT_EXIST"),
-    )
-}
-
-fn too_many_groups_error(field: &str) -> Value {
-    user_error(
-        [field],
-        "Exceeded maximum number of selling plan groups per resource.",
-        Some("SELLING_PLAN_GROUPS_TOO_MANY"),
     )
 }
 

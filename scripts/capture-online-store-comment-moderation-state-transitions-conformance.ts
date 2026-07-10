@@ -76,6 +76,8 @@ const blogDeleteMutation = `#graphql
 
 const commentHydrateQuery =
   'query OnlineStoreCommentHydrate($id: ID!) { comment(id: $id) { __typename id status body bodyHtml isPublished publishedAt createdAt updatedAt article { id } } }';
+const commentArticleHydrateQuery =
+  'query OnlineStoreCommentArticleHydrate($id: ID!) { article(id: $id) { __typename id title handle body summary tags isPublished publishedAt createdAt updatedAt templateSuffix author { name } blog { __typename id title handle commentPolicy createdAt updatedAt } commentsCount { count precision } } }';
 
 const commentApproveMutation = `#graphql
   mutation CommentModerationStateApprove($id: ID!) {
@@ -85,6 +87,21 @@ const commentApproveMutation = `#graphql
         status
         isPublished
         publishedAt
+        article {
+          id
+          title
+          handle
+          publishedAt
+          author {
+            name
+          }
+          blog {
+            id
+            title
+            handle
+            commentPolicy
+          }
+        }
       }
       userErrors {
         field
@@ -275,6 +292,7 @@ async function main(): Promise<void> {
     const publishedSetup = await setupComment(blogId, articleId, `published ${suffix}`);
     const approvePublishedSetup = await capture(commentApproveMutation, { id: publishedSetup.id });
     const publishedHydrate = await capture(commentHydrateQuery, { id: publishedSetup.id });
+    const publishedArticleHydrate = await capture(commentArticleHydrateQuery, { id: articleId });
     const approvePublished = await capture(commentApproveMutation, { id: publishedSetup.id });
     const notSpamPublished = await capture(commentNotSpamMutation, { id: publishedSetup.id });
 
@@ -287,6 +305,7 @@ async function main(): Promise<void> {
     const unapprovedSetup = await setupComment(blogId, articleId, `unapproved ${suffix}`);
     const unapprovedHydrate = await capture(commentHydrateQuery, { id: unapprovedSetup.id });
     const notSpamUnapproved = await capture(commentNotSpamMutation, { id: unapprovedSetup.id });
+    const capturedArticleId = articleId;
 
     await cleanupArticle(articleId, cleanup);
     articleId = null;
@@ -322,6 +341,7 @@ async function main(): Promise<void> {
           cleanup,
           upstreamCalls: [
             upstreamCall('OnlineStoreCommentHydrate', { id: publishedSetup.id }, publishedHydrate),
+            upstreamCall('OnlineStoreCommentArticleHydrate', { id: capturedArticleId }, publishedArticleHydrate),
             upstreamCall('OnlineStoreCommentHydrate', { id: spamSetup.id }, spamHydrate),
             upstreamCall('OnlineStoreCommentHydrate', { id: unapprovedSetup.id }, unapprovedHydrate),
           ],

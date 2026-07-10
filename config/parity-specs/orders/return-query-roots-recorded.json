@@ -1,0 +1,160 @@
+{
+  "scenarioId": "return-query-roots-recorded",
+  "operationNames": ["orderCreate", "fulfillmentCreate", "returnableFulfillments", "returnCalculate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "payload-shape", "calculation-parity", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-query-roots-recorded.json"
+  ],
+  "proxyRequest": {
+    "documentCapturePath": "$.setup.orderCreate.query",
+    "variablesCapturePath": "$.setup.orderCreate.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live 2026-04 return query-root evidence for a fulfilled taxed order with a return-line restocking fee. Replay stages the order and fulfillment locally, then verifies returnableFulfillments and returnCalculate derive quantities, line-item identity, tax, restocking fee, and money from the staged order graph instead of passing the reads through to Shopify.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "order-create-query-root-setup",
+        "capturePath": "$.setup.orderCreate.response.payload.data.orderCreate.order",
+        "proxyPath": "$.data.orderCreate.order",
+        "selectedPaths": [
+          "$.displayFulfillmentStatus",
+          "$.fulfillmentOrders.nodes[0].status",
+          "$.fulfillmentOrders.nodes[0].requestStatus",
+          "$.fulfillmentOrders.nodes[0].lineItems.nodes[0].totalQuantity",
+          "$.fulfillmentOrders.nodes[0].lineItems.nodes[0].remainingQuantity",
+          "$.fulfillmentOrders.nodes[0].lineItems.nodes[0].lineItem.title"
+        ]
+      },
+      {
+        "name": "fulfillment-create-query-root-setup",
+        "capturePath": "$.setup.fulfillmentCreate.response.payload.data.fulfillmentCreate",
+        "proxyPath": "$.data.fulfillmentCreate",
+        "selectedPaths": [
+          "$.fulfillment.status",
+          "$.fulfillment.fulfillmentLineItems.nodes[0].quantity",
+          "$.fulfillment.fulfillmentLineItems.nodes[0].lineItem.title",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentCapturePath": "$.setup.fulfillmentCreate.query",
+          "variables": {
+            "fulfillment": {
+              "notifyCustomer": {
+                "fromCapturePath": "$.setup.fulfillmentCreate.variables.fulfillment.notifyCustomer"
+              },
+              "trackingInfo": {
+                "fromCapturePath": "$.setup.fulfillmentCreate.variables.fulfillment.trackingInfo"
+              },
+              "lineItemsByFulfillmentOrder": [
+                {
+                  "fulfillmentOrderId": {
+                    "fromPrimaryProxyPath": "$.data.orderCreate.order.fulfillmentOrders.nodes[0].id"
+                  },
+                  "fulfillmentOrderLineItems": [
+                    {
+                      "id": {
+                        "fromPrimaryProxyPath": "$.data.orderCreate.order.fulfillmentOrders.nodes[0].lineItems.nodes[0].id"
+                      },
+                      "quantity": {
+                        "fromCapturePath": "$.setup.fulfillmentCreate.variables.fulfillment.lineItemsByFulfillmentOrder[0].fulfillmentOrderLineItems[0].quantity"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "message": {
+              "fromCapturePath": "$.setup.fulfillmentCreate.variables.message"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "returnable-fulfillments-staged-order",
+        "capturePath": "$.returnableFulfillments.response.payload.data.returnableFulfillments",
+        "proxyPath": "$.data.returnableFulfillments",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/returnable-fulfillments-recorded.graphql",
+          "variables": {
+            "orderId": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.nodes[0].fulfillment.id",
+            "matcher": "exact-string:gid://shopify/Fulfillment/1?shopify-draft-proxy=synthetic",
+            "reason": "The replay must return the locally staged fulfillment, proving the read did not pass through."
+          },
+          {
+            "path": "$.nodes[0].returnableFulfillmentLineItems.nodes[0].fulfillmentLineItem.id",
+            "matcher": "exact-string:gid://shopify/FulfillmentLineItem/1",
+            "reason": "The replay must return the locally staged fulfillment line item."
+          },
+          {
+            "path": "$.nodes[0].returnableFulfillmentLineItems.nodes[0].fulfillmentLineItem.lineItem.id",
+            "matcher": "exact-string:gid://shopify/LineItem/1",
+            "reason": "The replay must keep the local line item linked to the returnable fulfillment line item."
+          }
+        ]
+      },
+      {
+        "name": "return-calculate-staged-fulfilled-line-tax-and-restocking-fee",
+        "capturePath": "$.returnCalculate.response.payload.data.returnCalculate",
+        "proxyPath": "$.data.returnCalculate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-calculate-recorded.graphql",
+          "variables": {
+            "input": {
+              "orderId": {
+                "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+              },
+              "returnLineItems": [
+                {
+                  "fulfillmentLineItemId": {
+                    "fromProxyResponse": "fulfillment-create-query-root-setup",
+                    "path": "$.data.fulfillmentCreate.fulfillment.fulfillmentLineItems.nodes[0].id"
+                  },
+                  "quantity": {
+                    "fromCapturePath": "$.returnCalculate.variables.input.returnLineItems[0].quantity"
+                  },
+                  "restockingFee": {
+                    "percentage": {
+                      "fromCapturePath": "$.returnCalculate.variables.input.returnLineItems[0].restockingFee.percentage"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.returnLineItems[0].fulfillmentLineItem.id",
+            "matcher": "exact-string:gid://shopify/FulfillmentLineItem/1",
+            "reason": "The calculation must be based on the locally staged fulfillment line item."
+          },
+          {
+            "path": "$.returnLineItems[0].fulfillmentLineItem.lineItem.id",
+            "matcher": "exact-string:gid://shopify/LineItem/1",
+            "reason": "The calculation must preserve the staged line item identity."
+          },
+          {
+            "path": "$.returnLineItems[0].restockingFee.id",
+            "matcher": "exact-string:gid://shopify/CalculatedRestockingFee/1",
+            "reason": "The calculation must use the locally staged fulfillment line item when deriving restocking fee identity."
+          }
+        ]
+      }
+    ]
+  }
+}

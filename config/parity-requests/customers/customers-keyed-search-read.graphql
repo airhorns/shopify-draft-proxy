@@ -1,0 +1,49 @@
+query CustomersKeyedSearchRead(
+  $countryQuery: String!
+  $stateQuery: String!
+  $defaultQuery: String!
+  $orQuery: String!
+  $exclusionQuery: String!
+) {
+  byCountry: customers(first: 10, query: $countryQuery, sortKey: NAME) {
+    nodes {
+      email
+      firstName
+      lastName
+      state
+      tags
+      defaultAddress {
+        city
+        province
+        country
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+  byState: customers(first: 10, query: $stateQuery, sortKey: NAME) {
+    nodes {
+      email
+      state
+    }
+  }
+  byDefault: customers(first: 10, query: $defaultQuery, sortKey: NAME) {
+    nodes {
+      email
+    }
+  }
+  byGroupedOr: customers(first: 10, query: $orQuery, sortKey: NAME) {
+    nodes {
+      email
+      tags
+    }
+  }
+  byGroupedExclusion: customers(first: 10, query: $exclusionQuery, sortKey: NAME) {
+    nodes {
+      email
+      tags
+    }
+  }
+}

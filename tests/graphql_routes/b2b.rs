@@ -4,7 +4,8 @@ use pretty_assertions::assert_eq;
 #[test]
 fn b2b_tax_settings_update_tail_helpers_cover_current_behavior() {
     let mut proxy = snapshot_proxy();
-    let location_id = "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic";
+    let company_id = create_b2b_company(&mut proxy, "Tax Settings Co");
+    let location_id = create_b2b_location(&mut proxy, &company_id, "Tax Settings Branch");
 
     let required_and_nullable = proxy.process_request(json_graphql_request(
         r#"
@@ -28,7 +29,7 @@ fn b2b_tax_settings_update_tail_helpers_cover_current_behavior() {
             "companyLocation": {
                 "id": location_id,
                 "taxSettings": {
-                    "taxExempt": true,
+                    "taxExempt": false,
                     "taxExemptions": []
                 }
             },
@@ -50,7 +51,7 @@ fn b2b_tax_settings_update_tail_helpers_cover_current_behavior() {
     let invalid_literal = proxy.process_request(json_graphql_request(
         r#"
         mutation RustB2BTaxSettingsInvalidEnumLiteral {
-          companyLocationTaxSettingsUpdate(companyLocationId: "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic", exemptionsToAssign: [NOT_A_REAL_EXEMPTION]) {
+          companyLocationTaxSettingsUpdate(companyLocationId: "gid://shopify/CompanyLocation/123", exemptionsToAssign: [FOO_BAR]) {
             companyLocation { id taxSettings { taxExemptions } }
             userErrors { field message code }
           }
@@ -63,10 +64,38 @@ fn b2b_tax_settings_update_tail_helpers_cover_current_behavior() {
         invalid_literal.body["errors"][0]["extensions"]["code"],
         json!("argumentLiteralsIncompatible")
     );
-    assert!(invalid_literal.body["errors"][0]["message"]
+    assert_eq!(
+        invalid_literal.body["errors"][0]["extensions"]["typeName"],
+        json!("Field")
+    );
+    assert_eq!(
+        invalid_literal.body["errors"][0]["extensions"]["argumentName"],
+        json!("exemptionsToAssign")
+    );
+    assert_eq!(
+        invalid_literal.body["errors"][0]["message"],
+        json!("Argument 'exemptionsToAssign' on Field 'companyLocationTaxSettingsUpdate' has an invalid value ([FOO_BAR]). Expected type '[TaxExemption!]'.")
+    );
+    assert_eq!(
+        invalid_literal.body["errors"][0]["locations"],
+        json!([{ "line": 3, "column": 11 }])
+    );
+    assert_eq!(
+        invalid_literal.body["errors"][0]["path"],
+        json!([
+            "mutation RustB2BTaxSettingsInvalidEnumLiteral",
+            "companyLocationTaxSettingsUpdate",
+            "exemptionsToAssign"
+        ])
+    );
+    assert!(!invalid_literal.body["errors"][0]["message"]
         .as_str()
-        .is_some_and(|message| message.contains("NOT_A_REAL_EXEMPTION")
-            && message.contains("CA_STATUS_CARD_EXEMPTION")));
+        .unwrap()
+        .contains("Did you mean"));
+    assert!(!invalid_literal.body["errors"][0]["message"]
+        .as_str()
+        .unwrap()
+        .contains("NOT_A_REAL_EXEMPTION"));
     assert!(invalid_literal.body["data"].is_null());
 
     let invalid_variable = proxy.process_request(json_graphql_request(
@@ -157,9 +186,69 @@ fn b2b_tax_settings_update_tail_helpers_cover_current_behavior() {
 }
 
 #[test]
-fn b2b_tax_settings_update_registration_only_and_no_knobs_are_successful() {
-    let location_id = "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic";
+fn b2b_tax_settings_update_rejects_unhydrated_synthetic_location_and_uses_actual_location_state() {
     let mut proxy = snapshot_proxy();
+    let synthetic_location_id = "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic";
+
+    let missing = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BTaxSettingsSyntheticLocationRejected($locationId: ID!) {
+          companyLocationTaxSettingsUpdate(companyLocationId: $locationId) {
+            companyLocation { id name taxSettings { taxExempt taxExemptions } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "locationId": synthetic_location_id }),
+    ));
+    assert_eq!(missing.status, 200);
+    assert_eq!(
+        missing.body["data"]["companyLocationTaxSettingsUpdate"],
+        json!({
+            "companyLocation": Value::Null,
+            "userErrors": [{
+                "field": ["companyLocationId"],
+                "message": "The company location doesn't exist",
+                "code": "RESOURCE_NOT_FOUND"
+            }]
+        })
+    );
+
+    let company_id = create_b2b_company(&mut proxy, "Taxable Co");
+    let location_id = create_b2b_location(&mut proxy, &company_id, "Taxable Branch");
+    let actual = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BTaxSettingsActualLocation($locationId: ID!) {
+          companyLocationTaxSettingsUpdate(companyLocationId: $locationId) {
+            companyLocation { id name taxSettings { taxExempt taxExemptions } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "locationId": location_id }),
+    ));
+    assert_eq!(actual.status, 200);
+    assert_eq!(
+        actual.body["data"]["companyLocationTaxSettingsUpdate"],
+        json!({
+            "companyLocation": {
+                "id": location_id,
+                "name": "Taxable Branch",
+                "taxSettings": {
+                    "taxExempt": false,
+                    "taxExemptions": []
+                }
+            },
+            "userErrors": []
+        })
+    );
+}
+
+#[test]
+fn b2b_tax_settings_update_registration_only_and_no_knobs_are_successful() {
+    let mut proxy = snapshot_proxy();
+    let company_id = create_b2b_company(&mut proxy, "Registration Tax Co");
+    let location_id = create_b2b_location(&mut proxy, &company_id, "Registration Branch");
 
     let no_knobs = proxy.process_request(json_graphql_request(
         r#"
@@ -187,7 +276,7 @@ fn b2b_tax_settings_update_registration_only_and_no_knobs_are_successful() {
                 "id": location_id,
                 "taxSettings": {
                     "taxRegistrationId": Value::Null,
-                    "taxExempt": true,
+                    "taxExempt": false,
                     "taxExemptions": []
                 }
             },
@@ -224,7 +313,7 @@ fn b2b_tax_settings_update_registration_only_and_no_knobs_are_successful() {
                 "id": location_id,
                 "taxSettings": {
                     "taxRegistrationId": "VAT-123",
-                    "taxExempt": true,
+                    "taxExempt": false,
                     "taxExemptions": []
                 }
             },
@@ -254,7 +343,7 @@ fn b2b_tax_settings_update_registration_only_and_no_knobs_are_successful() {
             "id": location_id,
             "taxSettings": {
                 "taxRegistrationId": "VAT-123",
-                "taxExempt": true,
+                "taxExempt": false,
                 "taxExemptions": []
             }
         })
@@ -276,9 +365,10 @@ fn b2b_tax_settings_update_registration_only_and_no_knobs_are_successful() {
 
 #[test]
 fn b2b_tax_settings_update_merges_exemptions_and_preserves_omitted_tax_exempt() {
-    let location_id = "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic";
-
     let mut fresh_proxy = snapshot_proxy();
+    let fresh_company_id = create_b2b_company(&mut fresh_proxy, "Fresh Tax Co");
+    let fresh_location_id =
+        create_b2b_location(&mut fresh_proxy, &fresh_company_id, "Fresh Tax Branch");
     let assign_and_remove = fresh_proxy.process_request(json_graphql_request(
         r#"
         mutation RustB2BTaxSettingsAssignAndRemove(
@@ -297,7 +387,7 @@ fn b2b_tax_settings_update_merges_exemptions_and_preserves_omitted_tax_exempt() 
         }
         "#,
         json!({
-            "locationId": location_id,
+            "locationId": fresh_location_id,
             "assign": ["EU_REVERSE_CHARGE_EXEMPTION_RULE"],
             "remove": ["US_CA_RESELLER_EXEMPTION"]
         }),
@@ -307,7 +397,7 @@ fn b2b_tax_settings_update_merges_exemptions_and_preserves_omitted_tax_exempt() 
         assign_and_remove.body["data"]["companyLocationTaxSettingsUpdate"],
         json!({
             "companyLocation": {
-                "id": location_id,
+                "id": fresh_location_id,
                 "taxSettings": {
                     "taxExemptions": ["EU_REVERSE_CHARGE_EXEMPTION_RULE"]
                 }
@@ -317,6 +407,9 @@ fn b2b_tax_settings_update_merges_exemptions_and_preserves_omitted_tax_exempt() 
     );
 
     let mut staged_proxy = snapshot_proxy();
+    let staged_company_id = create_b2b_company(&mut staged_proxy, "Staged Tax Co");
+    let staged_location_id =
+        create_b2b_location(&mut staged_proxy, &staged_company_id, "Staged Tax Branch");
     let initial = staged_proxy.process_request(json_graphql_request(
         r#"
         mutation RustB2BTaxSettingsInitial(
@@ -344,7 +437,7 @@ fn b2b_tax_settings_update_merges_exemptions_and_preserves_omitted_tax_exempt() 
         }
         "#,
         json!({
-            "locationId": location_id,
+            "locationId": staged_location_id,
             "taxRegistrationId": "REG-1",
             "taxExempt": true,
             "assign": ["EU_REVERSE_CHARGE_EXEMPTION_RULE"]
@@ -385,7 +478,7 @@ fn b2b_tax_settings_update_merges_exemptions_and_preserves_omitted_tax_exempt() 
         }
         "#,
         json!({
-            "locationId": location_id,
+            "locationId": staged_location_id,
             "remove": ["US_CA_RESELLER_EXEMPTION"]
         }),
     ));
@@ -394,7 +487,7 @@ fn b2b_tax_settings_update_merges_exemptions_and_preserves_omitted_tax_exempt() 
         remove_absent.body["data"]["companyLocationTaxSettingsUpdate"],
         json!({
             "companyLocation": {
-                "id": location_id,
+                "id": staged_location_id,
                 "taxSettings": {
                     "taxRegistrationId": "REG-1",
                     "taxExempt": true,
@@ -418,13 +511,13 @@ fn b2b_tax_settings_update_merges_exemptions_and_preserves_omitted_tax_exempt() 
           }
         }
         "#,
-        json!({ "locationId": location_id }),
+        json!({ "locationId": staged_location_id }),
     ));
     assert_eq!(read_after_write.status, 200);
     assert_eq!(
         read_after_write.body["data"]["companyLocation"],
         json!({
-            "id": location_id,
+            "id": staged_location_id,
             "taxSettings": {
                 "taxRegistrationId": "REG-1",
                 "taxExempt": true,
@@ -437,7 +530,8 @@ fn b2b_tax_settings_update_merges_exemptions_and_preserves_omitted_tax_exempt() 
 #[test]
 fn b2b_location_buyer_experience_configuration_update_tail_helpers_cover_current_behavior() {
     let mut proxy = snapshot_proxy();
-    let location_id = "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic";
+    let company_id = create_b2b_company(&mut proxy, "Buyer Experience Co");
+    let location_id = create_b2b_location(&mut proxy, &company_id, "Buyer Experience Branch");
 
     let empty = proxy.process_request(json_graphql_request(
         r#"
@@ -540,7 +634,7 @@ fn b2b_location_buyer_experience_configuration_update_tail_helpers_cover_current
         json!({
             "companyLocation": {
                 "id": location_id,
-                "taxSettings": { "taxExempt": true },
+                "taxSettings": { "taxExempt": false },
                 "buyerExperienceConfiguration": {
                     "editableShippingAddress": true,
                     "checkoutToDraft": true,
@@ -587,6 +681,213 @@ fn b2b_location_buyer_experience_configuration_update_tail_helpers_cover_current
         entry["status"] == json!("staged")
             && entry["interpreted"]["primaryRootField"] == json!("companyLocationUpdate")
     }));
+}
+
+#[test]
+fn b2b_contact_location_defaults_use_shop_and_customer_context() {
+    let mut proxy = snapshot_proxy();
+    restore_state_with(&mut proxy, |state| {
+        state["baseState"]["shop"] = json!({
+            "id": "gid://shopify/Shop/singapore-b2b-context",
+            "shopAddress": {
+                "countryCodeV2": "SG",
+                "countryCode": "SG"
+            }
+        });
+        state["baseState"]["shopLocales"] = json!({
+            "en": {
+                "locale": "en",
+                "name": "English",
+                "primary": false,
+                "published": true,
+                "marketWebPresences": []
+            },
+            "fr": {
+                "locale": "fr",
+                "name": "French",
+                "primary": true,
+                "published": true,
+                "marketWebPresences": []
+            }
+        });
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BContextualDefaultsCompanyCreate {
+          companyCreate(input: {
+            company: { name: "Context Defaults Co" }
+            companyContact: {
+              firstName: "Nested"
+              lastName: "Buyer"
+              email: "nested-context@example.test"
+            }
+            companyLocation: {
+              phone: "12345678"
+              shippingAddress: {
+                address1: "1 Context Way"
+                city: "Singapore"
+                countryCode: "SG"
+              }
+              buyerExperienceConfiguration: {
+                paymentTermsTemplateId: "gid://shopify/PaymentTermsTemplate/4"
+                checkoutToDraft: true
+                editableShippingAddress: true
+                deposit: { percentage: 25.5 }
+              }
+            }
+          }) {
+            company {
+              id
+              mainContact { id title locale customer { email } }
+              locations(first: 1) {
+                nodes {
+                  id
+                  locale
+                  phone
+                  buyerExperienceConfiguration {
+                    deposit {
+                      __typename
+                      ... on DepositPercentage { percentage }
+                    }
+                  }
+                }
+              }
+            }
+            userErrors { field message code detail }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["companyCreate"]["userErrors"],
+        json!([])
+    );
+    let company = &create.body["data"]["companyCreate"]["company"];
+    let company_id = company["id"].clone();
+    assert_eq!(company["mainContact"]["title"], Value::Null);
+    assert_eq!(company["mainContact"]["locale"], json!("fr"));
+    assert_eq!(company["locations"]["nodes"][0]["locale"], json!("fr"));
+    assert_eq!(
+        company["locations"]["nodes"][0]["phone"],
+        json!("+6512345678")
+    );
+    assert_eq!(
+        company["locations"]["nodes"][0]["buyerExperienceConfiguration"]["deposit"],
+        json!({
+            "__typename": "DepositPercentage",
+            "percentage": 25.5
+        })
+    );
+
+    let explicit_nested_title = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BExplicitNestedContactTitle {
+          companyCreate(input: {
+            company: { name: "Explicit Title Co" }
+            companyContact: {
+              title: "Procurement lead"
+              email: "explicit-title@example.test"
+            }
+          }) {
+            company { mainContact { title locale } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        explicit_nested_title.body["data"]["companyCreate"]["company"]["mainContact"],
+        json!({
+            "title": "Procurement lead",
+            "locale": "fr"
+        })
+    );
+
+    let later_contact = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BLaterContactUsesShopContext($companyId: ID!) {
+          companyContactCreate(
+            companyId: $companyId
+            input: {
+              email: "later-context@example.test"
+              phone: "87654321"
+            }
+          ) {
+            companyContact {
+              title
+              locale
+              customer { email phone }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "companyId": company_id }),
+    ));
+    assert_eq!(
+        later_contact.body["data"]["companyContactCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        later_contact.body["data"]["companyContactCreate"]["companyContact"],
+        json!({
+            "title": Value::Null,
+            "locale": "fr",
+            "customer": {
+                "email": "later-context@example.test",
+                "phone": "+6587654321"
+            }
+        })
+    );
+
+    let customer = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BAssignContactCustomerLocale($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id locale }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "assign-context@example.test",
+                "firstName": "Assigned",
+                "locale": "de"
+            }
+        }),
+    ));
+    let customer_id = customer.body["data"]["customerCreate"]["customer"]["id"].clone();
+    let assigned_contact = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BAssignCustomerUsesCustomerLocale($companyId: ID!, $customerId: ID!) {
+          companyAssignCustomerAsContact(companyId: $companyId, customerId: $customerId) {
+            companyContact { title locale customer { id locale } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "companyId": company_id, "customerId": customer_id }),
+    ));
+    assert_eq!(
+        assigned_contact.body["data"]["companyAssignCustomerAsContact"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        assigned_contact.body["data"]["companyAssignCustomerAsContact"]["companyContact"],
+        json!({
+            "title": Value::Null,
+            "locale": "de",
+            "customer": {
+                "id": customer_id,
+                "locale": "de"
+            }
+        })
+    );
 }
 
 #[test]
@@ -1239,6 +1540,39 @@ fn b2b_company_update_immutable_and_note_validation_tail_helpers_cover_current_b
         json!(["input", "customerSince"])
     );
 
+    let html_note = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BCompanyNoteValidation($id: ID!, $input: CompanyUpdateInput!) {
+          companyUpdate(companyId: $id, input: $input) {
+            company { id note }
+            userErrors { field message code detail }
+          }
+        }
+        "#,
+        json!({ "id": create.body["data"]["companyCreate"]["company"]["id"].clone(), "input": { "note": "<b>merchant update note</b>" } }),
+    ));
+    assert_eq!(
+        html_note.body["data"]["companyUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        html_note.body["data"]["companyUpdate"]["company"]["note"],
+        json!("<b>merchant update note</b>")
+    );
+
+    let read_after_note = proxy.process_request(json_graphql_request(
+        r#"
+        query RustB2BCompanyNoteRead($id: ID!) {
+          company(id: $id) { note }
+        }
+        "#,
+        json!({ "id": create.body["data"]["companyCreate"]["company"]["id"].clone() }),
+    ));
+    assert_eq!(
+        read_after_note.body["data"]["company"]["note"],
+        json!("<b>merchant update note</b>")
+    );
+
     let invalid_note = format!("<script>{}</script>", "x".repeat(6000));
     let note_reject = proxy.process_request(json_graphql_request(
         r#"
@@ -1257,20 +1591,12 @@ fn b2b_company_update_immutable_and_note_validation_tail_helpers_cover_current_b
     );
     assert_eq!(
         note_reject.body["data"]["companyUpdate"]["userErrors"],
-        json!([
-            {
-                "field": ["input", "notes"],
-                "message": "Note contains HTML tags",
-                "code": "INVALID",
-                "detail": "contains_html_tags"
-            },
-            {
-                "field": ["input", "notes"],
-                "message": "Notes is too long (maximum is 5000 characters)",
-                "code": "TOO_LONG",
-                "detail": Value::Null
-            }
-        ])
+        json!([{
+            "field": ["input", "notes"],
+            "message": "Notes is too long (maximum is 5000 characters)",
+            "code": "TOO_LONG",
+            "detail": Value::Null
+        }])
     );
 }
 
@@ -1411,6 +1737,462 @@ fn b2b_unknown_update_ids_return_resource_not_found_without_staging() {
         assert_eq!(entry["status"], json!("failed"));
         assert_eq!(entry["stagedResourceIds"], json!([]));
     }
+}
+
+#[test]
+fn b2b_magic_synthetic_company_location_id_is_not_treated_as_existing() {
+    let mut proxy = snapshot_proxy();
+    let location_id = "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic";
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BMagicLocationUpdate($id: ID!) {
+          companyLocationUpdate(
+            companyLocationId: $id,
+            input: {
+              buyerExperienceConfiguration: {
+                paymentTermsTemplateId: "gid://shopify/PaymentTermsTemplate/4",
+                checkoutToDraft: true,
+                editableShippingAddress: true
+              }
+            }
+          ) {
+            companyLocation { id name taxSettings { taxExempt } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": location_id }),
+    ));
+    assert_eq!(
+        update.body["data"]["companyLocationUpdate"],
+        json!({
+            "companyLocation": Value::Null,
+            "userErrors": [{
+                "field": ["input"],
+                "message": "The company location doesn't exist",
+                "code": "RESOURCE_NOT_FOUND"
+            }]
+        })
+    );
+
+    let tax = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BMagicLocationTax($id: ID!) {
+          companyLocationTaxSettingsUpdate(companyLocationId: $id, taxExempt: true) {
+            companyLocation { id name billingAddress { address1 } taxSettings { taxExempt } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": location_id }),
+    ));
+    assert_eq!(
+        tax.body["data"]["companyLocationTaxSettingsUpdate"],
+        json!({
+            "companyLocation": Value::Null,
+            "userErrors": [{
+                "field": ["companyLocationId"],
+                "message": "The company location doesn't exist",
+                "code": "RESOURCE_NOT_FOUND"
+            }]
+        })
+    );
+
+    let credit = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BMagicLocationStoreCredit($id: ID!) {
+          storeCreditAccountCredit(id: $id, creditInput: { creditAmount: { amount: "1.00", currencyCode: USD } }) {
+            storeCreditAccountTransaction { account { owner { ... on CompanyLocation { id name } } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": location_id }),
+    ));
+    assert_eq!(
+        credit.body["data"]["storeCreditAccountCredit"]["storeCreditAccountTransaction"],
+        Value::Null
+    );
+    assert_eq!(
+        credit.body["data"]["storeCreditAccountCredit"]["userErrors"],
+        json!([{
+            "field": ["id"],
+            "message": "Owner does not exist",
+            "code": "OWNER_NOT_FOUND"
+        }])
+    );
+}
+
+#[test]
+fn b2b_companies_cold_live_hybrid_read_forwards_upstream() {
+    let upstream_body = json!({
+        "data": {
+            "companies": {
+                "nodes": [{
+                    "id": "gid://shopify/Company/upstream",
+                    "name": "Upstream Company"
+                }]
+            }
+        }
+    });
+    let captured = Arc::new(Mutex::new(Vec::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let captured = Arc::clone(&captured);
+        let upstream_body = upstream_body.clone();
+        move |request| {
+            captured.lock().expect("captured upstream").push(request);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: upstream_body.clone(),
+            }
+        }
+    });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BColdCompanies {
+          companies(first: 1) { nodes { id name } }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body, upstream_body);
+    let calls = captured.lock().expect("captured upstream");
+    assert_eq!(calls.len(), 1);
+    assert!(calls[0].body.contains("companies(first: 1)"));
+}
+
+#[test]
+fn b2b_live_hybrid_stage_locally_roots_do_not_forward_mutations() {
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|request| {
+            panic!(
+                "B2B staged mutations and staged read-after-write should stay local: {}",
+                request.body
+            )
+        });
+
+    let company_id = create_b2b_company(&mut proxy, "Live Local B2B Co");
+    let contact_id = create_b2b_company_contact(&mut proxy, &company_id, "Initial buyer");
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BLiveLocalContactUpdate($companyContactId: ID!, $input: CompanyContactInput!) {
+          companyContactUpdate(companyContactId: $companyContactId, input: $input) {
+            companyContact { id title customer { firstName lastName email } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "companyContactId": contact_id,
+            "input": {
+                "title": "Updated buyer",
+                "firstName": "Local",
+                "lastName": "Buyer",
+                "email": "local-buyer@example.test"
+            }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["companyContactUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["companyContactUpdate"]["companyContact"]["title"],
+        json!("Updated buyer")
+    );
+
+    let assign_main = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BLiveLocalAssignMain($companyId: ID!, $companyContactId: ID!) {
+          companyAssignMainContact(companyId: $companyId, companyContactId: $companyContactId) {
+            company { id mainContact { id title isMainContact } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "companyId": company_id, "companyContactId": contact_id }),
+    ));
+    assert_eq!(
+        assign_main.body["data"]["companyAssignMainContact"]["company"]["mainContact"],
+        json!({ "id": contact_id, "title": "Updated buyer", "isMainContact": true })
+    );
+
+    let revoke_main = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BLiveLocalRevokeMain($companyId: ID!) {
+          companyRevokeMainContact(companyId: $companyId) {
+            company { id mainContact { id } contacts(first: 5) { nodes { id isMainContact } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "companyId": company_id }),
+    ));
+    assert_eq!(
+        revoke_main.body["data"]["companyRevokeMainContact"]["company"]["mainContact"],
+        Value::Null
+    );
+    assert_eq!(
+        revoke_main.body["data"]["companyRevokeMainContact"]["company"]["contacts"]["nodes"][0]
+            ["isMainContact"],
+        json!(false)
+    );
+
+    let location_id = create_b2b_location_with_shared_address(&mut proxy, &company_id);
+    let location = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BLiveLocalSharedAddress($id: ID!) {
+          companyLocation(id: $id) {
+            shippingAddress { id }
+            billingAddress { id }
+          }
+        }
+        "#,
+        json!({ "id": location_id }),
+    ));
+    let address_id = location.body["data"]["companyLocation"]["shippingAddress"]["id"]
+        .as_str()
+        .expect("address id")
+        .to_string();
+    assert_eq!(
+        location.body["data"]["companyLocation"]["billingAddress"]["id"],
+        json!(address_id)
+    );
+
+    let delete_address = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BLiveLocalAddressDelete($addressId: ID!) {
+          companyAddressDelete(addressId: $addressId) {
+            deletedAddressId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "addressId": address_id }),
+    ));
+    assert_eq!(
+        delete_address.body["data"]["companyAddressDelete"],
+        json!({ "deletedAddressId": address_id, "userErrors": [] })
+    );
+
+    let delete_contact = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BLiveLocalContactDelete($companyContactId: ID!) {
+          companyContactDelete(companyContactId: $companyContactId) {
+            deletedCompanyContactId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "companyContactId": contact_id }),
+    ));
+    assert_eq!(
+        delete_contact.body["data"]["companyContactDelete"],
+        json!({ "deletedCompanyContactId": contact_id, "userErrors": [] })
+    );
+}
+
+#[test]
+fn b2b_company_location_update_hydrates_real_upstream_location() {
+    let location_id = "gid://shopify/CompanyLocation/987654321";
+    let company_id = "gid://shopify/Company/456789";
+    let captured = Arc::new(Mutex::new(Vec::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let captured = Arc::clone(&captured);
+        move |request| {
+            captured
+                .lock()
+                .expect("captured upstream")
+                .push(serde_json::from_str::<Value>(&request.body).expect("upstream body"));
+            b2b_company_location_hydrate_response(location_id, "Hydrated HQ", company_id)
+        }
+    });
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BHydratedLocationUpdate($id: ID!) {
+          companyLocationUpdate(
+            companyLocationId: $id,
+            input: {
+              name: "Updated Real HQ",
+              buyerExperienceConfiguration: {
+                paymentTermsTemplateId: "gid://shopify/PaymentTermsTemplate/4",
+                checkoutToDraft: true,
+                editableShippingAddress: true
+              }
+            }
+          ) {
+            companyLocation {
+              id
+              name
+              taxSettings { taxExempt taxExemptions }
+              buyerExperienceConfiguration {
+                checkoutToDraft
+                editableShippingAddress
+                paymentTermsTemplate { id }
+              }
+              company { id name }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": location_id }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["companyLocationUpdate"],
+        json!({
+            "companyLocation": {
+                "id": location_id,
+                "name": "Updated Real HQ",
+                "taxSettings": {
+                    "taxExempt": false,
+                    "taxExemptions": ["US_CA_RESELLER_EXEMPTION"]
+                },
+                "buyerExperienceConfiguration": {
+                    "checkoutToDraft": true,
+                    "editableShippingAddress": true,
+                    "paymentTermsTemplate": { "id": "gid://shopify/PaymentTermsTemplate/4" }
+                },
+                "company": {
+                    "id": company_id,
+                    "name": "Hydrated Company"
+                }
+            },
+            "userErrors": []
+        })
+    );
+
+    let readback = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BHydratedLocationRead($id: ID!) {
+          companyLocation(id: $id) {
+            id
+            name
+            taxSettings { taxExempt taxExemptions }
+          }
+        }
+        "#,
+        json!({ "id": location_id }),
+    ));
+    assert_eq!(
+        readback.body["data"]["companyLocation"],
+        json!({
+            "id": location_id,
+            "name": "Updated Real HQ",
+            "taxSettings": {
+                "taxExempt": false,
+                "taxExemptions": ["US_CA_RESELLER_EXEMPTION"]
+            }
+        })
+    );
+
+    let calls = captured.lock().expect("captured upstream");
+    assert_eq!(calls.len(), 1);
+    assert_eq!(
+        calls[0]["operationName"],
+        json!("B2BCompanyLocationHydrate")
+    );
+    assert_eq!(calls[0]["variables"]["id"], json!(location_id));
+    let hydrate_query = calls[0]["query"].as_str().expect("hydrate query");
+    assert!(hydrate_query.contains("companyLocation(id: $id)"));
+    assert!(!hydrate_query.contains("billingSameAsShipping"));
+}
+
+#[test]
+fn b2b_tax_settings_and_store_credit_hydrate_real_company_locations() {
+    let tax_location_id = "gid://shopify/CompanyLocation/987654322";
+    let credit_location_id = "gid://shopify/CompanyLocation/987654323";
+    let company_id = "gid://shopify/Company/456790";
+
+    let tax_calls = Arc::new(Mutex::new(Vec::new()));
+    let mut tax_proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let tax_calls = Arc::clone(&tax_calls);
+        move |request| {
+            tax_calls
+                .lock()
+                .expect("captured tax upstream")
+                .push(serde_json::from_str::<Value>(&request.body).expect("upstream body"));
+            b2b_company_location_hydrate_response(tax_location_id, "Tax Hydrated", company_id)
+        }
+    });
+    let tax = tax_proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BHydratedLocationTax($id: ID!) {
+          companyLocationTaxSettingsUpdate(
+            companyLocationId: $id,
+            taxRegistrationId: "REG-LIVE",
+            taxExempt: true
+          ) {
+            companyLocation { id name taxSettings { taxRegistrationId taxExempt taxExemptions } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": tax_location_id }),
+    ));
+    assert_eq!(
+        tax.body["data"]["companyLocationTaxSettingsUpdate"],
+        json!({
+            "companyLocation": {
+                "id": tax_location_id,
+                "name": "Tax Hydrated",
+                "taxSettings": {
+                    "taxRegistrationId": "REG-LIVE",
+                    "taxExempt": true,
+                    "taxExemptions": ["US_CA_RESELLER_EXEMPTION"]
+                }
+            },
+            "userErrors": []
+        })
+    );
+    assert_eq!(tax_calls.lock().expect("tax calls").len(), 1);
+
+    let credit_calls = Arc::new(Mutex::new(Vec::new()));
+    let mut credit_proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let credit_calls = Arc::clone(&credit_calls);
+        move |request| {
+            credit_calls
+                .lock()
+                .expect("captured credit upstream")
+                .push(serde_json::from_str::<Value>(&request.body).expect("upstream body"));
+            b2b_company_location_hydrate_response(credit_location_id, "Credit Hydrated", company_id)
+        }
+    });
+    let credit = credit_proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BHydratedLocationStoreCredit($id: ID!) {
+          storeCreditAccountCredit(id: $id, creditInput: { creditAmount: { amount: "3.00", currencyCode: USD } }) {
+            storeCreditAccountTransaction {
+              account {
+                balance { amount currencyCode }
+                owner { ... on CompanyLocation { id name } }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": credit_location_id }),
+    ));
+    assert_eq!(
+        credit.body["data"]["storeCreditAccountCredit"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        credit.body["data"]["storeCreditAccountCredit"]["storeCreditAccountTransaction"]["account"]
+            ["owner"],
+        json!({ "id": credit_location_id, "name": "Credit Hydrated" })
+    );
+    assert_eq!(credit_calls.lock().expect("credit calls").len(), 1);
 }
 
 #[test]
@@ -1619,7 +2401,17 @@ fn b2b_company_contact_lifecycle_and_main_contact_stage_locally() {
         r#"
         mutation B2BContactLifecycleUpdate($companyContactId: ID!, $input: CompanyContactInput!) {
           companyContactUpdate(companyContactId: $companyContactId, input: $input) {
-            companyContact { id title customer { firstName lastName email phone } }
+            companyContact {
+              id
+              title
+              customer {
+                firstName
+                lastName
+                email
+                phone
+                defaultPhoneNumber { phoneNumber }
+              }
+            }
             userErrors { field message code }
           }
         }
@@ -1630,7 +2422,7 @@ fn b2b_company_contact_lifecycle_and_main_contact_stage_locally() {
                 "firstName": "Grace",
                 "lastName": "Hopper",
                 "email": "grace@example.com",
-                "phone": "+14155550101",
+                "phone": "(415) 555-0101",
                 "title": "Lead buyer"
             }
         }),
@@ -1646,7 +2438,10 @@ fn b2b_company_contact_lifecycle_and_main_contact_stage_locally() {
                     "firstName": "Grace",
                     "lastName": "Hopper",
                     "email": "grace@example.com",
-                    "phone": "+14155550101"
+                    "phone": "+14155550101",
+                    "defaultPhoneNumber": {
+                        "phoneNumber": "+14155550101"
+                    }
                 }
             },
             "userErrors": []
@@ -1862,7 +2657,7 @@ fn b2b_contact_validation_and_bulk_delete_use_shopify_field_paths() {
         r#"
         mutation B2BContactValidationHtml($companyId: ID!, $input: CompanyContactInput!) {
           companyContactCreate(companyId: $companyId, input: $input) {
-            companyContact { id }
+            companyContact { id title }
             userErrors { field message code }
           }
         }
@@ -1874,11 +2669,37 @@ fn b2b_contact_validation_and_bulk_delete_use_shopify_field_paths() {
     ));
     assert_eq!(
         html_title.body["data"]["companyContactCreate"]["userErrors"],
-        json!([{
-            "field": ["input", "title"],
-            "message": "Title contains HTML tags",
-            "code": "CONTAINS_HTML_TAGS"
-        }])
+        json!([])
+    );
+    assert_eq!(
+        html_title.body["data"]["companyContactCreate"]["companyContact"]["title"],
+        json!("<b>VP</b>")
+    );
+
+    let html_name = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BContactValidationHtmlName($companyId: ID!, $input: CompanyContactInput!) {
+          companyContactCreate(companyId: $companyId, input: $input) {
+            companyContact { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "companyId": company_id,
+            "input": { "firstName": "<b>Ada</b>", "lastName": "Buyer", "email": "ada-html@example.com" }
+        }),
+    ));
+    assert_eq!(
+        html_name.body["data"]["companyContactCreate"],
+        json!({
+            "companyContact": Value::Null,
+            "userErrors": [{
+                "field": ["input"],
+                "message": "Invalid input.",
+                "code": "INVALID_INPUT"
+            }]
+        })
     );
 
     let long_name = "x".repeat(256);
@@ -2803,6 +3624,1196 @@ fn b2b_company_location_lifecycle_stages_and_reads_back() {
                 .as_array()
                 .is_some_and(|ids| ids.iter().any(|id| id == &json!(second_location_id)))
     }));
+}
+
+#[test]
+fn b2b_company_and_location_aggregate_fields_project_from_staged_orders() {
+    let clock = Arc::new(Mutex::new(utc_time(1704067200)));
+    let mut proxy = snapshot_proxy_with_clock(clock.clone());
+    restore_shop_currency(&mut proxy, "USD");
+
+    let create_company = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BAggregatesCompanyCreate($input: CompanyCreateInput!) {
+          companyCreate(input: $input) {
+            company {
+              id
+              totalSpent { amount currencyCode }
+              spend: totalSpent { value: amount currencyCode }
+              ordersCount { count precision }
+              orderSummary: ordersCount { total: count precision }
+              lifetimeDuration
+              locations(first: 5) {
+                nodes {
+                  id
+                  totalSpent { amount currencyCode }
+                  currency
+                  ordersCount { count precision }
+                  orderCount
+                  market { id name }
+                  catalogs(first: 5) { nodes { id title } }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "company": { "name": "Aggregate Buyer" },
+                "companyLocation": { "name": "Aggregate HQ" }
+            }
+        }),
+    ));
+    assert_eq!(create_company.status, 200);
+    assert_eq!(
+        create_company.body["data"]["companyCreate"]["userErrors"],
+        json!([])
+    );
+    let company = &create_company.body["data"]["companyCreate"]["company"];
+    let company_id = company["id"].as_str().expect("company id").to_string();
+    let location_id = company["locations"]["nodes"][0]["id"]
+        .as_str()
+        .expect("location id")
+        .to_string();
+    assert_eq!(
+        company["totalSpent"],
+        json!({ "amount": "0.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        company["spend"],
+        json!({ "value": "0.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        company["ordersCount"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+    assert_eq!(
+        company["orderSummary"],
+        json!({ "total": 0, "precision": "EXACT" })
+    );
+    assert_eq!(company["lifetimeDuration"], json!("less than 5 seconds"));
+    assert_eq!(
+        company["locations"]["nodes"][0]["totalSpent"],
+        json!({ "amount": "0.0", "currencyCode": "USD" })
+    );
+    assert_eq!(company["locations"]["nodes"][0]["currency"], json!("USD"));
+    assert_eq!(
+        company["locations"]["nodes"][0]["ordersCount"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+    assert_eq!(company["locations"]["nodes"][0]["orderCount"], json!(0));
+    assert_eq!(company["locations"]["nodes"][0]["market"], Value::Null);
+    assert_eq!(
+        company["locations"]["nodes"][0]["catalogs"]["nodes"],
+        json!([])
+    );
+
+    set_clock(&clock, 1704067245);
+    let create_order = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BAggregatesOrderCreate($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id currentTotalPriceSet { shopMoney { amount currencyCode } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "aggregate-buyer@example.test",
+                "currency": "USD",
+                "financialStatus": "PENDING",
+                "purchasingEntity": {
+                    "purchasingCompany": {
+                        "companyId": company_id,
+                        "companyLocationId": location_id
+                    }
+                },
+                "lineItems": [{
+                    "title": "Aggregate item",
+                    "quantity": 2,
+                    "priceSet": { "amount": "12.50", "currencyCode": "USD" }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create_order.status, 200);
+    assert_eq!(
+        create_order.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create_order.body["data"]["orderCreate"]["order"]["currentTotalPriceSet"]["shopMoney"],
+        json!({ "amount": "25.0", "currencyCode": "USD" })
+    );
+
+    let create_catalog = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BAggregatesCatalogCreate($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) {
+            catalog { id title }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Aggregate Catalog",
+                "status": "ACTIVE",
+                "context": { "companyLocationIds": [location_id] }
+            }
+        }),
+    ));
+    assert_eq!(create_catalog.status, 200);
+    assert_eq!(
+        create_catalog.body["data"]["catalogCreate"]["userErrors"],
+        json!([])
+    );
+    let catalog_id = create_catalog.body["data"]["catalogCreate"]["catalog"]["id"]
+        .as_str()
+        .expect("catalog id")
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BAggregatesRead($companyId: ID!, $locationId: ID!) {
+          company(id: $companyId) {
+            id
+            totalSpent { amount currencyCode }
+            spend: totalSpent { value: amount currencyCode }
+            ordersCount { count precision }
+            orderSummary: ordersCount { total: count precision }
+            lifetimeDuration
+          }
+          companyLocation(id: $locationId) {
+            id
+            totalSpent { amount currencyCode }
+            locationSpend: totalSpent { value: amount currencyCode }
+            currency
+            ordersCount { count precision }
+            orderSummary: ordersCount { total: count precision }
+            orderCount
+            market { id name }
+            catalogs(first: 5) { nodes { id title } }
+          }
+          companyNode: node(id: $companyId) {
+            __typename
+            ... on Company {
+              totalSpent { amount currencyCode }
+              ordersCount { count precision }
+              lifetimeDuration
+            }
+          }
+          locationNode: node(id: $locationId) {
+            __typename
+            ... on CompanyLocation {
+              totalSpent { amount currencyCode }
+              currency
+              ordersCount { count precision }
+              orderCount
+              catalogs(first: 5) { nodes { id title } }
+            }
+          }
+        }
+        "#,
+        json!({ "companyId": company_id, "locationId": location_id }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["company"]["totalSpent"],
+        json!({ "amount": "25.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        read.body["data"]["company"]["spend"],
+        json!({ "value": "25.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        read.body["data"]["company"]["ordersCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["company"]["orderSummary"],
+        json!({ "total": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["company"]["lifetimeDuration"],
+        json!("less than a minute")
+    );
+    assert_eq!(
+        read.body["data"]["companyLocation"]["totalSpent"],
+        json!({ "amount": "25.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        read.body["data"]["companyLocation"]["locationSpend"],
+        json!({ "value": "25.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        read.body["data"]["companyLocation"]["currency"],
+        json!("USD")
+    );
+    assert_eq!(
+        read.body["data"]["companyLocation"]["ordersCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["companyLocation"]["orderSummary"],
+        json!({ "total": 1, "precision": "EXACT" })
+    );
+    assert_eq!(read.body["data"]["companyLocation"]["orderCount"], json!(1));
+    assert_eq!(read.body["data"]["companyLocation"]["market"], Value::Null);
+    assert_eq!(
+        read.body["data"]["companyLocation"]["catalogs"]["nodes"],
+        json!([{ "id": catalog_id, "title": "Aggregate Catalog" }])
+    );
+    let company_node = &read.body["data"]["companyNode"];
+    let location_node = &read.body["data"]["locationNode"];
+    assert_eq!(company_node["__typename"], json!("Company"));
+    assert_eq!(
+        company_node["totalSpent"],
+        json!({ "amount": "25.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        company_node["ordersCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        company_node["lifetimeDuration"],
+        json!("less than a minute")
+    );
+    assert_eq!(location_node["__typename"], json!("CompanyLocation"));
+    assert_eq!(
+        location_node["totalSpent"],
+        json!({ "amount": "25.0", "currencyCode": "USD" })
+    );
+    assert_eq!(location_node["currency"], json!("USD"));
+    assert_eq!(
+        location_node["ordersCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(location_node["orderCount"], json!(1));
+    assert_eq!(
+        location_node["catalogs"]["nodes"],
+        json!([{ "id": catalog_id, "title": "Aggregate Catalog" }])
+    );
+
+    set_clock(&clock, 1711929600);
+    let create_with_customer_since = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BLifetimeDurationCustomerSince($input: CompanyCreateInput!) {
+          companyCreate(input: $input) {
+            company {
+              id
+              createdAt
+              customerSince
+              lifetimeDuration
+              ordersCount { count precision }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "company": {
+                    "name": "Customer Since Duration Co",
+                    "customerSince": "2024-01-01T00:00:00Z"
+                }
+            }
+        }),
+    ));
+    assert_eq!(create_with_customer_since.status, 200);
+    assert_eq!(
+        create_with_customer_since.body["data"]["companyCreate"]["userErrors"],
+        json!([])
+    );
+    let customer_since_company =
+        &create_with_customer_since.body["data"]["companyCreate"]["company"];
+    assert_eq!(
+        customer_since_company["createdAt"],
+        json!("2024-04-01T00:00:00Z")
+    );
+    assert_eq!(
+        customer_since_company["customerSince"],
+        json!("2024-01-01T00:00:00Z")
+    );
+    assert_eq!(
+        customer_since_company["ordersCount"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+    assert_eq!(
+        customer_since_company["lifetimeDuration"],
+        json!("3 months")
+    );
+}
+
+#[test]
+fn b2b_company_location_aggregate_currency_uses_location_country_for_draft_orders() {
+    let mut proxy = snapshot_proxy();
+
+    let create_company = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BAggregatesCanadianCompanyCreate($input: CompanyCreateInput!) {
+          companyCreate(input: $input) {
+            company {
+              id
+              mainContact { id }
+              locations(first: 1) {
+                nodes {
+                  id
+                  currency
+                  totalSpent { amount currencyCode }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "company": { "name": "Canadian Aggregate Buyer" },
+                "companyContact": {
+                    "firstName": "Canadian",
+                    "lastName": "Buyer",
+                    "email": "canadian-aggregate-buyer@example.test"
+                },
+                "companyLocation": {
+                    "name": "Canadian Aggregate HQ",
+                    "phone": "+16135550145",
+                    "shippingAddress": {
+                        "address1": "145 Aggregate Way",
+                        "city": "Ottawa",
+                        "countryCode": "CA"
+                    }
+                }
+            }
+        }),
+    ));
+    assert_eq!(create_company.status, 200);
+    assert_eq!(
+        create_company.body["data"]["companyCreate"]["userErrors"],
+        json!([])
+    );
+    let company = &create_company.body["data"]["companyCreate"]["company"];
+    let company_id = company["id"].as_str().expect("company id").to_string();
+    let contact_id = company["mainContact"]["id"]
+        .as_str()
+        .expect("main contact id")
+        .to_string();
+    let location = &company["locations"]["nodes"][0];
+    let location_id = location["id"].as_str().expect("location id").to_string();
+    assert_eq!(location["currency"], json!("CAD"));
+    assert_eq!(
+        location["totalSpent"],
+        json!({ "amount": "0.0", "currencyCode": "CAD" })
+    );
+
+    let create_draft_order = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BAggregatesDraftOrderCreate($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder {
+              id
+              totalPriceSet { shopMoney { amount currencyCode } }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "purchasingEntity": {
+                    "purchasingCompany": {
+                        "companyId": company_id,
+                        "companyContactId": contact_id,
+                        "companyLocationId": location_id
+                    }
+                },
+                "email": "canadian-aggregate-draft@example.test",
+                "lineItems": [{
+                    "title": "Canadian aggregate item",
+                    "quantity": 1,
+                    "originalUnitPrice": "25.00",
+                    "requiresShipping": false,
+                    "taxable": false
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create_draft_order.status, 200);
+    assert_eq!(
+        create_draft_order.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    let draft_order_id = create_draft_order.body["data"]["draftOrderCreate"]["draftOrder"]["id"]
+        .as_str()
+        .expect("draft order id")
+        .to_string();
+    assert_eq!(
+        create_draft_order.body["data"]["draftOrderCreate"]["draftOrder"]["totalPriceSet"]
+            ["shopMoney"],
+        json!({ "amount": "25.0", "currencyCode": "CAD" })
+    );
+
+    let complete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BAggregatesDraftOrderComplete($id: ID!) {
+          draftOrderComplete(id: $id, paymentPending: false) {
+            draftOrder {
+              order {
+                id
+                currentTotalPriceSet { shopMoney { amount currencyCode } }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": draft_order_id }),
+    ));
+    assert_eq!(complete.status, 200);
+    assert_eq!(
+        complete.body["data"]["draftOrderComplete"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        complete.body["data"]["draftOrderComplete"]["draftOrder"]["order"]["currentTotalPriceSet"]
+            ["shopMoney"],
+        json!({ "amount": "25.0", "currencyCode": "CAD" })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BAggregatesCanadianRead($companyId: ID!, $locationId: ID!) {
+          company(id: $companyId) {
+            totalSpent { amount currencyCode }
+            ordersCount { count precision }
+          }
+          companyLocation(id: $locationId) {
+            currency
+            totalSpent { amount currencyCode }
+            ordersCount { count precision }
+          }
+        }
+        "#,
+        json!({ "companyId": company_id, "locationId": location_id }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["company"]["totalSpent"],
+        json!({ "amount": "25.0", "currencyCode": "CAD" })
+    );
+    assert_eq!(
+        read.body["data"]["company"]["ordersCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["companyLocation"]["currency"],
+        json!("CAD")
+    );
+    assert_eq!(
+        read.body["data"]["companyLocation"]["totalSpent"],
+        json!({ "amount": "25.0", "currencyCode": "CAD" })
+    );
+    assert_eq!(
+        read.body["data"]["companyLocation"]["ordersCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+}
+
+#[test]
+fn b2b_company_and_location_order_sub_connections_are_state_backed() {
+    let mut proxy = snapshot_proxy();
+
+    let create_company = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BOrderConnectionsCompanyCreate($input: CompanyCreateInput!) {
+          companyCreate(input: $input) {
+            company {
+              id
+              mainContact { id }
+              locations(first: 1) { nodes { id } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "company": { "name": "Connection Buyer" },
+                "companyContact": {
+                    "firstName": "Connection",
+                    "lastName": "Buyer",
+                    "email": "connection-buyer@example.test"
+                },
+                "companyLocation": { "name": "Connection HQ" }
+            }
+        }),
+    ));
+    assert_eq!(create_company.status, 200);
+    assert_eq!(
+        create_company.body["data"]["companyCreate"]["userErrors"],
+        json!([])
+    );
+    let company = &create_company.body["data"]["companyCreate"]["company"];
+    let company_id = company["id"].as_str().expect("company id").to_string();
+    let contact_id = company["mainContact"]["id"]
+        .as_str()
+        .expect("contact id")
+        .to_string();
+    let location_id = company["locations"]["nodes"][0]["id"]
+        .as_str()
+        .expect("location id")
+        .to_string();
+
+    let empty_company_id = create_b2b_company(&mut proxy, "Empty Connection Buyer");
+    let empty_location_id = create_b2b_location(&mut proxy, &empty_company_id, "Empty HQ");
+
+    let create_order = |proxy: &mut DraftProxy, title: &str, amount: &str| {
+        proxy.process_request(json_graphql_request(
+            r#"
+            mutation B2BOrderConnectionsOrderCreate($order: OrderCreateOrderInput!) {
+              orderCreate(order: $order) {
+                order { id name currentTotalPriceSet { shopMoney { amount currencyCode } } }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "order": {
+                    "email": "connection-order@example.test",
+                    "currency": "USD",
+                    "purchasingEntity": {
+                        "purchasingCompany": {
+                            "companyId": company_id,
+                            "companyLocationId": location_id
+                        }
+                    },
+                    "lineItems": [{
+                        "title": title,
+                        "quantity": 1,
+                        "priceSet": { "amount": amount, "currencyCode": "USD" }
+                    }]
+                }
+            }),
+        ))
+    };
+    let first_order = create_order(&mut proxy, "Connection first order", "12.50");
+    let second_order = create_order(&mut proxy, "Connection second order", "7.50");
+    assert_eq!(
+        first_order.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        second_order.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    let first_order_id = first_order.body["data"]["orderCreate"]["order"]["id"]
+        .as_str()
+        .expect("first order id")
+        .to_string();
+    let first_order_name = first_order.body["data"]["orderCreate"]["order"]["name"]
+        .as_str()
+        .expect("first order name")
+        .to_string();
+    let second_order_id = second_order.body["data"]["orderCreate"]["order"]["id"]
+        .as_str()
+        .expect("second order id")
+        .to_string();
+    let second_order_name = second_order.body["data"]["orderCreate"]["order"]["name"]
+        .as_str()
+        .expect("second order name")
+        .to_string();
+
+    let create_draft_order = |proxy: &mut DraftProxy, email: &str, title: &str| {
+        proxy.process_request(json_graphql_request(
+            r#"
+            mutation B2BOrderConnectionsDraftOrderCreate($input: DraftOrderInput!) {
+              draftOrderCreate(input: $input) {
+                draftOrder { id name status totalPriceSet { shopMoney { amount currencyCode } } }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({
+                "input": {
+                    "purchasingEntity": {
+                        "purchasingCompany": {
+                            "companyId": company_id,
+                            "companyContactId": contact_id,
+                            "companyLocationId": location_id
+                        }
+                    },
+                    "email": email,
+                    "lineItems": [{
+                        "title": title,
+                        "quantity": 1,
+                        "originalUnitPrice": "5.00",
+                        "requiresShipping": false,
+                        "taxable": false
+                    }]
+                }
+            }),
+        ))
+    };
+    let first_draft = create_draft_order(
+        &mut proxy,
+        "connection-draft-one@example.test",
+        "Connection first draft",
+    );
+    let second_draft = create_draft_order(
+        &mut proxy,
+        "connection-draft-two@example.test",
+        "Connection second draft",
+    );
+    assert_eq!(
+        first_draft.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        second_draft.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    let first_draft_id = first_draft.body["data"]["draftOrderCreate"]["draftOrder"]["id"]
+        .as_str()
+        .expect("first draft id")
+        .to_string();
+    let first_draft_name = first_draft.body["data"]["draftOrderCreate"]["draftOrder"]["name"]
+        .as_str()
+        .expect("first draft name")
+        .to_string();
+    let first_draft_total =
+        first_draft.body["data"]["draftOrderCreate"]["draftOrder"]["totalPriceSet"].clone();
+    let second_draft_id = second_draft.body["data"]["draftOrderCreate"]["draftOrder"]["id"]
+        .as_str()
+        .expect("second draft id")
+        .to_string();
+    let second_draft_name = second_draft.body["data"]["draftOrderCreate"]["draftOrder"]["name"]
+        .as_str()
+        .expect("second draft name")
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BOrderSubConnections(
+          $companyId: ID!
+          $locationId: ID!
+          $emptyCompanyId: ID!
+          $emptyLocationId: ID!
+          $firstOrderCursor: String!
+          $secondOrderCursor: String!
+          $firstDraftCursor: String!
+          $secondDraftCursor: String!
+        ) {
+          company(id: $companyId) {
+            ordersCount { count precision }
+            totalSpent { amount currencyCode }
+            ordersFirst: orders(first: 1) {
+              nodes { id name currentTotalPriceSet { shopMoney { amount currencyCode } } }
+              edges { cursor node { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            ordersAfter: orders(first: 1, after: $firstOrderCursor) {
+              nodes { id name }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            ordersBefore: orders(last: 1, before: $secondOrderCursor) {
+              nodes { id name }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            draftOrdersFirst: draftOrders(first: 1) {
+              nodes { id name status totalPriceSet { shopMoney { amount currencyCode } } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            draftOrdersAfter: draftOrders(first: 1, after: $firstDraftCursor) {
+              nodes { id name }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          companyLocation(id: $locationId) {
+            orderCount
+            ordersAfter: orders(first: 1, after: $firstOrderCursor) {
+              nodes { id name }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            draftOrdersBefore: draftOrders(last: 1, before: $secondDraftCursor) {
+              nodes { id name }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          emptyCompany: company(id: $emptyCompanyId) {
+            orders(first: 2) {
+              nodes { id }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            draftOrders(first: 2) {
+              nodes { id }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          emptyLocation: companyLocation(id: $emptyLocationId) {
+            orders(first: 2) {
+              nodes { id }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            draftOrders(first: 2) {
+              nodes { id }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({
+            "companyId": company_id,
+            "locationId": location_id,
+            "emptyCompanyId": empty_company_id,
+            "emptyLocationId": empty_location_id,
+            "firstOrderCursor": first_order_id,
+            "secondOrderCursor": second_order_id,
+            "firstDraftCursor": first_draft_id,
+            "secondDraftCursor": second_draft_id
+        }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["company"]["ordersCount"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["company"]["totalSpent"],
+        json!({ "amount": "20.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        read.body["data"]["company"]["ordersFirst"]["nodes"],
+        json!([{
+            "id": first_order_id,
+            "name": first_order_name,
+            "currentTotalPriceSet": {
+                "shopMoney": { "amount": "12.5", "currencyCode": "USD" }
+            }
+        }])
+    );
+    assert_eq!(
+        read.body["data"]["company"]["ordersFirst"]["edges"],
+        json!([{ "cursor": first_order_id, "node": { "id": first_order_id } }])
+    );
+    assert_eq!(
+        read.body["data"]["company"]["ordersFirst"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": first_order_id,
+            "endCursor": first_order_id
+        })
+    );
+    assert_eq!(
+        read.body["data"]["company"]["ordersAfter"]["nodes"],
+        json!([{ "id": second_order_id, "name": second_order_name }])
+    );
+    assert_eq!(
+        read.body["data"]["company"]["ordersAfter"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": true,
+            "startCursor": second_order_id,
+            "endCursor": second_order_id
+        })
+    );
+    assert_eq!(
+        read.body["data"]["company"]["ordersBefore"]["nodes"],
+        json!([{ "id": first_order_id, "name": first_order_name }])
+    );
+    assert_eq!(
+        read.body["data"]["company"]["ordersBefore"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": first_order_id,
+            "endCursor": first_order_id
+        })
+    );
+    assert_eq!(
+        read.body["data"]["company"]["draftOrdersFirst"]["nodes"],
+        json!([{
+            "id": first_draft_id,
+            "name": first_draft_name,
+            "status": "OPEN",
+            "totalPriceSet": first_draft_total
+        }])
+    );
+    assert_eq!(
+        read.body["data"]["company"]["draftOrdersFirst"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": first_draft_id,
+            "endCursor": first_draft_id
+        })
+    );
+    assert_eq!(
+        read.body["data"]["company"]["draftOrdersAfter"]["nodes"],
+        json!([{ "id": second_draft_id, "name": second_draft_name }])
+    );
+    assert_eq!(read.body["data"]["companyLocation"]["orderCount"], json!(2));
+    assert_eq!(
+        read.body["data"]["companyLocation"]["ordersAfter"]["nodes"],
+        json!([{ "id": second_order_id, "name": second_order_name }])
+    );
+    assert_eq!(
+        read.body["data"]["companyLocation"]["draftOrdersBefore"]["nodes"],
+        json!([{ "id": first_draft_id, "name": first_draft_name }])
+    );
+    let empty_page_info = json!({
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "startCursor": Value::Null,
+        "endCursor": Value::Null
+    });
+    assert_eq!(
+        read.body["data"]["emptyCompany"]["orders"]["nodes"],
+        json!([])
+    );
+    assert_eq!(
+        read.body["data"]["emptyCompany"]["orders"]["pageInfo"],
+        empty_page_info
+    );
+    assert_eq!(
+        read.body["data"]["emptyCompany"]["draftOrders"]["nodes"],
+        json!([])
+    );
+    assert_eq!(
+        read.body["data"]["emptyCompany"]["draftOrders"]["pageInfo"],
+        empty_page_info
+    );
+    assert_eq!(
+        read.body["data"]["emptyLocation"]["orders"]["nodes"],
+        json!([])
+    );
+    assert_eq!(
+        read.body["data"]["emptyLocation"]["orders"]["pageInfo"],
+        empty_page_info
+    );
+    assert_eq!(
+        read.body["data"]["emptyLocation"]["draftOrders"]["nodes"],
+        json!([])
+    );
+    assert_eq!(
+        read.body["data"]["emptyLocation"]["draftOrders"]["pageInfo"],
+        empty_page_info
+    );
+}
+
+#[test]
+fn b2b_company_connections_filter_sort_reverse_count_and_window() {
+    let mut proxy = snapshot_proxy();
+    let acme_company_id = create_b2b_company(&mut proxy, "Acme Supplies");
+    let zeta_company_id = create_b2b_company(&mut proxy, "Zeta Supplies");
+    let beta_company_id = create_b2b_company(&mut proxy, "Beta Goods");
+    let acme_remote_location_id = create_b2b_location(&mut proxy, &acme_company_id, "Remote Hub");
+    let acme_alpha_location_id = create_b2b_location(&mut proxy, &acme_company_id, "Alpha Hub");
+
+    let companies = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BCompanyConnectionFilters($query: String!) {
+          companies(first: 1, query: $query, sortKey: NAME, reverse: true) {
+            nodes { id name }
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          companiesCount { count precision }
+        }
+        "#,
+        json!({ "query": "name:Supplies" }),
+    ));
+    assert_eq!(companies.status, 200);
+    assert_eq!(
+        companies.body["data"]["companies"]["nodes"],
+        json!([{ "id": zeta_company_id, "name": "Zeta Supplies" }])
+    );
+    assert_eq!(
+        companies.body["data"]["companies"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": zeta_company_id,
+            "endCursor": zeta_company_id
+        })
+    );
+    assert_eq!(
+        companies.body["data"]["companiesCount"],
+        json!({ "count": 3, "precision": "EXACT" })
+    );
+
+    let locations = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BCompanyLocationConnectionFilters($after: String!) {
+          companyLocations(first: 1, after: $after, query: "name:Hub", sortKey: NAME) {
+            nodes { id name company { id name } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "after": acme_alpha_location_id }),
+    ));
+    assert_eq!(locations.status, 200);
+    assert_eq!(
+        locations.body["data"]["companyLocations"]["nodes"],
+        json!([{
+            "id": acme_remote_location_id,
+            "name": "Remote Hub",
+            "company": { "id": acme_company_id, "name": "Acme Supplies" }
+        }])
+    );
+    assert_eq!(
+        locations.body["data"]["companyLocations"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": true,
+            "startCursor": acme_remote_location_id,
+            "endCursor": acme_remote_location_id
+        })
+    );
+
+    let unsupported_filter = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BCompanyUnsupportedFilter {
+          companies(first: 5, query: "unsupported:Acme") {
+            nodes { id }
+            pageInfo { hasNextPage hasPreviousPage }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(unsupported_filter.status, 200);
+    assert_eq!(
+        unsupported_filter.body["data"]["companies"]["nodes"],
+        json!([])
+    );
+
+    assert_ne!(beta_company_id, acme_company_id);
+}
+
+#[test]
+fn b2b_company_nested_connections_sort_reverse_and_window() {
+    let mut proxy = snapshot_proxy();
+    let company_id = create_b2b_company_with_contact_and_role(&mut proxy);
+    let default_location_id = read_b2b_company_location_ids(&mut proxy, &company_id)[0].clone();
+    let secondary_contact_id = create_b2b_company_contact(&mut proxy, &company_id, "Secondary");
+    let remote_location_id = create_b2b_location(&mut proxy, &company_id, "Remote HQ");
+    let (main_contact_id, role_id) = read_b2b_first_contact_and_role(&mut proxy, &company_id);
+    let secondary_assignment_id = assign_b2b_contact_role(
+        &mut proxy,
+        &secondary_contact_id,
+        &role_id,
+        &remote_location_id,
+    );
+    let main_remote_assignment_id =
+        assign_b2b_contact_role(&mut proxy, &main_contact_id, &role_id, &remote_location_id);
+
+    let nested = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BNestedConnectionArgs($companyId: ID!, $contactId: ID!, $locationId: ID!) {
+          company(id: $companyId) {
+            contacts(first: 1, sortKey: ID, reverse: true) {
+              nodes { id title }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            locations(first: 1, sortKey: ID, reverse: true) {
+              nodes { id name }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          companyContact(id: $contactId) {
+            roleAssignments(first: 1, sortKey: ID, reverse: true) {
+              nodes { id companyLocation { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          companyLocation(id: $locationId) {
+            roleAssignments(first: 1, sortKey: ID, reverse: true) {
+              nodes { id companyContact { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({
+            "companyId": company_id,
+            "contactId": main_contact_id,
+            "locationId": remote_location_id
+        }),
+    ));
+    assert_eq!(nested.status, 200);
+    assert_eq!(
+        nested.body["data"]["company"]["contacts"]["nodes"],
+        json!([{ "id": secondary_contact_id, "title": "Secondary" }])
+    );
+    assert_eq!(
+        nested.body["data"]["company"]["contacts"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": secondary_contact_id,
+            "endCursor": secondary_contact_id
+        })
+    );
+    assert_eq!(
+        nested.body["data"]["company"]["locations"]["nodes"],
+        json!([{ "id": remote_location_id, "name": "Remote HQ" }])
+    );
+    assert_eq!(
+        nested.body["data"]["company"]["locations"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": remote_location_id,
+            "endCursor": remote_location_id
+        })
+    );
+    assert_eq!(
+        nested.body["data"]["companyContact"]["roleAssignments"]["nodes"],
+        json!([{
+            "id": main_remote_assignment_id,
+            "companyLocation": { "id": remote_location_id }
+        }])
+    );
+    assert_eq!(
+        nested.body["data"]["companyContact"]["roleAssignments"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": main_remote_assignment_id,
+            "endCursor": main_remote_assignment_id
+        })
+    );
+    assert_eq!(
+        nested.body["data"]["companyLocation"]["roleAssignments"]["nodes"],
+        json!([{
+            "id": main_remote_assignment_id,
+            "companyContact": { "id": main_contact_id }
+        }])
+    );
+
+    assert_ne!(default_location_id, remote_location_id);
+    assert_ne!(secondary_assignment_id, main_remote_assignment_id);
+}
+
+#[test]
+fn b2b_company_location_addresses_accept_shared_country_catalog() {
+    let mut proxy = snapshot_proxy();
+    let company_id = create_b2b_company(&mut proxy, "International Address Co");
+
+    let create_location = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BCreateGbLocation($companyId: ID!) {
+          companyLocationCreate(
+            companyId: $companyId,
+            input: {
+              name: "London HQ"
+              shippingAddress: {
+                address1: "10 Downing Street"
+                city: "London"
+                countryCode: "GB"
+                zoneCode: "LND"
+                zip: "SW1A 2AA"
+              }
+            }
+          ) {
+            companyLocation {
+              id
+              currency
+              shippingAddress { address1 city countryCode zip }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "companyId": company_id }),
+    ));
+    assert_eq!(create_location.status, 200);
+    assert_eq!(
+        create_location.body["data"]["companyLocationCreate"]["userErrors"],
+        json!([])
+    );
+    let location = &create_location.body["data"]["companyLocationCreate"]["companyLocation"];
+    let location_id = location["id"].as_str().expect("location id").to_string();
+    assert_eq!(location["currency"], json!("GBP"));
+    assert_eq!(
+        location["shippingAddress"],
+        json!({
+            "address1": "10 Downing Street",
+            "city": "London",
+            "countryCode": "GB",
+            "zip": "SW1A 2AA"
+        })
+    );
+
+    let assign_de_address = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BAssignDeAddress($locationId: ID!) {
+          companyLocationAssignAddress(
+            locationId: $locationId,
+            address: {
+              address1: "Unter den Linden 1"
+              city: "Berlin"
+              countryCode: "DE"
+              zoneCode: "BE"
+              zip: "10117"
+            },
+            addressTypes: [BILLING]
+          ) {
+            addresses { address1 city countryCode zip }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "locationId": location_id }),
+    ));
+    assert_eq!(assign_de_address.status, 200);
+    assert_eq!(
+        assign_de_address.body["data"]["companyLocationAssignAddress"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        assign_de_address.body["data"]["companyLocationAssignAddress"]["addresses"],
+        json!([{
+            "address1": "Unter den Linden 1",
+            "city": "Berlin",
+            "countryCode": "DE",
+            "zip": "10117"
+        }])
+    );
+
+    let invalid_country = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BAssignInvalidCountry($locationId: ID!) {
+          companyLocationAssignAddress(
+            locationId: $locationId,
+            address: { address1: "Unknown", countryCode: ZZ },
+            addressTypes: [SHIPPING]
+          ) {
+            addresses { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "locationId": location_id }),
+    ));
+    assert_eq!(invalid_country.status, 200);
+    assert_eq!(
+        invalid_country.body["data"]["companyLocationAssignAddress"],
+        json!({
+            "addresses": Value::Null,
+            "userErrors": [{
+                "field": ["address", "countryCode"],
+                "message": "Country code is invalid",
+                "code": "INVALID"
+            }]
+        })
+    );
 }
 
 #[test]
@@ -4131,6 +6142,47 @@ fn create_b2b_company(proxy: &mut DraftProxy, name: &str) -> String {
         .to_string()
 }
 
+fn b2b_company_location_hydrate_response(
+    location_id: &str,
+    location_name: &str,
+    company_id: &str,
+) -> Response {
+    Response {
+        status: 200,
+        headers: Default::default(),
+        body: json!({
+            "data": {
+                "companyLocation": {
+                    "id": location_id,
+                    "name": location_name,
+                    "externalId": Value::Null,
+                    "note": Value::Null,
+                    "locale": "en",
+                    "phone": Value::Null,
+                    "billingAddress": { "id": "gid://shopify/CompanyAddress/200", "address1": "Upstream Billing" },
+                    "shippingAddress": { "id": "gid://shopify/CompanyAddress/201", "address1": "Upstream Shipping" },
+                    "taxSettings": {
+                        "taxRegistrationId": Value::Null,
+                        "taxExempt": false,
+                        "taxExemptions": ["US_CA_RESELLER_EXEMPTION"]
+                    },
+                    "buyerExperienceConfiguration": {
+                        "editableShippingAddress": false,
+                        "checkoutToDraft": false,
+                        "paymentTermsTemplate": Value::Null,
+                        "deposit": Value::Null
+                    },
+                    "company": {
+                        "id": company_id,
+                        "name": "Hydrated Company",
+                        "locations": { "nodes": [{ "id": location_id }] }
+                    }
+                }
+            }
+        }),
+    }
+}
+
 fn create_b2b_company_contact(proxy: &mut DraftProxy, company_id: &str, title: &str) -> String {
     let local_part: String = title
         .chars()
@@ -4308,6 +6360,26 @@ fn read_b2b_first_contact_and_role(proxy: &mut DraftProxy, company_id: &str) -> 
         .expect("role id")
         .to_string();
     (contact_id, role_id)
+}
+
+fn read_b2b_company_location_ids(proxy: &mut DraftProxy, company_id: &str) -> Vec<String> {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BCompanyLocationIds($id: ID!) {
+          company(id: $id) {
+            locations(first: 10) { nodes { id } }
+          }
+        }
+        "#,
+        json!({ "id": company_id }),
+    ));
+    assert_eq!(response.status, 200);
+    response.body["data"]["company"]["locations"]["nodes"]
+        .as_array()
+        .expect("location nodes")
+        .iter()
+        .map(|location| location["id"].as_str().expect("location id").to_string())
+        .collect()
 }
 
 fn assign_b2b_contact_role(

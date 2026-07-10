@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { readFile, readdir } from 'node:fs/promises';
 import { existsSync, appendFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import {
   createDraftProxy,
@@ -61,6 +61,7 @@ type ComparisonTarget = {
   proxyUpload?: ProxyUploadSpec;
   proxyHttpRequest?: ProxyHttpRequestSpec;
   isolatedProxy?: boolean;
+  jsonlRecords?: boolean;
   selectedPaths?: string[];
   excludedPaths?: string[];
   expectedDifferences?: ExpectedDifference[];
@@ -172,12 +173,30 @@ async function resolveSpecPaths(args: CliArgs): Promise<string[]> {
   return specPaths;
 }
 
-function tokenizeJsonPath(jsonPath: string): string[] {
+function tokenizeJsonPathParts(jsonPath: string, allowWildcards: boolean): string[] {
   if (!jsonPath.startsWith('$')) throw new Error(`Unsupported JSONPath (must start with $): ${jsonPath}`);
   const parts: string[] = [];
-  const pattern = /\.([^.[\]]+)|\[(\d+)\]/gu;
-  for (const match of jsonPath.matchAll(pattern)) parts.push(match[1] ?? match[2] ?? '');
+  const pattern = /\.([^.[\]]+)|\[(\d+)\]|\[\*\]/uy;
+  let offset = 1;
+  while (offset < jsonPath.length) {
+    pattern.lastIndex = offset;
+    const match = pattern.exec(jsonPath);
+    if (!match) {
+      throw new Error(`Unsupported JSONPath segment in ${jsonPath}: ${jsonPath.slice(offset)}`);
+    }
+    if (match[0] === '[*]') {
+      if (!allowWildcards) throw new Error(`Unsupported JSONPath wildcard segment: ${jsonPath}`);
+      parts.push('*');
+    } else {
+      parts.push(match[1] ?? match[2] ?? '');
+    }
+    offset = pattern.lastIndex;
+  }
   return parts;
+}
+
+function tokenizeJsonPath(jsonPath: string): string[] {
+  return tokenizeJsonPathParts(jsonPath, false);
 }
 
 function getPath(value: unknown, jsonPath: string): unknown {
@@ -190,26 +209,62 @@ function getPath(value: unknown, jsonPath: string): unknown {
   return cursor;
 }
 
-function setPath(root: unknown, jsonPath: string, value: unknown): unknown {
-  const parts = tokenizeJsonPath(jsonPath);
-  if (parts.length === 0) return value;
-  const out: Record<string, unknown> = {};
-  let cursor: Record<string, unknown> = out;
-  for (const [index, part] of parts.entries()) {
-    if (index === parts.length - 1) cursor[part] = value;
-    else {
-      const next: Record<string, unknown> = {};
-      cursor[part] = next;
-      cursor = next;
-    }
-  }
-  return root === undefined ? out : out;
+function tokenizeJsonPathWithWildcards(jsonPath: string): string[] {
+  return tokenizeJsonPathParts(jsonPath, true);
 }
 
-function selectPaths(value: unknown, paths: string[] | undefined): unknown {
+function isArrayIndex(part: string): boolean {
+  return /^\d+$/u.test(part);
+}
+
+function projectPathParts(value: unknown, parts: string[]): unknown {
+  if (parts.length === 0) return value;
+  const [head, ...rest] = parts;
+  if (head === undefined) return value;
+  if (head === '*') {
+    if (!Array.isArray(value)) return undefined;
+    return value.map((entry) => projectPathParts(entry, rest));
+  }
+  const child =
+    Array.isArray(value) && isArrayIndex(head)
+      ? value[Number(head)]
+      : typeof value === 'object' && value !== null
+        ? (value as Record<string, unknown>)[head]
+        : undefined;
+  const projectedChild = projectPathParts(child, rest);
+  if (isArrayIndex(head)) {
+    const out: unknown[] = [];
+    out[Number(head)] = projectedChild;
+    return out;
+  }
+  return { [head]: projectedChild };
+}
+
+function mergeProjectedPath(existing: unknown, incoming: unknown): unknown {
+  if (existing === undefined) return incoming;
+  if (Array.isArray(existing) && Array.isArray(incoming)) {
+    const out = existing.slice();
+    for (let index = 0; index < incoming.length; index += 1) {
+      if (Object.hasOwn(incoming, index)) out[index] = mergeProjectedPath(out[index], incoming[index]);
+    }
+    return out;
+  }
+  if (isPlainObject(existing) && isPlainObject(incoming)) {
+    const out: Record<string, unknown> = { ...existing };
+    for (const [key, value] of Object.entries(incoming)) out[key] = mergeProjectedPath(out[key], value);
+    return out;
+  }
+  return incoming;
+}
+
+function projectPath(value: unknown, jsonPath: string): unknown {
+  return projectPathParts(value, tokenizeJsonPathWithWildcards(jsonPath));
+}
+
+export function selectPaths(value: unknown, paths: string[] | undefined): unknown {
   if (!paths || paths.length === 0) return value;
   let out: unknown = undefined;
-  for (const jsonPath of paths) out = setPath(out, jsonPath, getPath(value, jsonPath));
+  for (const jsonPath of paths) out = mergeProjectedPath(out, projectPath(value, jsonPath));
   return out;
 }
 
@@ -309,18 +364,6 @@ function requestNeedsCapturedProductDomainHydration(request: LoadedProxyRequest)
   });
 }
 
-function tokenizeJsonPathWithWildcards(jsonPath: string): string[] {
-  if (!jsonPath.startsWith('$')) throw new Error(`Unsupported JSONPath (must start with $): ${jsonPath}`);
-  const parts: string[] = [];
-  const pattern = /\.([^.[\]]+)|\[(\d+)\]|\[\*\]/gu;
-  for (const match of jsonPath.matchAll(pattern)) {
-    if (match[1] !== undefined) parts.push(match[1]);
-    else if (match[2] !== undefined) parts.push(match[2]);
-    else parts.push('*');
-  }
-  return parts;
-}
-
 function deletePathParts(cursor: unknown, parts: string[]): void {
   if (parts.length === 0 || cursor === undefined || cursor === null) return;
   const [head, ...rest] = parts;
@@ -355,6 +398,28 @@ function applyExcludedPaths(value: unknown, paths: string[] | undefined): unknow
   return out;
 }
 
+function resourceIdTail(value: string): string {
+  const pathPart = value.split('?')[0] ?? value;
+  return pathPart.split('/').pop() ?? value;
+}
+
+function applySpecialVariableTransforms(value: unknown, object: Record<string, unknown>): unknown {
+  let out = value;
+  if (object['resourceIdTail'] === true) {
+    if (typeof out !== 'string') throw new Error('resourceIdTail transform requires a string value');
+    out = resourceIdTail(out);
+  }
+  if (typeof object['prefix'] === 'string' || typeof object['suffix'] === 'string') {
+    if (!['string', 'number', 'boolean'].includes(typeof out)) {
+      throw new Error('prefix/suffix transform requires a scalar value');
+    }
+    const prefix = typeof object['prefix'] === 'string' ? object['prefix'] : '';
+    const suffix = typeof object['suffix'] === 'string' ? object['suffix'] : '';
+    out = `${prefix}${String(out)}${suffix}`;
+  }
+  return out;
+}
+
 function resolveSpecialVariables(
   value: unknown,
   capture: unknown,
@@ -370,18 +435,19 @@ function resolveSpecialVariables(
     const object = value as Record<string, unknown>;
     if (typeof object['fromPrimaryProxyPath'] === 'string') {
       if (primaryResponse === null) throw new Error('fromPrimaryProxyPath used before primary proxy response exists');
-      return getPath(primaryResponse.body, object['fromPrimaryProxyPath']);
+      return applySpecialVariableTransforms(getPath(primaryResponse.body, object['fromPrimaryProxyPath']), object);
     }
     if (typeof object['fromPreviousProxyPath'] === 'string') {
       if (previousResponse === null)
         throw new Error('fromPreviousProxyPath used before a previous proxy response exists');
-      return getPath(previousResponse.body, object['fromPreviousProxyPath']);
+      return applySpecialVariableTransforms(getPath(previousResponse.body, object['fromPreviousProxyPath']), object);
     }
-    if (typeof object['fromCapturePath'] === 'string') return getPath(capture, object['fromCapturePath']);
+    if (typeof object['fromCapturePath'] === 'string')
+      return applySpecialVariableTransforms(getPath(capture, object['fromCapturePath']), object);
     if (typeof object['fromProxyResponse'] === 'string' && typeof object['path'] === 'string') {
       const response = namedResponses.get(object['fromProxyResponse']);
       if (!response) throw new Error(`fromProxyResponse references unknown target: ${object['fromProxyResponse']}`);
-      return getPath(response.body, object['path']);
+      return applySpecialVariableTransforms(getPath(response.body, object['path']), object);
     }
     return Object.fromEntries(
       Object.entries(object).map(([key, entry]) => [
@@ -694,8 +760,18 @@ async function sendProxyUpload(
   return response;
 }
 
+export function parseJsonlRecordsForParity(value: unknown): unknown {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== 'string') return value;
+  return value
+    .split('\n')
+    .filter((line) => line.length > 0)
+    .map((line) => JSON.parse(line) as unknown);
+}
+
 function normalizeForTarget(value: unknown, target: ComparisonTarget): unknown {
-  return applyExcludedPaths(selectPaths(value, target.selectedPaths), target.excludedPaths);
+  const comparable = target.jsonlRecords ? parseJsonlRecordsForParity(value) : value;
+  return applyExcludedPaths(selectPaths(comparable, target.selectedPaths), target.excludedPaths);
 }
 
 function captureResponseForTarget(capture: unknown, target: ComparisonTarget): ProxyResponse | null {
@@ -827,7 +903,7 @@ function ruleMatchesPath(rulePath: string, actualPath: string): boolean {
   return new RegExp(pattern, 'u').test(actualPath);
 }
 
-function diffValues(capture: unknown, proxy: unknown, rules: ExpectedDifference[], basePath = '$'): string[] {
+export function diffValues(capture: unknown, proxy: unknown, rules: ExpectedDifference[], basePath = '$'): string[] {
   const rule = rules.find((candidate) => ruleMatchesPath(candidate.path, basePath));
   if (rule && matchesRule(proxy, rule)) return [];
   if (Object.is(capture, proxy)) return [];
@@ -1047,4 +1123,6 @@ async function main(): Promise<void> {
   }
 }
 
-await main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  await main();
+}

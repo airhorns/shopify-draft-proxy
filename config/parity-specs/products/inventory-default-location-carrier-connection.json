@@ -7,7 +7,9 @@
     "inventoryItem",
     "inventoryTransferCreate",
     "inventoryTransferMarkAsReadyToShip",
-    "inventoryShipmentCreate"
+    "inventoryShipmentCreate",
+    "inventoryShipmentCreateInTransit",
+    "inventoryTransfer"
   ],
   "scenarioStatus": "captured",
   "assertionKinds": [
@@ -135,9 +137,109 @@
             "reason": "Live Shopify and the local draft proxy allocate different inventory shipment line item ids."
           }
         ]
+      },
+      {
+        "name": "transfer-read-after-draft-shipment-quantities",
+        "capturePath": "$.workflow.transferReadAfterDraftShipment.response.data.inventoryTransfer",
+        "proxyPath": "$.data.inventoryTransfer",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-transfer-read-after-shipment.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "transfer-create-user-errors",
+              "path": "$.data.inventoryTransferCreate.inventoryTransfer.id"
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "in-transit-transfer-create-user-errors",
+        "capturePath": "$.workflow.inTransitTransferCreate.response.data.inventoryTransferCreate.userErrors",
+        "proxyPath": "$.data.inventoryTransferCreate.userErrors",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-transfer-create.graphql",
+          "variablesCapturePath": "$.workflow.inTransitTransferCreate.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "in-transit-transfer-ready-data",
+        "capturePath": "$.workflow.inTransitTransferReady.response.data.inventoryTransferMarkAsReadyToShip",
+        "proxyPath": "$.data.inventoryTransferMarkAsReadyToShip",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-transfer-mark-ready.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "in-transit-transfer-create-user-errors",
+              "path": "$.data.inventoryTransferCreate.inventoryTransfer.id"
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "shipment-create-in-transit-consumes-line",
+        "capturePath": "$.workflow.shipmentCreateInTransit.response.data.inventoryShipmentCreateInTransit",
+        "proxyPath": "$.data.inventoryShipmentCreateInTransit",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-shipment-create-in-transit.graphql",
+          "variables": {
+            "input": {
+              "movementId": {
+                "fromProxyResponse": "in-transit-transfer-create-user-errors",
+                "path": "$.data.inventoryTransferCreate.inventoryTransfer.id"
+              },
+              "trackingInput": {
+                "fromCapturePath": "$.workflow.shipmentCreateInTransit.variables.input.trackingInput"
+              },
+              "lineItems": {
+                "fromCapturePath": "$.workflow.shipmentCreateInTransit.variables.input.lineItems"
+              }
+            }
+          },
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.inventoryShipment.id",
+            "matcher": "shopify-gid:InventoryShipment",
+            "reason": "Live Shopify and the local draft proxy allocate different inventory shipment ids."
+          },
+          {
+            "path": "$.inventoryShipment.name",
+            "matcher": "non-empty-string",
+            "reason": "Live Shopify derives shipment names from transfer numbering; the local proxy uses a deterministic synthetic shipment sequence."
+          },
+          {
+            "path": "$.inventoryShipment.lineItems.nodes[*].id",
+            "matcher": "shopify-gid:InventoryShipmentLineItem",
+            "reason": "Live Shopify and the local draft proxy allocate different inventory shipment line item ids."
+          }
+        ]
+      },
+      {
+        "name": "transfer-read-after-shipment-quantities",
+        "capturePath": "$.workflow.transferReadAfterShipment.response.data.inventoryTransfer",
+        "proxyPath": "$.data.inventoryTransfer",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-transfer-read-after-shipment.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "in-transit-transfer-create-user-errors",
+              "path": "$.data.inventoryTransferCreate.inventoryTransfer.id"
+            }
+          },
+          "apiVersion": "2025-01"
+        }
       }
     ]
   },
   "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
-  "notes": "Live 2025-01 capture for inventory item staging, inventoryItems connection readback, explicit order inventory decrement at the real default inventory location, and inventoryShipmentCreate accepting a carrier company label outside the old local allowlist. The scenario uses captured disposable Shopify setup records and cassette-backed hydration; replayed mutations still stage locally without runtime Shopify writes."
+  "notes": "Live 2025-01 capture for inventory item staging, inventoryItems connection readback, explicit order inventory decrement at the real default inventory location, inventoryShipmentCreate accepting a carrier company label outside the old local allowlist, and inventoryTransfer read quantities after draft plus in-transit shipment consumption. The scenario uses captured disposable Shopify setup records and cassette-backed hydration; replayed mutations still stage locally without runtime Shopify writes."
 }

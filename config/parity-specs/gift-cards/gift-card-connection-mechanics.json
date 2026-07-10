@@ -1,0 +1,438 @@
+{
+  "scenarioId": "gift-card-connection-mechanics",
+  "operationNames": ["giftCardCreate", "giftCardDeactivate", "giftCards", "giftCardsCount"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["connection-window-parity", "count-precision-parity", "sort-key-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/gift-cards/gift-card-lifecycle.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
+  "proxyConfig": {
+    "readMode": "snapshot"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict parity target for giftCards connection mechanics. The live capture creates three disposable gift cards with a shared searchable code fragment, captures ID-sorted and reverse first pages, cursor windows, and giftCardsCount(limit:) precision, then deactivates two cards to capture DISABLED_AT ordering/null placement and cursor windows before deactivating the remaining card. Cursor values are intentionally treated as volatile because Shopify returns opaque cursors and the proxy uses stable local cursors; the targets still require non-empty proxy cursors.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "connection setup gift cards accepted",
+        "capturePath": "$.operations.connectionSetup.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.first.giftCard.lastCharacters",
+          "$.first.giftCard.initialValue.amount",
+          "$.first.userErrors",
+          "$.second.giftCard.lastCharacters",
+          "$.second.giftCard.initialValue.amount",
+          "$.second.userErrors",
+          "$.third.giftCard.lastCharacters",
+          "$.third.giftCard.initialValue.amount",
+          "$.third.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-connection-setup.graphql",
+          "variablesCapturePath": "$.proxyVariables.connectionSetup"
+        }
+      },
+      {
+        "name": "connection first and reverse pages plus limit precision match",
+        "capturePath": "$.operations.connectionFirstPage.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.forward.nodes[0].lastCharacters",
+          "$.forward.nodes[0].initialValue.amount",
+          "$.forward.nodes[1].lastCharacters",
+          "$.forward.nodes[1].initialValue.amount",
+          "$.forward.edges[0].cursor",
+          "$.forward.edges[0].node.lastCharacters",
+          "$.forward.edges[0].node.initialValue.amount",
+          "$.forward.edges[1].cursor",
+          "$.forward.edges[1].node.lastCharacters",
+          "$.forward.edges[1].node.initialValue.amount",
+          "$.forward.pageInfo.hasNextPage",
+          "$.forward.pageInfo.hasPreviousPage",
+          "$.forward.pageInfo.startCursor",
+          "$.forward.pageInfo.endCursor",
+          "$.reverse.nodes[0].lastCharacters",
+          "$.reverse.nodes[0].initialValue.amount",
+          "$.reverse.nodes[1].lastCharacters",
+          "$.reverse.nodes[1].initialValue.amount",
+          "$.reverse.edges[0].cursor",
+          "$.reverse.edges[0].node.lastCharacters",
+          "$.reverse.edges[0].node.initialValue.amount",
+          "$.reverse.edges[1].cursor",
+          "$.reverse.edges[1].node.lastCharacters",
+          "$.reverse.edges[1].node.initialValue.amount",
+          "$.reverse.pageInfo.hasNextPage",
+          "$.reverse.pageInfo.hasPreviousPage",
+          "$.reverse.pageInfo.startCursor",
+          "$.reverse.pageInfo.endCursor",
+          "$.countLimit.count",
+          "$.countLimit.precision"
+        ],
+        "expectedDifferences": [
+          {
+            "path": "$.forward.edges[0].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the proxy uses stable local cursors."
+          },
+          {
+            "path": "$.forward.edges[1].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the proxy uses stable local cursors."
+          },
+          {
+            "path": "$.forward.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the proxy uses stable local cursors."
+          },
+          {
+            "path": "$.forward.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the proxy uses stable local cursors."
+          },
+          {
+            "path": "$.reverse.edges[0].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the proxy uses stable local cursors."
+          },
+          {
+            "path": "$.reverse.edges[1].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the proxy uses stable local cursors."
+          },
+          {
+            "path": "$.reverse.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the proxy uses stable local cursors."
+          },
+          {
+            "path": "$.reverse.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the proxy uses stable local cursors."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-connection-first-page.graphql",
+          "variablesCapturePath": "$.proxyVariables.connectionFirstPage"
+        }
+      },
+      {
+        "name": "connection cursor windows match",
+        "capturePath": "$.operations.connectionWindows.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.afterWindow.edges[0].cursor",
+          "$.afterWindow.edges[0].node.lastCharacters",
+          "$.afterWindow.edges[0].node.initialValue.amount",
+          "$.afterWindow.pageInfo.hasNextPage",
+          "$.afterWindow.pageInfo.hasPreviousPage",
+          "$.afterWindow.pageInfo.startCursor",
+          "$.afterWindow.pageInfo.endCursor",
+          "$.beforeLastWindow.edges[0].cursor",
+          "$.beforeLastWindow.edges[0].node.lastCharacters",
+          "$.beforeLastWindow.edges[0].node.initialValue.amount",
+          "$.beforeLastWindow.pageInfo.hasNextPage",
+          "$.beforeLastWindow.pageInfo.hasPreviousPage",
+          "$.beforeLastWindow.pageInfo.startCursor",
+          "$.beforeLastWindow.pageInfo.endCursor",
+          "$.reverseAfterWindow.edges[0].cursor",
+          "$.reverseAfterWindow.edges[0].node.lastCharacters",
+          "$.reverseAfterWindow.edges[0].node.initialValue.amount",
+          "$.reverseAfterWindow.pageInfo.hasNextPage",
+          "$.reverseAfterWindow.pageInfo.hasPreviousPage",
+          "$.reverseAfterWindow.pageInfo.startCursor",
+          "$.reverseAfterWindow.pageInfo.endCursor"
+        ],
+        "expectedDifferences": [
+          {
+            "path": "$.afterWindow.edges[0].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the proxy uses stable local cursors."
+          },
+          {
+            "path": "$.afterWindow.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the proxy uses stable local cursors."
+          },
+          {
+            "path": "$.afterWindow.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the proxy uses stable local cursors."
+          },
+          {
+            "path": "$.beforeLastWindow.edges[0].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the proxy uses stable local cursors."
+          },
+          {
+            "path": "$.beforeLastWindow.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the proxy uses stable local cursors."
+          },
+          {
+            "path": "$.beforeLastWindow.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the proxy uses stable local cursors."
+          },
+          {
+            "path": "$.reverseAfterWindow.edges[0].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the proxy uses stable local cursors."
+          },
+          {
+            "path": "$.reverseAfterWindow.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the proxy uses stable local cursors."
+          },
+          {
+            "path": "$.reverseAfterWindow.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the proxy uses stable local cursors."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-connection-windows.graphql",
+          "variables": {
+            "query": {
+              "fromCapturePath": "$.proxyVariables.connectionFirstPage.query"
+            },
+            "after": {
+              "fromProxyResponse": "connection first and reverse pages plus limit precision match",
+              "path": "$.data.forward.pageInfo.endCursor"
+            },
+            "before": {
+              "fromProxyResponse": "connection first and reverse pages plus limit precision match",
+              "path": "$.data.forward.pageInfo.endCursor"
+            },
+            "reverseAfter": {
+              "fromProxyResponse": "connection first and reverse pages plus limit precision match",
+              "path": "$.data.reverse.pageInfo.endCursor"
+            }
+          }
+        }
+      },
+      {
+        "name": "connection first card deactivation succeeds",
+        "capturePath": "$.operations.connectionDeactivateFirst.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.deactivate.giftCard.id",
+          "$.deactivate.giftCard.enabled",
+          "$.deactivate.giftCard.deactivatedAt",
+          "$.deactivate.userErrors"
+        ],
+        "expectedDifferences": [
+          {
+            "path": "$.deactivate.giftCard.id",
+            "matcher": "shopify-gid:GiftCard",
+            "reason": "The proxy deactivates a locally staged synthetic gift card."
+          },
+          {
+            "path": "$.deactivate.giftCard.deactivatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic local timestamps while Shopify returns live deactivation time."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-connection-deactivate.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "connection setup gift cards accepted",
+              "path": "$.data.first.giftCard.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "connection second card deactivation succeeds",
+        "capturePath": "$.operations.connectionDeactivateSecond.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.deactivate.giftCard.id",
+          "$.deactivate.giftCard.enabled",
+          "$.deactivate.giftCard.deactivatedAt",
+          "$.deactivate.userErrors"
+        ],
+        "expectedDifferences": [
+          {
+            "path": "$.deactivate.giftCard.id",
+            "matcher": "shopify-gid:GiftCard",
+            "reason": "The proxy deactivates a locally staged synthetic gift card."
+          },
+          {
+            "path": "$.deactivate.giftCard.deactivatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic local timestamps while Shopify returns live deactivation time."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-connection-deactivate.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "connection setup gift cards accepted",
+              "path": "$.data.second.giftCard.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "connection disabled-at sort orders deactivated and active cards",
+        "capturePath": "$.operations.connectionDisabledAtFirstPage.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.forward.nodes[0].lastCharacters",
+          "$.forward.nodes[0].enabled",
+          "$.forward.nodes[0].deactivatedAt",
+          "$.forward.nodes[1].lastCharacters",
+          "$.forward.nodes[1].enabled",
+          "$.forward.nodes[1].deactivatedAt",
+          "$.forward.nodes[2].lastCharacters",
+          "$.forward.nodes[2].enabled",
+          "$.forward.nodes[2].deactivatedAt",
+          "$.forward.edges[0].cursor",
+          "$.forward.edges[0].node.lastCharacters",
+          "$.forward.edges[0].node.enabled",
+          "$.forward.edges[0].node.deactivatedAt",
+          "$.forward.edges[1].cursor",
+          "$.forward.edges[1].node.lastCharacters",
+          "$.forward.edges[1].node.enabled",
+          "$.forward.edges[1].node.deactivatedAt",
+          "$.forward.edges[2].cursor",
+          "$.forward.edges[2].node.lastCharacters",
+          "$.forward.edges[2].node.enabled",
+          "$.forward.edges[2].node.deactivatedAt",
+          "$.forward.pageInfo.hasNextPage",
+          "$.forward.pageInfo.hasPreviousPage",
+          "$.forward.pageInfo.startCursor",
+          "$.forward.pageInfo.endCursor",
+          "$.reverse.nodes[0].lastCharacters",
+          "$.reverse.nodes[0].enabled",
+          "$.reverse.nodes[0].deactivatedAt",
+          "$.reverse.nodes[1].lastCharacters",
+          "$.reverse.nodes[1].enabled",
+          "$.reverse.nodes[1].deactivatedAt",
+          "$.reverse.edges[0].cursor",
+          "$.reverse.edges[0].node.lastCharacters",
+          "$.reverse.edges[0].node.enabled",
+          "$.reverse.edges[0].node.deactivatedAt",
+          "$.reverse.edges[1].cursor",
+          "$.reverse.edges[1].node.lastCharacters",
+          "$.reverse.edges[1].node.enabled",
+          "$.reverse.edges[1].node.deactivatedAt",
+          "$.reverse.pageInfo.hasNextPage",
+          "$.reverse.pageInfo.hasPreviousPage",
+          "$.reverse.pageInfo.startCursor",
+          "$.reverse.pageInfo.endCursor"
+        ],
+        "expectedDifferences": [
+          {
+            "path": "$.forward.nodes[*].deactivatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic local timestamps while Shopify returns live deactivation time."
+          },
+          {
+            "path": "$.forward.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the proxy uses stable local cursors."
+          },
+          {
+            "path": "$.forward.edges[*].node.deactivatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic local timestamps while Shopify returns live deactivation time."
+          },
+          {
+            "path": "$.forward.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the proxy uses stable local cursors."
+          },
+          {
+            "path": "$.forward.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the proxy uses stable local cursors."
+          },
+          {
+            "path": "$.reverse.nodes[*].deactivatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic local timestamps while Shopify returns live deactivation time."
+          },
+          {
+            "path": "$.reverse.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the proxy uses stable local cursors."
+          },
+          {
+            "path": "$.reverse.edges[*].node.deactivatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic local timestamps while Shopify returns live deactivation time."
+          },
+          {
+            "path": "$.reverse.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the proxy uses stable local cursors."
+          },
+          {
+            "path": "$.reverse.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the proxy uses stable local cursors."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-connection-disabled-at-first-page.graphql",
+          "variablesCapturePath": "$.proxyVariables.connectionDisabledAtFirstPage"
+        }
+      },
+      {
+        "name": "connection disabled-at cursor windows match",
+        "capturePath": "$.operations.connectionDisabledAtWindows.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.reverseAfterWindow.edges[0].cursor",
+          "$.reverseAfterWindow.edges[0].node.lastCharacters",
+          "$.reverseAfterWindow.edges[0].node.enabled",
+          "$.reverseAfterWindow.edges[0].node.deactivatedAt",
+          "$.reverseAfterWindow.pageInfo.hasNextPage",
+          "$.reverseAfterWindow.pageInfo.hasPreviousPage",
+          "$.reverseAfterWindow.pageInfo.startCursor",
+          "$.reverseAfterWindow.pageInfo.endCursor"
+        ],
+        "expectedDifferences": [
+          {
+            "path": "$.reverseAfterWindow.edges[0].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the proxy uses stable local cursors."
+          },
+          {
+            "path": "$.reverseAfterWindow.edges[0].node.deactivatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic local timestamps while Shopify returns live deactivation time."
+          },
+          {
+            "path": "$.reverseAfterWindow.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the proxy uses stable local cursors."
+          },
+          {
+            "path": "$.reverseAfterWindow.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the proxy uses stable local cursors."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-connection-disabled-at-windows.graphql",
+          "variables": {
+            "query": {
+              "fromCapturePath": "$.proxyVariables.connectionDisabledAtFirstPage.query"
+            },
+            "reverseAfter": {
+              "fromProxyResponse": "connection disabled-at sort orders deactivated and active cards",
+              "path": "$.data.reverse.pageInfo.endCursor"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

@@ -34,6 +34,12 @@ The Python package under `python/` is also a thin embedding surface: it builds a
    - reject with a 400 GraphQL error envelope before upstream transport when `unsupportedMutationMode` is `reject`
    - remain visible in logs/observability when proxied
 
+The upstream transport boundary rejects any implemented mutation root whose
+registry execution mode is `stage-locally` if a handler attempts to forward that
+mutation before commit. Supported handlers may still issue query-only hydration
+requests in LiveHybrid mode, but the caller's original write document is held
+for local staging and explicit commit replay.
+
 `POST /__meta/commit` is the explicit write-through boundary. It replays pending staged mutations upstream in original log order using the original raw GraphQL input and the commit request's auth headers. The response keeps the compatibility summary fields (`ok`, `committed`, and `failed`) and also includes per-attempt replay details plus `stopIndex` when replay stops on a transport or GraphQL error.
 
 ## High-level request flow
@@ -56,13 +62,13 @@ App/test harness
             └─ unsupported/unknown -> passthrough or reject according to mode
 ```
 
-`DraftProxy` is instance-owned state, not a singleton. A proxy owns its normalized `Store`, mutation log, registry, synthetic ID counters, and injectable upstream/commit transports. Runtime base/staged resource data belongs under the Store rather than as loose `DraftProxy` fields. Do not introduce global mutable proxy state.
+`DraftProxy` is instance-owned state, not a singleton. A proxy owns its normalized `Store`, mutation log, registry, synthetic ID counters, injectable runtime clock, and injectable upstream/commit transports. Runtime base/staged resource data belongs under the Store rather than as loose `DraftProxy` fields. Do not introduce global mutable proxy state.
 
 ## Primary Rust modules
 
 ### `src/proxy.rs`
 
-- owns `DraftProxy`, `Config`, `ReadMode`, the normalized Store, synthetic identity allocation, registry metadata, and injectable transports
+- owns `DraftProxy`, `Config`, `ReadMode`, the normalized Store, synthetic identity allocation, registry metadata, runtime clock, and injectable transports
 - declares the runtime's domain submodules while keeping proxy state instance-owned instead of global
 
 ### `src/proxy/core.rs`, `src/proxy/routing.rs`, `src/proxy/dispatch.rs`
@@ -72,7 +78,8 @@ App/test harness
 - keep Shopify-like Admin GraphQL route classification and request-body parsing separate from domain handlers
 - run version-scoped base GraphQL validation for captured parse, schema, variable, selection, and argument errors before local domain dispatch
 - run reusable captured-schema input validation before local mutation dispatch when a covered public Admin input object has recorded introspection evidence for the request API version
-- preserve `with_upstream_transport(...)` and `with_commit_transport(...)` test seams so behavior stays deterministic
+- wrap upstream transports with the stage-locally mutation guard while leaving query hydration and commit replay on their explicit transport paths
+- preserve `with_clock(...)`, `with_upstream_transport(...)`, and `with_commit_transport(...)` test seams so behavior stays deterministic
 
 ### `src/proxy/commit.rs`
 
@@ -84,7 +91,7 @@ App/test harness
 
 ### `src/proxy/*.rs` domain modules
 
-- group supported runtime behavior by commerce area, including products/saved searches, localization/markets/catalogs, marketing/webhooks/inventory, online store, metaobjects, metafields, orders/payments, discounts/gift cards, B2B/customers, and admin/shipping/app helpers
+- group supported runtime behavior by commerce area, including products/saved searches, localization/markets/catalogs, marketing/webhooks/inventory, online store, metaobjects, metafields, orders/payments/fulfillment, discounts/gift cards, B2B/customers, and admin/shipping/app helpers
 - keep local staging, overlay reads, selected-field projection, alias-safe response keys, and live-hybrid passthrough/reject behavior near the domain logic that owns it
 - use shared `Store` effective-get/list/count helpers for migrated product and saved-search read-after-write behavior, with base state, staged state, order arrays, and tombstones dumped/restored consistently
 - use the shared staged-connection query helpers for staged resource lists that need Shopify-like search filtering, sort-key mapping, `reverse`, cursor windows, and filtered counts; resource modules supply predicate and sort adapters while `connection.rs` owns the order of operations

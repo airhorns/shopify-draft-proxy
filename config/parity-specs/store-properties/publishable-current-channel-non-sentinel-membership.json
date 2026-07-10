@@ -1,0 +1,47 @@
+{
+  "scenarioId": "publishable-current-channel-non-sentinel-membership",
+  "operationNames": ["publishablePublishToCurrentChannel", "product", "node", "publishableUnpublishToCurrentChannel"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "store-property-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/publishable-resource-existence-current-channel.json"
+  ],
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live 2026-04 current-channel membership capture that protects against hardcoded current-publication sentinels. The fixture's upstream cassette records the real current app publication; the proxy must stage publish/unpublish membership from that hydrated publication instead of a placeholder such as Publication/1.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "publish current channel uses hydrated current app publication",
+        "capturePath": "$.cases.publishCurrentMembership.response.payload.data.publishablePublishToCurrentChannel",
+        "proxyPath": "$.data.publishablePublishToCurrentChannel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/store-properties/publishable-current-channel-membership.graphql",
+          "variablesCapturePath": "$.cases.publishCurrentMembership.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "product read after current-channel publish uses hydrated current app publication",
+        "capturePath": "$.cases.readAfterPublishCurrentMembership.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/store-properties/publishable-current-channel-product-read.graphql",
+          "variablesCapturePath": "$.cases.readAfterPublishCurrentMembership.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "unpublish current channel removes hydrated current app publication",
+        "capturePath": "$.cases.unpublishCurrentMembership.response.payload.data.publishableUnpublishToCurrentChannel",
+        "proxyPath": "$.data.publishableUnpublishToCurrentChannel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/store-properties/publishable-current-channel-unpublish-membership.graphql",
+          "variablesCapturePath": "$.cases.unpublishCurrentMembership.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

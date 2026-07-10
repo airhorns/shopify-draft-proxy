@@ -31,54 +31,53 @@ fn remove_minimal_collection(collections: &mut Vec<Value>, collection_id: &str) 
         .retain(|collection| collection.get("id").and_then(Value::as_str) != Some(collection_id));
 }
 
-pub(in crate::proxy) fn collection_json(collection: &Value, selections: &[SelectedField]) -> Value {
+#[derive(Clone)]
+struct CollectionProductEntry {
+    position: usize,
+    product: ProductRecord,
+    variants: Vec<ProductVariantRecord>,
+    published_on_current_publication: Option<bool>,
+}
+
+#[derive(Clone, Copy)]
+enum CollectionProductSortKey {
+    BestSelling,
+    Created,
+    Id,
+    Inventory,
+    Manual,
+    Price,
+    Relevance,
+    Title,
+}
+
+#[derive(Clone, Copy)]
+struct CollectionProductSortPlan {
+    key: CollectionProductSortKey,
+    descending: bool,
+}
+
+fn collection_json(
+    collection: &Value,
+    products: Vec<CollectionProductEntry>,
+    selections: &[SelectedField],
+    shop_currency_code: &str,
+) -> Value {
     selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "products" => {
-            let sort_key = match selection.arguments.get("sortKey") {
-                Some(ResolvedValue::String(value)) => Some(value.as_str()),
-                _ => None,
-            };
-            let connection_name = match sort_key {
-                Some("COLLECTION_DEFAULT") => "defaultProducts",
-                Some("MANUAL") => "manualProducts",
-                _ => "products",
-            };
-            // A default/best-selling read (anything but an explicit MANUAL sortKey)
-            // honors the collection's configured `sortOrder`. With no sales data a
-            // BEST_SELLING collection surfaces its members by recency — newest product
-            // first — whereas a MANUAL collection keeps its stored position order.
-            let honors_collection_sort_order = !matches!(sort_key, Some("MANUAL"));
-            let sort_order = collection.get("sortOrder").and_then(Value::as_str);
-            Some(
-                collection
-                    .get(connection_name)
-                    .map(|connection| {
-                        let connection = if honors_collection_sort_order
-                            && collection_sort_order_is_recency(sort_order)
-                        {
-                            collection_products_by_recency(connection)
-                        } else {
-                            connection.clone()
-                        };
-                        selected_json(&connection, &selection.selection)
-                    })
-                    .unwrap_or_else(|| selected_empty_connection_json(&selection.selection)),
-            )
-        }
+        "products" => Some(collection_products_connection_json(
+            collection,
+            products.clone(),
+            selection,
+            shop_currency_code,
+        )),
         "hasProduct" => {
             let product_id = resolved_string_field(&selection.arguments, "id").unwrap_or_default();
-            let has_product = collection
-                .get("products")
-                .and_then(|connection| connection.get("nodes"))
-                .and_then(Value::as_array)
-                .into_iter()
-                .flatten()
-                .any(|product| {
-                    product.get("id").and_then(Value::as_str) == Some(product_id.as_str())
-                });
+            let has_product = products.iter().any(|entry| entry.product.id == product_id);
             Some(json!(has_product))
         }
-        "productsCount" => Some(
+        "productsCount" => Some(if collection_is_smart(collection) {
+            selected_count_json(products.len(), &selection.selection)
+        } else {
             collection
                 .get("productsCount")
                 .map(|count| selected_json(count, &selection.selection))
@@ -90,8 +89,8 @@ pub(in crate::proxy) fn collection_json(collection: &Value, selections: &[Select
                         .map(Vec::len)
                         .unwrap_or(0);
                     selected_count_json(count, &selection.selection)
-                }),
-        ),
+                })
+        }),
         "ruleSet" => Some(collection.get("ruleSet").cloned().unwrap_or(Value::Null)),
         "sortOrder" => Some(
             collection
@@ -101,6 +100,199 @@ pub(in crate::proxy) fn collection_json(collection: &Value, selections: &[Select
         ),
         _ => collection.get(&selection.name).cloned(),
     })
+}
+
+fn collection_products_connection_json(
+    collection: &Value,
+    mut products: Vec<CollectionProductEntry>,
+    selection: &SelectedField,
+    shop_currency_code: &str,
+) -> Value {
+    let sort_key = resolved_string_field(&selection.arguments, "sortKey");
+    let sort_plan = collection_product_sort_plan(collection, sort_key.as_deref());
+    let reverse = resolved_bool_field(&selection.arguments, "reverse").unwrap_or(false);
+    match sort_plan.key {
+        CollectionProductSortKey::Manual => products.sort_by_key(|entry| entry.position),
+        _ => products.sort_by(|left, right| {
+            collection_product_sort_key(left, sort_plan.key)
+                .cmp(&collection_product_sort_key(right, sort_plan.key))
+                .then_with(|| {
+                    collection_product_cursor(left).cmp(&collection_product_cursor(right))
+                })
+        }),
+    }
+    if sort_plan.descending ^ reverse {
+        products.reverse();
+    }
+
+    selected_typed_connection_with_args(
+        &products,
+        &selection.arguments,
+        &selection.selection,
+        |entry, selections| {
+            product_json_with_variants_and_currency_and_publication_context(
+                &entry.product,
+                &entry.variants,
+                selections,
+                shop_currency_code,
+                entry.published_on_current_publication,
+            )
+        },
+        collection_product_cursor,
+    )
+}
+
+fn publication_products_connection_json(
+    products: Vec<CollectionProductEntry>,
+    selection: &SelectedField,
+    shop_currency_code: &str,
+) -> Value {
+    selected_typed_connection_with_args(
+        &products,
+        &selection.arguments,
+        &selection.selection,
+        |entry, selections| {
+            product_json_with_variants_and_currency_and_publication_context(
+                &entry.product,
+                &entry.variants,
+                selections,
+                shop_currency_code,
+                entry.published_on_current_publication,
+            )
+        },
+        collection_product_cursor,
+    )
+}
+
+fn collection_product_sort_plan(
+    collection: &Value,
+    sort_key: Option<&str>,
+) -> CollectionProductSortPlan {
+    match sort_key.unwrap_or("COLLECTION_DEFAULT") {
+        "BEST_SELLING" => CollectionProductSortPlan {
+            key: CollectionProductSortKey::BestSelling,
+            descending: true,
+        },
+        "CREATED" => CollectionProductSortPlan {
+            key: CollectionProductSortKey::Created,
+            descending: false,
+        },
+        "ID" => CollectionProductSortPlan {
+            key: CollectionProductSortKey::Id,
+            descending: false,
+        },
+        "INVENTORY" => CollectionProductSortPlan {
+            key: CollectionProductSortKey::Inventory,
+            descending: false,
+        },
+        "MANUAL" => CollectionProductSortPlan {
+            key: CollectionProductSortKey::Manual,
+            descending: false,
+        },
+        "PRICE" => CollectionProductSortPlan {
+            key: CollectionProductSortKey::Price,
+            descending: false,
+        },
+        "RELEVANCE" => CollectionProductSortPlan {
+            key: CollectionProductSortKey::Relevance,
+            descending: true,
+        },
+        "TITLE" => CollectionProductSortPlan {
+            key: CollectionProductSortKey::Title,
+            descending: false,
+        },
+        "COLLECTION_DEFAULT" => collection_default_product_sort_plan(collection),
+        _ => collection_default_product_sort_plan(collection),
+    }
+}
+
+fn collection_default_product_sort_plan(collection: &Value) -> CollectionProductSortPlan {
+    match collection.get("sortOrder").and_then(Value::as_str) {
+        Some("ALPHA_ASC") => CollectionProductSortPlan {
+            key: CollectionProductSortKey::Title,
+            descending: false,
+        },
+        Some("ALPHA_DESC") => CollectionProductSortPlan {
+            key: CollectionProductSortKey::Title,
+            descending: true,
+        },
+        Some("CREATED") => CollectionProductSortPlan {
+            key: CollectionProductSortKey::Created,
+            descending: false,
+        },
+        Some("CREATED_DESC") => CollectionProductSortPlan {
+            key: CollectionProductSortKey::Created,
+            descending: true,
+        },
+        Some("MANUAL") => CollectionProductSortPlan {
+            key: CollectionProductSortKey::Manual,
+            descending: false,
+        },
+        Some("PRICE_ASC") => CollectionProductSortPlan {
+            key: CollectionProductSortKey::Price,
+            descending: false,
+        },
+        Some("PRICE_DESC") => CollectionProductSortPlan {
+            key: CollectionProductSortKey::Price,
+            descending: true,
+        },
+        _ => CollectionProductSortPlan {
+            key: CollectionProductSortKey::BestSelling,
+            descending: true,
+        },
+    }
+}
+
+fn collection_product_sort_key(
+    entry: &CollectionProductEntry,
+    sort_key: CollectionProductSortKey,
+) -> StagedSortKey {
+    let primary = match sort_key {
+        CollectionProductSortKey::BestSelling => collection_product_gid_tail_sort_value(entry),
+        CollectionProductSortKey::Created => {
+            StagedSortValue::String(entry.product.created_at.clone())
+        }
+        CollectionProductSortKey::Id => collection_product_gid_tail_sort_value(entry),
+        CollectionProductSortKey::Inventory => StagedSortValue::I64(entry.product.total_inventory),
+        CollectionProductSortKey::Manual => StagedSortValue::I64(entry.position as i64),
+        CollectionProductSortKey::Price => collection_product_min_price_cents(entry)
+            .map(StagedSortValue::I64)
+            .unwrap_or(StagedSortValue::Null),
+        CollectionProductSortKey::Title => {
+            StagedSortValue::String(entry.product.title.to_ascii_lowercase())
+        }
+        CollectionProductSortKey::Relevance => collection_product_gid_tail_sort_value(entry),
+    };
+    vec![primary, collection_product_gid_tail_sort_value(entry)]
+}
+
+fn collection_product_gid_tail_sort_value(entry: &CollectionProductEntry) -> StagedSortValue {
+    resource_id_tail_sort_value(Some(&entry.product.id))
+}
+
+fn collection_product_min_price_cents(entry: &CollectionProductEntry) -> Option<i64> {
+    let prices: Box<dyn Iterator<Item = f64> + '_> = if entry.variants.is_empty() {
+        Box::new(entry.product.variants.iter().filter_map(|variant| {
+            variant
+                .get("price")
+                .and_then(Value::as_str)
+                .and_then(parse_product_price)
+        }))
+    } else {
+        Box::new(
+            entry
+                .variants
+                .iter()
+                .filter_map(|variant| parse_product_price(&variant.price)),
+        )
+    };
+    prices
+        .min_by(|left, right| left.total_cmp(right))
+        .map(|price| (price * 100.0).round() as i64)
+}
+
+fn collection_product_cursor(entry: &CollectionProductEntry) -> String {
+    entry.product.id.clone()
 }
 
 pub(in crate::proxy) fn collection_passthrough_hydration_ids(
@@ -167,6 +359,10 @@ fn collection_product_ids_from_response(response: &Response, path: &str) -> Vec<
         .collect()
 }
 
+fn merge_observed_collection_into_local(local: &Value, observed: &Value) -> Value {
+    shallow_merged_object(observed.clone(), local.clone())
+}
+
 impl DraftProxy {
     /// In live-hybrid mode a `collection(id:)` read for a collection that was
     /// never staged locally must read through to upstream (the recorded
@@ -202,6 +398,8 @@ impl DraftProxy {
         root_payload_json(fields, |field| {
             Some(match field.name.as_str() {
                 "collection" => self.collection_membership_value(field),
+                "collections" => self.collections_connection_field(field),
+                "collectionsCount" => self.collections_count_field(field),
                 "product" => self.product_by_id_field(field),
                 "job" => self.collection_job_read(field),
                 _ => return None,
@@ -209,35 +407,122 @@ impl DraftProxy {
         })
     }
 
-    // Serve a top-level `collections(query:, sortKey:)` read entirely from the
-    // seeded `collection_catalog` snapshots. Every selection in this operation is
-    // a `collections` field distinguished only by its alias (response key) — the
-    // unaliased catalog root plus per-filter aliases (title wildcard, custom/smart
-    // type, updated sort, product membership, empty) — so the resolver keys each
-    // field by its response key, looks up the matching recorded connection, and
-    // projects the requested selection over it (truncating to `first`). This
-    // reproduces the recorded opaque cursors/pageInfo verbatim; an alias with no
-    // seeded snapshot degrades to an empty connection rather than fabricating one.
-    pub(in crate::proxy) fn collections_catalog_read_data(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> Value {
-        root_payload_json(fields, |field| {
-            if field.name != "collections" {
-                return None;
-            }
-            let value = match self
-                .store
-                .staged
-                .collection_catalog
-                .get(&field.response_key)
+    pub(in crate::proxy) fn hydrate_collections_for_read(&mut self, request: &Request) {
+        let response = (self.upstream_transport)(request.clone());
+        if response.status < 400 {
+            self.observe_collections_read_response(&response);
+        }
+    }
+
+    fn observe_collections_read_response(&mut self, response: &Response) {
+        self.observe_collection_value(&response.body["data"]);
+    }
+
+    fn observe_collection_value(&mut self, value: &Value) {
+        if let Some(id) = value.get("id").and_then(Value::as_str) {
+            if is_shopify_gid_of_type(id, "Collection")
+                && !self.store.collection_is_deleted(id)
+                && self.store.collection_by_id(id).is_none()
             {
-                Some(connection) => {
-                    project_seeded_connection(connection, &field.arguments, &field.selection)
+                self.stage_collection_from_observed_json(value);
+            }
+        }
+        match value {
+            Value::Array(values) => {
+                for value in values {
+                    self.observe_collection_value(value);
                 }
-                None => selected_empty_connection_json(&field.selection),
-            };
-            Some(value)
+            }
+            Value::Object(object) => {
+                for value in object.values() {
+                    self.observe_collection_value(value);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    pub(in crate::proxy) fn matching_collections_query(
+        &self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> StagedConnectionResult<Value> {
+        staged_connection_query(
+            self.store
+                .staged
+                .collections
+                .values()
+                .cloned()
+                .collect::<Vec<_>>(),
+            arguments,
+            |collection, query| self.collection_search_decision(collection, query),
+            collection_staged_sort_key,
+            value_id_cursor,
+        )
+    }
+
+    pub(in crate::proxy) fn collections_connection_field(
+        &self,
+        field: &RootFieldSelection,
+    ) -> Value {
+        let result = self.matching_collections_query(&field.arguments);
+        let shop_currency_code = self.store.shop_currency_code();
+        selected_typed_connection_with_page_info(
+            &result.records,
+            &field.selection,
+            |collection, selections| {
+                collection_json(
+                    collection,
+                    self.collection_product_entries(collection),
+                    selections,
+                    &shop_currency_code,
+                )
+            },
+            value_id_cursor,
+            result.page_info,
+        )
+    }
+
+    pub(in crate::proxy) fn collections_count_field(&self, field: &RootFieldSelection) -> Value {
+        selected_json(
+            &staged_count_with_limit_precision(
+                self.matching_collections_query(&field.arguments)
+                    .total_count,
+                &field.arguments,
+            ),
+            &field.selection,
+        )
+    }
+
+    fn collection_search_decision(
+        &self,
+        collection: &Value,
+        query: Option<&str>,
+    ) -> StagedSearchDecision {
+        let Some(query) = query.map(str::trim).filter(|query| !query.is_empty()) else {
+            return StagedSearchDecision::Match;
+        };
+        StagedSearchDecision::from_bool(self.collection_matches_search_query(collection, query))
+    }
+
+    fn collection_matches_search_query(&self, collection: &Value, query: &str) -> bool {
+        let terms = collection_search_terms(query);
+        if terms.is_empty() {
+            return true;
+        }
+        terms.into_iter().all(|term| {
+            if term.eq_ignore_ascii_case("AND") {
+                return true;
+            }
+            let (negated, term) = term
+                .strip_prefix('-')
+                .map(|stripped| (true, stripped))
+                .unwrap_or((false, term.as_str()));
+            let matched = collection_matches_search_term(self, collection, term);
+            if negated {
+                !matched
+            } else {
+                matched
+            }
         })
     }
 
@@ -311,9 +596,9 @@ impl DraftProxy {
             let Some(id) = node.get("id").and_then(Value::as_str).map(str::to_string) else {
                 continue;
             };
-            if id.starts_with("gid://shopify/Product/") {
+            if is_shopify_gid_of_type(&id, "Product") {
                 self.store.stage_observed_product_json(node);
-            } else if id.starts_with("gid://shopify/Collection/") {
+            } else if is_shopify_gid_of_type(&id, "Collection") {
                 self.stage_collection_from_observed_json(node);
             }
             // Mark the resource as known to the engine (so re-hydration does not
@@ -373,6 +658,111 @@ impl DraftProxy {
             .unwrap_or_default()
     }
 
+    pub(in crate::proxy) fn publishable_resource_exists(
+        &mut self,
+        resource_id: &str,
+        request: &Request,
+    ) -> bool {
+        if resource_id.is_empty() {
+            return false;
+        }
+        let resource_type = shopify_gid_resource_type(resource_id);
+        let known = match resource_type {
+            Some("Product") => {
+                self.product_record_by_id(resource_id).is_some()
+                    || self
+                        .store
+                        .staged
+                        .resource_publications
+                        .contains_key(resource_id)
+            }
+            Some("Collection") => {
+                self.store.collection_by_id(resource_id).is_some()
+                    || self
+                        .store
+                        .staged
+                        .resource_publications
+                        .contains_key(resource_id)
+            }
+            _ => false,
+        };
+        if known || self.config.read_mode != ReadMode::LiveHybrid {
+            return known;
+        }
+
+        self.hydrate_publishable_resource(resource_id, request);
+        match resource_type {
+            Some("Product") => {
+                self.product_record_by_id(resource_id).is_some()
+                    || self
+                        .store
+                        .staged
+                        .resource_publications
+                        .contains_key(resource_id)
+            }
+            Some("Collection") => {
+                self.store.collection_by_id(resource_id).is_some()
+                    || self
+                        .store
+                        .staged
+                        .resource_publications
+                        .contains_key(resource_id)
+            }
+            _ => false,
+        }
+    }
+
+    pub(in crate::proxy) fn current_channel_publication_id(&self) -> Option<String> {
+        if self.store.staged.current_channel_publication_resolved {
+            return self.store.staged.current_channel_publication_id.clone();
+        }
+        if self.store.base.publication_count == Some(0) && self.store.staged.publications.is_empty()
+        {
+            None
+        } else {
+            Some(CURRENT_CHANNEL_PUBLICATION_ID.to_string())
+        }
+    }
+
+    pub(in crate::proxy) fn resolve_current_channel_publication_id(
+        &mut self,
+        request: &Request,
+    ) -> Option<String> {
+        if self.store.staged.current_channel_publication_resolved {
+            return self.store.staged.current_channel_publication_id.clone();
+        }
+        if self.store.base.publication_count == Some(0) && self.store.staged.publications.is_empty()
+        {
+            self.store.staged.current_channel_publication_resolved = true;
+            self.store.staged.current_channel_publication_id = None;
+            return None;
+        }
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return self.current_channel_publication_id();
+        }
+
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": CURRENT_APP_PUBLICATION_HYDRATE_QUERY,
+                "operationName": "StorePropertiesCurrentAppPublicationHydrate",
+                "variables": {},
+            }),
+        );
+        self.store.staged.current_channel_publication_resolved = true;
+        self.store.staged.current_channel_publication_id = if (200..300).contains(&response.status)
+        {
+            response
+                .body
+                .pointer("/data/currentAppInstallation/publication/id")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        } else {
+            None
+        };
+        self.store.staged.current_channel_publication_id.clone()
+    }
+
     /// Count resources of the given gid type published on `publication_id` (or on
     /// any publication when `publication_id` is `None`).
     fn publication_resource_count(
@@ -429,27 +819,56 @@ impl DraftProxy {
         let Some(record) = self.store.staged.publications.get(&id) else {
             return Value::Null;
         };
-        let mut record = record.clone();
-        let product_count = self.publication_resource_count(Some(&id), "Product");
+        let product_entries = self.publication_product_entries(&id);
+        let product_count = product_entries.len();
         let collection_count = self.publication_resource_count(Some(&id), "Collection");
-        let product_nodes: Vec<Value> = self
-            .publication_resource_ids(Some(&id), "Product")
+        let shop_currency_code = self.store.shop_currency_code();
+        selected_payload_json(&field.selection, |selection| {
+            match selection.name.as_str() {
+                "products" => Some(publication_products_connection_json(
+                    product_entries.clone(),
+                    selection,
+                    &shop_currency_code,
+                )),
+                "includedProductsCount" | "publishedProductsCount" => {
+                    Some(selected_count_json(product_count, &selection.selection))
+                }
+                "collectionsCount" => {
+                    Some(selected_count_json(collection_count, &selection.selection))
+                }
+                "channel" => {
+                    let mut channel = record.get("channel").cloned().unwrap_or(Value::Null);
+                    if channel.is_object() {
+                        channel["productsCount"] = count_object(product_count);
+                    }
+                    Some(nullable_selected_json(&channel, &selection.selection))
+                }
+                _ => record
+                    .get(&selection.name)
+                    .map(|value| nullable_selected_json(value, &selection.selection)),
+            }
+        })
+    }
+
+    fn publication_product_entries(&self, publication_id: &str) -> Vec<CollectionProductEntry> {
+        self.publication_resource_ids(Some(publication_id), "Product")
             .into_iter()
-            .map(|resource_id| {
-                let title = self
-                    .product_record_by_id(&resource_id)
-                    .map(|product| product.title.clone())
-                    .unwrap_or_default();
-                json!({ "id": resource_id, "title": title })
+            .enumerate()
+            .filter_map(|(position, resource_id)| {
+                let product = self.product_record_by_id(&resource_id)?.clone();
+                let variants = self.store.product_variants_for_product(&product.id);
+                let published_on_current_publication = Some(
+                    self.store
+                        .product_is_published_on_current_publication(&product),
+                );
+                Some(CollectionProductEntry {
+                    position,
+                    product,
+                    variants,
+                    published_on_current_publication,
+                })
             })
-            .collect();
-        record["products"] = json!({ "nodes": product_nodes });
-        record["publishedProductsCount"] = count_object(product_count);
-        record["collectionsCount"] = count_object(collection_count);
-        if let Some(channel) = record.get_mut("channel") {
-            channel["productsCount"] = count_object(product_count);
-        }
-        selected_json(&record, &field.selection)
+            .collect()
     }
 
     fn channel_root_value(&self, field: &RootFieldSelection) -> Value {
@@ -533,6 +952,16 @@ impl DraftProxy {
     ) -> Value {
         let resource_type = shopify_gid_resource_type(resource_id).unwrap_or("");
         let pubs = self.resource_publication_set(resource_id);
+        let live_pubs = if is_shopify_gid_of_type(resource_id, "Product")
+            && self
+                .product_record_by_id(resource_id)
+                .map(|product| product.status != "ACTIVE")
+                .unwrap_or(true)
+        {
+            BTreeSet::new()
+        } else {
+            pubs.clone()
+        };
         let mut out = serde_json::Map::new();
         for sel in selection {
             if let Some(type_condition) = sel.type_condition.as_deref() {
@@ -543,14 +972,58 @@ impl DraftProxy {
             let value = match sel.name.as_str() {
                 "id" => json!(resource_id),
                 "__typename" => json!(resource_type),
+                "title" => match resource_type {
+                    "Product" => self
+                        .product_record_by_id(resource_id)
+                        .map(|product| json!(product.title))
+                        .unwrap_or(Value::Null),
+                    "Collection" => self
+                        .store
+                        .collection_by_id(resource_id)
+                        .and_then(|collection| collection.get("title").cloned())
+                        .unwrap_or(Value::Null),
+                    _ => Value::Null,
+                },
+                "handle" => match resource_type {
+                    "Product" => self
+                        .product_record_by_id(resource_id)
+                        .map(|product| json!(product.handle))
+                        .unwrap_or(Value::Null),
+                    "Collection" => self
+                        .store
+                        .collection_by_id(resource_id)
+                        .and_then(|collection| collection.get("handle").cloned())
+                        .unwrap_or(Value::Null),
+                    _ => Value::Null,
+                },
                 "publishedOnPublication" => {
                     let publication_id = resolved_string_field(&sel.arguments, "publicationId");
                     json!(publication_id.map(|id| pubs.contains(&id)).unwrap_or(false))
                 }
-                "publishedOnCurrentPublication" => json!(false),
+                "publishedOnCurrentPublication" => {
+                    let current_publication_ids = self.store.current_publication_ids();
+                    let published = current_publication_ids
+                        .iter()
+                        .any(|publication_id| live_pubs.contains(*publication_id));
+                    json!(published)
+                }
                 "resourcePublicationsCount" | "publicationCount" | "availablePublicationsCount" => {
                     count_object(self.publishable_live_publication_count(resource_id, &pubs))
                 }
+                "resourcePublications" => staged_resource_publication_connection_json(
+                    resource_id,
+                    resource_type,
+                    &live_pubs,
+                    "ResourcePublication",
+                    &sel.selection,
+                ),
+                "resourcePublicationsV2" => staged_resource_publication_connection_json(
+                    resource_id,
+                    resource_type,
+                    &live_pubs,
+                    "ResourcePublicationV2",
+                    &sel.selection,
+                ),
                 _ => continue,
             };
             out.insert(sel.response_key.clone(), value);
@@ -571,7 +1044,7 @@ impl DraftProxy {
         resource_id: &str,
         pubs: &BTreeSet<String>,
     ) -> usize {
-        if resource_id.starts_with("gid://shopify/Product/") {
+        if is_shopify_gid_of_type(resource_id, "Product") {
             let active = self
                 .product_record_by_id(resource_id)
                 .map(|product| product.status == "ACTIVE")
@@ -593,9 +1066,11 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let Some(fields) = root_fields(query, variables) else {
+        let Some(document) = parsed_document(query, variables) else {
             return json_error(400, "Unable to parse publishable mutation");
         };
+        let operation_path = document.operation_path.clone();
+        let fields = document.root_fields;
         let publish = matches!(
             root_field,
             "publishablePublish" | "publishablePublishToCurrentChannel"
@@ -612,19 +1087,70 @@ impl DraftProxy {
             if field.name != root_field {
                 return None;
             }
-            if let Some(response) = publishable_empty_string_publication_error(root_field, field) {
+            if let Some(response) =
+                publishable_empty_string_publication_error(query, &operation_path, field)
+            {
                 early_response = Some(response);
                 return None;
             }
             let resource_id = resolved_string_field(&field.arguments, "id")?;
-            let user_errors =
-                publishable_publication_input_errors(field.arguments.get("input"), to_current);
+            let publishable_selection =
+                selected_child_selection(&field.selection, "publishable").unwrap_or_default();
+            if self
+                .publishable_payload_resource_needs_hydration(&resource_id, &publishable_selection)
+            {
+                self.hydrate_publishable_payload_shop(&resource_id, request);
+            }
+            let mut user_errors = Vec::new();
+            let resource_exists = self.publishable_resource_exists(&resource_id, request);
+            if !resource_exists {
+                user_errors.push(user_error_omit_code(
+                    ["id"],
+                    "Resource does not exist",
+                    Some("RESOURCE_DOES_NOT_EXIST"),
+                ));
+            }
+            if resource_exists
+                && is_shopify_gid_of_type(&resource_id, "Product")
+                && publishable_input_needs_publication_catalog_hydration(
+                    field.arguments.get("input"),
+                    to_current,
+                    self.store.has_known_publication_ids(),
+                )
+            {
+                self.hydrate_publishable_payload_shop(&resource_id, request);
+            }
+            user_errors.extend(
+                self.publishable_publication_input_errors(field.arguments.get("input"), to_current),
+            );
+            let current_channel_id = if resource_exists && to_current {
+                self.resolve_current_channel_publication_id(request)
+            } else {
+                None
+            };
+            if resource_exists && to_current && current_channel_id.is_none() {
+                user_errors.push(user_error_omit_code(
+                    ["id"],
+                    "Channel does not exist",
+                    Some("CHANNEL_DOES_NOT_EXIST"),
+                ));
+            }
             if user_errors.is_empty() {
+                if self.publishable_payload_resource_needs_hydration(
+                    &resource_id,
+                    &publishable_selection,
+                ) {
+                    self.hydrate_publishable_resource(&resource_id, request);
+                }
                 // Discover the resource's pre-existing publication membership
                 // (e.g. the default Online Store) by reading upstream before
                 // applying this publish, so counts reflect the real baseline.
                 self.hydrate_publishable_resource(&resource_id, request);
-                let publication_ids = publishable_input_publication_ids(&field.arguments);
+                let publication_ids = if to_current {
+                    current_channel_id.into_iter().collect::<Vec<_>>()
+                } else {
+                    publishable_input_publication_ids(&field.arguments)
+                };
                 let set = self
                     .store
                     .staged
@@ -652,7 +1178,16 @@ impl DraftProxy {
             }
             let publishable_selection =
                 selected_child_selection(&field.selection, "publishable").unwrap_or_default();
-            let publishable = self.publishable_resource_value(&resource_id, &publishable_selection);
+            let publishable = if user_errors.iter().any(|error| {
+                error
+                    .get("code")
+                    .and_then(Value::as_str)
+                    .is_some_and(|code| code == "RESOURCE_DOES_NOT_EXIST")
+            }) {
+                Value::Null
+            } else {
+                self.publishable_resource_value(&resource_id, &publishable_selection)
+            };
             let shop = self.store.effective_shop();
             let payload = selected_payload_json(&field.selection, |selection| {
                 match selection.name.as_str() {
@@ -772,8 +1307,77 @@ impl DraftProxy {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         self.store
             .collection_by_id(&id)
-            .map(|collection| collection_json(collection, &field.selection))
+            .map(|collection| {
+                self.collection_json_with_publication_fields(collection, &field.selection)
+            })
             .unwrap_or(Value::Null)
+    }
+
+    pub(in crate::proxy) fn collection_json_with_publication_fields(
+        &self,
+        collection: &Value,
+        selections: &[SelectedField],
+    ) -> Value {
+        self.collection_json_with_publication_fields_and_products(
+            collection,
+            selections,
+            self.collection_product_entries(collection),
+        )
+    }
+
+    fn collection_payload_json_with_publication_fields(
+        &self,
+        collection: &Value,
+        selections: &[SelectedField],
+    ) -> Value {
+        self.collection_json_with_publication_fields_and_products(
+            collection,
+            selections,
+            self.explicit_collection_product_entries(collection),
+        )
+    }
+
+    fn collection_json_with_publication_fields_and_products(
+        &self,
+        collection: &Value,
+        selections: &[SelectedField],
+        products: Vec<CollectionProductEntry>,
+    ) -> Value {
+        let shop_currency_code = self.store.shop_currency_code();
+        let mut value = collection_json(collection, products, selections, &shop_currency_code);
+        let Some(fields) = value.as_object_mut() else {
+            return value;
+        };
+        let collection_id = collection
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let publications = self.resource_publication_set(collection_id);
+        for selection in selections {
+            let computed = match selection.name.as_str() {
+                "publishedOnPublication" => {
+                    let publication_id =
+                        resolved_string_field(&selection.arguments, "publicationId");
+                    Some(json!(publication_id
+                        .map(|id| publications.contains(&id))
+                        .unwrap_or(false)))
+                }
+                "publishedOnCurrentPublication" => Some(json!(self
+                    .store
+                    .resource_is_published_on_current_publication(collection_id))),
+                "resourcePublicationsCount" | "publicationCount" | "availablePublicationsCount" => {
+                    Some(selected_count_json(
+                        self.publishable_live_publication_count(collection_id, &publications),
+                        &selection.selection,
+                    ))
+                }
+                _ => None,
+            };
+            if let Some(computed) = computed {
+                fields.insert(selection.response_key.clone(), computed);
+            }
+        }
+        value
     }
 
     fn collection_job_read(&self, field: &RootFieldSelection) -> Value {
@@ -786,7 +1390,15 @@ impl DraftProxy {
             .unwrap_or(Value::Null)
     }
 
-    fn stage_collection_from_observed_json(&mut self, collection: &Value) {
+    pub(in crate::proxy) fn stage_collection_from_observed_json(&mut self, collection: &Value) {
+        if collection
+            .get("id")
+            .and_then(Value::as_str)
+            .is_some_and(|id| self.store.collection_is_deleted(id))
+        {
+            return;
+        }
+        let collection = self.observed_collection_for_staging(collection);
         let products = collection
             .get("products")
             .and_then(|connection| connection.get("nodes"))
@@ -795,64 +1407,33 @@ impl DraftProxy {
             .flatten()
             .filter_map(product_state_from_json)
             .collect::<Vec<_>>();
-        self.store
-            .stage_collection_membership(collection.clone(), products);
+        self.store.stage_collection_membership(collection, products);
     }
 
-    pub(in crate::proxy) fn observe_nodes_response(&mut self, response: &Response) {
-        let nodes = response
-            .body
-            .pointer("/data/nodes")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-            .cloned()
-            .collect::<Vec<_>>();
-        for node in &nodes {
-            let id = node.get("id").and_then(Value::as_str).unwrap_or_default();
-            if id.starts_with("gid://shopify/Product/") {
-                self.store.stage_observed_product_json(node);
-                if let Some(product_id) = node.get("id").and_then(Value::as_str) {
-                    for variant in node
-                        .get("variants")
-                        .and_then(|connection| connection.get("nodes"))
-                        .and_then(Value::as_array)
-                        .into_iter()
-                        .flatten()
-                    {
-                        let mut variant_value = variant.clone();
-                        if let Some(object) = variant_value.as_object_mut() {
-                            object.insert("productId".to_string(), json!(product_id));
-                        }
-                        if let Some(mut variant) =
-                            product_variant_state_from_observed_json(&variant_value)
-                        {
-                            variant.product_id = product_id.to_string();
-                            self.store.stage_product_variant(variant);
-                        }
-                    }
-                }
-            } else if id.starts_with("gid://shopify/Collection/") {
-                self.stage_collection_from_observed_json(node);
-            } else if id.starts_with("gid://shopify/ProductVariant/") {
-                if let Some(variant) = product_variant_state_from_observed_json(node) {
-                    self.store.stage_product_variant(variant);
-                }
-                if let Some(product) = node.get("product").and_then(product_state_from_json) {
-                    self.store.stage_observed_product(product);
-                }
-            } else if id.starts_with("gid://shopify/InventoryItem/") {
-                self.observe_inventory_item_node(node);
-            } else if id.starts_with("gid://shopify/InventoryLevel/") {
-                self.observe_inventory_level_node(node);
-            }
+    fn observed_collection_for_staging(&self, collection: &Value) -> Value {
+        let Some(observed_id) = collection.get("id").and_then(Value::as_str) else {
+            return collection.clone();
+        };
+        if is_synthetic_gid(observed_id) {
+            return collection.clone();
         }
-        for node in nodes {
-            let id = node.get("id").and_then(Value::as_str).unwrap_or_default();
-            if id.starts_with("gid://shopify/Collection/") {
-                self.stage_collection_from_observed_json(&node);
-            }
-        }
+        let Some(observed_handle) = collection
+            .get("handle")
+            .and_then(Value::as_str)
+            .filter(|handle| !handle.is_empty())
+        else {
+            return collection.clone();
+        };
+        let Some((_, local_collection)) =
+            self.store.staged.collections.iter().find(|(id, staged)| {
+                id.as_str() != observed_id
+                    && is_synthetic_gid(id)
+                    && staged.get("handle").and_then(Value::as_str) == Some(observed_handle)
+            })
+        else {
+            return collection.clone();
+        };
+        merge_observed_collection_into_local(local_collection, collection)
     }
 
     pub(in crate::proxy) fn collection_mutation(
@@ -878,14 +1459,6 @@ impl DraftProxy {
                 "No mutation dispatcher implemented for collection root",
             )),
         }
-    }
-
-    fn collection_payload_root_field(
-        &self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<RootFieldSelection> {
-        primary_root_field(query, variables).or_else(|| primary_root_field(query, &BTreeMap::new()))
     }
 
     fn collection_create(
@@ -953,7 +1526,9 @@ impl DraftProxy {
             &title,
             None,
         );
+        let timestamp = self.next_product_timestamp();
         let mut collection = collection_from_input(&input, &id, &title, &handle, None);
+        apply_collection_timestamps(&mut collection, &timestamp, &timestamp);
         let products = initial_product_ids
             .into_iter()
             .filter_map(|id| self.store.product_by_id(&id).cloned())
@@ -1040,6 +1615,17 @@ impl DraftProxy {
             }
         }
 
+        let current_updated_at = existing
+            .get("updatedAt")
+            .and_then(Value::as_str)
+            .unwrap_or_else(|| {
+                existing
+                    .get("createdAt")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+            })
+            .to_string();
+        let next_updated_at = self.next_product_updated_at(&current_updated_at);
         let mut updated = existing;
         if let Some(object) = updated.as_object_mut() {
             if let Some(title) = resolved_string_field(&input, "title") {
@@ -1075,6 +1661,10 @@ impl DraftProxy {
             if let Some(template_suffix) = resolved_string_field(&input, "templateSuffix") {
                 object.insert("templateSuffix".to_string(), json!(template_suffix));
             }
+            object
+                .entry("createdAt".to_string())
+                .or_insert_with(|| json!(default_product_timestamp()));
+            object.insert("updatedAt".to_string(), json!(next_updated_at));
         }
         self.store.stage_collection(updated.clone());
         self.refresh_collection_summary_on_products(&id);
@@ -1354,23 +1944,27 @@ impl DraftProxy {
     ) -> Option<Response> {
         let mut errors = Vec::new();
         match resolved_string_field(input, "title") {
-            Some(title) if title.chars().count() > 255 => errors.push(collection_user_error(
+            Some(title) if title.chars().count() > 255 => errors.push(user_error_omit_code(
                 ["title"],
-                "Title is too long (maximum is 255 characters)",
+                &too_long_message("Title", 255),
+                None,
             )),
-            Some(title) if title_required && title.trim().is_empty() => {
-                errors.push(collection_user_error(["title"], "Title can't be blank"))
-            }
-            None if title_required => {
-                errors.push(collection_user_error(["title"], "Title can't be blank"))
-            }
+            Some(title) if title_required && title.trim().is_empty() => errors.push(
+                user_error_omit_code(["title"], &blank_message("Title"), None),
+            ),
+            None if title_required => errors.push(user_error_omit_code(
+                ["title"],
+                &blank_message("Title"),
+                None,
+            )),
             _ => {}
         }
         if let Some(handle) = resolved_string_field(input, "handle") {
             if handle.chars().count() > 255 {
-                errors.push(collection_user_error(
+                errors.push(user_error_omit_code(
                     ["handle"],
-                    "Handle is too long (maximum is 255 characters)",
+                    &too_long_message("Handle", 255),
+                    None,
                 ));
             }
         }
@@ -1406,19 +2000,17 @@ impl DraftProxy {
                 vec![collection_user_error(["id"], "Collection does not exist")],
             ));
         };
-        if root_field != "collectionReorderProducts" && collection_is_smart(collection) {
-            let message = if root_field == "collectionRemoveProducts" {
-                "Can't manually remove products from a smart collection"
-            } else {
-                "Can't manually add products to a smart collection"
-            };
+        if root_field == "collectionAddProductsV2" && collection_is_smart(collection) {
             return Some(self.collection_payload_response(
                 query,
                 variables,
                 root_field,
                 None,
                 job_payload.then_some(&Value::Null),
-                vec![collection_user_error(["id"], message)],
+                vec![collection_user_error(
+                    ["id"],
+                    "Can't manually add products to a smart collection",
+                )],
             ));
         }
         None
@@ -1433,17 +2025,15 @@ impl DraftProxy {
         job: Option<&Value>,
         user_errors: Vec<Value>,
     ) -> Response {
-        let (response_key, payload_selection) = self
-            .collection_payload_root_field(query, variables)
-            .map(|field| (field.response_key, field.selection))
-            .unwrap_or_else(|| (root_field.to_string(), Vec::new()));
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, variables, || root_field.to_string());
         let collection_selection =
             selected_child_selection(&payload_selection, "collection").unwrap_or_default();
         let job_selection = selected_child_selection(&payload_selection, "job").unwrap_or_default();
         ok_json(json!({
             "data": {
                 response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
-                    "collection" => Some(collection.map(|collection| collection_json(collection, &collection_selection)).unwrap_or(Value::Null)),
+                    "collection" => Some(collection.map(|collection| self.collection_payload_json_with_publication_fields(collection, &collection_selection)).unwrap_or(Value::Null)),
                     "job" => Some(job.map(|job| selected_json(job, &job_selection)).unwrap_or(Value::Null)),
                     "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
                     _ => None,
@@ -1459,10 +2049,8 @@ impl DraftProxy {
         deleted_id: Option<&str>,
         user_errors: Vec<Value>,
     ) -> Response {
-        let (response_key, payload_selection) = self
-            .collection_payload_root_field(query, variables)
-            .map(|field| (field.response_key, field.selection))
-            .unwrap_or_else(|| ("collectionDelete".to_string(), Vec::new()));
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, variables, || "collectionDelete".to_string());
         let shop = self.store.effective_shop();
         ok_json(json!({
             "data": {
@@ -1490,6 +2078,71 @@ impl DraftProxy {
                     .and_then(Value::as_str)
                     .and_then(|id| self.store.product_by_id(id).cloned())
                     .or_else(|| product_state_from_json(product))
+            })
+            .collect()
+    }
+
+    fn collection_product_entries(&self, collection: &Value) -> Vec<CollectionProductEntry> {
+        if collection_is_smart(collection) {
+            return self.smart_collection_product_entries(collection);
+        }
+        self.explicit_collection_product_entries(collection)
+    }
+
+    fn explicit_collection_product_entries(
+        &self,
+        collection: &Value,
+    ) -> Vec<CollectionProductEntry> {
+        collection
+            .get("products")
+            .and_then(|connection| connection.get("nodes"))
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .enumerate()
+            .filter_map(|(position, product)| {
+                let product = product
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .and_then(|id| self.store.product_by_id(id).cloned())
+                    .or_else(|| product_state_from_json(product))?;
+                let variants = self.store.product_variants_for_product(&product.id);
+                let published_on_current_publication = Some(
+                    self.store
+                        .product_is_published_on_current_publication(&product),
+                );
+                Some(CollectionProductEntry {
+                    position,
+                    product,
+                    variants,
+                    published_on_current_publication,
+                })
+            })
+            .collect()
+    }
+
+    fn smart_collection_product_entries(&self, collection: &Value) -> Vec<CollectionProductEntry> {
+        let Some(rule_set) = collection.get("ruleSet") else {
+            return Vec::new();
+        };
+        self.store
+            .products()
+            .into_iter()
+            .enumerate()
+            .filter_map(|(position, product)| {
+                let variants = self.store.product_variants_for_product(&product.id);
+                let published_on_current_publication = Some(
+                    self.store
+                        .product_is_published_on_current_publication(&product),
+                );
+                collection_product_matches_rule_set(&product, &variants, rule_set).then_some(
+                    CollectionProductEntry {
+                        position,
+                        product,
+                        variants,
+                        published_on_current_publication,
+                    },
+                )
             })
             .collect()
     }
@@ -1660,6 +2313,151 @@ fn collection_input(
     }
 }
 
+fn collection_string_field(collection: &Value, field: &str) -> String {
+    collection
+        .get(field)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn collection_handle_matches(actual: &str, query_value: &str) -> bool {
+    let actual = actual.to_ascii_lowercase();
+    let query_value = query_value
+        .trim_matches('"')
+        .trim_matches('\'')
+        .to_ascii_lowercase();
+    if query_value.is_empty() {
+        return true;
+    }
+    if let Some(prefix) = query_value.strip_suffix('*') {
+        return actual.starts_with(prefix);
+    }
+    actual == query_value
+}
+
+fn collection_normalized_sort_string(value: &str) -> StagedSortValue {
+    StagedSortValue::String(value.to_ascii_lowercase())
+}
+
+fn collection_staged_sort_key(collection: &Value, sort_key: Option<&str>) -> StagedSortKey {
+    let id = collection_string_field(collection, "id");
+    let primary = match sort_key.unwrap_or("ID") {
+        "TITLE" => collection_normalized_sort_string(&collection_string_field(collection, "title")),
+        "UPDATED_AT" => StagedSortValue::String(collection_string_field(collection, "updatedAt")),
+        "ID" | "RELEVANCE" => resource_id_tail_sort_value(Some(&id)),
+        _ => resource_id_tail_sort_value(Some(&id)),
+    };
+    vec![primary, resource_id_tail_sort_value(Some(&id))]
+}
+
+fn collection_search_terms(query: &str) -> Vec<String> {
+    let mut terms = Vec::new();
+    let mut current = String::new();
+    let mut quote = None;
+    for ch in query.chars() {
+        if let Some(active_quote) = quote {
+            if ch == active_quote {
+                quote = None;
+            } else {
+                current.push(ch);
+            }
+            continue;
+        }
+        match ch {
+            '"' | '\'' => quote = Some(ch),
+            '(' | ')' | ' ' | '\t' | '\n' | '\r' if !current.is_empty() => {
+                terms.push(std::mem::take(&mut current));
+            }
+            '(' | ')' | ' ' | '\t' | '\n' | '\r' => {}
+            _ => current.push(ch),
+        }
+    }
+    if !current.is_empty() {
+        terms.push(current);
+    }
+    terms
+}
+
+fn collection_matches_search_term(proxy: &DraftProxy, collection: &Value, term: &str) -> bool {
+    let term = term.trim();
+    if term.is_empty() {
+        return true;
+    }
+    if let Some((field, value)) = term.split_once(':') {
+        let field = field.to_ascii_lowercase();
+        let value = value.trim_matches('"').trim_matches('\'');
+        if field.is_empty() || value.is_empty() {
+            return false;
+        }
+        return match field.as_str() {
+            "id" => collection_id_matches(collection, value),
+            "title" => {
+                product_search_string_matches(&collection_string_field(collection, "title"), value)
+            }
+            "handle" => {
+                collection_handle_matches(&collection_string_field(collection, "handle"), value)
+            }
+            "created_at" => {
+                product_matches_date_query(&collection_string_field(collection, "createdAt"), value)
+            }
+            "updated_at" => {
+                product_matches_date_query(&collection_string_field(collection, "updatedAt"), value)
+            }
+            "collection_type" => collection_matches_type(collection, value),
+            "published_status" => collection_matches_published_status(proxy, collection, value),
+            "product_id" => collection_matches_product_id(collection, value),
+            _ => false,
+        };
+    }
+    product_search_string_matches(&collection_string_field(collection, "title"), term)
+        || product_search_string_matches(&collection_string_field(collection, "handle"), term)
+}
+
+fn collection_id_matches(collection: &Value, value: &str) -> bool {
+    let id = collection_string_field(collection, "id");
+    id == value || resource_id_tail(&id) == value
+}
+
+fn collection_matches_type(collection: &Value, value: &str) -> bool {
+    match value.to_ascii_lowercase().as_str() {
+        "custom" => !collection_is_smart(collection),
+        "smart" => collection_is_smart(collection),
+        _ => false,
+    }
+}
+
+fn collection_matches_published_status(
+    proxy: &DraftProxy,
+    collection: &Value,
+    value: &str,
+) -> bool {
+    let id = collection_string_field(collection, "id");
+    let published = !proxy.resource_publication_set(&id).is_empty();
+    match value.to_ascii_lowercase().as_str() {
+        "published" => published,
+        "unpublished" => !published,
+        "any" => true,
+        _ => false,
+    }
+}
+
+fn collection_matches_product_id(collection: &Value, value: &str) -> bool {
+    collection
+        .get("products")
+        .and_then(|connection| connection.get("nodes"))
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .any(|product| {
+            let id = product
+                .get("id")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            id == value || resource_id_tail(id) == value
+        })
+}
+
 fn collection_from_input(
     input: &BTreeMap<String, ResolvedValue>,
     id: &str,
@@ -1672,6 +2470,8 @@ fn collection_from_input(
             "id": id,
             "title": title,
             "handle": handle,
+            "createdAt": default_product_timestamp(),
+            "updatedAt": default_product_timestamp(),
             "sortOrder": "BEST_SELLING",
             "ruleSet": null,
             "products": connection_json(Vec::<Value>::new()),
@@ -1703,6 +2503,13 @@ fn collection_from_input(
     collection
 }
 
+fn apply_collection_timestamps(collection: &mut Value, created_at: &str, updated_at: &str) {
+    if let Some(object) = collection.as_object_mut() {
+        object.insert("createdAt".to_string(), json!(created_at));
+        object.insert("updatedAt".to_string(), json!(updated_at));
+    }
+}
+
 fn collection_initial_product_user_errors(store: &Store, product_ids: &[String]) -> Vec<Value> {
     product_ids
         .iter()
@@ -1722,39 +2529,6 @@ fn collection_create_rule_set_json(input: &BTreeMap<String, ResolvedValue>) -> O
     let rule_set = resolved_object_field(input, "ruleSet")?;
     (!resolved_object_list_field(&rule_set, "rules").is_empty())
         .then(|| collection_rule_set_json(rule_set))
-}
-
-/// Collection sort orders whose default product ordering is by recency (newest
-/// member first). Shopify's default `BEST_SELLING` falls back to this when there is
-/// no sales data, and `CREATED_DESC` is recency by definition.
-fn collection_sort_order_is_recency(sort_order: Option<&str>) -> bool {
-    matches!(sort_order, Some("BEST_SELLING") | Some("CREATED_DESC"))
-}
-
-/// Reorder a collection `products` connection by member recency (highest numeric
-/// gid tail first), keeping `nodes` and any `edges` consistent. The stored
-/// connection preserves membership (insertion) order; this is applied only at
-/// render time for recency-sorted collections.
-fn collection_products_by_recency(connection: &Value) -> Value {
-    fn recency(node: &Value) -> i64 {
-        node.get("id")
-            .and_then(Value::as_str)
-            .map(resource_id_tail)
-            .and_then(|tail| tail.parse::<i64>().ok())
-            .unwrap_or(0)
-    }
-    let mut connection = connection.clone();
-    if let Some(nodes) = connection.get_mut("nodes").and_then(Value::as_array_mut) {
-        nodes.sort_by_key(|n| std::cmp::Reverse(recency(n)));
-    }
-    if let Some(edges) = connection.get_mut("edges").and_then(Value::as_array_mut) {
-        edges.sort_by(|a, b| {
-            let a_node = a.get("node").unwrap_or(a);
-            let b_node = b.get("node").unwrap_or(b);
-            recency(b_node).cmp(&recency(a_node))
-        });
-    }
-    connection
 }
 
 fn apply_collection_products(collection: &mut Value, products: &[ProductRecord]) {
@@ -1830,14 +2604,174 @@ fn collection_is_smart(collection: &Value) -> bool {
     })
 }
 
+fn collection_product_matches_rule_set(
+    product: &ProductRecord,
+    variants: &[ProductVariantRecord],
+    rule_set: &Value,
+) -> bool {
+    let rules = rule_set
+        .get("rules")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    if rules.is_empty() {
+        return false;
+    }
+    let applied_disjunctively = rule_set
+        .get("appliedDisjunctively")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    if applied_disjunctively {
+        rules
+            .iter()
+            .any(|rule| collection_product_matches_rule(product, variants, rule))
+    } else {
+        rules
+            .iter()
+            .all(|rule| collection_product_matches_rule(product, variants, rule))
+    }
+}
+
+fn collection_product_matches_rule(
+    product: &ProductRecord,
+    variants: &[ProductVariantRecord],
+    rule: &Value,
+) -> bool {
+    let column = rule
+        .get("column")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let relation = rule
+        .get("relation")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let condition = rule
+        .get("condition")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    match column {
+        "TITLE" => {
+            collection_rule_string_values_match([product.title.as_str()], relation, condition)
+        }
+        "TYPE" | "PRODUCT_TYPE" => collection_rule_string_values_match(
+            [product.product_type.as_str()],
+            relation,
+            condition,
+        ),
+        "VENDOR" => {
+            collection_rule_string_values_match([product.vendor.as_str()], relation, condition)
+        }
+        "TAG" => collection_rule_string_values_match(
+            product.tags.iter().map(String::as_str),
+            relation,
+            condition,
+        ),
+        "VARIANT_PRICE" => {
+            collection_rule_variant_price_matches(product, variants, relation, condition)
+        }
+        _ => false,
+    }
+}
+
+fn collection_rule_string_values_match<I>(values: I, relation: &str, condition: &str) -> bool
+where
+    I: IntoIterator,
+    I::Item: AsRef<str>,
+{
+    let values = values
+        .into_iter()
+        .map(|value| collection_rule_normalized_string(value.as_ref()))
+        .collect::<Vec<_>>();
+    let condition = collection_rule_normalized_string(condition);
+    let has_value = values.iter().any(|value| !value.is_empty());
+    match relation {
+        "EQUALS" => values.iter().any(|value| value == &condition),
+        "NOT_EQUALS" => has_value && values.iter().all(|value| value != &condition),
+        "CONTAINS" => values.iter().any(|value| value.contains(&condition)),
+        "NOT_CONTAINS" => has_value && values.iter().all(|value| !value.contains(&condition)),
+        "STARTS_WITH" => values.iter().any(|value| value.starts_with(&condition)),
+        "ENDS_WITH" => values.iter().any(|value| value.ends_with(&condition)),
+        "IS_SET" => has_value,
+        "IS_NOT_SET" => !has_value,
+        _ => false,
+    }
+}
+
+fn collection_rule_normalized_string(value: &str) -> String {
+    value
+        .trim()
+        .trim_matches('"')
+        .trim_matches('\'')
+        .to_ascii_lowercase()
+}
+
+fn collection_rule_variant_price_matches(
+    product: &ProductRecord,
+    variants: &[ProductVariantRecord],
+    relation: &str,
+    condition: &str,
+) -> bool {
+    let prices = collection_rule_variant_prices(product, variants);
+    match relation {
+        "IS_SET" => !prices.is_empty(),
+        "IS_NOT_SET" => prices.is_empty(),
+        _ => {
+            let Some(condition) = collection_rule_price_cents(condition) else {
+                return false;
+            };
+            match relation {
+                "EQUALS" => prices.contains(&condition),
+                "NOT_EQUALS" => {
+                    !prices.is_empty() && prices.iter().all(|price| *price != condition)
+                }
+                "GREATER_THAN" => prices.iter().any(|price| *price > condition),
+                "LESS_THAN" => prices.iter().any(|price| *price < condition),
+                "GREATER_THAN_OR_EQUAL_TO" | "GREATER_THAN_OR_EQUAL" => {
+                    prices.iter().any(|price| *price >= condition)
+                }
+                "LESS_THAN_OR_EQUAL_TO" | "LESS_THAN_OR_EQUAL" => {
+                    prices.iter().any(|price| *price <= condition)
+                }
+                _ => false,
+            }
+        }
+    }
+}
+
+fn collection_rule_variant_prices(
+    product: &ProductRecord,
+    variants: &[ProductVariantRecord],
+) -> Vec<i64> {
+    if !variants.is_empty() {
+        return variants
+            .iter()
+            .filter_map(|variant| collection_rule_price_cents(&variant.price))
+            .collect();
+    }
+    product
+        .variants
+        .iter()
+        .filter_map(|variant| {
+            variant
+                .get("price")
+                .and_then(Value::as_str)
+                .and_then(collection_rule_price_cents)
+        })
+        .collect()
+}
+
+fn collection_rule_price_cents(value: &str) -> Option<i64> {
+    parse_product_price(value).map(|price| (price * 100.0).round() as i64)
+}
+
 fn collection_product_ids_too_long_response(root_field: &str, len: usize) -> Response {
     ok_json(json!({
-        "errors": [{
-            "message": format!("The input array size of {len} is greater than the maximum allowed of 250."),
-            "locations": [{"line": 2, "column": 3}],
-            "path": [root_field, "productIds"],
-            "extensions": {"code": "MAX_INPUT_SIZE_EXCEEDED"}
-        }]
+        "errors": [max_input_size_exceeded_error(
+            vec![root_field.to_string(), "productIds".to_string()],
+            len,
+            250,
+            Some(json!([{ "line": 2, "column": 3 }])),
+        )]
     }))
 }
 

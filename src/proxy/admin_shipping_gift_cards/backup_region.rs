@@ -26,6 +26,35 @@ enum BackupRegionCountryCodeInput {
     Invalid(String),
 }
 
+fn backup_region_country_code_coercion_error(
+    message: &str,
+    operation_path: &str,
+    code: &str,
+    location: SourceLocation,
+) -> Value {
+    let mut extensions = serde_json::Map::from_iter([("code".to_string(), json!(code))]);
+    if code == "missingRequiredInputObjectAttribute" {
+        extensions.insert("argumentName".to_string(), json!("countryCode"));
+        extensions.insert("argumentType".to_string(), json!("CountryCode!"));
+        extensions.insert(
+            "inputObjectType".to_string(),
+            json!("BackupRegionUpdateInput"),
+        );
+    } else {
+        extensions.insert("typeName".to_string(), json!("InputObject"));
+        extensions.insert("argumentName".to_string(), json!("countryCode"));
+    }
+
+    json!({
+        "errors": [{
+            "message": message,
+            "locations": [{ "line": location.line, "column": location.column }],
+            "path": [operation_path, "backupRegionUpdate", "region", "countryCode"],
+            "extensions": extensions
+        }]
+    })
+}
+
 impl DraftProxy {
     pub(in crate::proxy) fn backup_region_update(
         &mut self,
@@ -47,6 +76,11 @@ impl DraftProxy {
             .as_ref()
             .map(|document| document.operation_path.as_str())
             .unwrap_or("mutation");
+        let access_denied_location = root_field
+            .map(|field| field.location)
+            .unwrap_or(SourceLocation { line: 1, column: 1 });
+        let access_denied_body =
+            || backup_region_update_access_denied_body(&response_key, access_denied_location);
         let country_code = match backup_region_update_country_code(root_field) {
             BackupRegionCountryCodeInput::ReadCurrent => None,
             BackupRegionCountryCodeInput::CountryCode(country_code) => {
@@ -82,28 +116,18 @@ impl DraftProxy {
             }
         };
         if self.backup_region_update_lacks_markets_access(request) {
-            return ok_json(backup_region_update_access_denied_body(
-                &response_key,
-                root_field
-                    .map(|field| field.location)
-                    .unwrap_or(SourceLocation { line: 1, column: 1 }),
-            ));
+            return ok_json(access_denied_body());
         }
+        let hydrate_current = Self::hydrate_current_backup_region_from_upstream;
+        let hydrate_markets = Self::hydrate_backup_region_markets_from_upstream;
 
         let region = match country_code.as_deref() {
             None => {
                 if self.store.staged.backup_region.is_null()
                     && self.config.read_mode != ReadMode::Snapshot
+                    && self.hydrate_access_denied(request, hydrate_current)
                 {
-                    let hydrate = self.hydrate_current_backup_region_from_upstream(request);
-                    if backup_region_response_is_access_denied(&hydrate.body) {
-                        return ok_json(backup_region_update_access_denied_body(
-                            &response_key,
-                            root_field
-                                .map(|field| field.location)
-                                .unwrap_or(SourceLocation { line: 1, column: 1 }),
-                        ));
-                    }
+                    return ok_json(access_denied_body());
                 }
                 (!self.store.staged.backup_region.is_null())
                     .then(|| self.store.staged.backup_region.clone())
@@ -111,30 +135,17 @@ impl DraftProxy {
             Some(code) => {
                 let mut region = self.backup_region_country_for_code(code);
                 if region.is_none() && self.config.read_mode != ReadMode::Snapshot {
-                    let hydrate = self.hydrate_backup_region_markets_from_upstream(request);
-                    if backup_region_response_is_access_denied(&hydrate.body) {
-                        return ok_json(backup_region_update_access_denied_body(
-                            &response_key,
-                            root_field
-                                .map(|field| field.location)
-                                .unwrap_or(SourceLocation { line: 1, column: 1 }),
-                        ));
+                    if self.hydrate_access_denied(request, hydrate_markets) {
+                        return ok_json(access_denied_body());
                     }
                     region = self.backup_region_country_for_code(code);
                 }
                 if region.is_none() {
                     if self.store.staged.backup_region.is_null()
                         && self.config.read_mode != ReadMode::Snapshot
+                        && self.hydrate_access_denied(request, hydrate_current)
                     {
-                        let hydrate = self.hydrate_current_backup_region_from_upstream(request);
-                        if backup_region_response_is_access_denied(&hydrate.body) {
-                            return ok_json(backup_region_update_access_denied_body(
-                                &response_key,
-                                root_field
-                                    .map(|field| field.location)
-                                    .unwrap_or(SourceLocation { line: 1, column: 1 }),
-                            ));
-                        }
+                        return ok_json(access_denied_body());
                     }
                     region = self.current_backup_region_for_code(code);
                 }
@@ -227,24 +238,18 @@ impl DraftProxy {
             return (self.store.staged.backup_region["code"].as_str() == Some(country_code))
                 .then(|| self.store.staged.backup_region.clone());
         }
-        let current_code = self.current_backup_region_country_code()?;
+        let shop = self.store.effective_shop();
+        let current_code = shop_country_code(&shop).map(str::to_ascii_uppercase)?;
         (current_code == country_code).then(|| backup_region_country_from_code(country_code))
     }
 
-    fn current_backup_region_country_code(&self) -> Option<String> {
-        let shop = self.store.effective_shop();
-        shop.pointer("/shopAddress/countryCodeV2")
-            .and_then(Value::as_str)
-            .or_else(|| {
-                shop.pointer("/shopAddress/countryCode")
-                    .and_then(Value::as_str)
-            })
-            .or_else(|| {
-                (shop.get("myshopifyDomain").and_then(Value::as_str)
-                    == Some("harry-test-heelo.myshopify.com"))
-                .then_some("CA")
-            })
-            .map(str::to_ascii_uppercase)
+    fn hydrate_access_denied(
+        &mut self,
+        request: &Request,
+        hydrate: fn(&mut Self, &Request) -> Response,
+    ) -> bool {
+        let hydrate = hydrate(self, request);
+        backup_region_response_is_access_denied(&hydrate.body)
     }
 
     pub(in crate::proxy) fn hydrate_current_backup_region_from_upstream(
@@ -280,24 +285,22 @@ fn backup_region_country_from_code(country_code: &str) -> Value {
     let name = country_name_for_code(&code).unwrap_or(&code);
     json!({
         "__typename": "MarketRegionCountry",
-        "id": format!("gid://shopify/MarketRegionCountry/local-{code}"),
+        "id": shopify_gid("MarketRegionCountry", format_args!("local-{code}")),
         "name": name,
         "code": code
     })
 }
 
 fn backup_region_update_access_denied_body(response_key: &str, location: SourceLocation) -> Value {
+    const REQUIRED_ACCESS: &str =
+        "`read_markets` for queries and both `read_markets` as well as `write_markets` for mutations.";
     json!({
-        "errors": [{
-            "message": "Access denied for backupRegionUpdate field. Required access: `read_markets` for queries and both `read_markets` as well as `write_markets` for mutations.",
-            "locations": [{ "line": location.line, "column": location.column }],
-            "extensions": {
-                "code": "ACCESS_DENIED",
-                "documentation": "https://shopify.dev/api/usage/access-scopes",
-                "requiredAccess": "`read_markets` for queries and both `read_markets` as well as `write_markets` for mutations."
-            },
-            "path": [response_key]
-        }],
+        "errors": [top_level_access_denied_error_envelope(
+            format!("Access denied for backupRegionUpdate field. Required access: {REQUIRED_ACCESS}"),
+            Some(location),
+            vec![json!(response_key)],
+            Some(REQUIRED_ACCESS),
+        )],
         "data": { response_key: null }
     })
 }
@@ -353,7 +356,7 @@ fn backup_region_update_region_value_location(
     let fallback = root_field
         .map(|field| field.location)
         .unwrap_or(SourceLocation { line: 1, column: 1 });
-    let Some(field_offset) = source_location_byte_offset(query, fallback) else {
+    let Some(field_offset) = byte_offset_for_location(query, fallback) else {
         return fallback;
     };
     let Some(after_field) = query.get(field_offset..) else {
@@ -383,39 +386,6 @@ fn source_location_after_field_colon(
         value_offset += 1;
     }
     source_location_for_byte_offset(query, value_offset)
-}
-
-fn source_location_byte_offset(query: &str, location: SourceLocation) -> Option<usize> {
-    let mut current_line = 1;
-    let mut line_start = 0;
-    for (index, byte) in query.bytes().enumerate() {
-        if current_line == location.line {
-            return Some(line_start + location.column.saturating_sub(1));
-        }
-        if byte == b'\n' {
-            current_line += 1;
-            line_start = index + 1;
-        }
-    }
-    (current_line == location.line).then_some(line_start + location.column.saturating_sub(1))
-}
-
-fn source_location_for_byte_offset(query: &str, byte_offset: usize) -> Option<SourceLocation> {
-    if byte_offset > query.len() {
-        return None;
-    }
-    let line = query[..byte_offset]
-        .bytes()
-        .filter(|byte| *byte == b'\n')
-        .count()
-        + 1;
-    let line_start = query[..byte_offset]
-        .rfind('\n')
-        .map_or(0, |index| index + 1);
-    Some(SourceLocation {
-        line,
-        column: byte_offset - line_start + 1,
-    })
 }
 
 fn backup_region_update_country_code(

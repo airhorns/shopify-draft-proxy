@@ -172,6 +172,75 @@ const topLevelReadQuery = `#graphql
   }
 `;
 
+// Byte-for-byte copy of the proxy's
+// SHIPPING_FULFILLMENT_ORDER_HYDRATE_QUERY. Store-backed fulfillment-order
+// mutations use this query to hydrate the baseline fulfillment order before
+// staging locally.
+const storeBackedFulfillmentOrderHydrateQuery = `
+query ShippingFulfillmentOrderHydrate($id: ID!) {
+  node(id: $id) {
+    __typename
+    ... on FulfillmentOrder {
+      id
+      status
+      requestStatus
+      fulfillAt
+      fulfillBy
+      updatedAt
+      supportedActions {
+        action
+      }
+      assignedLocation {
+        name
+        location {
+          id
+          name
+        }
+      }
+      fulfillmentHolds {
+        id
+        handle
+        reason
+        reasonNotes
+        displayReason
+        heldByApp {
+          id
+          title
+        }
+        heldByRequestingApp
+      }
+      lineItems(first: 250) {
+        nodes {
+          id
+          totalQuantity
+          remainingQuantity
+          lineItem {
+            id
+            title
+            quantity
+            fulfillableQuantity
+          }
+        }
+      }
+      order {
+        id
+        name
+        displayFulfillmentStatus
+      }
+    }
+  }
+}
+`;
+
+// Byte-for-byte copy of the proxy's
+// ORDERS_FULFILLMENT_ORDER_HYDRATE_QUERY. Request-lifecycle split/merge
+// handlers use this query on cold fulfillment-order ids.
+const ordersFulfillmentOrderHydrateQuery =
+  'query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }';
+
+const locationHydrateQuery =
+  'query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: "custom", key: "hours") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: ["available", "committed", "on_hand"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }';
+
 const locationsQuery = `#graphql
   query FulfillmentOrderLifecycleLocations($first: Int!) {
     locations(first: $first) {
@@ -446,6 +515,19 @@ async function capture(query: string, variables: JsonRecord = {}): Promise<Graph
   };
 }
 
+async function captureUpstreamCall(operationName: string, query: string, variables: JsonRecord): Promise<JsonRecord> {
+  const response = await runGraphqlRequest(query, variables);
+  return {
+    operationName,
+    variables,
+    query,
+    response: {
+      status: response.status,
+      body: response.payload,
+    },
+  };
+}
+
 function readObject(value: unknown): JsonRecord | null {
   return typeof value === 'object' && value !== null ? (value as JsonRecord) : null;
 }
@@ -609,6 +691,7 @@ const createdOrders: CreatedOrder[] = [];
 const cleanup: GraphqlCapture[] = [];
 const locations = await capture(locationsQuery, { first: 10 });
 const locationIds = readLocationIds(locations);
+const upstreamCalls: JsonRecord[] = [];
 
 async function createTrackedOrder(
   label: string,
@@ -665,6 +748,11 @@ const validation = {
 };
 
 const holdReleaseOrder = await createTrackedOrder('hold-release', 2);
+upstreamCalls.push(
+  await captureUpstreamCall('ShippingFulfillmentOrderHydrate', storeBackedFulfillmentOrderHydrateQuery, {
+    id: holdReleaseOrder.order.fulfillmentOrderId,
+  }),
+);
 const hold = await capture(holdMutation, {
   id: holdReleaseOrder.order.fulfillmentOrderId,
   fulfillmentHold: {
@@ -691,6 +779,16 @@ const afterReleaseHold = await readAfter(holdReleaseOrder.order);
 
 const moveOrder = await createTrackedOrder('move', 2);
 const moveLocationId = findAlternateLocationId(locationIds, moveOrder.order.assignedLocationId);
+upstreamCalls.push(
+  await captureUpstreamCall('ShippingFulfillmentOrderHydrate', storeBackedFulfillmentOrderHydrateQuery, {
+    id: moveOrder.order.fulfillmentOrderId,
+  }),
+);
+if (moveLocationId) {
+  upstreamCalls.push(
+    await captureUpstreamCall('StorePropertiesLocationHydrate', locationHydrateQuery, { id: moveLocationId }),
+  );
+}
 const move = await capture(moveMutation, {
   id: moveOrder.order.fulfillmentOrderId,
   newLocationId: moveLocationId ?? 'gid://shopify/Location/0',
@@ -710,6 +808,11 @@ const reschedule = await capture(rescheduleMutation, {
   fulfillAt,
 });
 const afterReschedule = await readAfter(scheduleProgressOrder.order);
+upstreamCalls.push(
+  await captureUpstreamCall('ShippingFulfillmentOrderHydrate', storeBackedFulfillmentOrderHydrateQuery, {
+    id: scheduleProgressOrder.order.fulfillmentOrderId,
+  }),
+);
 const reportProgress = await capture(reportProgressMutation, {
   id: scheduleProgressOrder.order.fulfillmentOrderId,
   progressReport: {
@@ -740,11 +843,21 @@ const reroute = await capture(rerouteMutation, {
   excludedLocationIds: null,
 });
 const afterReroute = await readAfter(rerouteOrder.order);
+upstreamCalls.push(
+  await captureUpstreamCall('ShippingFulfillmentOrderHydrate', storeBackedFulfillmentOrderHydrateQuery, {
+    id: rerouteOrder.order.fulfillmentOrderId,
+  }),
+);
 const cancel = await capture(cancelMutation, { id: rerouteOrder.order.fulfillmentOrderId });
 const cancelAgainAfterCancel = await capture(cancelMutation, { id: rerouteOrder.order.fulfillmentOrderId });
 const afterCancel = await readAfter(rerouteOrder.order);
 
 const residualOrder = await createTrackedOrder('residual-split-deadline-merge', 3);
+upstreamCalls.push(
+  await captureUpstreamCall('ShippingFulfillmentOrderHydrate', ordersFulfillmentOrderHydrateQuery, {
+    id: residualOrder.order.fulfillmentOrderId,
+  }),
+);
 const split = await capture(splitMutation, {
   fulfillmentOrderSplits: [
     {
@@ -863,6 +976,7 @@ const output = {
     },
   },
   cleanup,
+  upstreamCalls,
 };
 
 await mkdir(outputDir, { recursive: true });

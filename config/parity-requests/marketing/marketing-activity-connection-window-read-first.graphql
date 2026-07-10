@@ -1,0 +1,94 @@
+query MarketingActivityConnectionWindowReadFirst(
+  $first: Int!
+  $activityQuery: String!
+  $titleQuery: String!
+  $createdAtQuery: String!
+  $idRangeQuery: String!
+  $scheduledEndQuery: String!
+  $booleanOrQuery: String!
+  $booleanAndQuery: String!
+) {
+  latestActivity: marketingActivities(first: $first, sortKey: CREATED_AT, reverse: true) {
+    nodes {
+      id
+      title
+      createdAt
+    }
+    edges {
+      cursor
+      node {
+        id
+        title
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  titleSearch: marketingActivities(first: 5, sortKey: TITLE, query: $activityQuery) {
+    nodes {
+      id
+      title
+    }
+  }
+  titleFilter: marketingActivities(first: 5, sortKey: ID, query: $titleQuery) {
+    nodes {
+      id
+      title
+    }
+  }
+  createdAtFilter: marketingActivities(first: 5, sortKey: ID, query: $createdAtQuery) {
+    nodes {
+      id
+      title
+    }
+  }
+  idRangeFilter: marketingActivities(first: 5, sortKey: ID, query: $idRangeQuery) {
+    nodes {
+      id
+      title
+    }
+  }
+  scheduledEndFilter: marketingActivities(first: 5, sortKey: ID, query: $scheduledEndQuery) {
+    nodes {
+      id
+      title
+    }
+  }
+  booleanOr: marketingActivities(first: 5, sortKey: ID, query: $booleanOrQuery) {
+    nodes {
+      id
+      title
+      status
+    }
+  }
+  booleanAnd: marketingActivities(first: 5, sortKey: ID, query: $booleanAndQuery) {
+    nodes {
+      id
+      title
+      status
+    }
+  }
+  latestEvent: marketingEvents(first: $first, sortKey: ID, reverse: true) {
+    nodes {
+      id
+      type
+    }
+    edges {
+      cursor
+      node {
+        id
+        type
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

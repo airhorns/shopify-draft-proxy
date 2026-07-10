@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-06-25T13:27:43.174Z",
+  "capturedAt": "2026-07-05T07:50:12.004Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "notes": [
@@ -9,6 +9,7 @@
     "Credit/debit transaction mutations and transaction-node reads are captured with read_gift_card_transactions and write_gift_card_transactions.",
     "HAR-464 extends the fixture with a disposable customer-backed gift card and populated-data search filters for date/range, customer_id, recipient_id, source, and initial_value behavior.",
     "The lifecycle proxy replay hydrates the newly created card through the recorded GiftCardHydrate upstream call before staging supported mutations locally.",
+    "Connection mechanics evidence creates three disposable gift cards with a shared searchable code fragment, captures first/reverse pages, cursor windows, giftCardsCount(limit:) precision, then deactivates two cards to capture DISABLED_AT ordering and cursor windows before deactivating the remaining card.",
     "Notification roots are intentionally not executed by this capture script because they are customer-visible side effects."
   ],
   "notificationRoots": {
@@ -23,7 +24,7 @@
   },
   "proxyVariables": {
     "lifecycle": {
-      "id": "gid://shopify/GiftCard/661479588146",
+      "id": "gid://shopify/GiftCard/662741287218",
       "updateInput": {
         "note": "HAR-310 conformance gift card updated",
         "templateSuffix": "birthday",
@@ -49,35 +50,59 @@
       "query": "id:999999999999"
     },
     "readAfterLifecycle": {
-      "id": "gid://shopify/GiftCard/661479588146",
-      "query": "id:661479588146"
+      "id": "gid://shopify/GiftCard/662741287218",
+      "query": "id:662741287218"
+    },
+    "connectionSetup": {
+      "firstCode": "GCMMR7HQNUQNUQA",
+      "secondCode": "GCMMR7HQNUQNUQB",
+      "thirdCode": "GCMMR7HQNUQNUQC",
+      "firstAmount": "41.01",
+      "secondAmount": "41.02",
+      "thirdAmount": "41.03"
+    },
+    "connectionFirstPage": {
+      "query": "NUQ"
+    },
+    "connectionWindows": {
+      "query": "NUQ",
+      "after": "eyJsYXN0X2lkIjo2NjI3NDEzNTI3NTQsImxhc3RfdmFsdWUiOjY2Mjc0MTM1Mjc1NH0=",
+      "before": "eyJsYXN0X2lkIjo2NjI3NDEzNTI3NTQsImxhc3RfdmFsdWUiOjY2Mjc0MTM1Mjc1NH0=",
+      "reverseAfter": "eyJsYXN0X2lkIjo2NjI3NDEzNTI3NTQsImxhc3RfdmFsdWUiOjY2Mjc0MTM1Mjc1NH0="
+    },
+    "connectionDisabledAtFirstPage": {
+      "query": "NUQ"
+    },
+    "connectionDisabledAtWindows": {
+      "query": "NUQ",
+      "reverseAfter": "eyJsYXN0X2lkIjo2NjI3NDEzMTk5ODYsImxhc3RfdmFsdWUiOjE3ODMyMzc4MDQwMDB9"
     },
     "searchFilters": {
-      "partialQuery": "id:661479588146 AND balance_status:partial",
-      "fullQuery": "id:661479588146 AND balance_status:full",
-      "emptyQuery": "id:661479588146 AND balance_status:empty",
-      "nonEmptyQuery": "id:661479588146 AND balance_status:full_or_partial",
-      "codeQuery": "id:661479588146 AND 0463"
+      "partialQuery": "id:662741287218 AND balance_status:partial",
+      "fullQuery": "id:662741287218 AND balance_status:full",
+      "emptyQuery": "id:662741287218 AND balance_status:empty",
+      "nonEmptyQuery": "id:662741287218 AND balance_status:full_or_partial",
+      "codeQuery": "id:662741287218 AND 1985"
     },
     "advancedSearchFilters": {
-      "createdAfterQuery": "id:661479588146 AND created_at:>=2026-06-25",
-      "createdFutureQuery": "id:661479588146 AND created_at:>=2099-01-01",
-      "updatedAfterQuery": "id:661479588146 AND updated_at:>=2026-06-25",
-      "updatedFutureQuery": "id:661479588146 AND updated_at:>=2099-01-01",
-      "expiresAfterQuery": "id:661479588146 AND expires_on:>=2028-01-01",
-      "expiresBeforeQuery": "id:661479588146 AND expires_on:<2028-01-01",
-      "customerQuery": "id:661479588146 AND customer_id:10853881119026",
-      "recipientQuery": "id:661479588146 AND recipient_id:10853881119026",
-      "sourceQuery": "id:661479588146 AND source:api_client",
-      "sourceNoMatchQuery": "id:661479588146 AND source:manual",
-      "initialValueQuery": "id:661479588146 AND initial_value:>=5"
+      "createdAfterQuery": "id:662741287218 AND created_at:>=2026-07-05",
+      "createdFutureQuery": "id:662741287218 AND created_at:>=2099-01-01",
+      "updatedAfterQuery": "id:662741287218 AND updated_at:>=2026-07-05",
+      "updatedFutureQuery": "id:662741287218 AND updated_at:>=2099-01-01",
+      "expiresAfterQuery": "id:662741287218 AND expires_on:>=2028-01-01",
+      "expiresBeforeQuery": "id:662741287218 AND expires_on:<2028-01-01",
+      "customerQuery": "id:662741287218 AND customer_id:10900264419634",
+      "recipientQuery": "id:662741287218 AND recipient_id:10900264419634",
+      "sourceQuery": "id:662741287218 AND source:api_client",
+      "sourceNoMatchQuery": "id:662741287218 AND source:manual",
+      "initialValueQuery": "id:662741287218 AND initial_value:>=5"
     }
   },
   "upstreamCalls": [
     {
       "operationName": "GiftCardHydrate",
       "variables": {
-        "id": "gid://shopify/GiftCard/661479588146"
+        "id": "gid://shopify/GiftCard/662741287218"
       },
       "query": "#graphql\n    query GiftCardHydrate($id: ID!) {\n      giftCard(id: $id) {\n        id\n        lastCharacters\n        maskedCode\n        enabled\n        deactivatedAt\n        expiresOn\n        note\n        templateSuffix\n        createdAt\n        updatedAt\n        initialValue { amount currencyCode }\n        balance { amount currencyCode }\n        customer {\n          id\n          email\n          defaultEmailAddress { emailAddress }\n          defaultPhoneNumber { phoneNumber }\n        }\n        recipientAttributes {\n          message\n          preferredName\n          sendNotificationAt\n          recipient {\n            id\n            email\n            defaultEmailAddress { emailAddress }\n            defaultPhoneNumber { phoneNumber }\n          }\n        }\n        transactions(first: 250) {\n          nodes {\n            __typename\n            id\n            note\n            processedAt\n            amount { amount currencyCode }\n          }\n        }\n      }\n      giftCardConfiguration {\n        issueLimit { amount currencyCode }\n        purchaseLimit { amount currencyCode }\n      }\n    }\n  ",
       "response": {
@@ -85,16 +110,16 @@
         "body": {
           "data": {
             "giftCard": {
-              "id": "gid://shopify/GiftCard/661479588146",
-              "lastCharacters": "0463",
-              "maskedCode": "•••• •••• •••• 0463",
+              "id": "gid://shopify/GiftCard/662741287218",
+              "lastCharacters": "1985",
+              "maskedCode": "•••• •••• •••• 1985",
               "enabled": true,
               "deactivatedAt": null,
               "expiresOn": "2027-04-26",
               "note": "HAR-310 conformance gift card",
               "templateSuffix": null,
-              "createdAt": "2026-06-25T13:27:30Z",
-              "updatedAt": "2026-06-25T13:27:30Z",
+              "createdAt": "2026-07-05T07:49:42Z",
+              "updatedAt": "2026-07-05T07:49:42Z",
               "initialValue": {
                 "amount": "5.0",
                 "currencyCode": "CAD"
@@ -104,10 +129,10 @@
                 "currencyCode": "CAD"
               },
               "customer": {
-                "id": "gid://shopify/Customer/10853881119026",
-                "email": "har-464-gift-card-1782394050341@example.com",
+                "id": "gid://shopify/Customer/10900264419634",
+                "email": "har-464-gift-card-1783237781839@example.com",
                 "defaultEmailAddress": {
-                  "emailAddress": "har-464-gift-card-1782394050341@example.com"
+                  "emailAddress": "har-464-gift-card-1783237781839@example.com"
                 },
                 "defaultPhoneNumber": null
               },
@@ -116,10 +141,10 @@
                 "preferredName": "HAR-464 recipient",
                 "sendNotificationAt": null,
                 "recipient": {
-                  "id": "gid://shopify/Customer/10853881119026",
-                  "email": "har-464-gift-card-1782394050341@example.com",
+                  "id": "gid://shopify/Customer/10900264419634",
+                  "email": "har-464-gift-card-1783237781839@example.com",
                   "defaultEmailAddress": {
-                    "emailAddress": "har-464-gift-card-1782394050341@example.com"
+                    "emailAddress": "har-464-gift-card-1783237781839@example.com"
                   },
                   "defaultPhoneNumber": null
                 }
@@ -584,7 +609,7 @@
               "actualQueryCost": 13,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1982,
+                "currentlyAvailable": 1987,
                 "restoreRate": 100
               }
             }
@@ -636,7 +661,7 @@
               }
             },
             "giftCardsCount": {
-              "count": 98,
+              "count": 177,
               "precision": "EXACT"
             },
             "giftCardConfiguration": {
@@ -656,7 +681,7 @@
               "actualQueryCost": 16,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1976,
+                "currentlyAvailable": 1980,
                 "restoreRate": 100
               }
             }
@@ -695,7 +720,7 @@
               "actualQueryCost": 13,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1974,
+                "currentlyAvailable": 1978,
                 "restoreRate": 100
               }
             }
@@ -743,7 +768,7 @@
               "actualQueryCost": 15,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1968,
+                "currentlyAvailable": 1972,
                 "restoreRate": 100
               }
             }
@@ -776,7 +801,7 @@
               "actualQueryCost": 1,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1978,
+                "currentlyAvailable": 1980,
                 "restoreRate": 100
               }
             }
@@ -789,7 +814,7 @@
       "query": "#graphql\n    mutation GiftCardSearchCustomerCreate($input: CustomerInput!) {\n      customerCreate(input: $input) {\n        customer {\n          id\n          email\n        }\n        userErrors {\n          field\n          message\n        }\n      }\n    }\n  ",
       "variables": {
         "input": {
-          "email": "har-464-gift-card-1782394050341@example.com",
+          "email": "har-464-gift-card-1783237781839@example.com",
           "firstName": "HAR-464",
           "lastName": "Gift Card Search",
           "note": "Disposable customer for HAR-464 gift-card search conformance."
@@ -801,8 +826,8 @@
           "data": {
             "customerCreate": {
               "customer": {
-                "id": "gid://shopify/Customer/10853881119026",
-                "email": "har-464-gift-card-1782394050341@example.com"
+                "id": "gid://shopify/Customer/10900264419634",
+                "email": "har-464-gift-card-1783237781839@example.com"
               },
               "userErrors": []
             }
@@ -813,7 +838,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1976,
+                "currentlyAvailable": 1979,
                 "restoreRate": 100
               }
             }
@@ -827,12 +852,12 @@
       "variables": {
         "input": {
           "initialValue": "5.00",
-          "code": "HAR3101782394050463",
+          "code": "HAR3101783237781985",
           "note": "HAR-310 conformance gift card",
           "expiresOn": "2027-04-26",
-          "customerId": "gid://shopify/Customer/10853881119026",
+          "customerId": "gid://shopify/Customer/10900264419634",
           "recipientAttributes": {
-            "id": "gid://shopify/Customer/10853881119026",
+            "id": "gid://shopify/Customer/10900264419634",
             "message": "HAR-464 recipient message",
             "preferredName": "HAR-464 recipient"
           }
@@ -844,16 +869,16 @@
           "data": {
             "giftCardCreate": {
               "giftCard": {
-                "id": "gid://shopify/GiftCard/661479588146",
-                "lastCharacters": "0463",
-                "maskedCode": "•••• •••• •••• 0463",
+                "id": "gid://shopify/GiftCard/662741287218",
+                "lastCharacters": "1985",
+                "maskedCode": "•••• •••• •••• 1985",
                 "enabled": true,
                 "deactivatedAt": null,
                 "expiresOn": "2027-04-26",
                 "note": "HAR-310 conformance gift card",
                 "templateSuffix": null,
-                "createdAt": "2026-06-25T13:27:30Z",
-                "updatedAt": "2026-06-25T13:27:30Z",
+                "createdAt": "2026-07-05T07:49:42Z",
+                "updatedAt": "2026-07-05T07:49:42Z",
                 "initialValue": {
                   "amount": "5.0",
                   "currencyCode": "CAD"
@@ -863,18 +888,18 @@
                   "currencyCode": "CAD"
                 },
                 "customer": {
-                  "id": "gid://shopify/Customer/10853881119026"
+                  "id": "gid://shopify/Customer/10900264419634"
                 },
                 "recipientAttributes": {
                   "message": "HAR-464 recipient message",
                   "preferredName": "HAR-464 recipient",
                   "sendNotificationAt": null,
                   "recipient": {
-                    "id": "gid://shopify/Customer/10853881119026"
+                    "id": "gid://shopify/Customer/10900264419634"
                   }
                 }
               },
-              "giftCardCode": "har3101782394050463",
+              "giftCardCode": "har3101783237781985",
               "userErrors": []
             }
           },
@@ -884,7 +909,7 @@
               "actualQueryCost": 13,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1977,
+                "currentlyAvailable": 1980,
                 "restoreRate": 100
               }
             }
@@ -896,23 +921,23 @@
       "label": "detailAfterCreate",
       "query": "#graphql\n        query GiftCardDetail($id: ID!) {\n          giftCard(id: $id) {\n            #graphql\n  id\n  lastCharacters\n  maskedCode\n  enabled\n  deactivatedAt\n  expiresOn\n  note\n  templateSuffix\n  createdAt\n  updatedAt\n  initialValue {\n    amount\n    currencyCode\n  }\n  balance {\n    amount\n    currencyCode\n  }\n  customer {\n    id\n  }\n  recipientAttributes {\n    message\n    preferredName\n    sendNotificationAt\n    recipient {\n      id\n    }\n  }\n\n            transactions(first: 5) {\n              nodes {\n                id\n                note\n                processedAt\n                amount {\n                  amount\n                  currencyCode\n                }\n              }\n              pageInfo {\n                hasNextPage\n                hasPreviousPage\n                startCursor\n                endCursor\n              }\n            }\n          }\n        }\n      ",
       "variables": {
-        "id": "gid://shopify/GiftCard/661479588146"
+        "id": "gid://shopify/GiftCard/662741287218"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "giftCard": {
-              "id": "gid://shopify/GiftCard/661479588146",
-              "lastCharacters": "0463",
-              "maskedCode": "•••• •••• •••• 0463",
+              "id": "gid://shopify/GiftCard/662741287218",
+              "lastCharacters": "1985",
+              "maskedCode": "•••• •••• •••• 1985",
               "enabled": true,
               "deactivatedAt": null,
               "expiresOn": "2027-04-26",
               "note": "HAR-310 conformance gift card",
               "templateSuffix": null,
-              "createdAt": "2026-06-25T13:27:30Z",
-              "updatedAt": "2026-06-25T13:27:30Z",
+              "createdAt": "2026-07-05T07:49:42Z",
+              "updatedAt": "2026-07-05T07:49:42Z",
               "initialValue": {
                 "amount": "5.0",
                 "currencyCode": "CAD"
@@ -922,14 +947,14 @@
                 "currencyCode": "CAD"
               },
               "customer": {
-                "id": "gid://shopify/Customer/10853881119026"
+                "id": "gid://shopify/Customer/10900264419634"
               },
               "recipientAttributes": {
                 "message": "HAR-464 recipient message",
                 "preferredName": "HAR-464 recipient",
                 "sendNotificationAt": null,
                 "recipient": {
-                  "id": "gid://shopify/Customer/10853881119026"
+                  "id": "gid://shopify/Customer/10900264419634"
                 }
               },
               "transactions": {
@@ -949,7 +974,7 @@
               "actualQueryCost": 9,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1980,
+                "currentlyAvailable": 1981,
                 "restoreRate": 100
               }
             }
@@ -961,7 +986,7 @@
       "label": "update",
       "query": "#graphql\n        mutation GiftCardUpdate($id: ID!, $input: GiftCardUpdateInput!) {\n          giftCardUpdate(id: $id, input: $input) {\n            giftCard {\n              #graphql\n  id\n  lastCharacters\n  maskedCode\n  enabled\n  deactivatedAt\n  expiresOn\n  note\n  templateSuffix\n  createdAt\n  updatedAt\n  initialValue {\n    amount\n    currencyCode\n  }\n  balance {\n    amount\n    currencyCode\n  }\n  customer {\n    id\n  }\n  recipientAttributes {\n    message\n    preferredName\n    sendNotificationAt\n    recipient {\n      id\n    }\n  }\n\n            }\n            userErrors {\n              field\n              message\n            }\n          }\n        }\n      ",
       "variables": {
-        "id": "gid://shopify/GiftCard/661479588146",
+        "id": "gid://shopify/GiftCard/662741287218",
         "input": {
           "note": "HAR-310 conformance gift card updated",
           "templateSuffix": "birthday",
@@ -974,16 +999,16 @@
           "data": {
             "giftCardUpdate": {
               "giftCard": {
-                "id": "gid://shopify/GiftCard/661479588146",
-                "lastCharacters": "0463",
-                "maskedCode": "•••• •••• •••• 0463",
+                "id": "gid://shopify/GiftCard/662741287218",
+                "lastCharacters": "1985",
+                "maskedCode": "•••• •••• •••• 1985",
                 "enabled": true,
                 "deactivatedAt": null,
                 "expiresOn": "2028-04-26",
                 "note": "HAR-310 conformance gift card updated",
                 "templateSuffix": "birthday",
-                "createdAt": "2026-06-25T13:27:30Z",
-                "updatedAt": "2026-06-25T13:27:31Z",
+                "createdAt": "2026-07-05T07:49:42Z",
+                "updatedAt": "2026-07-05T07:49:42Z",
                 "initialValue": {
                   "amount": "5.0",
                   "currencyCode": "CAD"
@@ -993,14 +1018,14 @@
                   "currencyCode": "CAD"
                 },
                 "customer": {
-                  "id": "gid://shopify/Customer/10853881119026"
+                  "id": "gid://shopify/Customer/10900264419634"
                 },
                 "recipientAttributes": {
                   "message": "HAR-464 recipient message",
                   "preferredName": "HAR-464 recipient",
                   "sendNotificationAt": null,
                   "recipient": {
-                    "id": "gid://shopify/Customer/10853881119026"
+                    "id": "gid://shopify/Customer/10900264419634"
                   }
                 }
               },
@@ -1013,7 +1038,7 @@
               "actualQueryCost": 13,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1978,
+                "currentlyAvailable": 1977,
                 "restoreRate": 100
               }
             }
@@ -1025,7 +1050,7 @@
       "label": "credit",
       "query": "#graphql\n        mutation GiftCardCredit($id: ID!, $input: GiftCardCreditInput!) {\n          giftCardCredit(id: $id, creditInput: $input) {\n            giftCardCreditTransaction {\n              id\n              note\n              processedAt\n              amount {\n                amount\n                currencyCode\n              }\n              giftCard {\n                id\n                balance {\n                  amount\n                  currencyCode\n                }\n              }\n            }\n            userErrors {\n              field\n              message\n            }\n          }\n        }\n      ",
       "variables": {
-        "id": "gid://shopify/GiftCard/661479588146",
+        "id": "gid://shopify/GiftCard/662741287218",
         "input": {
           "creditAmount": {
             "amount": "2.00",
@@ -1040,17 +1065,68 @@
           "data": {
             "giftCardCredit": {
               "giftCardCreditTransaction": {
-                "id": "gid://shopify/GiftCardCreditTransaction/246903636274",
+                "id": "gid://shopify/GiftCardCreditTransaction/246982934834",
                 "note": "HAR-310 credit",
-                "processedAt": "2026-06-25T13:27:31Z",
+                "processedAt": "2026-07-05T07:49:42Z",
                 "amount": {
                   "amount": "2.0",
                   "currencyCode": "CAD"
                 },
                 "giftCard": {
-                  "id": "gid://shopify/GiftCard/661479588146",
+                  "id": "gid://shopify/GiftCard/662741287218",
                   "balance": {
                     "amount": "7.0",
+                    "currencyCode": "CAD"
+                  }
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1980,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "debit": {
+      "label": "debit",
+      "query": "#graphql\n        mutation GiftCardDebit($id: ID!, $input: GiftCardDebitInput!) {\n          giftCardDebit(id: $id, debitInput: $input) {\n            giftCardDebitTransaction {\n              id\n              note\n              processedAt\n              amount {\n                amount\n                currencyCode\n              }\n              giftCard {\n                id\n                balance {\n                  amount\n                  currencyCode\n                }\n              }\n            }\n            userErrors {\n              field\n              message\n            }\n          }\n        }\n      ",
+      "variables": {
+        "id": "gid://shopify/GiftCard/662741287218",
+        "input": {
+          "debitAmount": {
+            "amount": "3.00",
+            "currencyCode": "CAD"
+          },
+          "note": "HAR-310 debit"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardDebit": {
+              "giftCardDebitTransaction": {
+                "id": "gid://shopify/GiftCardDebitTransaction/246982967602",
+                "note": "HAR-310 debit",
+                "processedAt": "2026-07-05T07:49:42Z",
+                "amount": {
+                  "amount": "-3.0",
+                  "currencyCode": "CAD"
+                },
+                "giftCard": {
+                  "id": "gid://shopify/GiftCard/662741287218",
+                  "balance": {
+                    "amount": "4.0",
                     "currencyCode": "CAD"
                   }
                 }
@@ -1072,66 +1148,15 @@
         }
       }
     },
-    "debit": {
-      "label": "debit",
-      "query": "#graphql\n        mutation GiftCardDebit($id: ID!, $input: GiftCardDebitInput!) {\n          giftCardDebit(id: $id, debitInput: $input) {\n            giftCardDebitTransaction {\n              id\n              note\n              processedAt\n              amount {\n                amount\n                currencyCode\n              }\n              giftCard {\n                id\n                balance {\n                  amount\n                  currencyCode\n                }\n              }\n            }\n            userErrors {\n              field\n              message\n            }\n          }\n        }\n      ",
-      "variables": {
-        "id": "gid://shopify/GiftCard/661479588146",
-        "input": {
-          "debitAmount": {
-            "amount": "3.00",
-            "currencyCode": "CAD"
-          },
-          "note": "HAR-310 debit"
-        }
-      },
-      "response": {
-        "status": 200,
-        "payload": {
-          "data": {
-            "giftCardDebit": {
-              "giftCardDebitTransaction": {
-                "id": "gid://shopify/GiftCardDebitTransaction/246903669042",
-                "note": "HAR-310 debit",
-                "processedAt": "2026-06-25T13:27:31Z",
-                "amount": {
-                  "amount": "-3.0",
-                  "currencyCode": "CAD"
-                },
-                "giftCard": {
-                  "id": "gid://shopify/GiftCard/661479588146",
-                  "balance": {
-                    "amount": "4.0",
-                    "currencyCode": "CAD"
-                  }
-                }
-              },
-              "userErrors": []
-            }
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 11,
-              "actualQueryCost": 11,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1987,
-                "restoreRate": 100
-              }
-            }
-          }
-        }
-      }
-    },
     "searchFilterRead": {
       "label": "searchFilterRead",
       "query": "#graphql\n        query GiftCardSearchFilterRead(\n          $partialQuery: String!\n          $fullQuery: String!\n          $emptyQuery: String!\n          $nonEmptyQuery: String!\n          $codeQuery: String!\n        ) {\n          partialBalanceGiftCards: giftCards(first: 2, query: $partialQuery, sortKey: ID) {\n            nodes {\n              id\n              lastCharacters\n              enabled\n              balance {\n                amount\n                currencyCode\n              }\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          partialBalanceGiftCardsCount: giftCardsCount(query: $partialQuery) {\n            count\n            precision\n          }\n          fullBalanceGiftCards: giftCards(first: 2, query: $fullQuery, sortKey: ID) {\n            nodes {\n              id\n              lastCharacters\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          emptyBalanceGiftCards: giftCards(first: 2, query: $emptyQuery, sortKey: ID) {\n            nodes {\n              id\n              lastCharacters\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          nonEmptyBalanceGiftCardsCount: giftCardsCount(query: $nonEmptyQuery) {\n            count\n            precision\n          }\n          codeSearchGiftCards: giftCards(first: 2, query: $codeQuery, sortKey: ID) {\n            nodes {\n              id\n              lastCharacters\n              enabled\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          codeSearchGiftCardsCount: giftCardsCount(query: $codeQuery) {\n            count\n            precision\n          }\n        }\n      ",
       "variables": {
-        "partialQuery": "id:661479588146 AND balance_status:partial",
-        "fullQuery": "id:661479588146 AND balance_status:full",
-        "emptyQuery": "id:661479588146 AND balance_status:empty",
-        "nonEmptyQuery": "id:661479588146 AND balance_status:full_or_partial",
-        "codeQuery": "id:661479588146 AND 0463"
+        "partialQuery": "id:662741287218 AND balance_status:partial",
+        "fullQuery": "id:662741287218 AND balance_status:full",
+        "emptyQuery": "id:662741287218 AND balance_status:empty",
+        "nonEmptyQuery": "id:662741287218 AND balance_status:full_or_partial",
+        "codeQuery": "id:662741287218 AND 1985"
       },
       "response": {
         "status": 200,
@@ -1140,8 +1165,8 @@
             "partialBalanceGiftCards": {
               "nodes": [
                 {
-                  "id": "gid://shopify/GiftCard/661479588146",
-                  "lastCharacters": "0463",
+                  "id": "gid://shopify/GiftCard/662741287218",
+                  "lastCharacters": "1985",
                   "enabled": true,
                   "balance": {
                     "amount": "4.0",
@@ -1179,8 +1204,8 @@
             "codeSearchGiftCards": {
               "nodes": [
                 {
-                  "id": "gid://shopify/GiftCard/661479588146",
-                  "lastCharacters": "0463",
+                  "id": "gid://shopify/GiftCard/662741287218",
+                  "lastCharacters": "1985",
                   "enabled": true
                 }
               ],
@@ -1212,17 +1237,17 @@
       "label": "advancedSearchFilterRead",
       "query": "#graphql\n        query GiftCardAdvancedSearchFilterRead(\n          $createdAfterQuery: String!\n          $createdFutureQuery: String!\n          $updatedAfterQuery: String!\n          $updatedFutureQuery: String!\n          $expiresAfterQuery: String!\n          $expiresBeforeQuery: String!\n          $customerQuery: String!\n          $recipientQuery: String!\n          $sourceQuery: String!\n          $sourceNoMatchQuery: String!\n          $initialValueQuery: String!\n        ) {\n          createdAfterGiftCards: giftCards(first: 2, query: $createdAfterQuery, sortKey: ID) {\n            nodes {\n              id\n              createdAt\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          createdAfterGiftCardsCount: giftCardsCount(query: $createdAfterQuery) {\n            count\n            precision\n          }\n          createdFutureGiftCards: giftCards(first: 2, query: $createdFutureQuery, sortKey: ID) {\n            nodes {\n              id\n              createdAt\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          updatedAfterGiftCards: giftCards(first: 2, query: $updatedAfterQuery, sortKey: ID) {\n            nodes {\n              id\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          updatedFutureGiftCards: giftCards(first: 2, query: $updatedFutureQuery, sortKey: ID) {\n            nodes {\n              id\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          expiresAfterGiftCards: giftCards(first: 2, query: $expiresAfterQuery, sortKey: ID) {\n            nodes {\n              id\n              expiresOn\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          expiresBeforeGiftCards: giftCards(first: 2, query: $expiresBeforeQuery, sortKey: ID) {\n            nodes {\n              id\n              expiresOn\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          customerGiftCards: giftCards(first: 2, query: $customerQuery, sortKey: ID) {\n            nodes {\n              id\n              customer {\n                id\n              }\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          recipientGiftCards: giftCards(first: 2, query: $recipientQuery, sortKey: ID) {\n            nodes {\n              id\n              recipientAttributes {\n                recipient {\n                  id\n                }\n              }\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          sourceGiftCards: giftCards(first: 2, query: $sourceQuery, sortKey: ID) {\n            nodes {\n              id\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          sourceNoMatchGiftCards: giftCards(first: 2, query: $sourceNoMatchQuery, sortKey: ID) {\n            nodes {\n              id\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          initialValueGiftCards: giftCards(first: 2, query: $initialValueQuery, sortKey: ID) {\n            nodes {\n              id\n              initialValue {\n                amount\n                currencyCode\n              }\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n        }\n      ",
       "variables": {
-        "createdAfterQuery": "id:661479588146 AND created_at:>=2026-06-25",
-        "createdFutureQuery": "id:661479588146 AND created_at:>=2099-01-01",
-        "updatedAfterQuery": "id:661479588146 AND updated_at:>=2026-06-25",
-        "updatedFutureQuery": "id:661479588146 AND updated_at:>=2099-01-01",
-        "expiresAfterQuery": "id:661479588146 AND expires_on:>=2028-01-01",
-        "expiresBeforeQuery": "id:661479588146 AND expires_on:<2028-01-01",
-        "customerQuery": "id:661479588146 AND customer_id:10853881119026",
-        "recipientQuery": "id:661479588146 AND recipient_id:10853881119026",
-        "sourceQuery": "id:661479588146 AND source:api_client",
-        "sourceNoMatchQuery": "id:661479588146 AND source:manual",
-        "initialValueQuery": "id:661479588146 AND initial_value:>=5"
+        "createdAfterQuery": "id:662741287218 AND created_at:>=2026-07-05",
+        "createdFutureQuery": "id:662741287218 AND created_at:>=2099-01-01",
+        "updatedAfterQuery": "id:662741287218 AND updated_at:>=2026-07-05",
+        "updatedFutureQuery": "id:662741287218 AND updated_at:>=2099-01-01",
+        "expiresAfterQuery": "id:662741287218 AND expires_on:>=2028-01-01",
+        "expiresBeforeQuery": "id:662741287218 AND expires_on:<2028-01-01",
+        "customerQuery": "id:662741287218 AND customer_id:10900264419634",
+        "recipientQuery": "id:662741287218 AND recipient_id:10900264419634",
+        "sourceQuery": "id:662741287218 AND source:api_client",
+        "sourceNoMatchQuery": "id:662741287218 AND source:manual",
+        "initialValueQuery": "id:662741287218 AND initial_value:>=5"
       },
       "response": {
         "status": 200,
@@ -1231,8 +1256,8 @@
             "createdAfterGiftCards": {
               "nodes": [
                 {
-                  "id": "gid://shopify/GiftCard/661479588146",
-                  "createdAt": "2026-06-25T13:27:30Z"
+                  "id": "gid://shopify/GiftCard/662741287218",
+                  "createdAt": "2026-07-05T07:49:42Z"
                 }
               ],
               "pageInfo": {
@@ -1254,7 +1279,7 @@
             "updatedAfterGiftCards": {
               "nodes": [
                 {
-                  "id": "gid://shopify/GiftCard/661479588146"
+                  "id": "gid://shopify/GiftCard/662741287218"
                 }
               ],
               "pageInfo": {
@@ -1265,7 +1290,7 @@
             "updatedFutureGiftCards": {
               "nodes": [
                 {
-                  "id": "gid://shopify/GiftCard/661479588146"
+                  "id": "gid://shopify/GiftCard/662741287218"
                 }
               ],
               "pageInfo": {
@@ -1276,7 +1301,7 @@
             "expiresAfterGiftCards": {
               "nodes": [
                 {
-                  "id": "gid://shopify/GiftCard/661479588146",
+                  "id": "gid://shopify/GiftCard/662741287218",
                   "expiresOn": "2028-04-26"
                 }
               ],
@@ -1295,9 +1320,9 @@
             "customerGiftCards": {
               "nodes": [
                 {
-                  "id": "gid://shopify/GiftCard/661479588146",
+                  "id": "gid://shopify/GiftCard/662741287218",
                   "customer": {
-                    "id": "gid://shopify/Customer/10853881119026"
+                    "id": "gid://shopify/Customer/10900264419634"
                   }
                 }
               ],
@@ -1309,10 +1334,10 @@
             "recipientGiftCards": {
               "nodes": [
                 {
-                  "id": "gid://shopify/GiftCard/661479588146",
+                  "id": "gid://shopify/GiftCard/662741287218",
                   "recipientAttributes": {
                     "recipient": {
-                      "id": "gid://shopify/Customer/10853881119026"
+                      "id": "gid://shopify/Customer/10900264419634"
                     }
                   }
                 }
@@ -1325,7 +1350,7 @@
             "sourceGiftCards": {
               "nodes": [
                 {
-                  "id": "gid://shopify/GiftCard/661479588146"
+                  "id": "gid://shopify/GiftCard/662741287218"
                 }
               ],
               "pageInfo": {
@@ -1343,7 +1368,7 @@
             "initialValueGiftCards": {
               "nodes": [
                 {
-                  "id": "gid://shopify/GiftCard/661479588146",
+                  "id": "gid://shopify/GiftCard/662741287218",
                   "initialValue": {
                     "amount": "5.0",
                     "currencyCode": "CAD"
@@ -1369,16 +1394,16 @@
             "search": [
               {
                 "path": ["updatedAfterGiftCards"],
-                "query": "id:661479588146 AND updated_at:>=2026-06-25",
+                "query": "id:662741287218 AND updated_at:>=2026-07-05",
                 "parsed": {
                   "and": [
                     {
                       "field": "updated_at",
-                      "range_gte": "2026-06-25"
+                      "range_gte": "2026-07-05"
                     },
                     {
                       "field": "id",
-                      "match_all": "661479588146"
+                      "match_all": "662741287218"
                     }
                   ]
                 },
@@ -1392,7 +1417,7 @@
               },
               {
                 "path": ["updatedFutureGiftCards"],
-                "query": "id:661479588146 AND updated_at:>=2099-01-01",
+                "query": "id:662741287218 AND updated_at:>=2099-01-01",
                 "parsed": {
                   "and": [
                     {
@@ -1401,7 +1426,7 @@
                     },
                     {
                       "field": "id",
-                      "match_all": "661479588146"
+                      "match_all": "662741287218"
                     }
                   ]
                 },
@@ -1422,7 +1447,7 @@
       "label": "deactivate",
       "query": "#graphql\n        mutation GiftCardDeactivate($id: ID!) {\n          giftCardDeactivate(id: $id) {\n            giftCard {\n              id\n              enabled\n              deactivatedAt\n              balance {\n                amount\n                currencyCode\n              }\n            }\n            userErrors {\n              field\n              message\n            }\n          }\n        }\n      ",
       "variables": {
-        "id": "gid://shopify/GiftCard/661479588146"
+        "id": "gid://shopify/GiftCard/662741287218"
       },
       "response": {
         "status": 200,
@@ -1430,9 +1455,9 @@
           "data": {
             "giftCardDeactivate": {
               "giftCard": {
-                "id": "gid://shopify/GiftCard/661479588146",
+                "id": "gid://shopify/GiftCard/662741287218",
                 "enabled": false,
-                "deactivatedAt": "2026-06-25T13:27:42Z",
+                "deactivatedAt": "2026-07-05T07:50:11Z",
                 "balance": {
                   "amount": "4.0",
                   "currencyCode": "CAD"
@@ -1447,7 +1472,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1963,
+                "currentlyAvailable": 1990,
                 "restoreRate": 100
               }
             }
@@ -1459,23 +1484,23 @@
       "label": "detailAfterDeactivate",
       "query": "#graphql\n        query GiftCardDetailAfterDeactivate($id: ID!) {\n          giftCard(id: $id) {\n            #graphql\n  id\n  lastCharacters\n  maskedCode\n  enabled\n  deactivatedAt\n  expiresOn\n  note\n  templateSuffix\n  createdAt\n  updatedAt\n  initialValue {\n    amount\n    currencyCode\n  }\n  balance {\n    amount\n    currencyCode\n  }\n  customer {\n    id\n  }\n  recipientAttributes {\n    message\n    preferredName\n    sendNotificationAt\n    recipient {\n      id\n    }\n  }\n\n            transactions(first: 5) {\n              nodes {\n                note\n                amount {\n                  amount\n                  currencyCode\n                }\n              }\n              pageInfo {\n                hasNextPage\n                hasPreviousPage\n              }\n            }\n          }\n        }\n      ",
       "variables": {
-        "id": "gid://shopify/GiftCard/661479588146"
+        "id": "gid://shopify/GiftCard/662741287218"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "giftCard": {
-              "id": "gid://shopify/GiftCard/661479588146",
-              "lastCharacters": "0463",
-              "maskedCode": "•••• •••• •••• 0463",
+              "id": "gid://shopify/GiftCard/662741287218",
+              "lastCharacters": "1985",
+              "maskedCode": "•••• •••• •••• 1985",
               "enabled": false,
-              "deactivatedAt": "2026-06-25T13:27:42Z",
+              "deactivatedAt": "2026-07-05T07:50:11Z",
               "expiresOn": "2028-04-26",
               "note": "HAR-310 conformance gift card updated",
               "templateSuffix": "birthday",
-              "createdAt": "2026-06-25T13:27:30Z",
-              "updatedAt": "2026-06-25T13:27:42Z",
+              "createdAt": "2026-07-05T07:49:42Z",
+              "updatedAt": "2026-07-05T07:50:11Z",
               "initialValue": {
                 "amount": "5.0",
                 "currencyCode": "CAD"
@@ -1485,14 +1510,14 @@
                 "currencyCode": "CAD"
               },
               "customer": {
-                "id": "gid://shopify/Customer/10853881119026"
+                "id": "gid://shopify/Customer/10900264419634"
               },
               "recipientAttributes": {
                 "message": "HAR-464 recipient message",
                 "preferredName": "HAR-464 recipient",
                 "sendNotificationAt": null,
                 "recipient": {
-                  "id": "gid://shopify/Customer/10853881119026"
+                  "id": "gid://shopify/Customer/10900264419634"
                 }
               },
               "transactions": {
@@ -1525,7 +1550,7 @@
               "actualQueryCost": 7,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1968,
+                "currentlyAvailable": 1993,
                 "restoreRate": 100
               }
             }
@@ -1537,8 +1562,8 @@
       "label": "readAfterLifecycle",
       "query": "#graphql\n        query GiftCardReadAfterLifecycle($id: ID!, $query: String!) {\n          giftCard(id: $id) {\n            note\n            templateSuffix\n            expiresOn\n            enabled\n            balance {\n              amount\n              currencyCode\n            }\n            transactions(first: 5) {\n              nodes {\n                note\n                amount {\n                  amount\n                  currencyCode\n                }\n              }\n              pageInfo {\n                hasNextPage\n                hasPreviousPage\n              }\n            }\n          }\n          giftCards(first: 2, query: $query, sortKey: ID) {\n            nodes {\n              id\n              lastCharacters\n              enabled\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          giftCardsCount(query: $query) {\n            count\n            precision\n          }\n        }\n      ",
       "variables": {
-        "id": "gid://shopify/GiftCard/661479588146",
-        "query": "id:661479588146"
+        "id": "gid://shopify/GiftCard/662741287218",
+        "query": "id:662741287218"
       },
       "response": {
         "status": 200,
@@ -1579,8 +1604,8 @@
             "giftCards": {
               "nodes": [
                 {
-                  "id": "gid://shopify/GiftCard/661479588146",
-                  "lastCharacters": "0463",
+                  "id": "gid://shopify/GiftCard/662741287218",
+                  "lastCharacters": "1985",
                   "enabled": false
                 }
               ],
@@ -1600,7 +1625,7 @@
               "actualQueryCost": 17,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1961,
+                "currentlyAvailable": 1983,
                 "restoreRate": 100
               }
             }
@@ -1613,7 +1638,7 @@
       "query": "#graphql\n          mutation GiftCardSearchCustomerCleanup($input: CustomerDeleteInput!) {\n            customerDelete(input: $input) {\n              deletedCustomerId\n              userErrors {\n                field\n                message\n              }\n            }\n          }\n        ",
       "variables": {
         "input": {
-          "id": "gid://shopify/Customer/10853881119026"
+          "id": "gid://shopify/Customer/10900264419634"
         }
       },
       "response": {
@@ -1621,7 +1646,7 @@
         "payload": {
           "data": {
             "customerDelete": {
-              "deletedCustomerId": "gid://shopify/Customer/10853881119026",
+              "deletedCustomerId": "gid://shopify/Customer/10900264419634",
               "userErrors": []
             }
           },
@@ -1631,7 +1656,535 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1961,
+                "currentlyAvailable": 1982,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "connectionSetup": {
+      "label": "connectionSetup",
+      "query": "mutation GiftCardConnectionSetup(\n  $firstCode: String!\n  $secondCode: String!\n  $thirdCode: String!\n  $firstAmount: Decimal!\n  $secondAmount: Decimal!\n  $thirdAmount: Decimal!\n) {\n  first: giftCardCreate(input: { initialValue: $firstAmount, code: $firstCode, note: \"Connection mechanics first\" }) {\n    giftCard {\n      id\n      lastCharacters\n      initialValue {\n        amount\n        currencyCode\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  second: giftCardCreate(input: { initialValue: $secondAmount, code: $secondCode, note: \"Connection mechanics second\" }) {\n    giftCard {\n      id\n      lastCharacters\n      initialValue {\n        amount\n        currencyCode\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  third: giftCardCreate(input: { initialValue: $thirdAmount, code: $thirdCode, note: \"Connection mechanics third\" }) {\n    giftCard {\n      id\n      lastCharacters\n      initialValue {\n        amount\n        currencyCode\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "firstCode": "GCMMR7HQNUQNUQA",
+        "secondCode": "GCMMR7HQNUQNUQB",
+        "thirdCode": "GCMMR7HQNUQNUQC",
+        "firstAmount": "41.01",
+        "secondAmount": "41.02",
+        "thirdAmount": "41.03"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "first": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/662741319986",
+                "lastCharacters": "nuqa",
+                "initialValue": {
+                  "amount": "41.01",
+                  "currencyCode": "CAD"
+                }
+              },
+              "userErrors": []
+            },
+            "second": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/662741352754",
+                "lastCharacters": "nuqb",
+                "initialValue": {
+                  "amount": "41.02",
+                  "currencyCode": "CAD"
+                }
+              },
+              "userErrors": []
+            },
+            "third": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/662741385522",
+                "lastCharacters": "nuqc",
+                "initialValue": {
+                  "amount": "41.03",
+                  "currencyCode": "CAD"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 30,
+              "actualQueryCost": 30,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1941,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "connectionFirstPage": {
+      "label": "connectionFirstPage",
+      "query": "query GiftCardConnectionFirstPage($query: String!) {\n  forward: giftCards(first: 2, query: $query, sortKey: ID) {\n    nodes {\n      lastCharacters\n      initialValue {\n        amount\n        currencyCode\n      }\n    }\n    edges {\n      cursor\n      node {\n        lastCharacters\n        initialValue {\n          amount\n          currencyCode\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  reverse: giftCards(first: 2, query: $query, sortKey: ID, reverse: true) {\n    nodes {\n      lastCharacters\n      initialValue {\n        amount\n        currencyCode\n      }\n    }\n    edges {\n      cursor\n      node {\n        lastCharacters\n        initialValue {\n          amount\n          currencyCode\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  countLimit: giftCardsCount(query: $query, limit: 2) {\n    count\n    precision\n  }\n}\n",
+      "variables": {
+        "query": "NUQ"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "forward": {
+              "nodes": [
+                {
+                  "lastCharacters": "nuqa",
+                  "initialValue": {
+                    "amount": "41.01",
+                    "currencyCode": "CAD"
+                  }
+                },
+                {
+                  "lastCharacters": "nuqb",
+                  "initialValue": {
+                    "amount": "41.02",
+                    "currencyCode": "CAD"
+                  }
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjI3NDEzMTk5ODYsImxhc3RfdmFsdWUiOjY2Mjc0MTMxOTk4Nn0=",
+                  "node": {
+                    "lastCharacters": "nuqa",
+                    "initialValue": {
+                      "amount": "41.01",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjI3NDEzNTI3NTQsImxhc3RfdmFsdWUiOjY2Mjc0MTM1Mjc1NH0=",
+                  "node": {
+                    "lastCharacters": "nuqb",
+                    "initialValue": {
+                      "amount": "41.02",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo2NjI3NDEzMTk5ODYsImxhc3RfdmFsdWUiOjY2Mjc0MTMxOTk4Nn0=",
+                "endCursor": "eyJsYXN0X2lkIjo2NjI3NDEzNTI3NTQsImxhc3RfdmFsdWUiOjY2Mjc0MTM1Mjc1NH0="
+              }
+            },
+            "reverse": {
+              "nodes": [
+                {
+                  "lastCharacters": "nuqc",
+                  "initialValue": {
+                    "amount": "41.03",
+                    "currencyCode": "CAD"
+                  }
+                },
+                {
+                  "lastCharacters": "nuqb",
+                  "initialValue": {
+                    "amount": "41.02",
+                    "currencyCode": "CAD"
+                  }
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjI3NDEzODU1MjIsImxhc3RfdmFsdWUiOjY2Mjc0MTM4NTUyMn0=",
+                  "node": {
+                    "lastCharacters": "nuqc",
+                    "initialValue": {
+                      "amount": "41.03",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjI3NDEzNTI3NTQsImxhc3RfdmFsdWUiOjY2Mjc0MTM1Mjc1NH0=",
+                  "node": {
+                    "lastCharacters": "nuqb",
+                    "initialValue": {
+                      "amount": "41.02",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo2NjI3NDEzODU1MjIsImxhc3RfdmFsdWUiOjY2Mjc0MTM4NTUyMn0=",
+                "endCursor": "eyJsYXN0X2lkIjo2NjI3NDEzNTI3NTQsImxhc3RfdmFsdWUiOjY2Mjc0MTM1Mjc1NH0="
+              }
+            },
+            "countLimit": {
+              "count": 2,
+              "precision": "AT_LEAST"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 18,
+              "actualQueryCost": 18,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1982,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "connectionWindows": {
+      "label": "connectionWindows",
+      "query": "query GiftCardConnectionWindows($query: String!, $after: String!, $before: String!, $reverseAfter: String!) {\n  afterWindow: giftCards(first: 1, query: $query, sortKey: ID, after: $after) {\n    edges {\n      cursor\n      node {\n        lastCharacters\n        initialValue {\n          amount\n          currencyCode\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  beforeLastWindow: giftCards(last: 1, query: $query, sortKey: ID, before: $before) {\n    edges {\n      cursor\n      node {\n        lastCharacters\n        initialValue {\n          amount\n          currencyCode\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  reverseAfterWindow: giftCards(first: 1, query: $query, sortKey: ID, reverse: true, after: $reverseAfter) {\n    edges {\n      cursor\n      node {\n        lastCharacters\n        initialValue {\n          amount\n          currencyCode\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "query": "NUQ",
+        "after": "eyJsYXN0X2lkIjo2NjI3NDEzNTI3NTQsImxhc3RfdmFsdWUiOjY2Mjc0MTM1Mjc1NH0=",
+        "before": "eyJsYXN0X2lkIjo2NjI3NDEzNTI3NTQsImxhc3RfdmFsdWUiOjY2Mjc0MTM1Mjc1NH0=",
+        "reverseAfter": "eyJsYXN0X2lkIjo2NjI3NDEzNTI3NTQsImxhc3RfdmFsdWUiOjY2Mjc0MTM1Mjc1NH0="
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "afterWindow": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjI3NDEzODU1MjIsImxhc3RfdmFsdWUiOjY2Mjc0MTM4NTUyMn0=",
+                  "node": {
+                    "lastCharacters": "nuqc",
+                    "initialValue": {
+                      "amount": "41.03",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "eyJsYXN0X2lkIjo2NjI3NDEzODU1MjIsImxhc3RfdmFsdWUiOjY2Mjc0MTM4NTUyMn0=",
+                "endCursor": "eyJsYXN0X2lkIjo2NjI3NDEzODU1MjIsImxhc3RfdmFsdWUiOjY2Mjc0MTM4NTUyMn0="
+              }
+            },
+            "beforeLastWindow": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjI3NDEzMTk5ODYsImxhc3RfdmFsdWUiOjY2Mjc0MTMxOTk4Nn0=",
+                  "node": {
+                    "lastCharacters": "nuqa",
+                    "initialValue": {
+                      "amount": "41.01",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo2NjI3NDEzMTk5ODYsImxhc3RfdmFsdWUiOjY2Mjc0MTMxOTk4Nn0=",
+                "endCursor": "eyJsYXN0X2lkIjo2NjI3NDEzMTk5ODYsImxhc3RfdmFsdWUiOjY2Mjc0MTMxOTk4Nn0="
+              }
+            },
+            "reverseAfterWindow": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjI3NDEzMTk5ODYsImxhc3RfdmFsdWUiOjY2Mjc0MTMxOTk4Nn0=",
+                  "node": {
+                    "lastCharacters": "nuqa",
+                    "initialValue": {
+                      "amount": "41.01",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "eyJsYXN0X2lkIjo2NjI3NDEzMTk5ODYsImxhc3RfdmFsdWUiOjY2Mjc0MTMxOTk4Nn0=",
+                "endCursor": "eyJsYXN0X2lkIjo2NjI3NDEzMTk5ODYsImxhc3RfdmFsdWUiOjY2Mjc0MTMxOTk4Nn0="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 9,
+              "actualQueryCost": 9,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1991,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "connectionDeactivateFirst": {
+      "label": "connectionDeactivateFirst",
+      "query": "mutation GiftCardConnectionDeactivate($id: ID!) {\n  deactivate: giftCardDeactivate(id: $id) {\n    giftCard {\n      id\n      enabled\n      deactivatedAt\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/GiftCard/662741319986"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deactivate": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/662741319986",
+                "enabled": false,
+                "deactivatedAt": "2026-07-05T07:50:04Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "connectionDeactivateSecond": {
+      "label": "connectionDeactivateSecond",
+      "query": "mutation GiftCardConnectionDeactivate($id: ID!) {\n  deactivate: giftCardDeactivate(id: $id) {\n    giftCard {\n      id\n      enabled\n      deactivatedAt\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/GiftCard/662741352754"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deactivate": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/662741352754",
+                "enabled": false,
+                "deactivatedAt": "2026-07-05T07:50:06Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "connectionDisabledAtFirstPage": {
+      "label": "connectionDisabledAtFirstPage",
+      "query": "query GiftCardConnectionDisabledAtFirstPage($query: String!) {\n  forward: giftCards(first: 3, query: $query, sortKey: DISABLED_AT) {\n    nodes {\n      lastCharacters\n      enabled\n      deactivatedAt\n    }\n    edges {\n      cursor\n      node {\n        lastCharacters\n        enabled\n        deactivatedAt\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  reverse: giftCards(first: 2, query: $query, sortKey: DISABLED_AT, reverse: true) {\n    nodes {\n      lastCharacters\n      enabled\n      deactivatedAt\n    }\n    edges {\n      cursor\n      node {\n        lastCharacters\n        enabled\n        deactivatedAt\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "query": "NUQ"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "forward": {
+              "nodes": [
+                {
+                  "lastCharacters": "nuqa",
+                  "enabled": false,
+                  "deactivatedAt": "2026-07-05T07:50:04Z"
+                },
+                {
+                  "lastCharacters": "nuqb",
+                  "enabled": false,
+                  "deactivatedAt": "2026-07-05T07:50:06Z"
+                },
+                {
+                  "lastCharacters": "nuqc",
+                  "enabled": true,
+                  "deactivatedAt": null
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjI3NDEzMTk5ODYsImxhc3RfdmFsdWUiOjE3ODMyMzc4MDQwMDB9",
+                  "node": {
+                    "lastCharacters": "nuqa",
+                    "enabled": false,
+                    "deactivatedAt": "2026-07-05T07:50:04Z"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjI3NDEzNTI3NTQsImxhc3RfdmFsdWUiOjE3ODMyMzc4MDYwMDB9",
+                  "node": {
+                    "lastCharacters": "nuqb",
+                    "enabled": false,
+                    "deactivatedAt": "2026-07-05T07:50:06Z"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjI3NDEzODU1MjIsImxhc3RfdmFsdWUiOjkyMjMzNzIwMzY4NTQ3NzU4MDd9",
+                  "node": {
+                    "lastCharacters": "nuqc",
+                    "enabled": true,
+                    "deactivatedAt": null
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo2NjI3NDEzMTk5ODYsImxhc3RfdmFsdWUiOjE3ODMyMzc4MDQwMDB9",
+                "endCursor": "eyJsYXN0X2lkIjo2NjI3NDEzODU1MjIsImxhc3RfdmFsdWUiOjkyMjMzNzIwMzY4NTQ3NzU4MDd9"
+              }
+            },
+            "reverse": {
+              "nodes": [
+                {
+                  "lastCharacters": "nuqb",
+                  "enabled": false,
+                  "deactivatedAt": "2026-07-05T07:50:06Z"
+                },
+                {
+                  "lastCharacters": "nuqa",
+                  "enabled": false,
+                  "deactivatedAt": "2026-07-05T07:50:04Z"
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjI3NDEzNTI3NTQsImxhc3RfdmFsdWUiOjE3ODMyMzc4MDYwMDB9",
+                  "node": {
+                    "lastCharacters": "nuqb",
+                    "enabled": false,
+                    "deactivatedAt": "2026-07-05T07:50:06Z"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjI3NDEzMTk5ODYsImxhc3RfdmFsdWUiOjE3ODMyMzc4MDQwMDB9",
+                  "node": {
+                    "lastCharacters": "nuqa",
+                    "enabled": false,
+                    "deactivatedAt": "2026-07-05T07:50:04Z"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo2NjI3NDEzNTI3NTQsImxhc3RfdmFsdWUiOjE3ODMyMzc4MDYwMDB9",
+                "endCursor": "eyJsYXN0X2lkIjo2NjI3NDEzMTk5ODYsImxhc3RfdmFsdWUiOjE3ODMyMzc4MDQwMDB9"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "connectionDisabledAtWindows": {
+      "label": "connectionDisabledAtWindows",
+      "query": "query GiftCardConnectionDisabledAtWindows($query: String!, $reverseAfter: String!) {\n  reverseAfterWindow: giftCards(first: 1, query: $query, sortKey: DISABLED_AT, reverse: true, after: $reverseAfter) {\n    edges {\n      cursor\n      node {\n        lastCharacters\n        enabled\n        deactivatedAt\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "query": "NUQ",
+        "reverseAfter": "eyJsYXN0X2lkIjo2NjI3NDEzMTk5ODYsImxhc3RfdmFsdWUiOjE3ODMyMzc4MDQwMDB9"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "reverseAfterWindow": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjI3NDEzODU1MjIsImxhc3RfdmFsdWUiOi05MjIzMzcyMDM2ODU0Nzc1ODA4fQ==",
+                  "node": {
+                    "lastCharacters": "nuqc",
+                    "enabled": true,
+                    "deactivatedAt": null
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "eyJsYXN0X2lkIjo2NjI3NDEzODU1MjIsImxhc3RfdmFsdWUiOi05MjIzMzcyMDM2ODU0Nzc1ODA4fQ==",
+                "endCursor": "eyJsYXN0X2lkIjo2NjI3NDEzODU1MjIsImxhc3RfdmFsdWUiOi05MjIzMzcyMDM2ODU0Nzc1ODA4fQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "connectionCleanup3": {
+      "label": "connectionCleanup3",
+      "query": "#graphql\n          mutation GiftCardConnectionCleanup($id: ID!) {\n            giftCardDeactivate(id: $id) {\n              giftCard {\n                id\n                enabled\n              }\n              userErrors {\n                field\n                message\n              }\n            }\n          }\n        ",
+      "variables": {
+        "id": "gid://shopify/GiftCard/662741385522"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardDeactivate": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/662741385522",
+                "enabled": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
                 "restoreRate": 100
               }
             }
@@ -2069,7 +2622,7 @@
             "actualQueryCost": 13,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1982,
+              "currentlyAvailable": 1987,
               "restoreRate": 100
             }
           }
@@ -2121,7 +2674,7 @@
             }
           },
           "giftCardsCount": {
-            "count": 98,
+            "count": 177,
             "precision": "EXACT"
           },
           "giftCardConfiguration": {
@@ -2141,7 +2694,7 @@
             "actualQueryCost": 16,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1976,
+              "currentlyAvailable": 1980,
               "restoreRate": 100
             }
           }
@@ -2180,7 +2733,7 @@
             "actualQueryCost": 13,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1974,
+              "currentlyAvailable": 1978,
               "restoreRate": 100
             }
           }
@@ -2228,7 +2781,7 @@
             "actualQueryCost": 15,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1968,
+              "currentlyAvailable": 1972,
               "restoreRate": 100
             }
           }
@@ -2261,7 +2814,7 @@
             "actualQueryCost": 1,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1978,
+              "currentlyAvailable": 1980,
               "restoreRate": 100
             }
           }
@@ -2274,7 +2827,7 @@
     "query": "#graphql\n    mutation GiftCardSearchCustomerCreate($input: CustomerInput!) {\n      customerCreate(input: $input) {\n        customer {\n          id\n          email\n        }\n        userErrors {\n          field\n          message\n        }\n      }\n    }\n  ",
     "variables": {
       "input": {
-        "email": "har-464-gift-card-1782394050341@example.com",
+        "email": "har-464-gift-card-1783237781839@example.com",
         "firstName": "HAR-464",
         "lastName": "Gift Card Search",
         "note": "Disposable customer for HAR-464 gift-card search conformance."
@@ -2286,8 +2839,8 @@
         "data": {
           "customerCreate": {
             "customer": {
-              "id": "gid://shopify/Customer/10853881119026",
-              "email": "har-464-gift-card-1782394050341@example.com"
+              "id": "gid://shopify/Customer/10900264419634",
+              "email": "har-464-gift-card-1783237781839@example.com"
             },
             "userErrors": []
           }
@@ -2298,7 +2851,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1976,
+              "currentlyAvailable": 1979,
               "restoreRate": 100
             }
           }
@@ -2312,12 +2865,12 @@
     "variables": {
       "input": {
         "initialValue": "5.00",
-        "code": "HAR3101782394050463",
+        "code": "HAR3101783237781985",
         "note": "HAR-310 conformance gift card",
         "expiresOn": "2027-04-26",
-        "customerId": "gid://shopify/Customer/10853881119026",
+        "customerId": "gid://shopify/Customer/10900264419634",
         "recipientAttributes": {
-          "id": "gid://shopify/Customer/10853881119026",
+          "id": "gid://shopify/Customer/10900264419634",
           "message": "HAR-464 recipient message",
           "preferredName": "HAR-464 recipient"
         }
@@ -2329,16 +2882,16 @@
         "data": {
           "giftCardCreate": {
             "giftCard": {
-              "id": "gid://shopify/GiftCard/661479588146",
-              "lastCharacters": "0463",
-              "maskedCode": "•••• •••• •••• 0463",
+              "id": "gid://shopify/GiftCard/662741287218",
+              "lastCharacters": "1985",
+              "maskedCode": "•••• •••• •••• 1985",
               "enabled": true,
               "deactivatedAt": null,
               "expiresOn": "2027-04-26",
               "note": "HAR-310 conformance gift card",
               "templateSuffix": null,
-              "createdAt": "2026-06-25T13:27:30Z",
-              "updatedAt": "2026-06-25T13:27:30Z",
+              "createdAt": "2026-07-05T07:49:42Z",
+              "updatedAt": "2026-07-05T07:49:42Z",
               "initialValue": {
                 "amount": "5.0",
                 "currencyCode": "CAD"
@@ -2348,18 +2901,18 @@
                 "currencyCode": "CAD"
               },
               "customer": {
-                "id": "gid://shopify/Customer/10853881119026"
+                "id": "gid://shopify/Customer/10900264419634"
               },
               "recipientAttributes": {
                 "message": "HAR-464 recipient message",
                 "preferredName": "HAR-464 recipient",
                 "sendNotificationAt": null,
                 "recipient": {
-                  "id": "gid://shopify/Customer/10853881119026"
+                  "id": "gid://shopify/Customer/10900264419634"
                 }
               }
             },
-            "giftCardCode": "har3101782394050463",
+            "giftCardCode": "har3101783237781985",
             "userErrors": []
           }
         },
@@ -2369,7 +2922,7 @@
             "actualQueryCost": 13,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1977,
+              "currentlyAvailable": 1980,
               "restoreRate": 100
             }
           }
@@ -2377,28 +2930,558 @@
       }
     }
   },
+  "connectionMechanics": [
+    {
+      "label": "connectionSetup",
+      "query": "mutation GiftCardConnectionSetup(\n  $firstCode: String!\n  $secondCode: String!\n  $thirdCode: String!\n  $firstAmount: Decimal!\n  $secondAmount: Decimal!\n  $thirdAmount: Decimal!\n) {\n  first: giftCardCreate(input: { initialValue: $firstAmount, code: $firstCode, note: \"Connection mechanics first\" }) {\n    giftCard {\n      id\n      lastCharacters\n      initialValue {\n        amount\n        currencyCode\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  second: giftCardCreate(input: { initialValue: $secondAmount, code: $secondCode, note: \"Connection mechanics second\" }) {\n    giftCard {\n      id\n      lastCharacters\n      initialValue {\n        amount\n        currencyCode\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  third: giftCardCreate(input: { initialValue: $thirdAmount, code: $thirdCode, note: \"Connection mechanics third\" }) {\n    giftCard {\n      id\n      lastCharacters\n      initialValue {\n        amount\n        currencyCode\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "firstCode": "GCMMR7HQNUQNUQA",
+        "secondCode": "GCMMR7HQNUQNUQB",
+        "thirdCode": "GCMMR7HQNUQNUQC",
+        "firstAmount": "41.01",
+        "secondAmount": "41.02",
+        "thirdAmount": "41.03"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "first": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/662741319986",
+                "lastCharacters": "nuqa",
+                "initialValue": {
+                  "amount": "41.01",
+                  "currencyCode": "CAD"
+                }
+              },
+              "userErrors": []
+            },
+            "second": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/662741352754",
+                "lastCharacters": "nuqb",
+                "initialValue": {
+                  "amount": "41.02",
+                  "currencyCode": "CAD"
+                }
+              },
+              "userErrors": []
+            },
+            "third": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/662741385522",
+                "lastCharacters": "nuqc",
+                "initialValue": {
+                  "amount": "41.03",
+                  "currencyCode": "CAD"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 30,
+              "actualQueryCost": 30,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1941,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "connectionFirstPage",
+      "query": "query GiftCardConnectionFirstPage($query: String!) {\n  forward: giftCards(first: 2, query: $query, sortKey: ID) {\n    nodes {\n      lastCharacters\n      initialValue {\n        amount\n        currencyCode\n      }\n    }\n    edges {\n      cursor\n      node {\n        lastCharacters\n        initialValue {\n          amount\n          currencyCode\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  reverse: giftCards(first: 2, query: $query, sortKey: ID, reverse: true) {\n    nodes {\n      lastCharacters\n      initialValue {\n        amount\n        currencyCode\n      }\n    }\n    edges {\n      cursor\n      node {\n        lastCharacters\n        initialValue {\n          amount\n          currencyCode\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  countLimit: giftCardsCount(query: $query, limit: 2) {\n    count\n    precision\n  }\n}\n",
+      "variables": {
+        "query": "NUQ"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "forward": {
+              "nodes": [
+                {
+                  "lastCharacters": "nuqa",
+                  "initialValue": {
+                    "amount": "41.01",
+                    "currencyCode": "CAD"
+                  }
+                },
+                {
+                  "lastCharacters": "nuqb",
+                  "initialValue": {
+                    "amount": "41.02",
+                    "currencyCode": "CAD"
+                  }
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjI3NDEzMTk5ODYsImxhc3RfdmFsdWUiOjY2Mjc0MTMxOTk4Nn0=",
+                  "node": {
+                    "lastCharacters": "nuqa",
+                    "initialValue": {
+                      "amount": "41.01",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjI3NDEzNTI3NTQsImxhc3RfdmFsdWUiOjY2Mjc0MTM1Mjc1NH0=",
+                  "node": {
+                    "lastCharacters": "nuqb",
+                    "initialValue": {
+                      "amount": "41.02",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo2NjI3NDEzMTk5ODYsImxhc3RfdmFsdWUiOjY2Mjc0MTMxOTk4Nn0=",
+                "endCursor": "eyJsYXN0X2lkIjo2NjI3NDEzNTI3NTQsImxhc3RfdmFsdWUiOjY2Mjc0MTM1Mjc1NH0="
+              }
+            },
+            "reverse": {
+              "nodes": [
+                {
+                  "lastCharacters": "nuqc",
+                  "initialValue": {
+                    "amount": "41.03",
+                    "currencyCode": "CAD"
+                  }
+                },
+                {
+                  "lastCharacters": "nuqb",
+                  "initialValue": {
+                    "amount": "41.02",
+                    "currencyCode": "CAD"
+                  }
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjI3NDEzODU1MjIsImxhc3RfdmFsdWUiOjY2Mjc0MTM4NTUyMn0=",
+                  "node": {
+                    "lastCharacters": "nuqc",
+                    "initialValue": {
+                      "amount": "41.03",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjI3NDEzNTI3NTQsImxhc3RfdmFsdWUiOjY2Mjc0MTM1Mjc1NH0=",
+                  "node": {
+                    "lastCharacters": "nuqb",
+                    "initialValue": {
+                      "amount": "41.02",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo2NjI3NDEzODU1MjIsImxhc3RfdmFsdWUiOjY2Mjc0MTM4NTUyMn0=",
+                "endCursor": "eyJsYXN0X2lkIjo2NjI3NDEzNTI3NTQsImxhc3RfdmFsdWUiOjY2Mjc0MTM1Mjc1NH0="
+              }
+            },
+            "countLimit": {
+              "count": 2,
+              "precision": "AT_LEAST"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 18,
+              "actualQueryCost": 18,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1982,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "connectionWindows",
+      "query": "query GiftCardConnectionWindows($query: String!, $after: String!, $before: String!, $reverseAfter: String!) {\n  afterWindow: giftCards(first: 1, query: $query, sortKey: ID, after: $after) {\n    edges {\n      cursor\n      node {\n        lastCharacters\n        initialValue {\n          amount\n          currencyCode\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  beforeLastWindow: giftCards(last: 1, query: $query, sortKey: ID, before: $before) {\n    edges {\n      cursor\n      node {\n        lastCharacters\n        initialValue {\n          amount\n          currencyCode\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  reverseAfterWindow: giftCards(first: 1, query: $query, sortKey: ID, reverse: true, after: $reverseAfter) {\n    edges {\n      cursor\n      node {\n        lastCharacters\n        initialValue {\n          amount\n          currencyCode\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "query": "NUQ",
+        "after": "eyJsYXN0X2lkIjo2NjI3NDEzNTI3NTQsImxhc3RfdmFsdWUiOjY2Mjc0MTM1Mjc1NH0=",
+        "before": "eyJsYXN0X2lkIjo2NjI3NDEzNTI3NTQsImxhc3RfdmFsdWUiOjY2Mjc0MTM1Mjc1NH0=",
+        "reverseAfter": "eyJsYXN0X2lkIjo2NjI3NDEzNTI3NTQsImxhc3RfdmFsdWUiOjY2Mjc0MTM1Mjc1NH0="
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "afterWindow": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjI3NDEzODU1MjIsImxhc3RfdmFsdWUiOjY2Mjc0MTM4NTUyMn0=",
+                  "node": {
+                    "lastCharacters": "nuqc",
+                    "initialValue": {
+                      "amount": "41.03",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "eyJsYXN0X2lkIjo2NjI3NDEzODU1MjIsImxhc3RfdmFsdWUiOjY2Mjc0MTM4NTUyMn0=",
+                "endCursor": "eyJsYXN0X2lkIjo2NjI3NDEzODU1MjIsImxhc3RfdmFsdWUiOjY2Mjc0MTM4NTUyMn0="
+              }
+            },
+            "beforeLastWindow": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjI3NDEzMTk5ODYsImxhc3RfdmFsdWUiOjY2Mjc0MTMxOTk4Nn0=",
+                  "node": {
+                    "lastCharacters": "nuqa",
+                    "initialValue": {
+                      "amount": "41.01",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo2NjI3NDEzMTk5ODYsImxhc3RfdmFsdWUiOjY2Mjc0MTMxOTk4Nn0=",
+                "endCursor": "eyJsYXN0X2lkIjo2NjI3NDEzMTk5ODYsImxhc3RfdmFsdWUiOjY2Mjc0MTMxOTk4Nn0="
+              }
+            },
+            "reverseAfterWindow": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjI3NDEzMTk5ODYsImxhc3RfdmFsdWUiOjY2Mjc0MTMxOTk4Nn0=",
+                  "node": {
+                    "lastCharacters": "nuqa",
+                    "initialValue": {
+                      "amount": "41.01",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "eyJsYXN0X2lkIjo2NjI3NDEzMTk5ODYsImxhc3RfdmFsdWUiOjY2Mjc0MTMxOTk4Nn0=",
+                "endCursor": "eyJsYXN0X2lkIjo2NjI3NDEzMTk5ODYsImxhc3RfdmFsdWUiOjY2Mjc0MTMxOTk4Nn0="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 9,
+              "actualQueryCost": 9,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1991,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "connectionDeactivateFirst",
+      "query": "mutation GiftCardConnectionDeactivate($id: ID!) {\n  deactivate: giftCardDeactivate(id: $id) {\n    giftCard {\n      id\n      enabled\n      deactivatedAt\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/GiftCard/662741319986"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deactivate": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/662741319986",
+                "enabled": false,
+                "deactivatedAt": "2026-07-05T07:50:04Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "connectionDeactivateSecond",
+      "query": "mutation GiftCardConnectionDeactivate($id: ID!) {\n  deactivate: giftCardDeactivate(id: $id) {\n    giftCard {\n      id\n      enabled\n      deactivatedAt\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/GiftCard/662741352754"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deactivate": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/662741352754",
+                "enabled": false,
+                "deactivatedAt": "2026-07-05T07:50:06Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "connectionDisabledAtFirstPage",
+      "query": "query GiftCardConnectionDisabledAtFirstPage($query: String!) {\n  forward: giftCards(first: 3, query: $query, sortKey: DISABLED_AT) {\n    nodes {\n      lastCharacters\n      enabled\n      deactivatedAt\n    }\n    edges {\n      cursor\n      node {\n        lastCharacters\n        enabled\n        deactivatedAt\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  reverse: giftCards(first: 2, query: $query, sortKey: DISABLED_AT, reverse: true) {\n    nodes {\n      lastCharacters\n      enabled\n      deactivatedAt\n    }\n    edges {\n      cursor\n      node {\n        lastCharacters\n        enabled\n        deactivatedAt\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "query": "NUQ"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "forward": {
+              "nodes": [
+                {
+                  "lastCharacters": "nuqa",
+                  "enabled": false,
+                  "deactivatedAt": "2026-07-05T07:50:04Z"
+                },
+                {
+                  "lastCharacters": "nuqb",
+                  "enabled": false,
+                  "deactivatedAt": "2026-07-05T07:50:06Z"
+                },
+                {
+                  "lastCharacters": "nuqc",
+                  "enabled": true,
+                  "deactivatedAt": null
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjI3NDEzMTk5ODYsImxhc3RfdmFsdWUiOjE3ODMyMzc4MDQwMDB9",
+                  "node": {
+                    "lastCharacters": "nuqa",
+                    "enabled": false,
+                    "deactivatedAt": "2026-07-05T07:50:04Z"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjI3NDEzNTI3NTQsImxhc3RfdmFsdWUiOjE3ODMyMzc4MDYwMDB9",
+                  "node": {
+                    "lastCharacters": "nuqb",
+                    "enabled": false,
+                    "deactivatedAt": "2026-07-05T07:50:06Z"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjI3NDEzODU1MjIsImxhc3RfdmFsdWUiOjkyMjMzNzIwMzY4NTQ3NzU4MDd9",
+                  "node": {
+                    "lastCharacters": "nuqc",
+                    "enabled": true,
+                    "deactivatedAt": null
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo2NjI3NDEzMTk5ODYsImxhc3RfdmFsdWUiOjE3ODMyMzc4MDQwMDB9",
+                "endCursor": "eyJsYXN0X2lkIjo2NjI3NDEzODU1MjIsImxhc3RfdmFsdWUiOjkyMjMzNzIwMzY4NTQ3NzU4MDd9"
+              }
+            },
+            "reverse": {
+              "nodes": [
+                {
+                  "lastCharacters": "nuqb",
+                  "enabled": false,
+                  "deactivatedAt": "2026-07-05T07:50:06Z"
+                },
+                {
+                  "lastCharacters": "nuqa",
+                  "enabled": false,
+                  "deactivatedAt": "2026-07-05T07:50:04Z"
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjI3NDEzNTI3NTQsImxhc3RfdmFsdWUiOjE3ODMyMzc4MDYwMDB9",
+                  "node": {
+                    "lastCharacters": "nuqb",
+                    "enabled": false,
+                    "deactivatedAt": "2026-07-05T07:50:06Z"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjI3NDEzMTk5ODYsImxhc3RfdmFsdWUiOjE3ODMyMzc4MDQwMDB9",
+                  "node": {
+                    "lastCharacters": "nuqa",
+                    "enabled": false,
+                    "deactivatedAt": "2026-07-05T07:50:04Z"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo2NjI3NDEzNTI3NTQsImxhc3RfdmFsdWUiOjE3ODMyMzc4MDYwMDB9",
+                "endCursor": "eyJsYXN0X2lkIjo2NjI3NDEzMTk5ODYsImxhc3RfdmFsdWUiOjE3ODMyMzc4MDQwMDB9"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "connectionDisabledAtWindows",
+      "query": "query GiftCardConnectionDisabledAtWindows($query: String!, $reverseAfter: String!) {\n  reverseAfterWindow: giftCards(first: 1, query: $query, sortKey: DISABLED_AT, reverse: true, after: $reverseAfter) {\n    edges {\n      cursor\n      node {\n        lastCharacters\n        enabled\n        deactivatedAt\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "query": "NUQ",
+        "reverseAfter": "eyJsYXN0X2lkIjo2NjI3NDEzMTk5ODYsImxhc3RfdmFsdWUiOjE3ODMyMzc4MDQwMDB9"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "reverseAfterWindow": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo2NjI3NDEzODU1MjIsImxhc3RfdmFsdWUiOi05MjIzMzcyMDM2ODU0Nzc1ODA4fQ==",
+                  "node": {
+                    "lastCharacters": "nuqc",
+                    "enabled": true,
+                    "deactivatedAt": null
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "eyJsYXN0X2lkIjo2NjI3NDEzODU1MjIsImxhc3RfdmFsdWUiOi05MjIzMzcyMDM2ODU0Nzc1ODA4fQ==",
+                "endCursor": "eyJsYXN0X2lkIjo2NjI3NDEzODU1MjIsImxhc3RfdmFsdWUiOi05MjIzMzcyMDM2ODU0Nzc1ODA4fQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "connectionCleanup3",
+      "query": "#graphql\n          mutation GiftCardConnectionCleanup($id: ID!) {\n            giftCardDeactivate(id: $id) {\n              giftCard {\n                id\n                enabled\n              }\n              userErrors {\n                field\n                message\n              }\n            }\n          }\n        ",
+      "variables": {
+        "id": "gid://shopify/GiftCard/662741385522"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardDeactivate": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/662741385522",
+                "enabled": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
   "lifecycle": [
     {
       "label": "detailAfterCreate",
       "query": "#graphql\n        query GiftCardDetail($id: ID!) {\n          giftCard(id: $id) {\n            #graphql\n  id\n  lastCharacters\n  maskedCode\n  enabled\n  deactivatedAt\n  expiresOn\n  note\n  templateSuffix\n  createdAt\n  updatedAt\n  initialValue {\n    amount\n    currencyCode\n  }\n  balance {\n    amount\n    currencyCode\n  }\n  customer {\n    id\n  }\n  recipientAttributes {\n    message\n    preferredName\n    sendNotificationAt\n    recipient {\n      id\n    }\n  }\n\n            transactions(first: 5) {\n              nodes {\n                id\n                note\n                processedAt\n                amount {\n                  amount\n                  currencyCode\n                }\n              }\n              pageInfo {\n                hasNextPage\n                hasPreviousPage\n                startCursor\n                endCursor\n              }\n            }\n          }\n        }\n      ",
       "variables": {
-        "id": "gid://shopify/GiftCard/661479588146"
+        "id": "gid://shopify/GiftCard/662741287218"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "giftCard": {
-              "id": "gid://shopify/GiftCard/661479588146",
-              "lastCharacters": "0463",
-              "maskedCode": "•••• •••• •••• 0463",
+              "id": "gid://shopify/GiftCard/662741287218",
+              "lastCharacters": "1985",
+              "maskedCode": "•••• •••• •••• 1985",
               "enabled": true,
               "deactivatedAt": null,
               "expiresOn": "2027-04-26",
               "note": "HAR-310 conformance gift card",
               "templateSuffix": null,
-              "createdAt": "2026-06-25T13:27:30Z",
-              "updatedAt": "2026-06-25T13:27:30Z",
+              "createdAt": "2026-07-05T07:49:42Z",
+              "updatedAt": "2026-07-05T07:49:42Z",
               "initialValue": {
                 "amount": "5.0",
                 "currencyCode": "CAD"
@@ -2408,14 +3491,14 @@
                 "currencyCode": "CAD"
               },
               "customer": {
-                "id": "gid://shopify/Customer/10853881119026"
+                "id": "gid://shopify/Customer/10900264419634"
               },
               "recipientAttributes": {
                 "message": "HAR-464 recipient message",
                 "preferredName": "HAR-464 recipient",
                 "sendNotificationAt": null,
                 "recipient": {
-                  "id": "gid://shopify/Customer/10853881119026"
+                  "id": "gid://shopify/Customer/10900264419634"
                 }
               },
               "transactions": {
@@ -2435,7 +3518,7 @@
               "actualQueryCost": 9,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1980,
+                "currentlyAvailable": 1981,
                 "restoreRate": 100
               }
             }
@@ -2447,7 +3530,7 @@
       "label": "update",
       "query": "#graphql\n        mutation GiftCardUpdate($id: ID!, $input: GiftCardUpdateInput!) {\n          giftCardUpdate(id: $id, input: $input) {\n            giftCard {\n              #graphql\n  id\n  lastCharacters\n  maskedCode\n  enabled\n  deactivatedAt\n  expiresOn\n  note\n  templateSuffix\n  createdAt\n  updatedAt\n  initialValue {\n    amount\n    currencyCode\n  }\n  balance {\n    amount\n    currencyCode\n  }\n  customer {\n    id\n  }\n  recipientAttributes {\n    message\n    preferredName\n    sendNotificationAt\n    recipient {\n      id\n    }\n  }\n\n            }\n            userErrors {\n              field\n              message\n            }\n          }\n        }\n      ",
       "variables": {
-        "id": "gid://shopify/GiftCard/661479588146",
+        "id": "gid://shopify/GiftCard/662741287218",
         "input": {
           "note": "HAR-310 conformance gift card updated",
           "templateSuffix": "birthday",
@@ -2460,16 +3543,16 @@
           "data": {
             "giftCardUpdate": {
               "giftCard": {
-                "id": "gid://shopify/GiftCard/661479588146",
-                "lastCharacters": "0463",
-                "maskedCode": "•••• •••• •••• 0463",
+                "id": "gid://shopify/GiftCard/662741287218",
+                "lastCharacters": "1985",
+                "maskedCode": "•••• •••• •••• 1985",
                 "enabled": true,
                 "deactivatedAt": null,
                 "expiresOn": "2028-04-26",
                 "note": "HAR-310 conformance gift card updated",
                 "templateSuffix": "birthday",
-                "createdAt": "2026-06-25T13:27:30Z",
-                "updatedAt": "2026-06-25T13:27:31Z",
+                "createdAt": "2026-07-05T07:49:42Z",
+                "updatedAt": "2026-07-05T07:49:42Z",
                 "initialValue": {
                   "amount": "5.0",
                   "currencyCode": "CAD"
@@ -2479,14 +3562,14 @@
                   "currencyCode": "CAD"
                 },
                 "customer": {
-                  "id": "gid://shopify/Customer/10853881119026"
+                  "id": "gid://shopify/Customer/10900264419634"
                 },
                 "recipientAttributes": {
                   "message": "HAR-464 recipient message",
                   "preferredName": "HAR-464 recipient",
                   "sendNotificationAt": null,
                   "recipient": {
-                    "id": "gid://shopify/Customer/10853881119026"
+                    "id": "gid://shopify/Customer/10900264419634"
                   }
                 }
               },
@@ -2499,7 +3582,7 @@
               "actualQueryCost": 13,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1978,
+                "currentlyAvailable": 1977,
                 "restoreRate": 100
               }
             }
@@ -2511,7 +3594,7 @@
       "label": "credit",
       "query": "#graphql\n        mutation GiftCardCredit($id: ID!, $input: GiftCardCreditInput!) {\n          giftCardCredit(id: $id, creditInput: $input) {\n            giftCardCreditTransaction {\n              id\n              note\n              processedAt\n              amount {\n                amount\n                currencyCode\n              }\n              giftCard {\n                id\n                balance {\n                  amount\n                  currencyCode\n                }\n              }\n            }\n            userErrors {\n              field\n              message\n            }\n          }\n        }\n      ",
       "variables": {
-        "id": "gid://shopify/GiftCard/661479588146",
+        "id": "gid://shopify/GiftCard/662741287218",
         "input": {
           "creditAmount": {
             "amount": "2.00",
@@ -2526,17 +3609,68 @@
           "data": {
             "giftCardCredit": {
               "giftCardCreditTransaction": {
-                "id": "gid://shopify/GiftCardCreditTransaction/246903636274",
+                "id": "gid://shopify/GiftCardCreditTransaction/246982934834",
                 "note": "HAR-310 credit",
-                "processedAt": "2026-06-25T13:27:31Z",
+                "processedAt": "2026-07-05T07:49:42Z",
                 "amount": {
                   "amount": "2.0",
                   "currencyCode": "CAD"
                 },
                 "giftCard": {
-                  "id": "gid://shopify/GiftCard/661479588146",
+                  "id": "gid://shopify/GiftCard/662741287218",
                   "balance": {
                     "amount": "7.0",
+                    "currencyCode": "CAD"
+                  }
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1980,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "debit",
+      "query": "#graphql\n        mutation GiftCardDebit($id: ID!, $input: GiftCardDebitInput!) {\n          giftCardDebit(id: $id, debitInput: $input) {\n            giftCardDebitTransaction {\n              id\n              note\n              processedAt\n              amount {\n                amount\n                currencyCode\n              }\n              giftCard {\n                id\n                balance {\n                  amount\n                  currencyCode\n                }\n              }\n            }\n            userErrors {\n              field\n              message\n            }\n          }\n        }\n      ",
+      "variables": {
+        "id": "gid://shopify/GiftCard/662741287218",
+        "input": {
+          "debitAmount": {
+            "amount": "3.00",
+            "currencyCode": "CAD"
+          },
+          "note": "HAR-310 debit"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardDebit": {
+              "giftCardDebitTransaction": {
+                "id": "gid://shopify/GiftCardDebitTransaction/246982967602",
+                "note": "HAR-310 debit",
+                "processedAt": "2026-07-05T07:49:42Z",
+                "amount": {
+                  "amount": "-3.0",
+                  "currencyCode": "CAD"
+                },
+                "giftCard": {
+                  "id": "gid://shopify/GiftCard/662741287218",
+                  "balance": {
+                    "amount": "4.0",
                     "currencyCode": "CAD"
                   }
                 }
@@ -2559,65 +3693,14 @@
       }
     },
     {
-      "label": "debit",
-      "query": "#graphql\n        mutation GiftCardDebit($id: ID!, $input: GiftCardDebitInput!) {\n          giftCardDebit(id: $id, debitInput: $input) {\n            giftCardDebitTransaction {\n              id\n              note\n              processedAt\n              amount {\n                amount\n                currencyCode\n              }\n              giftCard {\n                id\n                balance {\n                  amount\n                  currencyCode\n                }\n              }\n            }\n            userErrors {\n              field\n              message\n            }\n          }\n        }\n      ",
-      "variables": {
-        "id": "gid://shopify/GiftCard/661479588146",
-        "input": {
-          "debitAmount": {
-            "amount": "3.00",
-            "currencyCode": "CAD"
-          },
-          "note": "HAR-310 debit"
-        }
-      },
-      "response": {
-        "status": 200,
-        "payload": {
-          "data": {
-            "giftCardDebit": {
-              "giftCardDebitTransaction": {
-                "id": "gid://shopify/GiftCardDebitTransaction/246903669042",
-                "note": "HAR-310 debit",
-                "processedAt": "2026-06-25T13:27:31Z",
-                "amount": {
-                  "amount": "-3.0",
-                  "currencyCode": "CAD"
-                },
-                "giftCard": {
-                  "id": "gid://shopify/GiftCard/661479588146",
-                  "balance": {
-                    "amount": "4.0",
-                    "currencyCode": "CAD"
-                  }
-                }
-              },
-              "userErrors": []
-            }
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 11,
-              "actualQueryCost": 11,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1987,
-                "restoreRate": 100
-              }
-            }
-          }
-        }
-      }
-    },
-    {
       "label": "searchFilterRead",
       "query": "#graphql\n        query GiftCardSearchFilterRead(\n          $partialQuery: String!\n          $fullQuery: String!\n          $emptyQuery: String!\n          $nonEmptyQuery: String!\n          $codeQuery: String!\n        ) {\n          partialBalanceGiftCards: giftCards(first: 2, query: $partialQuery, sortKey: ID) {\n            nodes {\n              id\n              lastCharacters\n              enabled\n              balance {\n                amount\n                currencyCode\n              }\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          partialBalanceGiftCardsCount: giftCardsCount(query: $partialQuery) {\n            count\n            precision\n          }\n          fullBalanceGiftCards: giftCards(first: 2, query: $fullQuery, sortKey: ID) {\n            nodes {\n              id\n              lastCharacters\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          emptyBalanceGiftCards: giftCards(first: 2, query: $emptyQuery, sortKey: ID) {\n            nodes {\n              id\n              lastCharacters\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          nonEmptyBalanceGiftCardsCount: giftCardsCount(query: $nonEmptyQuery) {\n            count\n            precision\n          }\n          codeSearchGiftCards: giftCards(first: 2, query: $codeQuery, sortKey: ID) {\n            nodes {\n              id\n              lastCharacters\n              enabled\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          codeSearchGiftCardsCount: giftCardsCount(query: $codeQuery) {\n            count\n            precision\n          }\n        }\n      ",
       "variables": {
-        "partialQuery": "id:661479588146 AND balance_status:partial",
-        "fullQuery": "id:661479588146 AND balance_status:full",
-        "emptyQuery": "id:661479588146 AND balance_status:empty",
-        "nonEmptyQuery": "id:661479588146 AND balance_status:full_or_partial",
-        "codeQuery": "id:661479588146 AND 0463"
+        "partialQuery": "id:662741287218 AND balance_status:partial",
+        "fullQuery": "id:662741287218 AND balance_status:full",
+        "emptyQuery": "id:662741287218 AND balance_status:empty",
+        "nonEmptyQuery": "id:662741287218 AND balance_status:full_or_partial",
+        "codeQuery": "id:662741287218 AND 1985"
       },
       "response": {
         "status": 200,
@@ -2626,8 +3709,8 @@
             "partialBalanceGiftCards": {
               "nodes": [
                 {
-                  "id": "gid://shopify/GiftCard/661479588146",
-                  "lastCharacters": "0463",
+                  "id": "gid://shopify/GiftCard/662741287218",
+                  "lastCharacters": "1985",
                   "enabled": true,
                   "balance": {
                     "amount": "4.0",
@@ -2665,8 +3748,8 @@
             "codeSearchGiftCards": {
               "nodes": [
                 {
-                  "id": "gid://shopify/GiftCard/661479588146",
-                  "lastCharacters": "0463",
+                  "id": "gid://shopify/GiftCard/662741287218",
+                  "lastCharacters": "1985",
                   "enabled": true
                 }
               ],
@@ -2698,17 +3781,17 @@
       "label": "advancedSearchFilterRead",
       "query": "#graphql\n        query GiftCardAdvancedSearchFilterRead(\n          $createdAfterQuery: String!\n          $createdFutureQuery: String!\n          $updatedAfterQuery: String!\n          $updatedFutureQuery: String!\n          $expiresAfterQuery: String!\n          $expiresBeforeQuery: String!\n          $customerQuery: String!\n          $recipientQuery: String!\n          $sourceQuery: String!\n          $sourceNoMatchQuery: String!\n          $initialValueQuery: String!\n        ) {\n          createdAfterGiftCards: giftCards(first: 2, query: $createdAfterQuery, sortKey: ID) {\n            nodes {\n              id\n              createdAt\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          createdAfterGiftCardsCount: giftCardsCount(query: $createdAfterQuery) {\n            count\n            precision\n          }\n          createdFutureGiftCards: giftCards(first: 2, query: $createdFutureQuery, sortKey: ID) {\n            nodes {\n              id\n              createdAt\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          updatedAfterGiftCards: giftCards(first: 2, query: $updatedAfterQuery, sortKey: ID) {\n            nodes {\n              id\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          updatedFutureGiftCards: giftCards(first: 2, query: $updatedFutureQuery, sortKey: ID) {\n            nodes {\n              id\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          expiresAfterGiftCards: giftCards(first: 2, query: $expiresAfterQuery, sortKey: ID) {\n            nodes {\n              id\n              expiresOn\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          expiresBeforeGiftCards: giftCards(first: 2, query: $expiresBeforeQuery, sortKey: ID) {\n            nodes {\n              id\n              expiresOn\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          customerGiftCards: giftCards(first: 2, query: $customerQuery, sortKey: ID) {\n            nodes {\n              id\n              customer {\n                id\n              }\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          recipientGiftCards: giftCards(first: 2, query: $recipientQuery, sortKey: ID) {\n            nodes {\n              id\n              recipientAttributes {\n                recipient {\n                  id\n                }\n              }\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          sourceGiftCards: giftCards(first: 2, query: $sourceQuery, sortKey: ID) {\n            nodes {\n              id\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          sourceNoMatchGiftCards: giftCards(first: 2, query: $sourceNoMatchQuery, sortKey: ID) {\n            nodes {\n              id\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          initialValueGiftCards: giftCards(first: 2, query: $initialValueQuery, sortKey: ID) {\n            nodes {\n              id\n              initialValue {\n                amount\n                currencyCode\n              }\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n        }\n      ",
       "variables": {
-        "createdAfterQuery": "id:661479588146 AND created_at:>=2026-06-25",
-        "createdFutureQuery": "id:661479588146 AND created_at:>=2099-01-01",
-        "updatedAfterQuery": "id:661479588146 AND updated_at:>=2026-06-25",
-        "updatedFutureQuery": "id:661479588146 AND updated_at:>=2099-01-01",
-        "expiresAfterQuery": "id:661479588146 AND expires_on:>=2028-01-01",
-        "expiresBeforeQuery": "id:661479588146 AND expires_on:<2028-01-01",
-        "customerQuery": "id:661479588146 AND customer_id:10853881119026",
-        "recipientQuery": "id:661479588146 AND recipient_id:10853881119026",
-        "sourceQuery": "id:661479588146 AND source:api_client",
-        "sourceNoMatchQuery": "id:661479588146 AND source:manual",
-        "initialValueQuery": "id:661479588146 AND initial_value:>=5"
+        "createdAfterQuery": "id:662741287218 AND created_at:>=2026-07-05",
+        "createdFutureQuery": "id:662741287218 AND created_at:>=2099-01-01",
+        "updatedAfterQuery": "id:662741287218 AND updated_at:>=2026-07-05",
+        "updatedFutureQuery": "id:662741287218 AND updated_at:>=2099-01-01",
+        "expiresAfterQuery": "id:662741287218 AND expires_on:>=2028-01-01",
+        "expiresBeforeQuery": "id:662741287218 AND expires_on:<2028-01-01",
+        "customerQuery": "id:662741287218 AND customer_id:10900264419634",
+        "recipientQuery": "id:662741287218 AND recipient_id:10900264419634",
+        "sourceQuery": "id:662741287218 AND source:api_client",
+        "sourceNoMatchQuery": "id:662741287218 AND source:manual",
+        "initialValueQuery": "id:662741287218 AND initial_value:>=5"
       },
       "response": {
         "status": 200,
@@ -2717,8 +3800,8 @@
             "createdAfterGiftCards": {
               "nodes": [
                 {
-                  "id": "gid://shopify/GiftCard/661479588146",
-                  "createdAt": "2026-06-25T13:27:30Z"
+                  "id": "gid://shopify/GiftCard/662741287218",
+                  "createdAt": "2026-07-05T07:49:42Z"
                 }
               ],
               "pageInfo": {
@@ -2740,7 +3823,7 @@
             "updatedAfterGiftCards": {
               "nodes": [
                 {
-                  "id": "gid://shopify/GiftCard/661479588146"
+                  "id": "gid://shopify/GiftCard/662741287218"
                 }
               ],
               "pageInfo": {
@@ -2751,7 +3834,7 @@
             "updatedFutureGiftCards": {
               "nodes": [
                 {
-                  "id": "gid://shopify/GiftCard/661479588146"
+                  "id": "gid://shopify/GiftCard/662741287218"
                 }
               ],
               "pageInfo": {
@@ -2762,7 +3845,7 @@
             "expiresAfterGiftCards": {
               "nodes": [
                 {
-                  "id": "gid://shopify/GiftCard/661479588146",
+                  "id": "gid://shopify/GiftCard/662741287218",
                   "expiresOn": "2028-04-26"
                 }
               ],
@@ -2781,9 +3864,9 @@
             "customerGiftCards": {
               "nodes": [
                 {
-                  "id": "gid://shopify/GiftCard/661479588146",
+                  "id": "gid://shopify/GiftCard/662741287218",
                   "customer": {
-                    "id": "gid://shopify/Customer/10853881119026"
+                    "id": "gid://shopify/Customer/10900264419634"
                   }
                 }
               ],
@@ -2795,10 +3878,10 @@
             "recipientGiftCards": {
               "nodes": [
                 {
-                  "id": "gid://shopify/GiftCard/661479588146",
+                  "id": "gid://shopify/GiftCard/662741287218",
                   "recipientAttributes": {
                     "recipient": {
-                      "id": "gid://shopify/Customer/10853881119026"
+                      "id": "gid://shopify/Customer/10900264419634"
                     }
                   }
                 }
@@ -2811,7 +3894,7 @@
             "sourceGiftCards": {
               "nodes": [
                 {
-                  "id": "gid://shopify/GiftCard/661479588146"
+                  "id": "gid://shopify/GiftCard/662741287218"
                 }
               ],
               "pageInfo": {
@@ -2829,7 +3912,7 @@
             "initialValueGiftCards": {
               "nodes": [
                 {
-                  "id": "gid://shopify/GiftCard/661479588146",
+                  "id": "gid://shopify/GiftCard/662741287218",
                   "initialValue": {
                     "amount": "5.0",
                     "currencyCode": "CAD"
@@ -2855,16 +3938,16 @@
             "search": [
               {
                 "path": ["updatedAfterGiftCards"],
-                "query": "id:661479588146 AND updated_at:>=2026-06-25",
+                "query": "id:662741287218 AND updated_at:>=2026-07-05",
                 "parsed": {
                   "and": [
                     {
                       "field": "updated_at",
-                      "range_gte": "2026-06-25"
+                      "range_gte": "2026-07-05"
                     },
                     {
                       "field": "id",
-                      "match_all": "661479588146"
+                      "match_all": "662741287218"
                     }
                   ]
                 },
@@ -2878,7 +3961,7 @@
               },
               {
                 "path": ["updatedFutureGiftCards"],
-                "query": "id:661479588146 AND updated_at:>=2099-01-01",
+                "query": "id:662741287218 AND updated_at:>=2099-01-01",
                 "parsed": {
                   "and": [
                     {
@@ -2887,7 +3970,7 @@
                     },
                     {
                       "field": "id",
-                      "match_all": "661479588146"
+                      "match_all": "662741287218"
                     }
                   ]
                 },
@@ -2908,7 +3991,7 @@
       "label": "deactivate",
       "query": "#graphql\n        mutation GiftCardDeactivate($id: ID!) {\n          giftCardDeactivate(id: $id) {\n            giftCard {\n              id\n              enabled\n              deactivatedAt\n              balance {\n                amount\n                currencyCode\n              }\n            }\n            userErrors {\n              field\n              message\n            }\n          }\n        }\n      ",
       "variables": {
-        "id": "gid://shopify/GiftCard/661479588146"
+        "id": "gid://shopify/GiftCard/662741287218"
       },
       "response": {
         "status": 200,
@@ -2916,9 +3999,9 @@
           "data": {
             "giftCardDeactivate": {
               "giftCard": {
-                "id": "gid://shopify/GiftCard/661479588146",
+                "id": "gid://shopify/GiftCard/662741287218",
                 "enabled": false,
-                "deactivatedAt": "2026-06-25T13:27:42Z",
+                "deactivatedAt": "2026-07-05T07:50:11Z",
                 "balance": {
                   "amount": "4.0",
                   "currencyCode": "CAD"
@@ -2933,7 +4016,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1963,
+                "currentlyAvailable": 1990,
                 "restoreRate": 100
               }
             }
@@ -2945,23 +4028,23 @@
       "label": "detailAfterDeactivate",
       "query": "#graphql\n        query GiftCardDetailAfterDeactivate($id: ID!) {\n          giftCard(id: $id) {\n            #graphql\n  id\n  lastCharacters\n  maskedCode\n  enabled\n  deactivatedAt\n  expiresOn\n  note\n  templateSuffix\n  createdAt\n  updatedAt\n  initialValue {\n    amount\n    currencyCode\n  }\n  balance {\n    amount\n    currencyCode\n  }\n  customer {\n    id\n  }\n  recipientAttributes {\n    message\n    preferredName\n    sendNotificationAt\n    recipient {\n      id\n    }\n  }\n\n            transactions(first: 5) {\n              nodes {\n                note\n                amount {\n                  amount\n                  currencyCode\n                }\n              }\n              pageInfo {\n                hasNextPage\n                hasPreviousPage\n              }\n            }\n          }\n        }\n      ",
       "variables": {
-        "id": "gid://shopify/GiftCard/661479588146"
+        "id": "gid://shopify/GiftCard/662741287218"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "giftCard": {
-              "id": "gid://shopify/GiftCard/661479588146",
-              "lastCharacters": "0463",
-              "maskedCode": "•••• •••• •••• 0463",
+              "id": "gid://shopify/GiftCard/662741287218",
+              "lastCharacters": "1985",
+              "maskedCode": "•••• •••• •••• 1985",
               "enabled": false,
-              "deactivatedAt": "2026-06-25T13:27:42Z",
+              "deactivatedAt": "2026-07-05T07:50:11Z",
               "expiresOn": "2028-04-26",
               "note": "HAR-310 conformance gift card updated",
               "templateSuffix": "birthday",
-              "createdAt": "2026-06-25T13:27:30Z",
-              "updatedAt": "2026-06-25T13:27:42Z",
+              "createdAt": "2026-07-05T07:49:42Z",
+              "updatedAt": "2026-07-05T07:50:11Z",
               "initialValue": {
                 "amount": "5.0",
                 "currencyCode": "CAD"
@@ -2971,14 +4054,14 @@
                 "currencyCode": "CAD"
               },
               "customer": {
-                "id": "gid://shopify/Customer/10853881119026"
+                "id": "gid://shopify/Customer/10900264419634"
               },
               "recipientAttributes": {
                 "message": "HAR-464 recipient message",
                 "preferredName": "HAR-464 recipient",
                 "sendNotificationAt": null,
                 "recipient": {
-                  "id": "gid://shopify/Customer/10853881119026"
+                  "id": "gid://shopify/Customer/10900264419634"
                 }
               },
               "transactions": {
@@ -3011,7 +4094,7 @@
               "actualQueryCost": 7,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1968,
+                "currentlyAvailable": 1993,
                 "restoreRate": 100
               }
             }
@@ -3023,8 +4106,8 @@
       "label": "readAfterLifecycle",
       "query": "#graphql\n        query GiftCardReadAfterLifecycle($id: ID!, $query: String!) {\n          giftCard(id: $id) {\n            note\n            templateSuffix\n            expiresOn\n            enabled\n            balance {\n              amount\n              currencyCode\n            }\n            transactions(first: 5) {\n              nodes {\n                note\n                amount {\n                  amount\n                  currencyCode\n                }\n              }\n              pageInfo {\n                hasNextPage\n                hasPreviousPage\n              }\n            }\n          }\n          giftCards(first: 2, query: $query, sortKey: ID) {\n            nodes {\n              id\n              lastCharacters\n              enabled\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          giftCardsCount(query: $query) {\n            count\n            precision\n          }\n        }\n      ",
       "variables": {
-        "id": "gid://shopify/GiftCard/661479588146",
-        "query": "id:661479588146"
+        "id": "gid://shopify/GiftCard/662741287218",
+        "query": "id:662741287218"
       },
       "response": {
         "status": 200,
@@ -3065,8 +4148,8 @@
             "giftCards": {
               "nodes": [
                 {
-                  "id": "gid://shopify/GiftCard/661479588146",
-                  "lastCharacters": "0463",
+                  "id": "gid://shopify/GiftCard/662741287218",
+                  "lastCharacters": "1985",
                   "enabled": false
                 }
               ],
@@ -3086,7 +4169,7 @@
               "actualQueryCost": 17,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1961,
+                "currentlyAvailable": 1983,
                 "restoreRate": 100
               }
             }
@@ -3099,7 +4182,7 @@
       "query": "#graphql\n          mutation GiftCardSearchCustomerCleanup($input: CustomerDeleteInput!) {\n            customerDelete(input: $input) {\n              deletedCustomerId\n              userErrors {\n                field\n                message\n              }\n            }\n          }\n        ",
       "variables": {
         "input": {
-          "id": "gid://shopify/Customer/10853881119026"
+          "id": "gid://shopify/Customer/10900264419634"
         }
       },
       "response": {
@@ -3107,7 +4190,7 @@
         "payload": {
           "data": {
             "customerDelete": {
-              "deletedCustomerId": "gid://shopify/Customer/10853881119026",
+              "deletedCustomerId": "gid://shopify/Customer/10900264419634",
               "userErrors": []
             }
           },
@@ -3117,7 +4200,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1961,
+                "currentlyAvailable": 1982,
                 "restoreRate": 100
               }
             }

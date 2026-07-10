@@ -1,0 +1,18 @@
+query CollectionTopLevelStagedReadInitialPage2($sharedQuery: String!, $after: String!) {
+  sharedSecondPage: collections(first: 1, query: $sharedQuery, sortKey: ID, after: $after) {
+    edges {
+      cursor
+      node {
+        id
+        title
+        handle
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

@@ -31,9 +31,11 @@ const customerLookupDocument = await readFile(
 // new-customer-defaults capture (it lives at 2026-04 and depends on a slow tag-search indexing
 // poll), so this run regenerates only the missing-email / parity / whitespace 2025-01 fixtures.
 const skipNewCustomerDefaults = process.env.SHOPIFY_CONFORMANCE_CAPTURE_DATA_SALE_OPT_OUT_SKIP_NEW_DEFAULTS === 'true';
+const newCustomerDefaultsOnly = process.env.SHOPIFY_CONFORMANCE_CAPTURE_DATA_SALE_OPT_OUT_NEW_DEFAULTS_ONLY === 'true';
 const invalidFormatOnly = process.env.SHOPIFY_CONFORMANCE_CAPTURE_DATA_SALE_OPT_OUT_INVALID_FORMAT_ONLY === 'true';
 const strictFormatResidualOnly =
   process.env.SHOPIFY_CONFORMANCE_CAPTURE_DATA_SALE_OPT_OUT_STRICT_FORMAT_RESIDUAL_ONLY === 'true';
+const unicodeLetterOnly = process.env.SHOPIFY_CONFORMANCE_CAPTURE_DATA_SALE_OPT_OUT_UNICODE_LETTER_ONLY === 'true';
 
 async function captureCustomerLookup(emailAddress, context) {
   const result = await runGraphql(customerLookupDocument, { identifier: { emailAddress } });
@@ -181,6 +183,8 @@ const newCustomerDefaultsReadQuery = `#graphql
       locale
       verifiedEmail
       state
+      createdAt
+      updatedAt
       defaultEmailAddress {
         emailAddress
       }
@@ -451,8 +455,228 @@ async function writeStrictFormatResidualCapture() {
   return strictFormatResidualCapture;
 }
 
+async function captureNewCustomerDefaults(stamp) {
+  const newDefaultsEmailAddress = `hermes-data-sale-defaults-${stamp}@example.com`;
+  const newDefaultsMutationVariables = { email: newDefaultsEmailAddress };
+  let newDefaultsCustomerId = null;
+  try {
+    // The proxy forwards the lookup with this fresh email before creating the customer, so the
+    // recorded lookup returns null and the proxy stages a new synthetic customer to match.
+    const newDefaultsLookupPayload = await captureCustomerLookup(
+      newDefaultsEmailAddress,
+      'dataSaleOptOut new customer defaults lookup',
+    );
+    const newDefaultsMutationResult = await runGraphql(dataSaleOptOutMutation, newDefaultsMutationVariables);
+    assertNoTopLevelErrors(newDefaultsMutationResult, 'dataSaleOptOut new customer defaults mutation');
+    newDefaultsCustomerId = newDefaultsMutationResult.payload?.data?.dataSaleOptOut?.customerId;
+    if (typeof newDefaultsCustomerId !== 'string' || !newDefaultsCustomerId) {
+      throw new Error(
+        `dataSaleOptOut new customer defaults did not return a customer id: ${JSON.stringify(
+          newDefaultsMutationResult.payload,
+          null,
+          2,
+        )}`,
+      );
+    }
+
+    const newDefaultsDownstreamReadVariables = { id: newDefaultsCustomerId };
+    const newDefaultsDownstreamReadResult = await runGraphql(
+      newCustomerDefaultsReadQuery,
+      newDefaultsDownstreamReadVariables,
+    );
+    assertNoTopLevelErrors(newDefaultsDownstreamReadResult, 'dataSaleOptOut new customer defaults downstream read');
+
+    const newDefaultsTagSearchVariables = {
+      query: 'tag:created-by-dns-form',
+      first: 5,
+    };
+    const newDefaultsTagSearchResult = await runDnsTagSearchUntilCustomer(
+      newDefaultsCustomerId,
+      newDefaultsTagSearchVariables,
+    );
+
+    const cleanupNewDefaults = await runGraphql(deleteMutation, { input: { id: newDefaultsCustomerId } });
+    assertNoTopLevelErrors(cleanupNewDefaults, 'dataSaleOptOut new customer defaults cleanup');
+
+    return {
+      mutation: {
+        variables: newDefaultsMutationVariables,
+        response: newDefaultsMutationResult.payload,
+      },
+      downstreamRead: {
+        variables: newDefaultsDownstreamReadVariables,
+        response: newDefaultsDownstreamReadResult.payload,
+      },
+      tagSearchRead: {
+        variables: newDefaultsTagSearchVariables,
+        response: newDefaultsTagSearchResult.payload,
+      },
+      cleanup: {
+        unknownEmailCustomer: {
+          response: cleanupNewDefaults.payload,
+        },
+      },
+      upstreamCalls: [customerLookupUpstreamCall(newDefaultsEmailAddress, newDefaultsLookupPayload)],
+    };
+  } catch (error) {
+    await deleteCustomerIfPresent(newDefaultsCustomerId, 'dataSaleOptOut new customer defaults cleanup after failure');
+    throw error;
+  }
+}
+
+async function writeNewCustomerDefaultsCapture(stamp) {
+  const newCustomerDefaultsCapture = await captureNewCustomerDefaults(stamp);
+  await writeFile(
+    path.join(outputDir, 'data-sale-opt-out-new-customer-defaults.json'),
+    `${JSON.stringify(newCustomerDefaultsCapture, null, 2)}\n`,
+    'utf8',
+  );
+  return newCustomerDefaultsCapture;
+}
+
+async function deletePreexistingCustomerByEmail(emailAddress, context) {
+  const lookupPayload = await captureCustomerLookup(emailAddress, `${context} preexisting lookup`);
+  const customerId = lookupPayload?.data?.customerByIdentifier?.id;
+  const response = await deleteCustomerIfPresent(customerId, `${context} preexisting customer cleanup`);
+  return response ? { customerId, response } : null;
+}
+
+async function captureUnicodeLetterEmailCase({ name, emailAddress }) {
+  const preexistingCleanup = await deletePreexistingCustomerByEmail(
+    emailAddress,
+    `dataSaleOptOut unicode letter ${name}`,
+  );
+  const lookupPayload = await captureCustomerLookup(emailAddress, `dataSaleOptOut unicode letter ${name} lookup`);
+  const mutationVariables = { email: emailAddress };
+  const mutationResult = await runGraphql(dataSaleOptOutMutation, mutationVariables);
+  assertNoTopLevelErrors(mutationResult, `dataSaleOptOut unicode letter ${name} mutation`);
+  const payload = mutationResult.payload?.data?.dataSaleOptOut;
+  assertDataSaleOptOutSucceeded(payload, `dataSaleOptOut unicode letter ${name}`);
+  const customerId = payload.customerId;
+
+  try {
+    const downstreamReadVariables = {
+      id: customerId,
+      identifier: { id: customerId },
+      query: '__customer_parity_no_match__',
+      first: 5,
+    };
+    const downstreamReadResult = await runGraphql(downstreamReadQuery, downstreamReadVariables);
+    assertNoTopLevelErrors(downstreamReadResult, `dataSaleOptOut unicode letter ${name} downstream read`);
+    const customer = downstreamReadResult.payload?.data?.customer;
+    const byIdentifier = downstreamReadResult.payload?.data?.customerByIdentifier;
+    if (customer?.dataSaleOptOut !== true || byIdentifier?.dataSaleOptOut !== true) {
+      throw new Error(
+        `dataSaleOptOut unicode letter ${name} downstream read did not show opt-out: ${JSON.stringify(
+          downstreamReadResult.payload,
+          null,
+          2,
+        )}`,
+      );
+    }
+
+    const cleanup = await deleteCustomerIfPresent(customerId, `dataSaleOptOut unicode letter ${name} cleanup`);
+    return {
+      setup: {
+        preexistingCleanup,
+      },
+      mutation: {
+        variables: mutationVariables,
+        response: mutationResult.payload,
+      },
+      downstreamRead: {
+        variables: downstreamReadVariables,
+        response: downstreamReadResult.payload,
+      },
+      cleanup: {
+        customer: {
+          response: cleanup,
+        },
+      },
+      upstreamCall: customerLookupUpstreamCall(emailAddress, lookupPayload),
+    };
+  } catch (error) {
+    await deleteCustomerIfPresent(customerId, `dataSaleOptOut unicode letter ${name} cleanup after failure`);
+    throw error;
+  }
+}
+
+async function captureUnicodeLetterEmailCases() {
+  const accentedLatin = await captureUnicodeLetterEmailCase({
+    name: 'accented latin',
+    emailAddress: 'héllo@example.com',
+  });
+  const cjk = await captureUnicodeLetterEmailCase({
+    name: 'cjk local',
+    emailAddress: '日本@example.com',
+  });
+  return {
+    setup: {
+      seededCustomers: false,
+      note: 'Unicode-letter email capture. Fixed test emails are cleaned up before mutation, Shopify creates disposable opted-out customers, and the script deletes them after downstream reads.',
+      accentedLatin: accentedLatin.setup,
+      cjk: cjk.setup,
+    },
+    mutation: accentedLatin.mutation,
+    downstreamRead: accentedLatin.downstreamRead,
+    validation: {
+      cjk: {
+        mutation: cjk.mutation,
+        downstreamRead: cjk.downstreamRead,
+      },
+    },
+    cleanup: {
+      accentedLatin: accentedLatin.cleanup,
+      cjk: cjk.cleanup,
+    },
+    upstreamCalls: [accentedLatin.upstreamCall, cjk.upstreamCall],
+  };
+}
+
+async function writeUnicodeLetterEmailCapture() {
+  const unicodeLetterEmailCapture = await captureUnicodeLetterEmailCases();
+  await writeFile(
+    path.join(outputDir, 'data-sale-opt-out-unicode-letter-email.json'),
+    `${JSON.stringify(unicodeLetterEmailCapture, null, 2)}\n`,
+    'utf8',
+  );
+  return unicodeLetterEmailCapture;
+}
+
 async function main() {
   await mkdir(outputDir, { recursive: true });
+
+  if (newCustomerDefaultsOnly) {
+    await writeNewCustomerDefaultsCapture(Date.now());
+    console.log(
+      JSON.stringify(
+        {
+          ok: true,
+          outputDir,
+          files: ['data-sale-opt-out-new-customer-defaults.json'],
+        },
+        null,
+        2,
+      ),
+    );
+    return;
+  }
+
+  if (unicodeLetterOnly) {
+    await writeUnicodeLetterEmailCapture();
+    console.log(
+      JSON.stringify(
+        {
+          ok: true,
+          outputDir,
+          files: ['data-sale-opt-out-unicode-letter-email.json'],
+        },
+        null,
+        2,
+      ),
+    );
+    return;
+  }
 
   if (invalidFormatOnly) {
     await writeInvalidFormatCapture();
@@ -636,66 +860,8 @@ async function main() {
     // poll; skip it when re-recording the 2025-01 privacy captures to de-seed parity.
     let newCustomerDefaultsCapture = null;
     if (!skipNewCustomerDefaults) {
-      const newDefaultsEmailAddress = `hermes-data-sale-defaults-${stamp}@example.com`;
-      const newDefaultsMutationVariables = { email: newDefaultsEmailAddress };
-      // The proxy forwards the lookup with this fresh email before creating the customer, so the
-      // recorded lookup returns null and the proxy stages a new synthetic customer to match.
-      const newDefaultsLookupPayload = await captureCustomerLookup(
-        newDefaultsEmailAddress,
-        'dataSaleOptOut new customer defaults lookup',
-      );
-      const newDefaultsMutationResult = await runGraphql(dataSaleOptOutMutation, newDefaultsMutationVariables);
-      assertNoTopLevelErrors(newDefaultsMutationResult, 'dataSaleOptOut new customer defaults mutation');
-      newDefaultsCustomerId = newDefaultsMutationResult.payload?.data?.dataSaleOptOut?.customerId;
-      if (typeof newDefaultsCustomerId !== 'string' || !newDefaultsCustomerId) {
-        throw new Error(
-          `dataSaleOptOut new customer defaults did not return a customer id: ${JSON.stringify(
-            newDefaultsMutationResult.payload,
-            null,
-            2,
-          )}`,
-        );
-      }
-
-      const newDefaultsDownstreamReadVariables = { id: newDefaultsCustomerId };
-      const newDefaultsDownstreamReadResult = await runGraphql(
-        newCustomerDefaultsReadQuery,
-        newDefaultsDownstreamReadVariables,
-      );
-      assertNoTopLevelErrors(newDefaultsDownstreamReadResult, 'dataSaleOptOut new customer defaults downstream read');
-
-      const newDefaultsTagSearchVariables = {
-        query: 'tag:created-by-dns-form',
-        first: 5,
-      };
-      const newDefaultsTagSearchResult = await runDnsTagSearchUntilCustomer(
-        newDefaultsCustomerId,
-        newDefaultsTagSearchVariables,
-      );
-
-      const cleanupNewDefaults = await runGraphql(deleteMutation, { input: { id: newDefaultsCustomerId } });
-      assertNoTopLevelErrors(cleanupNewDefaults, 'dataSaleOptOut new customer defaults cleanup');
-
-      newCustomerDefaultsCapture = {
-        mutation: {
-          variables: newDefaultsMutationVariables,
-          response: newDefaultsMutationResult.payload,
-        },
-        downstreamRead: {
-          variables: newDefaultsDownstreamReadVariables,
-          response: newDefaultsDownstreamReadResult.payload,
-        },
-        tagSearchRead: {
-          variables: newDefaultsTagSearchVariables,
-          response: newDefaultsTagSearchResult.payload,
-        },
-        cleanup: {
-          unknownEmailCustomer: {
-            response: cleanupNewDefaults.payload,
-          },
-        },
-        upstreamCalls: [customerLookupUpstreamCall(newDefaultsEmailAddress, newDefaultsLookupPayload)],
-      };
+      newCustomerDefaultsCapture = await captureNewCustomerDefaults(stamp);
+      newDefaultsCustomerId = newCustomerDefaultsCapture.mutation.response.data.dataSaleOptOut.customerId;
     }
 
     const capture = {

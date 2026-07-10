@@ -1,6 +1,10 @@
 query MarketingActivityRead($activityId: ID!, $remoteIds: [String!]) {
   marketingActivity(id: $activityId) {
     title
+    app {
+      id
+      title
+    }
     adSpend {
       amount
       currencyCode
@@ -12,6 +16,10 @@ query MarketingActivityRead($activityId: ID!, $remoteIds: [String!]) {
   marketingActivities(first: 10, remoteIds: $remoteIds) {
     nodes {
       title
+      app {
+        id
+        title
+      }
       adSpend {
         amount
         currencyCode

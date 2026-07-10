@@ -1,0 +1,138 @@
+query B2BCompanyLocationOrderAggregatesRead($companyId: ID!, $locationId: ID!) {
+    company(id: $companyId) {
+      id
+      totalSpent {
+        amount
+        currencyCode
+      }
+      spend: totalSpent {
+        value: amount
+        currencyCode
+      }
+      ordersCount {
+        count
+        precision
+      }
+      orderSummary: ordersCount {
+        total: count
+        precision
+      }
+      orders(first: 1) {
+        nodes {
+          id
+          name
+          currentTotalPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+        }
+      }
+      draftOrders(first: 1) {
+        nodes {
+          id
+          name
+          status
+          totalPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+        }
+      }
+      lifetimeDuration
+    }
+    companyLocation(id: $locationId) {
+      id
+      totalSpent {
+        amount
+        currencyCode
+      }
+      locationSpend: totalSpent {
+        value: amount
+        currencyCode
+      }
+      currency
+      ordersCount {
+        count
+        precision
+      }
+      orderSummary: ordersCount {
+        total: count
+        precision
+      }
+      orders(first: 1) {
+        nodes {
+          id
+          name
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+        }
+      }
+      draftOrders(first: 1) {
+        nodes {
+          id
+          name
+          status
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+        }
+      }
+      catalogs(first: 5) {
+        nodes {
+          __typename
+          id
+          title
+        }
+      }
+    }
+    companyNode: node(id: $companyId) {
+      __typename
+      ... on Company {
+        totalSpent {
+          amount
+          currencyCode
+        }
+        ordersCount {
+          count
+          precision
+        }
+        lifetimeDuration
+      }
+    }
+    locationNode: node(id: $locationId) {
+      __typename
+      ... on CompanyLocation {
+        totalSpent {
+          amount
+          currencyCode
+        }
+        currency
+        ordersCount {
+          count
+          precision
+        }
+        catalogs(first: 5) {
+          nodes {
+            __typename
+            id
+            title
+          }
+        }
+      }
+    }
+  }

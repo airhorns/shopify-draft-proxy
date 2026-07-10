@@ -1,0 +1,55 @@
+{
+  "scenarioId": "order-edit-line-discount-percent-value",
+  "operationNames": ["orderEditBegin", "orderEditAddLineItemDiscount"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "money-calculation"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/order-edit-line-discount-percent-value.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/orderEditResidualWorkflow-begin.graphql",
+    "variablesCapturePath": "$.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured order-edit line-item percentage discount against a disposable non-taxable order. The scenario asserts percentValue arithmetic through discounted unit price, allocated discount amount, and calculated-order total while replaying the cold OrdersOrderEditHydrate cassette the proxy uses for order-edit begin.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "begin-calculated-order",
+        "capturePath": "$.steps.begin.response.data.orderEditBegin",
+        "proxyPath": "$.data.orderEditBegin",
+        "excludedPaths": ["$.calculatedOrder.id", "$.calculatedOrder.lineItems.nodes[*].id"]
+      },
+      {
+        "name": "add-percent-line-item-discount",
+        "capturePath": "$.steps.addPercentLineItemDiscount.response.data.orderEditAddLineItemDiscount",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditResidualWorkflow-addLineItemDiscount.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "lineItemId": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.lineItems.nodes[0].id"
+            },
+            "discount": {
+              "description": "Ten percent off",
+              "percentValue": 10.0
+            }
+          }
+        },
+        "proxyPath": "$.data.orderEditAddLineItemDiscount",
+        "excludedPaths": [
+          "$.addedDiscountStagedChange.id",
+          "$.calculatedOrder.id",
+          "$.calculatedLineItem.id",
+          "$.calculatedLineItem.calculatedDiscountAllocations[*].discountApplication.id"
+        ]
+      }
+    ]
+  }
+}

@@ -18,17 +18,25 @@ type Capture = {
   response: unknown;
 };
 
+type RestComment = {
+  id: number;
+  body: string;
+  article_id: number;
+  blog_id: number;
+};
+
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
   defaultApiVersion: '2026-04',
   exitOnMissing: true,
 });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
+const authHeaders = buildAdminAuthHeaders(adminAccessToken);
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'online-store');
 const outputPath = path.join(outputDir, 'online-store-content-search-filters.json');
 const { runGraphqlRaw } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
-  headers: buildAdminAuthHeaders(adminAccessToken),
+  headers: authHeaders,
 });
 
 const blogCreateMutation = `#graphql
@@ -99,6 +107,20 @@ const articleDeleteMutation = `#graphql
     articleDelete(id: $id) {
       deletedArticleId
       userErrors { field message }
+    }
+  }
+`;
+
+const commentApproveMutation = `#graphql
+  mutation CommentApprove($id: ID!) {
+    commentApprove(id: $id) {
+      comment {
+        id
+        status
+        isPublished
+        publishedAt
+      }
+      userErrors { field message code }
     }
   }
 `;
@@ -198,10 +220,21 @@ const searchQuery = `#graphql
   query OnlineStoreContentSearchFilters(
     $articleTagQuery: String!
     $articleAuthorQuery: String!
+    $articleBlogTitleQuery: String!
     $blogTitleQuery: String!
+    $pageTitleQuery: String!
     $pagePublishedQuery: String!
+    $commentBodyQuery: String!
   ) {
-    articlesByTag: articles(first: 5, query: $articleTagQuery) {
+    articlesUnfilteredIdDesc: articles(first: 2, sortKey: ID, reverse: true) {
+      nodes {
+        id
+        title
+        isPublished
+      }
+      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+    }
+    articlesByTag: articles(first: 5, query: $articleTagQuery, sortKey: TITLE) {
       nodes {
         id
         title
@@ -213,7 +246,7 @@ const searchQuery = `#graphql
       }
       pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
     }
-    articlesByAuthor: articles(first: 5, query: $articleAuthorQuery) {
+    articlesByAuthor: articles(first: 5, query: $articleAuthorQuery, sortKey: TITLE) {
       nodes {
         id
         title
@@ -225,13 +258,45 @@ const searchQuery = `#graphql
       }
       pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
     }
-    blogsByTitle: blogs(first: 5, query: $blogTitleQuery) {
+    articlesByBlogTitle: articles(first: 5, query: $articleBlogTitleQuery, sortKey: TITLE, reverse: true) {
+      nodes {
+        id
+        title
+        handle
+        tags
+        isPublished
+        author { name }
+        blog { id title handle }
+      }
+      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+    }
+    blogsByTitle: blogs(first: 5, query: $blogTitleQuery, sortKey: TITLE) {
       nodes {
         id
         title
         handle
         commentPolicy
         articlesCount { count precision }
+      }
+      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+    }
+    blogsByTitleReverse: blogs(first: 5, query: $blogTitleQuery, sortKey: TITLE, reverse: true) {
+      nodes {
+        id
+        title
+        handle
+        commentPolicy
+        articlesCount { count precision }
+      }
+      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+    }
+    pagesByTitleReverse: pages(first: 5, query: $pageTitleQuery, sortKey: TITLE, reverse: true) {
+      nodes {
+        id
+        title
+        handle
+        isPublished
+        publishedAt
       }
       pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
     }
@@ -242,6 +307,17 @@ const searchQuery = `#graphql
         handle
         isPublished
         publishedAt
+      }
+      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+    }
+    commentsByBodyCreatedDesc: comments(first: 5, query: $commentBodyQuery, sortKey: CREATED_AT, reverse: true) {
+      nodes {
+        id
+        body
+        status
+        isPublished
+        createdAt
+        article { id title }
       }
       pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
     }
@@ -295,14 +371,42 @@ function readCreatedId(capture: Capture, mutationName: string, resourceName: str
   return readString(resource['id'], `${capture.name}.${mutationName}.${resourceName}.id`);
 }
 
-function assertSearchResult(data: Record<string, unknown>, field: string, expectedTitle: string): string | null {
+function assertNodeFieldResult(
+  data: Record<string, unknown>,
+  field: string,
+  expectedField: string,
+  expectedValue: string,
+): string | null {
   const nodes = readNodes(data, field);
   const matchingNode = nodes
     .filter(
       (node): node is Record<string, unknown> => Boolean(node) && typeof node === 'object' && !Array.isArray(node),
     )
-    .find((node) => node['title'] === expectedTitle);
-  return matchingNode ? null : `${field} did not include ${expectedTitle}; saw ${JSON.stringify(nodes)}`;
+    .find((node) => node[expectedField] === expectedValue);
+  return matchingNode
+    ? null
+    : `${field} did not include ${expectedField}=${expectedValue}; saw ${JSON.stringify(nodes)}`;
+}
+
+function assertSearchResult(data: Record<string, unknown>, field: string, expectedTitle: string): string | null {
+  return assertNodeFieldResult(data, field, 'title', expectedTitle);
+}
+
+function assertArticleDefaultIncludes(
+  data: Record<string, unknown>,
+  expectedTitles: { published: string; draft: string },
+): string | null {
+  const nodes = readNodes(data, 'articlesUnfilteredIdDesc');
+  const titles = nodes
+    .filter(
+      (node): node is Record<string, unknown> => Boolean(node) && typeof node === 'object' && !Array.isArray(node),
+    )
+    .map((node) => `${node['title']}:${node['isPublished']}`);
+  const hasPublished = titles.includes(`${expectedTitles.published}:true`);
+  const hasDraft = titles.includes(`${expectedTitles.draft}:false`);
+  return hasPublished && hasDraft
+    ? null
+    : `articlesUnfilteredIdDesc did not include published+draft titles; saw ${JSON.stringify(nodes)}`;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -322,17 +426,29 @@ async function capture(label: string, query: string, variables: Record<string, u
 
 async function waitForIndexedSearch(
   variables: Record<string, unknown>,
-  expected: { articleTitle: string; blogTitle: string; pageTitle: string },
+  expected: {
+    articleTitle: string;
+    draftArticleTitle: string;
+    blogTitle: string;
+    pageTitle: string;
+    commentBody: string;
+  },
 ): Promise<void> {
   let lastMisses: string[] = [];
   for (let attempt = 1; attempt <= 8; attempt += 1) {
     const search = await capture('search-filters', searchQuery, variables);
     const data = readData(search);
     lastMisses = [
+      assertArticleDefaultIncludes(data, {
+        published: expected.articleTitle,
+        draft: expected.draftArticleTitle,
+      }),
       assertSearchResult(data, 'articlesByTag', expected.articleTitle),
       assertSearchResult(data, 'articlesByAuthor', expected.articleTitle),
+      assertSearchResult(data, 'articlesByBlogTitle', expected.articleTitle),
       assertSearchResult(data, 'blogsByTitle', expected.blogTitle),
       assertSearchResult(data, 'pagesByPublishedTitle', expected.pageTitle),
+      assertNodeFieldResult(data, 'commentsByBodyCreatedDesc', 'body', expected.commentBody),
     ].filter((miss): miss is string => typeof miss === 'string');
 
     if (lastMisses.length === 0) {
@@ -352,22 +468,81 @@ async function cleanup(label: string, query: string, id: string | null, captures
   captures.push(await capture(label, query, { id }));
 }
 
+function numericId(gid: string): string {
+  const id = gid.split('/').at(-1);
+  if (!id) {
+    throw new Error(`Could not read numeric id from ${gid}`);
+  }
+  return id;
+}
+
+function commentGid(comment: RestComment): string {
+  return `gid://shopify/Comment/${comment.id}`;
+}
+
+async function createComment(blogId: string, articleId: string, body: string): Promise<RestComment> {
+  const response = await fetch(
+    `${adminOrigin}/admin/api/${apiVersion}/blogs/${numericId(blogId)}/articles/${numericId(articleId)}/comments.json`,
+    {
+      method: 'POST',
+      headers: {
+        ...authHeaders,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        comment: {
+          body,
+          body_html: `<p>${body}</p>`,
+          author: 'Online Store Search Fixture',
+          email: 'online-store-search@example.com',
+          ip: '127.0.0.1',
+          status: 'unapproved',
+        },
+      }),
+    },
+  );
+  const payload = (await response.json()) as { comment?: RestComment; errors?: unknown };
+  if (response.status < 200 || response.status >= 300 || !payload.comment) {
+    throw new Error(`Comment setup failed: HTTP ${response.status} ${JSON.stringify(payload)}`);
+  }
+  return payload.comment;
+}
+
+function upstreamCall(operationName: string, variables: Record<string, unknown>, captureResult: Capture): unknown {
+  return {
+    operationName,
+    variables,
+    query: captureResult.request.query,
+    response: {
+      status: captureResult.status,
+      body: captureResult.response,
+    },
+  };
+}
+
 const suffix = new Date().toISOString().replace(/\D/gu, '').slice(0, 14);
-const blogTitle = `HAR 393 Search Blog ${suffix}`;
-const pageTitle = `HAR 393 Search Page ${suffix}`;
-const articleTitle = `HAR 393 Search Article ${suffix}`;
-const authorName = `HAR 393 Search Author ${suffix}`;
-const tag = `har-393-search-${suffix}`;
+const blogTitle = `Online Store Search Blog ${suffix}`;
+const pageTitle = `Online Store Search Page ${suffix}`;
+const articleTitle = `Online Store Search Article ${suffix}`;
+const draftArticleTitle = `Online Store Search Draft Article ${suffix}`;
+const authorName = `Online Store Search Author ${suffix}`;
+const tag = `online-store-search-${suffix}`;
+const firstCommentBody = `Online Store Search Comment Alpha ${suffix}`;
+const secondCommentBody = `Online Store Search Comment Zulu ${suffix}`;
 const captures: Capture[] = [];
 const searchVariables = {
-  articleTagQuery: `tag:${tag}`,
-  articleAuthorQuery: `author:'${authorName}'`,
+  articleTagQuery: `published_status:published tag:${tag}`,
+  articleAuthorQuery: `published_status:published author:'${authorName}'`,
+  articleBlogTitleQuery: `published_status:published blog_title:'${blogTitle}'`,
   blogTitleQuery: `title:'${blogTitle}'`,
+  pageTitleQuery: `title:'${pageTitle}'`,
   pagePublishedQuery: `published_status:published title:'${pageTitle}'`,
+  commentBodyQuery: `"Online Store Search Comment" AND "${suffix}"`,
 };
 let blogId: string | null = null;
 let pageId: string | null = null;
 let articleId: string | null = null;
+let draftArticleId: string | null = null;
 let cleanupCaptured = false;
 
 try {
@@ -383,7 +558,7 @@ try {
   const pageCreate = await capture('pageCreate setup', pageCreateMutation, {
     page: {
       title: pageTitle,
-      body: '<p>HAR 393 page body for search conformance</p>',
+      body: '<p>Online-store page body for search conformance</p>',
       isPublished: true,
     },
   });
@@ -394,8 +569,8 @@ try {
     article: {
       blogId,
       title: articleTitle,
-      body: '<p>HAR 393 article body for search conformance</p>',
-      summary: '<p>HAR 393 article summary</p>',
+      body: '<p>Online-store article body for search conformance</p>',
+      summary: '<p>Online-store article summary</p>',
       isPublished: true,
       tags: [tag, 'online-store'],
       author: { name: authorName },
@@ -404,7 +579,32 @@ try {
   captures.push(articleCreate);
   articleId = readCreatedId(articleCreate, 'articleCreate', 'article');
 
-  await waitForIndexedSearch(searchVariables, { articleTitle, blogTitle, pageTitle });
+  const draftArticleCreate = await capture('draft articleCreate setup', articleCreateMutation, {
+    article: {
+      blogId,
+      title: draftArticleTitle,
+      body: '<p>Online-store draft article body for search conformance</p>',
+      summary: '<p>Online-store draft article summary</p>',
+      isPublished: false,
+      tags: [tag, 'online-store', 'draft'],
+      author: { name: authorName },
+    },
+  });
+  captures.push(draftArticleCreate);
+  draftArticleId = readCreatedId(draftArticleCreate, 'articleCreate', 'article');
+
+  const firstComment = await createComment(blogId, articleId, firstCommentBody);
+  const secondComment = await createComment(blogId, articleId, secondCommentBody);
+  captures.push(await capture('commentApprove setup alpha', commentApproveMutation, { id: commentGid(firstComment) }));
+  captures.push(await capture('commentApprove setup zulu', commentApproveMutation, { id: commentGid(secondComment) }));
+
+  await waitForIndexedSearch(searchVariables, {
+    articleTitle,
+    draftArticleTitle,
+    blogTitle,
+    pageTitle,
+    commentBody: secondCommentBody,
+  });
 
   captures.push(
     await capture('baseline-catalog-detail-empty', baselineQuery, {
@@ -414,8 +614,11 @@ try {
     }),
   );
 
-  captures.push(await capture('search-filters', searchQuery, searchVariables));
+  const searchCapture = await capture('search-filters', searchQuery, searchVariables);
+  captures.push(searchCapture);
 
+  await cleanup('draft articleDelete cleanup', articleDeleteMutation, draftArticleId, captures);
+  draftArticleId = null;
   await cleanup('articleDelete cleanup', articleDeleteMutation, articleId, captures);
   articleId = null;
   await cleanup('pageDelete cleanup', pageDeleteMutation, pageId, captures);
@@ -429,8 +632,9 @@ try {
     storeDomain,
     apiVersion,
     notes:
-      'HAR-393 live Shopify capture for online-store content fielded search filters. Setup content was created in the dev store, searched after indexing was visible, then deleted in cleanup interactions.',
+      'Live Shopify capture for online-store content fielded search filters, unfiltered article visibility, and connection sort/reverse behavior. Setup content was created in the dev store, searched after indexing was visible, then deleted in cleanup interactions.',
     interactions: captures,
+    upstreamCalls: [upstreamCall('OnlineStoreContentSearchFilters', searchVariables, searchCapture)],
   };
 
   await mkdir(outputDir, { recursive: true });
@@ -440,6 +644,12 @@ try {
   if (!cleanupCaptured) {
     const cleanupCaptures: Capture[] = [];
     try {
+      await cleanup(
+        'draft articleDelete cleanup after failure',
+        articleDeleteMutation,
+        draftArticleId,
+        cleanupCaptures,
+      );
       await cleanup('articleDelete cleanup after failure', articleDeleteMutation, articleId, cleanupCaptures);
       await cleanup('pageDelete cleanup after failure', pageDeleteMutation, pageId, cleanupCaptures);
       await cleanup('blogDelete cleanup after failure', blogDeleteMutation, blogId, cleanupCaptures);

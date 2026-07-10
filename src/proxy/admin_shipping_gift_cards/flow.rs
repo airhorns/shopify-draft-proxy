@@ -75,7 +75,7 @@ impl DraftProxy {
         }
 
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        if !id.starts_with("gid://shopify/FlowActionDefinition/") {
+        if !is_shopify_gid_of_type(&id, "FlowActionDefinition") {
             return FlowFieldResult::TopLevelError(flow_resource_not_found_error(field, &id));
         }
 
@@ -118,10 +118,10 @@ impl DraftProxy {
     }
 
     fn flow_trigger_receive_field(&mut self, field: &RootFieldSelection) -> (Value, bool) {
-        let has_body = argument_string(&field.arguments, "body")
+        let has_body = resolved_string_field(&field.arguments, "body")
             .map(|body| !body.is_empty())
             .unwrap_or(false);
-        let has_handle = argument_string(&field.arguments, "handle")
+        let has_handle = resolved_string_field(&field.arguments, "handle")
             .map(|handle| !handle.is_empty())
             .unwrap_or(false);
         let has_payload = field
@@ -140,7 +140,7 @@ impl DraftProxy {
             );
         }
         if has_body {
-            let body = argument_string(&field.arguments, "body").unwrap_or_default();
+            let body = resolved_string_field(&field.arguments, "body").unwrap_or_default();
             return match flow_trigger_body_validation_message(&body) {
                 Some(message) => (flow_trigger_payload(field, "body", &message), false),
                 None => {
@@ -164,7 +164,7 @@ impl DraftProxy {
             );
         }
 
-        let handle = argument_string(&field.arguments, "handle").unwrap_or_default();
+        let handle = resolved_string_field(&field.arguments, "handle").unwrap_or_default();
         let Some(payload) = field.arguments.get("payload") else {
             return (
                 flow_trigger_payload(
@@ -235,17 +235,12 @@ fn flow_generate_signature_required_arg_error(
     }
     let arguments = missing.join(", ");
     Some(json!({
-        "errors": [{
-            "message": format!("Field 'flowGenerateSignature' is missing required arguments: {arguments}"),
-            "locations": [{ "line": field.location.line, "column": field.location.column }],
-            "path": [operation_path, "flowGenerateSignature"],
-            "extensions": {
-                "code": "missingRequiredArguments",
-                "className": "Field",
-                "name": "flowGenerateSignature",
-                "arguments": arguments
-            }
-        }]
+        "errors": [missing_required_arguments_error(
+            "flowGenerateSignature",
+            &arguments,
+            field.location,
+            vec![json!(operation_path), json!("flowGenerateSignature")],
+        )]
     }))
 }
 
@@ -261,16 +256,13 @@ fn flow_generate_signature_null_arg_error(
             continue;
         }
         return Some(json!({
-            "errors": [{
-                "message": format!("Argument '{name}' on Field 'flowGenerateSignature' has an invalid value (null). Expected type '{expected_type}'."),
-                "locations": [{ "line": field.location.line, "column": field.location.column }],
-                "path": [operation_path, "flowGenerateSignature", name],
-                "extensions": {
-                    "code": "argumentLiteralsIncompatible",
-                    "typeName": "Field",
-                    "argumentName": name
-                }
-            }]
+            "errors": [required_argument_null_error(
+                "flowGenerateSignature",
+                name,
+                expected_type,
+                field.location,
+                vec![json!(operation_path), json!("flowGenerateSignature"), json!(name)],
+            )]
         }));
     }
     None
@@ -299,13 +291,6 @@ fn flow_trigger_payload(field: &RootFieldSelection, field_name: &str, message: &
 
 fn flow_trigger_success_payload(field: &RootFieldSelection) -> Value {
     selected_json(&json!({ "userErrors": [] }), &field.selection)
-}
-
-fn argument_string(arguments: &BTreeMap<String, ResolvedValue>, name: &str) -> Option<String> {
-    match arguments.get(name) {
-        Some(ResolvedValue::String(value)) => Some(value.clone()),
-        _ => None,
-    }
 }
 
 fn flow_trigger_body_validation_message(body: &str) -> Option<String> {
@@ -395,7 +380,7 @@ fn flow_trigger_body_validation_message(body: &str) -> Option<String> {
 }
 
 fn is_local_flow_trigger_reference(value: &str) -> bool {
-    value.starts_with("local-") || value.starts_with("gid://shopify/FlowTrigger/")
+    value.starts_with("local-") || is_shopify_gid_of_type(value, "FlowTrigger")
 }
 
 fn is_local_flow_handle(value: &str) -> bool {

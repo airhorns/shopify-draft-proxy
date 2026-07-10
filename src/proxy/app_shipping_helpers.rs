@@ -112,22 +112,18 @@ pub(in crate::proxy) fn delegate_access_token_create_payload_json(
     token_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "delegateAccessToken" => Some(if token.is_null() {
-                Value::Null
-            } else {
-                selected_json(&token, token_selection)
-            }),
+    selected_single_data_field_payload_json(
+        "delegateAccessToken",
+        token,
+        token_selection,
+        "UserError",
+        payload_selection,
+        user_errors,
+        |selection| match selection.name.as_str() {
             "shop" => Some(selected_json(shop, &selection.selection)),
-            "userErrors" => Some(app_user_errors_json(
-                user_errors.clone(),
-                "UserError",
-                &selection.selection,
-            )),
             _ => None,
-        }
-    })
+        },
+    )
 }
 
 pub(in crate::proxy) fn delegate_access_token_destroy_payload_json(
@@ -160,15 +156,16 @@ pub(in crate::proxy) fn delegate_access_token_destroy_user_error(
 pub(in crate::proxy) const DEFAULT_LOCAL_APP_ID: &str = "gid://shopify/App/local";
 pub(in crate::proxy) const DEFAULT_LOCAL_APP_INSTALLATION_ID: &str =
     "gid://shopify/AppInstallation/local";
+pub(in crate::proxy) const DRAFT_PROXY_REQUEST_APP_ID_FIELD: &str = "__draftProxyRequestAppId";
 
 pub(in crate::proxy) fn normalize_app_gid(value: &str) -> String {
     let trimmed = value.trim();
     if trimmed.is_empty() {
         DEFAULT_LOCAL_APP_ID.to_string()
-    } else if trimmed.starts_with("gid://shopify/App/") {
+    } else if is_shopify_gid_of_type(trimmed, "App") {
         trimmed.to_string()
     } else {
-        format!("gid://shopify/App/{trimmed}")
+        shopify_gid("App", trimmed)
     }
 }
 
@@ -176,10 +173,10 @@ pub(in crate::proxy) fn normalize_app_installation_gid(value: &str) -> String {
     let trimmed = value.trim();
     if trimmed.is_empty() {
         DEFAULT_LOCAL_APP_INSTALLATION_ID.to_string()
-    } else if trimmed.starts_with("gid://shopify/AppInstallation/") {
+    } else if is_shopify_gid_of_type(trimmed, "AppInstallation") {
         trimmed.to_string()
     } else {
-        format!("gid://shopify/AppInstallation/{trimmed}")
+        shopify_gid("AppInstallation", trimmed)
     }
 }
 
@@ -202,17 +199,21 @@ pub(in crate::proxy) fn app_installation_id(installation: &Value) -> Option<Stri
         .map(str::to_string)
 }
 
+pub(in crate::proxy) fn request_app_id_from_installation(installation: &Value) -> Option<String> {
+    installation
+        .get(DRAFT_PROXY_REQUEST_APP_ID_FIELD)
+        .and_then(Value::as_str)
+        .map(str::to_string)
+}
+
 pub(in crate::proxy) fn current_app_installation_from_request(request: &Request) -> Value {
-    let explicit_app_id = request_header(request, "x-shopify-draft-proxy-api-client-id");
+    let explicit_app_id = request_header(request, API_CLIENT_ID_HEADER);
     let app_id = normalize_app_gid(explicit_app_id.as_deref().unwrap_or(DEFAULT_LOCAL_APP_ID));
     let installation_id = request_header(request, "x-shopify-draft-proxy-app-installation-id")
         .map(|value| normalize_app_installation_gid(&value))
         .unwrap_or_else(|| {
             if explicit_app_id.is_some() {
-                format!(
-                    "gid://shopify/AppInstallation/{}?shopify-draft-proxy=synthetic",
-                    resource_id_tail(&app_id)
-                )
+                synthetic_shopify_gid("AppInstallation", resource_id_tail(&app_id))
             } else {
                 DEFAULT_LOCAL_APP_INSTALLATION_ID.to_string()
             }
@@ -229,8 +230,7 @@ pub(in crate::proxy) fn current_app_installation_from_request(request: &Request)
     });
     let requested_access_scopes =
         request_required_access_scope_values(request).unwrap_or_else(|| {
-            if explicit_app_id.is_some()
-                || request_header(request, "x-shopify-draft-proxy-access-scopes").is_some()
+            if explicit_app_id.is_some() || request_header(request, ACCESS_SCOPES_HEADER).is_some()
             {
                 Vec::new()
             } else {
@@ -240,6 +240,7 @@ pub(in crate::proxy) fn current_app_installation_from_request(request: &Request)
     json!({
         "__typename": "AppInstallation",
         "__draftProxySource": if explicit_app_id.is_some() { "request" } else { "default" },
+        "__draftProxyRequestAppId": app_id.clone(),
         "id": installation_id,
         "accessScopes": access_scopes,
         "app": {
@@ -253,7 +254,7 @@ pub(in crate::proxy) fn current_app_installation_from_request(request: &Request)
 }
 
 fn request_access_scope_values(request: &Request) -> Option<Vec<Value>> {
-    request_header(request, "x-shopify-draft-proxy-access-scopes")
+    request_header(request, ACCESS_SCOPES_HEADER)
         .map(|header| access_scope_values_from_header(&header))
         .filter(|scopes| !scopes.is_empty())
 }
@@ -263,12 +264,19 @@ fn request_required_access_scope_values(request: &Request) -> Option<Vec<Value>>
         .map(|header| access_scope_values_from_header(&header))
 }
 
-fn access_scope_values_from_header(header: &str) -> Vec<Value> {
+fn access_scope_handles_from_header(header: &str) -> Vec<String> {
     header
         .split(',')
         .map(str::trim)
         .filter(|scope| !scope.is_empty())
-        .map(|scope| access_scope_json(scope, None))
+        .map(str::to_string)
+        .collect()
+}
+
+fn access_scope_values_from_header(header: &str) -> Vec<Value> {
+    access_scope_handles_from_header(header)
+        .into_iter()
+        .map(|scope| access_scope_json(&scope, None))
         .collect()
 }
 
@@ -352,21 +360,15 @@ pub(in crate::proxy) fn app_uninstall_payload_json(
     app_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "app" => Some(if app.is_null() {
-                Value::Null
-            } else {
-                selected_json(&app, app_selection)
-            }),
-            "userErrors" => Some(app_user_errors_json(
-                user_errors.clone(),
-                "AppUninstallError",
-                &selection.selection,
-            )),
-            _ => None,
-        }
-    })
+    selected_single_data_field_payload_json(
+        "app",
+        app,
+        app_selection,
+        "AppUninstallError",
+        payload_selection,
+        user_errors,
+        |_| None,
+    )
 }
 
 pub(in crate::proxy) fn app_revoke_access_scopes_payload_json(
@@ -401,21 +403,15 @@ pub(in crate::proxy) fn app_usage_record_payload_json(
     usage_record_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "appUsageRecord" => Some(if usage_record.is_null() {
-                Value::Null
-            } else {
-                selected_json(&usage_record, usage_record_selection)
-            }),
-            "userErrors" => Some(app_user_errors_json(
-                user_errors.clone(),
-                "UserError",
-                &selection.selection,
-            )),
-            _ => None,
-        }
-    })
+    selected_single_data_field_payload_json(
+        "appUsageRecord",
+        usage_record,
+        usage_record_selection,
+        "UserError",
+        payload_selection,
+        user_errors,
+        |_| None,
+    )
 }
 
 pub(in crate::proxy) fn app_purchase_one_time_payload_json(
@@ -521,6 +517,44 @@ pub(in crate::proxy) fn app_user_errors_json(
     )
 }
 
+pub(in crate::proxy) fn selected_single_data_field_payload_json(
+    field_name: &'static str,
+    field_value: Value,
+    field_selection: &[SelectedField],
+    user_error_typename: &'static str,
+    payload_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+    extra_field: impl Fn(&SelectedField) -> Option<Value>,
+) -> Value {
+    selected_payload_json(payload_selection, |selection| {
+        if selection.name == field_name {
+            Some(if field_value.is_null() {
+                Value::Null
+            } else {
+                selected_json(&field_value, field_selection)
+            })
+        } else if selection.name == "userErrors" {
+            Some(app_user_errors_json(
+                user_errors.clone(),
+                user_error_typename,
+                &selection.selection,
+            ))
+        } else {
+            extra_field(selection)
+        }
+    })
+}
+
+pub(in crate::proxy) fn failed_payload_outcome(
+    payload: Value,
+) -> (Value, &'static str, Vec<String>) {
+    (payload, "failed", Vec::new())
+}
+
+pub(in crate::proxy) fn response_is_success(response: &Response) -> bool {
+    (200..300).contains(&response.status)
+}
+
 fn app_user_error_json(error: Value, typename: &str, selection: &[SelectedField]) -> Value {
     let mut error = error;
     if let Value::Object(fields) = &mut error {
@@ -531,7 +565,7 @@ fn app_user_error_json(error: Value, typename: &str, selection: &[SelectedField]
 
 pub(in crate::proxy) fn app_subscription_line_items_from_arguments(
     arguments: &BTreeMap<String, ResolvedValue>,
-    line_item_ids: Vec<String>,
+    line_item_ids: &[String],
 ) -> Vec<Value> {
     match arguments.get("lineItems") {
         Some(ResolvedValue::List(items)) => items
@@ -539,10 +573,8 @@ pub(in crate::proxy) fn app_subscription_line_items_from_arguments(
             .enumerate()
             .map(|(index, item)| {
                 app_subscription_line_item_from_input(
-                    index,
-                    items.len(),
                     item,
-                    line_item_ids.get(index).cloned(),
+                    line_item_ids.get(index).cloned().unwrap_or_default(),
                 )
             })
             .collect(),
@@ -567,35 +599,16 @@ pub(in crate::proxy) fn app_subscription_line_item_currency_codes(
         .collect()
 }
 
-pub(in crate::proxy) fn app_subscription_line_item_from_input(
-    index: usize,
-    total_items: usize,
-    value: &ResolvedValue,
-    allocated_id: Option<String>,
-) -> Value {
-    let default_id = allocated_id.unwrap_or_else(|| match (total_items, index) {
-        (2, 0) => "gid://shopify/AppSubscriptionLineItem/usage".to_string(),
-        (2, 1) => "gid://shopify/AppSubscriptionLineItem/recurring".to_string(),
-        _ if index == 0 => shopify_gid("AppSubscriptionLineItem", "expected"),
-        _ => shopify_gid("AppSubscriptionLineItem", format!("expected-{}", index + 1)),
-    });
-    let mut capped_amount = "100.0".to_string();
-    let mut currency_code = "USD".to_string();
-    let mut terms = "usage terms".to_string();
+fn app_subscription_line_item_from_input(value: &ResolvedValue, id: String) -> Value {
     if let ResolvedValue::Object(item) = value {
         if let Some(ResolvedValue::Object(plan)) = item.get("plan") {
             if let Some(ResolvedValue::Object(details)) = plan.get("appRecurringPricingDetails") {
-                let mut price_amount = "1.0".to_string();
-                let mut price_currency = "USD".to_string();
-                if let Some(ResolvedValue::Object(price)) = details.get("price") {
-                    price_amount = money_amount_string_from_resolved(price.get("amount"));
-                    price_currency = match price.get("currencyCode") {
-                        Some(ResolvedValue::String(value)) => value.clone(),
-                        _ => price_currency,
-                    };
-                }
+                let price = resolved_object_field(details, "price").unwrap_or_default();
+                let price_amount = money_amount_string_from_resolved_or(price.get("amount"), "0.0");
+                let price_currency =
+                    resolved_string_field(&price, "currencyCode").unwrap_or_default();
                 return json!({
-                    "id": default_id,
+                    "id": id,
                     "plan": { "pricingDetails": {
                         "__typename": "AppRecurringPricing",
                         "price": money_value(&price_amount, &price_currency)
@@ -603,39 +616,35 @@ pub(in crate::proxy) fn app_subscription_line_item_from_input(
                 });
             }
             if let Some(ResolvedValue::Object(details)) = plan.get("appUsagePricingDetails") {
-                if let Some(ResolvedValue::Object(capped)) = details.get("cappedAmount") {
-                    capped_amount = money_amount_string_from_resolved(capped.get("amount"));
-                    currency_code = match capped.get("currencyCode") {
-                        Some(ResolvedValue::String(value)) => value.clone(),
-                        _ => currency_code,
-                    };
-                }
-                if let Some(ResolvedValue::String(value)) = details.get("terms") {
-                    terms = value.clone();
-                }
+                let capped = resolved_object_field(details, "cappedAmount").unwrap_or_default();
+                let capped_amount =
+                    money_amount_string_from_resolved_or(capped.get("amount"), "0.0");
+                let currency_code =
+                    resolved_string_field(&capped, "currencyCode").unwrap_or_default();
+                let terms = resolved_string_field(details, "terms").unwrap_or_default();
+                return json!({
+                    "id": id,
+                    "plan": { "pricingDetails": {
+                        "__typename": "AppUsagePricing",
+                        "cappedAmount": money_value(&capped_amount, &currency_code),
+                        "balanceUsed": money_value("0.0", &currency_code),
+                        "interval": "EVERY_30_DAYS",
+                        "terms": terms
+                    }}
+                });
             }
         }
     }
     json!({
-        "id": default_id,
+        "id": id,
         "plan": { "pricingDetails": {
             "__typename": "AppUsagePricing",
-            "cappedAmount": money_value(&capped_amount, &currency_code),
-            "balanceUsed": money_value("0.0", &currency_code),
+            "cappedAmount": money_value("0.0", ""),
+            "balanceUsed": money_value("0.0", ""),
             "interval": "EVERY_30_DAYS",
-            "terms": terms
+            "terms": ""
         }}
     })
-}
-
-pub(in crate::proxy) fn money_amount_string_from_resolved(value: Option<&ResolvedValue>) -> String {
-    let raw = match value {
-        Some(ResolvedValue::Int(value)) => value.to_string(),
-        Some(ResolvedValue::Float(value)) => value.to_string(),
-        Some(ResolvedValue::String(value)) => value.clone(),
-        _ => "100".to_string(),
-    };
-    normalize_money_amount(&raw)
 }
 
 pub(in crate::proxy) fn current_app_installation_json(
@@ -666,41 +675,20 @@ pub(in crate::proxy) fn current_app_installation_json(
                     .map(|subscription| selected_json(subscription, &selection.selection))
                     .collect(),
             )),
-            "allSubscriptions"
-                if subscriptions.is_empty() && installation.get("allSubscriptions").is_some() =>
-            {
-                installation
-                    .get("allSubscriptions")
-                    .map(|value| selected_json(value, &selection.selection))
-            }
-            "allSubscriptions" => {
-                let node_selection =
-                    selected_child_selection(&selection.selection, "nodes").unwrap_or_default();
-                Some(json!({
-                    "nodes": subscriptions
-                        .values()
-                        .map(|subscription| selected_json(subscription, &node_selection))
-                        .collect::<Vec<_>>()
-                }))
-            }
-            "oneTimePurchases"
-                if one_time_purchases.is_empty()
-                    && installation.get("oneTimePurchases").is_some() =>
-            {
-                installation
-                    .get("oneTimePurchases")
-                    .map(|value| selected_json(value, &selection.selection))
-            }
-            "oneTimePurchases" => {
-                let node_selection =
-                    selected_child_selection(&selection.selection, "nodes").unwrap_or_default();
-                Some(json!({
-                    "nodes": one_time_purchases
-                        .values()
-                        .map(|purchase| selected_json(purchase, &node_selection))
-                        .collect::<Vec<_>>()
-                }))
-            }
+            "allSubscriptions" => Some(app_installation_connection_field(
+                installation,
+                "allSubscriptions",
+                subscriptions.is_empty(),
+                subscriptions.values(),
+                selection,
+            )),
+            "oneTimePurchases" => Some(app_installation_connection_field(
+                installation,
+                "oneTimePurchases",
+                one_time_purchases.is_empty(),
+                one_time_purchases.values(),
+                selection,
+            )),
             "accessScopes" => Some(Value::Array(
                 installation
                     .get("accessScopes")
@@ -726,6 +714,27 @@ pub(in crate::proxy) fn current_app_installation_json(
         }
     }
     Value::Object(fields)
+}
+
+fn app_installation_connection_field<'a>(
+    installation: &Value,
+    field_name: &str,
+    records_empty: bool,
+    records: impl Iterator<Item = &'a Value>,
+    selection: &SelectedField,
+) -> Value {
+    if records_empty {
+        if let Some(value) = installation.get(field_name) {
+            return selected_json(value, &selection.selection);
+        }
+    }
+    let node_selection =
+        selected_child_selection(&selection.selection, "nodes").unwrap_or_default();
+    json!({
+        "nodes": records
+            .map(|record| selected_json(record, &node_selection))
+            .collect::<Vec<_>>()
+    })
 }
 
 pub(in crate::proxy) fn location_deactivate_payload_json(
@@ -756,10 +765,7 @@ pub(in crate::proxy) fn delivery_profile_payload_json(
             } else {
                 delivery_profile_selected_json(&profile, &selection.selection)
             }),
-            "userErrors" => Some(delivery_profile_user_errors_json(
-                user_errors.clone(),
-                &selection.selection,
-            )),
+            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
             _ => None,
         }
     })
@@ -777,29 +783,15 @@ pub(in crate::proxy) fn delivery_profile_remove_payload_json(
             } else {
                 selected_json(&job, &selection.selection)
             }),
-            "userErrors" => Some(delivery_profile_user_errors_json(
-                user_errors.clone(),
-                &selection.selection,
-            )),
+            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
             _ => None,
         }
     })
 }
 
-pub(in crate::proxy) fn delivery_profile_user_errors_json(
-    user_errors: Vec<Value>,
-    selection: &[SelectedField],
-) -> Value {
-    Value::Array(
-        user_errors
-            .into_iter()
-            .map(|error| selected_json(&error, selection))
-            .collect(),
-    )
-}
-
 pub(in crate::proxy) fn delivery_profile_create_user_errors(
     profile: &BTreeMap<String, ResolvedValue>,
+    location_exists: &mut impl FnMut(&str) -> bool,
 ) -> Vec<Value> {
     if let Some(error) = delivery_profile_name_user_error(profile) {
         return vec![error];
@@ -829,16 +821,17 @@ pub(in crate::proxy) fn delivery_profile_create_user_errors(
             }
         }
     }
-    delivery_profile_common_shape_user_errors(profile)
+    delivery_profile_common_shape_user_errors(profile, location_exists)
 }
 
 pub(in crate::proxy) fn delivery_profile_update_user_errors(
     profile: &BTreeMap<String, ResolvedValue>,
+    location_exists: &mut impl FnMut(&str) -> bool,
 ) -> Vec<Value> {
     if let Some(error) = delivery_profile_name_user_error(profile) {
         return vec![error];
     }
-    delivery_profile_common_shape_user_errors(profile)
+    delivery_profile_common_shape_user_errors(profile, location_exists)
 }
 
 const DELIVERY_PROFILE_MAX_NAME_LENGTH: usize = 128;
@@ -866,9 +859,13 @@ fn delivery_profile_name_user_error(profile: &BTreeMap<String, ResolvedValue>) -
 
 fn delivery_profile_common_shape_user_errors(
     profile: &BTreeMap<String, ResolvedValue>,
+    location_exists: &mut impl FnMut(&str) -> bool,
 ) -> Vec<Value> {
     for group in resolved_object_list_field(profile, "locationGroupsToCreate") {
-        if delivery_profile_has_unknown_location(&list_string_field(&group, "locations")) {
+        if delivery_profile_has_unknown_location(
+            &list_string_field(&group, "locations"),
+            location_exists,
+        ) {
             return vec![delivery_profile_unknown_location_user_error()];
         }
         for zone in resolved_object_list_field(&group, "zonesToCreate") {
@@ -882,17 +879,21 @@ fn delivery_profile_common_shape_user_errors(
         }
     }
     for group in resolved_object_list_field(profile, "locationGroupsToUpdate") {
-        if delivery_profile_has_unknown_location(&list_string_field(&group, "locationsToAdd")) {
+        if delivery_profile_has_unknown_location(
+            &list_string_field(&group, "locationsToAdd"),
+            location_exists,
+        ) {
             return vec![delivery_profile_unknown_location_user_error()];
         }
     }
     Vec::new()
 }
 
-fn delivery_profile_has_unknown_location(location_ids: &[String]) -> bool {
-    location_ids
-        .iter()
-        .any(|id| id == "gid://shopify/Location/999999999")
+fn delivery_profile_has_unknown_location(
+    location_ids: &[String],
+    location_exists: &mut impl FnMut(&str) -> bool,
+) -> bool {
+    location_ids.iter().any(|id| !location_exists(id))
 }
 
 fn delivery_profile_unknown_location_user_error() -> Value {
@@ -979,18 +980,56 @@ fn delivery_profile_location_group_selected_json(
             &selection.arguments,
             &selection.selection,
         )),
-        "countriesInAnyZone" => Some(Value::Array(
-            group
+        "countriesInAnyZone" => {
+            let stored = group
                 .get("countriesInAnyZone")
                 .and_then(Value::as_array)
                 .cloned()
-                .unwrap_or_default()
-                .into_iter()
-                .map(|country| selected_json(&country, &selection.selection))
-                .collect(),
-        )),
+                .unwrap_or_default();
+            let countries = if stored.is_empty() {
+                delivery_profile_countries_in_any_zone(group)
+            } else {
+                stored
+            };
+            Some(Value::Array(
+                countries
+                    .into_iter()
+                    .map(|country| selected_json(&country, &selection.selection))
+                    .collect(),
+            ))
+        }
         _ => None,
     })
+}
+
+fn delivery_profile_countries_in_any_zone(group: &Value) -> Vec<Value> {
+    let mut seen = BTreeSet::new();
+    let mut countries = Vec::new();
+    for zone in group["locationGroupZones"].as_array().into_iter().flatten() {
+        let zone_name = zone["zone"]["name"].as_str().unwrap_or_default();
+        for country in zone["zone"]["countries"].as_array().into_iter().flatten() {
+            let key = delivery_profile_country_union_key(country);
+            if key.is_empty() || !seen.insert(key) {
+                continue;
+            }
+            countries.push(json!({
+                "zone": zone_name,
+                "country": country
+            }));
+        }
+    }
+    countries
+}
+
+fn delivery_profile_country_union_key(country: &Value) -> String {
+    if country["code"]["restOfWorld"].as_bool() == Some(true) {
+        return "REST_OF_WORLD".to_string();
+    }
+    country["code"]["countryCode"]
+        .as_str()
+        .or_else(|| country.get("id").and_then(Value::as_str))
+        .unwrap_or_default()
+        .to_string()
 }
 
 fn delivery_location_group_selected_json(group: &Value, selections: &[SelectedField]) -> Value {
@@ -1242,20 +1281,6 @@ pub(in crate::proxy) fn refresh_delivery_profile_counts(profile: &mut Value) {
     profile["productVariantsCount"] = count_object(variant_count);
 }
 
-pub(in crate::proxy) fn delivery_profile_location_record(id: &str) -> Value {
-    json!({
-        "id": id,
-        "name": delivery_profile_location_name(id)
-    })
-}
-
-fn delivery_profile_location_name(id: &str) -> String {
-    match Some(resource_id_path_tail(id)).filter(|tail| !tail.is_empty()) {
-        Some(tail) => format!("Location {tail}"),
-        None => "Delivery profile location".to_string(),
-    }
-}
-
 pub(in crate::proxy) fn delivery_profile_item_for_variant(
     variant_id: &str,
     observed_variant: Option<&Value>,
@@ -1296,7 +1321,10 @@ fn delivery_profile_fallback_product_id(variant_id: &str) -> String {
 pub(in crate::proxy) fn delivery_profile_countries_from_input(
     zone_input: &BTreeMap<String, ResolvedValue>,
 ) -> Vec<Value> {
-    delivery_profile_zone_countries_from_input(zone_input)
+    let mut countries = delivery_profile_zone_countries_from_input(zone_input);
+    countries.sort();
+    countries.dedup();
+    countries
         .into_iter()
         .map(|country| delivery_profile_country_record(&country))
         .collect()
@@ -1328,10 +1356,11 @@ fn delivery_profile_zone_countries_from_input(
 
 fn delivery_profile_country_record(code: &str) -> Value {
     let rest_of_world = code == "REST_OF_WORLD";
+    let country_name = delivery_profile_country_name(code);
     json!({
         "id": shopify_gid("DeliveryCountry", code),
-        "name": if rest_of_world { "Rest of World" } else { delivery_profile_country_name(code) },
-        "translatedName": if rest_of_world { "Rest of World" } else { delivery_profile_country_name(code) },
+        "name": if rest_of_world { "Rest of World".to_string() } else { country_name.clone() },
+        "translatedName": if rest_of_world { "Rest of World".to_string() } else { country_name },
         "code": {
             "countryCode": if rest_of_world { Value::Null } else { json!(code) },
             "restOfWorld": rest_of_world
@@ -1340,13 +1369,8 @@ fn delivery_profile_country_record(code: &str) -> Value {
     })
 }
 
-fn delivery_profile_country_name(code: &str) -> &'static str {
-    match code {
-        "US" => "United States",
-        "CA" => "Canada",
-        "GB" => "United Kingdom",
-        _ => "Country",
-    }
+fn delivery_profile_country_name(code: &str) -> String {
+    country_name_for_code(code).unwrap_or(code).to_string()
 }
 
 pub(in crate::proxy) fn delivery_price_from_method_input(
@@ -1479,81 +1503,6 @@ pub(in crate::proxy) fn fulfillment_order_deadline_payload_json(
     })
 }
 
-pub(in crate::proxy) fn collection_publication_record(id: String, published: bool) -> Value {
-    let count = if published { 1 } else { 0 };
-    json!({
-        "id": id,
-        "title": "Hermes Collection Conformance 1777078204269",
-        "handle": "hermes-collection-conformance-1777078204269",
-        "publishedOnCurrentPublication": false,
-        "publishedOnPublication": published,
-        "availablePublicationsCount": count_object(count),
-        "resourcePublicationsCount": count_object(count)
-    })
-}
-
-pub(in crate::proxy) fn publishable_payload_json(
-    publishable: Value,
-    shop: Value,
-    payload_selection: &[SelectedField],
-    publishable_selection: &[SelectedField],
-    user_errors: Vec<Value>,
-) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "publishable" => Some(selected_json(&publishable, publishable_selection)),
-            "shop" => Some(selected_json(&shop, &selection.selection)),
-            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-            _ => None,
-        }
-    })
-}
-
-pub(in crate::proxy) fn segment_payload_json(
-    segment: Value,
-    deleted_segment_id: Value,
-    payload_selection: &[SelectedField],
-    segment_selection: &[SelectedField],
-    deleted_segment_id_selection: &[SelectedField],
-    user_errors: Vec<Value>,
-) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "segment" => Some(if segment.is_null() {
-                Value::Null
-            } else {
-                selected_json(&segment, segment_selection)
-            }),
-            "deletedSegmentId" => Some(if deleted_segment_id_selection.is_empty() {
-                deleted_segment_id.clone()
-            } else {
-                selected_json(&deleted_segment_id, deleted_segment_id_selection)
-            }),
-            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-            _ => None,
-        }
-    })
-}
-
-pub(in crate::proxy) fn customer_segment_members_query_payload_json(
-    query_record: Value,
-    payload_selection: &[SelectedField],
-    query_selection: &[SelectedField],
-    user_errors: Vec<Value>,
-) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "customerSegmentMembersQuery" => Some(if query_record.is_null() {
-                Value::Null
-            } else {
-                selected_json(&query_record, query_selection)
-            }),
-            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-            _ => None,
-        }
-    })
-}
-
 pub(in crate::proxy) fn fulfillment_service_payload_json(
     service: Value,
     payload_selection: &[SelectedField],
@@ -1567,7 +1516,7 @@ pub(in crate::proxy) fn fulfillment_service_payload_json(
             } else {
                 selected_json(&service, service_selection)
             }),
-            "userErrors" => Some(Value::Array(user_errors.clone())),
+            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
             _ => None,
         }
     })
@@ -1596,18 +1545,18 @@ pub(in crate::proxy) fn fulfillment_service_delete_payload(
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
             "deletedId" => Some(deleted_id.clone()),
-            "userErrors" => Some(Value::Array(user_errors.clone())),
+            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
             _ => None,
         }
     })
 }
 
 pub(in crate::proxy) fn destination_location_not_found_or_inactive_error() -> Value {
-    json!({
-        "field": ["destinationLocationId"],
-        "code": "DESTINATION_LOCATION_NOT_FOUND_OR_INACTIVE",
-        "message": "Location could not be deactivated because the destination location could be not found or is inactive."
-    })
+    user_error(
+        ["destinationLocationId"],
+        "Location could not be deactivated because the destination location could be not found or is inactive.",
+        Some("DESTINATION_LOCATION_NOT_FOUND_OR_INACTIVE"),
+    )
 }
 
 pub(in crate::proxy) fn carrier_service_record(
@@ -1662,10 +1611,10 @@ pub(in crate::proxy) fn carrier_service_not_found_payload(
         Value::Null,
         payload_selection,
         &[],
-        vec![carrier_service_user_error(
+        vec![user_error(
             Value::Null,
             "The carrier or app could not be found.",
-            code,
+            Some(code),
         )],
     )
 }
@@ -1684,38 +1633,30 @@ pub(in crate::proxy) fn carrier_service_delete_payload(
     })
 }
 
-pub(in crate::proxy) fn carrier_service_user_error(
-    field: Value,
-    message: &str,
-    code: &str,
-) -> Value {
-    user_error(field, message, Some(code))
-}
-
 pub(in crate::proxy) fn carrier_service_callback_url_error(
     callback_url: &str,
     code: &str,
 ) -> Option<Value> {
     let trimmed = callback_url.trim();
     if trimmed.starts_with("http://") {
-        return Some(carrier_service_user_error(
+        return Some(user_error(
             Value::Null,
             "Shipping rate provider callback url must use HTTPS",
-            code,
+            Some(code),
         ));
     }
     let Some(host) = carrier_service_https_callback_host(trimmed) else {
-        return Some(carrier_service_user_error(
+        return Some(user_error(
             Value::Null,
             "Shipping rate provider callback url invalid host",
-            code,
+            Some(code),
         ));
     };
     if carrier_service_callback_host_is_disallowed(&host) {
-        return Some(carrier_service_user_error(
+        return Some(user_error(
             Value::Null,
             "Shipping rate provider callback url invalid host",
-            code,
+            Some(code),
         ));
     }
     None
@@ -1906,696 +1847,8 @@ pub(in crate::proxy) fn slugify_handle(title: &str) -> String {
     handle.trim_end_matches('-').to_string()
 }
 
-pub(in crate::proxy) fn b2b_company_payload(
-    company: Option<&Value>,
-    user_errors: Vec<Value>,
-) -> Value {
-    json!({
-        "company": company.cloned().unwrap_or(Value::Null),
-        "userErrors": user_errors
-    })
-}
-
-pub(in crate::proxy) fn b2b_company_location_payload(
-    company_location: Option<&Value>,
-    user_errors: Vec<Value>,
-) -> Value {
-    json!({
-        "companyLocation": company_location.cloned().unwrap_or(Value::Null),
-        "userErrors": user_errors
-    })
-}
-
-pub(in crate::proxy) fn b2b_company_contact_payload(
-    company_contact: Option<&Value>,
-    user_errors: Vec<Value>,
-) -> Value {
-    json!({
-        "companyContact": company_contact.cloned().unwrap_or(Value::Null),
-        "userErrors": user_errors
-    })
-}
-
-pub(in crate::proxy) fn b2b_location_buyer_experience_errors(
-    input: &BTreeMap<String, ResolvedValue>,
-) -> Vec<Value> {
-    if input.is_empty() {
-        return vec![b2b_company_user_error(
-            vec!["input", "buyerExperienceConfiguration"],
-            "Invalid input.",
-            "INVALID_INPUT",
-            Some(json!("buyer_experience_configuration_empty")),
-        )];
-    }
-    let has_deposit = input.contains_key("deposit");
-    let has_payment_terms_template = input.contains_key("paymentTermsTemplateId");
-    if has_deposit && !has_payment_terms_template {
-        return vec![b2b_company_user_error(
-            vec!["input", "buyerExperienceConfiguration", "deposit"],
-            "Deposit requires a payment terms template.",
-            "INVALID",
-            Some(json!("deposit_without_payment_terms")),
-        )];
-    }
-    if has_deposit
-        && has_payment_terms_template
-        && !input.contains_key("checkoutToDraft")
-        && !input.contains_key("editableShippingAddress")
-    {
-        return vec![b2b_company_user_error(
-            vec!["input", "buyerExperienceConfiguration", "deposit"],
-            "Deposits are not enabled for this shop.",
-            "INVALID",
-            Some(json!("deposit_not_enabled")),
-        )];
-    }
-    Vec::new()
-}
-
-pub(in crate::proxy) fn b2b_company_create_validation_errors(
-    input: &BTreeMap<String, ResolvedValue>,
-    companies: &BTreeMap<String, Value>,
-) -> Vec<Value> {
-    let mut errors = Vec::new();
-    if let Some(name) = resolved_string_field(input, "name") {
-        // Shopify strips HTML tags before validating, so a name that is only
-        // markup/whitespace (e.g. "<b>  </b>") collapses to blank and is rejected.
-        if b2b_strip_html_tags(&name).trim().is_empty() {
-            errors.push(b2b_company_user_error(
-                vec!["input", "company", "name"],
-                "Name can't be blank",
-                BLANK_USER_ERROR_CODE,
-                None,
-            ));
-        } else if name.chars().count() > 255 {
-            errors.push(b2b_company_user_error(
-                vec!["input", "company", "name"],
-                "Name is too long (maximum is 255 characters)",
-                TOO_LONG_USER_ERROR_CODE,
-                None,
-            ));
-        }
-    }
-    if let Some(external_id) = resolved_string_field(input, "externalId") {
-        errors.extend(b2b_external_id_errors(
-            &external_id,
-            vec!["input", "company", "externalId"],
-            companies,
-            None,
-        ));
-    }
-    if let Some(note) = resolved_string_field(input, "note") {
-        if note.chars().count() > 5000 {
-            errors.push(b2b_company_user_error(
-                vec!["input", "company", "notes"],
-                "Notes is too long (maximum is 5000 characters)",
-                TOO_LONG_USER_ERROR_CODE,
-                None,
-            ));
-        }
-    }
-    errors
-}
-
-pub(in crate::proxy) fn b2b_company_update_validation_errors(
-    input: &BTreeMap<String, ResolvedValue>,
-    companies: &BTreeMap<String, Value>,
-    current_company_id: &str,
-) -> Vec<Value> {
-    let mut errors = Vec::new();
-    if input.contains_key("customerSince") {
-        errors.push(b2b_company_user_error(
-            vec!["input", "customerSince"],
-            "This field may only be set on creation.",
-            "INVALID_INPUT",
-            None,
-        ));
-    }
-    if let Some(name) = resolved_string_field(input, "name") {
-        if b2b_strip_html_tags(&name).trim().is_empty() {
-            errors.push(b2b_company_user_error(
-                vec!["input", "name"],
-                "Name can't be blank",
-                BLANK_USER_ERROR_CODE,
-                None,
-            ));
-        } else if name.chars().count() > 255 {
-            errors.push(b2b_company_user_error(
-                vec!["input", "name"],
-                "Name is too long (maximum is 255 characters)",
-                TOO_LONG_USER_ERROR_CODE,
-                None,
-            ));
-        }
-    }
-    if let Some(external_id) = resolved_string_field(input, "externalId") {
-        errors.extend(b2b_external_id_errors(
-            &external_id,
-            vec!["input", "externalId"],
-            companies,
-            Some(current_company_id),
-        ));
-    }
-    if let Some(note) = resolved_string_field(input, "note") {
-        if b2b_contains_html_tags(&note) {
-            errors.push(b2b_company_user_error(
-                vec!["input", "notes"],
-                "Note contains HTML tags",
-                "INVALID",
-                Some(json!("contains_html_tags")),
-            ));
-        }
-        if note.chars().count() > 5000 {
-            errors.push(b2b_company_user_error(
-                vec!["input", "notes"],
-                "Notes is too long (maximum is 5000 characters)",
-                TOO_LONG_USER_ERROR_CODE,
-                None,
-            ));
-        }
-    }
-    errors
-}
-
-pub(in crate::proxy) fn b2b_external_id_errors(
-    external_id: &str,
-    field: Vec<&str>,
-    records: &BTreeMap<String, Value>,
-    current_id: Option<&str>,
-) -> Vec<Value> {
-    if external_id.chars().count() > 64 {
-        return vec![b2b_company_user_error(
-            field,
-            "External Id must be 64 characters or less.",
-            TOO_LONG_USER_ERROR_CODE,
-            None,
-        )];
-    }
-    // Allowed characters mirror Shopify's externalId charset exactly.
-    const EXTERNAL_ID_ALLOWED: &str = r#"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*(){}[]\/?<>_-~.,;:'"`"#;
-    if !external_id
-        .chars()
-        .all(|ch| EXTERNAL_ID_ALLOWED.contains(ch))
-    {
-        return vec![b2b_company_user_error(
-            field,
-            r#"External Id can only contain numbers, letters, and some special characters, including !@#$%^&*(){}[]\/?<>_-~,.;:'`""#,
-            "INVALID",
-            Some(json!("external_id_contains_invalid_chars")),
-        )];
-    }
-    let duplicate = records.iter().any(|(id, record)| {
-        Some(id.as_str()) != current_id && record["externalId"].as_str() == Some(external_id)
-    });
-    if duplicate {
-        return vec![b2b_company_user_error(
-            field,
-            "External id has already been taken.",
-            "TAKEN",
-            Some(json!("duplicate_external_id")),
-        )];
-    }
-    Vec::new()
-}
-
-pub(in crate::proxy) fn b2b_company_user_error(
-    field: Vec<&str>,
-    message: &str,
-    code: &str,
-    detail: Option<Value>,
-) -> Value {
-    let mut error = user_error(field, message, Some(code));
-    error["detail"] = detail.unwrap_or(Value::Null);
-    error
-}
-
-pub(in crate::proxy) fn b2b_contains_html_tags(value: &str) -> bool {
-    value.contains('<') && value.contains('>')
-}
-
-pub(in crate::proxy) fn b2b_strip_html_tags(value: &str) -> String {
-    let mut output = String::new();
-    let mut in_tag = false;
-    for character in value.chars() {
-        match character {
-            '<' => in_tag = true,
-            '>' if in_tag => in_tag = false,
-            _ if !in_tag => output.push(character),
-            _ => {}
-        }
-    }
-    output
-}
-
-impl DraftProxy {
-    // Collect the `feedbackInput[].productId`s that reference a product the
-    // proxy can prove is unavailable to resource feedback, so
-    // `bulkProductResourceFeedbackCreate` can emit Shopify's per-entry missing
-    // product userError. A locally tombstoned id is reported missing
-    // immediately. Known non-ACTIVE products are also unavailable. An id merely
-    // absent from the local catalog is NOT assumed missing — the proxy never
-    // seeds every real product, so absence alone is no proof. Instead we confirm
-    // against upstream with a cassette-backed `nodes(...)` hydrate: a null node
-    // (or, in Snapshot mode, no upstream to consult) means the product does not
-    // exist; a hydrated node means it does and feedback stages normally.
-    pub(in crate::proxy) fn feedback_missing_product_ids(
-        &self,
-        field: &RootFieldSelection,
-        request: &Request,
-    ) -> BTreeSet<String> {
-        let mut missing = BTreeSet::new();
-        let inputs = resolved_object_list_field(&field.arguments, "feedbackInput");
-        // Shopify enforces the 50-entry batch cap before resolving any entry, so an
-        // oversized batch returns TOO_LONG without ever looking up a product. Never
-        // forward an existence lookup the resolver itself would not perform.
-        if inputs.len() > 50 {
-            return missing;
-        }
-        for input in inputs.iter() {
-            // Per-entry message / generated-at / length guards run before the
-            // existence check, mirroring Shopify's resolver order: an entry that
-            // fails one of those reports only that error and never resolves (nor
-            // forwards a lookup for) its product.
-            if resource_feedback_validation_error(input, None).is_some() {
-                continue;
-            }
-            let Some(id) = resolved_string_field(input, "productId") else {
-                continue;
-            };
-            if self.store.product_is_tombstoned(&id) {
-                missing.insert(id);
-                continue;
-            }
-            if let Some(product) = self.store.product_staged_or_base(&id) {
-                if !product.status.is_empty() && product.status != "ACTIVE" {
-                    missing.insert(id);
-                }
-                continue;
-            }
-            // Only LiveHybrid can prove a product's absence by hydrating it
-            // upstream (a definitive null node). In Snapshot mode there is no
-            // upstream to consult, so an unseeded product is treated as existing
-            // (fail open) rather than fabricated-missing — absence from the local
-            // seed is not evidence the product does not exist.
-            if self.config.read_mode == ReadMode::LiveHybrid
-                && self.hydrate_product_for_tags(&id, request).is_none()
-            {
-                missing.insert(id);
-            }
-        }
-        missing
-    }
-
-    pub(in crate::proxy) fn b2b_tax_settings_update_payload(
-        &mut self,
-        field: &RootFieldSelection,
-    ) -> (Value, &'static str, Vec<String>) {
-        let location_id = resolved_string_field(&field.arguments, "companyLocationId")
-            .unwrap_or_else(|| {
-                "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic".to_string()
-            });
-        let tax_exempt_argument = field.raw_arguments.get("taxExempt");
-        let tax_exempt_is_null = matches!(
-            tax_exempt_argument,
-            Some(RawArgumentValue::Null)
-                | Some(RawArgumentValue::Variable {
-                    value: Some(ResolvedValue::Null),
-                    ..
-                })
-        );
-        let assign = list_string_field(&field.arguments, "exemptionsToAssign");
-        let remove = list_string_field(&field.arguments, "exemptionsToRemove");
-        if !b2b_company_location_exists(&self.store.staged.b2b_locations.records, &location_id) {
-            return (
-                b2b_company_location_payload(
-                    None,
-                    vec![user_error(
-                        ["companyLocationId"],
-                        "The company location doesn't exist",
-                        Some("RESOURCE_NOT_FOUND"),
-                    )],
-                ),
-                "failed",
-                Vec::new(),
-            );
-        }
-        if tax_exempt_is_null {
-            return (
-                b2b_company_location_payload(
-                    None,
-                    vec![user_error(
-                        ["taxExempt"],
-                        "Tax exempt must be true or false",
-                        Some("INVALID_INPUT"),
-                    )],
-                ),
-                "failed",
-                Vec::new(),
-            );
-        }
-
-        let mut location = self
-            .store
-            .staged
-            .b2b_locations
-            .get(&location_id)
-            .cloned()
-            .unwrap_or_else(|| b2b_synthetic_seed_company_location(&location_id));
-        let mut exemptions = Vec::new();
-        if let Some(current_exemptions) = location
-            .pointer("/taxSettings/taxExemptions")
-            .and_then(Value::as_array)
-        {
-            for exemption in current_exemptions.iter().filter_map(Value::as_str) {
-                if !exemptions.iter().any(|existing| existing == exemption) {
-                    exemptions.push(exemption.to_string());
-                }
-            }
-        }
-        exemptions.retain(|exemption| !remove.iter().any(|removed| removed == exemption));
-        for assigned in assign {
-            if !exemptions.iter().any(|existing| existing == &assigned) {
-                exemptions.push(assigned);
-            }
-        }
-        let tax_exempt = resolved_bool_field(&field.arguments, "taxExempt")
-            .or_else(|| {
-                location
-                    .pointer("/taxSettings/taxExempt")
-                    .and_then(Value::as_bool)
-            })
-            .unwrap_or(false);
-        // companyLocationTaxSettingsUpdate sets taxRegistrationId when the argument is
-        // supplied, and otherwise leaves any previously staged registration id untouched.
-        let existing_registration_id = location
-            .pointer("/taxSettings/taxRegistrationId")
-            .and_then(Value::as_str)
-            .map(str::to_string);
-        let tax_registration_id = resolved_string_field(&field.arguments, "taxRegistrationId")
-            .or(existing_registration_id);
-        location["taxSettings"] = json!({
-            "taxRegistrationId": tax_registration_id,
-            "taxExempt": tax_exempt,
-            "taxExemptions": exemptions
-        });
-        self.store
-            .staged
-            .b2b_locations
-            .insert(location_id.clone(), location.clone());
-        (
-            json!({
-                "companyLocation": location,
-                "userErrors": []
-            }),
-            "staged",
-            vec![location_id],
-        )
-    }
-}
-
-pub(in crate::proxy) fn b2b_company_location_exists(
-    locations: &BTreeMap<String, Value>,
-    location_id: &str,
-) -> bool {
-    locations.contains_key(location_id) || location_id == b2b_synthetic_seed_company_location_id()
-}
-
-pub(in crate::proxy) fn b2b_synthetic_seed_company_location(location_id: &str) -> Value {
-    json!({
-        "id": location_id,
-        "name": "HQ",
-        "billingAddress": { "address1": "Billing HQ" },
-        "taxSettings": {
-            "taxRegistrationId": Value::Null,
-            "taxExempt": true,
-            "taxExemptions": []
-        }
-    })
-}
-
-pub(in crate::proxy) fn b2b_synthetic_seed_company_location_id() -> &'static str {
-    "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic"
-}
-
-pub(in crate::proxy) fn product_tail_resource_feedback_payload(
-    field: &RootFieldSelection,
-    missing_product_ids: &BTreeSet<String>,
-) -> Value {
-    let inputs = resolved_object_list_field(&field.arguments, "feedbackInput");
-    let payload = if inputs.len() > 50 {
-        json!({
-            "feedback": [],
-            "userErrors": [{
-                "field": ["feedback"],
-                "message": "Feedback cannot contain more than 50 entries",
-                "code": "TOO_LONG"
-            }]
-        })
-    } else {
-        let mut feedback = Vec::new();
-        let mut user_errors = Vec::new();
-        for (index, input) in inputs.iter().enumerate() {
-            if let Some(error) = resource_feedback_validation_error(input, Some(index)) {
-                user_errors.push(error);
-                continue;
-            }
-            // Per-entry product availability is validated only after the message /
-            // generated-at / length guards pass, mirroring Shopify's resolver
-            // order: a blank-message or future-date entry never also reports the
-            // product missing.
-            let product_id = resolved_string_field(input, "productId").unwrap_or_default();
-            if missing_product_ids.contains(&product_id) {
-                user_errors.push(resource_feedback_missing_product_error(Some(index)));
-            } else {
-                feedback.push(product_resource_feedback_json(input));
-            }
-        }
-        json!({ "feedback": feedback, "userErrors": user_errors })
-    };
-    selected_json(&payload, &field.selection)
-}
-
-pub(in crate::proxy) fn product_tail_shop_feedback_payload(field: &RootFieldSelection) -> Value {
-    let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-    let payload = if let Some(error) = resource_feedback_validation_error(&input, None) {
-        json!({
-            "feedback": null,
-            "userErrors": [error]
-        })
-    } else {
-        json!({ "feedback": shop_resource_feedback_json(&input), "userErrors": [] })
-    };
-    selected_json(&payload, &field.selection)
-}
-
-fn product_resource_feedback_json(input: &BTreeMap<String, ResolvedValue>) -> Value {
-    json!({
-        "productId": resolved_string_field(input, "productId").unwrap_or_default(),
-        "state": resolved_string_field(input, "state").unwrap_or_default(),
-        "messages": list_string_field(input, "messages"),
-        "feedbackGeneratedAt": resolved_string_field(input, "feedbackGeneratedAt").unwrap_or_default(),
-        "productUpdatedAt": resolved_string_field(input, "productUpdatedAt").unwrap_or_default()
-    })
-}
-
-fn shop_resource_feedback_json(input: &BTreeMap<String, ResolvedValue>) -> Value {
-    let messages = list_string_field(input, "messages")
-        .into_iter()
-        .map(|message| json!({ "message": message }))
-        .collect::<Vec<_>>();
-    json!({
-        "state": resolved_string_field(input, "state").unwrap_or_default(),
-        "messages": messages,
-        "feedbackGeneratedAt": resolved_string_field(input, "feedbackGeneratedAt").unwrap_or_default()
-    })
-}
-
-fn resource_feedback_validation_error(
-    input: &BTreeMap<String, ResolvedValue>,
-    feedback_index: Option<usize>,
-) -> Option<Value> {
-    let messages = list_string_field(input, "messages");
-    if messages.is_empty() {
-        return Some(presence_user_error(
-            feedback_field_path(feedback_index, "messages", None),
-            "Messages",
-        ));
-    }
-
-    let generated_at = resolved_string_field(input, "feedbackGeneratedAt").unwrap_or_default();
-    if feedback_generated_at_is_future(&generated_at) {
-        return Some(resource_feedback_user_error(
-            feedback_field_path(feedback_index, "feedbackGeneratedAt", None),
-            "Feedback generated at must not be in the future",
-            "INVALID",
-        ));
-    }
-
-    messages
-        .iter()
-        .position(|message| message.chars().count() > 100)
-        .map(|message_index| {
-            length_user_error(
-                feedback_field_path(feedback_index, "messages", Some(message_index)),
-                "Message",
-                LengthUserErrorBound::TooLong { maximum: 100 },
-            )
-        })
-}
-
-fn feedback_field_path(
-    feedback_index: Option<usize>,
-    field: &str,
-    nested_index: Option<usize>,
-) -> Vec<String> {
-    let mut path = match feedback_index {
-        Some(index) => vec!["feedback".to_string(), index.to_string()],
-        None => vec!["feedback".to_string()],
-    };
-    path.push(field.to_string());
-    if let Some(index) = nested_index {
-        path.push(index.to_string());
-    }
-    path
-}
-
-fn resource_feedback_user_error(field: Vec<String>, message: &str, code: &str) -> Value {
-    user_error(field, message, Some(code))
-}
-
-// Shopify reports referenced-but-unavailable products at the product id field,
-// distinct from the BLANK / INVALID / TOO_LONG resolver guards.
-fn resource_feedback_missing_product_error(feedback_index: Option<usize>) -> Value {
-    let field = feedback_index
-        .map(|index| json!(["feedback", index.to_string(), "productId"]))
-        .unwrap_or(Value::Null);
-    user_error(field, "Product does not exist", None)
-}
-
-fn feedback_generated_at_is_future(generated_at: &str) -> bool {
-    let Some(generated_at) = parse_rfc3339_epoch_seconds(generated_at) else {
-        return false;
-    };
-    let Ok(now) = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) else {
-        return false;
-    };
-    generated_at > now.as_secs() as i64
-}
-
-pub(in crate::proxy) fn parse_rfc3339_epoch_seconds(value: &str) -> Option<i64> {
-    let bytes = value.as_bytes();
-    if bytes.len() < 20 {
-        return None;
-    }
-
-    let year = parse_fixed_digits(bytes, 0, 4)?;
-    expect_byte(bytes, 4, b'-')?;
-    let month = parse_fixed_digits(bytes, 5, 2)? as u32;
-    expect_byte(bytes, 7, b'-')?;
-    let day = parse_fixed_digits(bytes, 8, 2)? as u32;
-    match bytes.get(10) {
-        Some(b'T' | b't') => {}
-        _ => return None,
-    }
-    let hour = parse_fixed_digits(bytes, 11, 2)? as u32;
-    expect_byte(bytes, 13, b':')?;
-    let minute = parse_fixed_digits(bytes, 14, 2)? as u32;
-    expect_byte(bytes, 16, b':')?;
-    let second = parse_fixed_digits(bytes, 17, 2)? as u32;
-
-    if !valid_utc_date_time(year, month, day, hour, minute, second) {
-        return None;
-    }
-
-    let mut offset_index = 19;
-    if bytes.get(offset_index) == Some(&b'.') {
-        offset_index += 1;
-        let fraction_start = offset_index;
-        while bytes
-            .get(offset_index)
-            .is_some_and(|byte| byte.is_ascii_digit())
-        {
-            offset_index += 1;
-        }
-        if offset_index == fraction_start {
-            return None;
-        }
-    }
-
-    let offset_seconds = match bytes.get(offset_index) {
-        Some(b'Z' | b'z') if offset_index + 1 == bytes.len() => 0,
-        Some(b'+' | b'-') if offset_index + 6 == bytes.len() => {
-            let sign = if bytes[offset_index] == b'+' { 1 } else { -1 };
-            let offset_hour = parse_fixed_digits(bytes, offset_index + 1, 2)?;
-            expect_byte(bytes, offset_index + 3, b':')?;
-            let offset_minute = parse_fixed_digits(bytes, offset_index + 4, 2)?;
-            if offset_hour > 23 || offset_minute > 59 {
-                return None;
-            }
-            sign * (offset_hour * 3600 + offset_minute * 60)
-        }
-        _ => return None,
-    };
-
-    let days = days_from_civil(year, month, day);
-    Some(days * 86_400 + i64::from(hour * 3600 + minute * 60 + second) - i64::from(offset_seconds))
-}
-
-pub(in crate::proxy) fn parse_iso_date_epoch_days(value: &str) -> Option<i64> {
-    let bytes = value.as_bytes();
-    if bytes.len() != 10 {
-        return None;
-    }
-
-    let year = parse_fixed_digits(bytes, 0, 4)?;
-    expect_byte(bytes, 4, b'-')?;
-    let month = parse_fixed_digits(bytes, 5, 2)? as u32;
-    expect_byte(bytes, 7, b'-')?;
-    let day = parse_fixed_digits(bytes, 8, 2)? as u32;
-    if !(1..=12).contains(&month) || day == 0 || day > days_in_month(year, month) {
-        return None;
-    }
-    Some(days_from_civil(year, month, day))
-}
-
-pub(in crate::proxy) fn epoch_seconds_to_utc_epoch_days(seconds: i64) -> i64 {
-    seconds.div_euclid(86_400)
-}
-
-fn parse_fixed_digits(bytes: &[u8], start: usize, len: usize) -> Option<i32> {
-    let end = start.checked_add(len)?;
-    let digits = bytes.get(start..end)?;
-    digits.iter().try_fold(0_i32, |value, byte| {
-        if byte.is_ascii_digit() {
-            Some(value * 10 + i32::from(byte - b'0'))
-        } else {
-            None
-        }
-    })
-}
-
-fn expect_byte(bytes: &[u8], index: usize, expected: u8) -> Option<()> {
-    (bytes.get(index) == Some(&expected)).then_some(())
-}
-
-fn valid_utc_date_time(
-    year: i32,
-    month: u32,
-    day: u32,
-    hour: u32,
-    minute: u32,
-    second: u32,
-) -> bool {
-    (1..=12).contains(&month)
-        && day >= 1
-        && day <= days_in_month(year, month)
-        && hour <= 23
-        && minute <= 59
-        && second <= 60
-}
-
 pub(in crate::proxy) fn request_api_client_id(request: &Request) -> String {
-    request_header(request, "x-shopify-draft-proxy-api-client-id")
+    request_header(request, API_CLIENT_ID_HEADER)
         .unwrap_or_else(|| "gid://shopify/App/local".to_string())
 }
 
@@ -2606,6 +1859,23 @@ pub(in crate::proxy) fn set_log_status(entry: &mut Value, status: &str) {
 }
 
 impl DraftProxy {
+    pub(in crate::proxy) fn record_failed_mutation(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        root_field: &str,
+    ) {
+        self.record_mutation_log_with_status(
+            request,
+            query,
+            variables,
+            root_field,
+            Vec::new(),
+            "failed",
+        );
+    }
+
     pub(in crate::proxy) fn record_mutation_log_with_status(
         &mut self,
         request: &Request,

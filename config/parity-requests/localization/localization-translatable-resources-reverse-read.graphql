@@ -1,0 +1,19 @@
+query LocalizationTranslatableResourcesReverseRead($resourceType: TranslatableResourceType!) {
+  reversedFirst: translatableResources(first: 1, resourceType: $resourceType, reverse: true) {
+    nodes {
+      resourceId
+    }
+    edges {
+      cursor
+      node {
+        resourceId
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

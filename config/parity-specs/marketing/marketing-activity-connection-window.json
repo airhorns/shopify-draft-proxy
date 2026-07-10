@@ -1,0 +1,101 @@
+{
+  "scenarioId": "marketing-activity-connection-window",
+  "scenarioStatus": "captured",
+  "assertionKinds": ["downstream-read-parity", "pagination-shape", "sort-order", "search-filter"],
+  "operationNames": ["marketingActivityCreateExternal", "marketingActivities", "marketingEvents"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/marketing/marketing-activity-connection-window.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/marketing/marketing-activity-connection-window-create.graphql",
+    "variablesCapturePath": "$.operations.createAlpha.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-zulu-user-errors",
+        "capturePath": "$.operations.createZulu.response.payload.data.created.userErrors",
+        "proxyPath": "$.data.created.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-activity-connection-window-create.graphql",
+          "variablesCapturePath": "$.operations.createZulu.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "read-first-connections",
+        "capturePath": "$.operations.readFirst.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-activity-connection-window-read-first.graphql",
+          "variables": {
+            "first": 1,
+            "activityQuery": { "fromCapturePath": "$.operations.readFirst.request.variables.activityQuery" },
+            "titleQuery": { "fromCapturePath": "$.operations.readFirst.request.variables.titleQuery" },
+            "createdAtQuery": "created_at:\">=2024-01-01T00:00:02.000Z\"",
+            "idRangeQuery": "id:>1",
+            "scheduledEndQuery": { "fromCapturePath": "$.operations.readFirst.request.variables.scheduledEndQuery" },
+            "booleanOrQuery": { "fromCapturePath": "$.operations.readFirst.request.variables.booleanOrQuery" },
+            "booleanAndQuery": { "fromCapturePath": "$.operations.readFirst.request.variables.booleanAndQuery" }
+          },
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": [
+          "$.latestActivity.nodes[0].title",
+          "$.latestActivity.edges[0].cursor",
+          "$.latestActivity.pageInfo.hasNextPage",
+          "$.latestActivity.pageInfo.hasPreviousPage",
+          "$.titleSearch.nodes[0].title",
+          "$.titleFilter.nodes[0].title",
+          "$.createdAtFilter.nodes[0].title",
+          "$.idRangeFilter.nodes[0].title",
+          "$.scheduledEndFilter.nodes[0].title",
+          "$.booleanOr.nodes[0].title",
+          "$.booleanOr.nodes[0].status",
+          "$.booleanOr.nodes[1].title",
+          "$.booleanOr.nodes[1].status",
+          "$.booleanAnd.nodes[0].title",
+          "$.booleanAnd.nodes[0].status",
+          "$.latestEvent.nodes[0].type",
+          "$.latestEvent.edges[0].cursor",
+          "$.latestEvent.pageInfo.hasNextPage",
+          "$.latestEvent.pageInfo.hasPreviousPage"
+        ],
+        "expectedDifferences": [
+          {
+            "path": "$.latestActivity.edges[0].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque cursor encodings."
+          },
+          {
+            "path": "$.latestEvent.edges[0].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque cursor encodings."
+          }
+        ]
+      },
+      {
+        "name": "read-after-window",
+        "capturePath": "$.operations.readAfter.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-activity-connection-window-read-after.graphql",
+          "variables": {
+            "activityCursor": {
+              "fromProxyResponse": "read-first-connections",
+              "path": "$.data.latestActivity.edges[0].cursor"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": ["$.afterLatest.nodes[0].title", "$.afterLatest.pageInfo.hasPreviousPage"]
+      }
+    ]
+  },
+  "notes": "Records live Shopify evidence for two disposable external marketing activities sorted by CREATED_AT descending, first-page hasNextPage behavior, after-cursor windowing, MarketingEvent ID ordering, documented marketing activity query fields, and boolean query operators where OR returns the union of title matches while AND narrows to a title plus scheduled-end match. Volatile Shopify IDs, timestamps, and opaque cursor strings are intentionally not compared except for cursor non-emptiness. The focused runtime test covers the ticket's `status:ACTIVE OR status:PAUSED` branch; the live 2026-04 conformance API currently reports `status` as an invalid search field for marketingActivities."
+}

@@ -1,0 +1,28 @@
+mutation CatalogUpdateRelationReadPriceListCreate($input: PriceListCreateInput!) {
+  priceListCreate(input: $input) {
+    priceList {
+      id
+      name
+      currency
+      parent {
+        adjustment {
+          type
+          value
+        }
+        settings {
+          compareAtMode
+        }
+      }
+      catalog {
+        id
+        title
+        status
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

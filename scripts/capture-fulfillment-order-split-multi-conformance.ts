@@ -147,13 +147,59 @@ const mergeMutation = `#graphql
 const hydrateFulfillmentOrderQuery = `#graphql
   query ShippingFulfillmentOrderHydrate($id: ID!) {
     fulfillmentOrder(id: $id) {
-      id status requestStatus fulfillAt fulfillBy updatedAt
-      supportedActions { action }
-      assignedLocation { name location { id name } }
-      fulfillmentHolds { id handle reason reasonNotes displayReason heldByApp { id title } heldByRequestingApp }
-      merchantRequests(first: 10) { nodes { kind message requestOptions } }
-      lineItems(first: 20) { nodes { id totalQuantity remainingQuantity lineItem { id title quantity fulfillableQuantity } } }
-      order { id name displayFulfillmentStatus }
+      id
+      status
+      requestStatus
+      fulfillAt
+      fulfillBy
+      updatedAt
+      supportedActions {
+        action
+      }
+      assignedLocation {
+        name
+        location {
+          id
+          name
+        }
+      }
+      fulfillmentHolds {
+        id
+        handle
+        reason
+        reasonNotes
+        displayReason
+        heldByApp {
+          id
+          title
+        }
+        heldByRequestingApp
+      }
+      merchantRequests(first: 10) {
+        nodes {
+          kind
+          message
+          requestOptions
+        }
+      }
+      lineItems(first: 20) {
+        nodes {
+          id
+          totalQuantity
+          remainingQuantity
+          lineItem {
+            id
+            title
+            quantity
+            fulfillableQuantity
+          }
+        }
+      }
+      order {
+        id
+        name
+        displayFulfillmentStatus
+      }
     }
   }
 `;

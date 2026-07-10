@@ -3,12 +3,13 @@ use super::*;
 impl DraftProxy {
     pub(in crate::proxy) fn product_set(
         &mut self,
+        request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let (response_key, payload_selection, arguments) = primary_root_field(query, variables)
-            .map(|field| (field.response_key, field.selection, field.arguments))
-            .unwrap_or_else(|| ("productSet".into(), Vec::new(), BTreeMap::new()));
+        let root_field = primary_root_field(query, variables);
+        let (response_key, payload_selection, arguments) =
+            primary_root_response_parts(query, variables, || "productSet".into());
         let product_selection =
             selected_child_selection(&payload_selection, "product").unwrap_or_default();
         let operation_selection =
@@ -40,6 +41,20 @@ impl DraftProxy {
             product_set_shape_error_response(&response_key, &payload_selection, &input)
         {
             return MutationOutcome::response(response);
+        }
+
+        let length_errors = product_scalar_length_user_errors(
+            &input,
+            ProductScalarLengthValidationShape::ProductSetInput,
+        );
+        if !length_errors.is_empty() {
+            return MutationOutcome::response(self.product_set_user_error_response(
+                &response_key,
+                &payload_selection,
+                &product_selection,
+                None,
+                length_errors,
+            ));
         }
 
         let variant_input_errors = product_set_variant_input_errors(&input);
@@ -177,9 +192,23 @@ impl DraftProxy {
         };
 
         if let Some(category_id) = product_category_input_id(&input) {
-            product
-                .extra_fields
-                .insert("category".to_string(), product_category_value(&category_id));
+            match self.product_category_value_for_input(request, &category_id) {
+                Some(category) => {
+                    product
+                        .extra_fields
+                        .insert("category".to_string(), category);
+                }
+                None => {
+                    let location = root_field
+                        .as_ref()
+                        .map(|field| field.location)
+                        .unwrap_or(SourceLocation { line: 1, column: 1 });
+                    return MutationOutcome::response(invalid_product_taxonomy_node_id_response(
+                        &response_key,
+                        location,
+                    ));
+                }
+            }
         }
         if let Some(requires_selling_plan) = input.get("requiresSellingPlan") {
             product.extra_fields.insert(
@@ -275,7 +304,7 @@ impl DraftProxy {
                 "product" => Some(if operation.is_some() {
                     Value::Null
                 } else {
-                    product_json_with_variants_and_currency(
+                    self.product_json_with_variants_and_currency_context(
                         &product,
                         &self.store.product_variants_for_product(&product_id),
                         &product_selection,
@@ -356,7 +385,9 @@ impl DraftProxy {
         }
         let (response_key, payload_selection, arguments) = field
             .map(|field| (field.response_key, field.selection, field.arguments))
-            .unwrap_or_else(|| ("productDuplicate".into(), Vec::new(), BTreeMap::new()));
+            .unwrap_or_else(|| {
+                primary_root_response_parts(query, variables, || "productDuplicate".into())
+            });
         let new_product_selection =
             selected_child_selection(&payload_selection, "newProduct").unwrap_or_default();
         let operation_selection =
@@ -470,9 +501,8 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let (response_key, payload_selection, arguments) = primary_root_field(query, variables)
-            .map(|field| (field.response_key, field.selection, field.arguments))
-            .unwrap_or_else(|| (root_field.into(), Vec::new(), BTreeMap::new()));
+        let (response_key, payload_selection, arguments) =
+            primary_root_response_parts(query, variables, || root_field.into());
         let operation_selection =
             selected_child_selection(&payload_selection, "productBundleOperation")
                 .unwrap_or_default();
@@ -578,8 +608,9 @@ impl DraftProxy {
                 "product" => Some(
                     product
                         .map(|product| {
-                            product_json_with_currency(
+                            self.product_json_with_variants_and_currency_context(
                                 product,
+                                &[],
                                 product_selection,
                                 &self.store.shop_currency_code(),
                             )
@@ -609,7 +640,7 @@ impl DraftProxy {
             .iter()
             .map(|variant| {
                 (
-                    variant_selected_option_signature(&variant.selected_options),
+                    product_set_selected_option_signature(&variant.selected_options),
                     variant.clone(),
                 )
             })
@@ -619,7 +650,8 @@ impl DraftProxy {
         let mut staged = Vec::new();
         let mut staged_signatures = BTreeSet::new();
         for variant_input in &variant_inputs {
-            let signature = product_set_variant_option_signature(variant_input);
+            let selected_options = product_set_variant_selected_options(variant_input);
+            let signature = product_set_selected_option_signature(&selected_options);
             let existing = existing_by_signature.get(&signature);
             let variant_id = resolved_string_field(variant_input, "id")
                 .or_else(|| existing.map(|variant| variant.id.clone()))
@@ -634,7 +666,7 @@ impl DraftProxy {
                 product_id.to_string(),
                 inventory_item_id,
             );
-            apply_product_set_option_values_to_variant(&mut variant, variant_input);
+            apply_product_set_option_values_to_variant(&mut variant, selected_options);
             apply_inventory_quantities_to_variant(&mut variant, variant_input);
             // When the input omits `inventoryItem.tracked`, Shopify preserves the
             // existing variant's value (defaulting to `true` for a brand-new variant).
@@ -653,7 +685,7 @@ impl DraftProxy {
 
         // Drop existing variants whose option signature is absent from the new set.
         for existing in &existing_variants {
-            let signature = variant_selected_option_signature(&existing.selected_options);
+            let signature = product_set_selected_option_signature(&existing.selected_options);
             if !staged_signatures.contains(&signature) {
                 self.store.delete_product_variant(&existing.id);
             }
@@ -729,7 +761,7 @@ impl DraftProxy {
                 "id": inventory_level_id(&inventory_item_id, location_id),
                 "location": {
                     "id": location_id,
-                    "name": inventory_location_name(location_id)
+                    "name": self.inventory_location_display_name(location_id)
                 },
                 "quantities": [
                     { "name": "available", "quantity": available, "updatedAt": updated_at },
@@ -810,7 +842,7 @@ impl DraftProxy {
                 } else {
                     duplicate
                         .map(|product| {
-                            product_json_with_variants_and_currency(
+                            self.product_json_with_variants_and_currency_context(
                                 product,
                                 &self.store.product_variants_for_product(&product.id),
                                 new_product_selection,
@@ -1017,7 +1049,7 @@ impl DraftProxy {
         product_id
             .and_then(|id| self.store.product_by_id(id))
             .map(|product| {
-                product_json_with_variants_and_currency(
+                self.product_json_with_variants_and_currency_context(
                     product,
                     &self.store.product_variants_for_product(&product.id),
                     selections,
@@ -1089,6 +1121,17 @@ fn product_set_shape_error_response(
             "Options are limited to 3 per product",
             Some("INVALID_INPUT"),
         ));
+    }
+    for (index, option) in product_options.iter().enumerate() {
+        if resolved_string_field(option, "name")
+            .is_some_and(|name| product_option_name_has_title_delimiter(&name))
+        {
+            errors.push(user_error(
+                json!(["input", "productOptions", index.to_string(), "name"]),
+                PRODUCT_OPTION_NAME_DELIMITER_MESSAGE,
+                Some("INVALID_INPUT"),
+            ));
+        }
     }
     if product_options
         .iter()
@@ -1221,10 +1264,25 @@ fn apply_inventory_quantities_to_variant(
         .sum();
 }
 
-/// Option-value signature for an existing variant, used to match `productSet` input
-/// variants to the variants they replace. Mirrors
-/// [`product_set_variant_option_signature`], which derives the same key from input.
-fn variant_selected_option_signature(options: &[ProductVariantSelectedOption]) -> String {
+fn product_set_variant_selected_options(
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Vec<ProductVariantSelectedOption> {
+    resolved_object_list_field(input, "optionValues")
+        .into_iter()
+        .filter_map(|option_value| {
+            Some(ProductVariantSelectedOption {
+                name: resolved_string_field(&option_value, "optionName")
+                    .or_else(|| resolved_string_field(&option_value, "name"))?,
+                value: resolved_string_field(&option_value, "name")
+                    .or_else(|| resolved_string_field(&option_value, "value"))?,
+            })
+        })
+        .collect()
+}
+
+/// Option-value signature used to match `productSet` input variants to existing
+/// variants and detect repeated input combinations.
+fn product_set_selected_option_signature(options: &[ProductVariantSelectedOption]) -> String {
     let mut pairs = options
         .iter()
         .map(|option| (option.name.clone(), option.value.clone()))
@@ -1237,38 +1295,10 @@ fn variant_selected_option_signature(options: &[ProductVariantSelectedOption]) -
         .join("\u{2}")
 }
 
-/// Option-value signature for a `productSet` input variant. Mirrors the selected-option
-/// derivation in [`apply_product_set_option_values_to_variant`] so the key matches the
-/// signature produced from a staged variant's `selected_options`.
-fn product_set_variant_option_signature(input: &BTreeMap<String, ResolvedValue>) -> String {
-    let mut pairs = resolved_object_list_field(input, "optionValues")
-        .into_iter()
-        .filter_map(|option_value| {
-            let name = resolved_string_field(&option_value, "optionName")
-                .or_else(|| resolved_string_field(&option_value, "name"))?;
-            let value = resolved_string_field(&option_value, "name")
-                .or_else(|| resolved_string_field(&option_value, "value"))?;
-            Some((name, value))
-        })
-        .collect::<Vec<_>>();
-    pairs.sort();
-    pairs
-        .into_iter()
-        .map(|(name, value)| format!("{name}\u{1}{value}"))
-        .collect::<Vec<_>>()
-        .join("\u{2}")
-}
-
-/// The human-readable variant title Shopify uses in duplicate-variant errors: the input
-/// option values joined by `" / "` in input order (matching the title derivation in
-/// [`apply_product_set_option_values_to_variant`]).
-fn product_set_variant_option_title(input: &BTreeMap<String, ResolvedValue>) -> String {
-    resolved_object_list_field(input, "optionValues")
-        .into_iter()
-        .filter_map(|option_value| {
-            resolved_string_field(&option_value, "name")
-                .or_else(|| resolved_string_field(&option_value, "value"))
-        })
+fn product_set_selected_option_title(options: &[ProductVariantSelectedOption]) -> String {
+    options
+        .iter()
+        .map(|option| option.value.as_str())
         .collect::<Vec<_>>()
         .join(" / ")
 }
@@ -1281,12 +1311,13 @@ fn product_set_duplicate_variant_errors(input: &BTreeMap<String, ResolvedValue>)
     let mut seen = BTreeSet::new();
     let mut errors = Vec::new();
     for (index, variant) in variants.iter().enumerate() {
-        let signature = product_set_variant_option_signature(variant);
+        let selected_options = product_set_variant_selected_options(variant);
+        let signature = product_set_selected_option_signature(&selected_options);
         if signature.is_empty() {
             continue;
         }
         if !seen.insert(signature) {
-            let title = product_set_variant_option_title(variant);
+            let title = product_set_selected_option_title(&selected_options);
             errors.push(user_error_omit_code(
                 vec![
                     "input".to_string(),
@@ -1305,26 +1336,11 @@ fn product_set_duplicate_variant_errors(input: &BTreeMap<String, ResolvedValue>)
 
 fn apply_product_set_option_values_to_variant(
     variant: &mut ProductVariantRecord,
-    input: &BTreeMap<String, ResolvedValue>,
+    selected_options: Vec<ProductVariantSelectedOption>,
 ) {
-    let selected_options = resolved_object_list_field(input, "optionValues")
-        .into_iter()
-        .filter_map(|option_value| {
-            Some(ProductVariantSelectedOption {
-                name: resolved_string_field(&option_value, "optionName")
-                    .or_else(|| resolved_string_field(&option_value, "name"))?,
-                value: resolved_string_field(&option_value, "name")
-                    .or_else(|| resolved_string_field(&option_value, "value"))?,
-            })
-        })
-        .collect::<Vec<_>>();
     if selected_options.is_empty() {
         return;
     }
-    variant.title = selected_options
-        .iter()
-        .map(|option| option.value.as_str())
-        .collect::<Vec<_>>()
-        .join(" / ");
+    variant.title = product_set_selected_option_title(&selected_options);
     variant.selected_options = selected_options;
 }

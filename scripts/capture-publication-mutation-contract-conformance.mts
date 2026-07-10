@@ -59,6 +59,17 @@ type PublicationDeleteData = {
   } | null;
 };
 
+type PublicationProductsConnectionData = {
+  publication?: {
+    products?: {
+      pageInfo?: {
+        startCursor?: string | null;
+        endCursor?: string | null;
+      } | null;
+    } | null;
+  } | null;
+};
+
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const { runGraphqlRaw } = createAdminGraphqlClient({
@@ -93,11 +104,18 @@ const publicationReadDocumentPath = path.join(
   'products',
   'publication-created-read.graphql',
 );
+const publicationProductsConnectionDocumentPath = path.join(
+  'config',
+  'parity-requests',
+  'products',
+  'publication-products-connection-read.graphql',
+);
 
 const publicationCreateMutation = await readFile(publicationCreateDocumentPath, 'utf8');
 const publicationUpdateMutation = await readFile(publicationUpdateDocumentPath, 'utf8');
 const publicationDeleteMutation = await readFile(publicationDeleteDocumentPath, 'utf8');
 const publicationReadQuery = await readFile(publicationReadDocumentPath, 'utf8');
+const publicationProductsConnectionQuery = await readFile(publicationProductsConnectionDocumentPath, 'utf8');
 
 // The node-hydrate query the proxy forwards in live-hybrid to prove a publishable
 // product/variant exists before staging a publicationUpdate. Shared verbatim with
@@ -202,9 +220,11 @@ await mkdir(outputDir, { recursive: true });
 
 const runId = Date.now().toString(36);
 let product: ProductSeed | null = null;
+let secondProduct: ProductSeed | null = null;
 let publicationId: string | null = null;
 let variantId: string | null = null;
 let productCleanup: ConformanceGraphqlResult<ProductDeleteData> | null = null;
+let secondProductCleanup: ConformanceGraphqlResult<ProductDeleteData> | null = null;
 let publicationCleanup: ConformanceGraphqlResult<PublicationDeleteData> | null = null;
 let deleteCreated: CaptureCase | null = null;
 const cases: Record<string, CaptureCase> = {};
@@ -214,7 +234,7 @@ try {
   const productCreate = await runGraphqlRaw<ProductCreateData>(createProductMutation, {
     product: {
       title: `Publication mutation contract ${runId}`,
-      status: 'DRAFT',
+      status: 'ACTIVE',
     },
   });
   product = getCreatedProduct(productCreate);
@@ -234,16 +254,41 @@ try {
     variables: {
       product: {
         title: `Publication mutation contract ${runId}`,
-        status: 'DRAFT',
+        status: 'ACTIVE',
       },
     },
     response: productCreate,
+  };
+  const secondProductCreate = await runGraphqlRaw<ProductCreateData>(createProductMutation, {
+    product: {
+      title: `Publication products connection ${runId}`,
+      status: 'ACTIVE',
+    },
+  });
+  secondProduct = getCreatedProduct(secondProductCreate);
+  if (!secondProduct?.id) {
+    throw new Error(
+      `publication products connection capture could not create a second seed product: ${JSON.stringify(
+        secondProductCreate,
+      )}`,
+    );
+  }
+  cases['secondProductCreate'] = {
+    query: createProductMutation,
+    variables: {
+      product: {
+        title: `Publication products connection ${runId}`,
+        status: 'ACTIVE',
+      },
+    },
+    response: secondProductCreate,
   };
 
   // Record the proxy's live read-through forwards: the real created product
   // resolves to a hydrated node (so publicationUpdate stages it), while the
   // sentinel id resolves to a null node (so it is reported "not found").
   upstreamCalls.push(await recordObservationHydrate([product.id]));
+  upstreamCalls.push(await recordObservationHydrate([secondProduct.id]));
   upstreamCalls.push(await recordObservationHydrate([variantId]));
   upstreamCalls.push(await recordObservationHydrate(['gid://shopify/Product/999999999999']));
   cases['variantNode'] = await captureCase(variantNodeQuery, { id: variantId });
@@ -279,6 +324,44 @@ try {
       publishablesToAdd: [product.id],
       autoPublish: true,
     },
+  });
+  cases['updateAddSecondProduct'] = await captureCase(publicationUpdateMutation, {
+    id: publicationId,
+    input: {
+      publishablesToAdd: [secondProduct.id],
+    },
+  });
+  const publicationProductsFirstPage = await captureCase(publicationProductsConnectionQuery, {
+    publicationId,
+    first: 1,
+  });
+  cases['publicationProductsFirstPage'] = publicationProductsFirstPage;
+  const firstPageEndCursor = (
+    publicationProductsFirstPage.response as ConformanceGraphqlResult<PublicationProductsConnectionData>
+  ).payload.data?.publication?.products?.pageInfo?.endCursor;
+  if (typeof firstPageEndCursor !== 'string' || firstPageEndCursor.length === 0) {
+    throw new Error(
+      `Publication.products first page did not return an endCursor: ${JSON.stringify(publicationProductsFirstPage)}`,
+    );
+  }
+  const publicationProductsAfterPage = await captureCase(publicationProductsConnectionQuery, {
+    publicationId,
+    first: 1,
+    after: firstPageEndCursor,
+  });
+  cases['publicationProductsAfterPage'] = publicationProductsAfterPage;
+  const afterPageStartCursor = (
+    publicationProductsAfterPage.response as ConformanceGraphqlResult<PublicationProductsConnectionData>
+  ).payload.data?.publication?.products?.pageInfo?.startCursor;
+  if (typeof afterPageStartCursor !== 'string' || afterPageStartCursor.length === 0) {
+    throw new Error(
+      `Publication.products after page did not return a startCursor: ${JSON.stringify(publicationProductsAfterPage)}`,
+    );
+  }
+  cases['publicationProductsBeforePage'] = await captureCase(publicationProductsConnectionQuery, {
+    publicationId,
+    last: 1,
+    before: afterPageStartCursor,
   });
   cases['updateRemoveProduct'] = await captureCase(publicationUpdateMutation, {
     id: publicationId,
@@ -363,6 +446,26 @@ try {
       );
     }
   }
+  if (secondProduct?.id) {
+    try {
+      secondProductCleanup = await runGraphqlRaw<ProductDeleteData>(deleteProductMutation, {
+        input: { id: secondProduct.id },
+      });
+    } catch (error) {
+      console.warn(
+        JSON.stringify(
+          {
+            ok: false,
+            cleanup: 'productDelete',
+            productId: secondProduct.id,
+            error: error instanceof Error ? error.message : String(error),
+          },
+          null,
+          2,
+        ),
+      );
+    }
+  }
 }
 
 if (!product?.id || !deleteCreated || Object.keys(cases).length === 0) {
@@ -379,16 +482,19 @@ await writeFile(
       capturedAt: new Date().toISOString(),
       setup: {
         product,
+        secondProduct,
       },
       cases,
       cleanup: {
         publicationDelete: publicationCleanup,
         productDelete: productCleanup,
+        secondProductDelete: secondProductCleanup,
       },
       notes: [
         'Live Admin GraphQL 2026-04 publicationCreate accepts omitted catalogId and creates a publication.',
         'Live unknown catalogId returns CATALOG_NOT_FOUND with an id-specific message.',
         'Live publicationUpdate accepts Product publishables and returns payload userErrors for missing Product IDs and update batches over 50.',
+        'Live Publication.products returns a ProductConnection with edges, pageInfo, cursor windowing, includedProductsCount, and full selected Product node projection after publicationUpdate adds products.',
         'Live ProductVariant IDs resolved through node(id:) but publicationUpdate returned top-level RESOURCE_NOT_FOUND for ProductVariant-only and Product+ProductVariant publishablesToAdd inputs.',
         'publicationDelete payload exposes deletedId and userErrors only.',
         'publication(id:) returns the created publication before delete and null immediately after deleting that publication.',
@@ -407,10 +513,14 @@ console.log(
       ok: true,
       outputPath,
       productId: product.id,
+      secondProductId: secondProduct?.id ?? null,
       variantId,
       caseCount: Object.keys(cases).length,
-      deletedPublicationId: deleteCreated.response.payload.data?.publicationDelete?.deletedId ?? null,
+      deletedPublicationId:
+        (deleteCreated.response as ConformanceGraphqlResult<PublicationDeleteData>).payload.data?.publicationDelete
+          ?.deletedId ?? null,
       cleanupDeletedProductId: productCleanup?.payload.data?.productDelete?.deletedProductId ?? null,
+      cleanupDeletedSecondProductId: secondProductCleanup?.payload.data?.productDelete?.deletedProductId ?? null,
     },
     null,
     2,

@@ -1,0 +1,20 @@
+query PriceListsWindowAfter($first: Int!, $after: String!) {
+  priceLists(first: $first, after: $after) {
+    edges {
+      cursor
+      node {
+        __typename
+        id
+        name
+        currency
+        fixedPricesCount
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}
