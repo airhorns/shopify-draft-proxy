@@ -1,0 +1,21 @@
+query MarketingLiveHybridNonEmptyReadAfter($activityCursor: String!, $remoteIds: [String!]) {
+  afterFirstActivity: marketingActivities(first: 1, after: $activityCursor, remoteIds: $remoteIds, sortKey: TITLE) {
+    nodes {
+      id
+      title
+    }
+    edges {
+      cursor
+      node {
+        id
+        title
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

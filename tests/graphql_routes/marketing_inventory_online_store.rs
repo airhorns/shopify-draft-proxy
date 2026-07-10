@@ -873,6 +873,424 @@ fn marketing_empty_reads_keep_shopify_connection_shapes() {
 }
 
 #[test]
+fn marketing_live_hybrid_cold_read_forwards_non_empty_upstream_catalog() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let upstream_body = json!({
+        "data": {
+            "upstreamActivities": {
+                "nodes": [{
+                    "id": "gid://shopify/MarketingActivity/9001",
+                    "title": "Upstream acquisition",
+                    "remoteId": "upstream-acquisition",
+                    "marketingEvent": {
+                        "id": "gid://shopify/MarketingEvent/19001",
+                        "type": "AD",
+                        "remoteId": "upstream-acquisition",
+                        "description": "Upstream acquisition event"
+                    }
+                }],
+                "edges": [{
+                    "cursor": "opaque-upstream-activity-cursor",
+                    "node": {
+                        "id": "gid://shopify/MarketingActivity/9001",
+                        "title": "Upstream acquisition"
+                    }
+                }],
+                "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": "opaque-upstream-activity-cursor",
+                    "endCursor": "opaque-upstream-activity-cursor"
+                }
+            },
+            "upstreamActivity": {
+                "id": "gid://shopify/MarketingActivity/9001",
+                "title": "Upstream acquisition",
+                "remoteId": "upstream-acquisition"
+            },
+            "upstreamEvents": {
+                "nodes": [{
+                    "id": "gid://shopify/MarketingEvent/19001",
+                    "type": "AD",
+                    "remoteId": "upstream-acquisition",
+                    "description": "Upstream acquisition event"
+                }],
+                "edges": [{
+                    "cursor": "opaque-upstream-event-cursor",
+                    "node": {
+                        "id": "gid://shopify/MarketingEvent/19001",
+                        "type": "AD"
+                    }
+                }],
+                "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": "opaque-upstream-event-cursor",
+                    "endCursor": "opaque-upstream-event-cursor"
+                }
+            },
+            "upstreamEvent": {
+                "id": "gid://shopify/MarketingEvent/19001",
+                "type": "AD",
+                "remoteId": "upstream-acquisition"
+            }
+        }
+    });
+    let expected_body = upstream_body.clone();
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_requests.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: upstream_body.clone(),
+            }
+        });
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketingColdCatalogRead($activityId: ID!, $eventId: ID!) {
+          upstreamActivities: marketingActivities(first: 2, sortKey: TITLE, query: "upstream") {
+            nodes { id title remoteId marketingEvent { id type remoteId description } }
+            edges { cursor node { id title } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          upstreamActivity: marketingActivity(id: $activityId) { id title remoteId }
+          upstreamEvents: marketingEvents(first: 2, sortKey: ID) {
+            nodes { id type remoteId description }
+            edges { cursor node { id type } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          upstreamEvent: marketingEvent(id: $eventId) { id type remoteId }
+        }
+        "#,
+        json!({
+            "activityId": "gid://shopify/MarketingActivity/9001",
+            "eventId": "gid://shopify/MarketingEvent/19001"
+        }),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(read.body, expected_body);
+    let requests = upstream_requests.lock().unwrap();
+    assert_eq!(
+        requests.len(),
+        1,
+        "cold marketing read should forward once to upstream"
+    );
+    assert!(requests[0]["query"].as_str().is_some_and(|query| query
+        .contains("marketingActivities")
+        && query.contains("marketingEvent")));
+}
+
+#[test]
+fn marketing_live_hybrid_effective_catalog_overlays_staged_lifecycle_on_upstream() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let upstream_activity_id = "gid://shopify/MarketingActivity/9001";
+    let upstream_event_id = "gid://shopify/MarketingEvent/19001";
+    let upstream_body = json!({
+        "data": {
+            "allActivities": {
+                "nodes": [{
+                    "id": upstream_activity_id,
+                    "title": "Upstream acquisition",
+                    "remoteId": "upstream-acquisition",
+                    "isExternal": true,
+                    "marketingEvent": {
+                        "id": upstream_event_id,
+                        "type": "AD",
+                        "remoteId": "upstream-acquisition",
+                        "description": "Upstream acquisition event"
+                    }
+                }],
+                "edges": [{
+                    "cursor": "opaque-upstream-activity-cursor",
+                    "node": {
+                        "id": upstream_activity_id,
+                        "title": "Upstream acquisition"
+                    }
+                }],
+                "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": "opaque-upstream-activity-cursor",
+                    "endCursor": "opaque-upstream-activity-cursor"
+                }
+            },
+            "upstreamActivity": {
+                "id": upstream_activity_id,
+                "title": "Upstream acquisition",
+                "remoteId": "upstream-acquisition",
+                "isExternal": true,
+                "marketingEvent": {
+                    "id": upstream_event_id,
+                    "type": "AD",
+                    "remoteId": "upstream-acquisition"
+                }
+            },
+            "allEvents": {
+                "nodes": [{
+                    "id": upstream_event_id,
+                    "type": "AD",
+                    "remoteId": "upstream-acquisition",
+                    "description": "Upstream acquisition event"
+                }],
+                "edges": [{
+                    "cursor": "opaque-upstream-event-cursor",
+                    "node": {
+                        "id": upstream_event_id,
+                        "type": "AD"
+                    }
+                }],
+                "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": "opaque-upstream-event-cursor",
+                    "endCursor": "opaque-upstream-event-cursor"
+                }
+            },
+            "upstreamEvent": {
+                "id": upstream_event_id,
+                "type": "AD",
+                "remoteId": "upstream-acquisition"
+            }
+        }
+    });
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_requests.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: upstream_body.clone(),
+            }
+        });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateLocalMarketingActivity($input: MarketingActivityCreateExternalInput!) {
+          created: marketingActivityCreateExternal(input: $input) {
+            marketingActivity { id title remoteId marketingEvent { id type remoteId } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+            "title": "Local staged",
+            "remoteId": "local-staged",
+            "status": "ACTIVE",
+            "remoteUrl": "https://example.com/local-staged",
+            "tactic": "NEWSLETTER",
+            "marketingChannelType": "EMAIL",
+            "utm": {"campaign": "local-staged", "source": "email", "medium": "newsletter"}
+        }}),
+    ));
+    assert_eq!(create.body["data"]["created"]["userErrors"], json!([]));
+    assert_eq!(
+        upstream_requests.lock().unwrap().len(),
+        0,
+        "supported marketing create should not passthrough upstream"
+    );
+    let local_id = create.body["data"]["created"]["marketingActivity"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let local_event_id = create.body["data"]["created"]["marketingActivity"]["marketingEvent"]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let local_cursor = format!("cursor:{local_id}");
+    let local_event_cursor = format!("cursor:{local_event_id}");
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketingEffectiveCatalog($localCursor: String!, $upstreamActivityId: ID!, $upstreamEventId: ID!) {
+          allActivities: marketingActivities(first: 5, sortKey: TITLE) {
+            nodes { id title remoteId }
+            edges { cursor node { id title } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          firstActivity: marketingActivities(first: 1, sortKey: TITLE) {
+            nodes { id title }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          afterLocal: marketingActivities(first: 1, after: $localCursor, sortKey: TITLE) {
+            nodes { id title }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          upstreamSearch: marketingActivities(first: 5, query: "remote_id:upstream-acquisition", sortKey: TITLE) {
+            nodes { id title }
+          }
+          upstreamActivity: marketingActivity(id: $upstreamActivityId) { id title remoteId }
+          allEvents: marketingEvents(first: 5, sortKey: ID) {
+            nodes { id type remoteId }
+            edges { cursor node { id type } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          upstreamEvent: marketingEvent(id: $upstreamEventId) { id type remoteId }
+        }
+        "#,
+        json!({
+            "localCursor": local_cursor,
+            "upstreamActivityId": upstream_activity_id,
+            "upstreamEventId": upstream_event_id
+        }),
+    ));
+
+    assert_eq!(
+        read.body["data"]["allActivities"]["nodes"],
+        json!([
+            {"id": local_id, "title": "Local staged", "remoteId": "local-staged"},
+            {"id": upstream_activity_id, "title": "Upstream acquisition", "remoteId": "upstream-acquisition"}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["allActivities"]["edges"],
+        json!([
+            {"cursor": local_cursor, "node": {"id": local_id, "title": "Local staged"}},
+            {"cursor": "opaque-upstream-activity-cursor", "node": {"id": upstream_activity_id, "title": "Upstream acquisition"}}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["firstActivity"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": local_cursor,
+            "endCursor": local_cursor
+        })
+    );
+    assert_eq!(
+        read.body["data"]["afterLocal"]["nodes"],
+        json!([{"id": upstream_activity_id, "title": "Upstream acquisition"}])
+    );
+    assert_eq!(
+        read.body["data"]["afterLocal"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": true,
+            "startCursor": "opaque-upstream-activity-cursor",
+            "endCursor": "opaque-upstream-activity-cursor"
+        })
+    );
+    assert_eq!(
+        read.body["data"]["upstreamSearch"]["nodes"],
+        json!([{"id": upstream_activity_id, "title": "Upstream acquisition"}])
+    );
+    assert_eq!(
+        read.body["data"]["upstreamActivity"],
+        json!({"id": upstream_activity_id, "title": "Upstream acquisition", "remoteId": "upstream-acquisition"})
+    );
+    assert_eq!(
+        read.body["data"]["allEvents"]["nodes"],
+        json!([
+            {"id": upstream_event_id, "type": "AD", "remoteId": "upstream-acquisition"},
+            {"id": local_event_id, "type": "NEWSLETTER", "remoteId": "local-staged"}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["allEvents"]["edges"],
+        json!([
+            {"cursor": "opaque-upstream-event-cursor", "node": {"id": upstream_event_id, "type": "AD"}},
+            {"cursor": local_event_cursor, "node": {"id": local_event_id, "type": "NEWSLETTER"}}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["upstreamEvent"],
+        json!({"id": upstream_event_id, "type": "AD", "remoteId": "upstream-acquisition"})
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateObservedMarketingActivity($id: ID!, $input: MarketingActivityUpdateExternalInput!) {
+          updated: marketingActivityUpdateExternal(marketingActivityId: $id, input: $input) {
+            marketingActivity { id title remoteId }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": upstream_activity_id,
+            "input": {"title": "Updated upstream acquisition"}
+        }),
+    ));
+    assert_eq!(update.body["data"]["updated"]["userErrors"], json!([]));
+    assert_eq!(
+        update.body["data"]["updated"]["marketingActivity"],
+        json!({"id": upstream_activity_id, "title": "Updated upstream acquisition", "remoteId": "upstream-acquisition"})
+    );
+
+    let after_update = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketingReadAfterObservedUpdate($id: ID!) {
+          updatedActivity: marketingActivity(id: $id) { id title remoteId }
+          allActivities: marketingActivities(first: 5, sortKey: TITLE) { nodes { id title } }
+        }
+        "#,
+        json!({"id": upstream_activity_id}),
+    ));
+    assert_eq!(
+        after_update.body["data"]["updatedActivity"],
+        json!({"id": upstream_activity_id, "title": "Updated upstream acquisition", "remoteId": "upstream-acquisition"})
+    );
+    assert_eq!(
+        after_update.body["data"]["allActivities"]["nodes"],
+        json!([
+            {"id": local_id, "title": "Local staged"},
+            {"id": upstream_activity_id, "title": "Updated upstream acquisition"}
+        ])
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteObservedMarketingActivity($id: ID!) {
+          deleted: marketingActivityDeleteExternal(marketingActivityId: $id) {
+            deletedMarketingActivityId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": upstream_activity_id}),
+    ));
+    assert_eq!(
+        delete.body["data"]["deleted"],
+        json!({"deletedMarketingActivityId": upstream_activity_id, "userErrors": []})
+    );
+
+    let after_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketingReadAfterObservedDelete($activityId: ID!, $eventId: ID!) {
+          deletedActivity: marketingActivity(id: $activityId) { id title }
+          allActivities: marketingActivities(first: 5, sortKey: TITLE) { nodes { id title } }
+          deletedEvent: marketingEvent(id: $eventId) { id type }
+          allEvents: marketingEvents(first: 5, sortKey: ID) { nodes { id type } }
+        }
+        "#,
+        json!({"activityId": upstream_activity_id, "eventId": upstream_event_id}),
+    ));
+    assert_eq!(after_delete.body["data"]["deletedActivity"], Value::Null);
+    assert_eq!(
+        after_delete.body["data"]["allActivities"]["nodes"],
+        json!([{"id": local_id, "title": "Local staged"}])
+    );
+    assert_eq!(after_delete.body["data"]["deletedEvent"], Value::Null);
+    assert_eq!(
+        after_delete.body["data"]["allEvents"]["nodes"],
+        json!([{"id": local_event_id, "type": "NEWSLETTER"}])
+    );
+    assert_eq!(
+        upstream_requests.lock().unwrap().len(),
+        3,
+        "only the three read operations should call upstream"
+    );
+}
+
+#[test]
 fn marketing_activity_connections_honor_sort_window_and_query_for_staged_records() {
     let mut proxy = snapshot_proxy();
     let mut create_alpha_request = json_graphql_request(
