@@ -55,22 +55,43 @@ fn fulfillment_order_hydrate_transport(
         let body: Value = serde_json::from_str(&request.body).unwrap();
         let query = body["query"].as_str().unwrap_or_default();
         let requested_id = body["variables"]["id"].as_str().unwrap_or_default();
-        let hydrated = orders.lock().unwrap().iter().find_map(|order| {
-            order["fulfillmentOrders"]["nodes"]
+        let orders = orders.lock().unwrap();
+        let hydrate = |requested_id: &str| {
+            orders.iter().find_map(|order| {
+                order["fulfillmentOrders"]["nodes"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .find(|node| node["id"].as_str() == Some(requested_id))
+                    .map(|node| {
+                        let mut node = node.clone();
+                        node["order"] = json!({
+                            "id": order["id"],
+                            "name": order["name"],
+                            "displayFulfillmentStatus": order["displayFulfillmentStatus"]
+                        });
+                        (order.clone(), node)
+                    })
+            })
+        };
+        if query.contains("nodes(ids: $ids)") {
+            let nodes = body["variables"]["ids"]
                 .as_array()
                 .into_iter()
                 .flatten()
-                .find(|node| node["id"].as_str() == Some(requested_id))
-                .map(|node| {
-                    let mut node = node.clone();
-                    node["order"] = json!({
-                        "id": order["id"],
-                        "name": order["name"],
-                        "displayFulfillmentStatus": order["displayFulfillmentStatus"]
-                    });
-                    (order.clone(), node)
+                .map(|id| {
+                    id.as_str()
+                        .and_then(|id| hydrate(id).map(|(_, node)| node))
+                        .unwrap_or(Value::Null)
                 })
-        });
+                .collect::<Vec<_>>();
+            return Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "nodes": nodes } }),
+            };
+        }
+        let hydrated = hydrate(requested_id);
         let body = if query.contains("node(id: $id)") {
             let node = hydrated
                 .as_ref()
@@ -6508,6 +6529,125 @@ fn fulfillment_order_deadline_stages_existing_orders_and_reports_all_missing_ids
         after_happy.body["data"]["order"]["displayFulfillmentStatus"],
         json!("UNFULFILLED")
     );
+}
+
+#[test]
+fn fulfillment_order_deadline_batches_cold_hydration_without_line_items() {
+    let order_id = "gid://shopify/Order/7005101";
+    let open_a_id = "gid://shopify/FulfillmentOrder/70051011";
+    let open_b_id = "gid://shopify/FulfillmentOrder/70051012";
+    let unknown_id = "gid://shopify/FulfillmentOrder/70051999";
+    let mut order = fulfillment_order_order_fixture(
+        order_id,
+        "#70051",
+        open_a_id,
+        "gid://shopify/FulfillmentOrderLineItem/70051021",
+        1,
+        "OPEN",
+    );
+    let sibling = fulfillment_order_order_fixture(
+        order_id,
+        "#70051",
+        open_b_id,
+        "gid://shopify/FulfillmentOrderLineItem/70051022",
+        1,
+        "OPEN",
+    );
+    order["fulfillmentOrders"]["nodes"]
+        .as_array_mut()
+        .unwrap()
+        .push(sibling["fulfillmentOrders"]["nodes"][0].clone());
+
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = snapshot_proxy().with_upstream_transport({
+        let upstream_requests = Arc::clone(&upstream_requests);
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream GraphQL body");
+            upstream_requests.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            if query.contains("nodes(ids: $ids)") {
+                let nodes = body["variables"]["ids"]
+                    .as_array()
+                    .expect("batch hydrate ids")
+                    .iter()
+                    .map(|id| {
+                        let requested_id = id.as_str().unwrap_or_default();
+                        order["fulfillmentOrders"]["nodes"]
+                            .as_array()
+                            .into_iter()
+                            .flatten()
+                            .find(|node| node["id"].as_str() == Some(requested_id))
+                            .map(|node| {
+                                let mut node = node.clone();
+                                node["__typename"] = json!("FulfillmentOrder");
+                                node["order"] = json!({
+                                    "id": order["id"],
+                                    "name": order["name"],
+                                    "displayFulfillmentStatus": order["displayFulfillmentStatus"]
+                                });
+                                node
+                            })
+                            .unwrap_or(Value::Null)
+                    })
+                    .collect::<Vec<_>>();
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": { "nodes": nodes } }),
+                };
+            }
+
+            let requested_id = body["variables"]["id"].as_str().unwrap_or_default();
+            let node = order["fulfillmentOrders"]["nodes"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .find(|node| node["id"].as_str() == Some(requested_id))
+                .cloned()
+                .unwrap_or(Value::Null);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: if query.contains("node(id: $id)") {
+                    json!({ "data": { "node": node } })
+                } else {
+                    json!({ "data": { "fulfillmentOrder": node } })
+                },
+            }
+        }
+    });
+
+    let deadline = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BatchDeadlineHydration($fulfillmentOrderIds: [ID!]!, $fulfillmentDeadline: DateTime!) {
+          fulfillmentOrdersSetFulfillmentDeadline(fulfillmentOrderIds: $fulfillmentOrderIds, fulfillmentDeadline: $fulfillmentDeadline) {
+            success
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "fulfillmentOrderIds": [open_a_id, open_b_id, unknown_id, open_a_id, unknown_id],
+            "fulfillmentDeadline": "2026-12-01T00:00:00Z"
+        }),
+    ));
+
+    assert_eq!(
+        deadline.body["data"]["fulfillmentOrdersSetFulfillmentDeadline"],
+        json!({ "success": true, "userErrors": [] })
+    );
+    let requests = upstream_requests.lock().unwrap();
+    assert_eq!(requests.len(), 1);
+    let hydrate_query = requests[0]["query"].as_str().unwrap_or_default();
+    assert!(hydrate_query.contains("nodes(ids: $ids)"));
+    assert!(!hydrate_query.contains("lineItems("));
+    let hydrated_ids = requests[0]["variables"]["ids"].as_array().unwrap();
+    assert_eq!(hydrated_ids.len(), 3);
+    assert!(hydrated_ids.iter().any(|id| id.as_str() == Some(open_a_id)));
+    assert!(hydrated_ids.iter().any(|id| id.as_str() == Some(open_b_id)));
+    assert!(hydrated_ids
+        .iter()
+        .any(|id| id.as_str() == Some(unknown_id)));
 }
 
 #[test]
