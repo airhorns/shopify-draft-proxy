@@ -37,10 +37,20 @@ const customerMergeHydrateDocument = await readFile(
   'config/parity-requests/customers/customer-merge-hydrate.graphql',
   'utf8',
 );
+const customerMergeDraftOrderCreateDocument = await readFile(
+  'config/parity-requests/customers/customer-merge-draft-order-create.graphql',
+  'utf8',
+);
+const customerMergeDraftOrdersReadDocument = await readFile(
+  'config/parity-requests/customers/customer-merge-draft-orders-read.graphql',
+  'utf8',
+);
 const customerCountHydrateDocument = await readFile(
   'config/parity-requests/customers/customer-count-hydrate.graphql',
   'utf8',
 );
+const draftOrderCustomerHydrateDocument =
+  'query OrdersDraftOrderCustomerHydrate($id: ID!) {\n  customer(id: $id) { id email displayName firstName lastName }\n}\n';
 const UNKNOWN_CUSTOMER_GID = 'gid://shopify/Customer/999999999999999';
 
 // Forward CUSTOMER_MERGE_HYDRATE_QUERY upstream and capture the live response for the customer at
@@ -51,11 +61,26 @@ async function captureMergeHydrate(id, context) {
   return result.payload;
 }
 
+async function captureGraphqlPayload(document, variables, context) {
+  const result = await runGraphql(document, variables);
+  assertNoTopLevelErrors(result, context);
+  return result.payload;
+}
+
 function hydrateUpstreamCall(id, payload) {
   return {
     operationName: 'CustomerMergeHydrate',
     variables: { id },
     query: customerMergeHydrateDocument,
+    response: { status: 200, body: payload },
+  };
+}
+
+function draftOrderCustomerHydrateUpstreamCall(id, payload) {
+  return {
+    operationName: 'OrdersDraftOrderCustomerHydrate',
+    variables: { id },
+    query: draftOrderCustomerHydrateDocument,
     response: { status: 200, body: payload },
   };
 }
@@ -79,6 +104,10 @@ function countBaseFromAsserted(assertedCustomersCount, stagedDeletes) {
     return null;
   }
   return { ...assertedCustomersCount, count: assertedCustomersCount.count + stagedDeletes };
+}
+
+function gidTail(id) {
+  return String(id).split('/').pop();
 }
 
 const customerSlice = `
@@ -173,24 +202,6 @@ const orderCreateMutation = `#graphql
         name
         email
         createdAt
-        customer { id email displayName }
-      }
-      userErrors {
-        field
-        message
-      }
-    }
-  }
-`;
-
-const draftOrderCreateMutation = `#graphql
-  mutation CustomerMergeDraftOrderCreate($input: DraftOrderInput!) {
-    draftOrderCreate(input: $input) {
-      draftOrder {
-        id
-        name
-        status
-        email
         customer { id email displayName }
       }
       userErrors {
@@ -414,7 +425,11 @@ async function main() {
   const scopeHandles = new Set(
     accessScopes.payload?.data?.currentAppInstallation?.accessScopes?.map((scope) => scope.handle) ?? [],
   );
-  for (const requiredScope of ['read_customer_merge', 'write_customer_merge']) {
+  const requiredScopes = ['read_customer_merge', 'write_customer_merge'];
+  if (capturesAttachedResources) {
+    requiredScopes.push('read_draft_orders', 'write_draft_orders');
+  }
+  for (const requiredScope of requiredScopes) {
     if (!scopeHandles.has(requiredScope)) {
       throw new Error(`Customer merge conformance requires ${requiredScope}.`);
     }
@@ -580,9 +595,19 @@ async function main() {
     },
   };
   const draftOrderCreate = capturesAttachedResources
-    ? await runGraphql(draftOrderCreateMutation, draftOrderVariables)
+    ? await runGraphql(customerMergeDraftOrderCreateDocument, draftOrderVariables)
     : null;
+  if (draftOrderCreate) {
+    assertNoTopLevelErrors(draftOrderCreate, 'customerMerge draftOrderCreate');
+  }
   const draftOrderId = draftOrderCreate?.payload?.data?.draftOrderCreate?.draftOrder?.id;
+  const draftOrderCustomerHydratePayload = capturesAttachedResources
+    ? await captureGraphqlPayload(
+        draftOrderCustomerHydrateDocument,
+        { id: customerOneId },
+        'draft order customer hydrate',
+      )
+    : null;
 
   const attachedBeforeMergeVariables = {
     one: customerOneId,
@@ -675,6 +700,19 @@ async function main() {
   if (attachedAfterMerge) {
     assertNoTopLevelErrors(attachedAfterMerge, 'customerMerge attached resources after merge');
   }
+  const draftOrdersAfterMergeVariables =
+    capturesAttachedResources && typeof draftOrderId === 'string'
+      ? {
+          sourceDraftOrderQuery: `customer_id:${gidTail(customerOneId)}`,
+          resultDraftOrderQuery: `customer_id:${gidTail(customerTwoId)}`,
+        }
+      : null;
+  const draftOrdersAfterMerge = draftOrdersAfterMergeVariables
+    ? await runGraphql(customerMergeDraftOrdersReadDocument, draftOrdersAfterMergeVariables)
+    : null;
+  if (draftOrdersAfterMerge) {
+    assertNoTopLevelErrors(draftOrdersAfterMerge, 'customerMerge draft orders after merge');
+  }
 
   const draftOrderCleanup =
     typeof draftOrderId === 'string'
@@ -710,6 +748,10 @@ async function main() {
             draftOrderCreate: {
               variables: draftOrderVariables,
               response: draftOrderCreate?.payload,
+            },
+            draftOrderCustomerHydrate: {
+              variables: { id: customerOneId },
+              response: draftOrderCustomerHydratePayload,
             },
             attachedBeforeMerge: {
               variables: attachedBeforeMergeVariables,
@@ -749,6 +791,12 @@ async function main() {
             variables: attachedBeforeMergeVariables,
             response: attachedAfterMerge?.payload,
           },
+          draftOrdersAfterMerge: draftOrdersAfterMerge
+            ? {
+                variables: draftOrdersAfterMergeVariables,
+                response: draftOrdersAfterMerge.payload,
+              }
+            : null,
         }
       : {}),
     validation: {
@@ -791,6 +839,9 @@ async function main() {
       response: cleanup.payload,
     },
     upstreamCalls: [
+      ...(draftOrderCustomerHydratePayload
+        ? [draftOrderCustomerHydrateUpstreamCall(customerOneId, draftOrderCustomerHydratePayload)]
+        : []),
       hydrateUpstreamCall(customerOneId, hydrateOnePayload),
       hydrateUpstreamCall(customerTwoId, hydrateTwoPayload),
       hydrateUpstreamCall(UNKNOWN_CUSTOMER_GID, unknownHydratePayload),
