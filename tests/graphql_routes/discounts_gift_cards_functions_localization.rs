@@ -6961,6 +6961,292 @@ fn localization_translations_register_multi_row_round_trip_and_indexed_errors() 
 }
 
 #[test]
+fn localization_translation_timestamps_follow_the_injected_clock_after_validation_failures() {
+    let clock = Arc::new(Mutex::new(utc_time(1_783_080_000)));
+    let mut proxy = snapshot_proxy_with_clock(Arc::clone(&clock));
+    let resource_id = create_fallback_localization_product(&mut proxy);
+    let title_digest = fallback_product_title_digest();
+
+    let enable = proxy.process_request(json_graphql_request(
+        r#"mutation EnableClockedLocale($locale: String!) {
+          shopLocaleEnable(locale: $locale) { userErrors { field message } }
+        }"#,
+        json!({ "locale": "fr" }),
+    ));
+    assert_eq!(
+        enable.body["data"]["shopLocaleEnable"]["userErrors"],
+        json!([])
+    );
+
+    let register_title = |proxy: &mut DraftProxy, value: &str| {
+        proxy.process_request(json_graphql_request(
+            r#"mutation LocalizationClockedRegister($resourceId: ID!, $translations: [TranslationInput!]!) {
+              translationsRegister(resourceId: $resourceId, translations: $translations) {
+                translations { key value locale outdated updatedAt market { id } }
+                userErrors { field message code }
+              }
+            }"#,
+            json!({
+                "resourceId": resource_id,
+                "translations": [{
+                    "locale": "fr",
+                    "key": "title",
+                    "value": value,
+                    "translatableContentDigest": title_digest
+                }]
+            }),
+        ))
+    };
+
+    let first = register_title(&mut proxy, "Titre horloge");
+    assert_eq!(
+        first.body["data"]["translationsRegister"]["translations"][0]["updatedAt"],
+        json!("2026-07-03T12:00:00Z")
+    );
+
+    set_clock(&clock, 1_783_166_400);
+    let second = register_title(&mut proxy, "Titre horloge avance");
+    let second_translation = &second.body["data"]["translationsRegister"]["translations"][0];
+    assert_eq!(
+        second_translation["updatedAt"],
+        json!("2026-07-04T12:00:00Z")
+    );
+    assert!(
+        second_translation["updatedAt"].as_str()
+            > first.body["data"]["translationsRegister"]["translations"][0]["updatedAt"].as_str()
+    );
+
+    set_clock(&clock, 1_783_339_200);
+    let rejected = register_title(&mut proxy, "");
+    assert_eq!(
+        rejected.body["data"]["translationsRegister"]["translations"],
+        json!([])
+    );
+    assert_eq!(
+        rejected.body["data"]["translationsRegister"]["userErrors"][0]["code"],
+        json!("FAILS_RESOURCE_VALIDATION")
+    );
+
+    let after_reject = proxy.process_request(json_graphql_request(
+        r#"query LocalizationClockedRead($resourceId: ID!) {
+          translatableResource(resourceId: $resourceId) {
+            translations(locale: "fr") { key value updatedAt }
+          }
+        }"#,
+        json!({ "resourceId": resource_id }),
+    ));
+    assert_eq!(
+        after_reject.body["data"]["translatableResource"]["translations"],
+        json!([{
+            "key": "title",
+            "value": "Titre horloge avance",
+            "updatedAt": "2026-07-04T12:00:00Z"
+        }])
+    );
+
+    set_clock(&clock, 1_783_252_800);
+    let third = register_title(&mut proxy, "Titre horloge apres erreur");
+    assert_eq!(
+        third.body["data"]["translationsRegister"]["translations"][0]["updatedAt"],
+        json!("2026-07-05T12:00:00Z")
+    );
+}
+
+#[test]
+fn market_localization_timestamps_follow_the_injected_clock_across_restore_and_reset() {
+    let clock = Arc::new(Mutex::new(utc_time(1_783_080_000)));
+    let resource_id = "gid://shopify/Metafield/clocked-market-localization";
+    let market_id = "gid://shopify/Market/clocked-market";
+    let content_digest = localization_content_digest("Clocked source value");
+    let upstream_calls = Arc::new(Mutex::new(Vec::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_clock({
+            let clock = Arc::clone(&clock);
+            move || *clock.lock().unwrap()
+        })
+        .with_upstream_transport({
+            let upstream_calls = Arc::clone(&upstream_calls);
+            let content_digest = content_digest.clone();
+            move |request| {
+                upstream_calls
+                    .lock()
+                    .unwrap()
+                    .push(serde_json::from_str::<Value>(&request.body).unwrap());
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "marketLocalizableResource": {
+                                "resourceId": resource_id,
+                                "marketLocalizableContent": [{
+                                    "key": "value",
+                                    "value": "Clocked source value",
+                                    "digest": content_digest
+                                }],
+                                "marketLocalizations": []
+                            },
+                            "markets": {
+                                "nodes": [{
+                                    "id": market_id,
+                                    "name": "Canada",
+                                    "handle": "canada",
+                                    "status": "ACTIVE",
+                                    "type": "REGION"
+                                }]
+                            }
+                        }
+                    }),
+                }
+            }
+        });
+
+    let register_market_value = |proxy: &mut DraftProxy, value: &str, digest: &str| {
+        proxy.process_request(json_graphql_request(
+            r#"mutation MarketLocalizationClockedRegister(
+              $resourceId: ID!
+              $marketLocalizations: [MarketLocalizationRegisterInput!]!
+            ) {
+              marketLocalizationsRegister(resourceId: $resourceId, marketLocalizations: $marketLocalizations) {
+                marketLocalizations { key value updatedAt outdated market { id name } }
+                userErrors { field message code }
+              }
+            }"#,
+            json!({
+                "resourceId": resource_id,
+                "marketLocalizations": [{
+                    "marketId": market_id,
+                    "key": "value",
+                    "value": value,
+                    "marketLocalizableContentDigest": digest
+                }]
+            }),
+        ))
+    };
+
+    let first = register_market_value(&mut proxy, "Canadian clock", &content_digest);
+    let first_localization =
+        &first.body["data"]["marketLocalizationsRegister"]["marketLocalizations"][0];
+    assert_eq!(
+        first_localization["updatedAt"],
+        json!("2026-07-03T12:00:00Z")
+    );
+    assert_eq!(first_localization["market"]["name"], json!("Canada"));
+
+    set_clock(&clock, 1_783_166_400);
+    let second = register_market_value(&mut proxy, "Canadian clock advanced", &content_digest);
+    let second_localization =
+        &second.body["data"]["marketLocalizationsRegister"]["marketLocalizations"][0];
+    assert_eq!(
+        second_localization["updatedAt"],
+        json!("2026-07-04T12:00:00Z")
+    );
+    assert!(second_localization["updatedAt"].as_str() > first_localization["updatedAt"].as_str());
+
+    set_clock(&clock, 1_783_339_200);
+    let rejected = register_market_value(&mut proxy, "", &content_digest);
+    assert_eq!(
+        rejected.body["data"]["marketLocalizationsRegister"]["marketLocalizations"],
+        json!(null)
+    );
+    assert_eq!(
+        rejected.body["data"]["marketLocalizationsRegister"]["userErrors"][0]["code"],
+        json!("FAILS_RESOURCE_VALIDATION")
+    );
+
+    let after_reject = proxy.process_request(json_graphql_request(
+        r#"query MarketLocalizationClockedRead($resourceId: ID!, $marketId: ID!) {
+          marketLocalizableResource(resourceId: $resourceId) {
+            marketLocalizations(marketId: $marketId) { key value updatedAt market { id name } }
+          }
+        }"#,
+        json!({ "resourceId": resource_id, "marketId": market_id }),
+    ));
+    assert_eq!(
+        after_reject.body["data"]["marketLocalizableResource"]["marketLocalizations"],
+        json!([{
+            "key": "value",
+            "value": "Canadian clock advanced",
+            "updatedAt": "2026-07-04T12:00:00Z",
+            "market": { "id": market_id, "name": "Canada" }
+        }])
+    );
+
+    set_clock(&clock, 1_783_252_800);
+    let third = register_market_value(&mut proxy, "Canadian clock after error", &content_digest);
+    assert_eq!(
+        third.body["data"]["marketLocalizationsRegister"]["marketLocalizations"][0]["updatedAt"],
+        json!("2026-07-05T12:00:00Z")
+    );
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    assert_eq!(dump.status, 200);
+
+    set_clock(&clock, 1_783_425_600);
+    let mut restored = configured_proxy(ReadMode::LiveHybrid, None).with_clock({
+        let clock = Arc::clone(&clock);
+        move || *clock.lock().unwrap()
+    });
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    let restored_update =
+        register_market_value(&mut restored, "Canadian clock restored", &content_digest);
+    assert_eq!(
+        restored_update.body["data"]["marketLocalizationsRegister"]["marketLocalizations"][0]
+            ["updatedAt"],
+        json!("2026-07-07T12:00:00Z")
+    );
+
+    set_clock(&clock, 1_783_080_000);
+    let reset = restored.process_request(request_with_body("POST", "/__meta/reset", "{}"));
+    assert_eq!(reset.status, 200);
+    restored = restored.with_upstream_transport({
+        let content_digest = content_digest.clone();
+        move |_request| Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "marketLocalizableResource": {
+                        "resourceId": resource_id,
+                        "marketLocalizableContent": [{
+                            "key": "value",
+                            "value": "Clocked source value",
+                            "digest": content_digest
+                        }],
+                        "marketLocalizations": []
+                    },
+                    "markets": {
+                        "nodes": [{
+                            "id": market_id,
+                            "name": "Canada",
+                            "handle": "canada",
+                            "status": "ACTIVE",
+                            "type": "REGION"
+                        }]
+                    }
+                }
+            }),
+        }
+    });
+    let after_reset = register_market_value(&mut restored, "Canadian clock reset", &content_digest);
+    assert_eq!(
+        after_reset.body["data"]["marketLocalizationsRegister"]["marketLocalizations"][0]
+            ["updatedAt"],
+        json!("2026-07-03T12:00:00Z")
+    );
+    assert_eq!(
+        upstream_calls.lock().unwrap().len(),
+        1,
+        "only the initial cold preflight should use the first proxy transport"
+    );
+}
+
+#[test]
 fn localization_translations_remove_empty_keys_is_noop_and_preserves_read_after() {
     let mut proxy = snapshot_proxy();
     let resource_id = create_fallback_localization_product(&mut proxy);
