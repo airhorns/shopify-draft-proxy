@@ -55,6 +55,47 @@ fn create_customer_from_input(proxy: &mut DraftProxy, input: Value) -> String {
         .to_string()
 }
 
+fn create_customer_metafield_definition(
+    proxy: &mut DraftProxy,
+    namespace: &str,
+    key: &str,
+    metafield_type: &str,
+    unique_values: Option<bool>,
+) {
+    let mut definition = json!({
+        "ownerType": "CUSTOMER",
+        "namespace": namespace,
+        "key": key,
+        "name": "Customer external id",
+        "type": metafield_type
+    });
+    if let Some(enabled) = unique_values {
+        definition["capabilities"] = json!({ "uniqueValues": { "enabled": enabled } });
+    }
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerMetafieldDefinitionCreate($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition {
+              ownerType
+              namespace
+              key
+              type { name }
+              capabilities { uniqueValues { enabled eligible } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "definition": definition }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["metafieldDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+}
+
 fn create_customer_address(proxy: &mut DraftProxy, customer_id: &str, address1: &str) -> String {
     let response = proxy.process_request(json_graphql_request(
         r#"
@@ -1088,6 +1129,440 @@ fn customer_input_metafields_round_trip_as_owner_metafields() {
     assert_eq!(
         read.body["data"]["customer"]["metafields"]["pageInfo"]["hasNextPage"],
         json!(false)
+    );
+}
+
+#[test]
+fn customer_set_custom_id_updates_creates_and_reads_staged_metafield_identity() {
+    let mut proxy = snapshot_proxy();
+    create_customer_metafield_definition(&mut proxy, "custom", "external_id", "id", None);
+    let existing_id = create_customer_from_input(
+        &mut proxy,
+        json!({
+            "email": "custom-id-existing@example.test",
+            "firstName": "Before",
+            "metafields": [{
+                "namespace": "custom",
+                "key": "external_id",
+                "type": "id",
+                "value": "custom-id-existing"
+            }]
+        }),
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerSetCustomIdUpdate($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
+          customerSet(identifier: $identifier, input: $input) {
+            customer {
+              id
+              firstName
+              externalId: metafield(namespace: "custom", key: "external_id") { namespace key type value }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "identifier": {
+                "customId": { "namespace": "custom", "key": "external_id", "value": "custom-id-existing" }
+            },
+            "input": { "firstName": "After" }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(update.body.get("errors"), None);
+    assert_eq!(update.body["data"]["customerSet"]["userErrors"], json!([]));
+    assert_eq!(
+        update.body["data"]["customerSet"]["customer"]["id"],
+        json!(existing_id)
+    );
+    assert_eq!(
+        update.body["data"]["customerSet"]["customer"]["firstName"],
+        json!("After")
+    );
+    assert_eq!(
+        update.body["data"]["customerSet"]["customer"]["externalId"],
+        json!({
+            "namespace": "custom",
+            "key": "external_id",
+            "type": "id",
+            "value": "custom-id-existing"
+        })
+    );
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerSetCustomIdCreate($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
+          customerSet(identifier: $identifier, input: $input) {
+            customer {
+              id
+              firstName
+              externalId: metafield(namespace: "custom", key: "external_id") { namespace key type value }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "identifier": {
+                "customId": { "namespace": "custom", "key": "external_id", "value": "custom-id-created" }
+            },
+            "input": { "firstName": "Created" }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body.get("errors"), None);
+    assert_eq!(create.body["data"]["customerSet"]["userErrors"], json!([]));
+    let created_id = create.body["data"]["customerSet"]["customer"]["id"]
+        .as_str()
+        .expect("created customer id")
+        .to_string();
+    assert_ne!(created_id, existing_id);
+    assert_eq!(
+        create.body["data"]["customerSet"]["customer"]["externalId"],
+        json!({
+            "namespace": "custom",
+            "key": "external_id",
+            "type": "id",
+            "value": "custom-id-created"
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomerSetCustomIdRead($existing: CustomerIdentifierInput!, $created: CustomerIdentifierInput!, $createdId: ID!) {
+          existingByIdentifier: customerByIdentifier(identifier: $existing) {
+            id
+            firstName
+            externalId: metafield(namespace: "custom", key: "external_id") { namespace key type value }
+          }
+          createdByIdentifier: customerByIdentifier(identifier: $created) {
+            id
+            firstName
+            externalId: metafield(namespace: "custom", key: "external_id") { namespace key type value }
+          }
+          createdById: customer(id: $createdId) {
+            id
+            firstName
+            metafields(first: 5) { nodes { namespace key type value } pageInfo { hasNextPage hasPreviousPage } }
+          }
+        }
+        "#,
+        json!({
+            "existing": { "customId": { "namespace": "custom", "key": "external_id", "value": "custom-id-existing" } },
+            "created": { "customId": { "namespace": "custom", "key": "external_id", "value": "custom-id-created" } },
+            "createdId": created_id
+        }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["existingByIdentifier"]["id"],
+        json!(existing_id)
+    );
+    assert_eq!(
+        read.body["data"]["existingByIdentifier"]["firstName"],
+        json!("After")
+    );
+    assert_eq!(
+        read.body["data"]["createdByIdentifier"]["id"],
+        read.body["data"]["createdById"]["id"]
+    );
+    assert_eq!(
+        read.body["data"]["createdByIdentifier"]["externalId"]["value"],
+        json!("custom-id-created")
+    );
+    assert_eq!(
+        read.body["data"]["createdById"]["metafields"]["nodes"],
+        json!([{ "namespace": "custom", "key": "external_id", "type": "id", "value": "custom-id-created" }])
+    );
+}
+
+#[test]
+fn customer_set_custom_id_uses_read_only_live_hybrid_lookup_before_local_update() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream JSON body");
+            captured_calls.lock().unwrap().push(body.clone());
+            match body["operationName"].as_str().unwrap_or_default() {
+                "CustomerCustomIdLookup" => Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "customerByIdentifier": { "id": "gid://shopify/Customer/upstream-custom-id" }
+                        }
+                    }),
+                },
+                "CustomerHydrate" => Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "customer": {
+                                "id": "gid://shopify/Customer/upstream-custom-id",
+                                "firstName": "Hydrated",
+                                "lastName": "Customer",
+                                "displayName": "Hydrated Customer",
+                                "email": "upstream-custom-id@example.test",
+                                "locale": "en",
+                                "canDelete": true,
+                                "verifiedEmail": true,
+                                "taxExempt": false,
+                                "taxExemptions": [],
+                                "tags": [],
+                                "state": "DISABLED",
+                                "metafields": {
+                                    "nodes": [{
+                                        "id": "gid://shopify/Metafield/upstream-custom-id",
+                                        "namespace": "custom",
+                                        "key": "external_id",
+                                        "type": "id",
+                                        "value": "upstream-value"
+                                    }]
+                                }
+                            }
+                        }
+                    }),
+                },
+                other => panic!("unexpected upstream operation: {other}"),
+            }
+        });
+    create_customer_metafield_definition(&mut proxy, "custom", "external_id", "id", None);
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerSetCustomIdLiveLookup($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
+          customerSet(identifier: $identifier, input: $input) {
+            customer {
+              id
+              firstName
+              lastName
+              externalId: metafield(namespace: "custom", key: "external_id") {
+                namespace
+                key
+                type
+                value
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "identifier": {
+                "customId": { "namespace": "custom", "key": "external_id", "value": "upstream-value" }
+            },
+            "input": { "firstName": "Updated" }
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body.get("errors"), None);
+    assert_eq!(
+        response.body["data"]["customerSet"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["customerSet"]["customer"]["id"],
+        json!("gid://shopify/Customer/upstream-custom-id")
+    );
+    assert_eq!(
+        response.body["data"]["customerSet"]["customer"]["firstName"],
+        json!("Updated")
+    );
+    assert_eq!(
+        response.body["data"]["customerSet"]["customer"]["lastName"],
+        json!("Customer")
+    );
+    assert_eq!(
+        response.body["data"]["customerSet"]["customer"]["externalId"],
+        json!({
+            "namespace": "custom",
+            "key": "external_id",
+            "type": "id",
+            "value": "upstream-value"
+        })
+    );
+
+    let calls = upstream_calls.lock().unwrap();
+    assert_eq!(calls.len(), 2);
+    assert_eq!(calls[0]["operationName"], json!("CustomerCustomIdLookup"));
+    assert_eq!(
+        calls[0]["variables"]["identifier"]["customId"],
+        json!({ "namespace": "custom", "key": "external_id", "value": "upstream-value" })
+    );
+    assert_eq!(calls[1]["operationName"], json!("CustomerHydrate"));
+    assert_eq!(
+        calls[1]["variables"]["id"],
+        json!("gid://shopify/Customer/upstream-custom-id")
+    );
+}
+
+#[test]
+fn customer_set_custom_id_validation_guards_do_not_stage() {
+    let mut proxy = snapshot_proxy();
+
+    let missing_definition = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerSetMissingCustomIdDefinition($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
+          customerSet(identifier: $identifier, input: $input) {
+            customer { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "identifier": { "customId": { "namespace": "custom", "key": "missing_external_id", "value": "missing-def" } },
+            "input": { "firstName": "MissingDefinition" }
+        }),
+    ));
+    assert_eq!(missing_definition.status, 200);
+    assert_eq!(missing_definition.body["data"]["customerSet"], Value::Null);
+    assert_eq!(
+        missing_definition.body["errors"][0]["message"],
+        json!("Metafield definition of type 'id' is required when using custom ids.")
+    );
+    assert_eq!(
+        missing_definition.body["errors"][0]["extensions"]["code"],
+        json!("NOT_FOUND")
+    );
+
+    create_customer_metafield_definition(
+        &mut proxy,
+        "custom",
+        "disabled_external_id",
+        "single_line_text_field",
+        Some(false),
+    );
+    let disabled_unique = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerSetDisabledCustomIdDefinition($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
+          customerSet(identifier: $identifier, input: $input) {
+            customer { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "identifier": { "customId": { "namespace": "custom", "key": "disabled_external_id", "value": "disabled-def" } },
+            "input": { "firstName": "DisabledDefinition" }
+        }),
+    ));
+    assert_eq!(disabled_unique.body["data"]["customerSet"], Value::Null);
+    assert_eq!(
+        disabled_unique.body["errors"][0]["extensions"]["code"],
+        json!("NOT_FOUND")
+    );
+
+    create_customer_metafield_definition(&mut proxy, "custom", "guard_external_id", "id", None);
+    let mismatch = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerSetCustomIdMismatch($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
+          customerSet(identifier: $identifier, input: $input) {
+            customer { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "identifier": { "customId": { "namespace": "custom", "key": "guard_external_id", "value": "identifier-value" } },
+            "input": {
+                "firstName": "Mismatch",
+                "metafields": [{ "namespace": "custom", "key": "guard_external_id", "type": "id", "value": "input-value" }]
+            }
+        }),
+    ));
+    assert_eq!(mismatch.body.get("data"), None);
+    assert_eq!(
+        mismatch.body["errors"][0]["message"],
+        json!("Variable $input of type CustomerSetInput! was provided invalid value for metafields (Field is not defined on CustomerSetInput)")
+    );
+    assert_eq!(
+        mismatch.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    assert_eq!(
+        mismatch.body["errors"][0]["extensions"]["problems"][0],
+        json!({
+            "path": ["metafields"],
+            "explanation": "Field is not defined on CustomerSetInput"
+        })
+    );
+
+    create_customer_from_input(
+        &mut proxy,
+        json!({
+            "email": "custom-id-duplicate-one@example.test",
+            "firstName": "Duplicate",
+            "metafields": [{ "namespace": "custom", "key": "guard_external_id", "type": "id", "value": "duplicated-value" }]
+        }),
+    );
+    create_customer_from_input(
+        &mut proxy,
+        json!({
+            "email": "custom-id-duplicate-two@example.test",
+            "firstName": "Duplicate",
+            "metafields": [{ "namespace": "custom", "key": "guard_external_id", "type": "id", "value": "duplicated-value" }]
+        }),
+    );
+    let duplicate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerSetCustomIdDuplicate($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
+          customerSet(identifier: $identifier, input: $input) {
+            customer { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "identifier": { "customId": { "namespace": "custom", "key": "guard_external_id", "value": "duplicated-value" } },
+            "input": { "firstName": "DuplicateTarget" }
+        }),
+    ));
+    assert_eq!(
+        duplicate.body["data"]["customerSet"],
+        json!({
+            "customer": null,
+            "userErrors": [{
+                "field": ["input"],
+                "message": "Value is already assigned to another metafield. Choose a different value to ensure it remains unique.",
+                "code": "TAKEN"
+            }]
+        })
+    );
+
+    let malformed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerSetMalformedCustomId($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
+          customerSet(identifier: $identifier, input: $input) {
+            customer { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "identifier": { "customId": { "namespace": "custom", "value": "missing-key" } },
+            "input": { "firstName": "Malformed" }
+        }),
+    ));
+    assert_eq!(malformed.body.get("data"), None);
+    assert_eq!(
+        malformed.body["errors"][0]["message"],
+        json!("Variable $identifier of type CustomerSetIdentifiers was provided invalid value for customId.key (Expected value to not be null)")
+    );
+    assert_eq!(
+        malformed.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    assert_eq!(
+        malformed.body["errors"][0]["extensions"]["problems"][0],
+        json!({
+            "path": ["customId", "key"],
+            "explanation": "Expected value to not be null"
+        })
     );
 }
 

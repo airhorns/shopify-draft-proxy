@@ -1764,7 +1764,7 @@ impl DraftProxy {
         }
     }
 
-    pub(super) fn owner_metafields(
+    pub(in crate::proxy) fn owner_metafields(
         &self,
         owner_id: &str,
         namespace: Option<&str>,
@@ -1893,6 +1893,50 @@ impl DraftProxy {
                 .or_default()
                 .push(metafield);
         }
+    }
+
+    pub(in crate::proxy) fn stage_owner_metafield_value(
+        &mut self,
+        owner_id: &str,
+        namespace: &str,
+        key: &str,
+        metafield_type: &str,
+        value: &str,
+    ) -> Value {
+        let definition = self.owner_metafield_definition_value(owner_id, namespace, key);
+        let existing = self.owner_metafield(owner_id, namespace, key);
+        let index = self.next_owner_metafield_index(0);
+        let metafield = owner_metafield_record(OwnerMetafieldRecordArgs {
+            owner_id,
+            namespace,
+            key,
+            metafield_type,
+            value,
+            index,
+            existing: existing.as_ref(),
+            include_owner: true,
+            definition,
+        });
+        self.store.staged.deleted_owner_metafields.remove(&(
+            owner_id.to_string(),
+            namespace.to_string(),
+            key.to_string(),
+        ));
+        let owner_metafields = self
+            .store
+            .staged
+            .owner_metafields
+            .entry(owner_id.to_string())
+            .or_default();
+        if let Some(existing) = owner_metafields.iter_mut().find(|existing| {
+            existing.get("namespace").and_then(Value::as_str) == Some(namespace)
+                && existing.get("key").and_then(Value::as_str) == Some(key)
+        }) {
+            *existing = metafield.clone();
+        } else {
+            owner_metafields.push(metafield.clone());
+        }
+        metafield
     }
 
     pub(in crate::proxy) fn selected_reference_value_record_json(

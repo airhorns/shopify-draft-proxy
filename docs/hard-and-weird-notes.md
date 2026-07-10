@@ -2561,13 +2561,13 @@ Live `customerByIdentifier` capture on this host showed the safe read branches t
 
 - `identifier: { id }`, `{ emailAddress }`, and `{ phoneNumber }` all returned the same customer when the captured values matched the live record
 - an unmatched email identifier returned `customerByIdentifier: null` with no top-level error
-- `customId` is not a generic local key/value lookup: without a unique metafield definition of type `id`, Shopify returned `data.customId: null` plus a top-level `NOT_FOUND` error saying that an id-type metafield definition is required
+- `customId` is not a generic local key/value lookup: without a unique metafield definition of type `id`, Shopify returned `data.customId: null` plus a top-level `NOT_FOUND` error saying that an id-type metafield definition is required. With a valid CUSTOMER `id` metafield definition, `customerByIdentifier(identifier: { customId })` resolves by namespace/key/value from the effective customer metafield state.
 - an empty identifier object failed variable validation before returning data: `CustomerIdentifierInput` requires exactly one argument
 
 Practical rule for the proxy:
 
 - resolve id/email/phone identifier reads against effective normalized customer state, so snapshot rows and staged `customerCreate` / `customerUpdate` rows are visible immediately
-- keep custom-id support limited to the captured Shopify-like error until customer metafield definitions and unique metafield values are modeled explicitly
+- resolve custom-id identifier reads only through valid CUSTOMER `id` metafield definitions with unique values enabled; otherwise return Shopify's captured top-level custom-id `NOT_FOUND` shape instead of inventing a key/value lookup
 - classify `customerByIdentifier` by root field, because apps can use arbitrary or misleading GraphQL operation names
 
 ## 47. Store properties roots are deceptively broad for a "properties" category
@@ -3249,7 +3249,9 @@ Captured facts:
 - no-identifier `customerSet` creates a customer when the input has a name, phone, or email
 - `identifier.email` upserts: a missing email identifier creates a customer, and a later call with the same identifier updates that customer
 - live Admin GraphQL 2026-04 evidence says unknown `identifier.id` validates before create/update routing: it returns payload `userErrors` with `field: ["input"]`, `code: "NOT_FOUND"`, and message `Resource matching the identifier was not found.`; it must not fall back to create even when email or phone inputs are also present
-- `identifier.customId` without an id-typed unique metafield definition returns `data.customerSet: null` plus a top-level `NOT_FOUND` error
+- `identifier.customId` is a unique customer metafield identity. A valid CUSTOMER `id` metafield definition auto-enables unique values when the capability is omitted; explicitly setting `capabilities.uniqueValues.enabled: false` on an `id` definition is rejected with `CAPABILITY_REQUIRED_BUT_DISABLED`. Without a valid id-typed unique definition, `customerSet` returns `data.customerSet: null` plus a top-level `NOT_FOUND` error.
+- a matching `identifier.customId` updates the customer that owns the matching metafield and preserves the identifier metafield; a no-match identifier creates a customer with that metafield. Downstream `customerByIdentifier(identifier: { customId })`, `customer(id:)`, `metafield`, and `metafields` reads observe the staged owner-metafield state.
+- Admin GraphQL 2026-04 does not expose `CustomerSetInput.metafields`; input-metafield mismatch/duplicate probes are top-level `INVALID_VARIABLE` errors before resolver execution. Malformed `identifier.customId` values, such as a missing `key`, are also variable-coercion errors before resolver execution.
 - `input.addresses` behaves as a replacement list for an existing customer; an empty list clears the default address and downstream `addressesV2`
 - `identifier.phone` follows the same upsert/update pattern as `identifier.email`; downstream `customerByIdentifier(identifier: { phoneNumber })` observes the staged customer locally
 - no-identifier creates reject duplicate native identifiers: duplicate email returns `field: ["input", "email"]` / `Email has already been taken`, and duplicate phone returns `field: ["input", "phone"]` / `Phone has already been taken`
