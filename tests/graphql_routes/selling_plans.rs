@@ -289,6 +289,117 @@ fn recurring_percentage_pricing_policy(percentage: f64, after_cycle: i64) -> Val
     })
 }
 
+fn live_selling_plan_group_node(
+    group_id: &str,
+    name: &str,
+    product_ids: &[&str],
+    product_variant_ids: &[&str],
+) -> Value {
+    json!({
+        "__typename": "SellingPlanGroup",
+        "id": group_id,
+        "appId": "gid://shopify/App/123",
+        "name": name,
+        "merchantCode": name.to_ascii_lowercase().replace(' ', "-"),
+        "description": format!("{name} description"),
+        "options": ["Delivery frequency"],
+        "position": 1,
+        "createdAt": "2024-04-01T00:00:00Z",
+        "updatedAt": "2024-04-01T00:00:00Z",
+        "products": {
+            "nodes": product_ids
+                .iter()
+                .map(|id| json!({ "__typename": "Product", "id": id, "title": format!("Product {}", id.rsplit('/').next().unwrap_or_default()) }))
+                .collect::<Vec<_>>()
+        },
+        "productVariants": {
+            "nodes": product_variant_ids
+                .iter()
+                .map(|id| json!({
+                    "__typename": "ProductVariant",
+                    "id": id,
+                    "title": format!("Variant {}", id.rsplit('/').next().unwrap_or_default()),
+                    "product": { "id": product_ids.first().copied().unwrap_or("gid://shopify/Product/1") }
+                }))
+                .collect::<Vec<_>>()
+        },
+        "sellingPlans": {
+            "nodes": [{
+                "__typename": "SellingPlan",
+                "id": format!("{group_id}/SellingPlan/1"),
+                "name": "Monthly",
+                "description": "Monthly plan",
+                "options": ["Monthly"],
+                "position": 1,
+                "category": "SUBSCRIPTION",
+                "createdAt": "2024-04-01T00:00:00Z",
+                "billingPolicy": {
+                    "__typename": "SellingPlanRecurringBillingPolicy",
+                    "interval": "MONTH",
+                    "intervalCount": 1,
+                    "minCycles": null,
+                    "maxCycles": null
+                },
+                "deliveryPolicy": {
+                    "__typename": "SellingPlanRecurringDeliveryPolicy",
+                    "interval": "MONTH",
+                    "intervalCount": 1,
+                    "cutoff": 0,
+                    "intent": "FULFILLMENT_BEGIN",
+                    "preAnchorBehavior": "ASAP"
+                },
+                "inventoryPolicy": { "reserve": "ON_FULFILLMENT" },
+                "pricingPolicies": []
+            }]
+        }
+    })
+}
+
+fn live_product_node(product_id: &str, variant_id: &str, title: &str) -> Value {
+    json!({
+        "__typename": "Product",
+        "id": product_id,
+        "title": title,
+        "handle": title.to_ascii_lowercase().replace(' ', "-"),
+        "status": "ACTIVE",
+        "createdAt": "2024-04-01T00:00:00Z",
+        "updatedAt": "2024-04-01T00:00:00Z",
+        "variants": {
+            "nodes": [{
+                "__typename": "ProductVariant",
+                "id": variant_id,
+                "title": "Default Title",
+                "sku": "",
+                "price": "10.00",
+                "compareAtPrice": null,
+                "selectedOptions": [{ "name": "Title", "value": "Default Title" }],
+                "inventoryItem": { "id": "gid://shopify/InventoryItem/7301" }
+            }]
+        }
+    })
+}
+
+fn live_variant_node(variant_id: &str, product_id: &str) -> Value {
+    json!({
+        "__typename": "ProductVariant",
+        "id": variant_id,
+        "title": "Default Title",
+        "sku": "",
+        "price": "10.00",
+        "compareAtPrice": null,
+        "selectedOptions": [{ "name": "Title", "value": "Default Title" }],
+        "inventoryItem": { "id": "gid://shopify/InventoryItem/7301" },
+        "product": {
+            "id": product_id,
+            "title": "Live product",
+            "handle": "live-product",
+            "status": "ACTIVE",
+            "createdAt": "2024-04-01T00:00:00Z",
+            "updatedAt": "2024-04-01T00:00:00Z"
+        }
+    })
+}
+
 #[test]
 fn selling_plan_group_create_reads_back_mixed_pricing_policies() {
     let upstream_called = Arc::new(Mutex::new(false));
@@ -556,6 +667,566 @@ fn selling_plan_group_create_validates_locally_without_upstream_passthrough() {
     });
     assert_eq!(log.body["entries"][0]["status"], json!("failed"));
     assert_eq!(log.body["entries"][0]["rawBody"], json!(raw_body));
+}
+
+#[test]
+fn live_hybrid_selling_plan_group_read_hydrates_upstream_groups() {
+    let group_id = "gid://shopify/SellingPlanGroup/7101";
+    let product_id = "gid://shopify/Product/7201";
+    let variant_id = "gid://shopify/ProductVariant/7301";
+    let group =
+        live_selling_plan_group_node(group_id, "Live subscriptions", &[product_id], &[variant_id]);
+    let detail_requests = Arc::new(Mutex::new(Vec::<String>::new()));
+    let captured_detail_requests = Arc::clone(&detail_requests);
+    let mut detail_proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let group = group.clone();
+        move |request| {
+            captured_detail_requests
+                .lock()
+                .unwrap()
+                .push(request.body.clone());
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "nodes": [group],
+                        "sellingPlanGroup": group
+                    }
+                }),
+            }
+        }
+    });
+
+    let read_one = detail_proxy.process_request(json_graphql_request(
+        r#"
+        query LiveSellingPlanGroup($id: ID!) {
+          sellingPlanGroup(id: $id) {
+            id
+            name
+            merchantCode
+            productsCount { count precision }
+            productVariantsCount { count precision }
+          }
+        }
+        "#,
+        json!({ "id": group_id }),
+    ));
+    assert_eq!(read_one.status, 200);
+    assert_eq!(
+        read_one.body["data"]["sellingPlanGroup"]["id"],
+        json!(group_id)
+    );
+    assert_eq!(
+        read_one.body["data"]["sellingPlanGroup"]["name"],
+        json!("Live subscriptions")
+    );
+    assert_eq!(
+        read_one.body["data"]["sellingPlanGroup"]["productsCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+
+    let connection_requests = Arc::new(Mutex::new(Vec::<String>::new()));
+    let captured_connection_requests = Arc::clone(&connection_requests);
+    let mut connection_proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_upstream_transport({
+            let group = group.clone();
+            move |request| {
+                captured_connection_requests
+                    .lock()
+                    .unwrap()
+                    .push(request.body.clone());
+                let body: Value = serde_json::from_str(&request.body).unwrap();
+                if body
+                    .get("query")
+                    .and_then(Value::as_str)
+                    .is_some_and(|query| query.contains("nodes(ids: $ids)"))
+                {
+                    return Response {
+                        status: 200,
+                        headers: Default::default(),
+                        body: json!({ "data": { "nodes": [group] } }),
+                    };
+                }
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "sellingPlanGroups": {
+                                "nodes": [group],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": "cursor-1",
+                                    "endCursor": "cursor-1"
+                                }
+                            }
+                        }
+                    }),
+                }
+            }
+        });
+    let read_many = connection_proxy.process_request(json_graphql_request(
+        r#"
+        query LiveSellingPlanGroups {
+          sellingPlanGroups(first: 5) {
+            nodes { id name merchantCode }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(read_many.status, 200);
+    assert_eq!(
+        read_many.body["data"]["sellingPlanGroups"]["nodes"],
+        json!([{ "id": group_id, "name": "Live subscriptions", "merchantCode": "live-subscriptions" }])
+    );
+
+    let merge_requests = Arc::new(Mutex::new(Vec::<String>::new()));
+    let captured_merge_requests = Arc::clone(&merge_requests);
+    let mut duplicate = live_selling_plan_group_node(
+        "gid://shopify/SellingPlanGroup/7102",
+        "Remote duplicate",
+        &[],
+        &[],
+    );
+    duplicate["merchantCode"] = json!("local-subscriptions");
+    let unrelated = live_selling_plan_group_node(
+        "gid://shopify/SellingPlanGroup/7103",
+        "Unrelated live",
+        &[],
+        &[],
+    );
+    let mut merge_proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let duplicate = duplicate.clone();
+        let unrelated = unrelated.clone();
+        move |request| {
+            captured_merge_requests
+                .lock()
+                .unwrap()
+                .push(request.body.clone());
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            if body
+                .get("query")
+                .and_then(Value::as_str)
+                .is_some_and(|query| query.contains("nodes(ids: $ids)"))
+            {
+                let ids = body
+                    .pointer("/variables/ids")
+                    .and_then(Value::as_array)
+                    .cloned()
+                    .unwrap_or_default();
+                let nodes = ids
+                    .into_iter()
+                    .map(|id| match id.as_str() {
+                        Some("gid://shopify/SellingPlanGroup/7102") => duplicate.clone(),
+                        Some("gid://shopify/SellingPlanGroup/7103") => unrelated.clone(),
+                        _ => Value::Null,
+                    })
+                    .collect::<Vec<_>>();
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": { "nodes": nodes } }),
+                };
+            }
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "sellingPlanGroups": {
+                            "nodes": [duplicate, unrelated],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": "cursor-1",
+                                "endCursor": "cursor-2"
+                            }
+                        }
+                    }
+                }),
+            }
+        }
+    });
+    let mut local_input = valid_selling_plan_group_input("Local subscriptions");
+    local_input["merchantCode"] = json!("local-subscriptions");
+    let local_create = merge_proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateLocalSellingPlanGroup($input: SellingPlanGroupInput!) {
+          sellingPlanGroupCreate(input: $input) {
+            sellingPlanGroup { id name merchantCode }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": local_input }),
+    ));
+    assert_eq!(local_create.status, 200);
+    assert_eq!(
+        local_create.body["data"]["sellingPlanGroupCreate"]["userErrors"],
+        json!([])
+    );
+    let merged_read = merge_proxy.process_request(json_graphql_request(
+        r#"
+        query MergedSellingPlanGroups {
+          sellingPlanGroups(first: 5, sortKey: ID) {
+            nodes { name merchantCode }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        merged_read.body["data"]["sellingPlanGroups"]["nodes"],
+        json!([
+            { "name": "Local subscriptions", "merchantCode": "local-subscriptions" },
+            { "name": "Unrelated live", "merchantCode": "unrelated-live" }
+        ])
+    );
+
+    let mut requests = detail_requests.lock().unwrap().clone();
+    requests.extend(connection_requests.lock().unwrap().clone());
+    requests.extend(merge_requests.lock().unwrap().clone());
+    assert!(
+        requests.iter().all(|body| !body.contains("mutation")),
+        "selling-plan live reads should only issue query requests: {requests:?}"
+    );
+    assert!(
+        detail_requests
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|body| body.contains("sellingPlanGroup"))
+            && connection_requests
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|body| body.contains("sellingPlanGroups")),
+        "both cold read forms should hydrate from upstream: {requests:?}"
+    );
+}
+
+#[test]
+fn live_hybrid_existing_selling_plan_mutations_preflight_and_stage_locally() {
+    let group_id = "gid://shopify/SellingPlanGroup/7101";
+    let product_id = "gid://shopify/Product/7201";
+    let variant_id = "gid://shopify/ProductVariant/7301";
+    let upstream_requests = Arc::new(Mutex::new(Vec::<String>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport({
+        let group = live_selling_plan_group_node(group_id, "Live subscriptions", &[], &[]);
+        let product = live_product_node(product_id, variant_id, "Live product");
+        let variant = live_variant_node(variant_id, product_id);
+        move |request| {
+            captured_requests.lock().unwrap().push(request.body.clone());
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            let ids = body
+                .pointer("/variables/ids")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default();
+            let nodes = ids
+                .into_iter()
+                .map(|id| match id.as_str() {
+                    Some(id) if id == group_id => group.clone(),
+                    Some(id) if id == product_id => product.clone(),
+                    Some(id) if id == variant_id => variant.clone(),
+                    _ => Value::Null,
+                })
+                .collect::<Vec<_>>();
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "nodes": nodes } }),
+            }
+        }
+    });
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateLiveSellingPlanGroup($id: ID!, $input: SellingPlanGroupInput!) {
+          sellingPlanGroupUpdate(id: $id, input: $input) {
+            sellingPlanGroup { id name merchantCode }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": group_id,
+            "input": { "name": "Locally updated subscriptions", "merchantCode": "local-code" }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["sellingPlanGroupUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["sellingPlanGroupUpdate"]["sellingPlanGroup"],
+        json!({ "id": group_id, "name": "Locally updated subscriptions", "merchantCode": "local-code" })
+    );
+
+    let join = proxy.process_request(json_graphql_request(
+        r#"
+        mutation JoinLiveProduct($id: ID!, $sellingPlanGroupIds: [ID!]!) {
+          productJoinSellingPlanGroups(id: $id, sellingPlanGroupIds: $sellingPlanGroupIds) {
+            product { id sellingPlanGroupsCount { count precision } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": product_id, "sellingPlanGroupIds": [group_id] }),
+    ));
+    assert_eq!(join.status, 200);
+    assert_eq!(
+        join.body["data"]["productJoinSellingPlanGroups"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        join.body["data"]["productJoinSellingPlanGroups"]["product"]["sellingPlanGroupsCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+
+    let leave = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LeaveLiveProduct($id: ID!, $sellingPlanGroupIds: [ID!]!) {
+          productLeaveSellingPlanGroups(id: $id, sellingPlanGroupIds: $sellingPlanGroupIds) {
+            product { id sellingPlanGroupsCount { count precision } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": product_id, "sellingPlanGroupIds": [group_id] }),
+    ));
+    assert_eq!(leave.status, 200);
+    assert_eq!(
+        leave.body["data"]["productLeaveSellingPlanGroups"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        leave.body["data"]["productLeaveSellingPlanGroups"]["product"]["sellingPlanGroupsCount"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+
+    let variant_join = proxy.process_request(json_graphql_request(
+        r#"
+        mutation JoinLiveVariant($id: ID!, $sellingPlanGroupIds: [ID!]!) {
+          productVariantJoinSellingPlanGroups(id: $id, sellingPlanGroupIds: $sellingPlanGroupIds) {
+            productVariant { id sellingPlanGroupsCount { count precision } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": variant_id, "sellingPlanGroupIds": [group_id] }),
+    ));
+    assert_eq!(variant_join.status, 200);
+    assert_eq!(
+        variant_join.body["data"]["productVariantJoinSellingPlanGroups"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        variant_join.body["data"]["productVariantJoinSellingPlanGroups"]["productVariant"]
+            ["sellingPlanGroupsCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+
+    let after_variant_join = proxy.process_request(json_graphql_request(
+        r#"
+        query DirectProductMembershipAfterVariantJoin($productId: ID!, $variantId: ID!) {
+          product(id: $productId) {
+            sellingPlanGroupsCount { count precision }
+            sellingPlanGroups(first: 5) { nodes { id } }
+          }
+          productVariant(id: $variantId) {
+            sellingPlanGroupsCount { count precision }
+            sellingPlanGroups(first: 5) { nodes { id } }
+          }
+        }
+        "#,
+        json!({ "productId": product_id, "variantId": variant_id }),
+    ));
+    assert_eq!(after_variant_join.status, 200);
+    assert_eq!(
+        after_variant_join.body["data"]["product"]["sellingPlanGroupsCount"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+    assert_eq!(
+        after_variant_join.body["data"]["product"]["sellingPlanGroups"]["nodes"],
+        json!([{ "id": group_id }])
+    );
+    assert_eq!(
+        after_variant_join.body["data"]["productVariant"]["sellingPlanGroupsCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        after_variant_join.body["data"]["productVariant"]["sellingPlanGroups"]["nodes"],
+        json!([{ "id": group_id }])
+    );
+
+    let variant_leave = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LeaveLiveVariant($id: ID!, $sellingPlanGroupIds: [ID!]!) {
+          productVariantLeaveSellingPlanGroups(id: $id, sellingPlanGroupIds: $sellingPlanGroupIds) {
+            productVariant { id sellingPlanGroupsCount { count precision } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": variant_id, "sellingPlanGroupIds": [group_id] }),
+    ));
+    assert_eq!(variant_leave.status, 200);
+    assert_eq!(
+        variant_leave.body["data"]["productVariantLeaveSellingPlanGroups"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        variant_leave.body["data"]["productVariantLeaveSellingPlanGroups"]["productVariant"]
+            ["sellingPlanGroupsCount"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteLiveSellingPlanGroup($id: ID!) {
+          sellingPlanGroupDelete(id: $id) {
+            deletedSellingPlanGroupId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": group_id }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["sellingPlanGroupDelete"]["deletedSellingPlanGroupId"],
+        json!(group_id)
+    );
+    assert_eq!(
+        delete.body["data"]["sellingPlanGroupDelete"]["userErrors"],
+        json!([])
+    );
+
+    let requests = upstream_requests.lock().unwrap();
+    assert!(
+        requests.iter().all(|body| !body.contains("mutation")),
+        "existing selling-plan mutations must not forward caller mutation documents: {requests:?}"
+    );
+
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"][0]["status"], json!("staged"));
+    assert_eq!(log["entries"][1]["status"], json!("staged"));
+    assert_eq!(log["entries"][2]["status"], json!("staged"));
+    assert_eq!(log["entries"][3]["status"], json!("staged"));
+    assert_eq!(log["entries"][4]["status"], json!("staged"));
+    assert_eq!(log["entries"][5]["status"], json!("staged"));
+    assert!(
+        log["entries"][0]["rawBody"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("UpdateLiveSellingPlanGroup"),
+        "commit replay should retain the caller mutation body"
+    );
+}
+
+#[test]
+fn live_hybrid_missing_selling_plan_targets_return_local_user_errors_after_preflight() {
+    let missing_group_id = "gid://shopify/SellingPlanGroup/7999";
+    let existing_group_id = "gid://shopify/SellingPlanGroup/7101";
+    let missing_product_id = "gid://shopify/Product/7999";
+    let upstream_requests = Arc::new(Mutex::new(Vec::<String>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport({
+        let group = live_selling_plan_group_node(existing_group_id, "Live subscriptions", &[], &[]);
+        move |request| {
+            captured_requests.lock().unwrap().push(request.body.clone());
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            let ids = body
+                .pointer("/variables/ids")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default();
+            let nodes = ids
+                .into_iter()
+                .map(|id| match id.as_str() {
+                    Some(id) if id == existing_group_id => group.clone(),
+                    _ => Value::Null,
+                })
+                .collect::<Vec<_>>();
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "nodes": nodes } }),
+            }
+        }
+    });
+
+    let missing_group = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateMissingLiveSellingPlanGroup($id: ID!, $input: SellingPlanGroupInput!) {
+          sellingPlanGroupUpdate(id: $id, input: $input) {
+            sellingPlanGroup { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": missing_group_id, "input": { "name": "Missing group" } }),
+    ));
+    assert_eq!(missing_group.status, 200);
+    assert_eq!(
+        missing_group.body["data"]["sellingPlanGroupUpdate"],
+        json!({
+            "sellingPlanGroup": null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Selling plan group does not exist.",
+                "code": "GROUP_DOES_NOT_EXIST"
+            }]
+        })
+    );
+
+    let missing_product = proxy.process_request(json_graphql_request(
+        r#"
+        mutation JoinMissingLiveProduct($id: ID!, $sellingPlanGroupIds: [ID!]!) {
+          productJoinSellingPlanGroups(id: $id, sellingPlanGroupIds: $sellingPlanGroupIds) {
+            product { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": missing_product_id, "sellingPlanGroupIds": [existing_group_id] }),
+    ));
+    assert_eq!(missing_product.status, 200);
+    assert_eq!(
+        missing_product.body["data"]["productJoinSellingPlanGroups"],
+        json!({
+            "product": null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Product does not exist.",
+                "code": "NOT_FOUND"
+            }]
+        })
+    );
+
+    let requests = upstream_requests.lock().unwrap();
+    assert!(
+        requests.iter().all(|body| !body.contains("mutation")),
+        "missing-target preflights must stay read-only: {requests:?}"
+    );
+
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"][0]["status"], json!("failed"));
+    assert_eq!(log["entries"][1]["status"], json!("failed"));
 }
 
 #[test]
@@ -2170,7 +2841,7 @@ fn named_downstream_membership_reads_are_store_backed() {
     );
     assert_eq!(
         downstream.body["data"]["product"]["sellingPlanGroupsCount"],
-        json!({"count": 1, "precision": "EXACT"})
+        json!({"count": 0, "precision": "EXACT"})
     );
     assert_eq!(
         downstream.body["data"]["productVariant"]["sellingPlanGroupsCount"],
