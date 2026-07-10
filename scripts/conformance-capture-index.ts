@@ -13496,17 +13496,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   {
     domain: 'customers',
     captureId: 'store-credit',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-store-credit-conformance.ts',
-    purpose: 'Store credit account creation setup, account-id credit/debit mutations, and downstream balance reads.',
+    purpose:
+      'Store credit account creation setup, cold existing customer/account hydration before local credit/debit, validation branches, and downstream balance reads.',
     requiredAuthScopes: ['read_customers', 'write_customers', 'store credit account access'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}store-credit-account-parity.json`,
       'config/parity-specs/customers/store-credit-account-local-staging.json',
       'config/parity-requests/customers/storeCreditAccount-readback-parity.graphql',
       'config/parity-requests/customers/storeCreditCustomerCreate-parity.graphql',
+      'config/parity-requests/customers/storeCreditCustomerHydrate-parity.graphql',
+      'config/parity-requests/customers/storeCreditAccountHydrate-parity.graphql',
     ],
     cleanupBehavior:
-      'Creates a disposable customer, credits/debits a real store credit account, debits the remaining balance back to zero, then deletes the customer.',
+      'Creates a disposable customer, credits/debits real store credit accounts, debits the remaining balances back to zero, then deletes the customer.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

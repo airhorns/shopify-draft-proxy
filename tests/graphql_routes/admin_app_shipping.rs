@@ -10454,6 +10454,385 @@ fn store_credit_credit_debit_stage_account_transactions_and_readbacks() {
 }
 
 #[test]
+fn store_credit_hydrates_existing_customer_accounts_before_local_credit_debit() {
+    let customer_id = "gid://shopify/Customer/987654321";
+    let usd_account_id = "gid://shopify/StoreCreditAccount/123456789";
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body");
+            captured_calls.lock().unwrap().push(body.clone());
+            assert_eq!(body["operationName"], json!("StoreCreditCustomerHydrate"));
+            assert_eq!(body["variables"]["id"], json!(customer_id));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "customer": hydrated_store_credit_customer(
+                            customer_id,
+                            &[hydrated_store_credit_account(
+                                usd_account_id,
+                                "5.00",
+                                "USD",
+                                customer_id,
+                            )],
+                        )
+                    }
+                }),
+            }
+        });
+
+    let credit = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StoreCreditExistingCustomerCredit($id: ID!) {
+          storeCreditAccountCredit(id: $id, creditInput: { creditAmount: { amount: "2.25", currencyCode: USD } }) {
+            storeCreditAccountTransaction {
+              amount { amount currencyCode }
+              balanceAfterTransaction { amount currencyCode }
+              account { id balance { amount currencyCode } owner { ... on Customer { id email displayName } } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": customer_id }),
+    ));
+    assert_eq!(credit.status, 200);
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+    assert_eq!(
+        credit.body["data"]["storeCreditAccountCredit"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        credit.body["data"]["storeCreditAccountCredit"]["storeCreditAccountTransaction"]["account"]
+            ["id"],
+        json!(usd_account_id)
+    );
+    assert_eq!(
+        credit.body["data"]["storeCreditAccountCredit"]["storeCreditAccountTransaction"]
+            ["balanceAfterTransaction"],
+        json!({ "amount": "7.25", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        credit.body["data"]["storeCreditAccountCredit"]["storeCreditAccountTransaction"]["account"]
+            ["owner"],
+        json!({
+            "id": customer_id,
+            "email": "existing-store-credit@example.test",
+            "displayName": "Existing Store Credit"
+        })
+    );
+
+    let eur_credit = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StoreCreditExistingCustomerSecondCurrency($id: ID!) {
+          storeCreditAccountCredit(id: $id, creditInput: { creditAmount: { amount: "1.25", currencyCode: EUR } }) {
+            storeCreditAccountTransaction {
+              account { id balance { amount currencyCode } owner { ... on Customer { id email } } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": customer_id }),
+    ));
+    assert_eq!(
+        eur_credit.body["data"]["storeCreditAccountCredit"]["userErrors"],
+        json!([])
+    );
+    let eur_account_id = eur_credit.body["data"]["storeCreditAccountCredit"]
+        ["storeCreditAccountTransaction"]["account"]["id"]
+        .as_str()
+        .expect("EUR account id")
+        .to_string();
+    assert_ne!(eur_account_id, usd_account_id);
+    assert!(eur_account_id.starts_with("gid://shopify/StoreCreditAccount/"));
+    assert_eq!(
+        eur_credit.body["data"]["storeCreditAccountCredit"]["storeCreditAccountTransaction"]
+            ["account"]["balance"],
+        json!({ "amount": "1.25", "currencyCode": "EUR" })
+    );
+
+    let debit = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StoreCreditExistingCustomerDebit($id: ID!) {
+          storeCreditAccountDebit(id: $id, debitInput: { debitAmount: { amount: "1.25", currencyCode: USD } }) {
+            storeCreditAccountTransaction {
+              amount { amount currencyCode }
+              balanceAfterTransaction { amount currencyCode }
+              account { id balance { amount currencyCode } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": usd_account_id }),
+    ));
+    assert_eq!(
+        debit.body["data"]["storeCreditAccountDebit"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        debit.body["data"]["storeCreditAccountDebit"]["storeCreditAccountTransaction"]
+            ["balanceAfterTransaction"],
+        json!({ "amount": "6.0", "currencyCode": "USD" })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query StoreCreditExistingCustomerRead($customerId: ID!, $accountId: ID!) {
+          customer(id: $customerId) {
+            id
+            usdAccounts: storeCreditAccounts(first: 5, query: "currency_code:USD") {
+              nodes { id balance { amount currencyCode } }
+            }
+            eurAccounts: storeCreditAccounts(first: 5, query: "currency_code:EUR") {
+              nodes { id balance { amount currencyCode } }
+            }
+          }
+          storeCreditAccount(id: $accountId) {
+            id
+            balance { amount currencyCode }
+            transactions(first: 5) {
+              nodes { amount { amount currencyCode } balanceAfterTransaction { amount currencyCode } }
+            }
+          }
+        }
+        "#,
+        json!({ "customerId": customer_id, "accountId": usd_account_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["customer"]["usdAccounts"]["nodes"][0],
+        json!({
+            "id": usd_account_id,
+            "balance": { "amount": "6.0", "currencyCode": "USD" }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["customer"]["eurAccounts"]["nodes"],
+        json!([{
+            "id": eur_account_id,
+            "balance": { "amount": "1.25", "currencyCode": "EUR" }
+        }])
+    );
+    assert_eq!(
+        read.body["data"]["storeCreditAccount"]["balance"],
+        json!({ "amount": "6.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        read.body["data"]["storeCreditAccount"]["transactions"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+
+    let calls = upstream_calls.lock().unwrap();
+    assert_eq!(calls.len(), 1);
+    assert!(calls[0]["query"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("query StoreCreditCustomerHydrate"));
+    assert!(!calls[0]["query"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("mutation"));
+    let log = log_snapshot(&proxy);
+    let entries = log["entries"].as_array().unwrap();
+    assert_eq!(entries.len(), 3);
+    assert_eq!(
+        entries[0]["interpreted"]["primaryRootField"],
+        json!("storeCreditAccountCredit")
+    );
+    assert_eq!(
+        entries[1]["interpreted"]["primaryRootField"],
+        json!("storeCreditAccountCredit")
+    );
+    assert_eq!(
+        entries[2]["interpreted"]["primaryRootField"],
+        json!("storeCreditAccountDebit")
+    );
+}
+
+#[test]
+fn store_credit_hydrates_existing_account_before_debit_and_errors_use_observed_balance() {
+    let customer_id = "gid://shopify/Customer/987654322";
+    let account_id = "gid://shopify/StoreCreditAccount/223456789";
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body");
+            captured_calls.lock().unwrap().push(body.clone());
+            assert_eq!(body["operationName"], json!("StoreCreditAccountHydrate"));
+            assert_eq!(body["variables"]["id"], json!(account_id));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "storeCreditAccount": hydrated_store_credit_account(
+                            account_id,
+                            "8.50",
+                            "USD",
+                            customer_id,
+                        )
+                    }
+                }),
+            }
+        });
+
+    let debit = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StoreCreditExistingAccountDebit($id: ID!) {
+          storeCreditAccountDebit(id: $id, debitInput: { debitAmount: { amount: "2.25", currencyCode: USD } }) {
+            storeCreditAccountTransaction {
+              amount { amount currencyCode }
+              balanceAfterTransaction { amount currencyCode }
+              account { id balance { amount currencyCode } owner { ... on Customer { id email } } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": account_id }),
+    ));
+    assert_eq!(debit.status, 200);
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+    assert_eq!(
+        debit.body["data"]["storeCreditAccountDebit"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        debit.body["data"]["storeCreditAccountDebit"]["storeCreditAccountTransaction"]
+            ["balanceAfterTransaction"],
+        json!({ "amount": "6.25", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        debit.body["data"]["storeCreditAccountDebit"]["storeCreditAccountTransaction"]["account"]
+            ["owner"]["id"],
+        json!(customer_id)
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query StoreCreditExistingAccountRead($customerId: ID!, $accountId: ID!) {
+          customer(id: $customerId) {
+            id
+            storeCreditAccounts(first: 5) { nodes { id balance { amount currencyCode } } }
+          }
+          storeCreditAccount(id: $accountId) {
+            id
+            balance { amount currencyCode }
+            transactions(first: 5) { nodes { amount { amount currencyCode } } }
+          }
+        }
+        "#,
+        json!({ "customerId": customer_id, "accountId": account_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["customer"]["storeCreditAccounts"]["nodes"],
+        json!([{
+            "id": account_id,
+            "balance": { "amount": "6.25", "currencyCode": "USD" }
+        }])
+    );
+    assert_eq!(
+        read.body["data"]["storeCreditAccount"]["transactions"]["nodes"],
+        json!([{ "amount": { "amount": "-2.25", "currencyCode": "USD" } }])
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+
+    let validation_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_validation_calls = Arc::clone(&validation_calls);
+    let mut validation_proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body");
+            captured_validation_calls.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "storeCreditAccount": hydrated_store_credit_account(
+                            account_id,
+                            "5.00",
+                            "USD",
+                            customer_id,
+                        )
+                    }
+                }),
+            }
+        });
+    assert_eq!(
+        store_credit_credit_error(
+            &mut validation_proxy,
+            account_id,
+            json!({ "amount": "1.00", "currencyCode": "CAD" }),
+            None,
+        ),
+        json!([{
+            "field": ["creditInput", "creditAmount", "currencyCode"],
+            "message": "The currency provided does not match the currency of the store credit account",
+            "code": "MISMATCHING_CURRENCY"
+        }])
+    );
+    assert_eq!(
+        store_credit_debit_error(
+            &mut validation_proxy,
+            account_id,
+            json!({ "amount": "6.00", "currencyCode": "USD" }),
+        ),
+        json!([{
+            "field": ["debitInput", "debitAmount", "amount"],
+            "message": "The store credit account does not have sufficient funds to satisfy the request",
+            "code": "INSUFFICIENT_FUNDS"
+        }])
+    );
+    assert_eq!(
+        store_credit_credit_error(
+            &mut validation_proxy,
+            account_id,
+            json!({ "amount": "-1.00", "currencyCode": "USD" }),
+            Some("2000-01-01T00:00:00Z"),
+        ),
+        json!([{
+            "field": ["creditInput", "expiresAt"],
+            "message": "The expiry date must be in the future",
+            "code": "EXPIRES_AT_IN_PAST"
+        }])
+    );
+    assert_eq!(validation_calls.lock().unwrap().len(), 1);
+
+    let missing_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_missing_calls = Arc::clone(&missing_calls);
+    let mut missing_proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body");
+            captured_missing_calls.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "storeCreditAccount": Value::Null } }),
+            }
+        });
+    let missing = store_credit_debit_response(
+        &mut missing_proxy,
+        "gid://shopify/StoreCreditAccount/999999999",
+        json!({ "amount": "0.00", "currencyCode": "USD" }),
+    );
+    assert_store_credit_missing_id_user_error(
+        &missing,
+        "storeCreditAccountDebit",
+        "Store credit account does not exist",
+        "ACCOUNT_NOT_FOUND",
+    );
+    assert_eq!(missing_calls.lock().unwrap().len(), 1);
+}
+
+#[test]
 fn customer_and_store_credit_overlay_read_preserves_aliases_and_projection() {
     let mut proxy = snapshot_proxy();
     let customer_id = create_store_credit_customer(&mut proxy);
@@ -11025,6 +11404,69 @@ fn store_credit_expiry_validation_uses_the_proxy_clock() {
             "code": "EXPIRES_AT_IN_PAST"
         }])
     );
+}
+
+fn hydrated_store_credit_customer(customer_id: &str, accounts: &[Value]) -> Value {
+    json!({
+        "id": customer_id,
+        "firstName": "Existing",
+        "lastName": "Store Credit",
+        "displayName": "Existing Store Credit",
+        "email": "existing-store-credit@example.test",
+        "phone": Value::Null,
+        "locale": "en",
+        "note": Value::Null,
+        "canDelete": true,
+        "verifiedEmail": true,
+        "dataSaleOptOut": false,
+        "taxExempt": false,
+        "taxExemptions": [],
+        "state": "DISABLED",
+        "tags": ["store-credit-hydrate"],
+        "createdAt": "2026-06-01T00:00:00Z",
+        "updatedAt": "2026-06-01T00:00:00Z",
+        "defaultEmailAddress": { "emailAddress": "existing-store-credit@example.test" },
+        "defaultPhoneNumber": Value::Null,
+        "defaultAddress": Value::Null,
+        "addressesV2": { "nodes": [] },
+        "storeCreditAccounts": { "nodes": accounts }
+    })
+}
+
+fn hydrated_store_credit_account(
+    account_id: &str,
+    balance: &str,
+    currency: &str,
+    owner_id: &str,
+) -> Value {
+    json!({
+        "id": account_id,
+        "balance": { "amount": balance, "currencyCode": currency },
+        "owner": {
+            "id": owner_id,
+            "firstName": "Existing",
+            "lastName": "Store Credit",
+            "displayName": "Existing Store Credit",
+            "email": "existing-store-credit@example.test",
+            "phone": Value::Null,
+            "locale": "en",
+            "note": Value::Null,
+            "canDelete": true,
+            "verifiedEmail": true,
+            "dataSaleOptOut": false,
+            "taxExempt": false,
+            "taxExemptions": [],
+            "state": "DISABLED",
+            "tags": ["store-credit-hydrate"],
+            "createdAt": "2026-06-01T00:00:00Z",
+            "updatedAt": "2026-06-01T00:00:00Z",
+            "defaultEmailAddress": { "emailAddress": "existing-store-credit@example.test" },
+            "defaultPhoneNumber": Value::Null,
+            "defaultAddress": Value::Null,
+            "addressesV2": { "nodes": [] }
+        },
+        "transactions": { "nodes": [] }
+    })
 }
 
 fn create_store_credit_customer(proxy: &mut DraftProxy) -> String {

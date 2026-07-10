@@ -1,7 +1,7 @@
 /* oxlint-disable no-console -- CLI scripts intentionally write status and error output to stdio. */
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './conformance-graphql-client.js';
@@ -15,6 +15,16 @@ type RecordedGraphqlRequest = {
   };
   status: number;
   response: unknown;
+};
+
+type RecordedUpstreamCall = {
+  operationName: string;
+  variables: Record<string, unknown>;
+  query: string;
+  response: {
+    status: number;
+    body: unknown;
+  };
 };
 
 const CUSTOMER_ACCOUNT_SLICE = `
@@ -195,6 +205,23 @@ function record(
   };
 }
 
+function recordUpstreamCall(
+  operationName: string,
+  query: string,
+  variables: Record<string, unknown>,
+  result: ConformanceGraphqlResult,
+): RecordedUpstreamCall {
+  return {
+    operationName,
+    variables,
+    query,
+    response: {
+      status: result.status,
+      body: result.payload,
+    },
+  };
+}
+
 function readStringAtPath(value: unknown, pathSegments: string[]): string | null {
   let current = value;
   for (const segment of pathSegments) {
@@ -217,10 +244,20 @@ const { runGraphqlRequest } = createAdminGraphqlClient({
 
 await mkdir(outputDir, { recursive: true });
 
+const storeCreditCustomerHydrateQuery = await readFile(
+  path.join('config', 'parity-requests', 'customers', 'storeCreditCustomerHydrate-parity.graphql'),
+  'utf8',
+);
+const storeCreditAccountHydrateQuery = await readFile(
+  path.join('config', 'parity-requests', 'customers', 'storeCreditAccountHydrate-parity.graphql'),
+  'utf8',
+);
+
 const stamp = Date.now();
 const email = `hermes-store-credit-${stamp}@example.com`;
 const createdCustomerIds = new Set<string>();
 const cleanupRecords: Record<string, RecordedGraphqlRequest> = {};
+const upstreamCalls: RecordedUpstreamCall[] = [];
 let fixtureCore: Record<string, unknown> | null = null;
 
 const createCustomerVariables = {
@@ -593,14 +630,153 @@ try {
   cleanupDebitAmount =
     readStringAtPath(readback.payload, ['data', 'storeCreditAccount', 'balance', 'amount']) ?? cleanupDebitAmount;
 
+  const coldCustomerHydrateVariables = { id: customerId };
+  const coldCustomerHydrate = await runGraphqlRequest(storeCreditCustomerHydrateQuery, coldCustomerHydrateVariables);
+  assertNoGraphqlFailure(coldCustomerHydrate, 'storeCreditAccountCredit existing customer hydrate preflight');
+  upstreamCalls.push(
+    recordUpstreamCall(
+      'StoreCreditCustomerHydrate',
+      storeCreditCustomerHydrateQuery,
+      coldCustomerHydrateVariables,
+      coldCustomerHydrate,
+    ),
+  );
+
+  const coldCustomerCreditVariables = {
+    id: customerId,
+    creditInput: {
+      creditAmount: {
+        amount: '1.25',
+        currencyCode: 'USD',
+      },
+    },
+  };
+  const coldCustomerCredit = await runGraphqlRequest(STORE_CREDIT_ACCOUNT_CREDIT_MUTATION, coldCustomerCreditVariables);
+  assertNoUserErrors(
+    coldCustomerCredit,
+    'storeCreditAccountCredit',
+    'storeCreditAccountCredit existing customer mutation-first credit',
+  );
+
+  const coldCustomerReadbackVariables = { customerId, accountId };
+  const coldCustomerReadback = await runGraphqlRequest(
+    STORE_CREDIT_ACCOUNT_READBACK_QUERY,
+    coldCustomerReadbackVariables,
+  );
+  assertNoGraphqlFailure(coldCustomerReadback, 'storeCreditAccount existing customer downstream readback');
+  cleanupDebitAmount =
+    readStringAtPath(coldCustomerReadback.payload, ['data', 'storeCreditAccount', 'balance', 'amount']) ??
+    cleanupDebitAmount;
+
+  const coldAccountHydrateVariables = { id: accountId };
+  const coldAccountHydrate = await runGraphqlRequest(storeCreditAccountHydrateQuery, coldAccountHydrateVariables);
+  assertNoGraphqlFailure(coldAccountHydrate, 'storeCreditAccountDebit existing account hydrate preflight');
+  upstreamCalls.push(
+    recordUpstreamCall(
+      'StoreCreditAccountHydrate',
+      storeCreditAccountHydrateQuery,
+      coldAccountHydrateVariables,
+      coldAccountHydrate,
+    ),
+  );
+
+  const coldAccountCurrencyMismatchVariables = {
+    id: accountId,
+    creditInput: {
+      creditAmount: {
+        amount: '2.00',
+        currencyCode: 'CAD',
+      },
+    },
+  };
+  const coldAccountCurrencyMismatch = await runGraphqlRequest(
+    STORE_CREDIT_ACCOUNT_CREDIT_MUTATION,
+    coldAccountCurrencyMismatchVariables,
+  );
+  assertNoGraphqlFailure(coldAccountCurrencyMismatch, 'storeCreditAccountCredit existing account currency mismatch');
+
+  const coldAccountInsufficientDebitVariables = {
+    id: accountId,
+    debitInput: {
+      debitAmount: {
+        amount: '9999.00',
+        currencyCode: 'USD',
+      },
+    },
+  };
+  const coldAccountInsufficientDebit = await runGraphqlRequest(
+    STORE_CREDIT_ACCOUNT_DEBIT_MUTATION,
+    coldAccountInsufficientDebitVariables,
+  );
+  assertNoGraphqlFailure(coldAccountInsufficientDebit, 'storeCreditAccountDebit existing account insufficient balance');
+
+  const coldAccountDebitVariables = {
+    id: accountId,
+    debitInput: {
+      debitAmount: {
+        amount: '1.00',
+        currencyCode: 'USD',
+      },
+    },
+  };
+  const coldAccountDebit = await runGraphqlRequest(STORE_CREDIT_ACCOUNT_DEBIT_MUTATION, coldAccountDebitVariables);
+  assertNoUserErrors(
+    coldAccountDebit,
+    'storeCreditAccountDebit',
+    'storeCreditAccountDebit existing account mutation-first debit',
+  );
+  cleanupDebitAmount =
+    readStringAtPath(coldAccountDebit.payload, [
+      'data',
+      'storeCreditAccountDebit',
+      'storeCreditAccountTransaction',
+      'balanceAfterTransaction',
+      'amount',
+    ]) ?? cleanupDebitAmount;
+
+  const coldMissingAccountHydrateVariables = { id: NEVER_CREATED_STORE_CREDIT_ACCOUNT_ID };
+  const coldMissingAccountHydrate = await runGraphqlRequest(
+    storeCreditAccountHydrateQuery,
+    coldMissingAccountHydrateVariables,
+  );
+  assertNoGraphqlFailure(coldMissingAccountHydrate, 'storeCreditAccount missing account hydrate preflight');
+  upstreamCalls.push(
+    recordUpstreamCall(
+      'StoreCreditAccountHydrate',
+      storeCreditAccountHydrateQuery,
+      coldMissingAccountHydrateVariables,
+      coldMissingAccountHydrate,
+    ),
+  );
+
+  const coldMissingAccountZeroDebitVariables = {
+    id: NEVER_CREATED_STORE_CREDIT_ACCOUNT_ID,
+    debitInput: {
+      debitAmount: {
+        amount: '0.00',
+        currencyCode: 'USD',
+      },
+    },
+  };
+  const coldMissingAccountZeroDebit = await runGraphqlRequest(
+    STORE_CREDIT_ACCOUNT_DEBIT_MUTATION,
+    coldMissingAccountZeroDebitVariables,
+  );
+  assertNoGraphqlFailure(
+    coldMissingAccountZeroDebit,
+    'storeCreditAccountDebit cold missing account plus zero amount validation',
+  );
+
   fixtureCore = {
     capturedAt: new Date().toISOString(),
     storeDomain,
     apiVersion,
     notes: [
       'Store-credit success-path capture creates a disposable customer, uses storeCreditAccountCredit with the customer id to create the store credit account, then replays account-id credit/debit mutations and downstream reads.',
+      'The cold-existing-resource section records real preflight reads for an existing Customer owner, an existing StoreCreditAccount, and a missing StoreCreditAccount before mutation-first local replay.',
       'Cleanup debits the remaining captured balance back to zero and deletes the disposable customer. Store credit account identifiers may remain visible in Shopify audit/history even after balance neutralization.',
     ],
+    upstreamCalls,
     setup: {
       createCustomer: record(CREATE_CUSTOMER_MUTATION, createCustomerVariables, createCustomer),
       createAccountCredit: record(STORE_CREDIT_ACCOUNT_CREDIT_MUTATION, setupCreditVariables, setupCredit),
@@ -666,6 +842,37 @@ try {
     mutation: record(STORE_CREDIT_ACCOUNT_CREDIT_MUTATION, creditVariables, credit),
     debit: record(STORE_CREDIT_ACCOUNT_DEBIT_MUTATION, debitVariables, debit),
     downstreamRead: record(STORE_CREDIT_ACCOUNT_READBACK_QUERY, readbackVariables, readback),
+    coldExisting: {
+      customerHydrate: record(storeCreditCustomerHydrateQuery, coldCustomerHydrateVariables, coldCustomerHydrate),
+      customerCredit: record(STORE_CREDIT_ACCOUNT_CREDIT_MUTATION, coldCustomerCreditVariables, coldCustomerCredit),
+      customerReadback: record(
+        STORE_CREDIT_ACCOUNT_READBACK_QUERY,
+        coldCustomerReadbackVariables,
+        coldCustomerReadback,
+      ),
+      accountHydrate: record(storeCreditAccountHydrateQuery, coldAccountHydrateVariables, coldAccountHydrate),
+      accountCurrencyMismatch: record(
+        STORE_CREDIT_ACCOUNT_CREDIT_MUTATION,
+        coldAccountCurrencyMismatchVariables,
+        coldAccountCurrencyMismatch,
+      ),
+      accountInsufficientDebit: record(
+        STORE_CREDIT_ACCOUNT_DEBIT_MUTATION,
+        coldAccountInsufficientDebitVariables,
+        coldAccountInsufficientDebit,
+      ),
+      accountDebit: record(STORE_CREDIT_ACCOUNT_DEBIT_MUTATION, coldAccountDebitVariables, coldAccountDebit),
+      missingAccountHydrate: record(
+        storeCreditAccountHydrateQuery,
+        coldMissingAccountHydrateVariables,
+        coldMissingAccountHydrate,
+      ),
+      missingAccountZeroDebit: record(
+        STORE_CREDIT_ACCOUNT_DEBIT_MUTATION,
+        coldMissingAccountZeroDebitVariables,
+        coldMissingAccountZeroDebit,
+      ),
+    },
   };
 
   if (secondaryAccountId) {
