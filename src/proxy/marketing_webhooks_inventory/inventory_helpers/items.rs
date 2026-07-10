@@ -1029,7 +1029,7 @@ impl DraftProxy {
     pub(in crate::proxy) fn next_inventory_quantity_timestamp(&mut self) -> String {
         let sequence = self.store.staged.next_inventory_quantity_timestamp;
         self.store.staged.next_inventory_quantity_timestamp += 1;
-        format!("2024-01-01T00:00:{sequence:02}.000Z")
+        inventory_sequence_timestamp(sequence)
     }
 
     pub(super) fn stamp_inventory_quantity(
