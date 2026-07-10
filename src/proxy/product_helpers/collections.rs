@@ -391,6 +391,46 @@ impl DraftProxy {
         })
     }
 
+    pub(in crate::proxy) fn collection_identifier_read_needs_upstream(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> bool {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return false;
+        }
+        fields.iter().any(|field| match field.name.as_str() {
+            "collectionByIdentifier" => {
+                let Some(identifier) = resolved_object_field(&field.arguments, "identifier") else {
+                    return false;
+                };
+                if let Some(id) = resolved_string_field(&identifier, "id")
+                    .map(|id| id.trim().to_string())
+                    .filter(|id| !id.is_empty())
+                {
+                    return self.store.collection_by_id(&id).is_none()
+                        && !self.store.collection_is_deleted(&id);
+                }
+                if let Some(handle) = resolved_string_field(&identifier, "handle")
+                    .map(|handle| handle.trim().to_string())
+                    .filter(|handle| !handle.is_empty())
+                {
+                    return self.store.collection_by_handle(&handle).is_none()
+                        && !self.store.has_collection_state();
+                }
+                false
+            }
+            "collectionByHandle" => resolved_string_field(&field.arguments, "handle")
+                .map(|handle| handle.trim().to_string())
+                .filter(|handle| !handle.is_empty())
+                .map(|handle| {
+                    self.store.collection_by_handle(&handle).is_none()
+                        && !self.store.has_collection_state()
+                })
+                .unwrap_or(false),
+            _ => false,
+        })
+    }
+
     pub(in crate::proxy) fn collection_membership_downstream_read_data(
         &self,
         fields: &[RootFieldSelection],
@@ -398,6 +438,8 @@ impl DraftProxy {
         root_payload_json(fields, |field| {
             Some(match field.name.as_str() {
                 "collection" => self.collection_membership_value(field),
+                "collectionByIdentifier" => self.collection_by_identifier_value(field),
+                "collectionByHandle" => self.collection_by_handle_value(field),
                 "collections" => self.collections_connection_field(field),
                 "collectionsCount" => self.collections_count_field(field),
                 "product" => self.product_by_id_field(field),
@@ -414,7 +456,7 @@ impl DraftProxy {
         }
     }
 
-    fn observe_collections_read_response(&mut self, response: &Response) {
+    pub(in crate::proxy) fn observe_collections_read_response(&mut self, response: &Response) {
         self.observe_collection_value(&response.body["data"]);
     }
 
@@ -1321,6 +1363,53 @@ impl DraftProxy {
             .map(|collection| {
                 self.collection_json_with_publication_fields(collection, &field.selection)
             })
+            .unwrap_or(Value::Null)
+    }
+
+    pub(in crate::proxy) fn collection_by_identifier_value(
+        &self,
+        field: &RootFieldSelection,
+    ) -> Value {
+        let Some(identifier) = resolved_object_field(&field.arguments, "identifier") else {
+            return Value::Null;
+        };
+        if let Some(id) = resolved_string_field(&identifier, "id") {
+            return self.collection_by_id_value(&id, &field.selection);
+        }
+        if let Some(handle) = resolved_string_field(&identifier, "handle") {
+            return self.collection_by_handle_selection_value(&handle, &field.selection);
+        }
+        Value::Null
+    }
+
+    pub(in crate::proxy) fn collection_by_handle_value(&self, field: &RootFieldSelection) -> Value {
+        resolved_string_field(&field.arguments, "handle")
+            .map(|handle| self.collection_by_handle_selection_value(&handle, &field.selection))
+            .unwrap_or(Value::Null)
+    }
+
+    fn collection_by_id_value(&self, id: &str, selection: &[SelectedField]) -> Value {
+        if id.trim().is_empty() || self.store.collection_is_deleted(id) {
+            return Value::Null;
+        }
+        self.store
+            .collection_by_id(id)
+            .map(|collection| self.collection_json_with_publication_fields(collection, selection))
+            .unwrap_or(Value::Null)
+    }
+
+    fn collection_by_handle_selection_value(
+        &self,
+        handle: &str,
+        selection: &[SelectedField],
+    ) -> Value {
+        let handle = handle.trim();
+        if handle.is_empty() {
+            return Value::Null;
+        }
+        self.store
+            .collection_by_handle(handle)
+            .map(|collection| self.collection_json_with_publication_fields(collection, selection))
             .unwrap_or(Value::Null)
     }
 

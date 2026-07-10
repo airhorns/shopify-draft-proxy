@@ -138,6 +138,8 @@ impl DraftProxy {
             // Mixed reads pairing `product` with sibling `collection(id:)` lookups
             // (e.g. collectionsToJoin downstream parity) resolve membership locally.
             "collection" => Some(self.collection_membership_value(field)),
+            "collectionByIdentifier" => Some(self.collection_by_identifier_value(field)),
+            "collectionByHandle" => Some(self.collection_by_handle_value(field)),
             _ => None,
         })
     }
