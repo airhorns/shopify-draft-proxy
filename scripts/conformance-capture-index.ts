@@ -9155,6 +9155,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-query-grammar',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-query-grammar-conformance.ts',
+    purpose: 'DiscountNodes query grammar tokenization across title and method filters plus matching count semantics.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-query-grammar.json`,
+      'config/parity-specs/discounts/discount-query-grammar.json',
+      'config/parity-requests/discounts/discount-query-grammar-create.graphql',
+      'config/parity-requests/discounts/discount-query-grammar-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable scheduled code discount and one disposable scheduled automatic discount sharing a title token; deletes both after capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-add-remove-overlap',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-add-remove-overlap-conformance.ts',

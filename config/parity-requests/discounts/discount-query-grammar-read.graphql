@@ -1,0 +1,21 @@
+query DiscountQueryGrammarRead($query: String!, $first: Int!) {
+  discountNodes(first: $first, query: $query, sortKey: TITLE) {
+    nodes {
+      discount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+          status
+        }
+        ... on DiscountAutomaticBasic {
+          title
+          status
+        }
+      }
+    }
+  }
+  discountNodesCount(query: $query) {
+    count
+    precision
+  }
+}

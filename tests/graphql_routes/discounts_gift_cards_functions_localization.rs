@@ -351,7 +351,7 @@ fn stage_market(proxy: &mut DraftProxy, name: &str, country_code: &str) -> Strin
         r#"mutation StageMarketForLocalization($input: MarketCreateInput!) {
           marketCreate(input: $input) {
             market { id }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }"#,
         json!({ "input": { "name": name, "regions": [{ "countryCode": country_code }] } }),
@@ -372,7 +372,7 @@ fn stage_web_presence(proxy: &mut DraftProxy, subfolder_suffix: &str) -> String 
         r#"mutation StageWebPresenceForLocalization($input: WebPresenceCreateInput!) {
           webPresenceCreate(input: $input) {
             webPresence { id }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }"#,
         json!({ "input": { "defaultLocale": "en", "subfolderSuffix": subfolder_suffix } }),
@@ -13405,6 +13405,226 @@ fn discount_class_inference_stages_all_discount_classes_and_product_count() {
     assert_eq!(
         read.body["data"]["discountNodesCount"],
         json!({ "count": 3, "precision": "EXACT" })
+    );
+}
+
+#[test]
+fn discount_nodes_query_filters_tokenize_fields_and_fail_closed() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation DiscountCatalogSearchCreate(
+          $basic: DiscountCodeBasicInput!
+          $shipping: DiscountCodeFreeShippingInput!
+          $automatic: DiscountAutomaticBasicInput!
+        ) {
+          basic: discountCodeBasicCreate(basicCodeDiscount: $basic) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+          shipping: discountCodeFreeShippingCreate(freeShippingCodeDiscount: $shipping) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+          automatic: discountAutomaticBasicCreate(automaticBasicDiscount: $automatic) {
+            automaticDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+    "#;
+    let created = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "basic": {
+                "title": "Catalog Alpha Basic",
+                "code": "CATALOGALPHA1945",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "combinesWith": { "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false },
+                "context": { "all": "ALL" },
+                "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+            },
+            "shipping": {
+                "title": "Catalog Alpha Shipping",
+                "code": "CATALOGSHIP1945",
+                "startsAt": "2026-04-26T00:00:00Z",
+                "destination": { "all": true }
+            },
+            "automatic": {
+                "title": "Catalog Beta Automatic",
+                "startsAt": "2026-04-27T00:00:00Z",
+                "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+            }
+        }),
+    ));
+    assert_eq!(created.body["data"]["basic"]["userErrors"], json!([]));
+    assert_eq!(created.body["data"]["shipping"]["userErrors"], json!([]));
+    assert_eq!(created.body["data"]["automatic"]["userErrors"], json!([]));
+    let basic_id = json_string(
+        &created.body["data"]["basic"]["codeDiscountNode"]["id"],
+        "catalog basic id",
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query DiscountCatalogSearchRead($idQuery: String!) {
+          all: discountNodesCount { count precision }
+          methodCode: discountNodesCount(query: "method:code") { count precision }
+          methodAutomatic: discountNodesCount(query: "method:automatic") { count precision }
+          titleAlpha: discountNodesCount(query: "title:Alpha") { count precision }
+          bareAlpha: discountNodesCount(query: "Alpha") { count precision }
+          codeAlpha: discountNodesCount(query: "code:CATALOGALPHA1945") { count precision }
+          typeFreeShipping: discountNodesCount(query: "type:free_shipping") { count precision }
+          discountTypeFreeShipping: discountNodesCount(query: "discount_type:free_shipping") { count precision }
+          classShipping: discountNodesCount(query: "discount_class:shipping") { count precision }
+          combinesOrder: discountNodesCount(query: "combines_with:order_discounts") { count precision }
+          timesUsedZero: discountNodesCount(query: "times_used:0") { count precision }
+          timesUsedAboveZero: discountNodesCount(query: "times_used:>0") { count precision }
+          startsBeforeCutoff: discountNodesCount(query: "starts_at:<2026-04-26T12:00:00Z") { count precision }
+          startsAfterCutoff: discountNodesCount(query: "starts_at:>2026-04-26T12:00:00Z") { count precision }
+          idMatch: discountNodesCount(query: $idQuery) { count precision }
+          unsupported: discountNodesCount(query: "unknown_field:anything") { count precision }
+          badStatus: discountNodesCount(query: "status:inactive") { count precision }
+          filteredNodes: discountNodes(first: 10, query: "title:Alpha method:code") { nodes { id } }
+          filteredCount: discountNodesCount(query: "title:Alpha method:code") { count precision }
+        }
+        "#,
+        json!({ "idQuery": format!("id:{basic_id}") }),
+    ));
+    assert_eq!(
+        read.body["data"]["all"],
+        json!({ "count": 3, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["methodCode"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["methodAutomatic"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["titleAlpha"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["bareAlpha"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["codeAlpha"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["typeFreeShipping"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["discountTypeFreeShipping"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["classShipping"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["combinesOrder"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["timesUsedZero"],
+        json!({ "count": 3, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["timesUsedAboveZero"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["startsBeforeCutoff"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["startsAfterCutoff"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["idMatch"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["unsupported"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["badStatus"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["filteredNodes"]["nodes"]
+            .as_array()
+            .map(Vec::len),
+        Some(2)
+    );
+    assert_eq!(
+        read.body["data"]["filteredCount"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+}
+
+#[test]
+fn discount_nodes_query_applies_saved_search_id_to_nodes_and_count() {
+    let mut proxy = snapshot_proxy();
+    create_basic_code_discount(&mut proxy, "Saved Search Alpha", "SAVEDALPHA1945");
+    create_basic_code_discount(&mut proxy, "Saved Search Beta", "SAVEDBETA1945");
+
+    let saved_search = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountCatalogSavedSearchCreate($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) {
+            savedSearch { id query resourceType }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Discount catalog alpha",
+                "query": "title:Alpha method:code",
+                "resourceType": "PRICE_RULE"
+            }
+        }),
+    ));
+    assert_eq!(
+        saved_search.body["data"]["savedSearchCreate"]["userErrors"],
+        json!([])
+    );
+    let saved_search_id = json_string(
+        &saved_search.body["data"]["savedSearchCreate"]["savedSearch"]["id"],
+        "discount saved search id",
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query DiscountCatalogSavedSearchRead($savedSearchId: ID!, $unknownSavedSearchId: ID!) {
+          nodes: discountNodes(first: 10, savedSearchId: $savedSearchId) { nodes { id } }
+          count: discountNodesCount(savedSearchId: $savedSearchId) { count precision }
+          unknown: discountNodesCount(savedSearchId: $unknownSavedSearchId) { count precision }
+        }
+        "#,
+        json!({
+            "savedSearchId": saved_search_id,
+            "unknownSavedSearchId": "gid://shopify/SavedSearch/0"
+        }),
+    ));
+    assert_eq!(
+        read.body["data"]["nodes"]["nodes"].as_array().map(Vec::len),
+        Some(1)
+    );
+    assert_eq!(
+        read.body["data"]["count"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["unknown"],
+        json!({ "count": 0, "precision": "EXACT" })
     );
 }
 
