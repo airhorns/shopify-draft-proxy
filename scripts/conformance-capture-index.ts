@@ -5532,6 +5532,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'price-list-update-currency-clears-fixed-prices',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-price-list-update-currency-clears-fixed-prices-conformance.mts',
+    purpose:
+      'priceListUpdate same-currency, rejected parent-adjustment, and changed-currency behavior for disposable price lists with multiple fixed prices and a catalog relation.',
+    requiredAuthScopes: ['read_markets', 'write_markets', 'read_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}price-list-update-currency-clears-fixed-prices.json`,
+      'config/parity-specs/markets/price-list-update-currency-clears-fixed-prices.json',
+      'config/parity-requests/markets/price-list-update-currency-fixed-prices-hydrate.graphql',
+      'config/parity-requests/markets/price-list-update-currency-fixed-prices.graphql',
+      'config/parity-requests/markets/price-list-update-currency-fixed-prices-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates a disposable price list and market catalog relation, adds two fixed prices, records same-currency/rejected/changed-currency updates and readbacks, then deletes the catalog and price list.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'catalog-relation-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-catalog-relation-validation-conformance.mts',

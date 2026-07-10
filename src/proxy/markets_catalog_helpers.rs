@@ -1136,6 +1136,13 @@ pub(in crate::proxy) fn delete_fixed_price_nodes(price_list: &mut Value, variant
     rebuild_price_list_prices(price_list, retained);
 }
 
+pub(in crate::proxy) fn clear_fixed_price_nodes(price_list: &mut Value) {
+    if let Some(object) = price_list.as_object_mut() {
+        object.insert("fixedPriceRows".to_string(), json!([]));
+    }
+    rebuild_price_list_prices(price_list, Vec::new());
+}
+
 // ----------------------------------------------------------------------------
 // Fixed-price validation (variant-level).
 // ----------------------------------------------------------------------------

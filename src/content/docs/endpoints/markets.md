@@ -163,6 +163,11 @@ validation. When `priceListCreate` has both a catalog relation error and
 another invalid field such as a duplicate name or invalid parent adjustment, the
 catalog error is returned first. `priceListUpdate` returns `priceList: null` for
 those catalog validation failures while leaving the staged price list unchanged.
+Accepted `priceListUpdate` currency changes clear staged fixed-price rows,
+`fixedPricesCount`, and downstream `PriceList.prices(originType: FIXED)` while
+preserving the parent adjustment and catalog relation. Same-currency updates
+preserve fixed prices, and rejected updates leave both currency and fixed
+prices unchanged.
 `quantityPricingByVariantUpdate`, `quantityRulesAdd`, and `quantityRulesDelete`
 validate price-list IDs against staged or hydrated price-list records instead of
 accepting arbitrary IDs. Quantity-pricing add-side currency validation compares
