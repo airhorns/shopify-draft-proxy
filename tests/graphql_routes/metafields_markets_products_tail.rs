@@ -133,8 +133,17 @@ const FIXED_PRICE_VALIDATION_MISSING_VARIANT_ID: &str =
     "gid://shopify/ProductVariant/9999991817001";
 
 fn fixed_price_validation_proxy() -> DraftProxy {
-    configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|request| {
+    fixed_price_validation_proxy_with_capture(None)
+}
+
+fn fixed_price_validation_proxy_with_capture(
+    captured_bodies: Option<Arc<Mutex<Vec<Value>>>>,
+) -> DraftProxy {
+    configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
         let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+        if let Some(captured_bodies) = &captured_bodies {
+            captured_bodies.lock().unwrap().push(body.clone());
+        }
         assert_eq!(
             body["operationName"],
             json!("MarketsMutationPreflightHydrate")
@@ -516,6 +525,91 @@ fn price_list_prices_read_filters_and_windows_staged_fixed_prices() {
             }
         })
     );
+}
+
+#[test]
+fn price_list_fixed_price_preflight_is_keyed_and_reused_for_known_variants() {
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = fixed_price_validation_proxy_with_capture(Some(Arc::clone(&upstream_bodies)));
+
+    let add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FixedPricesAddKeyedPreflight($priceListId: ID!, $prices: [PriceListPriceInput!]!) {
+          priceListFixedPricesAdd(priceListId: $priceListId, prices: $prices) {
+            prices { variant { id } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": FIXED_PRICE_VALIDATION_PRICE_LIST_ID,
+            "prices": [
+                {
+                    "variantId": FIXED_PRICE_VALIDATION_VARIANT_A_ID,
+                    "price": { "amount": "10.00", "currencyCode": "USD" }
+                },
+                {
+                    "variantId": FIXED_PRICE_VALIDATION_VARIANT_B_ID,
+                    "price": { "amount": "20.00", "currencyCode": "USD" }
+                }
+            ]
+        }),
+    ));
+    assert_eq!(
+        add.body["data"]["priceListFixedPricesAdd"]["userErrors"],
+        json!([])
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FixedPricesUpdateReusesPreflight(
+          $priceListId: ID!
+          $pricesToAdd: [PriceListPriceInput!]!
+          $variantIdsToDelete: [ID!]!
+        ) {
+          priceListFixedPricesUpdate(
+            priceListId: $priceListId
+            pricesToAdd: $pricesToAdd
+            variantIdsToDelete: $variantIdsToDelete
+          ) {
+            pricesAdded { variant { id } }
+            deletedFixedPriceVariantIds
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": FIXED_PRICE_VALIDATION_PRICE_LIST_ID,
+            "pricesToAdd": [{
+                "variantId": FIXED_PRICE_VALIDATION_VARIANT_A_ID,
+                "price": { "amount": "12.00", "currencyCode": "USD" }
+            }],
+            "variantIdsToDelete": [FIXED_PRICE_VALIDATION_VARIANT_B_ID]
+        }),
+    ));
+    assert_eq!(
+        update.body["data"]["priceListFixedPricesUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let upstream_bodies = upstream_bodies.lock().unwrap();
+    assert_eq!(
+        upstream_bodies.len(),
+        1,
+        "upstream_bodies={upstream_bodies:#?}"
+    );
+    let preflight = &upstream_bodies[0];
+    assert_eq!(
+        preflight["variables"]["variantIds"],
+        json!([
+            FIXED_PRICE_VALIDATION_VARIANT_A_ID,
+            FIXED_PRICE_VALIDATION_VARIANT_B_ID
+        ])
+    );
+    let query = preflight["query"].as_str().unwrap_or_default();
+    assert!(query.contains("productVariants: nodes(ids: $variantIds)"));
+    assert!(!query.contains("products(first:"));
+    assert!(!query.contains("markets(first:"));
 }
 
 #[test]

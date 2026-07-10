@@ -358,7 +358,14 @@ impl DraftProxy {
     ) -> Value {
         let records = market_ids
             .into_iter()
-            .filter_map(|id| self.store.staged.markets.get(&id).cloned())
+            .map(|id| {
+                self.store
+                    .staged
+                    .markets
+                    .get(&id)
+                    .cloned()
+                    .unwrap_or_else(|| json!({ "id": id }))
+            })
             .collect::<Vec<_>>();
         selected_typed_connection_with_args(
             &records,
@@ -497,7 +504,6 @@ impl DraftProxy {
             Some(value)
         });
         if !staged_ids.is_empty() {
-            self.mark_markets_family_dirty("markets");
             self.record_mutation_log_entry(
                 request,
                 query,
@@ -649,8 +655,6 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn cascade_market_delete(&mut self, market_id: &str) {
-        self.mark_markets_family_dirty("catalogs");
-        self.mark_markets_family_dirty("webPresences");
         self.store.staged.web_presences.retain(|_, web_presence| {
             !web_presence_market_ids(web_presence)
                 .iter()
@@ -720,19 +724,15 @@ impl DraftProxy {
         }
 
         for catalog_id in catalogs_to_add {
-            self.mark_markets_family_dirty("catalogs");
             self.add_market_to_catalog(&catalog_id, &id);
         }
         for catalog_id in list_string_field(&input, "catalogsToDelete") {
-            self.mark_markets_family_dirty("catalogs");
             self.remove_market_from_catalog(&catalog_id, &id);
         }
         for web_presence_id in web_presences_to_add {
-            self.mark_markets_family_dirty("webPresences");
             self.add_market_to_web_presence(&web_presence_id, &id);
         }
         for web_presence_id in list_string_field(&input, "webPresencesToDelete") {
-            self.mark_markets_family_dirty("webPresences");
             self.remove_market_from_web_presence(&web_presence_id, &id);
         }
 
@@ -955,27 +955,60 @@ impl DraftProxy {
             .find_map(|market| market_record_country_region(market, &normalized))
     }
 
-    pub(in crate::proxy) fn hydrate_backup_region_markets_from_upstream(
+    pub(in crate::proxy) fn available_backup_region_for_code(
+        &self,
+        country_code: &str,
+    ) -> Option<Value> {
+        self.store
+            .staged
+            .available_backup_regions
+            .get(&country_code.to_ascii_uppercase())
+            .cloned()
+    }
+
+    pub(in crate::proxy) fn hydrate_available_backup_regions_from_upstream(
         &mut self,
         request: &Request,
     ) -> Response {
         let response = self.upstream_post(
             request,
             json!({
-                "query": BACKUP_REGION_MARKETS_HYDRATE_QUERY,
-                "operationName": "BackupRegionMarketsHydrate",
-                "variables": { "first": 250, "regionsFirst": 250 }
+                "query": BACKUP_REGION_AVAILABLE_HYDRATE_QUERY,
+                "operationName": "BackupRegionAvailableHydrate",
+                "variables": {}
             }),
         );
         if response.status < 400 {
-            self.hydrate_markets_from_upstream(&response.body);
+            self.hydrate_available_backup_regions_from_body(&response.body);
         }
         response
     }
 
-    /// True when any markets-domain record has been staged or observed.
-    /// Completeness is tracked separately in `markets_hydrated_scopes`; this
-    /// only answers whether local overlay rendering has anything to merge.
+    fn hydrate_available_backup_regions_from_body(&mut self, body: &Value) {
+        let Some(regions) = body
+            .pointer("/data/availableBackupRegions")
+            .and_then(Value::as_array)
+        else {
+            return;
+        };
+        for region in regions {
+            let Some(code) = region_code_from_node(region).map(|code| code.to_ascii_uppercase())
+            else {
+                continue;
+            };
+            if let Some(region) = market_region_country_from_node(region, &code) {
+                self.store
+                    .staged
+                    .available_backup_regions
+                    .insert(code, region);
+            }
+        }
+    }
+
+    /// True when any markets-domain record has been staged. Tracks local markets query state (minus the product check, since the Rust
+    /// markets stores are staged-only with no base layer). Once a lifecycle has
+    /// staged a market/catalog/price-list/web-presence, plural reads serve
+    /// locally (read-after-write); before that, cold reads forward upstream.
     pub(in crate::proxy) fn has_markets_overlay_state(&self) -> bool {
         !self.store.staged.markets.is_empty()
             || !self.store.staged.catalogs.is_empty()
@@ -983,45 +1016,25 @@ impl DraftProxy {
             || !self.store.staged.web_presences.is_empty()
     }
 
-    /// LiveHybrid cold-read decision for the Markets domain. When this returns
-    /// true, at least one requested root/scope still needs Shopify baseline
-    /// data before local staged deltas can be projected correctly.
+    /// LiveHybrid cold-read decision for the Markets domain. When
+    /// this returns true the dispatcher forwards the original request verbatim
+    /// upstream and hydrates the staged store from the response.
     pub(in crate::proxy) fn markets_should_fetch_upstream(
         &self,
-        fields: &[RootFieldSelection],
+        root_field: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> bool {
-        let plural_localizable_state_selected = fields
-            .iter()
-            .any(|field| field.name == "marketLocalizableResources")
-            && self.has_market_localizable_resource_state();
-        fields.iter().any(|field| {
-            self.markets_field_should_fetch_upstream(
-                field,
-                variables,
-                plural_localizable_state_selected,
-            )
-        })
-    }
-
-    fn markets_field_should_fetch_upstream(
-        &self,
-        field: &RootFieldSelection,
-        variables: &BTreeMap<String, ResolvedValue>,
-        plural_localizable_state_selected: bool,
-    ) -> bool {
-        match field.name.as_str() {
-            "market" => !markets_field_has_local_id(&field.arguments, &self.store.staged.markets),
-            "catalog" => !markets_field_has_local_id(&field.arguments, &self.store.staged.catalogs),
+        match root_field {
+            "market" => !markets_variables_have_local_id(variables, &self.store.staged.markets),
+            "catalog" => !markets_variables_have_local_id(variables, &self.store.staged.catalogs),
             "priceList" => {
-                !markets_field_has_local_id(&field.arguments, &self.store.staged.price_lists)
+                !markets_variables_have_local_id(variables, &self.store.staged.price_lists)
             }
-            // A market-localizable resource read forwards once per resource:
-            // until the resource's content has been observed (cold read or
-            // mutation preflight), forward verbatim so Shopify reports its real
-            // content/digests; afterwards serve the staged read-after-write
-            // projection locally.
-            "marketLocalizableResource" => resolved_string_field(&field.arguments, "resourceId")
+            // A market-localizable resource read forwards once per resource: until the
+            // resource's content has been observed (cold read or mutation preflight),
+            // forward verbatim so Shopify reports its real content/digests; afterwards
+            // serve the staged read-after-write projection locally.
+            "marketLocalizableResource" => resolved_string_field(variables, "resourceId")
                 .map(|resource_id| {
                     !self
                         .store
@@ -1035,69 +1048,12 @@ impl DraftProxy {
             | "catalogsCount"
             | "priceLists"
             | "webPresences"
-            | "marketsResolvedValues" => markets_hydration_scope_keys(field)
-                .iter()
-                .any(|key| self.markets_scope_needs_upstream(key)),
+            | "marketsResolvedValues" => !self.has_markets_overlay_state(),
             "marketLocalizableResources" => !self.has_market_localizable_resource_state(),
             "marketLocalizableResourcesByIds" => {
-                !plural_localizable_state_selected
-                    && self.market_localizable_resources_by_ids_should_fetch_upstream(variables)
+                self.market_localizable_resources_by_ids_should_fetch_upstream(variables)
             }
             _ => false,
-        }
-    }
-
-    pub(in crate::proxy) fn mark_markets_family_dirty(&mut self, family: &str) {
-        self.store
-            .staged
-            .markets_dirty_families
-            .insert(family.to_string());
-    }
-
-    fn markets_scope_needs_upstream(&self, key: &str) -> bool {
-        if self.store.staged.markets_hydrated_scopes.contains(key) {
-            return false;
-        }
-        let family = markets_scope_family(key);
-        !self.store.staged.markets_dirty_families.contains(family)
-            || self.markets_family_has_records(family)
-    }
-
-    fn markets_family_has_records(&self, family: &str) -> bool {
-        match family {
-            "markets" => !self.store.staged.markets.is_empty(),
-            "catalogs" => !self.store.staged.catalogs.is_empty(),
-            "priceLists" => !self.store.staged.price_lists.is_empty(),
-            "webPresences" => !self.store.staged.web_presences.is_empty(),
-            _ => false,
-        }
-    }
-
-    pub(in crate::proxy) fn hydrate_markets_from_upstream_for_fields(
-        &mut self,
-        body: &Value,
-        fields: &[RootFieldSelection],
-    ) {
-        let normalized = markets_body_with_canonical_response_keys(body, fields);
-        self.hydrate_markets_from_upstream(&normalized);
-        self.mark_markets_hydrated_scopes_from_fields(&normalized, fields);
-    }
-
-    fn mark_markets_hydrated_scopes_from_fields(
-        &mut self,
-        body: &Value,
-        fields: &[RootFieldSelection],
-    ) {
-        let Some(data) = body.get("data").and_then(Value::as_object) else {
-            return;
-        };
-        for field in fields {
-            if !markets_response_connection_complete(data.get(&field.response_key)) {
-                continue;
-            }
-            for key in markets_hydration_scope_keys(field) {
-                self.store.staged.markets_hydrated_scopes.insert(key);
-            }
         }
     }
 
@@ -1135,124 +1091,24 @@ impl DraftProxy {
                 })
                 .cloned(),
         );
+        for record in &market_records {
+            if let Some(id) = record_gid(record, "Market") {
+                self.store.staged.markets.insert(id, record.clone());
+            }
+        }
         // Catalogs: top-level plus nested under each market.
         let mut catalog_records = markets_collect_records(data, "catalogs", "catalog");
-        let mut catalog_market_relations = BTreeMap::new();
         for market in &market_records {
-            let market_id = record_gid(market, "Market");
             catalog_records.extend(
                 market
                     .get("catalogs")
                     .map(connection_nodes)
-                    .unwrap_or_default()
-                    .into_iter()
-                    .inspect(|catalog| {
-                        if let (Some(catalog_id), Some(market_id)) =
-                            (record_gid(catalog, ""), market_id.as_deref())
-                        {
-                            markets_push_relation_id(
-                                &mut catalog_market_relations,
-                                &catalog_id,
-                                market_id.to_string(),
-                            );
-                        }
-                    }),
-            );
-        }
-        for catalog in &catalog_records {
-            if let Some(catalog_id) = record_gid(catalog, "") {
-                for market_id in catalog_market_ids(catalog) {
-                    markets_push_relation_id(&mut catalog_market_relations, &catalog_id, market_id);
-                }
-            }
-            market_records.extend(
-                catalog
-                    .get("markets")
-                    .map(connection_nodes)
                     .unwrap_or_default(),
             );
         }
-        // Web presences: top-level plus nested under each market.
-        let mut web_presence_records = markets_collect_records(data, "webPresences", "webPresence");
-        let mut web_presence_market_relations = BTreeMap::new();
-        for market in &market_records {
-            let market_id = record_gid(market, "Market");
-            web_presence_records.extend(
-                market
-                    .get("webPresences")
-                    .map(connection_nodes)
-                    .unwrap_or_default()
-                    .into_iter()
-                    .inspect(|web_presence| {
-                        if let (Some(web_presence_id), Some(market_id)) = (
-                            record_gid(web_presence, "MarketWebPresence"),
-                            market_id.as_deref(),
-                        ) {
-                            markets_push_relation_id(
-                                &mut web_presence_market_relations,
-                                &web_presence_id,
-                                market_id.to_string(),
-                            );
-                        }
-                    }),
-            );
-        }
-        web_presence_records.extend(
-            hydrate_nodes
-                .iter()
-                .filter(|node| {
-                    node.get("__typename").and_then(Value::as_str) == Some("MarketWebPresence")
-                        || record_gid(node, "MarketWebPresence").is_some()
-                })
-                .cloned(),
-        );
-        for web_presence in &web_presence_records {
-            if let Some(web_presence_id) = record_gid(web_presence, "MarketWebPresence") {
-                for market_id in web_presence_market_ids(web_presence) {
-                    markets_push_relation_id(
-                        &mut web_presence_market_relations,
-                        &web_presence_id,
-                        market_id,
-                    );
-                }
-            }
-            market_records.extend(
-                web_presence
-                    .get("markets")
-                    .map(connection_nodes)
-                    .unwrap_or_default(),
-            );
-        }
-        for record in &market_records {
-            if let Some(id) = record_gid(record, "Market") {
-                if markets_record_is_richer_than_existing(&self.store.staged.markets, &id, record) {
-                    self.store.staged.markets.insert(id, record.clone());
-                }
-            }
-        }
-        let market_names = self.staged_market_names();
         for record in &catalog_records {
             if let Some(id) = record_gid(record, "") {
-                let mut normalized = record.clone();
-                if let Some(market_ids) = catalog_market_relations.get(&id) {
-                    set_catalog_market_ids(&mut normalized, market_ids, &market_names);
-                }
-                if markets_record_is_richer_than_existing(
-                    &self.store.staged.catalogs,
-                    &id,
-                    &normalized,
-                ) {
-                    self.store.staged.catalogs.insert(id, normalized);
-                } else if let (Some(existing), Some(market_ids)) = (
-                    self.store.staged.catalogs.get_mut(&id),
-                    catalog_market_relations.get(&id),
-                ) {
-                    let mut merged_ids = catalog_market_ids(existing);
-                    for market_id in market_ids {
-                        markets_push_id(&mut merged_ids, market_id.clone());
-                    }
-                    set_catalog_market_ids(existing, &merged_ids, &market_names);
-                }
+                self.store.staged.catalogs.insert(id, record.clone());
             }
         }
         // Price lists: top-level plus nested under each catalog (singular field).
@@ -1264,41 +1120,47 @@ impl DraftProxy {
         }
         for record in &price_list_records {
             if let Some(id) = record_gid(record, "PriceList") {
-                if markets_record_is_richer_than_existing(
-                    &self.store.staged.price_lists,
-                    &id,
-                    record,
-                ) {
-                    self.store.staged.price_lists.insert(id, record.clone());
-                }
+                self.store.staged.price_lists.insert(id, record.clone());
             }
         }
+        // Web presences: top-level plus nested under each market.
+        let mut web_presence_records = markets_collect_records(data, "webPresences", "webPresence");
+        for market in &market_records {
+            web_presence_records.extend(
+                market
+                    .get("webPresences")
+                    .map(connection_nodes)
+                    .unwrap_or_default(),
+            );
+        }
+        web_presence_records.extend(
+            hydrate_nodes
+                .iter()
+                .filter(|node| {
+                    node.get("__typename").and_then(Value::as_str) == Some("MarketWebPresence")
+                        || record_gid(node, "MarketWebPresence").is_some()
+                })
+                .cloned(),
+        );
         for record in &web_presence_records {
             if let Some(id) = record_gid(record, "MarketWebPresence") {
-                let mut normalized = record.clone();
-                if let Some(market_ids) = web_presence_market_relations.get(&id) {
-                    set_web_presence_market_ids(&mut normalized, market_ids);
-                }
                 // A web presence can surface both as a full top-level node (with
                 // its `markets` connection) and as a sparse `{id}` pointer nested
                 // under `market.webPresences`. Keep the richer projection so a
                 // relationship stub never clobbers the markets connection the
                 // delete cascade relies on to detach the deleted market.
-                if markets_record_is_richer_than_existing(
-                    &self.store.staged.web_presences,
-                    &id,
-                    &normalized,
-                ) {
-                    self.store.staged.web_presences.insert(id, normalized);
-                } else if let (Some(existing), Some(market_ids)) = (
-                    self.store.staged.web_presences.get_mut(&id),
-                    web_presence_market_relations.get(&id),
-                ) {
-                    let mut merged_ids = web_presence_market_ids(existing);
-                    for market_id in market_ids {
-                        markets_push_id(&mut merged_ids, market_id.clone());
-                    }
-                    set_web_presence_market_ids(existing, &merged_ids);
+                let richer = self
+                    .store
+                    .staged
+                    .web_presences
+                    .get(&id)
+                    .map(|existing| {
+                        record.as_object().map_or(0, serde_json::Map::len)
+                            > existing.as_object().map_or(0, serde_json::Map::len)
+                    })
+                    .unwrap_or(true);
+                if richer {
+                    self.store.staged.web_presences.insert(id, record.clone());
                 }
             }
         }
@@ -1329,124 +1191,4 @@ impl DraftProxy {
             self.stage_observed_market_localizable_resource(record);
         }
     }
-}
-
-fn markets_field_has_local_id(
-    arguments: &BTreeMap<String, ResolvedValue>,
-    records: &BTreeMap<String, Value>,
-) -> bool {
-    resolved_string_field(arguments, "id")
-        .as_deref()
-        .is_some_and(|id| is_synthetic_gid(id) || records.contains_key(id))
-}
-
-fn markets_hydration_scope_keys(field: &RootFieldSelection) -> Vec<String> {
-    match field.name.as_str() {
-        "markets" => vec![markets_hydration_scope_key("markets", &field.arguments)],
-        "catalogs" | "catalogsCount" => {
-            vec![markets_hydration_scope_key("catalogs", &field.arguments)]
-        }
-        "priceLists" => vec![markets_hydration_scope_key("priceLists", &field.arguments)],
-        "webPresences" => vec![markets_hydration_scope_key(
-            "webPresences",
-            &field.arguments,
-        )],
-        "marketsResolvedValues" => field
-            .selection
-            .iter()
-            .filter_map(|selection| match selection.name.as_str() {
-                "catalogs" => Some(markets_hydration_scope_key(
-                    "catalogs",
-                    &selection.arguments,
-                )),
-                "webPresences" => Some(markets_hydration_scope_key(
-                    "webPresences",
-                    &selection.arguments,
-                )),
-                _ => None,
-            })
-            .collect(),
-        _ => Vec::new(),
-    }
-}
-
-fn markets_hydration_scope_key(
-    family: &str,
-    arguments: &BTreeMap<String, ResolvedValue>,
-) -> String {
-    let scope_arguments = arguments
-        .iter()
-        .filter(|(name, _)| !markets_pagination_argument(name))
-        .map(|(name, value)| (name.clone(), resolved_value_json(value)))
-        .collect::<serde_json::Map<_, _>>();
-    format!("{family}:{}", Value::Object(scope_arguments))
-}
-
-fn markets_scope_family(key: &str) -> &str {
-    key.split_once(':').map(|(family, _)| family).unwrap_or(key)
-}
-
-fn markets_pagination_argument(name: &str) -> bool {
-    matches!(name, "first" | "last" | "after" | "before")
-}
-
-fn markets_response_connection_complete(value: Option<&Value>) -> bool {
-    let Some(connection) = value.filter(|value| value.is_object()) else {
-        return false;
-    };
-    if connection.get("nodes").is_none() && connection.get("edges").is_none() {
-        return false;
-    }
-    connection
-        .get("pageInfo")
-        .and_then(|page_info| page_info.get("hasNextPage"))
-        .and_then(Value::as_bool)
-        != Some(true)
-}
-
-fn markets_push_id(ids: &mut Vec<String>, id: String) {
-    if !ids.iter().any(|existing| existing == &id) {
-        ids.push(id);
-    }
-}
-
-fn markets_push_relation_id(
-    relations: &mut BTreeMap<String, Vec<String>>,
-    record_id: &str,
-    relation_id: String,
-) {
-    markets_push_id(
-        relations.entry(record_id.to_string()).or_default(),
-        relation_id,
-    );
-}
-
-fn markets_record_is_richer_than_existing(
-    records: &BTreeMap<String, Value>,
-    id: &str,
-    candidate: &Value,
-) -> bool {
-    records
-        .get(id)
-        .map(|existing| {
-            candidate.as_object().map_or(0, serde_json::Map::len)
-                > existing.as_object().map_or(0, serde_json::Map::len)
-        })
-        .unwrap_or(true)
-}
-
-fn markets_body_with_canonical_response_keys(body: &Value, fields: &[RootFieldSelection]) -> Value {
-    let mut normalized = body.clone();
-    let Some(data) = normalized.get_mut("data").and_then(Value::as_object_mut) else {
-        return normalized;
-    };
-    for field in fields {
-        if field.response_key == field.name || data.contains_key(&field.name) {
-            continue;
-        }
-        if let Some(value) = data.get(&field.response_key).cloned() {
-            data.insert(field.name.clone(), value);
-        }
-    }
-    normalized
 }
