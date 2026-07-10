@@ -955,22 +955,54 @@ impl DraftProxy {
             .find_map(|market| market_record_country_region(market, &normalized))
     }
 
-    pub(in crate::proxy) fn hydrate_backup_region_markets_from_upstream(
+    pub(in crate::proxy) fn available_backup_region_for_code(
+        &self,
+        country_code: &str,
+    ) -> Option<Value> {
+        self.store
+            .staged
+            .available_backup_regions
+            .get(&country_code.to_ascii_uppercase())
+            .cloned()
+    }
+
+    pub(in crate::proxy) fn hydrate_available_backup_regions_from_upstream(
         &mut self,
         request: &Request,
     ) -> Response {
         let response = self.upstream_post(
             request,
             json!({
-                "query": BACKUP_REGION_MARKETS_HYDRATE_QUERY,
-                "operationName": "BackupRegionMarketsHydrate",
-                "variables": { "first": 250, "regionsFirst": 250 }
+                "query": BACKUP_REGION_AVAILABLE_HYDRATE_QUERY,
+                "operationName": "BackupRegionAvailableHydrate",
+                "variables": {}
             }),
         );
         if response.status < 400 {
-            self.hydrate_markets_from_upstream(&response.body);
+            self.hydrate_available_backup_regions_from_body(&response.body);
         }
         response
+    }
+
+    fn hydrate_available_backup_regions_from_body(&mut self, body: &Value) {
+        let Some(regions) = body
+            .pointer("/data/availableBackupRegions")
+            .and_then(Value::as_array)
+        else {
+            return;
+        };
+        for region in regions {
+            let Some(code) = region_code_from_node(region).map(|code| code.to_ascii_uppercase())
+            else {
+                continue;
+            };
+            if let Some(region) = market_region_country_from_node(region, &code) {
+                self.store
+                    .staged
+                    .available_backup_regions
+                    .insert(code, region);
+            }
+        }
     }
 
     /// True when any markets-domain record has been staged. Tracks local markets query state (minus the product check, since the Rust

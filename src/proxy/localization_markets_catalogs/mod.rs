@@ -10,29 +10,13 @@ mod web_presence_helpers;
 
 pub(in crate::proxy) use self::web_presence_helpers::*;
 
-const BACKUP_REGION_MARKETS_HYDRATE_QUERY: &str = r#"query BackupRegionMarketsHydrate($first: Int!, $regionsFirst: Int!) {
-  markets(first: $first) {
-    nodes {
-      id
-      name
-      handle
-      status
-      type
-      conditions {
-        conditionTypes
-        regionsCondition {
-          regions(first: $regionsFirst) {
-            nodes {
-              __typename
-              id
-              name
-              ... on MarketRegionCountry {
-                code
-              }
-            }
-          }
-        }
-      }
+const BACKUP_REGION_AVAILABLE_HYDRATE_QUERY: &str = r#"query BackupRegionAvailableHydrate {
+  availableBackupRegions {
+    __typename
+    id
+    name
+    ... on MarketRegionCountry {
+      code
     }
   }
 }"#;
@@ -1112,7 +1096,10 @@ fn market_record_country_region(market: &Value, country_code: &str) -> Option<Va
         .find_map(|node| market_region_country_from_node(node, country_code))
 }
 
-fn market_region_country_from_node(node: &Value, country_code: &str) -> Option<Value> {
+pub(in crate::proxy) fn market_region_country_from_node(
+    node: &Value,
+    country_code: &str,
+) -> Option<Value> {
     let code = region_code_from_node(node)?;
     if code.to_ascii_uppercase() != country_code {
         return None;

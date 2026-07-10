@@ -1980,36 +1980,27 @@ fn backup_region_update_hydrates_market_region_from_upstream_in_live_hybrid() {
                         }
                     }),
                 },
-                Some("BackupRegionMarketsHydrate") => Response {
-                    status: 200,
-                    headers: Default::default(),
-                    body: json!({
-                        "data": {
-                            "markets": {
-                                "nodes": [{
-                                    "id": "gid://shopify/Market/97997685042",
+                Some("BackupRegionAvailableHydrate") => {
+                    assert_eq!(body["variables"], json!({}));
+                    let query = body["query"].as_str().unwrap_or_default();
+                    assert!(query.contains("availableBackupRegions"));
+                    assert!(!query.contains("markets(first:"));
+                    assert!(!query.contains("regions(first:"));
+                    Response {
+                        status: 200,
+                        headers: Default::default(),
+                        body: json!({
+                            "data": {
+                                "availableBackupRegions": [{
+                                    "__typename": "MarketRegionCountry",
+                                    "id": "gid://shopify/MarketRegionCountry/shop-jp",
                                     "name": "Japan",
-                                    "handle": "japan",
-                                    "status": "ACTIVE",
-                                    "enabled": true,
-                                    "type": "REGION",
-                                    "conditions": {
-                                        "regionsCondition": {
-                                            "regions": {
-                                                "nodes": [{
-                                                    "__typename": "MarketRegionCountry",
-                                                    "id": "gid://shopify/MarketRegionCountry/shop-jp",
-                                                    "name": "Japan",
-                                                    "code": "JP"
-                                                }]
-                                            }
-                                        }
-                                    }
+                                    "code": "JP"
                                 }]
                             }
-                        }
-                    }),
-                },
+                        }),
+                    }
+                }
                 other => panic!("unexpected upstream operation: {other:?} body={body}"),
             }
         });
@@ -2071,6 +2062,27 @@ fn backup_region_update_hydrates_market_region_from_upstream_in_live_hybrid() {
         node.body["data"]["nodes"][0],
         update.body["data"]["backupRegionUpdate"]["backupRegion"]
     );
+
+    let mut second_update_request = json_graphql_request(
+        r#"
+        mutation BackupRegionUpdateHydratedJapanAgain {
+          backupRegionUpdate(region: { countryCode: JP }) {
+            backupRegion { __typename id name ... on MarketRegionCountry { code } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    second_update_request.headers.insert(
+        "X-Shopify-Access-Token".to_string(),
+        "parent-live-token".to_string(),
+    );
+    let second_update = proxy.process_request(second_update_request);
+    assert_eq!(
+        second_update.body["data"]["backupRegionUpdate"],
+        update.body["data"]["backupRegionUpdate"]
+    );
     assert_eq!(
         upstream_calls
             .lock()
@@ -2080,7 +2092,7 @@ fn backup_region_update_hydrates_market_region_from_upstream_in_live_hybrid() {
             .collect::<Vec<_>>(),
         vec![
             "BackupRegionAccessScopes".to_string(),
-            "BackupRegionMarketsHydrate".to_string()
+            "BackupRegionAvailableHydrate".to_string()
         ]
     );
 }

@@ -1264,33 +1264,41 @@ pub(in crate::proxy) fn read_fixed_price_update_inputs(
 }
 
 /// The by-product preflight hydrate variables: a `priceListId`/`priceQuery`
-/// pulled verbatim from the operation variables plus the de-duplicated product
-/// ids referenced by `pricesToAdd` and `pricesToDeleteByProductIds`.
+/// pulled from resolved root arguments plus the de-duplicated product ids
+/// referenced by `pricesToAdd` and `pricesToDeleteByProductIds`.
 pub(in crate::proxy) fn product_fixed_prices_preflight_variables(
-    variables: &BTreeMap<String, ResolvedValue>,
+    fields: &[RootFieldSelection],
 ) -> Value {
-    let string_variable = |name: &str| match variables.get(name) {
-        Some(ResolvedValue::String(value)) => json!(value),
-        _ => Value::Null,
-    };
+    let mut price_list_id: Option<String> = None;
+    let mut price_query = Value::Null;
     let mut product_ids: Vec<String> = Vec::new();
-    if let Some(ResolvedValue::List(items)) = variables.get("pricesToAdd") {
-        for item in items {
-            if let Some(id) = resolved_object_string(item, "productId") {
+
+    for field in fields {
+        if field.name != "priceListFixedPricesByProductUpdate" {
+            continue;
+        }
+        if price_list_id.is_none() {
+            price_list_id = read_price_list_id(&field.arguments);
+        }
+        if price_query.is_null() {
+            if let Some(value) = field.arguments.get("priceQuery") {
+                price_query = resolved_value_json(value);
+            }
+        }
+        for item in resolved_object_list(&field.arguments, "pricesToAdd") {
+            if let Some(id) = resolved_nonempty_string(&item, "productId") {
                 push_unique_string(&mut product_ids, id);
             }
         }
+        extend_unique_strings(
+            &mut product_ids,
+            resolved_string_list_arg(&field.arguments, "pricesToDeleteByProductIds"),
+        );
     }
-    if let Some(ResolvedValue::List(items)) = variables.get("pricesToDeleteByProductIds") {
-        for item in items {
-            if let ResolvedValue::String(id) = item {
-                push_unique_string(&mut product_ids, id);
-            }
-        }
-    }
+
     json!({
-        "priceListId": string_variable("priceListId"),
-        "priceQuery": string_variable("priceQuery"),
+        "priceListId": price_list_id.map(Value::String).unwrap_or(Value::Null),
+        "priceQuery": price_query,
         "productIds": product_ids,
     })
 }

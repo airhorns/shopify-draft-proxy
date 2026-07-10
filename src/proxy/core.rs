@@ -717,6 +717,10 @@ impl DraftProxy {
             snapshot["stagedState"]["webPresences"] =
                 json!(self.store.staged.web_presences.clone());
         }
+        if !self.store.staged.available_backup_regions.is_empty() {
+            snapshot["stagedState"]["availableBackupRegions"] =
+                json!(self.store.staged.available_backup_regions.clone());
+        }
         if !self.store.staged.shop_locales.is_empty() {
             snapshot["stagedState"]["stagedShopLocales"] =
                 json!(self.store.staged.shop_locales.clone());
@@ -1693,6 +1697,8 @@ impl DraftProxy {
         self.store.staged.price_lists = value_map_from_json(state["stagedState"].get("priceLists"));
         self.store.staged.web_presences =
             value_map_from_json(state["stagedState"].get("webPresences"));
+        self.store.staged.available_backup_regions =
+            value_map_from_json(state["stagedState"].get("availableBackupRegions"));
         self.store.staged.shop_locales = state["stagedState"]
             .get("stagedShopLocales")
             .and_then(Value::as_object)

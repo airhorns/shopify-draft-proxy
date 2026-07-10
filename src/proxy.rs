@@ -499,6 +499,7 @@ struct StagedState {
     // empty local result) from a cold read with no local backing (forward to
     // the upstream so function ownership metadata reflects real installs).
     functions_dirty: bool,
+    available_backup_regions: BTreeMap<String, Value>,
     backup_region: Value,
     flow_signatures: Vec<Value>,
     flow_trigger_receipts: Vec<Value>,
