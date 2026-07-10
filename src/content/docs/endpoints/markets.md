@@ -35,6 +35,7 @@ Implemented mutation roots:
 
 - `marketCreate`
 - `marketUpdate`
+- `marketDelete`
 - `catalogCreate`
 - `catalogUpdate`
 - `catalogContextUpdate`
@@ -66,12 +67,20 @@ recognized by the Rust dispatcher and should not be treated as broad registry
 support.
 
 Market lifecycle slices cover `marketCreate`, `marketUpdate`, and downstream
-`market(id:)` reads for staged records. The local model stages selected scalar,
-status/enabled, region, price-inclusion, currency-settings, catalog, and web
-presence relations; rejects captured status/enabled mismatches, incompatible
-price inclusions, invalid or unsupported country regions, duplicate region
-codes, invalid names, duplicate names, and generated-handle collisions; and
-retains original raw mutations for commit replay on successful staging.
+`marketDelete` plus downstream `market(id:)` reads for staged records. In
+LiveHybrid mode, `marketUpdate` and `marketDelete` perform a read-only target
+preflight for an existing market ID that has not yet been observed locally, then
+stage the mutation from that hydrated market, catalog, and web-presence state
+without forwarding the mutation upstream. The local model stages selected
+scalar, status/enabled, region, price-inclusion, currency-settings, catalog, and
+web presence relations; rejects captured status/enabled mismatches,
+incompatible price inclusions, invalid or unsupported country regions,
+duplicate region codes, invalid names, duplicate names, generated-handle
+collisions, unknown market IDs, and wrong-resource IDs; and retains original raw
+mutations for commit replay on successful staging. `marketDelete` removes the
+local market row, leaves a tombstone so later `market(id:)` reads return
+Shopify-like `null` instead of rehydrating the deleted record, and detaches
+locally modeled catalog, web-presence, and market-localization relations.
 Generated market handles normalize ASCII letters and digits to lowercase
 dash-separated handles. When a name or explicit handle contains no ASCII
 alphanumerics after normalization, the local fallback is a deterministic

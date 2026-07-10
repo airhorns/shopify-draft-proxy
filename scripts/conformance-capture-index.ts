@@ -5437,6 +5437,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'market-mutation-first-hydration',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-market-mutation-first-hydration-conformance.mts',
+    purpose:
+      'Mutation-first marketUpdate and marketDelete hydration for existing disposable markets with catalog and web-presence relations, plus unknown-id validation branches.',
+    requiredAuthScopes: ['read_markets', 'write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}market-mutation-first-hydration.json`,
+      'config/parity-specs/markets/market-mutation-first-hydration.json',
+      'config/parity-requests/markets/market-mutation-targets-hydrate.graphql',
+      'config/parity-requests/markets/market-mutation-first-update.graphql',
+      'config/parity-requests/markets/market-mutation-first-update-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable non-primary markets, two market catalogs, and two web presences; records mutation-first update/delete and validation probes, then deletes the remaining disposable resources.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'market-unsupported-country-region',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-market-unsupported-country-region-conformance.mts',

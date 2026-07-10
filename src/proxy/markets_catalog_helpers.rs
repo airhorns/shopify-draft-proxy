@@ -136,20 +136,18 @@ pub(in crate::proxy) fn country_catalog_record(
 
 pub(in crate::proxy) fn catalog_market_ids(catalog: &Value) -> Vec<String> {
     let ids = string_array_from_json(&catalog["marketIds"]);
-    if ids.is_empty() {
-        catalog["markets"]["nodes"]
-            .as_array()
-            .map(|nodes| {
-                nodes
-                    .iter()
-                    .rev()
-                    .filter_map(|node| node["id"].as_str().map(ToString::to_string))
-                    .collect()
-            })
-            .unwrap_or_default()
-    } else {
-        ids
+    if !ids.is_empty() {
+        return ids;
     }
+    catalog["markets"]["nodes"]
+        .as_array()
+        .map(|nodes| {
+            nodes
+                .iter()
+                .filter_map(|node| node["id"].as_str().map(ToString::to_string))
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 pub(in crate::proxy) fn catalog_company_location_ids(catalog: &Value) -> Vec<String> {
@@ -1278,41 +1276,33 @@ pub(in crate::proxy) fn read_fixed_price_update_inputs(
 }
 
 /// The by-product preflight hydrate variables: a `priceListId`/`priceQuery`
-/// pulled from resolved root arguments plus the de-duplicated product ids
-/// referenced by `pricesToAdd` and `pricesToDeleteByProductIds`.
+/// pulled verbatim from the operation variables plus the de-duplicated product
+/// ids referenced by `pricesToAdd` and `pricesToDeleteByProductIds`.
 pub(in crate::proxy) fn product_fixed_prices_preflight_variables(
-    fields: &[RootFieldSelection],
+    variables: &BTreeMap<String, ResolvedValue>,
 ) -> Value {
-    let mut price_list_id: Option<String> = None;
-    let mut price_query = Value::Null;
+    let string_variable = |name: &str| match variables.get(name) {
+        Some(ResolvedValue::String(value)) => json!(value),
+        _ => Value::Null,
+    };
     let mut product_ids: Vec<String> = Vec::new();
-
-    for field in fields {
-        if field.name != "priceListFixedPricesByProductUpdate" {
-            continue;
-        }
-        if price_list_id.is_none() {
-            price_list_id = read_price_list_id(&field.arguments);
-        }
-        if price_query.is_null() {
-            if let Some(value) = field.arguments.get("priceQuery") {
-                price_query = resolved_value_json(value);
-            }
-        }
-        for item in resolved_object_list(&field.arguments, "pricesToAdd") {
-            if let Some(id) = resolved_nonempty_string(&item, "productId") {
+    if let Some(ResolvedValue::List(items)) = variables.get("pricesToAdd") {
+        for item in items {
+            if let Some(id) = resolved_object_string(item, "productId") {
                 push_unique_string(&mut product_ids, id);
             }
         }
-        extend_unique_strings(
-            &mut product_ids,
-            resolved_string_list_arg(&field.arguments, "pricesToDeleteByProductIds"),
-        );
     }
-
+    if let Some(ResolvedValue::List(items)) = variables.get("pricesToDeleteByProductIds") {
+        for item in items {
+            if let ResolvedValue::String(id) = item {
+                push_unique_string(&mut product_ids, id);
+            }
+        }
+    }
     json!({
-        "priceListId": price_list_id.map(Value::String).unwrap_or(Value::Null),
-        "priceQuery": price_query,
+        "priceListId": string_variable("priceListId"),
+        "priceQuery": string_variable("priceQuery"),
         "productIds": product_ids,
     })
 }
