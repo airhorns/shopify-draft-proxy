@@ -28,6 +28,12 @@ const CUSTOMER_MERGE_HYDRATE_QUERY: &str =
     include_str!("../../../config/parity-requests/customers/customer-merge-hydrate.graphql");
 const CUSTOMER_DELETE_SHOP_HYDRATE_QUERY: &str =
     include_str!("../../../config/parity-requests/customers/customer-delete-shop-hydrate.graphql");
+const STORE_CREDIT_CUSTOMER_HYDRATE_QUERY: &str = include_str!(
+    "../../../config/parity-requests/customers/storeCreditCustomerHydrate-parity.graphql"
+);
+const STORE_CREDIT_ACCOUNT_HYDRATE_QUERY: &str = include_str!(
+    "../../../config/parity-requests/customers/storeCreditAccountHydrate-parity.graphql"
+);
 
 impl DraftProxy {
     pub(in crate::proxy) fn dispatch_unknown_passthrough_or_legacy_error(
@@ -727,12 +733,16 @@ impl DraftProxy {
         allow_create: bool,
     ) -> Option<StoreCreditAccountMutationResolution> {
         match shopify_gid_resource_type(id) {
-            Some("StoreCreditAccount") => self
-                .store
-                .staged
-                .store_credit_accounts
-                .contains_key(id)
-                .then(|| StoreCreditAccountMutationResolution::Existing(id.to_string())),
+            Some("StoreCreditAccount") => {
+                if self.store.staged.store_credit_accounts.contains_key(id) {
+                    Some(StoreCreditAccountMutationResolution::Existing(
+                        id.to_string(),
+                    ))
+                } else {
+                    self.hydrate_store_credit_account_for_mutation(request, id)
+                        .map(StoreCreditAccountMutationResolution::Existing)
+                }
+            }
             Some("Customer") | Some("CompanyLocation") => {
                 if !self.store_credit_owner_exists(request, id) {
                     return None;
@@ -900,8 +910,14 @@ impl DraftProxy {
     fn store_credit_owner_exists(&mut self, request: &Request, owner_id: &str) -> bool {
         match shopify_gid_resource_type(owner_id) {
             Some("Customer") => {
-                self.store.staged.customers.contains_key(owner_id)
+                if self.store.staged.customers.contains_key(owner_id)
                     && !self.store.staged.customers.is_tombstoned(owner_id)
+                {
+                    true
+                } else {
+                    self.hydrate_store_credit_customer_for_mutation(request, owner_id)
+                        .is_some()
+                }
             }
             Some("CompanyLocation") => self
                 .b2b_company_location_for_mutation(Some(request), owner_id)
@@ -928,6 +944,110 @@ impl DraftProxy {
                 .unwrap_or_else(|| json!({ "id": owner_id })),
             _ => json!({ "id": owner_id }),
         }
+    }
+
+    fn hydrate_store_credit_customer_for_mutation(
+        &mut self,
+        request: &Request,
+        id: &str,
+    ) -> Option<Value> {
+        if self.config.read_mode == ReadMode::Snapshot
+            || self.store.staged.customers.is_tombstoned(id)
+        {
+            return None;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": STORE_CREDIT_CUSTOMER_HYDRATE_QUERY,
+                "operationName": "StoreCreditCustomerHydrate",
+                "variables": { "id": id },
+            }),
+        );
+        if !(200..300).contains(&response.status) {
+            return None;
+        }
+        let customer = response.body["data"]["customer"].clone();
+        if customer.is_null() {
+            return None;
+        }
+
+        let account_nodes = connection_nodes(&customer["storeCreditAccounts"]);
+        let customer = normalize_hydrated_customer_record(customer);
+        for account in account_nodes {
+            self.stage_store_credit_account_from_upstream(account, Some(&customer));
+        }
+        let staged_id = customer["id"].as_str().unwrap_or(id).to_string();
+        self.store
+            .staged
+            .customers
+            .stage(staged_id, customer.clone());
+        Some(customer)
+    }
+
+    fn hydrate_store_credit_account_for_mutation(
+        &mut self,
+        request: &Request,
+        id: &str,
+    ) -> Option<String> {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return None;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": STORE_CREDIT_ACCOUNT_HYDRATE_QUERY,
+                "operationName": "StoreCreditAccountHydrate",
+                "variables": { "id": id },
+            }),
+        );
+        if !(200..300).contains(&response.status) {
+            return None;
+        }
+        let account = response.body["data"]["storeCreditAccount"].clone();
+        if account.is_null() {
+            None
+        } else {
+            self.stage_store_credit_account_from_upstream(account, None)
+        }
+    }
+
+    fn stage_store_credit_account_from_upstream(
+        &mut self,
+        mut account: Value,
+        fallback_owner: Option<&Value>,
+    ) -> Option<String> {
+        let account_id = account["id"].as_str()?.to_string();
+        account.get("balance")?;
+
+        let owner = account
+            .get("owner")
+            .filter(|owner| !owner.is_null())
+            .cloned()
+            .or_else(|| fallback_owner.cloned());
+        if let Some(owner) = owner {
+            if let Some(owner_id) = owner.get("id").and_then(Value::as_str) {
+                if shopify_gid_resource_type(owner_id) == Some("Customer")
+                    && !self.store.staged.customers.is_tombstoned(owner_id)
+                {
+                    let customer = normalize_hydrated_customer_record(owner.clone());
+                    self.store
+                        .staged
+                        .customers
+                        .stage(owner_id.to_string(), customer);
+                }
+            }
+            account["owner"] = owner;
+        }
+        if account.get("transactions").is_none_or(Value::is_null) {
+            account["transactions"] = connection_json(Vec::new());
+        }
+
+        self.store
+            .staged
+            .store_credit_accounts
+            .stage(account_id.clone(), account);
+        Some(account_id)
     }
 
     fn next_store_credit_account_gid(&mut self) -> String {
