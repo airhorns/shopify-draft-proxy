@@ -1355,7 +1355,9 @@ impl DraftProxy {
                 {
                     ok_json(data)
                 } else {
-                    (self.upstream_transport)(request.clone())
+                    self.orders_stage_locally_unmodeled_shape_response(
+                        request, query, variables, root_field,
+                    )
                 }
             }
             (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
@@ -1932,112 +1934,17 @@ impl DraftProxy {
             (CapabilityDomain::B2b, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation =>
             {
-                // Live/hybrid mode: apply the local cascade side-effects and forward
-                // upstream so the recorded Shopify response is returned. Roots
-                // without a dedicated cascade handler fall through to a plain
-                // passthrough (never a hard 501), keeping parity intact.
-                match root_field {
-                    "companyCreate"
-                    | "companyUpdate"
-                    | "companyLocationCreate"
-                    | "companyLocationAssignAddress"
-                    | "companyContactAssignRole"
-                    | "companyContactAssignRoles"
-                    | "companyLocationAssignRoles" => self
-                        .b2b_company_tail_helper_response(
-                            request,
-                            query,
-                            variables,
-                            operation.operation_type,
-                            &operation.root_fields,
-                        )
-                        .unwrap_or_else(|| no_dispatcher("b2b", root_field)),
-                    "companyContactDelete"
-                    | "companyContactsDelete"
-                    | "companyContactRemoveFromCompany" => self.b2b_contact_delete_with_cascade(
-                        request,
-                        query,
-                        variables,
-                        operation.operation_type,
-                        &operation.root_fields,
-                        root_field,
-                    ),
-                    "companyContactCreate" => self.b2b_company_contact_create_with_cascade(
-                        request,
-                        query,
-                        variables,
-                        operation.operation_type,
-                        &operation.root_fields,
-                        root_field,
-                    ),
-                    "companyContactUpdate" => self.b2b_company_contact_update_with_cascade(
-                        request,
-                        query,
-                        variables,
-                        operation.operation_type,
-                        &operation.root_fields,
-                        root_field,
-                    ),
-                    "companyAssignMainContact" => self.b2b_assign_main_contact_with_cascade(
-                        request,
-                        query,
-                        variables,
-                        operation.operation_type,
-                        &operation.root_fields,
-                        root_field,
-                    ),
-                    "companyRevokeMainContact" => self.b2b_revoke_main_contact_with_cascade(
-                        request,
-                        query,
-                        variables,
-                        operation.operation_type,
-                        &operation.root_fields,
-                        root_field,
-                    ),
-                    "companyDelete" | "companiesDelete" => self.b2b_company_delete_with_cascade(
-                        request,
-                        query,
-                        variables,
-                        operation.operation_type,
-                        &operation.root_fields,
-                        root_field,
-                    ),
-                    "companyAddressDelete" => self.b2b_company_address_delete_with_cascade(
-                        request,
-                        query,
-                        variables,
-                        operation.operation_type,
-                        &operation.root_fields,
-                        root_field,
-                    ),
-                    "companyLocationDelete" | "companyLocationsDelete" => self
-                        .b2b_company_locations_delete_with_cascade(
-                            request,
-                            query,
-                            variables,
-                            operation.operation_type,
-                            &operation.root_fields,
-                            root_field,
-                        ),
-                    "companyContactRevokeRole"
-                    | "companyContactRevokeRoles"
-                    | "companyLocationRevokeRoles" => self.b2b_revoke_roles_with_cascade(
-                        request,
-                        query,
-                        variables,
-                        operation.operation_type,
-                        &operation.root_fields,
-                        root_field,
-                    ),
-                    _ => self.dispatch_unknown_passthrough_or_legacy_error(
-                        request,
-                        query,
-                        variables,
-                        operation.operation_type,
-                        &operation.root_fields,
-                        root_field,
-                    ),
-                }
+                // LiveHybrid still stages B2B mutations locally. Cold existing
+                // resources may need fuller hydration in future work, but the
+                // caller's mutation must never be forwarded as the fallback.
+                self.b2b_company_tail_helper_response(
+                    request,
+                    query,
+                    variables,
+                    operation.operation_type,
+                    &operation.root_fields,
+                )
+                .unwrap_or_else(|| no_dispatcher("b2b", root_field))
             }
             (CapabilityDomain::B2b, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query =>

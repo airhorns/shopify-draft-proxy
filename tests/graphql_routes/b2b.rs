@@ -1867,6 +1867,139 @@ fn b2b_companies_cold_live_hybrid_read_forwards_upstream() {
 }
 
 #[test]
+fn b2b_live_hybrid_stage_locally_roots_do_not_forward_mutations() {
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|request| {
+            panic!(
+                "B2B staged mutations and staged read-after-write should stay local: {}",
+                request.body
+            )
+        });
+
+    let company_id = create_b2b_company(&mut proxy, "Live Local B2B Co");
+    let contact_id = create_b2b_company_contact(&mut proxy, &company_id, "Initial buyer");
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BLiveLocalContactUpdate($companyContactId: ID!, $input: CompanyContactInput!) {
+          companyContactUpdate(companyContactId: $companyContactId, input: $input) {
+            companyContact { id title customer { firstName lastName email } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "companyContactId": contact_id,
+            "input": {
+                "title": "Updated buyer",
+                "firstName": "Local",
+                "lastName": "Buyer",
+                "email": "local-buyer@example.test"
+            }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["companyContactUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["companyContactUpdate"]["companyContact"]["title"],
+        json!("Updated buyer")
+    );
+
+    let assign_main = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BLiveLocalAssignMain($companyId: ID!, $companyContactId: ID!) {
+          companyAssignMainContact(companyId: $companyId, companyContactId: $companyContactId) {
+            company { id mainContact { id title isMainContact } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "companyId": company_id, "companyContactId": contact_id }),
+    ));
+    assert_eq!(
+        assign_main.body["data"]["companyAssignMainContact"]["company"]["mainContact"],
+        json!({ "id": contact_id, "title": "Updated buyer", "isMainContact": true })
+    );
+
+    let revoke_main = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BLiveLocalRevokeMain($companyId: ID!) {
+          companyRevokeMainContact(companyId: $companyId) {
+            company { id mainContact { id } contacts(first: 5) { nodes { id isMainContact } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "companyId": company_id }),
+    ));
+    assert_eq!(
+        revoke_main.body["data"]["companyRevokeMainContact"]["company"]["mainContact"],
+        Value::Null
+    );
+    assert_eq!(
+        revoke_main.body["data"]["companyRevokeMainContact"]["company"]["contacts"]["nodes"][0]
+            ["isMainContact"],
+        json!(false)
+    );
+
+    let location_id = create_b2b_location_with_shared_address(&mut proxy, &company_id);
+    let location = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BLiveLocalSharedAddress($id: ID!) {
+          companyLocation(id: $id) {
+            shippingAddress { id }
+            billingAddress { id }
+          }
+        }
+        "#,
+        json!({ "id": location_id }),
+    ));
+    let address_id = location.body["data"]["companyLocation"]["shippingAddress"]["id"]
+        .as_str()
+        .expect("address id")
+        .to_string();
+    assert_eq!(
+        location.body["data"]["companyLocation"]["billingAddress"]["id"],
+        json!(address_id)
+    );
+
+    let delete_address = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BLiveLocalAddressDelete($addressId: ID!) {
+          companyAddressDelete(addressId: $addressId) {
+            deletedAddressId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "addressId": address_id }),
+    ));
+    assert_eq!(
+        delete_address.body["data"]["companyAddressDelete"],
+        json!({ "deletedAddressId": address_id, "userErrors": [] })
+    );
+
+    let delete_contact = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BLiveLocalContactDelete($companyContactId: ID!) {
+          companyContactDelete(companyContactId: $companyContactId) {
+            deletedCompanyContactId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "companyContactId": contact_id }),
+    ));
+    assert_eq!(
+        delete_contact.body["data"]["companyContactDelete"],
+        json!({ "deletedCompanyContactId": contact_id, "userErrors": [] })
+    );
+}
+
+#[test]
 fn b2b_company_location_update_hydrates_real_upstream_location() {
     let location_id = "gid://shopify/CompanyLocation/987654321";
     let company_id = "gid://shopify/Company/456789";
@@ -2268,7 +2401,17 @@ fn b2b_company_contact_lifecycle_and_main_contact_stage_locally() {
         r#"
         mutation B2BContactLifecycleUpdate($companyContactId: ID!, $input: CompanyContactInput!) {
           companyContactUpdate(companyContactId: $companyContactId, input: $input) {
-            companyContact { id title customer { firstName lastName email phone } }
+            companyContact {
+              id
+              title
+              customer {
+                firstName
+                lastName
+                email
+                phone
+                defaultPhoneNumber { phoneNumber }
+              }
+            }
             userErrors { field message code }
           }
         }
@@ -2279,7 +2422,7 @@ fn b2b_company_contact_lifecycle_and_main_contact_stage_locally() {
                 "firstName": "Grace",
                 "lastName": "Hopper",
                 "email": "grace@example.com",
-                "phone": "+14155550101",
+                "phone": "(415) 555-0101",
                 "title": "Lead buyer"
             }
         }),
@@ -2295,7 +2438,10 @@ fn b2b_company_contact_lifecycle_and_main_contact_stage_locally() {
                     "firstName": "Grace",
                     "lastName": "Hopper",
                     "email": "grace@example.com",
-                    "phone": "+14155550101"
+                    "phone": "+14155550101",
+                    "defaultPhoneNumber": {
+                        "phoneNumber": "+14155550101"
+                    }
                 }
             },
             "userErrors": []

@@ -6,6 +6,42 @@ fn format_runtime_timestamp(timestamp: time::OffsetDateTime) -> String {
         .expect("UTC timestamps should format as RFC3339")
 }
 
+pub(in crate::proxy) fn guarded_upstream_transport(
+    transport: impl Fn(Request) -> Response + Send + Sync + 'static,
+) -> UpstreamTransport {
+    Arc::new(move |request| {
+        if let Some(root_field) = registered_stage_locally_mutation_upstream_root(&request) {
+            return json_error(
+                400,
+                &format!(
+                    "Registered stage-locally mutation '{root_field}' cannot be forwarded upstream before POST /__meta/commit"
+                ),
+            );
+        }
+        transport(request)
+    })
+}
+
+fn registered_stage_locally_mutation_upstream_root(request: &Request) -> Option<String> {
+    let graphql_request = parse_graphql_request_body(&request.body)?;
+    let operation = parse_operation(&graphql_request.query)?;
+    if operation.operation_type != OperationType::Mutation {
+        return None;
+    }
+    let registry = upstream_guard_registry();
+    operation.root_fields.iter().find_map(|root_field| {
+        let capability = operation_capability(registry, OperationType::Mutation, Some(root_field));
+        (capability.execution == CapabilityExecution::StageLocally
+            && capability.domain != CapabilityDomain::Unknown)
+            .then(|| root_field.clone())
+    })
+}
+
+fn upstream_guard_registry() -> &'static [OperationRegistryEntry] {
+    static REGISTRY: std::sync::OnceLock<Vec<OperationRegistryEntry>> = std::sync::OnceLock::new();
+    REGISTRY.get_or_init(default_registry).as_slice()
+}
+
 impl DraftProxy {
     pub fn new(config: Config) -> Self {
         Self {
@@ -18,7 +54,7 @@ impl DraftProxy {
             clock: Arc::new(default_runtime_clock),
             last_mutation_timestamp: None,
             commit_transport: Arc::new(default_commit_transport),
-            upstream_transport: Arc::new(default_upstream_transport),
+            upstream_transport: guarded_upstream_transport(default_upstream_transport),
         }
     }
 
@@ -44,7 +80,7 @@ impl DraftProxy {
         mut self,
         transport: impl Fn(Request) -> Response + Send + Sync + 'static,
     ) -> Self {
-        self.upstream_transport = Arc::new(transport);
+        self.upstream_transport = guarded_upstream_transport(transport);
         self
     }
 

@@ -332,19 +332,11 @@ struct B2bOrderAggregate {
 type B2bCompanyPayloadHandler =
     fn(&mut DraftProxy, &RootFieldSelection) -> (Value, &'static str, Vec<String>);
 
-#[derive(Clone, Copy)]
-struct B2bPassthroughCascadeArgs<'a> {
-    request: &'a Request,
-    query: &'a str,
-    variables: &'a BTreeMap<String, ResolvedValue>,
-    operation_type: OperationType,
-    parsed_root_fields: &'a [String],
-    root_field: &'a str,
-}
-
 const B2B_BULK_ACTIONS_MAX_SIZE: usize = 50;
 const B2B_BULK_ACTION_LIMIT_REACHED_MESSAGE: &str =
     "Exceeded max input size of 50. Consider using BulkOperation.";
+const B2B_SHOP_COUNTRY_HYDRATE_QUERY: &str =
+    "query B2BShopCountryHydrate { shop { shopAddress { countryCodeV2 countryCode } } }";
 const B2B_COMPANY_LOCATION_HYDRATE_QUERY: &str = r#"
 query B2BCompanyLocationHydrate($id: ID!) {
   companyLocation(id: $id) {
@@ -515,92 +507,7 @@ fn b2b_null_when_failed(status: &str, value: Value) -> Value {
     }
 }
 
-fn b2b_passthrough_cascade_args<'a>(
-    request: &'a Request,
-    query: &'a str,
-    variables: &'a BTreeMap<String, ResolvedValue>,
-    operation_type: OperationType,
-    parsed_root_fields: &'a [String],
-    root_field: &'a str,
-) -> B2bPassthroughCascadeArgs<'a> {
-    B2bPassthroughCascadeArgs {
-        request,
-        query,
-        variables,
-        operation_type,
-        parsed_root_fields,
-        root_field,
-    }
-}
-
-fn b2b_resolved_id_argument(
-    arguments: &BTreeMap<String, ResolvedValue>,
-    primary_name: &str,
-) -> Option<String> {
-    resolved_string_field(arguments, primary_name)
-        .or_else(|| resolved_string_field(arguments, "id"))
-}
-
 impl DraftProxy {
-    fn b2b_passthrough_cascade<Extracted, Extract, Cascade>(
-        &mut self,
-        args: B2bPassthroughCascadeArgs<'_>,
-        extract: Extract,
-        cascade: Cascade,
-    ) -> Response
-    where
-        Extract: FnOnce(&[RootFieldSelection]) -> Extracted,
-        Cascade: FnOnce(&mut Self, Extracted, &Response),
-    {
-        let extracted = root_fields(args.query, args.variables).map(|fields| extract(&fields));
-        let response = self.dispatch_unknown_passthrough_or_legacy_error(
-            args.request,
-            args.query,
-            args.variables,
-            args.operation_type,
-            args.parsed_root_fields,
-            args.root_field,
-        );
-        if let Some(extracted) = extracted {
-            cascade(self, extracted, &response);
-        }
-        response
-    }
-
-    fn b2b_passthrough_with_success_cascade<Extracted, Extract, Cascade>(
-        &mut self,
-        args: B2bPassthroughCascadeArgs<'_>,
-        extract: Extract,
-        cascade: Cascade,
-    ) -> Response
-    where
-        Extract: FnOnce(&[RootFieldSelection]) -> Extracted,
-        Cascade: FnOnce(&mut Self, Extracted, &Response),
-    {
-        self.b2b_passthrough_cascade(args, extract, |proxy, extracted, response| {
-            if b2b_passthrough_mutation_succeeded(response) {
-                cascade(proxy, extracted, response);
-            }
-        })
-    }
-
-    fn b2b_passthrough_with_deleted_cascade<Extract, Cascade>(
-        &mut self,
-        args: B2bPassthroughCascadeArgs<'_>,
-        extract: Extract,
-        mut cascade: Cascade,
-    ) -> Response
-    where
-        Extract: FnOnce(&[RootFieldSelection]) -> Vec<String>,
-        Cascade: FnMut(&mut Self, &str),
-    {
-        self.b2b_passthrough_cascade(args, extract, |proxy, request_ids, response| {
-            for deleted_id in b2b_passthrough_deleted_request_ids(response, &request_ids) {
-                cascade(proxy, &deleted_id);
-            }
-        })
-    }
-
     pub(in crate::proxy) fn b2b_tax_settings_tail_helper_response(
         &mut self,
         request: &Request,
@@ -796,6 +703,7 @@ impl DraftProxy {
 
         match operation_type {
             OperationType::Mutation => {
+                self.hydrate_b2b_shop_country_for_contact_phone_if_missing(request, &fields);
                 let mut declined = false;
                 let data = root_payload_json(&fields, |field| {
                     if declined {
@@ -1596,6 +1504,7 @@ impl DraftProxy {
         if let Some(customer_id) = contact["customerId"].as_str().map(str::to_string) {
             if let Some(mut customer) = self.store.staged.customers.get(&customer_id).cloned() {
                 let phone_country_code = self.b2b_customer_phone_country_code(Some(&customer));
+                let existing_phone = customer["phone"].as_str().map(str::to_string);
                 for key in ["firstName", "lastName", "email", "phone"] {
                     if input.contains_key(key) {
                         let raw = resolved_string_field(&input, key);
@@ -1603,7 +1512,15 @@ impl DraftProxy {
                         // supplied "(650) 555-0101" reads back as "+16505550101".
                         let value = if key == "phone" {
                             raw.as_deref().and_then(|phone| {
-                                b2b_normalize_phone(phone, phone_country_code.as_deref())
+                                b2b_normalize_phone(phone, phone_country_code.as_deref()).or_else(
+                                    || {
+                                        normalize_phone_with_existing_e164_context(
+                                            phone,
+                                            existing_phone.as_deref(),
+                                            false,
+                                        )
+                                    },
+                                )
                             })
                         } else {
                             raw
@@ -1622,6 +1539,8 @@ impl DraftProxy {
                     Some(email) => json!({ "emailAddress": email }),
                     None => Value::Null,
                 };
+                customer["defaultPhoneNumber"] =
+                    b2b_default_phone_number_value(customer["phone"].as_str());
                 self.store.staged.customers.insert(customer_id, customer);
             }
         }
@@ -1683,6 +1602,8 @@ impl DraftProxy {
                     customer["phone"] = b2b_normalize_phone(&phone, phone_country_code.as_deref())
                         .map(Value::String)
                         .unwrap_or(Value::Null);
+                    customer["defaultPhoneNumber"] =
+                        b2b_default_phone_number_value(customer["phone"].as_str());
                 }
             }
             id
@@ -3773,357 +3694,6 @@ impl DraftProxy {
         }
     }
 
-    pub(in crate::proxy) fn b2b_contact_delete_with_cascade(
-        &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        operation_type: OperationType,
-        parsed_root_fields: &[String],
-        root_field: &str,
-    ) -> Response {
-        self.b2b_passthrough_with_success_cascade(
-            b2b_passthrough_cascade_args(
-                request,
-                query,
-                variables,
-                operation_type,
-                parsed_root_fields,
-                root_field,
-            ),
-            |fields| {
-                fields
-                    .iter()
-                    .flat_map(|field| match field.name.as_str() {
-                        "companyContactDelete" | "companyContactRemoveFromCompany" => {
-                            resolved_string_field(&field.arguments, "companyContactId")
-                                .into_iter()
-                                .collect::<Vec<String>>()
-                        }
-                        "companyContactsDelete" => {
-                            list_string_field(&field.arguments, "companyContactIds")
-                        }
-                        _ => Vec::new(),
-                    })
-                    .collect::<Vec<String>>()
-            },
-            |proxy, contact_ids, _| {
-                for contact_id in contact_ids {
-                    if proxy.store.staged.b2b_contacts.contains_key(&contact_id) {
-                        proxy.b2b_delete_company_contact(&contact_id);
-                    }
-                }
-            },
-        )
-    }
-
-    pub(in crate::proxy) fn b2b_company_address_delete_with_cascade(
-        &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        operation_type: OperationType,
-        parsed_root_fields: &[String],
-        root_field: &str,
-    ) -> Response {
-        self.b2b_passthrough_with_success_cascade(
-            b2b_passthrough_cascade_args(
-                request,
-                query,
-                variables,
-                operation_type,
-                parsed_root_fields,
-                root_field,
-            ),
-            |fields| {
-                fields
-                    .iter()
-                    .filter(|field| field.name == "companyAddressDelete")
-                    .filter_map(|field| b2b_resolved_id_argument(&field.arguments, "addressId"))
-                    .collect::<Vec<String>>()
-            },
-            |proxy, address_ids, _| {
-                for address_id in &address_ids {
-                    proxy.b2b_delete_company_address(address_id);
-                }
-            },
-        )
-    }
-
-    pub(in crate::proxy) fn b2b_company_contact_create_with_cascade(
-        &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        operation_type: OperationType,
-        parsed_root_fields: &[String],
-        root_field: &str,
-    ) -> Response {
-        self.b2b_company_tail_helper_response(
-            request,
-            query,
-            variables,
-            operation_type,
-            parsed_root_fields,
-        )
-        .unwrap_or_else(|| {
-            self.dispatch_unknown_passthrough_or_legacy_error(
-                request,
-                query,
-                variables,
-                operation_type,
-                parsed_root_fields,
-                root_field,
-            )
-        })
-    }
-
-    pub(in crate::proxy) fn b2b_company_contact_update_with_cascade(
-        &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        operation_type: OperationType,
-        parsed_root_fields: &[String],
-        root_field: &str,
-    ) -> Response {
-        self.b2b_passthrough_with_success_cascade(
-            b2b_passthrough_cascade_args(
-                request,
-                query,
-                variables,
-                operation_type,
-                parsed_root_fields,
-                root_field,
-            ),
-            |fields| {
-                fields
-                    .iter()
-                    .find(|field| field.name == "companyContactUpdate")
-                    .cloned()
-            },
-            |proxy, update, response| {
-                if let Some(field) = update {
-                    // Reuse the snapshot payload builder purely for its staging
-                    // side-effect; the authoritative response is the upstream one.
-                    let _ = proxy.b2b_company_contact_update_payload(&field);
-                    // The contact is staged under the synthetic id minted at company
-                    // create time, but a node(id) read after the update threads the
-                    // real id Shopify returned. Mirror the now-updated contact under
-                    // that real id so the generic Node read resolves it, keeping the
-                    // synthetic-keyed record intact for connection reads that still
-                    // address it by the create-time id.
-                    let synthetic_id = resolved_string_field(&field.arguments, "companyContactId")
-                        .unwrap_or_default();
-                    let real_id = response
-                        .body
-                        .get("data")
-                        .and_then(|data| data.get("companyContactUpdate"))
-                        .and_then(|payload| payload.get("companyContact"))
-                        .and_then(|contact| contact.get("id"))
-                        .and_then(Value::as_str)
-                        .map(str::to_string);
-                    if let Some(real_id) = real_id {
-                        if real_id != synthetic_id {
-                            if let Some(mut contact) =
-                                proxy.store.staged.b2b_contacts.get(&synthetic_id).cloned()
-                            {
-                                contact["id"] = json!(real_id);
-                                proxy.store.staged.b2b_contacts.insert(real_id, contact);
-                            }
-                        }
-                    }
-                }
-            },
-        )
-    }
-
-    pub(in crate::proxy) fn b2b_assign_main_contact_with_cascade(
-        &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        operation_type: OperationType,
-        parsed_root_fields: &[String],
-        root_field: &str,
-    ) -> Response {
-        self.b2b_passthrough_with_success_cascade(
-            b2b_passthrough_cascade_args(
-                request,
-                query,
-                variables,
-                operation_type,
-                parsed_root_fields,
-                root_field,
-            ),
-            |fields| {
-                fields
-                    .iter()
-                    .find(|field| field.name == "companyAssignMainContact")
-                    .cloned()
-            },
-            |proxy, assign, _| {
-                if let Some(field) = assign {
-                    let company_id =
-                        resolved_string_field(&field.arguments, "companyId").unwrap_or_default();
-                    let contact_id = resolved_string_field(&field.arguments, "companyContactId")
-                        .unwrap_or_default();
-                    proxy.b2b_set_main_contact(&company_id, Some(&contact_id));
-                }
-            },
-        )
-    }
-
-    pub(in crate::proxy) fn b2b_revoke_main_contact_with_cascade(
-        &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        operation_type: OperationType,
-        parsed_root_fields: &[String],
-        root_field: &str,
-    ) -> Response {
-        self.b2b_passthrough_with_success_cascade(
-            b2b_passthrough_cascade_args(
-                request,
-                query,
-                variables,
-                operation_type,
-                parsed_root_fields,
-                root_field,
-            ),
-            |fields| {
-                fields
-                    .iter()
-                    .find(|field| field.name == "companyRevokeMainContact")
-                    .cloned()
-            },
-            |proxy, revoke, _| {
-                if let Some(field) = revoke {
-                    let company_id =
-                        resolved_string_field(&field.arguments, "companyId").unwrap_or_default();
-                    proxy.b2b_set_main_contact(&company_id, None);
-                }
-            },
-        )
-    }
-
-    pub(in crate::proxy) fn b2b_company_delete_with_cascade(
-        &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        operation_type: OperationType,
-        parsed_root_fields: &[String],
-        root_field: &str,
-    ) -> Response {
-        self.b2b_passthrough_with_deleted_cascade(
-            b2b_passthrough_cascade_args(
-                request,
-                query,
-                variables,
-                operation_type,
-                parsed_root_fields,
-                root_field,
-            ),
-            |fields| {
-                fields
-                    .iter()
-                    .flat_map(|field| match field.name.as_str() {
-                        "companyDelete" => resolved_string_field(&field.arguments, "id")
-                            .into_iter()
-                            .collect::<Vec<String>>(),
-                        "companiesDelete" => list_string_field(&field.arguments, "companyIds"),
-                        _ => Vec::new(),
-                    })
-                    .collect::<Vec<String>>()
-            },
-            |proxy, company_id| proxy.b2b_delete_company(company_id),
-        )
-    }
-
-    pub(in crate::proxy) fn b2b_company_locations_delete_with_cascade(
-        &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        operation_type: OperationType,
-        parsed_root_fields: &[String],
-        root_field: &str,
-    ) -> Response {
-        self.b2b_passthrough_with_deleted_cascade(
-            b2b_passthrough_cascade_args(
-                request,
-                query,
-                variables,
-                operation_type,
-                parsed_root_fields,
-                root_field,
-            ),
-            |fields| {
-                fields
-                    .iter()
-                    .flat_map(|field| match field.name.as_str() {
-                        "companyLocationDelete" => {
-                            b2b_resolved_id_argument(&field.arguments, "companyLocationId")
-                                .into_iter()
-                                .collect::<Vec<String>>()
-                        }
-                        "companyLocationsDelete" => {
-                            list_string_field(&field.arguments, "companyLocationIds")
-                        }
-                        _ => Vec::new(),
-                    })
-                    .collect::<Vec<String>>()
-            },
-            |proxy, location_id| proxy.b2b_delete_company_location(location_id),
-        )
-    }
-
-    pub(in crate::proxy) fn b2b_revoke_roles_with_cascade(
-        &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        operation_type: OperationType,
-        parsed_root_fields: &[String],
-        root_field: &str,
-    ) -> Response {
-        self.b2b_passthrough_with_deleted_cascade(
-            b2b_passthrough_cascade_args(
-                request,
-                query,
-                variables,
-                operation_type,
-                parsed_root_fields,
-                root_field,
-            ),
-            |fields| {
-                fields
-                    .iter()
-                    .flat_map(|field| match field.name.as_str() {
-                        "companyContactRevokeRole" => resolved_string_field(
-                            &field.arguments,
-                            "companyContactRoleAssignmentId",
-                        )
-                        .into_iter()
-                        .collect::<Vec<String>>(),
-                        "companyContactRevokeRoles" => {
-                            list_string_field(&field.arguments, "roleAssignmentIds")
-                        }
-                        "companyLocationRevokeRoles" => {
-                            list_string_field(&field.arguments, "rolesToRevoke")
-                        }
-                        _ => Vec::new(),
-                    })
-                    .collect::<Vec<String>>()
-            },
-            |proxy, assignment_id| {
-                let _ = proxy.b2b_remove_role_assignment(assignment_id);
-            },
-        )
-    }
-
     /// Removes a single role assignment from staged state and detaches it from its
     /// location's `roleAssignmentIds` list. A contact's roleAssignments connection
     /// is resolved by filtering the assignment map, so dropping the entry here is
@@ -4156,18 +3726,6 @@ impl DraftProxy {
             if let Some(mut contact) = self.store.staged.b2b_contacts.get(&contact_id).cloned() {
                 contact["isMainContact"] = json!(main_contact_id == Some(contact_id.as_str()));
                 self.store.staged.b2b_contacts.insert(contact_id, contact);
-            }
-        }
-    }
-
-    /// Removes an upstream-confirmed company and the staged contacts/locations listed on it.
-    fn b2b_delete_company(&mut self, company_id: &str) {
-        if let Some(company) = self.store.staged.b2b_companies.remove(company_id) {
-            for contact_id in b2b_json_id_list(&company, "contactIds") {
-                self.store.staged.b2b_contacts.remove(&contact_id);
-            }
-            for location_id in b2b_json_id_list(&company, "locationIds") {
-                self.store.staged.b2b_locations.remove(&location_id);
             }
         }
     }
@@ -4259,6 +3817,38 @@ impl DraftProxy {
             .and_then(b2b_customer_record_country_code)
             .map(str::to_string)
             .or_else(|| shop_country_code(&self.store.base.shop).map(str::to_string))
+    }
+
+    fn hydrate_b2b_shop_country_for_contact_phone_if_missing(
+        &mut self,
+        request: &Request,
+        fields: &[RootFieldSelection],
+    ) {
+        if self.config.read_mode == ReadMode::Snapshot
+            || shop_country_code(&self.store.base.shop).is_some()
+            || !fields
+                .iter()
+                .any(b2b_field_contact_phone_needs_shop_country)
+        {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": B2B_SHOP_COUNTRY_HYDRATE_QUERY,
+                "variables": {}
+            }),
+        );
+        if !(200..300).contains(&response.status) {
+            return;
+        }
+        if let Some(shop) = response.body["data"]
+            .get("shop")
+            .filter(|shop| shop.is_object())
+        {
+            self.store.base.shop =
+                shallow_merged_object(self.store.base.shop.clone(), shop.clone());
+        }
     }
 }
 
@@ -4624,6 +4214,33 @@ fn b2b_contact_input_errors(
 /// unsupported characters or the digit count falls outside 8..=15.
 fn b2b_normalize_phone(phone: &str, country_code: Option<&str>) -> Option<String> {
     normalize_phone_with_country_context(phone, country_code, false)
+}
+
+fn b2b_default_phone_number_value(phone: Option<&str>) -> Value {
+    match phone.filter(|value| !value.is_empty()) {
+        Some(phone) => json!({ "phoneNumber": phone }),
+        None => Value::Null,
+    }
+}
+
+fn b2b_field_contact_phone_needs_shop_country(field: &RootFieldSelection) -> bool {
+    let contact_input = match field.name.as_str() {
+        "companyContactCreate" | "companyContactUpdate" => {
+            resolved_object_field(&field.arguments, "input")
+        }
+        "companyCreate" => resolved_object_field(&field.arguments, "input")
+            .and_then(|input| resolved_object_field(&input, "companyContact")),
+        _ => None,
+    };
+    contact_input
+        .as_ref()
+        .and_then(|input| resolved_string_field(input, "phone"))
+        .is_some_and(|phone| b2b_phone_needs_country_context(&phone))
+}
+
+fn b2b_phone_needs_country_context(phone: &str) -> bool {
+    let trimmed = phone.trim();
+    !trimmed.is_empty() && !trimmed.starts_with('+') && !trimmed.starts_with('\u{FF0B}')
 }
 
 fn b2b_location_input_country_code(input: &BTreeMap<String, ResolvedValue>) -> Option<String> {
@@ -5110,86 +4727,6 @@ where
             )
         })
         .unwrap_or_else(|| nullable_selected_json(value, selections))
-}
-
-/// A contact delete/remove is treated as successful (and therefore cascades to
-/// local state) only when the upstream payload returns without transport errors
-/// and every mutation payload reports an empty `userErrors` list.
-/// Given an authoritative upstream delete response and the request-ordered ids that
-/// were submitted, returns the subset the response reports as actually deleted — the
-/// request indices that carry no `userErrors` entry. Bulk deletes report per-index
-/// failures via a numeric tail on the error `field` (e.g. `["companyIds", "2"]`), so a
-/// partially-rejected bulk delete (some blocked by deletable checks, some succeeding)
-/// only removes the indices that survived. Single-id deletes have no positional index
-/// and are treated as all-or-nothing.
-fn b2b_passthrough_deleted_request_ids(
-    response: &Response,
-    requested_ids: &[String],
-) -> Vec<String> {
-    if response.status >= 400 {
-        return Vec::new();
-    }
-    let Some(data) = response.body.get("data").filter(|data| !data.is_null()) else {
-        return Vec::new();
-    };
-    let mut failed_indices = std::collections::HashSet::new();
-    let mut unindexed_error = false;
-    if let Some(payloads) = data.as_object() {
-        for payload in payloads.values() {
-            let Some(errors) = payload.get("userErrors").and_then(Value::as_array) else {
-                continue;
-            };
-            for error in errors {
-                match error
-                    .get("field")
-                    .and_then(Value::as_array)
-                    .and_then(|field| field.last())
-                    .and_then(Value::as_str)
-                    .and_then(|last| last.parse::<usize>().ok())
-                {
-                    Some(index) => {
-                        failed_indices.insert(index);
-                    }
-                    None => unindexed_error = true,
-                }
-            }
-        }
-    }
-    if requested_ids.len() <= 1 {
-        return if failed_indices.is_empty() && !unindexed_error {
-            requested_ids.to_vec()
-        } else {
-            Vec::new()
-        };
-    }
-    requested_ids
-        .iter()
-        .enumerate()
-        .filter(|(index, _)| !failed_indices.contains(index))
-        .map(|(_, id)| id.clone())
-        .collect()
-}
-
-fn b2b_passthrough_mutation_succeeded(response: &Response) -> bool {
-    if response.status >= 400 {
-        return false;
-    }
-    let Some(data) = response.body.get("data") else {
-        return false;
-    };
-    if data.is_null() {
-        return false;
-    }
-    if let Some(payloads) = data.as_object() {
-        for payload in payloads.values() {
-            if let Some(errors) = payload.get("userErrors").and_then(Value::as_array) {
-                if !errors.is_empty() {
-                    return false;
-                }
-            }
-        }
-    }
-    true
 }
 
 fn b2b_company_search_decision(company: &Value, query: Option<&str>) -> StagedSearchDecision {

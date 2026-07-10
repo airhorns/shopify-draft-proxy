@@ -1470,12 +1470,6 @@ impl DraftProxy {
             self.ensure_order_hydrated(request, &order_id);
         }
         let Some(existing_order) = self.store.staged.orders.get(&order_id).cloned() else {
-            if self.config.read_mode != ReadMode::Snapshot
-                && self.config.unsupported_mutation_mode
-                    == Some(UnsupportedMutationMode::Passthrough)
-            {
-                return None;
-            }
             return Some(selected_json(
                 &json!({
                     "order": Value::Null,

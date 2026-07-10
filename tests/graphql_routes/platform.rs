@@ -77,6 +77,12 @@ fn fulfillment_order_hydrate_transport(
                 .map(|(_, node)| node.clone())
                 .unwrap_or(Value::Null);
             json!({ "data": { "node": node } })
+        } else if query.contains("fulfillmentOrder(id: $id)") {
+            let fulfillment_order = hydrated
+                .as_ref()
+                .map(|(_, node)| node.clone())
+                .unwrap_or(Value::Null);
+            json!({ "data": { "fulfillmentOrder": fulfillment_order } })
         } else {
             let order = hydrated
                 .as_ref()
@@ -5393,6 +5399,67 @@ fn location_by_identifier_custom_id_miss_returns_null_with_not_found_error() {
 }
 
 #[test]
+fn fulfillment_order_hydration_miss_does_not_forward_mutation() {
+    let upstream_queries = Arc::new(Mutex::new(Vec::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_queries = Arc::clone(&upstream_queries);
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream GraphQL body");
+            let query = body["query"].as_str().unwrap_or_default().to_string();
+            assert!(
+                query.trim_start().starts_with("query"),
+                "fulfillment order fallback must hydrate by query only, got upstream body: {}",
+                request.body
+            );
+            upstream_queries
+                .lock()
+                .expect("upstream queries")
+                .push(query.clone());
+            let body = if query.contains("fulfillmentOrder(id: $id)") {
+                json!({ "data": { "fulfillmentOrder": Value::Null } })
+            } else {
+                json!({ "data": { "node": Value::Null } })
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body,
+            }
+        }
+    });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation HoldMissingFulfillmentOrder($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) {
+          fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) {
+            fulfillmentOrder { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/FulfillmentOrder/404404404",
+            "fulfillmentHold": {
+                "reason": "INVENTORY_OUT_OF_STOCK",
+                "reasonNotes": "missing"
+            }
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body["data"]["fulfillmentOrderHold"], Value::Null);
+    assert_eq!(
+        response.body["errors"][0]["extensions"]["code"],
+        json!("RESOURCE_NOT_FOUND")
+    );
+    let queries = upstream_queries.lock().expect("upstream queries");
+    assert_eq!(queries.len(), 4);
+    assert!(queries
+        .iter()
+        .all(|query| query.trim_start().starts_with("query")));
+}
+
+#[test]
 fn fulfillment_order_hold_release_stages_real_numeric_ids_and_downstream_reads() {
     let order_id = "gid://shopify/Order/7001001";
     let fulfillment_order_id = "gid://shopify/FulfillmentOrder/1234567890";
@@ -6428,6 +6495,205 @@ fn fulfillment_order_deadline_stages_existing_orders_and_reports_all_missing_ids
     assert_eq!(
         after_happy.body["data"]["order"]["displayFulfillmentStatus"],
         json!("UNFULFILLED")
+    );
+}
+
+#[test]
+fn fulfillment_order_split_deadline_uses_split_response_ids_locally() {
+    let order_id = "gid://shopify/Order/7006001";
+    let fulfillment_order_id = "gid://shopify/FulfillmentOrder/70060011";
+    let line_item_id = "gid://shopify/FulfillmentOrderLineItem/70060021";
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(
+        fulfillment_order_hydrate_transport(vec![fulfillment_order_order_fixture(
+            order_id,
+            "#7006",
+            fulfillment_order_id,
+            line_item_id,
+            3,
+            "OPEN",
+        )]),
+    );
+
+    let split = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentOrderSplitThenDeadline($fulfillmentOrderSplits: [FulfillmentOrderSplitInput!]!) {
+          fulfillmentOrderSplit(fulfillmentOrderSplits: $fulfillmentOrderSplits) {
+            fulfillmentOrderSplits {
+              fulfillmentOrder {
+                id
+                fulfillBy
+                supportedActions { action }
+                lineItems(first: 5) { nodes { remainingQuantity } }
+              }
+              remainingFulfillmentOrder {
+                id
+                fulfillBy
+                supportedActions { action }
+                lineItems(first: 5) { nodes { remainingQuantity } }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "fulfillmentOrderSplits": [{
+                "fulfillmentOrderId": fulfillment_order_id,
+                "fulfillmentOrderLineItems": [{ "id": line_item_id, "quantity": 1 }]
+            }]
+        }),
+    ));
+    assert_eq!(
+        split.body["data"]["fulfillmentOrderSplit"]["userErrors"],
+        json!([])
+    );
+    let original_id = split.body["data"]["fulfillmentOrderSplit"]["fulfillmentOrderSplits"][0]
+        ["fulfillmentOrder"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let remaining_id = split.body["data"]["fulfillmentOrderSplit"]["fulfillmentOrderSplits"][0]
+        ["remainingFulfillmentOrder"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        split.body["data"]["fulfillmentOrderSplit"]["fulfillmentOrderSplits"][0]
+            ["fulfillmentOrder"]["supportedActions"],
+        json!([
+            { "action": "CREATE_FULFILLMENT" },
+            { "action": "REPORT_PROGRESS" },
+            { "action": "MOVE" },
+            { "action": "HOLD" },
+            { "action": "SPLIT" },
+            { "action": "MERGE" }
+        ])
+    );
+    assert_eq!(
+        split.body["data"]["fulfillmentOrderSplit"]["fulfillmentOrderSplits"][0]
+            ["remainingFulfillmentOrder"]["supportedActions"],
+        json!([
+            { "action": "CREATE_FULFILLMENT" },
+            { "action": "REPORT_PROGRESS" },
+            { "action": "MOVE" },
+            { "action": "HOLD" },
+            { "action": "MERGE" }
+        ])
+    );
+
+    let split_dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(split_dump.status, 200);
+    let restore_after_split = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &split_dump.body.to_string(),
+    ));
+    assert_eq!(restore_after_split.status, 200);
+
+    let after_split_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadSplitFulfillmentOrders($id: ID!) {
+          order(id: $id) {
+            fulfillmentOrders(first: 10) {
+              nodes { id fulfillBy }
+            }
+          }
+        }
+        "#,
+        json!({ "id": order_id }),
+    ));
+    assert_eq!(after_split_read.status, 200);
+
+    let after_split_read_dump =
+        proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(after_split_read_dump.status, 200);
+    let restore_after_split_read = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &after_split_read_dump.body.to_string(),
+    ));
+    assert_eq!(restore_after_split_read.status, 200);
+
+    let deadline = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeadlineSplitFulfillmentOrders($fulfillmentOrderIds: [ID!]!, $fulfillmentDeadline: DateTime!) {
+          fulfillmentOrdersSetFulfillmentDeadline(fulfillmentOrderIds: $fulfillmentOrderIds, fulfillmentDeadline: $fulfillmentDeadline) {
+            success
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "fulfillmentOrderIds": [original_id, remaining_id],
+            "fulfillmentDeadline": "2026-12-01T00:00:00.000Z"
+        }),
+    ));
+    assert_eq!(
+        deadline.body["data"]["fulfillmentOrdersSetFulfillmentDeadline"],
+        json!({ "success": true, "userErrors": [] })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadSplitDeadlineFulfillmentOrders($id: ID!) {
+          order(id: $id) {
+            fulfillmentOrders(first: 10) {
+              nodes { id fulfillBy }
+            }
+          }
+        }
+        "#,
+        json!({ "id": order_id }),
+    ));
+    let nodes = read.body["data"]["order"]["fulfillmentOrders"]["nodes"]
+        .as_array()
+        .unwrap();
+    assert!(
+        nodes
+            .iter()
+            .filter(|node| node["fulfillBy"] == json!("2026-12-01T00:00:00Z"))
+            .count()
+            >= 2
+    );
+
+    let merge = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MergeSplitFulfillmentOrders($fulfillmentOrderMergeInputs: [FulfillmentOrderMergeInput!]!) {
+          fulfillmentOrderMerge(fulfillmentOrderMergeInputs: $fulfillmentOrderMergeInputs) {
+            fulfillmentOrderMerges {
+              fulfillmentOrder {
+                id
+                supportedActions { action }
+                lineItems(first: 5) { nodes { remainingQuantity } }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "fulfillmentOrderMergeInputs": [{
+                "mergeIntents": [
+                    { "fulfillmentOrderId": original_id },
+                    { "fulfillmentOrderId": remaining_id }
+                ]
+            }]
+        }),
+    ));
+    assert_eq!(
+        merge.body["data"]["fulfillmentOrderMerge"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        merge.body["data"]["fulfillmentOrderMerge"]["fulfillmentOrderMerges"][0]
+            ["fulfillmentOrder"]["supportedActions"],
+        json!([
+            { "action": "CREATE_FULFILLMENT" },
+            { "action": "REPORT_PROGRESS" },
+            { "action": "MOVE" },
+            { "action": "HOLD" },
+            { "action": "SPLIT" }
+        ])
     );
 }
 

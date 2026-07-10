@@ -176,6 +176,9 @@ written into the local order graph and are visible through `fulfillmentOrder`,
 fulfillment orders are recomputed from current status and assignment: terminal
 `CLOSED` / `CANCELLED` records return an empty action list, and merchant-managed
 `OPEN` records do not advertise fulfillment-service-only `REPORT_PROGRESS`.
+Split fulfillment orders preserve fulfillment-service actions observed on the
+source order, while merge recomputes peer-sensitive actions so `MERGE` is absent
+when no compatible open peer remains.
 Locally created order fulfillment orders derive their initial `assignedLocation`
 from the first active observed/staged shop location that fulfills online orders;
 the runtime does not fabricate

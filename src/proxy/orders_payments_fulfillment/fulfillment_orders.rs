@@ -22,6 +22,15 @@ fn fulfillment_order_is_fulfillment_service_assigned(order: &Value) -> bool {
         || assigned_location
             .get("fulfillmentService")
             .is_some_and(Value::is_object)
+        || fulfillment_order_has_supported_action(order, "REPORT_PROGRESS")
+}
+
+fn fulfillment_order_has_supported_action(order: &Value, action: &str) -> bool {
+    order["supportedActions"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .any(|entry| entry["action"].as_str() == Some(action))
 }
 
 pub(in crate::proxy) fn fulfillment_order_supported_actions(
@@ -1384,6 +1393,20 @@ impl DraftProxy {
             target["lineItems"] = order_connection(merged_lines);
             target["updatedAt"] = json!("2026-05-11T10:00:00Z");
             set_fulfillment_order_status_from_lines(&mut target);
+            let has_merge_peer = nodes.iter().enumerate().any(|(index, node)| {
+                if index == target_index {
+                    return false;
+                }
+                let node_id = node["id"].as_str().unwrap_or_default();
+                !remove_ids.iter().any(|remove_id| remove_id == node_id)
+                    && node["status"].as_str() == Some("OPEN")
+                    && fulfillment_order_line_quantity_total(node) > 0
+            });
+            if !has_merge_peer {
+                if let Some(actions) = target["supportedActions"].as_array_mut() {
+                    actions.retain(|action| action["action"].as_str() != Some("MERGE"));
+                }
+            }
             nodes[target_index] = target.clone();
             for remove_id in &remove_ids {
                 if let Some(node) = nodes
