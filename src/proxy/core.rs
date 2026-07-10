@@ -24,7 +24,8 @@ pub(in crate::proxy) fn guarded_upstream_transport(
 
 fn registered_stage_locally_mutation_upstream_root(request: &Request) -> Option<String> {
     let graphql_request = parse_graphql_request_body(&request.body)?;
-    let operation = parse_operation(&graphql_request.query)?;
+    let operation =
+        parse_operation_with_variables(&graphql_request.query, &graphql_request.variables)?;
     if operation.operation_type != OperationType::Mutation {
         return None;
     }

@@ -897,7 +897,7 @@ impl DraftProxy {
         let capability_domain = draft.capability_domain;
         let capability_execution = draft.capability_execution;
         let notes = draft.notes;
-        let root_fields = parse_operation(query)
+        let root_fields = parse_operation_with_variables(query, variables)
             .map(|operation| operation.root_fields)
             .unwrap_or_else(|| vec![root_field.clone()]);
         self.log_entries.push(json!({
@@ -2006,11 +2006,11 @@ impl DraftProxy {
             return response;
         }
 
-        let Some(operation) = parse_operation(&query) else {
+        let Some(operation) = parse_operation_with_variables(&query, &variables) else {
             return json_error(400, "Could not parse GraphQL operation");
         };
         let Some(root_field) = operation.primary_root_field() else {
-            return json_error(400, "Operation has no root field");
+            return ok_json(json!({ "data": {} }));
         };
 
         let schema_input_errors = public_admin_schema_input_errors(

@@ -1063,6 +1063,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'graphql-conditional-directives-product-execution',
+    scriptPath: 'scripts/capture-graphql-conditional-directives-product-conformance.ts',
+    purpose:
+      'Standard GraphQL @skip/@include execution for product query fields/fragments and skipped productCreate mutation roots.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}graphql-conditional-directives-product-execution.json`,
+      'config/parity-specs/products/graphql-conditional-directives-product-execution.json',
+      'config/parity-requests/products/graphql-conditional-directives-product-create.graphql',
+      'config/parity-requests/products/graphql-conditional-directives-product-read.graphql',
+      'config/parity-requests/products/graphql-conditional-directives-product-create-skipped.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable draft product, records conditional directive query/mutation execution, then deletes the product in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-scalar-length-validation',
     scriptPath: 'scripts/capture-product-scalar-length-validation-conformance.ts',
     purpose:
