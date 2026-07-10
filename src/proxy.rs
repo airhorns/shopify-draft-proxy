@@ -361,6 +361,7 @@ struct StagedState {
     catalogs: BTreeMap<String, Value>,
     price_lists: BTreeMap<String, Value>,
     web_presences: BTreeMap<String, Value>,
+    #[allow(dead_code)]
     markets_hydrated_scopes: BTreeSet<String>,
     markets_dirty_families: BTreeSet<String>,
     publication_ids: BTreeSet<String>,

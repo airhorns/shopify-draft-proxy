@@ -1103,43 +1103,22 @@ impl DraftProxy {
     /// upstream and hydrates the staged store from the response.
     pub(in crate::proxy) fn markets_should_fetch_upstream(
         &self,
-        fields: &[RootFieldSelection],
+        root_field: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> bool {
-        let plural_localizable_state_selected = fields
-            .iter()
-            .any(|field| field.name == "marketLocalizableResources")
-            && self.has_market_localizable_resource_state();
-        fields.iter().any(|field| {
-            self.markets_field_should_fetch_upstream(
-                field,
-                variables,
-                plural_localizable_state_selected,
-            )
-        })
-    }
-
-    fn markets_field_should_fetch_upstream(
-        &self,
-        field: &RootFieldSelection,
-        variables: &BTreeMap<String, ResolvedValue>,
-        plural_localizable_state_selected: bool,
-    ) -> bool {
-        match field.name.as_str() {
+        match root_field {
             "market" => {
-                !markets_variables_have_local_id(&field.arguments, &self.store.staged.markets)
+                !markets_variables_have_local_id(variables, &self.store.staged.markets)
                     && !markets_variables_have_deleted_market_id(
-                        &field.arguments,
+                        variables,
                         &self.store.staged.deleted_market_ids,
                     )
             }
-            "catalog" => {
-                !markets_variables_have_local_id(&field.arguments, &self.store.staged.catalogs)
-            }
+            "catalog" => !markets_variables_have_local_id(variables, &self.store.staged.catalogs),
             "priceList" => {
-                !markets_variables_have_local_id(&field.arguments, &self.store.staged.price_lists)
+                !markets_variables_have_local_id(variables, &self.store.staged.price_lists)
             }
-            "marketLocalizableResource" => resolved_string_field(&field.arguments, "resourceId")
+            "marketLocalizableResource" => resolved_string_field(variables, "resourceId")
                 .map(|resource_id| {
                     !self
                         .store
@@ -1153,13 +1132,10 @@ impl DraftProxy {
             | "catalogsCount"
             | "priceLists"
             | "webPresences"
-            | "marketsResolvedValues" => markets_hydration_scope_keys(field)
-                .iter()
-                .any(|key| self.markets_scope_needs_upstream(key)),
+            | "marketsResolvedValues" => !self.has_markets_overlay_state(),
             "marketLocalizableResources" => !self.has_market_localizable_resource_state(),
             "marketLocalizableResourcesByIds" => {
-                !plural_localizable_state_selected
-                    && self.market_localizable_resources_by_ids_should_fetch_upstream(variables)
+                self.market_localizable_resources_by_ids_should_fetch_upstream(variables)
             }
             _ => false,
         }
@@ -1172,6 +1148,7 @@ impl DraftProxy {
             .insert(family.to_string());
     }
 
+    #[allow(dead_code)]
     fn markets_scope_needs_upstream(&self, key: &str) -> bool {
         if self.store.staged.markets_hydrated_scopes.contains(key) {
             return false;
@@ -1181,6 +1158,7 @@ impl DraftProxy {
             || self.markets_family_has_records(family)
     }
 
+    #[allow(dead_code)]
     fn markets_family_has_records(&self, family: &str) -> bool {
         match family {
             "markets" => !self.store.staged.markets.is_empty(),
@@ -1191,6 +1169,7 @@ impl DraftProxy {
         }
     }
 
+    #[allow(dead_code)]
     pub(in crate::proxy) fn hydrate_markets_from_upstream_for_fields(
         &mut self,
         body: &Value,
@@ -1201,6 +1180,7 @@ impl DraftProxy {
         self.mark_markets_hydrated_scopes_from_fields(&normalized, fields);
     }
 
+    #[allow(dead_code)]
     fn mark_markets_hydrated_scopes_from_fields(
         &mut self,
         body: &Value,
@@ -1373,6 +1353,7 @@ fn market_mutation_wrong_resource_error(field: &RootFieldSelection) -> Option<Va
     }
 }
 
+#[allow(dead_code)]
 fn markets_hydration_scope_keys(field: &RootFieldSelection) -> Vec<String> {
     match field.name.as_str() {
         "markets" => vec![markets_hydration_scope_key("markets", &field.arguments)],
@@ -1403,6 +1384,7 @@ fn markets_hydration_scope_keys(field: &RootFieldSelection) -> Vec<String> {
     }
 }
 
+#[allow(dead_code)]
 fn markets_hydration_scope_key(
     family: &str,
     arguments: &BTreeMap<String, ResolvedValue>,
@@ -1415,14 +1397,17 @@ fn markets_hydration_scope_key(
     format!("{family}:{}", Value::Object(scope_arguments))
 }
 
+#[allow(dead_code)]
 fn markets_scope_family(key: &str) -> &str {
     key.split_once(':').map(|(family, _)| family).unwrap_or(key)
 }
 
+#[allow(dead_code)]
 fn markets_pagination_argument(name: &str) -> bool {
     matches!(name, "first" | "last" | "after" | "before")
 }
 
+#[allow(dead_code)]
 fn markets_response_connection_complete(value: Option<&Value>) -> bool {
     let Some(connection) = value.filter(|value| value.is_object()) else {
         return false;
@@ -1437,6 +1422,7 @@ fn markets_response_connection_complete(value: Option<&Value>) -> bool {
         != Some(true)
 }
 
+#[allow(dead_code)]
 fn markets_body_with_canonical_response_keys(body: &Value, fields: &[RootFieldSelection]) -> Value {
     let mut normalized = body.clone();
     let Some(data) = normalized.get_mut("data").and_then(Value::as_object_mut) else {
