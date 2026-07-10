@@ -5125,6 +5125,220 @@ fn assert_no_inventory_quantity_logs(proxy: &DraftProxy) {
     );
 }
 
+fn parse_inventory_timestamp(timestamp: &str, context: &str) -> time::OffsetDateTime {
+    time::OffsetDateTime::parse(timestamp, &time::format_description::well_known::Rfc3339)
+        .unwrap_or_else(|error| panic!("{context} should parse as RFC3339: {error}"))
+}
+
+fn set_inventory_available_quantity(
+    proxy: &mut DraftProxy,
+    inventory_item_id: &str,
+    location_id: &str,
+    quantity: i64,
+) -> String {
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SetInventoryTimestampProbe($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) {
+            inventoryAdjustmentGroup { createdAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"name": "available", "reason": "correction", "ignoreCompareQuantity": true, "quantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": quantity}
+        ]}}),
+    ));
+    assert_eq!(
+        set.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+    set.body["data"]["inventorySetQuantities"]["inventoryAdjustmentGroup"]["createdAt"]
+        .as_str()
+        .expect("inventory adjustment group should include createdAt")
+        .to_string()
+}
+
+fn read_inventory_available_updated_at(
+    proxy: &mut DraftProxy,
+    inventory_item_id: &str,
+    location_id: &str,
+) -> String {
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryTimestampProbeRead($inventoryItemId: ID!) {
+          inventoryItem(id: $inventoryItemId) {
+            inventoryLevels(first: 10) {
+              nodes {
+                location { id }
+                quantities(names: ["available"]) { name updatedAt }
+              }
+            }
+          }
+        }
+        "#,
+        json!({"inventoryItemId": inventory_item_id}),
+    ));
+    read.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|node| node["location"]["id"] == json!(location_id))
+        .and_then(|node| node["quantities"][0]["updatedAt"].as_str())
+        .expect("inventory level should expose available updatedAt")
+        .to_string()
+}
+
+#[test]
+fn inventory_quantity_timestamps_remain_rfc3339_after_sixty_operations() {
+    let mut proxy = inventory_seed_proxy();
+    let (_variant_id, inventory_item_id) =
+        create_inventory_test_item(&mut proxy, "INV-TIMESTAMP-60");
+    let location_id = add_inventory_test_location(&mut proxy, "Timestamp location");
+    let mut previous = None;
+    let mut timestamps = Vec::new();
+
+    for quantity in 1..=65 {
+        let created_at = set_inventory_available_quantity(
+            &mut proxy,
+            &inventory_item_id,
+            &location_id,
+            quantity,
+        );
+        let updated_at =
+            read_inventory_available_updated_at(&mut proxy, &inventory_item_id, &location_id);
+        assert_eq!(updated_at, created_at);
+
+        let context = format!("inventory timestamp operation {quantity}");
+        let parsed = parse_inventory_timestamp(&created_at, &context);
+        parse_inventory_timestamp(&updated_at, &format!("{context} read-after-write"));
+        if let Some(previous) = previous {
+            assert!(
+                parsed > previous,
+                "{context} should be monotonically newer than the prior timestamp"
+            );
+        }
+        previous = Some(parsed);
+        timestamps.push(created_at);
+    }
+
+    assert_eq!(timestamps[59], "2024-01-01T00:00:59.000Z");
+    assert_eq!(timestamps[60], "2024-01-01T00:01:00.000Z");
+}
+
+#[test]
+fn inventory_quantity_timestamp_counter_restores_and_resets_without_collisions() {
+    let mut proxy = inventory_seed_proxy();
+    let (_variant_id, inventory_item_id) =
+        create_inventory_test_item(&mut proxy, "INV-TIMESTAMP-RESTORE");
+    let location_id = add_inventory_test_location(&mut proxy, "Timestamp restore location");
+    restore_state_with(&mut proxy, |state| {
+        state["stagedState"]["nextInventoryQuantityTimestamp"] = json!(3599);
+    });
+
+    let at_3599 =
+        set_inventory_available_quantity(&mut proxy, &inventory_item_id, &location_id, 100);
+    let at_3600 =
+        set_inventory_available_quantity(&mut proxy, &inventory_item_id, &location_id, 101);
+    let at_3601 =
+        set_inventory_available_quantity(&mut proxy, &inventory_item_id, &location_id, 102);
+    assert_eq!(at_3599, "2024-01-01T00:59:59.000Z");
+    assert_eq!(at_3600, "2024-01-01T01:00:00.000Z");
+    assert_eq!(at_3601, "2024-01-01T01:00:01.000Z");
+    assert!(
+        parse_inventory_timestamp(&at_3601, "counter 3601")
+            > parse_inventory_timestamp(&at_3600, "counter 3600")
+    );
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    assert_eq!(
+        dump.body["state"]["stagedState"]["nextInventoryQuantityTimestamp"],
+        json!(3602)
+    );
+
+    let mut restored = inventory_seed_proxy();
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    let at_3602 =
+        set_inventory_available_quantity(&mut restored, &inventory_item_id, &location_id, 103);
+    assert_eq!(at_3602, "2024-01-01T01:00:02.000Z");
+    assert!(
+        parse_inventory_timestamp(&at_3602, "counter 3602 after restore")
+            > parse_inventory_timestamp(&at_3601, "counter 3601 before restore")
+    );
+
+    let reset = restored.process_request(request_with_body("POST", "/__meta/reset", ""));
+    assert_eq!(reset.status, 200);
+    let (_reset_variant_id, reset_inventory_item_id) =
+        create_inventory_test_item(&mut restored, "INV-TIMESTAMP-RESET");
+    let reset_location_id = add_inventory_test_location(&mut restored, "Timestamp reset location");
+    let reset_at = set_inventory_available_quantity(
+        &mut restored,
+        &reset_inventory_item_id,
+        &reset_location_id,
+        1,
+    );
+    assert_eq!(reset_at, "2024-01-01T00:00:00.000Z");
+    parse_inventory_timestamp(&reset_at, "counter after reset");
+}
+
+#[test]
+fn inventory_transfer_default_timestamps_remain_monotonic_after_sixty_records() {
+    let mut proxy = inventory_seed_proxy();
+    let origin_id = add_active_transfer_location(&mut proxy, "Timestamp Transfer Origin");
+    let destination_id = add_active_transfer_location(&mut proxy, "Timestamp Transfer Destination");
+    let (_variant_id, inventory_item_id) =
+        create_inventory_test_item(&mut proxy, "INV-TIMESTAMP-TRANSFER");
+    stock_transfer_item_at_origin(&mut proxy, &inventory_item_id, &origin_id, 100);
+    let mut previous = None;
+    let mut timestamps = Vec::new();
+
+    for index in 1..=65 {
+        let create = proxy.process_request(json_graphql_request(
+            r#"
+            mutation InventoryTransferTimestampProbe($input: InventoryTransferCreateInput!) {
+              inventoryTransferCreate(input: $input) {
+                inventoryTransfer { id dateCreated }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({"input": {
+                "originLocationId": origin_id,
+                "destinationLocationId": destination_id,
+                "lineItems": [{"inventoryItemId": inventory_item_id, "quantity": 1}]
+            }}),
+        ));
+        assert_eq!(
+            create.body["data"]["inventoryTransferCreate"]["userErrors"],
+            json!([])
+        );
+        let created_at = create.body["data"]["inventoryTransferCreate"]["inventoryTransfer"]
+            ["dateCreated"]
+            .as_str()
+            .expect("inventory transfer should include dateCreated")
+            .to_string();
+        let context = format!("inventory transfer timestamp {index}");
+        let parsed = parse_inventory_timestamp(&created_at, &context);
+        if let Some(previous) = previous {
+            assert!(
+                parsed > previous,
+                "{context} should be monotonically newer than the prior transfer"
+            );
+        }
+        previous = Some(parsed);
+        timestamps.push(created_at);
+    }
+
+    assert_eq!(timestamps[58], "2024-01-01T00:00:59.000Z");
+    assert_eq!(timestamps[59], "2024-01-01T00:01:00.000Z");
+}
+
 #[test]
 fn inventory_activation_roots_stage_locally_and_read_inactive_levels() {
     use shopify_draft_proxy::proxy::UnsupportedMutationMode;

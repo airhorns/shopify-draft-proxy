@@ -1179,11 +1179,28 @@ fn inventory_item_sort_key(inventory_item_id: &str, _sort_key: Option<&str>) -> 
     inventory_gid_sort_key(inventory_item_id)
 }
 
-fn inventory_transfer_default_created_at(existing_count: usize) -> String {
+fn inventory_sequence_timestamp(sequence: u64) -> String {
+    let seconds =
+        i64::try_from(sequence).expect("inventory timestamp sequence should fit in i64 seconds");
+    let timestamp = time::OffsetDateTime::from_unix_timestamp(1_704_067_200)
+        .expect("inventory timestamp epoch should be representable")
+        .checked_add(time::Duration::seconds(seconds))
+        .expect("inventory timestamp should remain representable");
     format!(
-        "2024-01-01T00:00:{:02}.000Z",
-        existing_count.saturating_add(1) % 60
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.000Z",
+        timestamp.year(),
+        u8::from(timestamp.month()),
+        timestamp.day(),
+        timestamp.hour(),
+        timestamp.minute(),
+        timestamp.second()
     )
+}
+
+fn inventory_transfer_default_created_at(existing_count: usize) -> String {
+    let sequence = u64::try_from(existing_count.saturating_add(1))
+        .expect("inventory transfer count should fit in u64");
+    inventory_sequence_timestamp(sequence)
 }
 
 fn inventory_input_path(list_key: &str, index: usize, field_path: &[&str]) -> Vec<String> {
