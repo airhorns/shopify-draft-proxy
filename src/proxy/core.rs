@@ -238,6 +238,43 @@ impl DraftProxy {
                 })
             })
             .collect::<Vec<_>>();
+        let base_metafield_definitions = self
+            .store
+            .base
+            .metafield_definitions
+            .iter()
+            .map(|((owner_type, namespace, key), definition)| {
+                (
+                    format!("{owner_type}\u{1f}{namespace}\u{1f}{key}"),
+                    definition.clone(),
+                )
+            })
+            .collect::<serde_json::Map<_, _>>();
+        let base_metafield_definition_namespaces = self
+            .store
+            .base
+            .metafield_definition_namespaces
+            .iter()
+            .map(|(owner_type, namespace)| {
+                json!({
+                    "ownerType": owner_type,
+                    "namespace": namespace
+                })
+            })
+            .collect::<Vec<_>>();
+        let deleted_metafield_definitions = self
+            .store
+            .staged
+            .deleted_metafield_definitions
+            .iter()
+            .map(|(owner_type, namespace, key)| {
+                json!({
+                    "ownerType": owner_type,
+                    "namespace": namespace,
+                    "key": key
+                })
+            })
+            .collect::<Vec<_>>();
         let mut snapshot = json!({
             "baseState": {
                 "products": product_state_map_json(&self.store.base.products.records),
@@ -257,7 +294,10 @@ impl DraftProxy {
                 "publicationCount": self.store.base.publication_count,
                 "availableLocales": available_locales,
                 "shopLocales": self.store.base.shop_locales.clone(),
-                "localizationProductIds": self.store.base.localization_product_ids.iter().cloned().collect::<Vec<_>>()
+                "localizationProductIds": self.store.base.localization_product_ids.iter().cloned().collect::<Vec<_>>(),
+                "metafieldDefinitions": Value::Object(base_metafield_definitions),
+                "metafieldDefinitionOwnerCatalogs": self.store.base.metafield_definition_owner_catalogs.iter().cloned().collect::<Vec<_>>(),
+                "metafieldDefinitionNamespaces": base_metafield_definition_namespaces
             },
             "stagedState": {
                 "products": product_state_map_json(&self.store.staged.products.records),
@@ -336,7 +376,8 @@ impl DraftProxy {
                 "deletedDiscountIds": self.store.staged.discounts.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "discountRedeemCodeBulkCreations": self.store.staged.discount_redeem_code_bulk_creations.clone(),
                 "ownerMetafields": self.store.staged.owner_metafields.clone(),
-                "deletedOwnerMetafields": deleted_owner_metafields
+                "deletedOwnerMetafields": deleted_owner_metafields,
+                "deletedMetafieldDefinitions": deleted_metafield_definitions
             }
         });
         if !self.store.staged.media_ready_on_read.is_empty() {
@@ -1157,6 +1198,18 @@ impl DraftProxy {
             .unwrap_or_default()
             .into_iter()
             .collect();
+        self.store.base.metafield_definitions =
+            metafield_definition_map_from_json(state["baseState"].get("metafieldDefinitions"));
+        self.store.base.metafield_definition_owner_catalogs = state["baseState"]
+            .get("metafieldDefinitionOwnerCatalogs")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.base.metafield_definition_namespaces =
+            metafield_definition_namespace_set_from_json(
+                state["baseState"].get("metafieldDefinitionNamespaces"),
+            );
         self.store.staged.publication_ids =
             string_array_from_json(&state["stagedState"]["publicationIds"])
                 .into_iter()
@@ -1596,35 +1649,11 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
-        self.store.staged.metafield_definitions = state["stagedState"]
-            .get("metafieldDefinitions")
-            .and_then(Value::as_object)
-            .map(|definitions| {
-                definitions
-                    .iter()
-                    .filter_map(|(encoded_key, definition)| {
-                        let parts = encoded_key.split('\u{1f}').collect::<Vec<_>>();
-                        match parts.as_slice() {
-                            [owner_type, namespace, key] => Some((
-                                metafield_definition_store_key(owner_type, namespace, key),
-                                definition.clone(),
-                            )),
-                            [namespace, key] => {
-                                let owner_type = definition
-                                    .get("ownerType")
-                                    .and_then(Value::as_str)
-                                    .unwrap_or("PRODUCT");
-                                Some((
-                                    metafield_definition_store_key(owner_type, namespace, key),
-                                    definition.clone(),
-                                ))
-                            }
-                            _ => None,
-                        }
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
+        self.store.staged.metafield_definitions =
+            metafield_definition_map_from_json(state["stagedState"].get("metafieldDefinitions"));
+        self.store.staged.deleted_metafield_definitions = metafield_definition_key_set_from_json(
+            state["stagedState"].get("deletedMetafieldDefinitions"),
+        );
         self.store.staged.metafield_reference_ids = state["stagedState"]
             .get("metafieldReferenceIds")
             .map(string_array_from_json)
@@ -1883,6 +1912,86 @@ fn value_map_from_json(value: Option<&Value>) -> BTreeMap<String, Value> {
             records
                 .iter()
                 .map(|(id, record)| (id.clone(), record.clone()))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn metafield_definition_map_from_json(
+    value: Option<&Value>,
+) -> BTreeMap<MetafieldDefinitionKey, Value> {
+    value
+        .and_then(Value::as_object)
+        .map(|definitions| {
+            definitions
+                .iter()
+                .filter_map(|(encoded_key, definition)| {
+                    let parts = encoded_key.split('\u{1f}').collect::<Vec<_>>();
+                    match parts.as_slice() {
+                        [owner_type, namespace, key] => Some((
+                            metafield_definition_store_key(owner_type, namespace, key),
+                            definition.clone(),
+                        )),
+                        [namespace, key] => {
+                            let owner_type = definition
+                                .get("ownerType")
+                                .and_then(Value::as_str)
+                                .unwrap_or("PRODUCT");
+                            Some((
+                                metafield_definition_store_key(owner_type, namespace, key),
+                                definition.clone(),
+                            ))
+                        }
+                        _ => None,
+                    }
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn metafield_definition_key_set_from_json(
+    value: Option<&Value>,
+) -> BTreeSet<MetafieldDefinitionKey> {
+    match value {
+        Some(Value::Array(values)) => values
+            .iter()
+            .filter_map(|value| {
+                let owner_type = value.get("ownerType").and_then(Value::as_str)?;
+                let namespace = value.get("namespace").and_then(Value::as_str)?;
+                let key = value.get("key").and_then(Value::as_str)?;
+                Some(metafield_definition_store_key(owner_type, namespace, key))
+            })
+            .collect(),
+        Some(Value::Object(values)) => values
+            .keys()
+            .filter_map(|encoded_key| {
+                let parts = encoded_key.split('\u{1f}').collect::<Vec<_>>();
+                match parts.as_slice() {
+                    [owner_type, namespace, key] => {
+                        Some(metafield_definition_store_key(owner_type, namespace, key))
+                    }
+                    _ => None,
+                }
+            })
+            .collect(),
+        _ => BTreeSet::new(),
+    }
+}
+
+fn metafield_definition_namespace_set_from_json(
+    value: Option<&Value>,
+) -> BTreeSet<(String, String)> {
+    value
+        .and_then(Value::as_array)
+        .map(|values| {
+            values
+                .iter()
+                .filter_map(|value| {
+                    let owner_type = value.get("ownerType").and_then(Value::as_str)?;
+                    let namespace = value.get("namespace").and_then(Value::as_str)?;
+                    Some((owner_type.to_string(), namespace.to_string()))
+                })
                 .collect()
         })
         .unwrap_or_default()
