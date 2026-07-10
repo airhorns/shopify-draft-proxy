@@ -445,6 +445,8 @@ struct StagedState {
     payment_terms_owner_index: BTreeMap<String, String>,
     payment_reminder_schedule_ids: BTreeSet<String>,
     payment_customizations: BTreeMap<String, Value>,
+    deleted_payment_customization_ids: BTreeSet<String>,
+    payment_customization_catalog_hydrated: bool,
     customer_payment_methods: BTreeMap<String, Value>,
     customer_payment_method_customer_index: BTreeMap<String, Vec<String>>,
     next_customer_payment_method_id: u64,

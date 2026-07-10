@@ -428,6 +428,27 @@ impl DraftProxy {
                 .customer_payment_method_customer_index
                 .clone());
         }
+        if !self.store.staged.payment_customizations.is_empty() {
+            snapshot["stagedState"]["paymentCustomizations"] =
+                json!(self.store.staged.payment_customizations.clone());
+        }
+        if !self
+            .store
+            .staged
+            .deleted_payment_customization_ids
+            .is_empty()
+        {
+            snapshot["stagedState"]["deletedPaymentCustomizationIds"] = json!(self
+                .store
+                .staged
+                .deleted_payment_customization_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
+        if self.store.staged.payment_customization_catalog_hydrated {
+            snapshot["stagedState"]["paymentCustomizationCatalogHydrated"] = json!(true);
+        }
         if self.store.staged.next_customer_payment_method_id != 1 {
             snapshot["stagedState"]["nextCustomerPaymentMethodId"] =
                 json!(self.store.staged.next_customer_payment_method_id);
@@ -1267,6 +1288,18 @@ impl DraftProxy {
                     &self.store.staged.customer_payment_methods,
                 )
             });
+        self.store.staged.payment_customizations =
+            value_map_from_json(state["stagedState"].get("paymentCustomizations"));
+        self.store.staged.deleted_payment_customization_ids = state["stagedState"]
+            .get("deletedPaymentCustomizationIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.staged.payment_customization_catalog_hydrated = state["stagedState"]
+            .get("paymentCustomizationCatalogHydrated")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
         self.store.staged.next_customer_payment_method_id =
             counter_from_json_with_floor(&state["stagedState"], "nextCustomerPaymentMethodId", 1);
         self.store.staged.abandonments =
