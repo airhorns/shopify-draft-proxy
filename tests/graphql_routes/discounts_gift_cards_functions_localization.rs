@@ -136,6 +136,45 @@ fn assert_full_discount_config_hydrate_request(body: &str) {
     }
 }
 
+fn assert_code_only_bounded_discount_hydrate_request(request_body: &Value) {
+    let query = request_body["query"]
+        .as_str()
+        .expect("discount hydrate request should carry a query string");
+    assert!(
+        query.contains("codeDiscountNode"),
+        "code-discount hydrate should read the code branch, got: {query}"
+    );
+    assert!(
+        !query.contains("automaticDiscountNode"),
+        "code-discount hydrate should not read the automatic branch, got: {query}"
+    );
+    assert!(
+        !query.contains("first: 250"),
+        "discount hydrate should not fetch unbounded 250-item windows by default, got: {query}"
+    );
+}
+
+fn discount_context_hydrate_node(id: &str) -> Value {
+    let tail = id.rsplit('/').next().unwrap_or(id);
+    if id.contains("/Customer/") {
+        json!({
+            "__typename": "Customer",
+            "id": id,
+            "displayName": format!("Customer {tail}"),
+            "email": format!("customer-{tail}@example.com")
+        })
+    } else {
+        json!({
+            "__typename": "Segment",
+            "id": id,
+            "name": format!("Segment {tail}"),
+            "query": format!("customer_tag = 'segment-{tail}'"),
+            "creationDate": "2026-04-01T00:00:00Z",
+            "lastEditDate": "2026-04-02T00:00:00Z"
+        })
+    }
+}
+
 fn assert_synthetic_gid(id: &str, resource_type: &str) {
     assert!(
         id.starts_with(&format!("gid://shopify/{resource_type}/")),
@@ -14143,6 +14182,313 @@ fn discount_update_hydrates_free_shipping_scope_before_omitted_update() {
         updated.body["data"]["discountCodeFreeShippingUpdate"]["userErrors"],
         json!([])
     );
+}
+
+#[test]
+fn discount_context_refs_hydrate_once_for_multi_ref_inputs() {
+    let captured_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&captured_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body)
+                .expect("discount context hydrate request body should parse");
+            captured_requests.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            if query.contains("nodes(ids: $ids)") {
+                let ids = body["variables"]["ids"]
+                    .as_array()
+                    .expect("batched context hydrate should carry ids")
+                    .iter()
+                    .map(|value| value.as_str().expect("context hydrate id").to_string())
+                    .collect::<Vec<_>>();
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "nodes": ids
+                                .iter()
+                                .map(|id| discount_context_hydrate_node(id))
+                                .collect::<Vec<_>>()
+                        }
+                    }),
+                };
+            }
+            if query.contains("customer(id: $id)") {
+                let id = body["variables"]["id"]
+                    .as_str()
+                    .expect("single customer hydrate should carry id");
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": { "customer": discount_context_hydrate_node(id) } }),
+                };
+            }
+            if query.contains("segment(id: $id)") {
+                let id = body["variables"]["id"]
+                    .as_str()
+                    .expect("single segment hydrate should carry id");
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": { "segment": discount_context_hydrate_node(id) } }),
+                };
+            }
+            panic!("unexpected discount context upstream request: {body}");
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BatchDiscountContextRefs(
+          $customers: DiscountAutomaticBasicInput!
+          $segments: DiscountAutomaticBasicInput!
+        ) {
+          customerScoped: discountAutomaticBasicCreate(automaticBasicDiscount: $customers) {
+            automaticDiscountNode {
+              automaticDiscount {
+                __typename
+                ... on DiscountAutomaticBasic {
+                  context {
+                    __typename
+                    ... on DiscountCustomers {
+                      customers { id displayName }
+                    }
+                  }
+                }
+              }
+            }
+            userErrors { field message code extraInfo }
+          }
+          segmentScoped: discountAutomaticBasicCreate(automaticBasicDiscount: $segments) {
+            automaticDiscountNode {
+              automaticDiscount {
+                __typename
+                ... on DiscountAutomaticBasic {
+                  context {
+                    __typename
+                    ... on DiscountCustomerSegments {
+                      segments { id name }
+                    }
+                  }
+                }
+              }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({
+            "customers": {
+                "title": "Customer scoped automatic",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "context": {
+                    "customers": {
+                        "add": [
+                            "gid://shopify/Customer/2",
+                            "gid://shopify/Customer/1",
+                            "gid://shopify/Customer/2"
+                        ]
+                    }
+                },
+                "customerGets": {
+                    "value": { "percentage": 0.1 },
+                    "items": { "all": true }
+                }
+            },
+            "segments": {
+                "title": "Segment scoped automatic",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "context": {
+                    "customerSegments": {
+                        "add": [
+                            "gid://shopify/Segment/20",
+                            "gid://shopify/Segment/10",
+                            "gid://shopify/Segment/10"
+                        ]
+                    }
+                },
+                "customerGets": {
+                    "value": { "percentage": 0.2 },
+                    "items": { "all": true }
+                }
+            }
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["customerScoped"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["segmentScoped"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["customerScoped"]["automaticDiscountNode"]["automaticDiscount"]
+            ["context"]["customers"],
+        json!([
+            { "id": "gid://shopify/Customer/2", "displayName": "Customer 2" },
+            { "id": "gid://shopify/Customer/1", "displayName": "Customer 1" },
+            { "id": "gid://shopify/Customer/2", "displayName": "Customer 2" }
+        ])
+    );
+    assert_eq!(
+        response.body["data"]["segmentScoped"]["automaticDiscountNode"]["automaticDiscount"]
+            ["context"]["segments"],
+        json!([
+            { "id": "gid://shopify/Segment/20", "name": "Segment 20" },
+            { "id": "gid://shopify/Segment/10", "name": "Segment 10" },
+            { "id": "gid://shopify/Segment/10", "name": "Segment 10" }
+        ])
+    );
+
+    let requests = captured_bodies.lock().unwrap();
+    assert_eq!(
+        requests.len(),
+        1,
+        "context refs should hydrate with one batched nodes request, got: {:?}",
+        requests
+            .iter()
+            .map(|body| body["operationName"].clone())
+            .collect::<Vec<_>>()
+    );
+    let query = requests[0]["query"]
+        .as_str()
+        .expect("batched context hydrate should carry query");
+    assert!(
+        query.contains("nodes(ids: $ids)"),
+        "context refs should use a batched nodes hydrate, got: {query}"
+    );
+    assert!(
+        !query.contains("addressesV2"),
+        "discount buyer-context hydrate should not fetch customer address windows, got: {query}"
+    );
+    assert_eq!(
+        requests[0]["variables"]["ids"],
+        json!([
+            "gid://shopify/Customer/1",
+            "gid://shopify/Customer/2",
+            "gid://shopify/Segment/10",
+            "gid://shopify/Segment/20"
+        ])
+    );
+}
+
+#[test]
+fn discount_update_and_status_hydrates_are_code_only_and_bounded() {
+    let discount_id = "gid://shopify/DiscountCodeNode/4242301".to_string();
+    let redeem_code_id = "gid://shopify/DiscountRedeemCode/4242302".to_string();
+    let update_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_update_bodies = Arc::clone(&update_bodies);
+    let update_discount_id = discount_id.clone();
+    let update_redeem_code_id = redeem_code_id.clone();
+    let mut update_proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body)
+                .expect("discount update hydrate request body should parse");
+            captured_update_bodies.lock().unwrap().push(body.clone());
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "codeNode": {
+                            "id": update_discount_id.clone(),
+                            "codeDiscount": upstream_code_basic_fixed_amount_discount(
+                                &update_redeem_code_id,
+                                "Hydrated update discount",
+                                "ACTIVE",
+                            )
+                        }
+                    }
+                }),
+            }
+        });
+
+    let update = update_proxy.process_request(json_graphql_request(
+        r#"
+        mutation BoundedUpdateHydrate($id: ID!, $input: DiscountCodeBasicInput!) {
+          discountCodeBasicUpdate(id: $id, basicCodeDiscount: $input) {
+            codeDiscountNode {
+              id
+              codeDiscount {
+                __typename
+                ... on DiscountCodeBasic { title status }
+              }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({
+            "id": discount_id.clone(),
+            "input": {
+                "title": "Updated from bounded hydrate"
+            }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["discountCodeBasicUpdate"]["userErrors"],
+        json!([])
+    );
+    let update_requests = update_bodies.lock().unwrap();
+    assert_eq!(update_requests.len(), 1);
+    assert_code_only_bounded_discount_hydrate_request(&update_requests[0]);
+
+    let status_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_status_bodies = Arc::clone(&status_bodies);
+    let status_discount_id = discount_id.clone();
+    let status_redeem_code_id = redeem_code_id.clone();
+    let mut status_proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body)
+                .expect("discount status hydrate request body should parse");
+            captured_status_bodies.lock().unwrap().push(body.clone());
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "codeNode": {
+                            "id": status_discount_id.clone(),
+                            "codeDiscount": upstream_code_basic_fixed_amount_discount(
+                                &status_redeem_code_id,
+                                "Hydrated status discount",
+                                "ACTIVE",
+                            )
+                        }
+                    }
+                }),
+            }
+        });
+
+    let deactivated = status_proxy.process_request(json_graphql_request(
+        r#"
+        mutation BoundedStatusHydrate($id: ID!) {
+          discountCodeDeactivate(id: $id) {
+            codeDiscountNode {
+              id
+              codeDiscount {
+                __typename
+                ... on DiscountCodeBasic { title status }
+              }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "id": discount_id }),
+    ));
+    assert_eq!(deactivated.status, 200);
+    assert_eq!(
+        deactivated.body["data"]["discountCodeDeactivate"]["userErrors"],
+        json!([])
+    );
+    let status_requests = status_bodies.lock().unwrap();
+    assert_eq!(status_requests.len(), 1);
+    assert_code_only_bounded_discount_hydrate_request(&status_requests[0]);
 }
 
 #[test]
