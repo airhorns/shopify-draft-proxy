@@ -504,6 +504,7 @@ impl DraftProxy {
             Some(value)
         });
         if !staged_ids.is_empty() {
+            self.mark_markets_family_dirty("markets");
             self.record_mutation_log_entry(
                 request,
                 query,
@@ -581,7 +582,16 @@ impl DraftProxy {
             "variables": { "ids": ids },
             "operationName": "MarketsMutationPreflightHydrate",
         });
-        self.run_markets_preflight(request, body, Self::hydrate_markets_from_upstream);
+        self.run_markets_preflight(request, body, |proxy, body| {
+            proxy.hydrate_markets_from_upstream(body);
+            for family in ["markets", "catalogs", "priceLists", "webPresences"] {
+                proxy
+                    .store
+                    .staged
+                    .markets_hydrated_scopes
+                    .insert(format!("{family}:{{}}"));
+            }
+        });
     }
 
     pub(in crate::proxy) fn market_create_response(&mut self, field: &RootFieldSelection) -> Value {
@@ -731,6 +741,8 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn cascade_market_delete(&mut self, market_id: &str) {
+        self.mark_markets_family_dirty("catalogs");
+        self.mark_markets_family_dirty("webPresences");
         self.store.staged.web_presences.retain(|_, web_presence| {
             !web_presence_market_ids(web_presence)
                 .iter()
@@ -805,15 +817,19 @@ impl DraftProxy {
         }
 
         for catalog_id in catalogs_to_add {
+            self.mark_markets_family_dirty("catalogs");
             self.add_market_to_catalog(&catalog_id, &id);
         }
         for catalog_id in list_string_field(&input, "catalogsToDelete") {
+            self.mark_markets_family_dirty("catalogs");
             self.remove_market_from_catalog(&catalog_id, &id);
         }
         for web_presence_id in web_presences_to_add {
+            self.mark_markets_family_dirty("webPresences");
             self.add_market_to_web_presence(&web_presence_id, &id);
         }
         for web_presence_id in list_string_field(&input, "webPresencesToDelete") {
+            self.mark_markets_family_dirty("webPresences");
             self.remove_market_from_web_presence(&web_presence_id, &id);
         }
 
@@ -1098,27 +1114,44 @@ impl DraftProxy {
             || !self.store.staged.web_presences.is_empty()
     }
 
-    /// LiveHybrid cold-read decision for the Markets domain. When
-    /// this returns true the dispatcher forwards the original request verbatim
-    /// upstream and hydrates the staged store from the response.
+    /// LiveHybrid cold-read decision for the Markets domain. When this returns
+    /// true, at least one requested root/scope still needs Shopify baseline
+    /// data before local staged deltas can be projected correctly.
     pub(in crate::proxy) fn markets_should_fetch_upstream(
         &self,
-        root_field: &str,
+        fields: &[RootFieldSelection],
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> bool {
-        match root_field {
+        let plural_localizable_state_selected = fields
+            .iter()
+            .any(|field| field.name == "marketLocalizableResources")
+            && self.has_market_localizable_resource_state();
+        fields.iter().any(|field| {
+            self.markets_field_should_fetch_upstream(
+                field,
+                variables,
+                plural_localizable_state_selected,
+            )
+        })
+    }
+
+    fn markets_field_should_fetch_upstream(
+        &self,
+        field: &RootFieldSelection,
+        variables: &BTreeMap<String, ResolvedValue>,
+        plural_localizable_state_selected: bool,
+    ) -> bool {
+        match field.name.as_str() {
             "market" => {
-                !markets_variables_have_local_id(variables, &self.store.staged.markets)
-                    && !markets_variables_have_deleted_market_id(
-                        variables,
-                        &self.store.staged.deleted_market_ids,
-                    )
+                !markets_field_has_local_id(&field.arguments, &self.store.staged.markets)
+                    && !resolved_string_field(&field.arguments, "id")
+                        .is_some_and(|id| self.store.staged.deleted_market_ids.contains(&id))
             }
-            "catalog" => !markets_variables_have_local_id(variables, &self.store.staged.catalogs),
+            "catalog" => !markets_field_has_local_id(&field.arguments, &self.store.staged.catalogs),
             "priceList" => {
-                !markets_variables_have_local_id(variables, &self.store.staged.price_lists)
+                !markets_field_has_local_id(&field.arguments, &self.store.staged.price_lists)
             }
-            "marketLocalizableResource" => resolved_string_field(variables, "resourceId")
+            "marketLocalizableResource" => resolved_string_field(&field.arguments, "resourceId")
                 .map(|resource_id| {
                     !self
                         .store
@@ -1132,10 +1165,13 @@ impl DraftProxy {
             | "catalogsCount"
             | "priceLists"
             | "webPresences"
-            | "marketsResolvedValues" => !self.has_markets_overlay_state(),
+            | "marketsResolvedValues" => markets_hydration_scope_keys(field)
+                .iter()
+                .any(|key| self.markets_scope_needs_upstream(key)),
             "marketLocalizableResources" => !self.has_market_localizable_resource_state(),
             "marketLocalizableResourcesByIds" => {
-                self.market_localizable_resources_by_ids_should_fetch_upstream(variables)
+                !plural_localizable_state_selected
+                    && self.market_localizable_resources_by_ids_should_fetch_upstream(variables)
             }
             _ => false,
         }
@@ -1264,7 +1300,13 @@ impl DraftProxy {
         }
         for record in &price_list_records {
             if let Some(id) = record_gid(record, "PriceList") {
-                self.store.staged.price_lists.insert(id, record.clone());
+                if markets_record_is_richer_than_existing(
+                    &self.store.staged.price_lists,
+                    &id,
+                    record,
+                ) {
+                    self.store.staged.price_lists.insert(id, record.clone());
+                }
             }
         }
         // Web presences: top-level plus nested under each market.
@@ -1353,7 +1395,15 @@ fn market_mutation_wrong_resource_error(field: &RootFieldSelection) -> Option<Va
     }
 }
 
-#[allow(dead_code)]
+fn markets_field_has_local_id(
+    arguments: &BTreeMap<String, ResolvedValue>,
+    records: &BTreeMap<String, Value>,
+) -> bool {
+    resolved_string_field(arguments, "id")
+        .as_deref()
+        .is_some_and(|id| is_synthetic_gid(id) || records.contains_key(id))
+}
+
 fn markets_hydration_scope_keys(field: &RootFieldSelection) -> Vec<String> {
     match field.name.as_str() {
         "markets" => vec![markets_hydration_scope_key("markets", &field.arguments)],
@@ -1420,6 +1470,20 @@ fn markets_response_connection_complete(value: Option<&Value>) -> bool {
         .and_then(|page_info| page_info.get("hasNextPage"))
         .and_then(Value::as_bool)
         != Some(true)
+}
+
+fn markets_record_is_richer_than_existing(
+    records: &BTreeMap<String, Value>,
+    id: &str,
+    candidate: &Value,
+) -> bool {
+    records
+        .get(id)
+        .map(|existing| {
+            candidate.as_object().map_or(0, serde_json::Map::len)
+                > existing.as_object().map_or(0, serde_json::Map::len)
+        })
+        .unwrap_or(true)
 }
 
 #[allow(dead_code)]

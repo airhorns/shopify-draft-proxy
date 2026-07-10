@@ -2501,12 +2501,12 @@ impl DraftProxy {
                 // and render from the effective local graph so staged deltas are
                 // merged instead of replacing unrelated families.
                 if self.config.read_mode == ReadMode::LiveHybrid
-                    && self.markets_should_fetch_upstream(root_field, &variables)
+                    && self.markets_should_fetch_upstream(&fields, &variables)
                 {
                     let had_markets_overlay_state = self.has_markets_overlay_state();
                     let response = (self.upstream_transport)(request.clone());
                     if response.status < 400 {
-                        self.hydrate_markets_from_upstream(&response.body);
+                        self.hydrate_markets_from_upstream_for_fields(&response.body, &fields);
                         // A single verbatim forward returns whatever the client
                         // selected, which can span domains (e.g. a localization
                         // source read selects `markets` alongside `shopLocales`

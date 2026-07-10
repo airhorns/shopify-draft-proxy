@@ -1329,6 +1329,18 @@ fn customer_set_custom_id_uses_read_only_live_hybrid_lookup_before_local_update(
             let body: Value = serde_json::from_str(&request.body).expect("upstream JSON body");
             captured_calls.lock().unwrap().push(body.clone());
             match body["operationName"].as_str().unwrap_or_default() {
+                "MetafieldDefinitionsHydrateOwnerCatalog" => Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "metafieldDefinitions": {
+                                "nodes": [],
+                                "pageInfo": { "hasNextPage": false, "endCursor": null }
+                            }
+                        }
+                    }),
+                },
                 "CustomerCustomIdLookup" => Response {
                     status: 200,
                     headers: Default::default(),
@@ -1430,15 +1442,20 @@ fn customer_set_custom_id_uses_read_only_live_hybrid_lookup_before_local_update(
     );
 
     let calls = upstream_calls.lock().unwrap();
-    assert_eq!(calls.len(), 2);
-    assert_eq!(calls[0]["operationName"], json!("CustomerCustomIdLookup"));
+    assert_eq!(calls.len(), 3);
     assert_eq!(
-        calls[0]["variables"]["identifier"]["customId"],
+        calls[0]["operationName"],
+        json!("MetafieldDefinitionsHydrateOwnerCatalog")
+    );
+    assert_eq!(calls[0]["variables"]["ownerType"], json!("CUSTOMER"));
+    assert_eq!(calls[1]["operationName"], json!("CustomerCustomIdLookup"));
+    assert_eq!(
+        calls[1]["variables"]["identifier"]["customId"],
         json!({ "namespace": "custom", "key": "external_id", "value": "upstream-value" })
     );
-    assert_eq!(calls[1]["operationName"], json!("CustomerHydrate"));
+    assert_eq!(calls[2]["operationName"], json!("CustomerHydrate"));
     assert_eq!(
-        calls[1]["variables"]["id"],
+        calls[2]["variables"]["id"],
         json!("gid://shopify/Customer/upstream-custom-id")
     );
 }
