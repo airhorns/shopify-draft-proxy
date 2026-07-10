@@ -3949,6 +3949,233 @@ fn location_inventory_levels_overlay_and_args() {
 }
 
 #[test]
+fn inventory_item_inventory_levels_connection_honors_args() {
+    let mut proxy = inventory_seed_proxy();
+    let (_variant_id, inventory_item_id) =
+        create_inventory_test_item(&mut proxy, "ITEM-LEVEL-CONNECTION");
+    let source_location_id = add_inventory_test_location(&mut proxy, "Item Level Source");
+    let destination_location_id = add_inventory_test_location(&mut proxy, "Item Level Destination");
+    let source_level_id = inventory_level_id_for_test(&inventory_item_id, &source_location_id);
+    let destination_level_id =
+        inventory_level_id_for_test(&inventory_item_id, &destination_location_id);
+
+    let seed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedItemInventoryLevels($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) {
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"name": "available", "reason": "correction", "ignoreCompareQuantity": true, "quantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": source_location_id, "quantity": 4},
+            {"inventoryItemId": inventory_item_id, "locationId": destination_location_id, "quantity": 9}
+        ]}}),
+    ));
+    assert_eq!(
+        seed.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let deactivate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeactivateItemSourceLevel($inventoryLevelId: ID!, $idempotencyKey: String!) {
+          inventoryDeactivate(inventoryLevelId: $inventoryLevelId) @idempotent(key: $idempotencyKey) {
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "inventoryLevelId": source_level_id,
+            "idempotencyKey": "inventory-item-level-connection-deactivate"
+        }),
+    ));
+    assert_eq!(
+        deactivate.body["data"]["inventoryDeactivate"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ItemInventoryLevelsConnection(
+          $inventoryItemId: ID!
+          $after: String!
+          $before: String!
+          $itemQuery: String!
+          $missingItemQuery: String!
+          $invalidLocationQuery: String!
+        ) {
+          inventoryItem(id: $inventoryItemId) {
+            activeLevels: inventoryLevels(first: 10) {
+              nodes { location { id } isActive }
+            }
+            allLevels: inventoryLevels(first: 10, includeInactive: true) {
+              edges {
+                cursor
+                node {
+                  location { id name }
+                  isActive
+                  quantities(names: ["available", "on_hand"]) { name quantity }
+                }
+              }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            firstPage: inventoryLevels(first: 1, includeInactive: true) {
+              nodes { location { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            afterSource: inventoryLevels(first: 1, includeInactive: true, after: $after) {
+              nodes { location { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            beforeDestination: inventoryLevels(last: 1, includeInactive: true, before: $before) {
+              nodes { location { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            filtered: inventoryLevels(first: 5, includeInactive: true, query: $itemQuery) {
+              nodes {
+                location { id }
+                quantities(names: ["available"]) { name quantity }
+              }
+            }
+            emptyFilter: inventoryLevels(first: 5, includeInactive: true, query: $missingItemQuery) {
+              nodes { location { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            invalidLocationFilter: inventoryLevels(first: 5, includeInactive: true, query: $invalidLocationQuery) {
+              nodes { location { id } }
+            }
+            reverseLevels: inventoryLevels(first: 10, includeInactive: true, reverse: true) {
+              nodes { location { id } }
+            }
+          }
+        }
+        "#,
+        json!({
+            "inventoryItemId": inventory_item_id,
+            "after": source_level_id,
+            "before": destination_level_id,
+            "itemQuery": format!("inventory_item_id:{}", inventory_item_id),
+            "missingItemQuery": "inventory_item_id:1",
+            "invalidLocationQuery": format!("location_id:{}", destination_location_id)
+        }),
+    ));
+
+    let item = &read.body["data"]["inventoryItem"];
+    assert_eq!(
+        item["activeLevels"]["nodes"],
+        json!([{ "location": { "id": destination_location_id }, "isActive": true }])
+    );
+    assert_eq!(
+        item["allLevels"],
+        json!({
+            "edges": [
+                {
+                    "cursor": source_level_id,
+                    "node": {
+                        "location": { "id": source_location_id, "name": "Item Level Source" },
+                        "isActive": false,
+                        "quantities": [
+                            { "name": "available", "quantity": 4 },
+                            { "name": "on_hand", "quantity": 4 }
+                        ]
+                    }
+                },
+                {
+                    "cursor": destination_level_id,
+                    "node": {
+                        "location": {
+                            "id": destination_location_id,
+                            "name": "Item Level Destination"
+                        },
+                        "isActive": true,
+                        "quantities": [
+                            { "name": "available", "quantity": 9 },
+                            { "name": "on_hand", "quantity": 9 }
+                        ]
+                    }
+                }
+            ],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": source_level_id,
+                "endCursor": destination_level_id
+            }
+        })
+    );
+    assert_eq!(
+        item["firstPage"],
+        json!({
+            "nodes": [{ "location": { "id": source_location_id } }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": source_level_id,
+                "endCursor": source_level_id
+            }
+        })
+    );
+    assert_eq!(
+        item["afterSource"]["nodes"],
+        json!([{ "location": { "id": destination_location_id } }])
+    );
+    assert_eq!(
+        item["afterSource"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": true,
+            "startCursor": destination_level_id,
+            "endCursor": destination_level_id
+        })
+    );
+    assert_eq!(
+        item["beforeDestination"]["nodes"],
+        json!([{ "location": { "id": source_location_id } }])
+    );
+    assert_eq!(
+        item["filtered"]["nodes"],
+        json!([
+            {
+                "location": { "id": source_location_id },
+                "quantities": [{ "name": "available", "quantity": 4 }]
+            },
+            {
+                "location": { "id": destination_location_id },
+                "quantities": [{ "name": "available", "quantity": 9 }]
+            }
+        ])
+    );
+    assert_eq!(
+        item["emptyFilter"],
+        json!({
+            "nodes": [],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+            }
+        })
+    );
+    assert_eq!(
+        item["invalidLocationFilter"]["nodes"],
+        json!([{
+            "location": { "id": source_location_id }
+        }, {
+            "location": { "id": destination_location_id }
+        }])
+    );
+    assert_eq!(
+        item["reverseLevels"]["nodes"],
+        json!([
+            { "location": { "id": destination_location_id } },
+            { "location": { "id": source_location_id } }
+        ])
+    );
+}
+
+#[test]
 fn location_inventory_levels_preserves_hydrated_untouched_levels() {
     let location_id = "gid://shopify/Location/9001";
     let first_item_id = "gid://shopify/InventoryItem/9002";
