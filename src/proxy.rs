@@ -329,6 +329,7 @@ struct StagedState {
     observed_shipping_location_order: Vec<String>,
     locations: StagedRecords<Value>,
     location_limit_reached: bool,
+    delivery_customizations: StagedRecords<Value>,
     segments: BTreeMap<String, Value>,
     // Recorded segment-catalog read baselines, keyed by root field name
     // (`segments` / `segmentsCount` / `segmentFilters` / `segmentFilterSuggestions`
