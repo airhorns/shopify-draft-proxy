@@ -65,11 +65,18 @@ pub struct SelectedField {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct DirectiveSelection {
+    pub name: String,
+    pub raw_arguments: BTreeMap<String, RawArgumentValue>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct RootFieldSelection {
     pub name: String,
     pub response_key: String,
     pub location: SourceLocation,
     pub directives: Vec<String>,
+    pub raw_directives: Vec<DirectiveSelection>,
     pub raw_arguments: BTreeMap<String, RawArgumentValue>,
     pub arguments: BTreeMap<String, ResolvedValue>,
     pub selection: Vec<SelectedField>,
@@ -443,6 +450,7 @@ fn collect_root_field_selections<'a>(
                     .iter()
                     .map(|directive| directive.name.to_string())
                     .collect(),
+                raw_directives: raw_field_directives(field, variables),
                 raw_arguments: raw_field_arguments(field, variables),
                 arguments: field_arguments(field, variables),
                 selection: selected_fields(&field.selection_set.items, variables, fragments),
@@ -495,6 +503,24 @@ fn raw_argument_value<'a>(
                 .collect(),
         ),
     }
+}
+
+fn raw_field_directives<'a>(
+    field: &Field<'a, &'a str>,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Vec<DirectiveSelection> {
+    field
+        .directives
+        .iter()
+        .map(|directive| DirectiveSelection {
+            name: directive.name.to_string(),
+            raw_arguments: directive
+                .arguments
+                .iter()
+                .map(|(name, value)| (name.to_string(), raw_argument_value(value, variables)))
+                .collect(),
+        })
+        .collect()
 }
 
 fn source_location(position: Pos) -> SourceLocation {

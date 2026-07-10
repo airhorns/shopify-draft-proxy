@@ -361,6 +361,98 @@ fn admin_platform_job_non_job_gid_returns_resource_not_found_error() {
 }
 
 #[test]
+fn mixed_domain_query_merges_aliases_and_field_errors_in_document_order() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query MixedTemplatesThenInvalidJob {
+          templates: paymentTermsTemplates {
+            id
+            name
+          }
+          poll: job(id: "gid://shopify/Product/0") {
+            id
+            done
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["templates"][0],
+        json!({
+            "id": "gid://shopify/PaymentTermsTemplate/1",
+            "name": "Due on receipt"
+        })
+    );
+    assert_eq!(response.body["data"]["poll"], Value::Null);
+    assert_eq!(
+        response.body["errors"][0]["message"],
+        json!("Invalid id: gid://shopify/Product/0")
+    );
+    assert_eq!(response.body["errors"][0]["path"], json!(["poll"]));
+}
+
+#[test]
+fn mixed_domain_query_field_order_does_not_change_executed_roots() {
+    let mut proxy = snapshot_proxy();
+    let job_first = proxy.process_request(json_graphql_request(
+        r#"
+        query MixedJobThenTemplates($type: PaymentTermsType) {
+          job(id: "gid://shopify/Job/1") {
+            id
+            done
+            query { __typename }
+          }
+          terms: paymentTermsTemplates(paymentTermsType: $type) {
+            id
+            paymentTermsType
+          }
+        }
+        "#,
+        json!({ "type": "NET" }),
+    ));
+    let templates_first = proxy.process_request(json_graphql_request(
+        r#"
+        query MixedTemplatesThenJob($type: PaymentTermsType) {
+          terms: paymentTermsTemplates(paymentTermsType: $type) {
+            id
+            paymentTermsType
+          }
+          job(id: "gid://shopify/Job/1") {
+            id
+            done
+            query { __typename }
+          }
+        }
+        "#,
+        json!({ "type": "NET" }),
+    ));
+
+    assert_eq!(job_first.status, 200);
+    assert_eq!(templates_first.status, 200);
+    assert_eq!(
+        job_first.body["data"]["job"],
+        json!({
+            "id": "gid://shopify/Job/1",
+            "done": true,
+            "query": { "__typename": "QueryRoot" }
+        })
+    );
+    assert_eq!(
+        templates_first.body["data"]["job"],
+        job_first.body["data"]["job"]
+    );
+    assert_eq!(job_first.body["data"]["terms"].as_array().unwrap().len(), 6);
+    assert_eq!(
+        templates_first.body["data"]["terms"],
+        job_first.body["data"]["terms"]
+    );
+}
+
+#[test]
 fn domain_id_resolves_from_shop_domains() {
     let mut proxy = snapshot_proxy();
     let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
