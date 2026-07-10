@@ -47,6 +47,29 @@ fn assert_draft_order_custom_line(line: &Value, currency_code: &str) {
     assert_eq!(line["variant"], Value::Null);
 }
 
+fn draft_order_test_variant_node(id: &str) -> Value {
+    let tail = id.rsplit('/').next().unwrap_or("unknown");
+    json!({
+        "__typename": "ProductVariant",
+        "id": id,
+        "title": format!("Catalog option {tail}"),
+        "sku": format!("SKU-{tail}"),
+        "taxable": true,
+        "price": format!("{tail}.00"),
+        "inventoryItem": { "requiresShipping": true },
+        "product": { "title": format!("Catalog product {tail}") }
+    })
+}
+
+fn draft_order_test_variant_response(id: &str) -> Value {
+    let mut variant = draft_order_test_variant_node(id);
+    variant
+        .as_object_mut()
+        .expect("variant node should be an object")
+        .remove("__typename");
+    json!({ "data": { "productVariant": variant } })
+}
+
 #[test]
 fn order_create_uses_shop_currency_but_preserves_presentment_currency() {
     let mut proxy = snapshot_proxy();
@@ -6587,6 +6610,246 @@ fn draft_order_variant_line_items_use_catalog_values_over_custom_only_input() {
             .count(),
         3
     );
+}
+
+#[test]
+fn draft_order_variant_hydration_batches_unique_missing_variants_per_operation() {
+    let variant_a = "gid://shopify/ProductVariant/100001";
+    let variant_b = "gid://shopify/ProductVariant/100002";
+    let variant_c = "gid://shopify/ProductVariant/100003";
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("variant hydrate request parses");
+            captured_calls.lock().unwrap().push(body.clone());
+            match body["operationName"].as_str() {
+                Some("OrdersDraftOrderVariantHydrate") => {
+                    let id = body["variables"]["id"]
+                        .as_str()
+                        .expect("single variant hydrate includes id");
+                    Response {
+                        status: 200,
+                        headers: Default::default(),
+                        body: draft_order_test_variant_response(id),
+                    }
+                }
+                Some("OrdersDraftOrderVariantsHydrate") => {
+                    let nodes = body["variables"]["ids"]
+                        .as_array()
+                        .expect("batched variant hydrate includes ids")
+                        .iter()
+                        .map(|id| {
+                            draft_order_test_variant_node(
+                                id.as_str().expect("variant id should be a string"),
+                            )
+                        })
+                        .collect::<Vec<_>>();
+                    Response {
+                        status: 200,
+                        headers: Default::default(),
+                        body: json!({ "data": { "nodes": nodes } }),
+                    }
+                }
+                other => panic!("unexpected upstream hydrate operation: {other:?}"),
+            }
+        });
+
+    let input = json!({
+        "shippingLine": {
+            "title": "No-op shipping",
+            "priceWithCurrency": { "amount": "0.00", "currencyCode": "USD" }
+        },
+        "lineItems": [
+            { "variantId": variant_a, "quantity": 1 },
+            { "variantId": variant_b, "quantity": 2 },
+            { "variantId": variant_a, "quantity": 3 },
+            { "variantId": variant_c, "quantity": 4 }
+        ]
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDraftWithManyVariants($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder {
+              id
+              lineItems(first: 5) {
+                nodes { sku variant { id sku } originalUnitPriceSet { shopMoney { amount currencyCode } } }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": input.clone() }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["draftOrderCreate"]["draftOrder"]["lineItems"]["nodes"][2]["sku"],
+        json!("SKU-100001")
+    );
+    {
+        let calls = upstream_calls.lock().unwrap();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(
+            calls[0]["operationName"],
+            json!("OrdersDraftOrderVariantsHydrate")
+        );
+        assert_eq!(
+            calls[0]["variables"]["ids"],
+            json!([variant_a, variant_b, variant_c])
+        );
+    }
+
+    let draft_order_id = create.body["data"]["draftOrderCreate"]["draftOrder"]["id"].clone();
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateDraftWithManyVariants($id: ID!, $input: DraftOrderInput!) {
+          draftOrderUpdate(id: $id, input: $input) {
+            draftOrder { lineItems(first: 5) { nodes { sku variant { id sku } } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": draft_order_id,
+            "input": {
+                "shippingLine": {
+                    "title": "No-op shipping",
+                    "priceWithCurrency": { "amount": "0.00", "currencyCode": "USD" }
+                },
+                "lineItems": [
+                    { "variantId": variant_b, "quantity": 1 },
+                    { "variantId": variant_c, "quantity": 1 },
+                    { "variantId": variant_b, "quantity": 1 }
+                ]
+            }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["draftOrderUpdate"]["userErrors"],
+        json!([])
+    );
+    {
+        let calls = upstream_calls.lock().unwrap();
+        assert_eq!(calls.len(), 2);
+        assert_eq!(
+            calls[1]["operationName"],
+            json!("OrdersDraftOrderVariantsHydrate")
+        );
+        assert_eq!(calls[1]["variables"]["ids"], json!([variant_b, variant_c]));
+    }
+
+    let calculate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CalculateDraftWithManyVariants($input: DraftOrderInput!) {
+          draftOrderCalculate(input: $input) {
+            calculatedDraftOrder { lineItems { sku variant { id sku } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": input }),
+    ));
+    assert_eq!(calculate.status, 200);
+    assert_eq!(
+        calculate.body["data"]["draftOrderCalculate"]["userErrors"],
+        json!([])
+    );
+    let calls = upstream_calls.lock().unwrap();
+    assert_eq!(calls.len(), 3);
+    assert_eq!(
+        calls[2]["operationName"],
+        json!("OrdersDraftOrderVariantsHydrate")
+    );
+    assert_eq!(
+        calls[2]["variables"]["ids"],
+        json!([variant_a, variant_b, variant_c])
+    );
+}
+
+#[test]
+fn draft_order_custom_only_line_items_do_not_hydrate_variants() {
+    let upstream_calls = Arc::new(AtomicUsize::new(0));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            captured_calls.fetch_add(1, Ordering::SeqCst);
+            panic!(
+                "custom-only draft order inputs should not call upstream: {}",
+                request.body
+            );
+        });
+    let input = json!({
+        "lineItems": [{
+            "title": "Custom batch guard",
+            "quantity": 2,
+            "originalUnitPriceWithCurrency": { "amount": "8.50", "currencyCode": "USD" },
+            "sku": "CUSTOM-BATCH",
+            "requiresShipping": false,
+            "taxable": false
+        }]
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateCustomOnlyDraft($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder { id lineItems(first: 5) { nodes { title sku custom } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": input.clone() }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    let draft_order_id = create.body["data"]["draftOrderCreate"]["draftOrder"]["id"].clone();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateCustomOnlyDraft($id: ID!, $input: DraftOrderInput!) {
+          draftOrderUpdate(id: $id, input: $input) {
+            draftOrder { lineItems(first: 5) { nodes { title sku custom } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": draft_order_id, "input": input.clone() }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["draftOrderUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let calculate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CalculateCustomOnlyDraft($input: DraftOrderInput!) {
+          draftOrderCalculate(input: $input) {
+            calculatedDraftOrder { lineItems { title sku custom } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": input }),
+    ));
+    assert_eq!(calculate.status, 200);
+    assert_eq!(
+        calculate.body["data"]["draftOrderCalculate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(upstream_calls.load(Ordering::SeqCst), 0);
 }
 
 #[test]
