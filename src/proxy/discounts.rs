@@ -1612,7 +1612,9 @@ impl DraftProxy {
                     &field.selection,
                     discount_search_decision,
                     discount_staged_sort_key,
-                    selected_discount_admin_node_for_record,
+                    |record, selections| {
+                        self.selected_discount_admin_node_for_record(record, selections)
+                    },
                     value_id_cursor,
                 ),
                 "automaticDiscountNodes" | "codeDiscountNodes" => {
@@ -1633,7 +1635,9 @@ impl DraftProxy {
                             }
                         },
                         discount_staged_sort_key,
-                        selected_discount_node_for_record,
+                        |record, selections| {
+                            self.selected_discount_node_for_record(record, selections)
+                        },
                         value_id_cursor,
                     )
                 }
@@ -1703,7 +1707,7 @@ impl DraftProxy {
         selection: &[SelectedField],
     ) -> Value {
         let record = self.discount_record_with_effective_status(record);
-        selected_discount_node_for_record(&record, selection)
+        self.selected_discount_concrete_node_for_record(&record, selection)
     }
 
     fn selected_discount_admin_node_for_record(
@@ -1712,7 +1716,7 @@ impl DraftProxy {
         selection: &[SelectedField],
     ) -> Value {
         let record = self.discount_record_with_effective_status(record);
-        selected_discount_admin_node_for_record(&record, selection)
+        self.selected_discount_admin_node_json(&record, selection)
     }
 
     fn discount_body_for_record(&self, record: &Value) -> Value {
@@ -1721,6 +1725,269 @@ impl DraftProxy {
 
     fn discount_node_for_record(&self, record: &Value) -> Value {
         discount_node_for_record(&self.discount_record_with_effective_status(record))
+    }
+
+    fn selected_discount_concrete_node_for_record(
+        &self,
+        record: &Value,
+        selection: &[SelectedField],
+    ) -> Value {
+        let node_typename = if discount_kind(record) == "automatic" {
+            "DiscountAutomaticNode"
+        } else {
+            "DiscountCodeNode"
+        };
+        let mut fields = serde_json::Map::new();
+        for field in selection {
+            if !discount_node_selection_applies(field, node_typename) {
+                continue;
+            }
+            let value = match field.name.as_str() {
+                "__typename" => Some(json!(node_typename)),
+                "id" => Some(json!(discount_id(record))),
+                "automaticDiscount" if discount_kind(record) == "automatic" => {
+                    Some(self.selected_discount_body_for_record(record, &field.selection))
+                }
+                "codeDiscount" if discount_kind(record) != "automatic" => {
+                    Some(self.selected_discount_body_for_record(record, &field.selection))
+                }
+                "metafields" => Some(selected_json(
+                    &discount_metafields_connection_for_record(record),
+                    &field.selection,
+                )),
+                _ => None,
+            };
+            if let Some(value) = value {
+                fields.insert(field.response_key.clone(), value);
+            }
+        }
+        Value::Object(fields)
+    }
+
+    fn selected_discount_admin_node_json(
+        &self,
+        record: &Value,
+        selection: &[SelectedField],
+    ) -> Value {
+        let node_typename = if discount_kind(record) == "automatic" {
+            "DiscountAutomaticNode"
+        } else {
+            "DiscountCodeNode"
+        };
+        let mut fields = serde_json::Map::new();
+        for field in selection {
+            if !discount_node_selection_applies(field, node_typename) {
+                continue;
+            }
+            let value = match field.name.as_str() {
+                "__typename" => Some(json!(node_typename)),
+                "id" => Some(json!(discount_id(record))),
+                "discount" => {
+                    Some(self.selected_discount_body_for_record(record, &field.selection))
+                }
+                "metafields" => Some(selected_json(
+                    &discount_metafields_connection_for_record(record),
+                    &field.selection,
+                )),
+                _ => None,
+            };
+            if let Some(value) = value {
+                fields.insert(field.response_key.clone(), value);
+            }
+        }
+        Value::Object(fields)
+    }
+
+    fn selected_discount_body_for_record(
+        &self,
+        record: &Value,
+        selection: &[SelectedField],
+    ) -> Value {
+        let typename = record
+            .get("typename")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let mut fields = serde_json::Map::new();
+        for field in selection {
+            if !discount_body_selection_applies(field, typename) {
+                continue;
+            }
+            let value = match field.name.as_str() {
+                "__typename" => Some(json!(typename)),
+                "discountId" => Some(json!(discount_id(record))),
+                "customerBuys" => Some(self.selected_discount_customer_entitlement(
+                    record.get("customerBuys").unwrap_or(&Value::Null),
+                    &field.selection,
+                )),
+                "customerGets" => Some(self.selected_discount_customer_entitlement(
+                    record.get("customerGets").unwrap_or(&Value::Null),
+                    &field.selection,
+                )),
+                "codes" => Some(selected_json(
+                    &discount_redeem_codes_connection_for_field(record, field),
+                    &field.selection,
+                )),
+                "metafields" => Some(selected_json(
+                    &discount_metafields_connection_for_record(record),
+                    &field.selection,
+                )),
+                _ => discount_body_scalar_field(record, &field.name)
+                    .map(|value| nullable_selected_json(&value, &field.selection)),
+            };
+            if let Some(value) = value {
+                fields.insert(field.response_key.clone(), value);
+            }
+        }
+        Value::Object(fields)
+    }
+
+    fn selected_discount_customer_entitlement(
+        &self,
+        customer: &Value,
+        selection: &[SelectedField],
+    ) -> Value {
+        if customer.is_null() {
+            return Value::Null;
+        }
+        let mut fields = serde_json::Map::new();
+        for field in selection {
+            let value = match field.name.as_str() {
+                "items" => Some(self.selected_discount_items(
+                    customer.get("items").unwrap_or(&Value::Null),
+                    &field.selection,
+                )),
+                _ => customer
+                    .get(&field.name)
+                    .map(|value| nullable_selected_json(value, &field.selection)),
+            };
+            if let Some(value) = value {
+                fields.insert(field.response_key.clone(), value);
+            }
+        }
+        Value::Object(fields)
+    }
+
+    fn selected_discount_items(&self, items: &Value, selection: &[SelectedField]) -> Value {
+        if items.is_null() {
+            return Value::Null;
+        }
+        let typename = items
+            .get("__typename")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let mut fields = serde_json::Map::new();
+        for field in selection {
+            let value = match field.name.as_str() {
+                "__typename" => Some(json!(typename)),
+                "allItems" if typename == "AllDiscountItems" => items.get("allItems").cloned(),
+                "products" if typename == "DiscountProducts" => {
+                    Some(self.selected_discount_product_entitlement_connection(items, field))
+                }
+                "productVariants" if typename == "DiscountProducts" => {
+                    Some(self.selected_discount_variant_entitlement_connection(items, field))
+                }
+                "collections" if typename == "DiscountCollections" => {
+                    Some(self.selected_discount_collection_entitlement_connection(items, field))
+                }
+                "products" | "productVariants" | "collections" => None,
+                _ => {
+                    if !discount_item_selection_applies(field, typename) {
+                        None
+                    } else {
+                        items
+                            .get(&field.name)
+                            .map(|value| nullable_selected_json(value, &field.selection))
+                    }
+                }
+            };
+            if let Some(value) = value {
+                fields.insert(field.response_key.clone(), value);
+            }
+        }
+        Value::Object(fields)
+    }
+
+    fn selected_discount_product_entitlement_connection(
+        &self,
+        items: &Value,
+        field: &SelectedField,
+    ) -> Value {
+        let mut products = discount_entitlement_ids(items, "products")
+            .into_iter()
+            .filter_map(|id| self.store.product_by_id(&id).cloned())
+            .collect::<Vec<_>>();
+        if resolved_bool_field(&field.arguments, "reverse").unwrap_or(false) {
+            products.reverse();
+        }
+        let shop_currency_code = self.store.shop_currency_code();
+        selected_typed_connection_with_args(
+            &products,
+            &field.arguments,
+            &field.selection,
+            |product, selections| {
+                let variants = self.store.product_variants_for_product(&product.id);
+                self.product_json_with_variants_and_currency_context(
+                    product,
+                    &variants,
+                    selections,
+                    &shop_currency_code,
+                )
+            },
+            |product| product.id.clone(),
+        )
+    }
+
+    fn selected_discount_variant_entitlement_connection(
+        &self,
+        items: &Value,
+        field: &SelectedField,
+    ) -> Value {
+        let mut variants = discount_entitlement_ids(items, "productVariants")
+            .into_iter()
+            .filter_map(|id| {
+                let variant = self.store.product_variant_by_id(&id)?;
+                self.store.product_by_id(&variant.product_id)?;
+                Some(variant.clone())
+            })
+            .collect::<Vec<_>>();
+        if resolved_bool_field(&field.arguments, "reverse").unwrap_or(false) {
+            variants.reverse();
+        }
+        selected_typed_connection_with_args(
+            &variants,
+            &field.arguments,
+            &field.selection,
+            |variant, selections| {
+                let product = self.store.product_by_id(&variant.product_id);
+                self.product_variant_json_with_current_publication_context(
+                    variant, product, selections,
+                )
+            },
+            |variant| variant.id.clone(),
+        )
+    }
+
+    fn selected_discount_collection_entitlement_connection(
+        &self,
+        items: &Value,
+        field: &SelectedField,
+    ) -> Value {
+        let mut collections = discount_entitlement_ids(items, "collections")
+            .into_iter()
+            .filter_map(|id| self.store.collection_by_id(&id).cloned())
+            .collect::<Vec<_>>();
+        if resolved_bool_field(&field.arguments, "reverse").unwrap_or(false) {
+            collections.reverse();
+        }
+        selected_typed_connection_with_args(
+            &collections,
+            &field.arguments,
+            &field.selection,
+            |collection, selections| {
+                self.collection_json_with_publication_fields(collection, selections)
+            },
+            value_id_cursor,
+        )
     }
 
     fn discount_matches_query(&self, record: &Value, query: &str) -> bool {
@@ -1739,8 +2006,7 @@ impl DraftProxy {
             // `discount`). `discount_node_for_record` emits the right accessor
             // for both kinds; the `discount`-keyed admin node shape is only for
             // the `discountNode(id:)` root field.
-            let value = self.discount_node_for_record(record);
-            selected_json(&value, selection)
+            self.selected_discount_node_for_record(record, selection)
         })
     }
 
@@ -3292,20 +3558,6 @@ fn app_discount_function_api_type_is_supported(function: &Value) -> bool {
     )
 }
 
-fn selected_discount_node_for_record(record: &Value, selection: &[SelectedField]) -> Value {
-    selected_json(
-        &discount_node_for_record_with_selection(record, selection),
-        selection,
-    )
-}
-
-fn selected_discount_admin_node_for_record(record: &Value, selection: &[SelectedField]) -> Value {
-    selected_json(
-        &discount_admin_node_for_record_with_selection(record, selection),
-        selection,
-    )
-}
-
 fn discount_node_for_record(record: &Value) -> Value {
     discount_node_for_record_with_selection(record, &[])
 }
@@ -3331,24 +3583,6 @@ fn discount_node_for_record_with_selection(record: &Value, selection: &[Selected
             "__typename": "DiscountCodeNode"
         })
     }
-}
-
-fn discount_admin_node_for_record_with_selection(
-    record: &Value,
-    selection: &[SelectedField],
-) -> Value {
-    let discount_selection = selected_child_selection(selection, "discount").unwrap_or_default();
-    let metafields = discount_metafields_connection_for_record(record);
-    json!({
-        "id": discount_id(record),
-        "discount": discount_body_for_record_with_selection(record, &discount_selection),
-        "metafields": metafields,
-        "__typename": if discount_kind(record) == "automatic" {
-            "DiscountAutomaticNode"
-        } else {
-            "DiscountCodeNode"
-        }
-    })
 }
 
 fn discount_body_for_record(record: &Value) -> Value {
@@ -3388,6 +3622,75 @@ fn discount_body_for_record_with_selection(record: &Value, selection: &[Selected
     })
 }
 
+fn discount_body_scalar_field(record: &Value, field: &str) -> Option<Value> {
+    match field {
+        "title" => Some(record["title"].clone()),
+        "status" => Some(record["status"].clone()),
+        "summary" => Some(record["summary"].clone()),
+        "startsAt" => Some(record["startsAt"].clone()),
+        "endsAt" => Some(record["endsAt"].clone()),
+        "createdAt" => Some(record["createdAt"].clone()),
+        "updatedAt" => Some(record["updatedAt"].clone()),
+        "asyncUsageCount" => Some(record["asyncUsageCount"].clone()),
+        "usageLimit" => Some(record["usageLimit"].clone()),
+        "usesPerOrderLimit" => Some(record["usesPerOrderLimit"].clone()),
+        "discountClasses" => Some(record["discountClasses"].clone()),
+        "combinesWith" => Some(record["combinesWith"].clone()),
+        "context" => Some(record["context"].clone()),
+        "minimumRequirement" => Some(record["minimumRequirement"].clone()),
+        "codesCount" => Some(record["codesCount"].clone()),
+        "destinationSelection" => Some(record["destinationSelection"].clone()),
+        "maximumShippingPrice" => Some(record["maximumShippingPrice"].clone()),
+        "appliesOncePerCustomer" => Some(record["appliesOncePerCustomer"].clone()),
+        "appliesOnOneTimePurchase" => Some(record["appliesOnOneTimePurchase"].clone()),
+        "appliesOnSubscription" => Some(record["appliesOnSubscription"].clone()),
+        "recurringCycleLimit" => Some(
+            record
+                .get("recurringCycleLimit")
+                .cloned()
+                .unwrap_or(Value::Null),
+        ),
+        "appDiscountType" => Some(
+            record
+                .get("appDiscountType")
+                .cloned()
+                .unwrap_or(Value::Null),
+        ),
+        _ => record.get(field).cloned(),
+    }
+}
+
+fn discount_node_selection_applies(selection: &SelectedField, typename: &str) -> bool {
+    selection.type_condition.as_deref().is_none_or(|condition| {
+        condition == typename || condition == "Node" || condition == "DiscountNode"
+    })
+}
+
+fn discount_body_selection_applies(selection: &SelectedField, typename: &str) -> bool {
+    selection
+        .type_condition
+        .as_deref()
+        .is_none_or(|condition| condition == typename || condition == "Discount")
+}
+
+fn discount_item_selection_applies(selection: &SelectedField, typename: &str) -> bool {
+    selection
+        .type_condition
+        .as_deref()
+        .is_none_or(|condition| condition == typename)
+}
+
+fn discount_entitlement_ids(items: &Value, connection_key: &str) -> Vec<String> {
+    items
+        .get(connection_key)
+        .and_then(|connection| connection.get("nodes"))
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|node| node.get("id").and_then(Value::as_str).map(str::to_string))
+        .collect()
+}
+
 fn discount_metafields_connection_for_record(record: &Value) -> Value {
     let metafields = record
         .get("metafields")
@@ -3408,6 +3711,12 @@ fn discount_redeem_codes_connection_for_record(
         .unwrap_or_default();
     let codes = record["codes"].as_array().cloned().unwrap_or_default();
     let (windowed, page_info) = connection_window(&codes, &arguments, value_id_cursor);
+    connection_json_with_cursor(windowed, |_, node| value_id_cursor(node), page_info)
+}
+
+fn discount_redeem_codes_connection_for_field(record: &Value, field: &SelectedField) -> Value {
+    let codes = record["codes"].as_array().cloned().unwrap_or_default();
+    let (windowed, page_info) = connection_window(&codes, &field.arguments, value_id_cursor);
     connection_json_with_cursor(windowed, |_, node| value_id_cursor(node), page_info)
 }
 
