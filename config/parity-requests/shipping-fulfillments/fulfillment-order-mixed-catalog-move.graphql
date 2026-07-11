@@ -1,0 +1,46 @@
+fragment FulfillmentOrderMixedCatalogFields on FulfillmentOrder {
+  id
+  updatedAt
+  status
+  requestStatus
+  assignedLocation {
+    name
+    location {
+      id
+      name
+    }
+  }
+  lineItems(first: 5) {
+    nodes {
+      id
+      totalQuantity
+      remainingQuantity
+      lineItem {
+        id
+        title
+      }
+    }
+  }
+  order {
+    id
+    name
+  }
+}
+
+mutation FulfillmentOrderMixedCatalogMove($id: ID!, $newLocationId: ID!) {
+  fulfillmentOrderMove(id: $id, newLocationId: $newLocationId) {
+    movedFulfillmentOrder {
+      ...FulfillmentOrderMixedCatalogFields
+    }
+    originalFulfillmentOrder {
+      ...FulfillmentOrderMixedCatalogFields
+    }
+    remainingFulfillmentOrder {
+      ...FulfillmentOrderMixedCatalogFields
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

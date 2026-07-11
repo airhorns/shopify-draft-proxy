@@ -1,0 +1,195 @@
+{
+  "scenarioId": "fulfillment-order-mixed-catalog-lifecycle",
+  "operationNames": [
+    "fulfillmentOrderHold",
+    "fulfillmentOrderMove",
+    "fulfillmentOrderSplit",
+    "fulfillmentOrderCancel",
+    "fulfillmentOrders",
+    "assignedFulfillmentOrders",
+    "manualHoldsFulfillmentOrders"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "pagination-shape", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-mixed-catalog-lifecycle.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/platform.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-mixed-catalog-hold.graphql",
+    "variablesCapturePath": "$.operations.hold.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Shopify Admin GraphQL 2026-04 evidence for effective top-level fulfillment-order catalogs after local replay of held, moved, split, and cancelled fulfillment-order lifecycle records. Replay uses only public GraphQL mutation/read documents plus recorded read-only upstreamCalls for cold fulfillment-order, location, and catalog hydration; no proxy state is seeded.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "Fulfillment-order mutation updatedAt is assigned by Shopify wall time in live capture and by the proxy clock during local replay."
+      },
+      {
+        "path": "$.edges[*].node.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "Connection node updatedAt is volatile for fulfillment orders mutated during local replay."
+      },
+      {
+        "path": "$.openFulfillmentOrders.edges[*].node.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "Connection node updatedAt is volatile for fulfillment orders mutated during local replay."
+      },
+      {
+        "path": "$.allFulfillmentOrders.edges[*].node.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "Connection node updatedAt is volatile for fulfillment orders mutated during local replay."
+      },
+      {
+        "path": "$.reversedFulfillmentOrders.edges[*].node.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "Connection node updatedAt is volatile for fulfillment orders mutated during local replay."
+      },
+      {
+        "path": "$.heldByStatus.edges[*].node.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "Connection node updatedAt is volatile for fulfillment orders mutated during local replay."
+      },
+      {
+        "path": "$.closedByStatus.edges[*].node.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "Connection node updatedAt is volatile for fulfillment orders mutated during local replay."
+      },
+      {
+        "path": "$.movedByLocation.edges[*].node.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "Connection node updatedAt is volatile for fulfillment orders mutated during local replay."
+      },
+      {
+        "path": "$.updatedWindow.edges[*].node.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "Connection node updatedAt is volatile for fulfillment orders mutated during local replay."
+      },
+      {
+        "path": "$.assignedToService.edges[*].node.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "Connection node updatedAt is volatile for fulfillment orders mutated during local replay."
+      },
+      {
+        "path": "$.manualHoldsFulfillmentOrders.edges[*].node.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "Connection node updatedAt is volatile for fulfillment orders mutated during local replay."
+      },
+      {
+        "path": "$.updatedWindow.edges[*].cursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify UPDATED_AT cursors encode backend timestamp precision; the proxy emits opaque cursors from its local replay clock."
+      },
+      {
+        "path": "$.updatedWindow.pageInfo.startCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify UPDATED_AT cursors encode backend timestamp precision; the proxy emits opaque cursors from its local replay clock."
+      },
+      {
+        "path": "$.updatedWindow.pageInfo.endCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify UPDATED_AT cursors encode backend timestamp precision; the proxy emits opaque cursors from its local replay clock."
+      }
+    ],
+    "targets": [
+      {
+        "name": "hold-overlays-original",
+        "capturePath": "$.operations.hold.response.payload.data.fulfillmentOrderHold.fulfillmentOrder",
+        "proxyPath": "$.data.fulfillmentOrderHold.fulfillmentOrder"
+      },
+      {
+        "name": "move-overlays-original-location",
+        "capturePath": "$.operations.move.response.payload.data.fulfillmentOrderMove.movedFulfillmentOrder",
+        "proxyPath": "$.data.fulfillmentOrderMove.movedFulfillmentOrder",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-mixed-catalog-move.graphql",
+          "variablesCapturePath": "$.operations.move.variables"
+        }
+      },
+      {
+        "name": "split-overlays-original-quantity",
+        "capturePath": "$.operations.split.response.payload.data.fulfillmentOrderSplit.fulfillmentOrderSplits[0].fulfillmentOrder",
+        "proxyPath": "$.data.fulfillmentOrderSplit.fulfillmentOrderSplits[0].fulfillmentOrder",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-mixed-catalog-split.graphql",
+          "variablesCapturePath": "$.operations.split.variables"
+        }
+      },
+      {
+        "name": "cancel-overlays-original-closed",
+        "capturePath": "$.operations.cancel.response.payload.data.fulfillmentOrderCancel.fulfillmentOrder",
+        "proxyPath": "$.data.fulfillmentOrderCancel.fulfillmentOrder",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-mixed-catalog-cancel.graphql",
+          "variablesCapturePath": "$.operations.cancel.variables"
+        }
+      },
+      {
+        "name": "mixed-catalog-complete-connections",
+        "capturePath": "$.operations.catalog.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-mixed-catalog-read.graphql",
+          "variablesCapturePath": "$.operations.catalog.variables"
+        }
+      },
+      {
+        "name": "catalog-page-first",
+        "capturePath": "$.operations.page1.response.payload.data.page",
+        "proxyPath": "$.data.page",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-mixed-catalog-page.graphql",
+          "variablesCapturePath": "$.operations.page1.variables"
+        }
+      },
+      {
+        "name": "catalog-page-after",
+        "capturePath": "$.operations.pageAfter.response.payload.data.page",
+        "proxyPath": "$.data.page",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-mixed-catalog-page.graphql",
+          "variables": {
+            "first": {
+              "fromCapturePath": "$.operations.pageAfter.variables.first"
+            },
+            "last": null,
+            "after": {
+              "fromProxyResponse": "catalog-page-first",
+              "path": "$.data.page.pageInfo.endCursor"
+            },
+            "before": null,
+            "idQuery": {
+              "fromCapturePath": "$.operations.pageAfter.variables.idQuery"
+            }
+          }
+        }
+      },
+      {
+        "name": "catalog-page-before",
+        "capturePath": "$.operations.pageBefore.response.payload.data.page",
+        "proxyPath": "$.data.page",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-mixed-catalog-page.graphql",
+          "variables": {
+            "first": null,
+            "last": {
+              "fromCapturePath": "$.operations.pageBefore.variables.last"
+            },
+            "after": null,
+            "before": {
+              "fromProxyResponse": "catalog-page-after",
+              "path": "$.data.page.pageInfo.startCursor"
+            },
+            "idQuery": {
+              "fromCapturePath": "$.operations.pageBefore.variables.idQuery"
+            }
+          }
+        }
+      }
+    ]
+  }
+}
