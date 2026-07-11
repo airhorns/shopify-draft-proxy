@@ -164,9 +164,9 @@ describe('operation registry', () => {
     expect(adminMutationCoverageAudit()).toEqual({
       capturedMutationCount: 514,
       registeredMutationCount: 438,
-      implementedMutationCount: 405,
+      implementedMutationCount: 409,
       implementedMutationRuntimeTestEvidence: {
-        withRuntimeTests: 130,
+        withRuntimeTests: 134,
         withoutRuntimeTests: 275,
       },
       declaredUnimplemented: [
@@ -176,10 +176,6 @@ describe('operation registry', () => {
         'deliveryPromiseParticipantsUpdate',
         'deliveryPromiseProviderUpsert',
         'deliverySettingUpdate',
-        'discountAutomaticBulkDelete',
-        'discountCodeBulkActivate',
-        'discountCodeBulkDeactivate',
-        'discountCodeBulkDelete',
         'disputeEvidenceUpdate',
         'menuCreate',
         'menuDelete',
