@@ -916,6 +916,10 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
         .as_object_mut()
         .expect("stagedState is object")
         .remove("collectionJobs");
+    state_body["stagedState"]
+        .as_object_mut()
+        .expect("stagedState is object")
+        .remove("fulfillmentOrderCursors");
     let mut expected: Value = serde_json::from_str(
         r##"
             {
@@ -924,6 +928,9 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "giftCardConfiguration": null,
                     "giftCards": {},
                     "localizationProductIds": [],
+                    "orderCountBaselines": {},
+                    "orderOrder": [],
+                    "orders": {},
                     "metafieldDefinitionNamespaces": [],
                     "metafieldDefinitionOwnerCatalogs": [],
                     "metafieldDefinitions": {},

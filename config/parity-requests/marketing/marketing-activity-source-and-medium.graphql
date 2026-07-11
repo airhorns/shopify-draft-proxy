@@ -8,6 +8,11 @@ mutation MarketingActivitySourceAndMedium(
   $messageOther: MarketingActivityCreateExternalInput!
   $adReferringDomain: MarketingActivityCreateExternalInput!
   $adNoDomain: MarketingActivityCreateExternalInput!
+  $displayAd: MarketingActivityCreateExternalInput!
+  $emailAffiliate: MarketingActivityCreateExternalInput!
+  $searchNewsletter: MarketingActivityCreateExternalInput!
+  $displayInstagramAd: MarketingActivityCreateExternalInput!
+  $customDomainAd: MarketingActivityCreateExternalInput!
 ) {
   abandonedCart: marketingActivityCreateExternal(input: $abandonedCart) {
     marketingActivity {
@@ -114,6 +119,71 @@ mutation MarketingActivitySourceAndMedium(
     }
   }
   adNoDomain: marketingActivityCreateExternal(input: $adNoDomain) {
+    marketingActivity {
+      sourceAndMedium
+      marketingEvent {
+        sourceAndMedium
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  displayAd: marketingActivityCreateExternal(input: $displayAd) {
+    marketingActivity {
+      sourceAndMedium
+      marketingEvent {
+        sourceAndMedium
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  emailAffiliate: marketingActivityCreateExternal(input: $emailAffiliate) {
+    marketingActivity {
+      sourceAndMedium
+      marketingEvent {
+        sourceAndMedium
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  searchNewsletter: marketingActivityCreateExternal(input: $searchNewsletter) {
+    marketingActivity {
+      sourceAndMedium
+      marketingEvent {
+        sourceAndMedium
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  displayInstagramAd: marketingActivityCreateExternal(input: $displayInstagramAd) {
+    marketingActivity {
+      sourceAndMedium
+      marketingEvent {
+        sourceAndMedium
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  customDomainAd: marketingActivityCreateExternal(input: $customDomainAd) {
     marketingActivity {
       sourceAndMedium
       marketingEvent {

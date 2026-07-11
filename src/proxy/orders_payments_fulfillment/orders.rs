@@ -418,6 +418,24 @@ pub(in crate::proxy) fn order_search_decision(
     StagedSearchDecision::Match
 }
 
+fn order_matches_count_query(order: &Value, query: Option<&str>) -> bool {
+    matches!(
+        order_search_decision(order, query),
+        StagedSearchDecision::Match
+    )
+}
+
+fn order_count_baseline_key(arguments: &BTreeMap<String, ResolvedValue>) -> String {
+    let query = resolved_string_field(arguments, "query").unwrap_or_default();
+    let limit = match arguments.get("limit") {
+        Some(ResolvedValue::Int(limit)) => limit.to_string(),
+        Some(ResolvedValue::Null) => "null".to_string(),
+        Some(_) => "other".to_string(),
+        None => "omitted".to_string(),
+    };
+    format!("query:{query}\nlimit:{limit}")
+}
+
 fn order_gid_tail_sort_value(order: &Value) -> StagedSortValue {
     resource_id_tail_sort_value(order.get("id").and_then(Value::as_str))
 }
@@ -1343,6 +1361,119 @@ pub(in crate::proxy) fn normalize_hydrated_order(order: &mut Value) {
 }
 
 impl DraftProxy {
+    fn live_hybrid_order_read_should_observe_upstream(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> bool {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return false;
+        }
+        fields.iter().any(|field| match field.name.as_str() {
+            "orders" | "ordersCount" => true,
+            "order" => resolved_string_field(&field.arguments, "id").is_some_and(|id| {
+                !self.store.staged.orders.contains_key(&id)
+                    && !self.store.staged.orders.is_tombstoned(&id)
+            }),
+            _ => false,
+        })
+    }
+
+    fn observe_live_hybrid_order_read(&mut self, request: &Request) {
+        let response = (self.upstream_transport)(request.clone());
+        self.observe_order_read_response(request, &response);
+    }
+
+    pub(in crate::proxy) fn observe_order_read_response(
+        &mut self,
+        request: &Request,
+        response: &Response,
+    ) {
+        if response.status >= 400 {
+            return;
+        }
+        if let Some(graphql_request) = parse_graphql_request_body(&request.body) {
+            if let Some(fields) = root_fields(&graphql_request.query, &graphql_request.variables) {
+                self.observe_order_count_baselines(&fields, &response.body);
+                self.observe_singular_order_roots(&fields, &response.body);
+            }
+        }
+        self.observe_order_value(&response.body);
+    }
+
+    fn observe_singular_order_roots(&mut self, fields: &[RootFieldSelection], body: &Value) {
+        let Some(data) = body.get("data").and_then(Value::as_object) else {
+            return;
+        };
+        for field in fields {
+            if field.name != "order" {
+                continue;
+            }
+            let Some(id) = resolved_string_field(&field.arguments, "id") else {
+                continue;
+            };
+            if !is_shopify_gid_of_type(&id, "Order") {
+                continue;
+            }
+            let Some(value) = data.get(&field.response_key) else {
+                continue;
+            };
+            if !value.is_object() {
+                continue;
+            }
+            let mut order = value.clone();
+            if order.get("id").and_then(Value::as_str).is_none() {
+                if let Some(object) = order.as_object_mut() {
+                    object.insert("id".to_string(), json!(id));
+                }
+            }
+            self.observe_order_value(&order);
+        }
+    }
+
+    fn observe_order_count_baselines(&mut self, fields: &[RootFieldSelection], body: &Value) {
+        let Some(data) = body.get("data").and_then(Value::as_object) else {
+            return;
+        };
+        for field in fields {
+            if field.name != "ordersCount" {
+                continue;
+            }
+            let Some(count) = data.get(&field.response_key) else {
+                continue;
+            };
+            if count.get("count").and_then(Value::as_u64).is_some() {
+                self.store.observe_order_count_baseline(
+                    order_count_baseline_key(&field.arguments),
+                    count.clone(),
+                );
+            }
+        }
+    }
+
+    fn observe_order_value(&mut self, value: &Value) {
+        if let Some(id) = value.get("id").and_then(Value::as_str) {
+            if is_shopify_gid_of_type(id, "Order") {
+                let mut order = value.clone();
+                normalize_hydrated_order(&mut order);
+                self.store.observe_base_order(order);
+                return;
+            }
+        }
+        match value {
+            Value::Array(values) => {
+                for value in values {
+                    self.observe_order_value(value);
+                }
+            }
+            Value::Object(object) => {
+                for value in object.values() {
+                    self.observe_order_value(value);
+                }
+            }
+            _ => {}
+        }
+    }
+
     pub(in crate::proxy) fn order_invoice_send_local_data(
         &mut self,
         request: &Request,
@@ -1556,6 +1687,9 @@ impl DraftProxy {
             if !staged_order_read {
                 return None;
             }
+            if self.live_hybrid_order_read_should_observe_upstream(&fields) {
+                self.observe_live_hybrid_order_read(request);
+            }
         }
         if !fields.iter().any(|field| field.name == root_field) {
             return None;
@@ -1586,9 +1720,7 @@ impl DraftProxy {
                     };
                     let order = self
                         .store
-                        .staged
-                        .orders
-                        .get(&id)
+                        .observed_order_by_id(&id)
                         .map(|order| self.payment_terms_owner_record_with_effective_due(order))
                         .unwrap_or(Value::Null);
                     self.selected_order_with_return_status(&order, &field.selection)
@@ -1617,12 +1749,7 @@ impl DraftProxy {
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> StagedConnectionResult<Value> {
         staged_connection_query(
-            self.store
-                .staged
-                .orders
-                .values()
-                .cloned()
-                .collect::<Vec<_>>(),
+            self.store.effective_orders(),
             arguments,
             order_search_decision,
             order_staged_sort_key,
@@ -1655,12 +1782,61 @@ impl DraftProxy {
     /// when more matches exist than the limit, otherwise the exact total.
     pub(super) fn staged_orders_count(&self, field: &RootFieldSelection) -> Value {
         selected_json(
-            &staged_count_with_limit_precision(
-                self.matching_orders_query(&field.arguments).total_count,
-                &field.arguments,
-            ),
+            &self.effective_orders_count_value(&field.arguments),
             &field.selection,
         )
+    }
+
+    fn effective_orders_count_value(&self, arguments: &BTreeMap<String, ResolvedValue>) -> Value {
+        let baseline_key = order_count_baseline_key(arguments);
+        let Some(baseline) = self.store.order_count_baseline(&baseline_key) else {
+            return staged_count_with_limit_precision(
+                self.matching_orders_query(arguments).total_count,
+                arguments,
+            );
+        };
+        let Some(base_count) = baseline.get("count").and_then(Value::as_u64) else {
+            return staged_count_with_limit_precision(
+                self.matching_orders_query(arguments).total_count,
+                arguments,
+            );
+        };
+        let delta = self.staged_order_count_delta(arguments);
+        let effective_total = if delta.is_negative() {
+            (base_count as usize).saturating_sub(delta.unsigned_abs())
+        } else {
+            (base_count as usize).saturating_add(delta as usize)
+        };
+        let mut count = staged_count_with_limit_precision(effective_total, arguments);
+        if baseline.get("precision").and_then(Value::as_str) == Some("AT_LEAST") {
+            count["precision"] = json!("AT_LEAST");
+        }
+        count
+    }
+
+    fn staged_order_count_delta(&self, arguments: &BTreeMap<String, ResolvedValue>) -> isize {
+        let query = resolved_string_field(arguments, "query");
+        let mut delta = 0isize;
+        for id in &self.store.staged.orders.tombstones {
+            if let Some(base_order) = self.store.base.orders.records.get(id) {
+                if order_matches_count_query(base_order, query.as_deref()) {
+                    delta -= 1;
+                }
+            }
+        }
+        for (id, staged_order) in &self.store.staged.orders.records {
+            if self.store.staged.orders.is_tombstoned(id) {
+                continue;
+            }
+            let staged_matches = order_matches_count_query(staged_order, query.as_deref());
+            if let Some(base_order) = self.store.base.orders.records.get(id) {
+                let base_matches = order_matches_count_query(base_order, query.as_deref());
+                delta += staged_matches as isize - base_matches as isize;
+            } else if staged_matches {
+                delta += 1;
+            }
+        }
+        delta
     }
 
     pub(super) fn stage_order_update(
@@ -1690,10 +1866,10 @@ impl DraftProxy {
         // current than the backend snapshot and must not be clobbered. On a
         // cassette miss this is a no-op and we fall through to the
         // "Order does not exist" guard below.
-        if !self.store.staged.orders.contains_key(&order_id) {
+        if self.store.observed_order_by_id(&order_id).is_none() {
             self.ensure_order_hydrated(request, &order_id);
         }
-        let Some(existing_order) = self.store.staged.orders.get(&order_id).cloned() else {
+        let Some(existing_order) = self.store.observed_order_by_id(&order_id).cloned() else {
             return Some(selected_json(
                 &json!({
                     "order": Value::Null,
@@ -1945,6 +2121,7 @@ impl DraftProxy {
             .orders
             .get(id)
             .cloned()
+            .or_else(|| self.store.observed_order_by_id(id).cloned())
             .or_else(|| self.hydrate_order_lifecycle_order(id, request, root_field))
     }
 
@@ -1984,7 +2161,10 @@ impl DraftProxy {
     /// path earns the order from the backend rather than 404-ing when no
     /// precondition seed exists.
     pub(super) fn ensure_order_lifecycle_hydrated(&mut self, request: &Request, id: &str) {
-        if id.is_empty() || self.store.staged.orders.contains_key(id) {
+        if id.is_empty()
+            || self.store.staged.orders.contains_key(id)
+            || self.store.staged.orders.is_tombstoned(id)
+        {
             return;
         }
         if let Some(order) = self.hydrate_order_lifecycle_order(id, request, "") {
@@ -3488,7 +3668,13 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Option<Value> {
         let order_id = resolved_string_field(&field.arguments, "orderId")?;
-        if !self.store.staged.orders.contains_key(&order_id) {
+        if !self.store.staged.orders.contains_key(&order_id)
+            && !self.store.staged.orders.is_tombstoned(&order_id)
+            && self.store.observed_order_by_id(&order_id).is_none()
+        {
+            self.ensure_order_hydrated(request, &order_id);
+        }
+        if self.store.observed_order_by_id(&order_id).is_none() {
             return Some(selected_json(
                 &json!({
                     "deletedId": Value::Null,

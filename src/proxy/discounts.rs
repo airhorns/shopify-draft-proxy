@@ -4216,10 +4216,6 @@ fn apply_discount_activate_deactivate(
     }
 }
 
-/// Classify a bulk mutation root field into its (discount kind, action). Returns
-/// `None` for anything that is not one of the six
-/// `discount{Code,Automatic}Bulk{Activate,Deactivate,Delete}` mutations (notably
-/// the redeem-code bulk add/delete mutations, which are handled separately).
 fn discount_bulk_root_action(name: &str) -> Option<(&'static str, DiscountBulkAction)> {
     match name {
         "discountCodeBulkActivate" => Some(("code", DiscountBulkAction::Activate)),

@@ -1,0 +1,14 @@
+query CustomerMergeAttachedHydrate($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    ... on Customer {
+      id
+      defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }
+      addressesV2(first: 5) { nodes { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea } }
+      metafields(first: 5) { nodes { id namespace key type value } }
+      orders(first: 5, sortKey: CREATED_AT, reverse: true) {
+        edges { cursor node { id name email createdAt } }
+      }
+      lastOrder { id name email createdAt }
+    }
+  }
+}

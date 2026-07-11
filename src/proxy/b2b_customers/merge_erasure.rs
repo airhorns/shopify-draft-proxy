@@ -18,17 +18,17 @@ impl DraftProxy {
             .unwrap_or_default();
 
         // Pre-existing customers referenced by a merge are resolved the real way:
-        // forward a hydrate upstream and stage the observed record so both the
-        // existence checks and the merge body read consistent state. Already-staged
-        // or deleted/merged-away customers are left untouched (a deleted source must
-        // still surface DOES_NOT_EXIST rather than be re-hydrated).
-        self.ensure_customer_hydrated_for_merge(request, &one_id);
-        self.ensure_customer_hydrated_for_merge(request, &two_id);
+        // forward one combined scalar hydrate upstream and stage the observed
+        // records so existence checks and merge validation read consistent state.
+        // Attached resources are fetched later, only for the successful branch.
+        let hydrated_ids =
+            self.ensure_customers_hydrated_for_merge(request, &[one_id.clone(), two_id.clone()]);
 
         // Compute the payload generically from staged state. State only mutates on
         // the success branch; each early return mirrors a live customerMerge
         // userError branch (self-merge, unknown customer, merge blockers).
-        let (payload, staged_ids) = self.customer_merge_payload(&arguments, &one_id, &two_id);
+        let (payload, staged_ids) =
+            self.customer_merge_payload(request, &arguments, &one_id, &two_id, &hydrated_ids);
         self.record_mutation_log_entry(request, query, variables, "customerMerge", staged_ids);
         ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
     }
@@ -116,9 +116,11 @@ impl DraftProxy {
 
     fn customer_merge_payload(
         &mut self,
+        request: &Request,
         arguments: &BTreeMap<String, ResolvedValue>,
         one_id: &str,
         two_id: &str,
+        hydrated_ids: &[String],
     ) -> (Value, Vec<String>) {
         if one_id.is_empty() || two_id.is_empty() {
             return (
@@ -168,6 +170,7 @@ impl DraftProxy {
                 Vec::new(),
             );
         }
+        self.hydrate_customer_merge_attached_resources(request, hydrated_ids);
 
         let override_fields =
             resolved_object_field(arguments, "overrideFields").unwrap_or_default();

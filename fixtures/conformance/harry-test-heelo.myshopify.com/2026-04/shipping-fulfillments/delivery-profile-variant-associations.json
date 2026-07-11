@@ -1,0 +1,607 @@
+{
+  "capturedAt": "2026-07-11T00:00:50.992Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "evidence": {
+    "productId": "gid://shopify/Product/10236304163122",
+    "productTitle": "Delivery profile variant association 1783728048528",
+    "variantId": "gid://shopify/ProductVariant/51460302438706",
+    "variantTitle": "Default Title",
+    "validProfileId": "gid://shopify/DeliveryProfile/132768596274",
+    "missingProfileId": "gid://shopify/DeliveryProfile/132768629042",
+    "missingVariantId": "gid://shopify/ProductVariant/999999999999"
+  },
+  "setup": {
+    "productCreate": {
+      "query": "mutation DeliveryProfileVariantAssociationProduct($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      variants(first: 1) {\n        nodes {\n          id\n          title\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "product": {
+          "title": "Delivery profile variant association 1783728048528"
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productCreate": {
+              "product": {
+                "id": "gid://shopify/Product/10236304163122",
+                "title": "Delivery profile variant association 1783728048528",
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51460302438706",
+                      "title": "Default Title"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "mutations": {
+    "validCreate": {
+      "query": "mutation DeliveryProfileVariantAssociationCreate($profile: DeliveryProfileInput!) {\n  deliveryProfileCreate(profile: $profile) {\n    profile {\n      id\n      name\n      productVariantsCount {\n        count\n        precision\n      }\n      profileItems(first: 5) {\n        nodes {\n          product {\n            id\n            title\n          }\n          variants(first: 5) {\n            nodes {\n              id\n              title\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n              startCursor\n              endCursor\n            }\n          }\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "profile": {
+          "name": "Variant association valid 1783728048528",
+          "variantsToAssociate": ["gid://shopify/ProductVariant/51460302438706"]
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfileCreate": {
+              "profile": {
+                "id": "gid://shopify/DeliveryProfile/132768596274",
+                "name": "Variant association valid 1783728048528",
+                "productVariantsCount": {
+                  "count": 1,
+                  "precision": "EXACT"
+                },
+                "profileItems": {
+                  "nodes": [
+                    {
+                      "product": {
+                        "id": "gid://shopify/Product/10236304163122",
+                        "title": "Delivery profile variant association 1783728048528"
+                      },
+                      "variants": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/ProductVariant/51460302438706",
+                            "title": "Default Title"
+                          }
+                        ],
+                        "pageInfo": {
+                          "hasNextPage": false,
+                          "hasPreviousPage": false,
+                          "startCursor": "eyJsYXN0X2lkIjo1MTQ2MDMwMjQzODcwNiwibGFzdF92YWx1ZSI6IjUxNDYwMzAyNDM4NzA2In0=",
+                          "endCursor": "eyJsYXN0X2lkIjo1MTQ2MDMwMjQzODcwNiwibGFzdF92YWx1ZSI6IjUxNDYwMzAyNDM4NzA2In0="
+                        }
+                      }
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": "eyJsYXN0X2lkIjoxMDIzNjMwNDE2MzEyMiwibGFzdF92YWx1ZSI6IjEwMjM2MzA0MTYzMTIyIn0=",
+                    "endCursor": "eyJsYXN0X2lkIjoxMDIzNjMwNDE2MzEyMiwibGFzdF92YWx1ZSI6IjEwMjM2MzA0MTYzMTIyIn0="
+                  }
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 43,
+              "actualQueryCost": 27,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1973,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "missingCreate": {
+      "query": "mutation DeliveryProfileVariantAssociationCreate($profile: DeliveryProfileInput!) {\n  deliveryProfileCreate(profile: $profile) {\n    profile {\n      id\n      name\n      productVariantsCount {\n        count\n        precision\n      }\n      profileItems(first: 5) {\n        nodes {\n          product {\n            id\n            title\n          }\n          variants(first: 5) {\n            nodes {\n              id\n              title\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n              startCursor\n              endCursor\n            }\n          }\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "profile": {
+          "name": "Variant association missing 1783728048528",
+          "variantsToAssociate": ["gid://shopify/ProductVariant/999999999999"]
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfileCreate": {
+              "profile": {
+                "id": "gid://shopify/DeliveryProfile/132768629042",
+                "name": "Variant association missing 1783728048528",
+                "productVariantsCount": {
+                  "count": 0,
+                  "precision": "EXACT"
+                },
+                "profileItems": {
+                  "nodes": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": null,
+                    "endCursor": null
+                  }
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 43,
+              "actualQueryCost": 25,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1975,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "wrongTypeCreate": {
+      "query": "mutation DeliveryProfileVariantAssociationCreate($profile: DeliveryProfileInput!) {\n  deliveryProfileCreate(profile: $profile) {\n    profile {\n      id\n      name\n      productVariantsCount {\n        count\n        precision\n      }\n      profileItems(first: 5) {\n        nodes {\n          product {\n            id\n            title\n          }\n          variants(first: 5) {\n            nodes {\n              id\n              title\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n              startCursor\n              endCursor\n            }\n          }\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "profile": {
+          "name": "Variant association wrong type 1783728048528",
+          "variantsToAssociate": ["gid://shopify/Product/10236304163122"]
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Invalid id: gid://shopify/Product/10236304163122",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "RESOURCE_NOT_FOUND"
+              },
+              "path": ["deliveryProfileCreate"]
+            }
+          ],
+          "data": {
+            "deliveryProfileCreate": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 43,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "missingUpdate": {
+      "query": "mutation DeliveryProfileVariantAssociationUpdate($id: ID!, $profile: DeliveryProfileInput!) {\n  deliveryProfileUpdate(id: $id, profile: $profile) {\n    profile {\n      id\n      name\n      productVariantsCount {\n        count\n        precision\n      }\n      profileItems(first: 5) {\n        nodes {\n          product {\n            id\n            title\n          }\n          variants(first: 5) {\n            nodes {\n              id\n              title\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n              startCursor\n              endCursor\n            }\n          }\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/DeliveryProfile/132768596274",
+        "profile": {
+          "name": "Variant association missing update 1783728048528",
+          "variantsToAssociate": ["gid://shopify/ProductVariant/999999999999"]
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfileUpdate": {
+              "profile": {
+                "id": "gid://shopify/DeliveryProfile/132768596274",
+                "name": "Variant association missing update 1783728048528",
+                "productVariantsCount": {
+                  "count": 1,
+                  "precision": "EXACT"
+                },
+                "profileItems": {
+                  "nodes": [
+                    {
+                      "product": {
+                        "id": "gid://shopify/Product/10236304163122",
+                        "title": "Delivery profile variant association 1783728048528"
+                      },
+                      "variants": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/ProductVariant/51460302438706",
+                            "title": "Default Title"
+                          }
+                        ],
+                        "pageInfo": {
+                          "hasNextPage": false,
+                          "hasPreviousPage": false,
+                          "startCursor": "eyJsYXN0X2lkIjo1MTQ2MDMwMjQzODcwNiwibGFzdF92YWx1ZSI6IjUxNDYwMzAyNDM4NzA2In0=",
+                          "endCursor": "eyJsYXN0X2lkIjo1MTQ2MDMwMjQzODcwNiwibGFzdF92YWx1ZSI6IjUxNDYwMzAyNDM4NzA2In0="
+                        }
+                      }
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": "eyJsYXN0X2lkIjoxMDIzNjMwNDE2MzEyMiwibGFzdF92YWx1ZSI6IjEwMjM2MzA0MTYzMTIyIn0=",
+                    "endCursor": "eyJsYXN0X2lkIjoxMDIzNjMwNDE2MzEyMiwibGFzdF92YWx1ZSI6IjEwMjM2MzA0MTYzMTIyIn0="
+                  }
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 43,
+              "actualQueryCost": 27,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1973,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "readAfterMissingUpdate": {
+      "query": "query DeliveryProfileVariantAssociationRead($id: ID!) {\n  deliveryProfile(id: $id) {\n    id\n    name\n    productVariantsCount {\n      count\n      precision\n    }\n    profileItems(first: 5) {\n      nodes {\n        product {\n          id\n          title\n        }\n        variants(first: 5) {\n          nodes {\n            id\n            title\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/DeliveryProfile/132768596274"
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfile": {
+              "id": "gid://shopify/DeliveryProfile/132768596274",
+              "name": "Variant association missing update 1783728048528",
+              "productVariantsCount": {
+                "count": 1,
+                "precision": "EXACT"
+              },
+              "profileItems": {
+                "nodes": [
+                  {
+                    "product": {
+                      "id": "gid://shopify/Product/10236304163122",
+                      "title": "Delivery profile variant association 1783728048528"
+                    },
+                    "variants": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/ProductVariant/51460302438706",
+                          "title": "Default Title"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo1MTQ2MDMwMjQzODcwNiwibGFzdF92YWx1ZSI6IjUxNDYwMzAyNDM4NzA2In0=",
+                        "endCursor": "eyJsYXN0X2lkIjo1MTQ2MDMwMjQzODcwNiwibGFzdF92YWx1ZSI6IjUxNDYwMzAyNDM4NzA2In0="
+                      }
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoxMDIzNjMwNDE2MzEyMiwibGFzdF92YWx1ZSI6IjEwMjM2MzA0MTYzMTIyIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjoxMDIzNjMwNDE2MzEyMiwibGFzdF92YWx1ZSI6IjEwMjM2MzA0MTYzMTIyIn0="
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 34,
+              "actualQueryCost": 18,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1981,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "wrongTypeUpdate": {
+      "query": "mutation DeliveryProfileVariantAssociationUpdate($id: ID!, $profile: DeliveryProfileInput!) {\n  deliveryProfileUpdate(id: $id, profile: $profile) {\n    profile {\n      id\n      name\n      productVariantsCount {\n        count\n        precision\n      }\n      profileItems(first: 5) {\n        nodes {\n          product {\n            id\n            title\n          }\n          variants(first: 5) {\n            nodes {\n              id\n              title\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n              startCursor\n              endCursor\n            }\n          }\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/DeliveryProfile/132768596274",
+        "profile": {
+          "name": "Variant association wrong type update 1783728048528",
+          "variantsToAssociate": ["gid://shopify/Product/10236304163122"]
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Invalid id: gid://shopify/Product/10236304163122",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "RESOURCE_NOT_FOUND"
+              },
+              "path": ["deliveryProfileUpdate"]
+            }
+          ],
+          "data": {
+            "deliveryProfileUpdate": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 43,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1982,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "readAfterWrongTypeUpdate": {
+      "query": "query DeliveryProfileVariantAssociationRead($id: ID!) {\n  deliveryProfile(id: $id) {\n    id\n    name\n    productVariantsCount {\n      count\n      precision\n    }\n    profileItems(first: 5) {\n      nodes {\n        product {\n          id\n          title\n        }\n        variants(first: 5) {\n          nodes {\n            id\n            title\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/DeliveryProfile/132768596274"
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfile": {
+              "id": "gid://shopify/DeliveryProfile/132768596274",
+              "name": "Variant association missing update 1783728048528",
+              "productVariantsCount": {
+                "count": 1,
+                "precision": "EXACT"
+              },
+              "profileItems": {
+                "nodes": [
+                  {
+                    "product": {
+                      "id": "gid://shopify/Product/10236304163122",
+                      "title": "Delivery profile variant association 1783728048528"
+                    },
+                    "variants": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/ProductVariant/51460302438706",
+                          "title": "Default Title"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo1MTQ2MDMwMjQzODcwNiwibGFzdF92YWx1ZSI6IjUxNDYwMzAyNDM4NzA2In0=",
+                        "endCursor": "eyJsYXN0X2lkIjo1MTQ2MDMwMjQzODcwNiwibGFzdF92YWx1ZSI6IjUxNDYwMzAyNDM4NzA2In0="
+                      }
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoxMDIzNjMwNDE2MzEyMiwibGFzdF92YWx1ZSI6IjEwMjM2MzA0MTYzMTIyIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjoxMDIzNjMwNDE2MzEyMiwibGFzdF92YWx1ZSI6IjEwMjM2MzA0MTYzMTIyIn0="
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 34,
+              "actualQueryCost": 18,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1972,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "removeValidProfile": {
+      "query": "mutation DeliveryProfileVariantAssociationCleanupProfile($id: ID!) {\n    deliveryProfileRemove(id: $id) {\n      job {\n        id\n        done\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/DeliveryProfile/132768596274"
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfileRemove": {
+              "job": {
+                "id": "gid://shopify/Job/6d01dcab-a4dd-4647-bf02-15e519bcbfde",
+                "done": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1974,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "removeMissingProfile": {
+      "query": "mutation DeliveryProfileVariantAssociationCleanupProfile($id: ID!) {\n    deliveryProfileRemove(id: $id) {\n      job {\n        id\n        done\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/DeliveryProfile/132768629042"
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfileRemove": {
+              "job": {
+                "id": "gid://shopify/Job/c1e1c7fe-f255-40d6-a20f-f04662cd7a21",
+                "done": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1973,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "deleteProduct": {
+      "query": "mutation DeliveryProfileVariantAssociationCleanupProduct($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Product/10236304163122"
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productDelete": {
+              "deletedProductId": "gid://shopify/Product/10236304163122",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1972,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "notes": [
+    "Captured with home-folder conformance auth against a disposable Shopify test store.",
+    "A real productCreate provides the valid ProductVariant target; nonexistent ProductVariant association is captured as an empty profileItems/count-0 branch.",
+    "The two upstreamCalls entries are real Shopify nodes(ids:) probes for the missing ProductVariant ID, recorded for proxy live-hybrid hydrate replay."
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "ShippingDeliveryProfileVariantsHydrate",
+      "variables": {
+        "ids": ["gid://shopify/ProductVariant/999999999999"]
+      },
+      "query": "query ShippingDeliveryProfileVariantsHydrate($ids: [ID!]!) { nodes(ids: $ids) { ... on ProductVariant { id title product { id title handle } } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [null]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingDeliveryProfileVariantsHydrate",
+      "variables": {
+        "ids": ["gid://shopify/ProductVariant/999999999999"]
+      },
+      "query": "query ShippingDeliveryProfileVariantsHydrate($ids: [ID!]!) { nodes(ids: $ids) { ... on ProductVariant { id title product { id title handle } } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [null]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

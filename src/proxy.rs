@@ -271,6 +271,8 @@ struct BaseState {
     saved_searches: OrderedRecords<SavedSearchRecord>,
     shop_policies: OrderedRecords<ShopPolicyRecord>,
     delivery_profiles: OrderedRecords<Value>,
+    orders: OrderedRecords<Value>,
+    order_count_baselines: BTreeMap<String, Value>,
     discounts: OrderedRecords<Value>,
     marketing_activities: OrderedRecords<Value>,
     marketing_events: OrderedRecords<Value>,
@@ -1243,6 +1245,32 @@ impl Store {
 
     fn stage_shop_policy(&mut self, policy: ShopPolicyRecord) {
         self.staged.shop_policies.stage(policy.id.clone(), policy);
+    }
+
+    fn observed_order_by_id(&self, id: &str) -> Option<&Value> {
+        effective_get(&self.base.orders, &self.staged.orders, id)
+    }
+
+    fn effective_orders(&self) -> Vec<Value> {
+        effective_records(&self.base.orders, &self.staged.orders)
+    }
+
+    fn observe_base_order(&mut self, order: Value) {
+        let Some(id) = order.get("id").and_then(Value::as_str).map(str::to_string) else {
+            return;
+        };
+        if self.staged.orders.is_tombstoned(&id) || self.staged.orders.contains_staged(&id) {
+            return;
+        }
+        self.base.orders.insert(id, order);
+    }
+
+    fn observe_order_count_baseline(&mut self, key: String, count: Value) {
+        self.base.order_count_baselines.insert(key, count);
+    }
+
+    fn order_count_baseline(&self, key: &str) -> Option<&Value> {
+        self.base.order_count_baselines.get(key)
     }
 
     fn domain_by_id(&self, id: &str) -> Option<Value> {

@@ -1,0 +1,17 @@
+mutation OrderLiveHybridMixedCatalogCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {
+    orderCreate(order: $order, options: $options) {
+      order {
+        id
+        email
+        note
+        tags
+        processedAt
+        displayFinancialStatus
+        displayFulfillmentStatus
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
