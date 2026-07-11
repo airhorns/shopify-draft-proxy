@@ -856,27 +856,25 @@ impl DraftProxy {
                     self.hydrate_function_metadata_by_id(request, id);
                 }
             }
-            Some("Validation") => {
+            Some("Validation")
                 if self.function_validation_by_id(id).is_none()
                     && !self
                         .store
                         .staged
                         .deleted_function_validation_ids
-                        .contains(id)
-                {
-                    self.hydrate_function_validation_by_id(request, id);
-                }
+                        .contains(id) =>
+            {
+                self.hydrate_function_validation_by_id(request, id);
             }
-            Some("CartTransform") => {
+            Some("CartTransform")
                 if self.function_cart_transform_by_id(id).is_none()
                     && !self
                         .store
                         .staged
                         .deleted_function_cart_transform_ids
-                        .contains(id)
-                {
-                    self.hydrate_function_cart_transform_by_id(request, id);
-                }
+                        .contains(id) =>
+            {
+                self.hydrate_function_cart_transform_by_id(request, id);
             }
             _ => {}
         }
