@@ -392,6 +392,24 @@ impl DraftProxy {
         selected_json(record, &field.selection)
     }
 
+    pub(in crate::proxy) fn customer_payment_method_node_value_by_id(
+        &self,
+        id: &str,
+        selection: &[SelectedField],
+    ) -> Option<Value> {
+        let Some(record) = self.store.staged.customer_payment_methods.get(id) else {
+            return Some(Value::Null);
+        };
+        if !record["revokedAt"].is_null() {
+            return Some(Value::Null);
+        }
+        let mut record = record.clone();
+        if let Some(object) = record.as_object_mut() {
+            object.insert("__typename".to_string(), json!("CustomerPaymentMethod"));
+        }
+        Some(selected_json(&record, selection))
+    }
+
     fn customer_payment_method_credit_card_create(
         &mut self,
         field: &RootFieldSelection,

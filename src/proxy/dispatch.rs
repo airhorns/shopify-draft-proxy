@@ -1032,16 +1032,50 @@ impl DraftProxy {
                 return Some(self.selected_order_with_return_status(&order, selection));
             }
         }
+        if shopify_gid_resource_type(id) == Some("Customer") {
+            if let Some(value) = self.customer_node_value_by_id(id, selection) {
+                return Some(value);
+            }
+        }
+        if shopify_gid_resource_type(id) == Some("MailingAddress") {
+            if let Some(value) = self.customer_address_node_value_by_id(id, selection) {
+                return Some(value);
+            }
+        }
+        if shopify_gid_resource_type(id) == Some("CustomerPaymentMethod") {
+            if let Some(value) = self.customer_payment_method_node_value_by_id(id, selection) {
+                return Some(value);
+            }
+        }
+        if matches!(
+            shopify_gid_resource_type(id),
+            Some(
+                "StoreCreditAccount"
+                    | "StoreCreditAccountCreditTransaction"
+                    | "StoreCreditAccountDebitTransaction"
+                    | "StoreCreditAccountDebitRevertTransaction"
+                    | "StoreCreditAccountTransaction"
+            )
+        ) {
+            if let Some(value) = self.store_credit_node_value_by_id(id, selection) {
+                return Some(value);
+            }
+        }
         if let Some(value) = self.app_node_value_by_id(id, selection, request) {
             return Some(value);
         }
         if shopify_gid_resource_type(id) == Some("GiftCard") {
             return Some(
-                self.store
-                    .staged
-                    .gift_cards
-                    .get(id)
-                    .map(|card| selected_json(card, selection))
+                self.gift_card_node_value_by_id(id, selection)
+                    .unwrap_or(Value::Null),
+            );
+        }
+        if matches!(
+            shopify_gid_resource_type(id),
+            Some("GiftCardCreditTransaction" | "GiftCardDebitTransaction")
+        ) {
+            return Some(
+                self.gift_card_transaction_node_value_by_id(id, selection)
                     .unwrap_or(Value::Null),
             );
         }
