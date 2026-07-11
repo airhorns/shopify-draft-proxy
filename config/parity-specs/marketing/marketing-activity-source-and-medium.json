@@ -11,7 +11,7 @@
     "variablesPath": "config/parity-requests/marketing/marketing-activity-source-and-medium.variables.json"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Captured external marketing activity create responses for Shopify sourceAndMedium derivation across abandoned_cart, affiliate, loyalty, retargeting with facebook.com, retargeting without a domain, message via facebook.com, message via twitter.com, ad with instagram.com, and ad without a referring domain. The capture script deletes every disposable remoteId before and after recording.",
+  "notes": "Captured external marketing activity create responses for Shopify sourceAndMedium derivation across abandoned_cart, affiliate, loyalty, retargeting with facebook.com, retargeting without a domain, message via facebook.com, message via twitter.com, ad with instagram.com, ad without a referring domain, DISPLAY+AD fallback, EMAIL+AFFILIATE tactic precedence, SEARCH+NEWSLETTER fallback, DISPLAY+AD+instagram.com aliasing, and DISPLAY+AD+partner.example raw-domain fallback. The capture script deletes every disposable remoteId before and after recording.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -122,6 +122,66 @@
         "name": "ad-no-domain-user-errors",
         "capturePath": "$.operations.createSourceAndMedium.response.payload.data.adNoDomain.userErrors",
         "proxyPath": "$.data.adNoDomain.userErrors",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "display-ad-source-and-medium",
+        "capturePath": "$.operations.createSourceAndMedium.response.payload.data.displayAd.marketingActivity",
+        "proxyPath": "$.data.displayAd.marketingActivity",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "display-ad-user-errors",
+        "capturePath": "$.operations.createSourceAndMedium.response.payload.data.displayAd.userErrors",
+        "proxyPath": "$.data.displayAd.userErrors",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "email-affiliate-source-and-medium",
+        "capturePath": "$.operations.createSourceAndMedium.response.payload.data.emailAffiliate.marketingActivity",
+        "proxyPath": "$.data.emailAffiliate.marketingActivity",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "email-affiliate-user-errors",
+        "capturePath": "$.operations.createSourceAndMedium.response.payload.data.emailAffiliate.userErrors",
+        "proxyPath": "$.data.emailAffiliate.userErrors",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "search-newsletter-source-and-medium",
+        "capturePath": "$.operations.createSourceAndMedium.response.payload.data.searchNewsletter.marketingActivity",
+        "proxyPath": "$.data.searchNewsletter.marketingActivity",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "search-newsletter-user-errors",
+        "capturePath": "$.operations.createSourceAndMedium.response.payload.data.searchNewsletter.userErrors",
+        "proxyPath": "$.data.searchNewsletter.userErrors",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "display-instagram-ad-source-and-medium",
+        "capturePath": "$.operations.createSourceAndMedium.response.payload.data.displayInstagramAd.marketingActivity",
+        "proxyPath": "$.data.displayInstagramAd.marketingActivity",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "display-instagram-ad-user-errors",
+        "capturePath": "$.operations.createSourceAndMedium.response.payload.data.displayInstagramAd.userErrors",
+        "proxyPath": "$.data.displayInstagramAd.userErrors",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "custom-domain-ad-source-and-medium",
+        "capturePath": "$.operations.createSourceAndMedium.response.payload.data.customDomainAd.marketingActivity",
+        "proxyPath": "$.data.customDomainAd.marketingActivity",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "custom-domain-ad-user-errors",
+        "capturePath": "$.operations.createSourceAndMedium.response.payload.data.customDomainAd.userErrors",
+        "proxyPath": "$.data.customDomainAd.userErrors",
         "upstreamCapturePath": null
       }
     ]
