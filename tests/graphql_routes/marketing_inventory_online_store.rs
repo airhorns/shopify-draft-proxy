@@ -13406,13 +13406,7 @@ fn metaobject_bulk_delete_ids_hydrates_multiple_cold_ids_with_bounded_upstream_r
 
     assert_eq!(
         response.body["data"]["metaobjectBulkDelete"]["userErrors"],
-        json!([{
-            "field": ["where", "ids", "1"],
-            "message": "Record not found",
-            "code": "RECORD_NOT_FOUND",
-            "elementKey": "gid://shopify/Metaobject/missing",
-            "elementIndex": 1
-        }])
+        json!([])
     );
     let requests = upstream_requests.lock().unwrap();
     assert_eq!(
@@ -13427,6 +13421,20 @@ fn metaobject_bulk_delete_ids_hydrates_multiple_cold_ids_with_bounded_upstream_r
             "gid://shopify/Metaobject/missing",
             "gid://shopify/Metaobject/1003"
         ]})
+    );
+    drop(requests);
+
+    let log = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/log".to_string(),
+        ..Default::default()
+    });
+    assert_eq!(
+        log.body["entries"][0]["stagedResourceIds"],
+        json!([
+            "gid://shopify/Metaobject/1001",
+            "gid://shopify/Metaobject/1003"
+        ])
     );
 }
 

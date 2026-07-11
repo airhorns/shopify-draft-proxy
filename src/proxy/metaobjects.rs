@@ -3918,7 +3918,7 @@ impl DraftProxy {
             return Value::Null;
         }
 
-        let mut user_errors = Vec::new();
+        let user_errors: Vec<Value> = Vec::new();
         let mut touched_ids = Vec::new();
         if let Some(ids) = ids {
             let mut ids_to_hydrate = Vec::new();
@@ -3934,7 +3934,7 @@ impl DraftProxy {
                 }
             }
             self.hydrate_metaobjects_by_ids(request, &ids_to_hydrate);
-            for (index, id) in ids.into_iter().enumerate() {
+            for id in ids {
                 let record = self.metaobject_by_id(&id);
                 if let Some(record) = record {
                     self.store.staged.metaobjects.remove(&id);
@@ -3943,14 +3943,6 @@ impl DraftProxy {
                         self.increment_metaobject_definition_count(meta_type, -1);
                     }
                     touched_ids.push(id);
-                } else {
-                    user_errors.push(metaobject_user_error(
-                        vec!["where", "ids", &index.to_string()],
-                        "Record not found",
-                        "RECORD_NOT_FOUND",
-                        json!(id),
-                        json!(index),
-                    ));
                 }
             }
         } else if let Some(meta_type) = meta_type {

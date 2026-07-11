@@ -4671,6 +4671,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'metaobject-bulk-delete-ids',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-bulk-delete-ids-conformance.ts',
+    purpose:
+      'Metaobject bulk delete by explicit IDs with a mixed existing/stale selector, exact batched nodes(ids:) hydration cassette, and downstream deleted-row reads.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-bulk-delete-ids-lifecycle.json`,
+      'config/parity-specs/metaobjects/metaobject-bulk-delete-ids-lifecycle.json',
+      'config/parity-requests/metaobjects/metaobject-bulk-delete-ids-delete.graphql',
+      'config/parity-requests/metaobjects/metaobject-bulk-delete-ids-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates a disposable definition and two rows, bulk deletes rows by an IDs selector that includes one stale ID, then deletes any remaining rows and the definition.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'metaobject-bulk-delete-edge-cases',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-bulk-delete-edge-cases-conformance.ts',
