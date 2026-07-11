@@ -191,6 +191,13 @@ fn fulfillment_order_order_fixture(
     })
 }
 
+fn required_string(value: &Value, context: &str) -> String {
+    value
+        .as_str()
+        .unwrap_or_else(|| panic!("{context} should be a string, got {value:?}"))
+        .to_string()
+}
+
 fn create_fulfillment_order_test_order(proxy: &mut DraftProxy, quantity: i64) -> (Value, Value) {
     let create_order = proxy.process_request(json_graphql_request(
         r#"
@@ -2410,6 +2417,629 @@ fn generic_node_reads_keep_well_formed_absent_and_unknown_ids_null() {
             "absentProduct": null,
             "unknownType": null,
             "nodes": [null, null]
+        })
+    );
+}
+
+#[test]
+fn generic_node_reads_project_customer_payment_store_credit_and_gift_card_records() {
+    let mut proxy = snapshot_proxy();
+
+    let customer_setup = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AdminNodeCustomerSetup($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer {
+              id
+              email
+              displayName
+              addressesV2(first: 2) {
+                nodes { id address1 city countryCodeV2 }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "admin-node-customer@example.test",
+                "firstName": "Node",
+                "lastName": "Customer",
+                "addresses": [{
+                    "address1": "1 Node St",
+                    "city": "Ottawa",
+                    "countryCode": "CA",
+                    "provinceCode": "ON",
+                    "zip": "K1A 0B1"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(customer_setup.status, 200);
+    assert_eq!(
+        customer_setup.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    let customer_id = required_string(
+        &customer_setup.body["data"]["customerCreate"]["customer"]["id"],
+        "created customer id",
+    );
+    let address_id = required_string(
+        &customer_setup.body["data"]["customerCreate"]["customer"]["addressesV2"]["nodes"][0]["id"],
+        "created address id",
+    );
+
+    let payment_setup = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AdminNodeCustomerPaymentMethodSetup($customerId: ID!) {
+          customerPaymentMethodCreditCardCreate(
+            customerId: $customerId
+            sessionId: "sess_node"
+            billingAddress: {
+              firstName: "Node"
+              lastName: "Billing"
+              address1: "2 Billing St"
+              city: "Toronto"
+              zip: "M5V 2T6"
+              country: "CA"
+              province: "ON"
+            }
+          ) {
+            customerPaymentMethod {
+              id
+              customer { id }
+              instrument {
+                __typename
+                ... on CustomerCreditCard {
+                  maskedNumber
+                  lastDigits
+                  billingAddress { address1 city countryCodeV2 }
+                }
+              }
+              revokedAt
+              revokedReason
+            }
+            processing
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "customerId": customer_id }),
+    ));
+    assert_eq!(payment_setup.status, 200);
+    assert_eq!(
+        payment_setup.body["data"]["customerPaymentMethodCreditCardCreate"]["userErrors"],
+        json!([])
+    );
+    let payment_method_id = required_string(
+        &payment_setup.body["data"]["customerPaymentMethodCreditCardCreate"]
+            ["customerPaymentMethod"]["id"],
+        "created payment method id",
+    );
+
+    let store_credit_setup = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AdminNodeStoreCreditSetup($customerId: ID!) {
+          credit: storeCreditAccountCredit(
+            id: $customerId
+            creditInput: { creditAmount: { amount: "10.00", currencyCode: USD } }
+          ) {
+            storeCreditAccountTransaction {
+              id
+              __typename
+              amount { amount currencyCode }
+              balanceAfterTransaction { amount currencyCode }
+              account { id owner { ... on Customer { id } } balance { amount currencyCode } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "customerId": customer_id }),
+    ));
+    assert_eq!(store_credit_setup.status, 200);
+    assert_eq!(
+        store_credit_setup.body["data"]["credit"]["userErrors"],
+        json!([])
+    );
+    let store_credit_account_id = required_string(
+        &store_credit_setup.body["data"]["credit"]["storeCreditAccountTransaction"]["account"]
+            ["id"],
+        "store credit account id",
+    );
+    let store_credit_credit_id = required_string(
+        &store_credit_setup.body["data"]["credit"]["storeCreditAccountTransaction"]["id"],
+        "store credit credit transaction id",
+    );
+
+    let store_credit_debit = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AdminNodeStoreCreditDebitSetup($accountId: ID!) {
+          debit: storeCreditAccountDebit(
+            id: $accountId
+            debitInput: { debitAmount: { amount: "3.00", currencyCode: USD } }
+          ) {
+            storeCreditAccountTransaction {
+              id
+              __typename
+              amount { amount currencyCode }
+              balanceAfterTransaction { amount currencyCode }
+              account { id balance { amount currencyCode } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "accountId": store_credit_account_id }),
+    ));
+    assert_eq!(store_credit_debit.status, 200);
+    assert_eq!(
+        store_credit_debit.body["data"]["debit"]["userErrors"],
+        json!([])
+    );
+    let store_credit_debit_id = required_string(
+        &store_credit_debit.body["data"]["debit"]["storeCreditAccountTransaction"]["id"],
+        "store credit debit transaction id",
+    );
+
+    restore_shop_currency(&mut proxy, "CAD");
+    let gift_card_setup = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AdminNodeGiftCardSetup {
+          create: giftCardCreate(input: { initialValue: "20.00", notify: false }) {
+            giftCard { id balance { amount currencyCode } }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(gift_card_setup.status, 200);
+    assert_eq!(
+        gift_card_setup.body["data"]["create"]["userErrors"],
+        json!([])
+    );
+    let gift_card_id = required_string(
+        &gift_card_setup.body["data"]["create"]["giftCard"]["id"],
+        "gift card id",
+    );
+
+    let gift_card_transactions = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AdminNodeGiftCardTransactions($id: ID!) {
+          credit: giftCardCredit(
+            id: $id
+            creditInput: { creditAmount: { amount: "2.00", currencyCode: CAD }, note: "node credit" }
+          ) {
+            giftCardCreditTransaction { id note amount { amount currencyCode } giftCard { id balance { amount currencyCode } } }
+            userErrors { field code message }
+          }
+          debit: giftCardDebit(
+            id: $id
+            debitInput: { debitAmount: { amount: "4.00", currencyCode: CAD }, note: "node debit" }
+          ) {
+            giftCardDebitTransaction { id note amount { amount currencyCode } giftCard { id balance { amount currencyCode } } }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "id": gift_card_id }),
+    ));
+    assert_eq!(gift_card_transactions.status, 200);
+    assert_eq!(
+        gift_card_transactions.body["data"]["credit"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        gift_card_transactions.body["data"]["debit"]["userErrors"],
+        json!([])
+    );
+    let gift_card_credit_id = required_string(
+        &gift_card_transactions.body["data"]["credit"]["giftCardCreditTransaction"]["id"],
+        "gift card credit transaction id",
+    );
+    let gift_card_debit_id = required_string(
+        &gift_card_transactions.body["data"]["debit"]["giftCardDebitTransaction"]["id"],
+        "gift card debit transaction id",
+    );
+
+    let node_read = proxy.process_request(json_graphql_request(
+        r#"
+        query AdminNodeReadback(
+          $customerId: ID!
+          $addressId: ID!
+          $paymentMethodId: ID!
+          $storeCreditAccountId: ID!
+          $storeCreditCreditId: ID!
+          $storeCreditDebitId: ID!
+          $giftCardCreditId: ID!
+          $giftCardDebitId: ID!
+          $ids: [ID!]!
+        ) {
+          customerNode: node(id: $customerId) {
+            __typename
+            ... on Customer {
+              id
+              email
+              displayName
+              addressesV2(first: 2) { nodes { id address1 city countryCodeV2 } }
+            }
+          }
+          addressNode: node(id: $addressId) {
+            __typename
+            ... on MailingAddress { id address1 city countryCodeV2 }
+          }
+          paymentNode: node(id: $paymentMethodId) {
+            __typename
+            ... on CustomerPaymentMethod {
+              id
+              customer { id }
+              revokedAt
+              revokedReason
+              instrument {
+                __typename
+                ... on CustomerCreditCard {
+                  maskedNumber
+                  lastDigits
+                  billingAddress { address1 city countryCodeV2 }
+                }
+              }
+            }
+          }
+          storeCreditAccountNode: node(id: $storeCreditAccountId) {
+            __typename
+            ... on StoreCreditAccount {
+              id
+              owner { ... on Customer { id } }
+              balance { amount currencyCode }
+              transactions(first: 5) {
+                nodes {
+                  __typename
+                  ... on StoreCreditAccountCreditTransaction { id amount { amount currencyCode } balanceAfterTransaction { amount currencyCode } }
+                  ... on StoreCreditAccountDebitTransaction { id amount { amount currencyCode } balanceAfterTransaction { amount currencyCode } }
+                }
+              }
+            }
+          }
+          storeCreditCreditNode: node(id: $storeCreditCreditId) {
+            __typename
+            ... on StoreCreditAccountCreditTransaction {
+              id
+              amount { amount currencyCode }
+              balanceAfterTransaction { amount currencyCode }
+              account { id }
+            }
+          }
+          storeCreditDebitNode: node(id: $storeCreditDebitId) {
+            __typename
+            ... on StoreCreditAccountDebitTransaction {
+              id
+              amount { amount currencyCode }
+              balanceAfterTransaction { amount currencyCode }
+              account { id }
+            }
+          }
+          giftCardCreditNode: node(id: $giftCardCreditId) {
+            __typename
+            ... on GiftCardCreditTransaction {
+              id
+              note
+              amount { amount currencyCode }
+              giftCard { id balance { amount currencyCode } }
+            }
+          }
+          giftCardDebitNode: node(id: $giftCardDebitId) {
+            __typename
+            ... on GiftCardDebitTransaction {
+              id
+              note
+              amount { amount currencyCode }
+              giftCard { id balance { amount currencyCode } }
+            }
+          }
+          ordered: nodes(ids: $ids) {
+            __typename
+            ... on MailingAddress { id address1 }
+            ... on StoreCreditAccountCreditTransaction { id amount { amount currencyCode } }
+            ... on GiftCardDebitTransaction { id note }
+            ... on Customer { id email }
+          }
+        }
+        "#,
+        json!({
+            "customerId": customer_id,
+            "addressId": address_id,
+            "paymentMethodId": payment_method_id,
+            "storeCreditAccountId": store_credit_account_id,
+            "storeCreditCreditId": store_credit_credit_id,
+            "storeCreditDebitId": store_credit_debit_id,
+            "giftCardCreditId": gift_card_credit_id,
+            "giftCardDebitId": gift_card_debit_id,
+            "ids": [
+                address_id,
+                "gid://shopify/CustomerPaymentMethod/999999999999",
+                store_credit_credit_id,
+                gift_card_debit_id,
+                customer_id
+            ]
+        }),
+    ));
+    assert_eq!(node_read.status, 200);
+    assert_eq!(node_read.body.get("errors"), None);
+    assert_eq!(
+        node_read.body["data"]["customerNode"],
+        json!({
+            "__typename": "Customer",
+            "id": customer_id,
+            "email": "admin-node-customer@example.test",
+            "displayName": "Node Customer",
+            "addressesV2": {
+                "nodes": [{
+                    "id": address_id,
+                    "address1": "1 Node St",
+                    "city": "Ottawa",
+                    "countryCodeV2": "CA"
+                }]
+            }
+        })
+    );
+    assert_eq!(
+        node_read.body["data"]["addressNode"],
+        json!({
+            "__typename": "MailingAddress",
+            "id": address_id,
+            "address1": "1 Node St",
+            "city": "Ottawa",
+            "countryCodeV2": "CA"
+        })
+    );
+    assert_eq!(
+        node_read.body["data"]["paymentNode"],
+        json!({
+            "__typename": "CustomerPaymentMethod",
+            "id": payment_method_id,
+            "customer": { "id": customer_id },
+            "revokedAt": Value::Null,
+            "revokedReason": Value::Null,
+            "instrument": {
+                "__typename": "CustomerCreditCard",
+                "maskedNumber": Value::Null,
+                "lastDigits": Value::Null,
+                "billingAddress": {
+                    "address1": "2 Billing St",
+                    "city": "Toronto",
+                    "countryCodeV2": "CA"
+                }
+            }
+        })
+    );
+    assert_eq!(
+        node_read.body["data"]["storeCreditAccountNode"],
+        json!({
+            "__typename": "StoreCreditAccount",
+            "id": store_credit_account_id,
+            "owner": { "id": customer_id },
+            "balance": { "amount": "7.0", "currencyCode": "USD" },
+            "transactions": {
+                "nodes": [
+                    {
+                        "__typename": "StoreCreditAccountCreditTransaction",
+                        "id": store_credit_credit_id,
+                        "amount": { "amount": "10.0", "currencyCode": "USD" },
+                        "balanceAfterTransaction": { "amount": "10.0", "currencyCode": "USD" }
+                    },
+                    {
+                        "__typename": "StoreCreditAccountDebitTransaction",
+                        "id": store_credit_debit_id,
+                        "amount": { "amount": "-3.0", "currencyCode": "USD" },
+                        "balanceAfterTransaction": { "amount": "7.0", "currencyCode": "USD" }
+                    }
+                ]
+            }
+        })
+    );
+    assert_eq!(
+        node_read.body["data"]["storeCreditCreditNode"],
+        json!({
+            "__typename": "StoreCreditAccountCreditTransaction",
+            "id": store_credit_credit_id,
+            "amount": { "amount": "10.0", "currencyCode": "USD" },
+            "balanceAfterTransaction": { "amount": "10.0", "currencyCode": "USD" },
+            "account": { "id": store_credit_account_id }
+        })
+    );
+    assert_eq!(
+        node_read.body["data"]["storeCreditDebitNode"],
+        json!({
+            "__typename": "StoreCreditAccountDebitTransaction",
+            "id": store_credit_debit_id,
+            "amount": { "amount": "-3.0", "currencyCode": "USD" },
+            "balanceAfterTransaction": { "amount": "7.0", "currencyCode": "USD" },
+            "account": { "id": store_credit_account_id }
+        })
+    );
+    assert_eq!(
+        node_read.body["data"]["giftCardCreditNode"],
+        json!({
+            "__typename": "GiftCardCreditTransaction",
+            "id": gift_card_credit_id,
+            "note": "node credit",
+            "amount": { "amount": "2.0", "currencyCode": "CAD" },
+            "giftCard": {
+                "id": gift_card_id,
+                "balance": { "amount": "22.0", "currencyCode": "CAD" }
+            }
+        })
+    );
+    assert_eq!(
+        node_read.body["data"]["giftCardDebitNode"],
+        json!({
+            "__typename": "GiftCardDebitTransaction",
+            "id": gift_card_debit_id,
+            "note": "node debit",
+            "amount": { "amount": "-4.0", "currencyCode": "CAD" },
+            "giftCard": {
+                "id": gift_card_id,
+                "balance": { "amount": "18.0", "currencyCode": "CAD" }
+            }
+        })
+    );
+    assert_eq!(
+        node_read.body["data"]["ordered"],
+        json!([
+            {
+                "__typename": "MailingAddress",
+                "id": address_id,
+                "address1": "1 Node St"
+            },
+            Value::Null,
+            {
+                "__typename": "StoreCreditAccountCreditTransaction",
+                "id": store_credit_credit_id,
+                "amount": { "amount": "10.0", "currencyCode": "USD" }
+            },
+            {
+                "__typename": "GiftCardDebitTransaction",
+                "id": gift_card_debit_id,
+                "note": "node debit"
+            },
+            {
+                "__typename": "Customer",
+                "id": customer_id,
+                "email": "admin-node-customer@example.test"
+            }
+        ])
+    );
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    let mut restored_proxy = snapshot_proxy();
+    let restore = restored_proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let restored_read = restored_proxy.process_request(json_graphql_request(
+        r#"
+        query AdminNodeRestoredRead($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            __typename
+            ... on Customer { id }
+            ... on MailingAddress { id }
+            ... on CustomerPaymentMethod { id }
+            ... on StoreCreditAccount { id }
+            ... on StoreCreditAccountCreditTransaction { id }
+            ... on GiftCardCreditTransaction { id }
+          }
+        }
+        "#,
+        json!({
+            "ids": [
+                customer_id,
+                address_id,
+                payment_method_id,
+                store_credit_account_id,
+                store_credit_credit_id,
+                gift_card_credit_id
+            ]
+        }),
+    ));
+    assert_eq!(restored_read.status, 200);
+    assert_eq!(
+        restored_read.body["data"]["nodes"],
+        json!([
+            { "__typename": "Customer", "id": customer_id },
+            { "__typename": "MailingAddress", "id": address_id },
+            { "__typename": "CustomerPaymentMethod", "id": payment_method_id },
+            { "__typename": "StoreCreditAccount", "id": store_credit_account_id },
+            { "__typename": "StoreCreditAccountCreditTransaction", "id": store_credit_credit_id },
+            { "__typename": "GiftCardCreditTransaction", "id": gift_card_credit_id }
+        ])
+    );
+
+    let reset = restored_proxy.process_request(request_with_body("POST", "/__meta/reset", ""));
+    assert_eq!(reset.status, 200);
+    let reset_read = restored_proxy.process_request(json_graphql_request(
+        r#"
+        query AdminNodeResetRead($ids: [ID!]!) {
+          nodes(ids: $ids) { __typename ... on Node { id } }
+        }
+        "#,
+        json!({
+            "ids": [
+                customer_id,
+                address_id,
+                payment_method_id,
+                store_credit_account_id,
+                store_credit_credit_id,
+                gift_card_credit_id
+            ]
+        }),
+    ));
+    assert_eq!(reset_read.status, 200);
+    assert_eq!(
+        reset_read.body["data"]["nodes"],
+        json!([null, null, null, null, null, null])
+    );
+
+    let revoke = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AdminNodePaymentMethodRevoke($id: ID!) {
+          customerPaymentMethodRevoke(customerPaymentMethodId: $id) {
+            revokedCustomerPaymentMethodId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": payment_method_id }),
+    ));
+    assert_eq!(revoke.status, 200);
+    assert_eq!(
+        revoke.body["data"]["customerPaymentMethodRevoke"]["userErrors"],
+        json!([])
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AdminNodeCustomerDelete($id: ID!) {
+          customerDelete(input: { id: $id }) {
+            deletedCustomerId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": customer_id }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["customerDelete"]["userErrors"],
+        json!([])
+    );
+
+    let removed_read = proxy.process_request(json_graphql_request(
+        r#"
+        query AdminNodeRemovedRead($customerId: ID!, $addressId: ID!, $paymentMethodId: ID!) {
+          customerNode: node(id: $customerId) { __typename ... on Customer { id } }
+          addressNode: node(id: $addressId) { __typename ... on MailingAddress { id } }
+          paymentNode: node(id: $paymentMethodId) { __typename ... on CustomerPaymentMethod { id } }
+        }
+        "#,
+        json!({
+            "customerId": customer_id,
+            "addressId": address_id,
+            "paymentMethodId": payment_method_id
+        }),
+    ));
+    assert_eq!(removed_read.status, 200);
+    assert_eq!(
+        removed_read.body["data"],
+        json!({
+            "customerNode": null,
+            "addressNode": null,
+            "paymentNode": null
         })
     );
 }

@@ -293,6 +293,84 @@ fn upstream_gift_card_fixture(id: &str, currency: &str) -> Value {
     })
 }
 
+fn gift_card_hydrate_query_from_body(body: &str) -> String {
+    let request_body: Value =
+        serde_json::from_str(body).expect("gift-card hydrate request body should parse");
+    request_body["query"]
+        .as_str()
+        .expect("gift-card hydrate should include query")
+        .to_string()
+}
+
+fn assert_gift_card_hydrate_omits_transactions(query: &str, context: &str) {
+    assert!(
+        !query.contains("transactions("),
+        "{context} should not hydrate gift-card transactions, got: {query}"
+    );
+    assert!(
+        !query.contains("first: 250"),
+        "{context} should not fetch a 250-item transaction window, got: {query}"
+    );
+}
+
+fn assert_gift_card_hydrate_includes_transactions(query: &str, context: &str) {
+    assert!(
+        query.contains("transactions(first: 250)"),
+        "{context} should hydrate gift-card transactions, got: {query}"
+    );
+    assert!(
+        query.contains("pageInfo"),
+        "{context} should hydrate transaction pageInfo with transaction nodes, got: {query}"
+    );
+}
+
+fn live_hybrid_gift_card_hydrate_query_for_request(query: &str, variables: Value) -> String {
+    let upstream_id = variables["id"]
+        .as_str()
+        .expect("test variables should include id")
+        .to_string();
+    let captured_bodies = Arc::new(Mutex::new(Vec::new()));
+    let captured_for_proxy = Arc::clone(&captured_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            captured_for_proxy
+                .lock()
+                .unwrap()
+                .push(request.body.clone());
+            let hydrate_query = gift_card_hydrate_query_from_body(&request.body);
+            let mut gift_card = upstream_gift_card_fixture(&upstream_id, "USD");
+            if !hydrate_query.contains("transactions(") {
+                gift_card
+                    .as_object_mut()
+                    .expect("fixture should be an object")
+                    .remove("transactions");
+            }
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "giftCard": gift_card,
+                        "giftCardConfiguration": {
+                            "issueLimit": { "amount": "3000.0", "currencyCode": "USD" },
+                            "purchaseLimit": { "amount": "14000.0", "currencyCode": "USD" }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(query, variables));
+    assert_eq!(response.status, 200);
+    let captured_bodies = captured_bodies.lock().unwrap();
+    assert_eq!(
+        captured_bodies.len(),
+        1,
+        "request should issue exactly one gift-card hydrate"
+    );
+    gift_card_hydrate_query_from_body(&captured_bodies[0])
+}
+
 fn legacy_gift_card_fixture(id: &str) -> Value {
     let mut card = upstream_gift_card_fixture(id, "CAD");
     card["lastCharacters"] = json!("2053");
@@ -1077,6 +1155,536 @@ fn create_free_shipping_code_discount(proxy: &mut DraftProxy, title: &str, code:
         &create.body["data"]["discountCodeFreeShippingCreate"]["codeDiscountNode"]["id"],
         "free shipping code discount id",
     )
+}
+
+#[test]
+fn discount_broad_bulk_roots_stage_locally_without_runtime_upstream_forwarding() {
+    let clock = Arc::new(Mutex::new(utc_time(1_783_080_000)));
+    let upstream_requests = Arc::new(Mutex::new(Vec::<String>::new()));
+    let upstream_requests_for_transport = Arc::clone(&upstream_requests);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_clock({
+            let clock = Arc::clone(&clock);
+            move || *clock.lock().unwrap()
+        })
+        .with_upstream_transport(move |request| {
+            upstream_requests_for_transport
+                .lock()
+                .unwrap()
+                .push(request.body.clone());
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "discountCodeBulkActivate": { "job": { "done": true }, "userErrors": [] },
+                        "discountCodeBulkDeactivate": { "job": { "done": true }, "userErrors": [] },
+                        "discountCodeBulkDelete": { "job": { "done": true }, "userErrors": [] },
+                        "discountAutomaticBulkDelete": { "job": { "done": true }, "userErrors": [] }
+                    }
+                }),
+            }
+        });
+
+    let deactivate_id =
+        create_basic_code_discount(&mut proxy, "Bulk deactivate code", "BULK-DEACTIVATE");
+    let delete_id = create_basic_code_discount(&mut proxy, "Bulk delete code", "BULK-DELETE");
+    let activate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateExpiredBulkCode($input: DiscountCodeBasicInput!) {
+          discountCodeBasicCreate(basicCodeDiscount: $input) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "title": "Bulk activate code",
+            "code": "BULK-ACTIVATE",
+            "startsAt": "2026-06-01T00:00:00Z",
+            "endsAt": "2026-06-02T00:00:00Z",
+            "context": { "all": "ALL" },
+            "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+        }}),
+    ));
+    assert_eq!(
+        activate.body["data"]["discountCodeBasicCreate"]["userErrors"],
+        json!([])
+    );
+    let activate_id = json_string(
+        &activate.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["id"],
+        "bulk activate code id",
+    );
+    let automatic = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateBulkAutomatic($input: DiscountAutomaticBasicInput!) {
+          discountAutomaticBasicCreate(automaticBasicDiscount: $input) {
+            automaticDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "title": "Bulk delete automatic",
+            "startsAt": "2026-06-01T00:00:00Z",
+            "context": { "all": "ALL" },
+            "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+        }}),
+    ));
+    assert_eq!(
+        automatic.body["data"]["discountAutomaticBasicCreate"]["userErrors"],
+        json!([])
+    );
+    let automatic_id = json_string(
+        &automatic.body["data"]["discountAutomaticBasicCreate"]["automaticDiscountNode"]["id"],
+        "bulk automatic id",
+    );
+    upstream_requests.lock().unwrap().clear();
+
+    for (root, id) in [
+        ("discountCodeBulkActivate", activate_id.clone()),
+        ("discountCodeBulkDeactivate", deactivate_id.clone()),
+        ("discountCodeBulkDelete", delete_id.clone()),
+        ("discountAutomaticBulkDelete", automatic_id.clone()),
+    ] {
+        let mutation = format!(
+            r#"
+            mutation BroadBulk($ids: [ID!]!) {{
+              {root}(ids: $ids) {{
+                job {{ done }}
+                userErrors {{ field message code extraInfo }}
+              }}
+            }}
+            "#
+        );
+        let response =
+            proxy.process_request(json_graphql_request(&mutation, json!({ "ids": [id] })));
+        assert_eq!(response.status, 200, "{root} returned {:?}", response.body);
+        assert_eq!(response.body["data"][root]["job"]["done"], json!(true));
+        assert_eq!(response.body["data"][root]["userErrors"], json!([]));
+    }
+
+    let forwarded = upstream_requests.lock().unwrap().clone();
+    assert!(
+        forwarded.is_empty(),
+        "broad discount bulk roots must not forward runtime mutation documents upstream: {forwarded:?}"
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query BroadBulkRead($activateId: ID!, $deactivateId: ID!, $deleteId: ID!, $automaticId: ID!) {
+          activated: codeDiscountNode(id: $activateId) {
+            codeDiscount { ... on DiscountCodeBasic { status } }
+          }
+          deactivated: codeDiscountNode(id: $deactivateId) {
+            codeDiscount { ... on DiscountCodeBasic { status } }
+          }
+          deletedCode: codeDiscountNode(id: $deleteId) { id }
+          deletedAutomatic: automaticDiscountNode(id: $automaticId) { id }
+        }
+        "#,
+        json!({
+            "activateId": activate_id,
+            "deactivateId": deactivate_id,
+            "deleteId": delete_id,
+            "automaticId": automatic_id
+        }),
+    ));
+    assert_eq!(
+        read.body["data"]["activated"]["codeDiscount"]["status"],
+        json!("ACTIVE")
+    );
+    assert_eq!(
+        read.body["data"]["deactivated"]["codeDiscount"]["status"],
+        json!("EXPIRED")
+    );
+    assert_eq!(read.body["data"]["deletedCode"], json!(null));
+    assert_eq!(read.body["data"]["deletedAutomatic"], json!(null));
+
+    let log = log_snapshot(&proxy);
+    let roots: Vec<_> = log["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|entry| {
+            entry["interpreted"]["primaryRootField"]
+                .as_str()
+                .unwrap()
+                .to_string()
+        })
+        .collect();
+    for root in [
+        "discountCodeBulkActivate",
+        "discountCodeBulkDeactivate",
+        "discountCodeBulkDelete",
+        "discountAutomaticBulkDelete",
+    ] {
+        assert!(
+            roots.iter().any(|logged| logged == root),
+            "{root} missing from log"
+        );
+    }
+}
+
+#[test]
+fn discount_broad_bulk_selector_validation_matches_captured_shopify_branches() {
+    let mut proxy = snapshot_proxy().with_upstream_transport(|request| {
+        panic!(
+            "discount broad bulk validation should not forward upstream: {}",
+            request.body
+        )
+    });
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountBulkSelectorValidation(
+          $codeIds: [ID!]
+          $automaticIds: [ID!]
+          $search: String
+          $savedSearchId: ID
+          $codeFieldSearch: String!
+          $codeClassSearch: String!
+          $unknownFieldSearch: String!
+        ) {
+          codeActivateEmpty: discountCodeBulkActivate { userErrors { field message code extraInfo } }
+          codeActivateBlank: discountCodeBulkActivate(search: "") { userErrors { field message code extraInfo } }
+          codeActivateTooMany: discountCodeBulkActivate(ids: $codeIds, search: $search) { userErrors { field message code extraInfo } }
+          codeActivateSavedSearch: discountCodeBulkActivate(savedSearchId: $savedSearchId) { userErrors { field message code extraInfo } }
+          codeDeactivateEmpty: discountCodeBulkDeactivate { userErrors { field message code extraInfo } }
+          codeDeactivateBlank: discountCodeBulkDeactivate(search: "") { userErrors { field message code extraInfo } }
+          codeDeactivateTooMany: discountCodeBulkDeactivate(ids: $codeIds, search: $search) { userErrors { field message code extraInfo } }
+          codeDeactivateSavedSearch: discountCodeBulkDeactivate(savedSearchId: $savedSearchId) { userErrors { field message code extraInfo } }
+          codeDeleteEmpty: discountCodeBulkDelete { userErrors { field message code extraInfo } }
+          codeDeleteBlank: discountCodeBulkDelete(search: "") { userErrors { field message code extraInfo } }
+          codeDeleteTooMany: discountCodeBulkDelete(ids: $codeIds, search: $search) { userErrors { field message code extraInfo } }
+          codeDeleteSavedSearch: discountCodeBulkDelete(savedSearchId: $savedSearchId) { userErrors { field message code extraInfo } }
+          codeDeleteCodeField: discountCodeBulkDelete(search: $codeFieldSearch) { userErrors { field message code extraInfo } }
+          codeDeleteClassField: discountCodeBulkDelete(search: $codeClassSearch) { userErrors { field message code extraInfo } }
+          codeDeleteUnknownField: discountCodeBulkDelete(search: $unknownFieldSearch) { userErrors { field message code extraInfo } }
+          automaticDeleteEmpty: discountAutomaticBulkDelete { userErrors { field message code extraInfo } }
+          automaticDeleteBlank: discountAutomaticBulkDelete(search: "") { userErrors { field message code extraInfo } }
+          automaticDeleteTooMany: discountAutomaticBulkDelete(ids: $automaticIds, search: $search) { userErrors { field message code extraInfo } }
+          automaticDeleteSavedSearch: discountAutomaticBulkDelete(savedSearchId: $savedSearchId) { userErrors { field message code extraInfo } }
+          automaticDeleteUnknownField: discountAutomaticBulkDelete(search: $unknownFieldSearch) { userErrors { field message code extraInfo } }
+        }
+        "#,
+        json!({
+            "codeIds": ["gid://shopify/DiscountCodeNode/0"],
+            "automaticIds": ["gid://shopify/DiscountAutomaticNode/0"],
+            "search": "status:active",
+            "savedSearchId": "gid://shopify/SavedSearch/0",
+            "codeFieldSearch": "code:BULK",
+            "codeClassSearch": "discount_class:order",
+            "unknownFieldSearch": "frobnicate:true"
+        }),
+    ));
+    assert_eq!(response.status, 200);
+    let data = &response.body["data"];
+    let code_missing = json!([{
+        "field": null,
+        "message": "Missing expected argument key: 'ids', 'search' or 'saved_search_id'.",
+        "code": "MISSING_ARGUMENT",
+        "extraInfo": null
+    }]);
+    let code_blank = json!([{
+        "field": ["search"],
+        "message": "'Search' can't be blank.",
+        "code": "BLANK",
+        "extraInfo": null
+    }]);
+    let code_too_many = json!([{
+        "field": null,
+        "message": "Only one of 'ids', 'search' or 'saved_search_id' is allowed.",
+        "code": "TOO_MANY_ARGUMENTS",
+        "extraInfo": null
+    }]);
+    let code_saved_search = json!([{
+        "field": ["savedSearchId"],
+        "message": "Invalid 'saved_search_id'.",
+        "code": "INVALID",
+        "extraInfo": null
+    }]);
+    for alias in [
+        "codeActivateEmpty",
+        "codeDeactivateEmpty",
+        "codeDeleteEmpty",
+    ] {
+        assert_eq!(data[alias]["userErrors"], code_missing, "{alias}");
+    }
+    for alias in [
+        "codeActivateBlank",
+        "codeDeactivateBlank",
+        "codeDeleteBlank",
+    ] {
+        assert_eq!(data[alias]["userErrors"], code_blank, "{alias}");
+    }
+    for alias in [
+        "codeActivateTooMany",
+        "codeDeactivateTooMany",
+        "codeDeleteTooMany",
+    ] {
+        assert_eq!(data[alias]["userErrors"], code_too_many, "{alias}");
+    }
+    for alias in [
+        "codeActivateSavedSearch",
+        "codeDeactivateSavedSearch",
+        "codeDeleteSavedSearch",
+    ] {
+        assert_eq!(data[alias]["userErrors"], code_saved_search, "{alias}");
+    }
+    assert_eq!(
+        data["codeDeleteCodeField"]["userErrors"],
+        json!([{ "field": ["search"], "message": "Invalid search field(s): code. Check the query syntax.", "code": "INVALID", "extraInfo": null }])
+    );
+    assert_eq!(
+        data["codeDeleteClassField"]["userErrors"],
+        json!([{ "field": ["search"], "message": "Invalid search field(s): discount_class. Check the query syntax.", "code": "INVALID", "extraInfo": null }])
+    );
+    assert_eq!(
+        data["codeDeleteUnknownField"]["userErrors"],
+        json!([{ "field": ["search"], "message": "Invalid search field(s): frobnicate. Check the query syntax.", "code": "INVALID", "extraInfo": null }])
+    );
+    assert_eq!(
+        data["automaticDeleteEmpty"]["userErrors"],
+        json!([{ "field": null, "message": "One of IDs, search argument or saved search ID is required.", "code": "MISSING_ARGUMENT", "extraInfo": null }])
+    );
+    assert_eq!(data["automaticDeleteBlank"]["userErrors"], json!([]));
+    assert_eq!(
+        data["automaticDeleteTooMany"]["userErrors"],
+        json!([{ "field": null, "message": "Only one of IDs, search argument or saved search ID is allowed.", "code": "TOO_MANY_ARGUMENTS", "extraInfo": null }])
+    );
+    assert_eq!(
+        data["automaticDeleteSavedSearch"]["userErrors"],
+        json!([{ "field": ["savedSearchId"], "message": "Invalid savedSearchId.", "code": "INVALID", "extraInfo": null }])
+    );
+    assert_eq!(data["automaticDeleteUnknownField"]["userErrors"], json!([]));
+}
+
+#[test]
+fn discount_broad_bulk_search_and_saved_search_target_effective_local_catalog() {
+    let clock = Arc::new(Mutex::new(utc_time(1_783_080_000)));
+    let active_saved_search_id = "gid://shopify/SavedSearch/bulk-active".to_string();
+    let scheduled_saved_search_id = "gid://shopify/SavedSearch/bulk-scheduled".to_string();
+    let upstream_requests = Arc::new(Mutex::new(Vec::<String>::new()));
+    let upstream_requests_for_transport = Arc::clone(&upstream_requests);
+    let active_saved_search_id_for_transport = active_saved_search_id.clone();
+    let scheduled_saved_search_id_for_transport = scheduled_saved_search_id.clone();
+    let clock_for_proxy = Arc::clone(&clock);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_clock(move || *clock_for_proxy.lock().unwrap())
+        .with_upstream_transport(move |request| {
+            upstream_requests_for_transport
+                .lock()
+                .unwrap()
+                .push(request.body.clone());
+            if request.body.contains("mutation") {
+                panic!(
+                    "discount broad bulk search/saved-search selectors should not forward upstream mutations: {}",
+                    request.body
+                );
+            }
+            if request.body.contains("codeDiscountSavedSearches") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "codeDiscountSavedSearches": {
+                                "nodes": [
+                                    {
+                                        "id": active_saved_search_id_for_transport.clone(),
+                                        "name": "Bulk active discounts",
+                                        "query": "status:active",
+                                        "resourceType": "DISCOUNT"
+                                    },
+                                    {
+                                        "id": scheduled_saved_search_id_for_transport.clone(),
+                                        "name": "Bulk scheduled discounts",
+                                        "query": "status:scheduled",
+                                        "resourceType": "DISCOUNT"
+                                    }
+                                ]
+                            }
+                        }
+                    }),
+                };
+            }
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "codeNode": null,
+                        "automaticNode": null,
+                        "deactivated": null,
+                        "activated": null,
+                        "deletedAutomatic": null,
+                        "discountNodes": { "nodes": [], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false } }
+                    }
+                }),
+            }
+        });
+
+    let deactivate_id = create_basic_code_discount(
+        &mut proxy,
+        "Bulk search deactivate code",
+        "BULK-SEARCH-DEACTIVATE",
+    );
+    let activate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateExpiredBulkSearchCode($input: DiscountCodeBasicInput!) {
+          discountCodeBasicCreate(basicCodeDiscount: $input) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "title": "Bulk saved-search activate code",
+            "code": "BULK-SAVED-ACTIVATE",
+            "startsAt": "2026-08-01T00:00:00Z",
+            "context": { "all": "ALL" },
+            "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+        }}),
+    ));
+    let activate_id = json_string(
+        &activate.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["id"],
+        "bulk saved-search activate id",
+    );
+    let automatic = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateBulkSearchAutomatic($input: DiscountAutomaticBasicInput!) {
+          discountAutomaticBasicCreate(automaticBasicDiscount: $input) {
+            automaticDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "title": "Bulk saved-search automatic",
+            "startsAt": "2026-06-01T00:00:00Z",
+            "context": { "all": "ALL" },
+            "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+        }}),
+    ));
+    let automatic_id = json_string(
+        &automatic.body["data"]["discountAutomaticBasicCreate"]["automaticDiscountNode"]["id"],
+        "bulk saved-search automatic id",
+    );
+    let saved_search = proxy.process_request(json_graphql_request(
+        r#"
+        query HydrateDiscountSavedSearch {
+          codeDiscountSavedSearches(first: 10) {
+            nodes { id query resourceType }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        saved_search.body["data"]["codeDiscountSavedSearches"]["nodes"][0]["id"],
+        json!(active_saved_search_id)
+    );
+    assert_eq!(
+        saved_search.body["data"]["codeDiscountSavedSearches"]["nodes"][1]["id"],
+        json!(scheduled_saved_search_id)
+    );
+    upstream_requests.lock().unwrap().clear();
+
+    let activate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ActivateBulkSavedSearch($savedSearchId: ID!) {
+          discountCodeBulkActivate(savedSearchId: $savedSearchId) {
+            job { done }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "savedSearchId": scheduled_saved_search_id }),
+    ));
+    assert_eq!(
+        activate.body["data"]["discountCodeBulkActivate"]["userErrors"],
+        json!([])
+    );
+
+    let deactivate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeactivateBulkSearch($search: String!) {
+          discountCodeBulkDeactivate(search: $search) {
+            job { done }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "search": "status:active" }),
+    ));
+    assert_eq!(
+        deactivate.body["data"]["discountCodeBulkDeactivate"]["userErrors"],
+        json!([])
+    );
+
+    let automatic_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteAutomaticBulkSavedSearch($savedSearchId: ID!) {
+          discountAutomaticBulkDelete(savedSearchId: $savedSearchId) {
+            job { done }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "savedSearchId": active_saved_search_id }),
+    ));
+    assert_eq!(
+        automatic_delete.body["data"]["discountAutomaticBulkDelete"]["userErrors"],
+        json!([])
+    );
+
+    let code_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteCodeBulkSearch($search: String!) {
+          discountCodeBulkDelete(search: $search) {
+            job { done }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "search": "status:expired" }),
+    ));
+    assert_eq!(
+        code_delete.body["data"]["discountCodeBulkDelete"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadBulkSearchSelectors($deactivateId: ID!, $activateId: ID!, $automaticId: ID!) {
+          deactivated: codeDiscountNode(id: $deactivateId) { id }
+          activated: codeDiscountNode(id: $activateId) { id }
+          deletedAutomatic: automaticDiscountNode(id: $automaticId) { id }
+          discountNodes(first: 5) { nodes { id } }
+        }
+        "#,
+        json!({
+            "deactivateId": deactivate_id,
+            "activateId": activate_id,
+            "automaticId": automatic_id
+        }),
+    ));
+    assert_eq!(read.body["data"]["deactivated"], json!(null));
+    assert_eq!(read.body["data"]["activated"], json!(null));
+    assert_eq!(read.body["data"]["deletedAutomatic"], json!(null));
+    assert_eq!(read.body["data"]["discountNodes"]["nodes"], json!([]));
+    let upstream_requests = upstream_requests.lock().unwrap();
+    for root in [
+        "discountCodeBulkActivate",
+        "discountCodeBulkDeactivate",
+        "discountCodeBulkDelete",
+        "discountAutomaticBulkDelete",
+    ] {
+        assert!(
+            upstream_requests.iter().all(|body| !body.contains(root)),
+            "{root} should not be forwarded upstream"
+        );
+    }
 }
 
 #[test]
@@ -5227,6 +5835,73 @@ fn functions_validation_create_title_fallback_uses_hydrated_function_title() {
             { "title": "Conformance Validation" },
             { "title": "" }
         ])
+    );
+}
+
+#[test]
+fn functions_handle_lookup_uses_narrow_query_and_reuses_metadata() {
+    let upstream_hits = Arc::new(Mutex::new(Vec::new()));
+    let mut proxy = function_metadata_proxy_with_hits(Arc::clone(&upstream_hits));
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RepeatedHandleFunctionValidation {
+          first: validationCreate(validation: { functionHandle: "validation-alpha", title: "First" }) {
+            validation { id functionHandle shopifyFunction { id handle apiType } }
+            userErrors { field message code }
+          }
+          second: validationCreate(validation: { functionHandle: "validation-alpha", title: "Second" }) {
+            validation { id functionHandle shopifyFunction { id handle apiType } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["first"]["userErrors"], json!([]));
+    assert_eq!(create.body["data"]["second"]["userErrors"], json!([]));
+
+    let follow_up = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReusedHandleFunctionValidation {
+          validationCreate(validation: { functionHandle: "validation-alpha", title: "Third" }) {
+            validation { id functionHandle }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(follow_up.status, 200);
+    assert_eq!(
+        follow_up.body["data"]["validationCreate"]["userErrors"],
+        json!([])
+    );
+
+    let hits = upstream_hits.lock().unwrap();
+    let handle_hits = hits
+        .iter()
+        .filter(|body| body["operationName"].as_str() == Some("FunctionHydrateByHandle"))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        handle_hits.len(),
+        1,
+        "repeated same-handle validation creates should reuse hydrated function metadata"
+    );
+    let query = handle_hits[0]["query"].as_str().unwrap_or_default();
+    assert!(
+        query.contains("shopifyFunctions(first: 1, handle: $handle)"),
+        "single-handle lookup should query Shopify by handle instead of scanning the catalog: {query}"
+    );
+    assert!(
+        !query.contains("first: 100"),
+        "single-handle lookup should not scan the first 100 Shopify functions: {query}"
+    );
+    assert_eq!(
+        handle_hits[0]["variables"],
+        json!({ "handle": "validation-alpha", "apiType": "VALIDATION" })
     );
 }
 
@@ -10103,6 +10778,209 @@ fn gift_cards_count_honors_limit_precision_after_query_filtering() {
     assert_eq!(
         response.body["data"]["selectedCountOnly"],
         json!({ "count": 2 })
+    );
+}
+
+#[test]
+fn ordinary_gift_card_live_hybrid_mutation_hydrates_omit_transactions_by_default() {
+    let cases = [
+        (
+            "update",
+            r#"mutation GiftCardPlainUpdateHydrateShape($id: ID!) {
+              giftCardUpdate(id: $id, input: { note: "plain update" }) {
+                giftCard { id note customer { id } }
+                userErrors { field message }
+              }
+            }"#,
+        ),
+        (
+            "deactivate",
+            r#"mutation GiftCardPlainDeactivateHydrateShape($id: ID!) {
+              giftCardDeactivate(id: $id) {
+                giftCard { id enabled }
+                userErrors { field message }
+              }
+            }"#,
+        ),
+        (
+            "customer notification",
+            r#"mutation GiftCardPlainCustomerNotificationHydrateShape($id: ID!) {
+              giftCardSendNotificationToCustomer(id: $id) {
+                giftCard { id customer { id } }
+                userErrors { field code message }
+              }
+            }"#,
+        ),
+    ];
+
+    for (context, query) in cases {
+        let hydrate_query = live_hybrid_gift_card_hydrate_query_for_request(
+            query,
+            json!({ "id": format!("gid://shopify/GiftCard/plain-{context}") }),
+        );
+        assert_gift_card_hydrate_omits_transactions(&hydrate_query, context);
+    }
+}
+
+#[test]
+fn gift_card_live_hybrid_mutation_hydrates_transactions_when_payload_selects_them() {
+    let hydrate_query = live_hybrid_gift_card_hydrate_query_for_request(
+        r#"mutation GiftCardUpdateTransactionOutputHydrateShape($id: ID!) {
+          giftCardUpdate(id: $id, input: { note: "transaction output" }) {
+            giftCard {
+              id
+              transactions(first: 2) {
+                nodes { id note }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+            userErrors { field message }
+          }
+        }"#,
+        json!({ "id": "gid://shopify/GiftCard/transaction-output" }),
+    );
+
+    assert_gift_card_hydrate_includes_transactions(
+        &hydrate_query,
+        "transaction-selected mutation output",
+    );
+}
+
+#[test]
+fn gift_card_transaction_mutations_hydrate_transactions_for_history_state() {
+    let hydrate_query = live_hybrid_gift_card_hydrate_query_for_request(
+        r#"mutation GiftCardCreditHydrateShape($id: ID!) {
+          giftCardCredit(id: $id, creditInput: { creditAmount: { amount: "2.00", currencyCode: USD } }) {
+            giftCardCreditTransaction { id amount { amount currencyCode } }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({ "id": "gid://shopify/GiftCard/credit-history" }),
+    );
+
+    assert_gift_card_hydrate_includes_transactions(&hydrate_query, "gift-card credit");
+}
+
+#[test]
+fn gift_card_transaction_read_after_narrow_mutation_hydrate_uses_upstream_window() {
+    let upstream_id = "gid://shopify/GiftCard/read-after-narrow";
+    let captured_queries = Arc::new(Mutex::new(Vec::new()));
+    let captured_for_proxy = Arc::clone(&captured_queries);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let request_body: Value =
+                serde_json::from_str(&request.body).expect("upstream body should parse");
+            let query = request_body["query"]
+                .as_str()
+                .expect("upstream request should include query")
+                .to_string();
+            captured_for_proxy.lock().unwrap().push(query.clone());
+
+            if query.contains("query GiftCardHydrate") {
+                let mut gift_card = upstream_gift_card_fixture(upstream_id, "USD");
+                gift_card
+                    .as_object_mut()
+                    .expect("fixture should be an object")
+                    .remove("transactions");
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "giftCard": gift_card,
+                            "giftCardConfiguration": {
+                                "issueLimit": { "amount": "3000.0", "currencyCode": "USD" },
+                                "purchaseLimit": { "amount": "14000.0", "currencyCode": "USD" }
+                            }
+                        }
+                    }),
+                };
+            }
+
+            assert!(
+                query.contains("transactions(first: 1)"),
+                "transaction read should forward the selected window upstream, got: {query}"
+            );
+            let mut gift_card = upstream_gift_card_fixture(upstream_id, "USD");
+            gift_card["transactions"] = json!({
+                "nodes": [{
+                    "__typename": "GiftCardCreditTransaction",
+                    "id": "gid://shopify/GiftCardCreditTransaction/upstream-1",
+                    "note": "upstream credit",
+                    "processedAt": "2026-06-03T12:00:00Z",
+                    "amount": { "amount": "2.0", "currencyCode": "USD" }
+                }],
+                "pageInfo": {
+                    "hasNextPage": true,
+                    "hasPreviousPage": false,
+                    "startCursor": "cursor-1",
+                    "endCursor": "cursor-1"
+                }
+            });
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "card": gift_card } }),
+            }
+        });
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardNarrowUpdateBeforeTransactionRead($id: ID!) {
+          giftCardUpdate(id: $id, input: { note: "local narrow update" }) {
+            giftCard { id note }
+            userErrors { field message }
+          }
+        }"#,
+        json!({ "id": upstream_id }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["giftCardUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"query GiftCardTransactionReadAfterNarrowHydrate($id: ID!) {
+          card: giftCard(id: $id) {
+            id
+            note
+            transactions(first: 1) {
+              nodes { id note amount { amount currencyCode } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }"#,
+        json!({ "id": upstream_id }),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["card"],
+        json!({
+            "id": upstream_id,
+            "note": "local narrow update",
+            "transactions": {
+                "nodes": [{
+                    "id": "gid://shopify/GiftCardCreditTransaction/upstream-1",
+                    "note": "upstream credit",
+                    "amount": { "amount": "2.0", "currencyCode": "USD" }
+                }],
+                "pageInfo": {
+                    "hasNextPage": true,
+                    "hasPreviousPage": false,
+                    "startCursor": "cursor-1",
+                    "endCursor": "cursor-1"
+                }
+            }
+        })
+    );
+    let captured_queries = captured_queries.lock().unwrap();
+    assert_eq!(captured_queries.len(), 2);
+    assert_gift_card_hydrate_omits_transactions(&captured_queries[0], "initial update");
+    assert!(
+        captured_queries[1].contains("transactions(first: 1)"),
+        "transaction read should preserve caller-selected window, got: {}",
+        captured_queries[1]
     );
 }
 
