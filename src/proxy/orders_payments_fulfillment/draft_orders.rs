@@ -1902,21 +1902,64 @@ impl DraftProxy {
         // tax/shipping), so the recorded hydrate is authoritative when present.
         // On a cassette miss / non-2xx response we keep whatever record is
         // already staged rather than dropping it.
-        let response = self.upstream_post(
-            request,
-            json!({
-                "query": ORDER_HYDRATE_QUERY,
-                "operationName": "OrdersOrderHydrate",
-                "variables": { "id": id }
-            }),
-        );
-        if !(200..300).contains(&response.status) {
-            return;
+        let mut line_items_after: Option<String> = None;
+        let mut seen_cursors = BTreeSet::new();
+        let mut hydrated_order: Option<Value> = None;
+        let mut hydrated_line_items = Vec::new();
+        let mut first_line_item_cursor: Option<String> = None;
+        let mut last_line_item_cursor: Option<String>;
+
+        loop {
+            let response = self.upstream_post(
+                request,
+                json!({
+                    "query": ORDER_HYDRATE_QUERY,
+                    "operationName": "OrdersOrderHydrate",
+                    "variables": { "id": id, "lineItemsAfter": line_items_after.clone() }
+                }),
+            );
+            if !(200..300).contains(&response.status) {
+                return;
+            }
+            let order = response.body["data"]["order"].clone();
+            if !order.is_object() {
+                return;
+            }
+
+            let line_items = order["lineItems"].clone();
+            let mut page_nodes = connection_nodes(&line_items);
+            hydrated_line_items.append(&mut page_nodes);
+
+            let page_info = &line_items["pageInfo"];
+            if first_line_item_cursor.is_none() {
+                first_line_item_cursor = page_info["startCursor"].as_str().map(str::to_string);
+            }
+            last_line_item_cursor = page_info["endCursor"].as_str().map(str::to_string);
+            let has_next_page = page_info["hasNextPage"].as_bool().unwrap_or(false);
+
+            if hydrated_order.is_none() {
+                hydrated_order = Some(order);
+            }
+
+            if !has_next_page {
+                break;
+            }
+
+            let Some(next_cursor) = page_info["endCursor"].as_str().map(str::to_string) else {
+                return;
+            };
+            if next_cursor.is_empty() || !seen_cursors.insert(next_cursor.clone()) {
+                return;
+            }
+            line_items_after = Some(next_cursor);
         }
-        let order = response.body["data"]["order"].clone();
-        if !order.is_object() {
+
+        let Some(mut order) = hydrated_order else {
             return;
-        }
+        };
+        order["lineItems"]["nodes"] = json!(hydrated_line_items);
+        order["lineItems"]["pageInfo"] =
+            connection_page_info(false, false, first_line_item_cursor, last_line_item_cursor);
         self.store.staged.orders.insert(id.to_string(), order);
     }
 

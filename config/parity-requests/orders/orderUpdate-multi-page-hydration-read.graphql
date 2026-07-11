@@ -1,0 +1,19 @@
+query OrderUpdateMultiPageHydrationRead($id: ID!) {
+  order(id: $id) {
+    id
+    note
+    lineItems(first: 20) {
+      nodes {
+        id
+        title
+        quantity
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+}

@@ -8592,6 +8592,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'order-update-multi-page-hydration',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-update-multi-page-hydration-conformance.ts',
+    purpose:
+      'orderUpdate cold-order hydration over a disposable order with more than ten line items, proving pageable OrdersOrderHydrate upstream cassettes preserve the line-item tail after an unrelated note update.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}orderUpdate-multi-page-hydration.json`,
+      'config/parity-specs/orders/orderUpdate-multi-page-hydration.json',
+      'config/parity-requests/orders/order-hydrate-pageable.graphql',
+      'config/parity-requests/orders/orderUpdate-multi-page-hydration.graphql',
+      'config/parity-requests/orders/orderUpdate-multi-page-hydration-read.graphql',
+      'config/parity-requests/orders/orderUpdate-multi-page-hydration.variables.json',
+    ],
+    cleanupBehavior:
+      'Creates one disposable twelve-line test order, records two read-only pageable order hydrate calls plus orderUpdate/downstream reads, then cancels the order during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'order-invoice-send-email-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-order-invoice-send-email-validation-conformance.ts',

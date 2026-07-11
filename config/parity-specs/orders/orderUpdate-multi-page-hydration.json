@@ -1,0 +1,66 @@
+{
+  "scenarioId": "orderUpdate-multi-page-hydration",
+  "operationNames": ["orderUpdate", "order"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "connection-pagination-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/orderUpdate-multi-page-hydration.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/orderUpdate-multi-page-hydration.graphql",
+    "variablesCapturePath": "$.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Shopify Admin API 2026-04 orderUpdate over a disposable order with twelve line items. The proxy replay hydrates the cold order through exact pageable OrdersOrderHydrate upstream calls and proves an unrelated note update preserves the line-item tail in the mutation payload and downstream order(id:) read.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "mutation-user-errors",
+        "capturePath": "$.mutation.response.data.orderUpdate.userErrors",
+        "proxyPath": "$.data.orderUpdate.userErrors"
+      },
+      {
+        "name": "mutation-note",
+        "capturePath": "$.mutation.response.data.orderUpdate.order.note",
+        "proxyPath": "$.data.orderUpdate.order.note"
+      },
+      {
+        "name": "mutation-line-items-connection",
+        "capturePath": "$.mutation.response.data.orderUpdate.order.lineItems",
+        "proxyPath": "$.data.orderUpdate.order.lineItems"
+      },
+      {
+        "name": "downstream-note",
+        "capturePath": "$.downstreamRead.response.data.order.note",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderUpdate-multi-page-hydration-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderUpdate.order.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data.order.note"
+      },
+      {
+        "name": "downstream-line-items-connection",
+        "capturePath": "$.downstreamRead.response.data.order.lineItems",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderUpdate-multi-page-hydration-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderUpdate.order.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data.order.lineItems"
+      }
+    ]
+  }
+}

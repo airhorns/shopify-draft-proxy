@@ -1,0 +1,25 @@
+mutation OrderUpdateMultiPageHydration($input: OrderInput!) {
+  orderUpdate(input: $input) {
+    order {
+      id
+      note
+      lineItems(first: 20) {
+        nodes {
+          id
+          title
+          quantity
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
