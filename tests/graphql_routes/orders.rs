@@ -11328,6 +11328,516 @@ fn order_payment_transactions_stage_capture_void_and_downstream_reads() {
 }
 
 #[test]
+fn order_create_manual_payment_stages_sale_and_round_trips() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateManualPaymentOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              id
+              displayFinancialStatus
+              totalOutstandingSet { shopMoney { amount currencyCode } }
+              totalReceivedSet { shopMoney { amount currencyCode } }
+              transactions { id }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "currency": "USD",
+                "email": "manual-payment@example.test",
+                "lineItems": [{
+                    "title": "Manual payment item",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "30.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+    let order_id = create.body["data"]["orderCreate"]["order"]["id"].clone();
+
+    let processed_at = "2026-07-11T03:45:00Z";
+    let manual_payment = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ManualPayment(
+          $id: ID!
+          $amount: MoneyInput
+          $processedAt: DateTime
+        ) {
+          orderCreateManualPayment(
+            id: $id
+            amount: $amount
+            paymentMethodName: "Cash on delivery"
+            processedAt: $processedAt
+          ) {
+            order {
+              id
+              displayFinancialStatus
+              capturable
+              totalCapturable
+              paymentGatewayNames
+              totalOutstandingSet { shopMoney { amount currencyCode } }
+              totalReceivedSet { shopMoney { amount currencyCode } }
+              netPaymentSet { shopMoney { amount currencyCode } }
+              transactions {
+                id
+                kind
+                status
+                gateway
+                processedAt
+                amountSet { shopMoney { amount currencyCode } }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": order_id,
+            "amount": { "amount": "12.50", "currencyCode": "USD" },
+            "processedAt": processed_at
+        }),
+    ));
+    assert_eq!(manual_payment.status, 200);
+    let paid_order = manual_payment.body["data"]["orderCreateManualPayment"]["order"].clone();
+    assert_eq!(
+        manual_payment.body["data"]["orderCreateManualPayment"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        paid_order["displayFinancialStatus"],
+        json!("PARTIALLY_PAID")
+    );
+    assert_eq!(paid_order["capturable"], json!(false));
+    assert_eq!(paid_order["totalCapturable"], json!("0.0"));
+    assert_eq!(
+        paid_order["paymentGatewayNames"],
+        json!(["Cash on delivery"])
+    );
+    assert_eq!(
+        paid_order["totalOutstandingSet"]["shopMoney"],
+        json!({ "amount": "17.5", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        paid_order["totalReceivedSet"]["shopMoney"],
+        json!({ "amount": "12.5", "currencyCode": "USD" })
+    );
+    assert_eq!(paid_order["netPaymentSet"], paid_order["totalReceivedSet"]);
+    assert_eq!(paid_order["transactions"][0]["kind"], json!("SALE"));
+    assert_eq!(paid_order["transactions"][0]["status"], json!("SUCCESS"));
+    assert_eq!(
+        paid_order["transactions"][0]["gateway"],
+        json!("Cash on delivery")
+    );
+    assert_eq!(
+        paid_order["transactions"][0]["processedAt"],
+        json!(processed_at)
+    );
+    assert_eq!(
+        paid_order["transactions"][0]["amountSet"]["shopMoney"],
+        json!({ "amount": "12.5", "currencyCode": "USD" })
+    );
+
+    let log = log_snapshot(&proxy);
+    let entries = log["entries"].as_array().expect("log entries");
+    assert_eq!(entries.len(), 2);
+    assert_eq!(
+        entries[1]["interpreted"]["primaryRootField"],
+        json!("orderCreateManualPayment")
+    );
+    assert_eq!(entries[1]["status"], json!("staged"));
+    assert!(entries[1]["rawBody"]
+        .as_str()
+        .expect("manual payment raw body")
+        .contains("orderCreateManualPayment"));
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    let mut restored = snapshot_proxy();
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    let read_back = restored.process_request(json_graphql_request(
+        r#"
+        query ReadManualPaymentOrder($id: ID!) {
+          order(id: $id) {
+            id
+            displayFinancialStatus
+            capturable
+            totalCapturable
+            paymentGatewayNames
+            totalOutstandingSet { shopMoney { amount currencyCode } }
+            totalReceivedSet { shopMoney { amount currencyCode } }
+            netPaymentSet { shopMoney { amount currencyCode } }
+            transactions {
+              id
+              kind
+              status
+              gateway
+              processedAt
+              amountSet { shopMoney { amount currencyCode } }
+            }
+          }
+        }
+        "#,
+        json!({ "id": paid_order["id"] }),
+    ));
+    assert_eq!(read_back.status, 200);
+    assert_eq!(read_back.body["data"]["order"], paid_order);
+
+    let reset = restored.process_request(request_with_body("POST", "/__meta/reset", ""));
+    assert_eq!(reset.status, 200);
+    let after_reset = restored.process_request(json_graphql_request(
+        r#"
+        query ReadResetManualPaymentOrder($id: ID!) {
+          order(id: $id) { id }
+        }
+        "#,
+        json!({ "id": paid_order["id"] }),
+    ));
+    assert_eq!(after_reset.status, 200);
+    assert_eq!(after_reset.body["data"]["order"], Value::Null);
+}
+
+#[test]
+fn order_create_manual_payment_validation_and_access_denied_do_not_mutate_or_passthrough() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut live_proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            captured_calls
+                .lock()
+                .unwrap()
+                .push(serde_json::from_str(&request.body).expect("upstream request body"));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "errors": [{ "message": "unexpected upstream call" }] }),
+            }
+        });
+    let unknown = live_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/orderCreateManualPayment-access-denied-parity.graphql"
+        ),
+        json!({
+            "id": "gid://shopify/Order/0",
+            "amount": { "amount": "16.00", "currencyCode": "USD" },
+            "paymentMethodName": "Shopify draft proxy manual payment",
+            "processedAt": "2026-05-06T22:09:03.472Z"
+        }),
+    ));
+    assert_eq!(unknown.status, 200);
+    assert_eq!(
+        unknown.body["data"]["orderCreateManualPayment"],
+        Value::Null
+    );
+    assert_eq!(
+        unknown.body["errors"][0]["extensions"]["code"],
+        json!("ACCESS_DENIED")
+    );
+    assert_eq!(
+        unknown.body["errors"][0]["path"],
+        json!(["orderCreateManualPayment"])
+    );
+    assert!(upstream_calls.lock().unwrap().is_empty());
+    assert_eq!(
+        log_snapshot(&live_proxy)["entries"]
+            .as_array()
+            .expect("log entries")
+            .len(),
+        0
+    );
+
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateManualPaymentValidationOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              id
+              displayFinancialStatus
+              totalOutstandingSet { shopMoney { amount currencyCode } }
+              totalReceivedSet { shopMoney { amount currencyCode } }
+              transactions { id }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "currency": "USD",
+                "lineItems": [{
+                    "title": "Manual payment validation item",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    let order_id = create.body["data"]["orderCreate"]["order"]["id"].clone();
+    let state_before = state_snapshot(&proxy);
+    let log_before = log_snapshot(&proxy);
+    let overpay = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OverpayManualPayment($id: ID!, $amount: MoneyInput) {
+          orderCreateManualPayment(id: $id, amount: $amount) {
+            order { id displayFinancialStatus transactions { id } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": order_id,
+            "amount": { "amount": "11.00", "currencyCode": "USD" }
+        }),
+    ));
+    assert_eq!(overpay.status, 200);
+    assert_eq!(
+        overpay.body["data"]["orderCreateManualPayment"]["userErrors"],
+        json!([{ "field": ["amount"], "message": "Amount exceeds outstanding balance" }])
+    );
+    assert_eq!(state_snapshot(&proxy), state_before);
+    assert_eq!(log_snapshot(&proxy), log_before);
+}
+
+#[test]
+fn order_invoice_send_stages_no_delivery_intent_and_round_trips_state() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateOrderForInvoiceSend($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id name email updatedAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "currency": "USD",
+                "email": "invoice-local@example.test",
+                "lineItems": [{
+                    "title": "Invoice send item",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "16.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    let order_id = create.body["data"]["orderCreate"]["order"]["id"].clone();
+
+    let send = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SendOrderInvoice($id: ID!, $email: EmailInput) {
+          orderInvoiceSend(id: $id, email: $email) {
+            order { id name email updatedAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": order_id,
+            "email": {
+                "to": "invoice-recipient@example.test",
+                "subject": "Local invoice",
+                "customMessage": "No delivery should occur"
+            }
+        }),
+    ));
+    assert_eq!(send.status, 200);
+    let sent_order = send.body["data"]["orderInvoiceSend"]["order"].clone();
+    assert_eq!(
+        send.body["data"]["orderInvoiceSend"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(sent_order["email"], json!("invoice-local@example.test"));
+    assert_ne!(
+        sent_order["updatedAt"],
+        create.body["data"]["orderCreate"]["order"]["updatedAt"]
+    );
+
+    let state = state_snapshot(&proxy);
+    let metadata = &state["stagedState"]["orders"][sent_order["id"].as_str().unwrap()]
+        ["__draftProxyInvoiceSend"];
+    assert_eq!(metadata["deliveryStatus"], json!("STAGED_NO_DELIVERY"));
+    assert_eq!(metadata["delivered"], json!(false));
+    assert_eq!(
+        metadata["email"]["to"],
+        json!("invoice-recipient@example.test")
+    );
+    assert_eq!(metadata["email"]["subject"], json!("Local invoice"));
+    assert_eq!(
+        metadata["email"]["customMessage"],
+        json!("No delivery should occur")
+    );
+
+    let log = log_snapshot(&proxy);
+    let entries = log["entries"].as_array().expect("log entries");
+    assert_eq!(entries.len(), 2);
+    assert_eq!(
+        entries[1]["interpreted"]["primaryRootField"],
+        json!("orderInvoiceSend")
+    );
+    assert_eq!(entries[1]["status"], json!("staged"));
+    assert!(entries[1]["rawBody"]
+        .as_str()
+        .expect("invoice raw body")
+        .contains("orderInvoiceSend"));
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    let mut restored = snapshot_proxy();
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    let read_back = restored.process_request(json_graphql_request(
+        r#"
+        query ReadInvoiceSentOrder($id: ID!) {
+          order(id: $id) { id name email updatedAt }
+        }
+        "#,
+        json!({ "id": sent_order["id"] }),
+    ));
+    assert_eq!(read_back.body["data"]["order"], sent_order);
+    assert_eq!(
+        state_snapshot(&restored)["stagedState"]["orders"][sent_order["id"].as_str().unwrap()]
+            ["__draftProxyInvoiceSend"],
+        metadata.clone()
+    );
+}
+
+#[test]
+fn order_invoice_send_live_hybrid_hydrates_by_query_and_validation_does_not_mutate() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let order_id = "gid://shopify/Order/live-invoice";
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream request body");
+            captured_calls.lock().unwrap().push(body.clone());
+            assert!(
+                body["query"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .starts_with("query "),
+                "invoice-send must hydrate with a read query, got {body}"
+            );
+            assert!(
+                !body["query"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .contains("orderInvoiceSend"),
+                "invoice-send must not forward the mutation upstream"
+            );
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "order": {
+                            "id": order_id,
+                            "name": "#live-invoice",
+                            "closed": false,
+                            "closedAt": Value::Null,
+                            "cancelledAt": Value::Null,
+                            "cancelReason": Value::Null,
+                            "displayFinancialStatus": Value::Null,
+                            "paymentGatewayNames": [],
+                            "totalOutstandingSet": {
+                                "shopMoney": { "amount": "16.0", "currencyCode": "USD" }
+                            },
+                            "currentTotalPriceSet": {
+                                "shopMoney": { "amount": "16.0", "currencyCode": "USD" }
+                            },
+                            "customer": {
+                                "id": "gid://shopify/Customer/live-invoice",
+                                "email": "live-invoice@example.test",
+                                "displayName": "live-invoice@example.test"
+                            },
+                            "transactions": []
+                        }
+                    }
+                }),
+            }
+        });
+
+    let send = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/orderInvoiceSend-parity.graphql"),
+        json!({
+            "id": order_id,
+            "email": {
+                "to": "live-invoice@example.test",
+                "subject": "Live invoice",
+                "customMessage": "Hydrate only"
+            }
+        }),
+    ));
+    assert_eq!(send.status, 200);
+    assert_eq!(
+        send.body["data"]["orderInvoiceSend"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        send.body["data"]["orderInvoiceSend"]["order"]["id"],
+        json!(order_id)
+    );
+    let calls = upstream_calls.lock().unwrap();
+    assert_eq!(calls.len(), 1);
+    assert_eq!(calls[0]["operationName"], json!("OrdersOrderHydrate"));
+    assert_eq!(calls[0]["variables"], json!({ "id": order_id }));
+    assert!(calls[0]["query"]
+        .as_str()
+        .unwrap_or_default()
+        .starts_with("query OrderManagementDownstreamRead"));
+    drop(calls);
+
+    let state_before_invalid = state_snapshot(&proxy);
+    let log_before_invalid = log_snapshot(&proxy);
+    let invalid = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InvalidInvoiceRecipient($id: ID!, $email: EmailInput) {
+          orderInvoiceSend(id: $id, email: $email) {
+            order { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": order_id,
+            "email": { "to": "not an email" }
+        }),
+    ));
+    assert_eq!(invalid.status, 200);
+    assert_eq!(
+        invalid.body["data"]["orderInvoiceSend"]["order"],
+        Value::Null
+    );
+    assert_eq!(
+        invalid.body["data"]["orderInvoiceSend"]["userErrors"],
+        json!([{
+            "field": null,
+            "message": "To is invalid",
+            "code": "ORDER_INVOICE_SEND_UNSUCCESSFUL"
+        }])
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+    assert_eq!(state_snapshot(&proxy), state_before_invalid);
+    assert_eq!(log_snapshot(&proxy), log_before_invalid);
+}
+
+#[test]
 fn order_capture_rejects_boolean_final_capture_for_manual_gateway_without_side_effects() {
     let mut proxy = snapshot_proxy();
 

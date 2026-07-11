@@ -4,6 +4,7 @@ use super::*;
 mod app_billing;
 mod backup_region;
 mod carrier_shipping;
+mod delivery_customizations;
 mod delivery_profiles;
 mod flow;
 mod fulfillment_orders;
@@ -12,6 +13,7 @@ mod locations;
 mod publishable;
 mod segments;
 
+pub(in crate::proxy) use self::delivery_customizations::*;
 pub(in crate::proxy) use self::locations::{
     country_name_for_code, location_connection_json, location_country_code_is_valid,
     province_name_for_code,
