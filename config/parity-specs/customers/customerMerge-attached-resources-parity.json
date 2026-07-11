@@ -20,7 +20,7 @@
     "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Strict comparison covers customerMerge with non-empty normalized attached resources: customer-owned addresses, customer-owned metafields, source order transfer, customerByIdentifier lookup behavior, customers/customersCount tag search visibility, and job-status shape through the downstream merge read. The live fixture also records preview and IN_PROGRESS -> COMPLETED polling samples. Draft-order setup is captured, but customer-merge draft-order transfer remains deferred until a downstream draft-order read is captured.",
+  "notes": "Strict comparison covers customerMerge with non-empty normalized attached resources: customer-owned addresses, customer-owned metafields, source order transfer, customerByIdentifier lookup behavior, customers/customersCount tag search visibility, and job-status shape through the downstream merge read. The live fixture also records preview and IN_PROGRESS -> COMPLETED polling samples. Draft-order transfer from the same live fixture is covered by customer-merge-draft-orders-live-parity.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [

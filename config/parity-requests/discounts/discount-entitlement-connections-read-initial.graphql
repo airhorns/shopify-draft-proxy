@@ -1,0 +1,254 @@
+query DiscountEntitlementConnectionsReadInitial(
+  $productDiscountId: ID!
+  $collectionDiscountId: ID!
+  $catalogQuery: String!
+  $catalogFirst: Int!
+) {
+  productDiscount: discountNode(id: $productDiscountId) {
+    id
+    discount {
+      __typename
+      ... on DiscountCodeBxgy {
+        title
+        customerBuys {
+          items {
+            __typename
+            ... on DiscountProducts {
+              products(first: 2) {
+                nodes {
+                  id
+                  title
+                  handle
+                  status
+                }
+                edges {
+                  cursor
+                  node {
+                    id
+                    title
+                  }
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+              productVariants(first: 2) {
+                nodes {
+                  id
+                  title
+                  sku
+                  product {
+                    id
+                    title
+                  }
+                }
+                edges {
+                  cursor
+                  node {
+                    id
+                    sku
+                  }
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+            }
+          }
+        }
+        customerGets {
+          items {
+            __typename
+            ... on DiscountProducts {
+              products(first: 2) {
+                nodes {
+                  id
+                  title
+                  handle
+                  status
+                }
+                edges {
+                  cursor
+                  node {
+                    id
+                    title
+                  }
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+              productVariants(first: 2) {
+                nodes {
+                  id
+                  title
+                  sku
+                  product {
+                    id
+                    title
+                  }
+                }
+                edges {
+                  cursor
+                  node {
+                    id
+                    sku
+                  }
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  collectionDiscount: discountNode(id: $collectionDiscountId) {
+    id
+    discount {
+      __typename
+      ... on DiscountCodeBxgy {
+        title
+        customerBuys {
+          items {
+            __typename
+            ... on DiscountCollections {
+              collections(first: 2) {
+                nodes {
+                  id
+                  title
+                  handle
+                }
+                edges {
+                  cursor
+                  node {
+                    id
+                    title
+                  }
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+            }
+          }
+        }
+        customerGets {
+          items {
+            __typename
+            ... on DiscountCollections {
+              collections(first: 2) {
+                nodes {
+                  id
+                  title
+                  handle
+                }
+                edges {
+                  cursor
+                  node {
+                    id
+                    title
+                  }
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  catalog: discountNodes(first: $catalogFirst, sortKey: TITLE, reverse: true, query: $catalogQuery) {
+    nodes {
+      id
+      discount {
+        __typename
+        ... on DiscountCodeBxgy {
+          title
+          customerBuys {
+            items {
+              __typename
+              ... on DiscountProducts {
+                products(first: 2) {
+                  nodes {
+                    id
+                    title
+                  }
+                }
+                productVariants(first: 2) {
+                  nodes {
+                    id
+                    sku
+                  }
+                }
+              }
+              ... on DiscountCollections {
+                collections(first: 2) {
+                  nodes {
+                    id
+                    title
+                  }
+                }
+              }
+            }
+          }
+          customerGets {
+            items {
+              __typename
+              ... on DiscountProducts {
+                products(first: 2) {
+                  nodes {
+                    id
+                    title
+                  }
+                }
+                productVariants(first: 2) {
+                  nodes {
+                    id
+                    sku
+                  }
+                }
+              }
+              ... on DiscountCollections {
+                collections(first: 2) {
+                  nodes {
+                    id
+                    title
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

@@ -10,6 +10,7 @@ mod web_presence_helpers;
 
 pub(in crate::proxy) use self::web_presence_helpers::*;
 
+#[allow(dead_code)]
 const BACKUP_REGION_MARKETS_HYDRATE_QUERY: &str = r#"query BackupRegionMarketsHydrate($first: Int!, $regionsFirst: Int!) {
   markets(first: $first) {
     nodes {
@@ -33,6 +34,17 @@ const BACKUP_REGION_MARKETS_HYDRATE_QUERY: &str = r#"query BackupRegionMarketsHy
           }
         }
       }
+    }
+  }
+}"#;
+
+const BACKUP_REGION_AVAILABLE_HYDRATE_QUERY: &str = r#"query BackupRegionAvailableHydrate {
+  availableBackupRegions {
+    __typename
+    id
+    name
+    ... on MarketRegionCountry {
+      code
     }
   }
 }"#;
@@ -106,6 +118,9 @@ const MARKET_LOCALIZATION_PREFLIGHT_QUERY: &str = "query MarketsMutationPrefligh
 const MARKET_LOCALIZATION_PREFLIGHT_MARKETS_FIRST: i64 = 50;
 const PRIMARY_LOCALE_CHANGE_MESSAGE: &str =
     "The primary locale of your store can't be changed through this endpoint.";
+
+const MARKET_MUTATION_TARGETS_HYDRATE_QUERY: &str =
+    include_str!("../../../config/parity-requests/markets/market-mutation-targets-hydrate.graphql");
 
 fn first_market_localization_market_id(
     variables: &BTreeMap<String, ResolvedValue>,
@@ -881,16 +896,6 @@ fn market_localizable_content_is_money_metafield(content_entry: &Value) -> bool 
         .is_some_and(|object| object.contains_key("amount") && object.contains_key("currency_code"))
 }
 
-fn markets_variables_have_local_id(
-    variables: &BTreeMap<String, ResolvedValue>,
-    records: &BTreeMap<String, Value>,
-) -> bool {
-    variables.values().any(|value| match value {
-        ResolvedValue::String(id) => is_synthetic_gid(id) || records.contains_key(id),
-        _ => false,
-    })
-}
-
 fn markets_collect_records(data: &Value, connection_key: &str, singular_key: &str) -> Vec<Value> {
     let mut records = data
         .get(connection_key)
@@ -1112,7 +1117,10 @@ fn market_record_country_region(market: &Value, country_code: &str) -> Option<Va
         .find_map(|node| market_region_country_from_node(node, country_code))
 }
 
-fn market_region_country_from_node(node: &Value, country_code: &str) -> Option<Value> {
+pub(in crate::proxy) fn market_region_country_from_node(
+    node: &Value,
+    country_code: &str,
+) -> Option<Value> {
     let code = region_code_from_node(node)?;
     if code.to_ascii_uppercase() != country_code {
         return None;

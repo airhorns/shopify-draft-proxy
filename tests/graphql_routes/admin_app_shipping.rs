@@ -1,6 +1,7 @@
 use super::common::*;
 use pretty_assertions::assert_eq;
 use std::collections::BTreeMap;
+use std::sync::{Arc, Mutex};
 
 const BULK_OPERATION_STORAGE_BYTE_LIMIT: usize = 65_535;
 
@@ -66,6 +67,635 @@ fn create_bulk_metadata_product(proxy: &mut DraftProxy, title: &str) -> String {
         .as_str()
         .unwrap()
         .to_string()
+}
+
+fn delivery_customization_function_metadata(id: &str, handle: &str) -> Value {
+    json!({
+        "__typename": "ShopifyFunction",
+        "id": id,
+        "title": handle,
+        "handle": handle,
+        "apiType": "DELIVERY_CUSTOMIZATION",
+        "appKey": "347082227713",
+        "app": {
+            "__typename": "App",
+            "id": "gid://shopify/App/347082227713",
+            "title": "Delivery Customization App",
+            "handle": "delivery-customization-app",
+            "apiKey": "347082227713"
+        }
+    })
+}
+
+fn delivery_customization_function_proxy(
+    functions: Vec<Value>,
+    upstream_hits: Arc<Mutex<Vec<Value>>>,
+) -> DraftProxy {
+    configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body).unwrap();
+        upstream_hits.lock().unwrap().push(body.clone());
+        let response_body = match body.get("operationName").and_then(Value::as_str) {
+            Some("FunctionHydrateByHandle") => {
+                let handle = body["variables"]["handle"].as_str().unwrap_or_default();
+                let api_type = body["variables"]["apiType"].as_str().unwrap_or_default();
+                let nodes = functions
+                    .iter()
+                    .filter(|function| {
+                        function["handle"].as_str() == Some(handle)
+                            && function["apiType"].as_str() == Some(api_type)
+                    })
+                    .cloned()
+                    .collect::<Vec<_>>();
+                json!({ "data": { "shopifyFunctions": { "nodes": nodes } } })
+            }
+            Some("FunctionHydrateById") => {
+                let id = body["variables"]["id"].as_str().unwrap_or_default();
+                let function = functions
+                    .iter()
+                    .find(|function| function["id"].as_str() == Some(id))
+                    .cloned()
+                    .unwrap_or(Value::Null);
+                json!({ "data": { "shopifyFunction": function } })
+            }
+            _ => json!({
+                "errors": [{
+                    "message": format!("unexpected delivery customization upstream request: {body}")
+                }]
+            }),
+        };
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: response_body,
+        }
+    })
+}
+
+#[test]
+fn delivery_customization_lifecycle_reads_nodes_state_and_logs_are_local() {
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = delivery_customization_function_proxy(
+        vec![delivery_customization_function_metadata(
+            "gid://shopify/ShopifyFunction/delivery-a",
+            "delivery-a",
+        )],
+        Arc::clone(&upstream_hits),
+    );
+    let app_request = |query: &str, variables: Value| {
+        let mut request = json_graphql_request(query, variables);
+        request.headers.insert(
+            "x-shopify-draft-proxy-api-client-id".to_string(),
+            "347082227713".to_string(),
+        );
+        request
+    };
+
+    let read_query = r#"
+      query DeliveryCustomizationRead($id: ID!, $missingId: ID!, $query: String) {
+        missing: deliveryCustomization(id: $missingId) { id }
+        deliveryCustomization(id: $id) {
+          id
+          title
+          enabled
+          functionId
+          shopifyFunction { id handle apiType }
+          metafield(namespace: "$app:shipping", key: "config") { namespace key type value jsonValue compareDigest ownerType }
+          metafields(first: 5) { nodes { namespace key type value createdAt updatedAt } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+        }
+        deliveryCustomizations(first: 5, query: $query, sortKey: TITLE, reverse: true) {
+          edges { cursor node { id title enabled functionId } }
+          nodes { id title enabled }
+          pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+        }
+      }
+    "#;
+    let empty = proxy.process_request(app_request(
+        read_query,
+        json!({
+            "id": "gid://shopify/DeliveryCustomization/1",
+            "missingId": "gid://shopify/DeliveryCustomization/404",
+            "query": null
+        }),
+    ));
+    assert_eq!(empty.status, 200);
+    assert_eq!(empty.body["data"]["missing"], Value::Null);
+    assert_eq!(empty.body["data"]["deliveryCustomization"], Value::Null);
+    assert_eq!(
+        empty.body["data"]["deliveryCustomizations"]["nodes"],
+        json!([])
+    );
+    assert_eq!(
+        empty.body["data"]["deliveryCustomizations"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": null,
+            "endCursor": null
+        })
+    );
+
+    let create_query = r#"
+      mutation DeliveryCustomizationCreate($input: DeliveryCustomizationInput!) {
+        deliveryCustomizationCreate(deliveryCustomization: $input) {
+          deliveryCustomization {
+            id
+            title
+            enabled
+            functionId
+            shopifyFunction { id handle apiType }
+            metafield(namespace: "$app:shipping", key: "config") { namespace key type value }
+            metafields(first: 5) { edges { node { namespace key type value createdAt updatedAt } } }
+          }
+          userErrors { field code message }
+        }
+      }
+    "#;
+    let log_before = log_snapshot(&proxy);
+    let missing_title = proxy.process_request(app_request(
+        create_query,
+        json!({
+            "input": {
+                "enabled": true,
+                "functionHandle": "delivery-a",
+                "metafields": []
+            }
+        }),
+    ));
+    assert_eq!(missing_title.status, 200);
+    assert_eq!(
+        missing_title.body["data"]["deliveryCustomizationCreate"]["deliveryCustomization"],
+        Value::Null
+    );
+    assert_eq!(
+        missing_title.body["data"]["deliveryCustomizationCreate"]["userErrors"],
+        json!([{
+            "field": ["deliveryCustomization", "title"],
+            "code": "REQUIRED_INPUT_FIELD",
+            "message": "Required input field must be present."
+        }])
+    );
+    assert_eq!(
+        log_snapshot(&proxy),
+        log_before,
+        "failed delivery customization create must not append a mutation log entry"
+    );
+
+    let create = proxy.process_request(app_request(
+        create_query,
+        json!({
+            "input": {
+                "title": "Before delivery customization",
+                "enabled": true,
+                "functionHandle": "delivery-a",
+                "metafields": [{
+                    "namespace": "$app:shipping",
+                    "key": "config",
+                    "type": "json",
+                    "value": "{\"rate\":\"standard\"}"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    let create_payload = &create.body["data"]["deliveryCustomizationCreate"];
+    assert_eq!(create_payload["userErrors"], json!([]));
+    let customization_id = create_payload["deliveryCustomization"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(customization_id, "gid://shopify/DeliveryCustomization/1");
+    assert_eq!(
+        create_payload["deliveryCustomization"]["functionId"],
+        json!("gid://shopify/ShopifyFunction/delivery-a")
+    );
+    assert_eq!(
+        create_payload["deliveryCustomization"]["shopifyFunction"]["handle"],
+        json!("delivery-a")
+    );
+    assert_eq!(
+        create_payload["deliveryCustomization"]["metafield"],
+        json!({
+            "namespace": "app--347082227713--shipping",
+            "key": "config",
+            "type": "json",
+            "value": "{\"rate\":\"standard\"}"
+        })
+    );
+    let log_after_create = log_snapshot(&proxy);
+    assert_eq!(log_after_create["entries"].as_array().unwrap().len(), 1);
+    assert!(log_after_create["entries"][0]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("deliveryCustomizationCreate"));
+    assert_eq!(
+        log_after_create["entries"][0]["stagedResourceIds"],
+        json!([customization_id])
+    );
+
+    let read = proxy.process_request(app_request(
+        read_query,
+        json!({
+            "id": customization_id,
+            "missingId": "gid://shopify/DeliveryCustomization/404",
+            "query": "title:Before"
+        }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["deliveryCustomization"]["title"],
+        json!("Before delivery customization")
+    );
+    assert_eq!(
+        read.body["data"]["deliveryCustomization"]["metafield"]["jsonValue"],
+        json!({ "rate": "standard" })
+    );
+    assert_eq!(
+        read.body["data"]["deliveryCustomizations"]["nodes"],
+        json!([{
+            "id": "gid://shopify/DeliveryCustomization/1",
+            "title": "Before delivery customization",
+            "enabled": true
+        }])
+    );
+
+    let node_read = proxy.process_request(app_request(
+        r#"
+        query DeliveryCustomizationNodeRead($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            ... on DeliveryCustomization {
+              id
+              title
+              enabled
+              functionId
+            }
+          }
+        }
+        "#,
+        json!({
+            "ids": [
+                "gid://shopify/DeliveryCustomization/404",
+                "gid://shopify/DeliveryCustomization/1"
+            ]
+        }),
+    ));
+    assert_eq!(node_read.status, 200);
+    assert_eq!(node_read.body["data"]["nodes"][0], Value::Null);
+    assert_eq!(
+        node_read.body["data"]["nodes"][1],
+        json!({
+            "id": "gid://shopify/DeliveryCustomization/1",
+            "title": "Before delivery customization",
+            "enabled": true,
+            "functionId": "gid://shopify/ShopifyFunction/delivery-a"
+        })
+    );
+
+    let update_query = r#"
+      mutation DeliveryCustomizationUpdate($id: ID!, $input: DeliveryCustomizationInput!) {
+        deliveryCustomizationUpdate(id: $id, deliveryCustomization: $input) {
+          deliveryCustomization {
+            id
+            title
+            enabled
+            functionId
+            metafield(namespace: "$app:shipping", key: "config") { namespace key type value createdAt updatedAt }
+          }
+          userErrors { field code message }
+        }
+      }
+    "#;
+    let rejected_function_update = proxy.process_request(app_request(
+        update_query,
+        json!({
+            "id": "gid://shopify/DeliveryCustomization/1",
+            "input": { "functionId": "gid://shopify/ShopifyFunction/delivery-b" }
+        }),
+    ));
+    assert_eq!(rejected_function_update.status, 200);
+    assert_eq!(
+        rejected_function_update.body["data"]["deliveryCustomizationUpdate"]
+            ["deliveryCustomization"],
+        Value::Null
+    );
+    assert_eq!(
+        rejected_function_update.body["data"]["deliveryCustomizationUpdate"]["userErrors"],
+        json!([{
+            "field": ["deliveryCustomization", "functionId"],
+            "code": "FUNCTION_ID_CANNOT_BE_CHANGED",
+            "message": "Function ID cannot be changed."
+        }])
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        1,
+        "rejected function change must not stage or log"
+    );
+
+    let update = proxy.process_request(app_request(
+        update_query,
+        json!({
+            "id": "gid://shopify/DeliveryCustomization/1",
+            "input": {
+                "title": "After delivery customization",
+                "enabled": false,
+                "functionHandle": "delivery-a",
+                "metafields": [{
+                    "namespace": "$app:shipping",
+                    "key": "config",
+                    "type": "json",
+                    "value": "{\"rate\":\"express\"}"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["deliveryCustomizationUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["deliveryCustomizationUpdate"]["deliveryCustomization"]["title"],
+        json!("After delivery customization")
+    );
+    assert_eq!(
+        update.body["data"]["deliveryCustomizationUpdate"]["deliveryCustomization"]["enabled"],
+        json!(false)
+    );
+    assert_eq!(
+        update.body["data"]["deliveryCustomizationUpdate"]["deliveryCustomization"]["metafield"]
+            ["value"],
+        json!("{\"rate\":\"express\"}")
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 2);
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    assert!(dump.body["state"]["stagedState"]["deliveryCustomizations"]
+        .get("gid://shopify/DeliveryCustomization/1")
+        .is_some());
+    let mut restored_proxy = snapshot_proxy();
+    let restore = restored_proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    let restored_read = restored_proxy.process_request(app_request(
+        read_query,
+        json!({
+            "id": "gid://shopify/DeliveryCustomization/1",
+            "missingId": "gid://shopify/DeliveryCustomization/404",
+            "query": "enabled:false"
+        }),
+    ));
+    assert_eq!(
+        restored_read.body["data"]["deliveryCustomization"]["title"],
+        json!("After delivery customization")
+    );
+    assert_eq!(
+        restored_read.body["data"]["deliveryCustomizations"]["nodes"][0]["enabled"],
+        json!(false)
+    );
+
+    let activation = proxy.process_request(app_request(
+        r#"
+        mutation DeliveryCustomizationActivation($ids: [ID!]!, $enabled: Boolean!) {
+          deliveryCustomizationActivation(ids: $ids, enabled: $enabled) {
+            ids
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({
+            "ids": [
+                "gid://shopify/DeliveryCustomization/1",
+                "gid://shopify/DeliveryCustomization/404"
+            ],
+            "enabled": true
+        }),
+    ));
+    assert_eq!(activation.status, 200);
+    assert_eq!(
+        activation.body["data"]["deliveryCustomizationActivation"]["ids"],
+        json!(["gid://shopify/DeliveryCustomization/1"])
+    );
+    assert_eq!(
+        activation.body["data"]["deliveryCustomizationActivation"]["userErrors"],
+        json!([{
+            "field": ["ids"],
+            "code": "DELIVERY_CUSTOMIZATION_NOT_FOUND",
+            "message": "Could not find delivery customizations with IDs: gid://shopify/DeliveryCustomization/404"
+        }])
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 3);
+
+    let delete = proxy.process_request(app_request(
+        r#"
+        mutation DeliveryCustomizationDelete($id: ID!) {
+          deliveryCustomizationDelete(id: $id) {
+            deletedId
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/DeliveryCustomization/1" }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["deliveryCustomizationDelete"],
+        json!({
+            "deletedId": "gid://shopify/DeliveryCustomization/1",
+            "userErrors": []
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 4);
+    let deleted_read = proxy.process_request(app_request(
+        read_query,
+        json!({
+            "id": "gid://shopify/DeliveryCustomization/1",
+            "missingId": "gid://shopify/DeliveryCustomization/404",
+            "query": null
+        }),
+    ));
+    assert_eq!(
+        deleted_read.body["data"]["deliveryCustomization"],
+        Value::Null
+    );
+    assert_eq!(
+        deleted_read.body["data"]["deliveryCustomizations"]["nodes"],
+        json!([])
+    );
+    let deleted_node = proxy.process_request(app_request(
+        "query DeletedDeliveryCustomizationNode($id: ID!) { node(id: $id) { id } }",
+        json!({ "id": "gid://shopify/DeliveryCustomization/1" }),
+    ));
+    assert_eq!(deleted_node.body["data"]["node"], Value::Null);
+
+    assert_eq!(
+        upstream_hits.lock().unwrap().len(),
+        1,
+        "local lifecycle should only hydrate ShopifyFunction metadata, never write upstream"
+    );
+}
+
+#[test]
+fn delivery_customization_active_limit_rejects_without_staging_or_logging() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+      mutation DeliveryCustomizationLimit($input: DeliveryCustomizationInput!) {
+        deliveryCustomizationCreate(deliveryCustomization: $input) {
+          deliveryCustomization { id enabled }
+          userErrors { field code message }
+        }
+      }
+    "#;
+
+    for index in 0..25 {
+        let create = proxy.process_request(json_graphql_request(
+            create_query,
+            json!({
+                "input": {
+                    "title": format!("Delivery customization {index}"),
+                    "enabled": true,
+                    "functionId": "gid://shopify/ShopifyFunction/delivery-limit",
+                    "metafields": []
+                }
+            }),
+        ));
+        assert_eq!(create.status, 200);
+        assert_eq!(
+            create.body["data"]["deliveryCustomizationCreate"]["userErrors"],
+            json!([]),
+            "active create {index} should fit under the local limit"
+        );
+    }
+    let log_len_before = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
+
+    let overflow = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "input": {
+                "title": "Overflow delivery customization",
+                "enabled": true,
+                "functionId": "gid://shopify/ShopifyFunction/delivery-limit",
+                "metafields": []
+            }
+        }),
+    ));
+    assert_eq!(overflow.status, 200);
+    assert_eq!(
+        overflow.body["data"]["deliveryCustomizationCreate"]["deliveryCustomization"],
+        Value::Null
+    );
+    assert_eq!(
+        overflow.body["data"]["deliveryCustomizationCreate"]["userErrors"],
+        json!([{
+            "field": ["deliveryCustomization", "enabled"],
+            "code": "MAXIMUM_DELIVERY_CUSTOMIZATIONS",
+            "message": "Cannot have more than 25 active delivery customizations."
+        }])
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        log_len_before,
+        "overflow validation must not append a mutation log entry"
+    );
+    let missing_activation_at_limit = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryCustomizationMissingActivationAtLimit($ids: [ID!]!) {
+          deliveryCustomizationActivation(ids: $ids, enabled: true) {
+            ids
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({
+            "ids": ["gid://shopify/DeliveryCustomization/404"]
+        }),
+    ));
+    assert_eq!(missing_activation_at_limit.status, 200);
+    assert_eq!(
+        missing_activation_at_limit.body["data"]["deliveryCustomizationActivation"]["ids"],
+        json!([])
+    );
+    assert_eq!(
+        missing_activation_at_limit.body["data"]["deliveryCustomizationActivation"]["userErrors"],
+        json!([{
+            "field": ["ids"],
+            "code": "DELIVERY_CUSTOMIZATION_NOT_FOUND",
+            "message": "Could not find delivery customizations with IDs: gid://shopify/DeliveryCustomization/404"
+        }])
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        log_len_before,
+        "missing activation at the active limit must not append a mutation log entry"
+    );
+
+    let create_disabled = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "input": {
+                "title": "Disabled delivery customization",
+                "enabled": false,
+                "functionId": "gid://shopify/ShopifyFunction/delivery-limit",
+                "metafields": []
+            }
+        }),
+    ));
+    let disabled_id = create_disabled.body["data"]["deliveryCustomizationCreate"]
+        ["deliveryCustomization"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let log_len_with_disabled = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
+    let limit_activation = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryCustomizationLimitActivation($ids: [ID!]!) {
+          deliveryCustomizationActivation(ids: $ids, enabled: true) {
+            ids
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "ids": [disabled_id] }),
+    ));
+    assert_eq!(limit_activation.status, 200);
+    assert_eq!(
+        limit_activation.body["data"]["deliveryCustomizationActivation"]["ids"],
+        json!([])
+    );
+    assert_eq!(
+        limit_activation.body["data"]["deliveryCustomizationActivation"]["userErrors"],
+        json!([{
+            "field": ["deliveryCustomization", "enabled"],
+            "code": "MAXIMUM_DELIVERY_CUSTOMIZATIONS",
+            "message": "Cannot have more than 25 active delivery customizations."
+        }])
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        log_len_with_disabled,
+        "limit activation must not append a mutation log entry"
+    );
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query DeliveryCustomizationLimitRead {
+          deliveryCustomizations(first: 30, query: "enabled:true") {
+            nodes { id enabled }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["deliveryCustomizations"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        25
+    );
 }
 
 #[test]
@@ -7143,6 +7773,258 @@ fn fulfillment_service_uniqueness_rejects_name_handle_and_reserved_collisions() 
     }
 }
 
+struct FulfillmentServiceFixture<'a> {
+    id: &'a str,
+    location_id: &'a str,
+    service_name: &'a str,
+    handle: &'a str,
+    callback_url: Option<&'a str>,
+    tracking_support: bool,
+    inventory_management: bool,
+    requires_shipping_method: bool,
+}
+
+fn hydrated_fulfillment_service(fixture: FulfillmentServiceFixture<'_>) -> Value {
+    json!({
+        "id": fixture.id,
+        "handle": fixture.handle,
+        "serviceName": fixture.service_name,
+        "callbackUrl": fixture.callback_url,
+        "trackingSupport": fixture.tracking_support,
+        "inventoryManagement": fixture.inventory_management,
+        "requiresShippingMethod": fixture.requires_shipping_method,
+        "type": "THIRD_PARTY",
+        "location": {
+            "id": fixture.location_id,
+            "name": fixture.service_name,
+            "isFulfillmentService": true,
+            "fulfillsOnlineOrders": true,
+            "shipsInventory": false
+        }
+    })
+}
+
+fn live_hybrid_fulfillment_service_proxy(
+    services: Vec<Value>,
+) -> (DraftProxy, Arc<Mutex<Vec<Value>>>) {
+    let service_by_id: BTreeMap<String, Value> = services
+        .into_iter()
+        .filter_map(|service| {
+            let id = service.get("id")?.as_str()?.to_string();
+            Some((id, service))
+        })
+        .collect();
+    let hydrate_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_hydrate_calls = Arc::clone(&hydrate_calls);
+    let proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            captured_hydrate_calls.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            if query.contains("ShippingFulfillmentServiceHydrate") {
+                let id = body["variables"]["id"].as_str().unwrap_or_default();
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "fulfillmentService": service_by_id.get(id).cloned().unwrap_or(Value::Null)
+                        }
+                    }),
+                }
+            } else if query.contains("ShippingFulfillmentServicesHydrate") {
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "shop": {
+                                "fulfillmentServices": service_by_id.values().cloned().collect::<Vec<_>>()
+                            }
+                        }
+                    }),
+                }
+            } else {
+                panic!("unexpected fulfillment-service upstream call: {}", request.body);
+            }
+        });
+    (proxy, hydrate_calls)
+}
+
+#[test]
+fn fulfillment_service_mutation_first_live_hybrid_hydrates_update_delete_and_duplicate_catalog() {
+    let update_id = "gid://shopify/FulfillmentService/720001?id=true";
+    let delete_id = "gid://shopify/FulfillmentService/720002?id=true";
+    let duplicate_id = "gid://shopify/FulfillmentService/720003?id=true";
+    let update_location_id = "gid://shopify/Location/970001";
+    let delete_location_id = "gid://shopify/Location/970002";
+    let duplicate_location_id = "gid://shopify/Location/970003";
+    let (mut proxy, hydrate_calls) = live_hybrid_fulfillment_service_proxy(vec![
+        hydrated_fulfillment_service(FulfillmentServiceFixture {
+            id: update_id,
+            location_id: update_location_id,
+            service_name: "Hydrated FS Update",
+            handle: "hydrated-fs-update",
+            callback_url: Some("https://mock.shop/fulfillment-service-update"),
+            tracking_support: true,
+            inventory_management: true,
+            requires_shipping_method: true,
+        }),
+        hydrated_fulfillment_service(FulfillmentServiceFixture {
+            id: delete_id,
+            location_id: delete_location_id,
+            service_name: "Hydrated FS Delete",
+            handle: "hydrated-fs-delete",
+            callback_url: None,
+            tracking_support: false,
+            inventory_management: false,
+            requires_shipping_method: true,
+        }),
+        hydrated_fulfillment_service(FulfillmentServiceFixture {
+            id: duplicate_id,
+            location_id: duplicate_location_id,
+            service_name: "Hydrated FS Duplicate",
+            handle: "hydrated-fs-duplicate",
+            callback_url: None,
+            tracking_support: false,
+            inventory_management: false,
+            requires_shipping_method: true,
+        }),
+    ]);
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentServiceHydratedUpdate($id: ID!, $name: String!) {
+          fulfillmentServiceUpdate(
+            id: $id
+            name: $name
+            trackingSupport: false
+            inventoryManagement: false
+            requiresShippingMethod: false
+          ) {
+            fulfillmentService {
+              id handle serviceName callbackUrl trackingSupport inventoryManagement requiresShippingMethod type
+              location { id name isFulfillmentService fulfillsOnlineOrders shipsInventory }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": update_id, "name": "Hydrated FS Updated" }),
+    ));
+    assert_eq!(
+        update.body["data"]["fulfillmentServiceUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["fulfillmentServiceUpdate"]["fulfillmentService"]["serviceName"],
+        json!("Hydrated FS Updated")
+    );
+    assert_eq!(
+        update.body["data"]["fulfillmentServiceUpdate"]["fulfillmentService"]["location"]["id"],
+        json!(update_location_id)
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query FulfillmentServiceHydratedRead($id: ID!, $locationId: ID!) {
+          fulfillmentService(id: $id) {
+            id serviceName trackingSupport inventoryManagement requiresShippingMethod
+            location { id name isFulfillmentService }
+          }
+          location(id: $locationId) { id name isFulfillmentService }
+        }
+        "#,
+        json!({ "id": update_id, "locationId": update_location_id }),
+    ));
+    assert_eq!(
+        downstream.body["data"]["fulfillmentService"]["serviceName"],
+        json!("Hydrated FS Updated")
+    );
+    assert_eq!(
+        downstream.body["data"]["location"]["name"],
+        json!("Hydrated FS Updated")
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentServiceHydratedDelete($id: ID!) {
+          fulfillmentServiceDelete(id: $id, inventoryAction: DELETE) {
+            deletedId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": delete_id }),
+    ));
+    assert_eq!(
+        delete.body["data"]["fulfillmentServiceDelete"],
+        json!({ "deletedId": delete_id.replace("?id=true", ""), "userErrors": [] })
+    );
+    let after_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query FulfillmentServiceHydratedAfterDelete($id: ID!, $locationId: ID!) {
+          fulfillmentService(id: $id) { id }
+          location(id: $locationId) { id }
+        }
+        "#,
+        json!({ "id": delete_id, "locationId": delete_location_id }),
+    ));
+    assert_eq!(after_delete.body["data"]["fulfillmentService"], Value::Null);
+    assert_eq!(after_delete.body["data"]["location"], Value::Null);
+
+    let duplicate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentServiceHydratedDuplicateCreate($name: String!) {
+          fulfillmentServiceCreate(name: $name, trackingSupport: true, inventoryManagement: true, requiresShippingMethod: true) {
+            fulfillmentService { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "name": "Hydrated FS Duplicate" }),
+    ));
+    assert_eq!(
+        duplicate.body["data"]["fulfillmentServiceCreate"],
+        json!({
+            "fulfillmentService": null,
+            "userErrors": [{ "field": ["name"], "message": "Name has already been taken" }]
+        })
+    );
+
+    let calls = hydrate_calls.lock().unwrap();
+    assert_eq!(calls.len(), 3);
+    assert!(calls[0]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("ShippingFulfillmentServiceHydrate")));
+    assert_eq!(calls[0]["variables"]["id"], json!(update_id));
+    assert!(calls[1]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("ShippingFulfillmentServicesHydrate")));
+    assert!(calls[2]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("ShippingFulfillmentServicesHydrate")));
+    assert!(calls.iter().all(|body| body["query"]
+        .as_str()
+        .is_some_and(|query| query.trim_start().starts_with("query "))));
+
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 2);
+    assert_eq!(
+        log["entries"][0]["interpreted"]["primaryRootField"],
+        json!("fulfillmentServiceUpdate")
+    );
+    assert_eq!(
+        log["entries"][1]["interpreted"]["primaryRootField"],
+        json!("fulfillmentServiceDelete")
+    );
+    assert!(log["entries"].as_array().unwrap().iter().all(|entry| {
+        entry["query"]
+            .as_str()
+            .is_some_and(|query| query.contains("FulfillmentServiceHydrated"))
+    }));
+}
+
 #[test]
 fn carrier_service_lifecycle_stages_reads_filters_deletes_and_validates() {
     let mut proxy = snapshot_proxy();
@@ -7381,6 +8263,231 @@ fn carrier_service_create_validates_callback_url_and_projects_error_codes() {
         valid_create.body["data"]["carrierServiceCreate"]["userErrors"],
         json!([])
     );
+}
+
+fn hydrated_carrier_service(
+    id: &str,
+    name: &str,
+    callback_url: &str,
+    active: bool,
+    supports_service_discovery: bool,
+) -> Value {
+    json!({
+        "id": id,
+        "name": name,
+        "formattedName": format!("{name} (Rates provided by app)"),
+        "callbackUrl": callback_url,
+        "active": active,
+        "supportsServiceDiscovery": supports_service_discovery
+    })
+}
+
+fn live_hybrid_carrier_service_proxy(services: Vec<Value>) -> (DraftProxy, Arc<Mutex<Vec<Value>>>) {
+    let service_by_id: BTreeMap<String, Value> = services
+        .into_iter()
+        .filter_map(|service| {
+            let id = service.get("id")?.as_str()?.to_string();
+            Some((id, service))
+        })
+        .collect();
+    let hydrate_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_hydrate_calls = Arc::clone(&hydrate_calls);
+    let proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            captured_hydrate_calls.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            if query.contains("ShippingCarrierServiceHydrate") {
+                let id = body["variables"]["id"].as_str().unwrap_or_default();
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "carrierService": service_by_id.get(id).cloned().unwrap_or(Value::Null)
+                        }
+                    }),
+                }
+            } else if query.contains("ShippingCarrierServicesHydrate") {
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "carrierServices": {
+                                "nodes": service_by_id.values().cloned().collect::<Vec<_>>()
+                            }
+                        }
+                    }),
+                }
+            } else {
+                panic!("unexpected carrier-service upstream call: {}", request.body);
+            }
+        });
+    (proxy, hydrate_calls)
+}
+
+#[test]
+fn carrier_service_mutation_first_live_hybrid_hydrates_update_delete_and_duplicate_catalog() {
+    let update_id = "gid://shopify/DeliveryCarrierService/880001";
+    let delete_id = "gid://shopify/DeliveryCarrierService/880002";
+    let duplicate_id = "gid://shopify/DeliveryCarrierService/880003";
+    let (mut proxy, hydrate_calls) = live_hybrid_carrier_service_proxy(vec![
+        hydrated_carrier_service(
+            update_id,
+            "Hydrated Carrier Update",
+            "https://mock.shop/carrier-update",
+            false,
+            true,
+        ),
+        hydrated_carrier_service(
+            delete_id,
+            "Hydrated Carrier Delete",
+            "https://mock.shop/carrier-delete",
+            true,
+            false,
+        ),
+        hydrated_carrier_service(
+            duplicate_id,
+            "Hydrated Carrier Duplicate",
+            "https://mock.shop/carrier-duplicate",
+            false,
+            false,
+        ),
+    ]);
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CarrierServiceHydratedUpdate($input: DeliveryCarrierServiceUpdateInput!) {
+          carrierServiceUpdate(input: $input) {
+            carrierService { id name formattedName callbackUrl active supportsServiceDiscovery }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "id": update_id,
+            "name": "Hydrated Carrier Updated",
+            "callbackUrl": "https://mock.shop/carrier-updated",
+            "active": true,
+            "supportsServiceDiscovery": false
+        }}),
+    ));
+    assert_eq!(
+        update.body["data"]["carrierServiceUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["carrierServiceUpdate"]["carrierService"]["name"],
+        json!("Hydrated Carrier Updated")
+    );
+    assert_eq!(
+        update.body["data"]["carrierServiceUpdate"]["carrierService"]["active"],
+        json!(true)
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query CarrierServiceHydratedRead($id: ID!) {
+          carrierService(id: $id) { id name callbackUrl active supportsServiceDiscovery }
+        }
+        "#,
+        json!({ "id": update_id }),
+    ));
+    assert_eq!(
+        downstream.body["data"]["carrierService"]["name"],
+        json!("Hydrated Carrier Updated")
+    );
+    assert_eq!(
+        downstream.body["data"]["carrierService"]["callbackUrl"],
+        json!("https://mock.shop/carrier-updated")
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CarrierServiceHydratedDelete($id: ID!) {
+          carrierServiceDelete(id: $id) {
+            deletedId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": delete_id }),
+    ));
+    assert_eq!(
+        delete.body["data"]["carrierServiceDelete"],
+        json!({ "deletedId": delete_id, "userErrors": [] })
+    );
+    let after_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query CarrierServiceHydratedAfterDelete($id: ID!) {
+          carrierService(id: $id) { id }
+        }
+        "#,
+        json!({ "id": delete_id }),
+    ));
+    assert_eq!(after_delete.body["data"]["carrierService"], Value::Null);
+
+    let duplicate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CarrierServiceHydratedDuplicateCreate($input: DeliveryCarrierServiceCreateInput!) {
+          carrierServiceCreate(input: $input) {
+            carrierService { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "name": "Hydrated Carrier Duplicate",
+            "callbackUrl": "https://mock.shop/carrier-new",
+            "active": false,
+            "supportsServiceDiscovery": false
+        }}),
+    ));
+    assert_eq!(
+        duplicate.body["data"]["carrierServiceCreate"],
+        json!({
+            "carrierService": null,
+            "userErrors": [{
+                "field": null,
+                "message": "Hydrated Carrier Duplicate is already configured",
+                "code": "CARRIER_SERVICE_CREATE_FAILED"
+            }]
+        })
+    );
+
+    let calls = hydrate_calls.lock().unwrap();
+    assert_eq!(calls.len(), 3);
+    assert!(calls[0]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("ShippingCarrierServiceHydrate")));
+    assert_eq!(calls[0]["variables"]["id"], json!(update_id));
+    assert!(calls[1]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("ShippingCarrierServiceHydrate")));
+    assert_eq!(calls[1]["variables"]["id"], json!(delete_id));
+    assert!(calls[2]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("ShippingCarrierServicesHydrate")));
+    assert!(calls.iter().all(|body| body["query"]
+        .as_str()
+        .is_some_and(|query| query.trim_start().starts_with("query "))));
+
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 2);
+    assert_eq!(
+        log["entries"][0]["interpreted"]["primaryRootField"],
+        json!("carrierServiceUpdate")
+    );
+    assert_eq!(
+        log["entries"][1]["interpreted"]["primaryRootField"],
+        json!("carrierServiceDelete")
+    );
+    assert!(log["entries"].as_array().unwrap().iter().all(|entry| {
+        entry["query"]
+            .as_str()
+            .is_some_and(|query| query.contains("CarrierServiceHydrated"))
+    }));
 }
 
 #[test]

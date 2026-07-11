@@ -281,6 +281,7 @@ mod tests {
             response_key: response_key.to_string(),
             location: SourceLocation { line: 1, column: 1 },
             directives: Vec::new(),
+            raw_directives: Vec::new(),
             raw_arguments: Default::default(),
             arguments: Default::default(),
             selection: Vec::new(),
