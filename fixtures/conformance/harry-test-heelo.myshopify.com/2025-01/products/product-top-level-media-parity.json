@@ -1,0 +1,399 @@
+{
+  "capturedAt": "2026-07-10T11:34:38.775Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "operations": ["productCreate", "productUpdate"],
+  "setup": {
+    "imageSource": "https://placehold.co/640x480/png",
+    "externalVideoSource": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    "invalidSource": "not-a-url",
+    "cleanup": "Deletes disposable products created during capture."
+  },
+  "validCreate": {
+    "variables": {
+      "product": {
+        "title": "Product top-level media 1783683277383",
+        "status": "DRAFT"
+      },
+      "media": [
+        {
+          "mediaContentType": "IMAGE",
+          "originalSource": "https://placehold.co/640x480/png",
+          "alt": "Top level image"
+        }
+      ]
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10235724759346",
+              "title": "Product top-level media 1783683277383",
+              "media": {
+                "nodes": [
+                  {
+                    "__typename": "MediaImage",
+                    "id": "gid://shopify/MediaImage/44021942026546",
+                    "alt": "Top level image",
+                    "mediaContentType": "IMAGE",
+                    "status": "UPLOADED",
+                    "preview": {
+                      "image": null
+                    },
+                    "image": null
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 30,
+            "actualQueryCost": 30,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1970,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "readAfterValidCreate": {
+    "variables": {
+      "id": "gid://shopify/Product/10235724759346"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "product": {
+            "id": "gid://shopify/Product/10235724759346",
+            "title": "Product top-level media 1783683277383",
+            "media": {
+              "nodes": [
+                {
+                  "__typename": "MediaImage",
+                  "id": "gid://shopify/MediaImage/44021942026546",
+                  "alt": "Top level image",
+                  "mediaContentType": "IMAGE",
+                  "status": "PROCESSING",
+                  "preview": {
+                    "image": null
+                  },
+                  "image": null
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 19,
+            "actualQueryCost": 6,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1994,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "validUpdate": {
+    "variables": {
+      "product": {
+        "id": "gid://shopify/Product/10235724759346",
+        "title": "Product top-level media updated 1783683277383"
+      },
+      "media": [
+        {
+          "mediaContentType": "EXTERNAL_VIDEO",
+          "originalSource": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+          "alt": "Top level external video"
+        }
+      ]
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "productUpdate": {
+            "product": {
+              "id": "gid://shopify/Product/10235724759346",
+              "title": "Product top-level media updated 1783683277383",
+              "media": {
+                "nodes": [
+                  {
+                    "__typename": "MediaImage",
+                    "id": "gid://shopify/MediaImage/44021942026546",
+                    "alt": "Top level image",
+                    "mediaContentType": "IMAGE",
+                    "status": "PROCESSING",
+                    "preview": {
+                      "image": null
+                    },
+                    "image": null
+                  },
+                  {
+                    "__typename": "ExternalVideo",
+                    "id": "gid://shopify/ExternalVideo/44021942059314",
+                    "alt": "Top level external video",
+                    "mediaContentType": "EXTERNAL_VIDEO",
+                    "status": "UPLOADED",
+                    "preview": {
+                      "image": null
+                    },
+                    "originUrl": "https://youtu.be/dQw4w9WgXcQ",
+                    "embedUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ"
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 30,
+            "actualQueryCost": 30,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1970,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "readAfterValidUpdate": {
+    "variables": {
+      "id": "gid://shopify/Product/10235724759346"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "product": {
+            "id": "gid://shopify/Product/10235724759346",
+            "title": "Product top-level media updated 1783683277383",
+            "media": {
+              "nodes": [
+                {
+                  "__typename": "MediaImage",
+                  "id": "gid://shopify/MediaImage/44021942026546",
+                  "alt": "Top level image",
+                  "mediaContentType": "IMAGE",
+                  "status": "PROCESSING",
+                  "preview": {
+                    "image": null
+                  },
+                  "image": null
+                },
+                {
+                  "__typename": "ExternalVideo",
+                  "id": "gid://shopify/ExternalVideo/44021942059314",
+                  "alt": "Top level external video",
+                  "mediaContentType": "EXTERNAL_VIDEO",
+                  "status": "UPLOADED",
+                  "preview": {
+                    "image": null
+                  },
+                  "originUrl": "https://youtu.be/dQw4w9WgXcQ",
+                  "embedUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ"
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 19,
+            "actualQueryCost": 6,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1994,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "invalidUpdate": {
+    "variables": {
+      "product": {
+        "id": "gid://shopify/Product/10235724759346",
+        "title": "Product top-level media invalid update 1783683277383"
+      },
+      "media": [
+        {
+          "mediaContentType": "IMAGE",
+          "originalSource": "not-a-url",
+          "alt": "Invalid update source"
+        }
+      ]
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "productUpdate": {
+            "product": {
+              "id": "gid://shopify/Product/10235724759346",
+              "title": "Product top-level media updated 1783683277383",
+              "media": {
+                "nodes": [
+                  {
+                    "__typename": "MediaImage",
+                    "id": "gid://shopify/MediaImage/44021942026546",
+                    "alt": "Top level image",
+                    "mediaContentType": "IMAGE",
+                    "status": "PROCESSING",
+                    "preview": {
+                      "image": null
+                    },
+                    "image": null
+                  },
+                  {
+                    "__typename": "ExternalVideo",
+                    "id": "gid://shopify/ExternalVideo/44021942059314",
+                    "alt": "Top level external video",
+                    "mediaContentType": "EXTERNAL_VIDEO",
+                    "status": "UPLOADED",
+                    "preview": {
+                      "image": null
+                    },
+                    "originUrl": "https://youtu.be/dQw4w9WgXcQ",
+                    "embedUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ"
+                  }
+                ]
+              }
+            },
+            "userErrors": [
+              {
+                "field": ["media", "0", "originalSource"],
+                "message": "Image URL is invalid"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 30,
+            "actualQueryCost": 30,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1970,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "readAfterInvalidUpdate": {
+    "variables": {
+      "id": "gid://shopify/Product/10235724759346"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "product": {
+            "id": "gid://shopify/Product/10235724759346",
+            "title": "Product top-level media updated 1783683277383",
+            "media": {
+              "nodes": [
+                {
+                  "__typename": "MediaImage",
+                  "id": "gid://shopify/MediaImage/44021942026546",
+                  "alt": "Top level image",
+                  "mediaContentType": "IMAGE",
+                  "status": "PROCESSING",
+                  "preview": {
+                    "image": null
+                  },
+                  "image": null
+                },
+                {
+                  "__typename": "ExternalVideo",
+                  "id": "gid://shopify/ExternalVideo/44021942059314",
+                  "alt": "Top level external video",
+                  "mediaContentType": "EXTERNAL_VIDEO",
+                  "status": "UPLOADED",
+                  "preview": {
+                    "image": null
+                  },
+                  "originUrl": "https://youtu.be/dQw4w9WgXcQ",
+                  "embedUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ"
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 19,
+            "actualQueryCost": 6,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1979,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "invalidCreate": {
+    "variables": {
+      "product": {
+        "title": "Product top-level media invalid create 1783683277383",
+        "status": "DRAFT"
+      },
+      "media": [
+        {
+          "mediaContentType": "IMAGE",
+          "originalSource": "not-a-url",
+          "alt": "Invalid create source"
+        }
+      ]
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "productCreate": {
+            "product": null,
+            "userErrors": [
+              {
+                "field": ["media", "0", "originalSource"],
+                "message": "Image URL is invalid"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 30,
+            "actualQueryCost": 30,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1959,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "notes": "Valid productCreate top-level media returns image media in the mutation payload; immediate product reads show that media processing. Valid productUpdate appends an external video while preserving existing image media. Invalid originalSource returns product userErrors and does not stage create/update changes."
+}

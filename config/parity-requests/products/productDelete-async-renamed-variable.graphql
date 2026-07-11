@@ -1,0 +1,23 @@
+mutation ProductDeleteAsyncRenamedVariable($input: ProductDeleteInput!, $runSynchronously: Boolean!) {
+  productDelete(input: $input, synchronous: $runSynchronously) {
+    deletedProductId
+    shop {
+      id
+      name
+      myshopifyDomain
+    }
+    productDeleteOperation {
+      id
+      status
+      deletedProductId
+      userErrors {
+        field
+        message
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

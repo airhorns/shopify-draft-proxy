@@ -148,6 +148,7 @@ impl DraftProxy {
             );
         }
         self.store.staged.web_presences.remove(id);
+        self.mark_markets_family_dirty("webPresences");
         json!({"deletedId": id, "userErrors": []})
     }
 
@@ -201,6 +202,7 @@ impl DraftProxy {
             .staged
             .web_presences
             .insert(id.clone(), record.clone());
+        self.mark_markets_family_dirty("webPresences");
         if record_log {
             self.record_mutation_log_entry(
                 request,
@@ -272,6 +274,7 @@ impl DraftProxy {
             .staged
             .web_presences
             .insert(id.to_string(), record.clone());
+        self.mark_markets_family_dirty("webPresences");
         if record_log {
             self.record_mutation_log_entry(
                 request,
