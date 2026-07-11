@@ -2,7 +2,8 @@ use std::collections::BTreeMap;
 
 use pretty_assertions::assert_eq;
 use shopify_draft_proxy::graphql::{
-    parsed_document, root_field_arguments, root_fields, RawArgumentValue, ResolvedValue,
+    parsed_document, root_field_arguments, root_fields, selected_operation_query,
+    variables_with_operation_defaults, RawArgumentValue, ResolvedValue,
 };
 
 #[test]
@@ -160,4 +161,50 @@ fn root_fields_preserve_omitted_null_and_unbound_nested_arguments() {
             value: None
         })
     );
+}
+
+#[test]
+fn selected_operation_query_filters_non_selected_operations_and_keeps_fragments() {
+    let query = r#"
+        query First($id: ID!) {
+          product(id: $id) { ...ProductFields }
+        }
+
+        fragment ProductFields on Product {
+          id
+        }
+
+        query Second($first: Int = 1) {
+          products(first: $first) { nodes { id } }
+        }
+    "#;
+
+    let selected =
+        selected_operation_query(query, Some("Second")).expect("operation should be selected");
+
+    assert!(selected.contains("query Second"));
+    assert!(selected.contains("fragment ProductFields"));
+    assert!(!selected.contains("query First"));
+    assert!(!selected.contains("product(id: $id)"));
+}
+
+#[test]
+fn selected_operation_variable_defaults_merge_only_omitted_values() {
+    let query = r#"
+        query Defaults($first: Int = 1, $query: String = "snow", $explicit: String = "default") {
+          products(first: $first, query: $query) { nodes { id } }
+          shop { name }
+        }
+    "#;
+    let variables = BTreeMap::from([("explicit".to_string(), ResolvedValue::Null)]);
+
+    let resolved =
+        variables_with_operation_defaults(query, &variables, None).expect("defaults should merge");
+
+    assert_eq!(resolved.get("first"), Some(&ResolvedValue::Int(1)));
+    assert_eq!(
+        resolved.get("query"),
+        Some(&ResolvedValue::String("snow".to_string()))
+    );
+    assert_eq!(resolved.get("explicit"), Some(&ResolvedValue::Null));
 }

@@ -1,0 +1,7 @@
+query DefaultZero($first: Int = 0) {
+  products(first: $first) {
+    nodes {
+      id
+    }
+  }
+}

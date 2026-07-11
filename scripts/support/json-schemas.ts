@@ -77,6 +77,8 @@ export type OperationRegistryEntry = z.infer<typeof operationRegistryEntrySchema
 export const parityProxyRequestSpecSchema = z.strictObject({
   documentPath: z.string().nullable().optional(),
   documentCapturePath: z.string().nullable().optional(),
+  operationName: z.string().nullable().optional(),
+  operationNameCapturePath: z.string().nullable().optional(),
   variablesPath: z.string().nullable().optional(),
   variablesCapturePath: z.string().nullable().optional(),
   variables: graphqlVariablesSchema.optional(),

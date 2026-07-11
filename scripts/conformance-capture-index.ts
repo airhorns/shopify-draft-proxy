@@ -115,6 +115,25 @@ function defineCaptureIndex(entries: Array<z.input<typeof captureIndexEntrySchem
 export const conformanceCaptureIndex = defineCaptureIndex([
   {
     domain: 'admin-platform',
+    captureId: 'graphql-request-execution-operation-name-defaults',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-graphql-request-execution-conformance.ts',
+    purpose:
+      'Admin GraphQL request execution evidence for missing and unknown operationName errors, selected operationName execution, and omitted scalar variable defaults.',
+    requiredAuthScopes: ['read_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}graphql-request-execution-operation-name-defaults.json`,
+      'config/parity-specs/admin-platform/graphql-request-execution-operation-name-defaults.json',
+      'config/parity-requests/admin-platform/graphql-operation-multiple-queries.graphql',
+      'config/parity-requests/admin-platform/graphql-operation-selected-products-zero.graphql',
+      'config/parity-requests/admin-platform/graphql-variable-default-zero-products.graphql',
+    ],
+    cleanupBehavior:
+      'Read-only Admin GraphQL validation and products(first: 0) requests; does not create, update, or delete Shopify resources.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'admin-platform',
     captureId: 'connection-sort-key-coverage',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-connection-sort-key-coverage-conformance.ts',
