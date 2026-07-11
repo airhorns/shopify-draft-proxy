@@ -1150,6 +1150,37 @@ impl DraftProxy {
             .or_else(|| self.store.base.gift_cards.get(id).cloned())
     }
 
+    pub(in crate::proxy) fn gift_card_node_value_by_id(
+        &self,
+        id: &str,
+        selection: &[SelectedField],
+    ) -> Option<Value> {
+        self.gift_card_effective_record(id).map(|mut card| {
+            if let Some(object) = card.as_object_mut() {
+                object.insert("__typename".to_string(), json!("GiftCard"));
+            }
+            selected_json(&card, selection)
+        })
+    }
+
+    pub(in crate::proxy) fn gift_card_transaction_node_value_by_id(
+        &self,
+        id: &str,
+        selection: &[SelectedField],
+    ) -> Option<Value> {
+        self.gift_card_effective_records()
+            .into_iter()
+            .flat_map(|card| {
+                card.get("transactions")
+                    .and_then(|connection| connection.get("nodes"))
+                    .and_then(Value::as_array)
+                    .cloned()
+                    .unwrap_or_default()
+            })
+            .find(|transaction| transaction.get("id").and_then(Value::as_str) == Some(id))
+            .map(|transaction| selected_json(&transaction, selection))
+    }
+
     fn gift_card_effective_record_for_mutation(
         &mut self,
         request: &Request,

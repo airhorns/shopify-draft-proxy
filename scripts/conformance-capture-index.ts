@@ -11119,6 +11119,36 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'admin-platform',
+    captureId: 'admin-node-customer-balance-node-read',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-admin-node-customer-balance-node-read-conformance.ts',
+    purpose:
+      'Generic Node read-after-write for disposable Customer, MailingAddress, StoreCreditAccount, store-credit credit/debit transactions, GiftCard, and gift-card credit/debit transactions.',
+    requiredAuthScopes: [
+      'read_customers',
+      'write_customers',
+      'read_store_credit_accounts',
+      'write_store_credit_account_transactions',
+      'read_gift_cards',
+      'write_gift_cards',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}admin-node-customer-balance-node-read.json`,
+      'config/parity-specs/admin-platform/admin-node-customer-balance-node-read.json',
+      'config/parity-requests/admin-platform/admin-node-customer-balance-customer-create.graphql',
+      'config/parity-requests/admin-platform/admin-node-customer-balance-store-credit-credit.graphql',
+      'config/parity-requests/admin-platform/admin-node-customer-balance-store-credit-debit.graphql',
+      'config/parity-requests/admin-platform/admin-node-customer-balance-gift-card-create.graphql',
+      'config/parity-requests/admin-platform/admin-node-customer-balance-gift-card-credit.graphql',
+      'config/parity-requests/admin-platform/admin-node-customer-balance-gift-card-debit.graphql',
+      'config/parity-requests/admin-platform/admin-node-customer-balance-node-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates a disposable customer/address/store-credit account and gift card, debits remaining store credit, deletes the customer, and deactivates the gift card in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'admin-platform',
     captureId: 'admin-platform',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-admin-platform-conformance.mts',
