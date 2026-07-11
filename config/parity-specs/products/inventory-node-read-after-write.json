@@ -1,0 +1,523 @@
+{
+  "scenarioId": "inventory-node-read-after-write",
+  "operationNames": [
+    "node",
+    "nodes",
+    "locationAdd",
+    "productCreate",
+    "productVariantsBulkUpdate",
+    "inventoryActivate",
+    "inventorySetQuantities",
+    "inventoryItem",
+    "inventoryTransferCreateAsReadyToShip",
+    "inventoryTransferCreate",
+    "inventoryTransferDelete",
+    "inventoryShipmentCreate",
+    "inventoryShipmentSetTracking",
+    "inventoryShipmentDelete"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "generic-node-dispatch",
+    "downstream-read-parity",
+    "read-after-write",
+    "deleted-null-parity",
+    "missing-id-null-parity",
+    "no-upstream-passthrough"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/inventory-connection-location-add.graphql",
+    "variablesCapturePath": "$.workflow.originLocationAdd.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "destination-location-add",
+        "capturePath": "$.workflow.destinationLocationAdd.response.data.locationAdd.userErrors",
+        "proxyPath": "$.data.locationAdd.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-connection-location-add.graphql",
+          "variablesCapturePath": "$.workflow.destinationLocationAdd.variables"
+        }
+      },
+      {
+        "name": "product-create",
+        "capturePath": "$.workflow.productCreate.response.data.productCreate.userErrors",
+        "proxyPath": "$.data.productCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-node-product-create.graphql",
+          "variablesCapturePath": "$.workflow.productCreate.variables"
+        }
+      },
+      {
+        "name": "track-inventory",
+        "capturePath": "$.workflow.trackInventory.response.data.productVariantsBulkUpdate.userErrors",
+        "proxyPath": "$.data.productVariantsBulkUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-node-track.graphql",
+          "variables": {
+            "productId": {
+              "fromProxyResponse": "product-create",
+              "path": "$.data.productCreate.product.id"
+            },
+            "variants": [
+              {
+                "id": {
+                  "fromProxyResponse": "product-create",
+                  "path": "$.data.productCreate.product.variants.nodes[0].id"
+                },
+                "inventoryItem": {
+                  "sku": {
+                    "fromCapturePath": "$.workflow.trackInventory.variables.variants[0].inventoryItem.sku"
+                  },
+                  "tracked": true,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "origin-activate",
+        "capturePath": "$.workflow.originActivate.response.data.inventoryActivate.userErrors",
+        "proxyPath": "$.data.inventoryActivate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-node-activate.graphql",
+          "variables": {
+            "inventoryItemId": {
+              "fromProxyResponse": "product-create",
+              "path": "$.data.productCreate.product.variants.nodes[0].inventoryItem.id"
+            },
+            "locationId": {
+              "fromPrimaryProxyPath": "$.data.locationAdd.location.id"
+            },
+            "available": 0
+          }
+        }
+      },
+      {
+        "name": "destination-activate",
+        "capturePath": "$.workflow.destinationActivate.response.data.inventoryActivate.userErrors",
+        "proxyPath": "$.data.inventoryActivate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-node-activate.graphql",
+          "variables": {
+            "inventoryItemId": {
+              "fromProxyResponse": "product-create",
+              "path": "$.data.productCreate.product.variants.nodes[0].inventoryItem.id"
+            },
+            "locationId": {
+              "fromProxyResponse": "destination-location-add",
+              "path": "$.data.locationAdd.location.id"
+            },
+            "available": 0
+          }
+        }
+      },
+      {
+        "name": "inventory-set",
+        "capturePath": "$.workflow.inventorySet.response.data.inventorySetQuantities.userErrors",
+        "proxyPath": "$.data.inventorySetQuantities.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-node-set.graphql",
+          "variables": {
+            "input": {
+              "name": "available",
+              "reason": "correction",
+              "referenceDocumentUri": {
+                "fromCapturePath": "$.workflow.inventorySet.variables.input.referenceDocumentUri"
+              },
+              "ignoreCompareQuantity": true,
+              "quantities": [
+                {
+                  "inventoryItemId": {
+                    "fromProxyResponse": "product-create",
+                    "path": "$.data.productCreate.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": {
+                    "fromPrimaryProxyPath": "$.data.locationAdd.location.id"
+                  },
+                  "quantity": 5
+                },
+                {
+                  "inventoryItemId": {
+                    "fromProxyResponse": "product-create",
+                    "path": "$.data.productCreate.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": {
+                    "fromProxyResponse": "destination-location-add",
+                    "path": "$.data.locationAdd.location.id"
+                  },
+                  "quantity": 0
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "dedicated-inventory-item-read",
+        "capturePath": "$.derived.originLevel",
+        "proxyPath": "$.data.inventoryItem.inventoryLevels.nodes[0]",
+        "excludedPaths": ["$.id", "$.location.id", "$.quantities[*].id", "$.quantities[*].updatedAt"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-node-dedicated-read.graphql",
+          "variables": {
+            "inventoryItemId": {
+              "fromProxyResponse": "product-create",
+              "path": "$.data.productCreate.product.variants.nodes[0].inventoryItem.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "core-inventory-node-read",
+        "capturePath": "$.workflow.coreNodeRead.response.data",
+        "proxyPath": "$.data",
+        "excludedPaths": [
+          "$.levelAlias.id",
+          "$.levelAlias.location.id",
+          "$.levelAlias.item.id",
+          "$.levelAlias.quantities[*].id",
+          "$.levelAlias.quantities[*].updatedAt",
+          "$.orderedNodes[*].id",
+          "$.orderedNodes[*].variant.id",
+          "$.orderedNodes[*].variant.product.id",
+          "$.orderedNodes[0].inventoryLevels",
+          "$.orderedNodes[*].inventoryLevels.nodes[*].id",
+          "$.orderedNodes[*].inventoryLevels.nodes[*].location.id",
+          "$.orderedNodes[*].inventoryLevels.nodes[*].quantities[*].id",
+          "$.orderedNodes[*].inventoryLevels.nodes[*].quantities[*].updatedAt",
+          "$.orderedNodes[*].location.id",
+          "$.orderedNodes[*].item.id",
+          "$.orderedNodes[*].quantities[*].id",
+          "$.orderedNodes[*].quantities[*].updatedAt",
+          "$.orderedNodes[*].updatedAt",
+          "$.orderedNodes[*].changes[*].item.id",
+          "$.orderedNodes[*].changes[*].location.id"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-node-core-read.graphql",
+          "variables": {
+            "levelId": {
+              "fromProxyResponse": "dedicated-inventory-item-read",
+              "path": "$.data.inventoryItem.inventoryLevels.nodes[0].id"
+            },
+            "ids": [
+              {
+                "fromProxyResponse": "product-create",
+                "path": "$.data.productCreate.product.variants.nodes[0].inventoryItem.id"
+              },
+              {
+                "fromProxyResponse": "dedicated-inventory-item-read",
+                "path": "$.data.inventoryItem.inventoryLevels.nodes[0].id"
+              },
+              {
+                "fromProxyResponse": "dedicated-inventory-item-read",
+                "path": "$.data.inventoryItem.inventoryLevels.nodes[0].quantities[0].id"
+              },
+              {
+                "fromProxyResponse": "inventory-set",
+                "path": "$.data.inventorySetQuantities.inventoryAdjustmentGroup.id"
+              },
+              {
+                "fromCapturePath": "$.missingIds.item"
+              },
+              {
+                "fromCapturePath": "$.missingIds.level"
+              },
+              {
+                "fromCapturePath": "$.missingIds.quantity"
+              },
+              {
+                "fromCapturePath": "$.missingIds.adjustmentGroup"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "ready-transfer-create",
+        "capturePath": "$.workflow.readyTransferCreate.response.data.inventoryTransferCreateAsReadyToShip",
+        "proxyPath": "$.data.inventoryTransferCreateAsReadyToShip",
+        "excludedPaths": [
+          "$.inventoryTransfer.id",
+          "$.inventoryTransfer.name",
+          "$.inventoryTransfer.lineItems.nodes[*].id",
+          "$.inventoryTransfer.lineItems.nodes[*].inventoryItem.id"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-node-transfer-create-ready.graphql",
+          "variables": {
+            "input": {
+              "originLocationId": {
+                "fromPrimaryProxyPath": "$.data.locationAdd.location.id"
+              },
+              "destinationLocationId": {
+                "fromProxyResponse": "destination-location-add",
+                "path": "$.data.locationAdd.location.id"
+              },
+              "referenceName": {
+                "fromCapturePath": "$.workflow.readyTransferCreate.variables.input.referenceName"
+              },
+              "note": {
+                "fromCapturePath": "$.workflow.readyTransferCreate.variables.input.note"
+              },
+              "tags": {
+                "fromCapturePath": "$.workflow.readyTransferCreate.variables.input.tags"
+              },
+              "lineItems": [
+                {
+                  "inventoryItemId": {
+                    "fromProxyResponse": "product-create",
+                    "path": "$.data.productCreate.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "quantity": 2
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "transfer-node-read",
+        "capturePath": "$.workflow.transferNodeRead.response.data",
+        "proxyPath": "$.data",
+        "excludedPaths": [
+          "$.nodes[*].id",
+          "$.nodes[*].name",
+          "$.nodes[*].lineItems.nodes[*].id",
+          "$.nodes[*].lineItems.nodes[*].inventoryItem.id",
+          "$.nodes[*].inventoryItem.id"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-node-transfer-read.graphql",
+          "variables": {
+            "ids": [
+              {
+                "fromProxyResponse": "ready-transfer-create",
+                "path": "$.data.inventoryTransferCreateAsReadyToShip.inventoryTransfer.id"
+              },
+              {
+                "fromProxyResponse": "ready-transfer-create",
+                "path": "$.data.inventoryTransferCreateAsReadyToShip.inventoryTransfer.lineItems.nodes[0].id"
+              },
+              {
+                "fromCapturePath": "$.missingIds.transfer"
+              },
+              {
+                "fromCapturePath": "$.missingIds.transferLineItem"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "shipment-create",
+        "capturePath": "$.workflow.shipmentCreate.response.data.inventoryShipmentCreate",
+        "proxyPath": "$.data.inventoryShipmentCreate",
+        "excludedPaths": [
+          "$.inventoryShipment.id",
+          "$.inventoryShipment.name",
+          "$.inventoryShipment.lineItems.nodes[*].id",
+          "$.inventoryShipment.lineItems.nodes[*].inventoryItem.id"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-node-shipment-create.graphql",
+          "variables": {
+            "input": {
+              "movementId": {
+                "fromProxyResponse": "ready-transfer-create",
+                "path": "$.data.inventoryTransferCreateAsReadyToShip.inventoryTransfer.id"
+              },
+              "trackingInput": {
+                "fromCapturePath": "$.workflow.shipmentCreate.variables.input.trackingInput"
+              },
+              "lineItems": [
+                {
+                  "inventoryItemId": {
+                    "fromProxyResponse": "product-create",
+                    "path": "$.data.productCreate.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "quantity": 1
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "shipment-tracking",
+        "capturePath": "$.workflow.shipmentTracking.response.data.inventoryShipmentSetTracking",
+        "proxyPath": "$.data.inventoryShipmentSetTracking",
+        "excludedPaths": ["$.inventoryShipment.id", "$.inventoryShipment.name"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-node-shipment-set-tracking.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "shipment-create",
+              "path": "$.data.inventoryShipmentCreate.inventoryShipment.id"
+            },
+            "tracking": {
+              "fromCapturePath": "$.workflow.shipmentTracking.variables.tracking"
+            }
+          }
+        }
+      },
+      {
+        "name": "shipment-node-read",
+        "capturePath": "$.workflow.shipmentNodeRead.response.data",
+        "proxyPath": "$.data",
+        "excludedPaths": [
+          "$.nodes[*].id",
+          "$.nodes[*].name",
+          "$.nodes[*].lineItems.nodes[*].id",
+          "$.nodes[*].lineItems.nodes[*].inventoryItem.id",
+          "$.nodes[*].inventoryItem.id"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-node-shipment-read.graphql",
+          "variables": {
+            "ids": [
+              {
+                "fromProxyResponse": "shipment-create",
+                "path": "$.data.inventoryShipmentCreate.inventoryShipment.id"
+              },
+              {
+                "fromProxyResponse": "shipment-create",
+                "path": "$.data.inventoryShipmentCreate.inventoryShipment.lineItems.nodes[0].id"
+              },
+              {
+                "fromCapturePath": "$.missingIds.shipment"
+              },
+              {
+                "fromCapturePath": "$.missingIds.shipmentLineItem"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "shipment-delete",
+        "capturePath": "$.workflow.shipmentDelete.response.data.inventoryShipmentDelete",
+        "proxyPath": "$.data.inventoryShipmentDelete",
+        "excludedPaths": ["$.id"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-node-shipment-delete.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "shipment-create",
+              "path": "$.data.inventoryShipmentCreate.inventoryShipment.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "shipment-deleted-node-read",
+        "capturePath": "$.workflow.shipmentDeletedNodeRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-node-shipment-read.graphql",
+          "variables": {
+            "ids": [
+              {
+                "fromProxyResponse": "shipment-create",
+                "path": "$.data.inventoryShipmentCreate.inventoryShipment.id"
+              },
+              {
+                "fromProxyResponse": "shipment-create",
+                "path": "$.data.inventoryShipmentCreate.inventoryShipment.lineItems.nodes[0].id"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "draft-transfer-create",
+        "capturePath": "$.workflow.draftTransferCreate.response.data.inventoryTransferCreate",
+        "proxyPath": "$.data.inventoryTransferCreate",
+        "excludedPaths": [
+          "$.inventoryTransfer.id",
+          "$.inventoryTransfer.name",
+          "$.inventoryTransfer.lineItems.nodes[*].id"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-node-transfer-create-draft.graphql",
+          "variables": {
+            "input": {
+              "originLocationId": {
+                "fromPrimaryProxyPath": "$.data.locationAdd.location.id"
+              },
+              "destinationLocationId": {
+                "fromProxyResponse": "destination-location-add",
+                "path": "$.data.locationAdd.location.id"
+              },
+              "referenceName": {
+                "fromCapturePath": "$.workflow.draftTransferCreate.variables.input.referenceName"
+              },
+              "note": {
+                "fromCapturePath": "$.workflow.draftTransferCreate.variables.input.note"
+              },
+              "tags": {
+                "fromCapturePath": "$.workflow.draftTransferCreate.variables.input.tags"
+              },
+              "lineItems": [
+                {
+                  "inventoryItemId": {
+                    "fromProxyResponse": "product-create",
+                    "path": "$.data.productCreate.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "quantity": 0
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "draft-transfer-delete",
+        "capturePath": "$.workflow.draftTransferDelete.response.data.inventoryTransferDelete",
+        "proxyPath": "$.data.inventoryTransferDelete",
+        "excludedPaths": ["$.deletedId"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-node-transfer-delete.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "draft-transfer-create",
+              "path": "$.data.inventoryTransferCreate.inventoryTransfer.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "transfer-deleted-node-read",
+        "capturePath": "$.workflow.transferDeletedNodeRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-node-transfer-read.graphql",
+          "variables": {
+            "ids": [
+              {
+                "fromProxyResponse": "draft-transfer-create",
+                "path": "$.data.inventoryTransferCreate.inventoryTransfer.id"
+              },
+              {
+                "fromProxyResponse": "draft-transfer-create",
+                "path": "$.data.inventoryTransferCreate.inventoryTransfer.lineItems.nodes[0].id"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/inventory-node-read-after-write.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
+  "notes": "Captured Admin GraphQL 2025-01 evidence for generic node/nodes reads over inventory item, level, quantity, adjustment group, transfer, transfer line item, shipment, and shipment line item resources built through public mutations. The scenario covers representative non-null payloads, missing/null IDs, staged transfer/shipment delete null behavior, nodes(ids:) order preservation, and tracking read-after-write. Shipment receive-specific Node read-after-write parity is blocked by the current conformance grant missing write_inventory_shipments_received_items; focused Rust tests cover that local behavior until the linked blocker is resolved."
+}

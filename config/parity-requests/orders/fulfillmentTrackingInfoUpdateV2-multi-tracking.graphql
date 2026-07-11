@@ -1,0 +1,22 @@
+mutation FulfillmentTrackingInfoUpdateV2MultiTracking(
+  $fulfillmentId: ID!
+  $trackingInfoInput: FulfillmentTrackingInput!
+  $notifyCustomer: Boolean
+) {
+  fulfillmentTrackingInfoUpdateV2(
+    fulfillmentId: $fulfillmentId
+    trackingInfoInput: $trackingInfoInput
+    notifyCustomer: $notifyCustomer
+  ) {
+    fulfillment {
+      id
+      status
+      trackingInfo(first: 5) {
+        number
+        url
+        company
+      }
+    }
+    userErrors { field message }
+  }
+}

@@ -174,6 +174,46 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
         NodeResolverBehavior::ProjectLocalRecord,
     ),
     entry(
+        "InventoryAdjustmentGroup",
+        "DraftProxy::inventory_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "InventoryItem",
+        "DraftProxy::inventory_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "InventoryLevel",
+        "DraftProxy::inventory_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "InventoryQuantity",
+        "DraftProxy::inventory_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "InventoryShipment",
+        "DraftProxy::inventory_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "InventoryShipmentLineItem",
+        "DraftProxy::inventory_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "InventoryTransfer",
+        "DraftProxy::inventory_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "InventoryTransferLineItem",
+        "DraftProxy::inventory_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
         "Location",
         "DraftProxy::local_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,

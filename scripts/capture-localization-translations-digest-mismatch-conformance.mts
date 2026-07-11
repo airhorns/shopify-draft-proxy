@@ -3,6 +3,7 @@ import 'dotenv/config';
 
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 import { createAdminGraphqlClient, type ConformanceGraphqlPayload } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
@@ -244,7 +245,7 @@ function assertIsoTimestamp(value: unknown, label: string): void {
   }
 }
 
-function assertUpdatedAtTranslation(payload: JsonRecord, expectedValue: string, label: string): void {
+function assertUpdatedAtTranslation(payload: JsonRecord, expectedValue: string, label: string): string {
   assertNoUserErrors(payload, label);
   const translations = payload['translations'];
   if (!Array.isArray(translations) || translations.length !== 1 || !isRecord(translations[0])) {
@@ -261,13 +262,14 @@ function assertUpdatedAtTranslation(payload: JsonRecord, expectedValue: string, 
     throw new Error(`${label} returned an unexpected translation shape: ${JSON.stringify(payload)}`);
   }
   assertIsoTimestamp(translation['updatedAt'], `${label} updatedAt`);
+  return String(translation['updatedAt']);
 }
 
 function assertUpdatedAtDownstreamRead(
   payload: ConformanceGraphqlPayload<unknown>,
   expectedValue: string,
   label: string,
-): void {
+): string {
   const resource = dataObject(payload)['translatableResource'];
   if (!isRecord(resource) || !Array.isArray(resource['translations'])) {
     throw new Error(`${label} did not return translations: ${JSON.stringify(payload)}`);
@@ -282,6 +284,21 @@ function assertUpdatedAtDownstreamRead(
     throw new Error(`${label} returned an unexpected translation shape: ${JSON.stringify(payload)}`);
   }
   assertIsoTimestamp(translation['updatedAt'], `${label} updatedAt`);
+  return String(translation['updatedAt']);
+}
+
+function assertTimestampAdvanced(previous: string, next: string, label: string): void {
+  const previousMs = Date.parse(previous);
+  const nextMs = Date.parse(next);
+  if (Number.isNaN(previousMs) || Number.isNaN(nextMs) || nextMs <= previousMs) {
+    throw new Error(`${label} expected ${next} to be later than ${previous}.`);
+  }
+}
+
+function assertTimestampStable(previous: string, next: string, label: string): void {
+  if (previous !== next) {
+    throw new Error(`${label} expected stable updatedAt ${previous}, got ${next}.`);
+  }
 }
 
 function shopLocaleIsEnabled(payload: ConformanceGraphqlPayload<unknown>, locale: string): boolean {
@@ -357,6 +374,94 @@ async function main(): Promise<void> {
     const setupReadVariables = { resourceId: createdProductId };
     const setupRead = await runGraphql(setupReadQuery, setupReadVariables);
     const currentDigest = titleDigest(setupRead);
+    const updatedAtInitialTranslationValue = `Titre updated at initial ${captureToken}`;
+    const updatedAtInitialRegisterVariables = {
+      resourceId: createdProductId,
+      translations: [
+        {
+          locale: 'fr',
+          key: 'title',
+          value: updatedAtInitialTranslationValue,
+          translatableContentDigest: currentDigest,
+        },
+      ],
+    };
+    const updatedAtInitialRegister = await runGraphql(updatedAtRegisterMutation, updatedAtInitialRegisterVariables);
+    const updatedAtInitialRegisterTimestamp = assertUpdatedAtTranslation(
+      payloadField(updatedAtInitialRegister, 'translationsRegister'),
+      updatedAtInitialTranslationValue,
+      'initial updatedAt translationsRegister',
+    );
+
+    await sleep(1200);
+
+    const updatedAtTranslationValue = `Titre updated at ${captureToken}`;
+    const updatedAtRegisterVariables = {
+      resourceId: createdProductId,
+      translations: [
+        {
+          locale: 'fr',
+          key: 'title',
+          value: updatedAtTranslationValue,
+          translatableContentDigest: currentDigest,
+        },
+      ],
+    };
+    const updatedAtRegister = await runGraphql(updatedAtRegisterMutation, updatedAtRegisterVariables);
+    const updatedAtRegisterTimestamp = assertUpdatedAtTranslation(
+      payloadField(updatedAtRegister, 'translationsRegister'),
+      updatedAtTranslationValue,
+      'updatedAt translationsRegister',
+    );
+    assertTimestampAdvanced(
+      updatedAtInitialRegisterTimestamp,
+      updatedAtRegisterTimestamp,
+      'successful updatedAt translation update',
+    );
+    const updatedAtDownstreamReadVariables = { resourceId: createdProductId };
+    const updatedAtDownstreamRead = await runGraphql(updatedAtDownstreamReadQuery, updatedAtDownstreamReadVariables);
+    const updatedAtDownstreamReadTimestamp = assertUpdatedAtDownstreamRead(
+      updatedAtDownstreamRead,
+      updatedAtTranslationValue,
+      'updatedAt downstream translatableResource read',
+    );
+    assertTimestampAdvanced(
+      updatedAtInitialRegisterTimestamp,
+      updatedAtDownstreamReadTimestamp,
+      'successful updatedAt translation readback',
+    );
+
+    const updatedAtRejectedRegisterVariables = {
+      resourceId: createdProductId,
+      translations: [
+        {
+          locale: 'fr',
+          key: 'title',
+          value: `Titre updated at rejected ${captureToken}`,
+          translatableContentDigest: 'deadbeef0000000000000000000000000000000000000000000000000000dead',
+        },
+      ],
+    };
+    const updatedAtRejectedRegister = await runGraphql(updatedAtRegisterMutation, updatedAtRejectedRegisterVariables);
+    assertInvalidDigest(
+      payloadField(updatedAtRejectedRegister, 'translationsRegister'),
+      'rejected updatedAt translationsRegister',
+    );
+    const updatedAtDownstreamReadAfterRejected = await runGraphql(
+      updatedAtDownstreamReadQuery,
+      updatedAtDownstreamReadVariables,
+    );
+    const updatedAtRejectedReadTimestamp = assertUpdatedAtDownstreamRead(
+      updatedAtDownstreamReadAfterRejected,
+      updatedAtTranslationValue,
+      'updatedAt downstream translatableResource read after rejected update',
+    );
+    assertTimestampStable(
+      updatedAtDownstreamReadTimestamp,
+      updatedAtRejectedReadTimestamp,
+      'rejected updatedAt translation update',
+    );
+
     const correctDigestVariables = {
       resourceId: createdProductId,
       translations: [
@@ -384,31 +489,6 @@ async function main(): Promise<void> {
     assertNoUserErrors(
       payloadField(correctDigestRegister, 'translationsRegister'),
       'correct digest translationsRegister',
-    );
-    const updatedAtTranslationValue = `Titre updated at ${captureToken}`;
-    const updatedAtRegisterVariables = {
-      resourceId: createdProductId,
-      translations: [
-        {
-          locale: 'fr',
-          key: 'title',
-          value: updatedAtTranslationValue,
-          translatableContentDigest: currentDigest,
-        },
-      ],
-    };
-    const updatedAtRegister = await runGraphql(updatedAtRegisterMutation, updatedAtRegisterVariables);
-    assertUpdatedAtTranslation(
-      payloadField(updatedAtRegister, 'translationsRegister'),
-      updatedAtTranslationValue,
-      'updatedAt translationsRegister',
-    );
-    const updatedAtDownstreamReadVariables = { resourceId: createdProductId };
-    const updatedAtDownstreamRead = await runGraphql(updatedAtDownstreamReadQuery, updatedAtDownstreamReadVariables);
-    assertUpdatedAtDownstreamRead(
-      updatedAtDownstreamRead,
-      updatedAtTranslationValue,
-      'updatedAt downstream translatableResource read',
     );
 
     const wrongDigestRegister = await runGraphql(registerMutation, wrongDigestVariables);
@@ -509,13 +589,36 @@ async function main(): Promise<void> {
             variables: setupReadVariables,
             response: setupRead,
           },
-          register: {
+          initialRegister: {
+            variables: updatedAtInitialRegisterVariables,
+            response: updatedAtInitialRegister,
+          },
+          updateRegister: {
             variables: updatedAtRegisterVariables,
             response: updatedAtRegister,
           },
           downstreamRead: {
             variables: updatedAtDownstreamReadVariables,
             response: updatedAtDownstreamRead,
+          },
+          rejectedRegister: {
+            variables: updatedAtRejectedRegisterVariables,
+            response: updatedAtRejectedRegister,
+          },
+          downstreamReadAfterRejected: {
+            variables: updatedAtDownstreamReadVariables,
+            response: updatedAtDownstreamReadAfterRejected,
+          },
+          timestampSemantics: {
+            initialRegisterUpdatedAt: updatedAtInitialRegisterTimestamp,
+            updateRegisterUpdatedAt: updatedAtRegisterTimestamp,
+            updateReadUpdatedAt: updatedAtDownstreamReadTimestamp,
+            rejectedReadUpdatedAt: updatedAtRejectedReadTimestamp,
+            successfulUpdateAdvanced:
+              Date.parse(updatedAtRegisterTimestamp) > Date.parse(updatedAtInitialRegisterTimestamp),
+            successfulUpdateReadAdvanced:
+              Date.parse(updatedAtDownstreamReadTimestamp) > Date.parse(updatedAtInitialRegisterTimestamp),
+            rejectedUpdateKeptTimestamp: updatedAtRejectedReadTimestamp === updatedAtDownstreamReadTimestamp,
           },
           cleanup,
           upstreamCalls: [],

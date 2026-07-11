@@ -5208,6 +5208,162 @@ fn fulfillment_tracking_update_returns_not_found_for_unknown_fulfillment_gid() {
 }
 
 #[test]
+fn fulfillment_tracking_update_v2_stages_tracking_and_notify_intent() {
+    let mut proxy = snapshot_proxy();
+    let (order_id, fulfillment_id) = stage_fulfillment_for_event(&mut proxy);
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentTrackingInfoUpdateV2Runtime($fulfillmentId: ID!, $trackingInfoInput: FulfillmentTrackingInput!, $notifyCustomer: Boolean) {
+          trackingV2: fulfillmentTrackingInfoUpdateV2(
+            fulfillmentId: $fulfillmentId
+            trackingInfoInput: $trackingInfoInput
+            notifyCustomer: $notifyCustomer
+          ) {
+            fulfillment {
+              id
+              status
+              displayStatus
+              trackingInfo { number url company }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "fulfillmentId": fulfillment_id,
+            "trackingInfoInput": {
+                "company": "UPS",
+                "numbers": ["V2-TRACK-1", "V2-TRACK-2"],
+                "urls": [
+                    "https://tracking.example/V2-TRACK-1",
+                    "https://tracking.example/V2-TRACK-2"
+                ]
+            },
+            "notifyCustomer": true
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body["data"]["trackingV2"]["userErrors"], json!([]));
+    assert_eq!(
+        response.body["data"]["trackingV2"]["fulfillment"]["trackingInfo"],
+        json!([
+            {
+                "number": "V2-TRACK-1",
+                "url": "https://tracking.example/V2-TRACK-1",
+                "company": "UPS"
+            },
+            {
+                "number": "V2-TRACK-2",
+                "url": "https://tracking.example/V2-TRACK-2",
+                "company": "UPS"
+            }
+        ])
+    );
+
+    let fulfillment_read = proxy.process_request(json_graphql_request(
+        r#"
+        query FulfillmentTrackingInfoUpdateV2TopLevelRead($fulfillmentId: ID!) {
+          fulfillment(id: $fulfillmentId) {
+            id
+            trackingInfo { number url company }
+          }
+        }
+        "#,
+        json!({ "fulfillmentId": fulfillment_id }),
+    ));
+    assert_eq!(
+        fulfillment_read.body["data"]["fulfillment"]["trackingInfo"],
+        response.body["data"]["trackingV2"]["fulfillment"]["trackingInfo"]
+    );
+
+    let order_read = proxy.process_request(json_graphql_request(
+        r#"
+        query FulfillmentTrackingInfoUpdateV2OrderRead($orderId: ID!) {
+          order(id: $orderId) {
+            fulfillments {
+              id
+              trackingInfo { number url company }
+            }
+          }
+        }
+        "#,
+        json!({ "orderId": order_id }),
+    ));
+    assert_eq!(
+        order_read.body["data"]["order"]["fulfillments"][0]["trackingInfo"],
+        response.body["data"]["trackingV2"]["fulfillment"]["trackingInfo"]
+    );
+
+    let state = state_snapshot(&proxy);
+    let order_id_str = order_id.as_str().unwrap();
+    assert_eq!(
+        state["stagedState"]["orders"][order_id_str]["fulfillments"][0]
+            ["__draftProxyNotifyCustomer"],
+        json!(true)
+    );
+
+    let log = log_snapshot(&proxy);
+    let entries = log["entries"].as_array().unwrap();
+    assert_eq!(
+        entries
+            .iter()
+            .map(|entry| entry["operationName"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec![
+            "orderCreate",
+            "fulfillmentCreate",
+            "fulfillmentTrackingInfoUpdateV2"
+        ]
+    );
+    assert!(entries[2]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("FulfillmentTrackingInfoUpdateV2Runtime"));
+}
+
+#[test]
+fn fulfillment_tracking_update_v2_returns_not_found_for_unknown_fulfillment_gid() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentTrackingInfoUpdateV2Unknown($fulfillmentId: ID!, $trackingInfoInput: FulfillmentTrackingInput!) {
+          trackingV2: fulfillmentTrackingInfoUpdateV2(
+            fulfillmentId: $fulfillmentId
+            trackingInfoInput: $trackingInfoInput
+          ) {
+            fulfillment { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "fulfillmentId": "gid://shopify/Fulfillment/999999999",
+            "trackingInfoInput": {
+                "company": "UPS",
+                "number": "UNKNOWN-V2",
+                "url": "https://tracking.example/UNKNOWN-V2"
+            }
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["trackingV2"],
+        json!({
+            "fulfillment": null,
+            "userErrors": [{
+                "field": ["fulfillmentId"],
+                "message": "Fulfillment does not exist."
+            }]
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+}
+
+#[test]
 fn fulfillment_cancel_and_tracking_accept_cancelled_or_delivered_fulfillments() {
     let mut proxy = snapshot_proxy();
     let (_order_id, fulfillment_id) = stage_fulfillment_for_event(&mut proxy);
@@ -6054,6 +6210,139 @@ fn order_update_live_hybrid_hydration_miss_does_not_forward_mutation() {
     let calls = upstream_calls.lock().expect("upstream calls");
     assert_eq!(calls.len(), 1);
     assert!(calls[0].contains("query OrdersOrderHydrate"));
+}
+
+#[test]
+fn order_update_live_hybrid_hydrates_all_order_line_item_pages() {
+    let line_items = (1..=12)
+        .map(|index| {
+            json!({
+                "id": format!("gid://shopify/LineItem/{index}"),
+                "title": format!("Hydrated line {index}"),
+                "name": format!("Hydrated line {index}"),
+                "quantity": 1,
+                "currentQuantity": 1,
+                "sku": format!("HYD-{index:02}"),
+                "variantTitle": Value::Null,
+                "requiresShipping": true,
+                "taxable": true,
+                "customAttributes": [],
+                "originalUnitPriceSet": { "shopMoney": { "amount": "1.00", "currencyCode": "USD" } },
+                "originalTotalSet": { "shopMoney": { "amount": "1.00", "currencyCode": "USD" } },
+                "variant": Value::Null,
+                "taxLines": []
+            })
+        })
+        .collect::<Vec<_>>();
+    let first_page = line_items[..10].to_vec();
+    let second_page = line_items[10..].to_vec();
+    let upstream_calls = Arc::new(Mutex::new(Vec::new()));
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport({
+        let upstream_calls = Arc::clone(&upstream_calls);
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream GraphQL body");
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(
+                query.trim_start().starts_with("query"),
+                "orderUpdate must hydrate by query only, got upstream body: {}",
+                request.body
+            );
+            let after = body["variables"]["lineItemsAfter"].as_str();
+            let (nodes, has_next_page, end_cursor) = if after == Some("cursor-10") {
+                (second_page.clone(), false, "cursor-12")
+            } else {
+                (first_page.clone(), true, "cursor-10")
+            };
+            upstream_calls.lock().expect("upstream calls").push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "order": {
+                            "id": "gid://shopify/Order/1212121212",
+                            "name": "#1212",
+                            "email": "many-lines@example.test",
+                            "note": "before update",
+                            "tags": [],
+                            "customAttributes": [],
+                            "customer": Value::Null,
+                            "billingAddress": Value::Null,
+                            "shippingAddress": Value::Null,
+                            "currencyCode": "USD",
+                            "presentmentCurrencyCode": "USD",
+                            "displayFinancialStatus": "PAID",
+                            "displayFulfillmentStatus": "UNFULFILLED",
+                            "currentTotalPriceSet": { "shopMoney": { "amount": "12.00", "currencyCode": "USD" } },
+                            "totalPriceSet": { "shopMoney": { "amount": "12.00", "currencyCode": "USD" } },
+                            "totalTaxSet": { "shopMoney": { "amount": "0.00", "currencyCode": "USD" } },
+                            "totalDiscountsSet": { "shopMoney": { "amount": "0.00", "currencyCode": "USD" } },
+                            "discountCodes": [],
+                            "lineItems": {
+                                "nodes": nodes,
+                                "pageInfo": {
+                                    "hasNextPage": has_next_page,
+                                    "endCursor": end_cursor
+                                }
+                            }
+                        }
+                    }
+                }),
+            }
+        }
+    });
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateManyLineOrder($input: OrderInput!) {
+          orderUpdate(input: $input) {
+            order {
+              id
+              note
+              lineItems(first: 20) {
+                nodes { id title quantity }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": "gid://shopify/Order/1212121212",
+                "note": "after unrelated update"
+            }
+        }),
+    ));
+
+    assert_eq!(update.status, 200);
+    assert_eq!(update.body["data"]["orderUpdate"]["userErrors"], json!([]));
+    assert_eq!(
+        update.body["data"]["orderUpdate"]["order"]["note"],
+        json!("after unrelated update")
+    );
+    let hydrated_lines = update.body["data"]["orderUpdate"]["order"]["lineItems"]["nodes"]
+        .as_array()
+        .expect("hydrated line item nodes");
+    assert_eq!(hydrated_lines.len(), 12);
+    assert_eq!(hydrated_lines[11]["title"], json!("Hydrated line 12"));
+
+    let calls = upstream_calls.lock().expect("upstream calls");
+    assert_eq!(calls.len(), 2);
+    assert!(calls.iter().all(|body| body["query"]
+        .as_str()
+        .unwrap_or_default()
+        .trim_start()
+        .starts_with("query")));
+    assert!(calls[0]["query"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("pageInfo"));
+    assert_eq!(calls[1]["variables"]["lineItemsAfter"], json!("cursor-10"));
 }
 
 #[test]

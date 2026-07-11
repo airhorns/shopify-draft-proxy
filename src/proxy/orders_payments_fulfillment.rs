@@ -69,48 +69,8 @@ const ORDER_EDIT_HYDRATE_QUERY: &str =
 // forward under the strict cassette matcher.
 const RETURN_ORDER_HYDRATE_QUERY: &str =
     include_str!("../../config/parity-requests/orders/return-order-hydrate.graphql");
-const ORDER_HYDRATE_QUERY: &str = r#"
-    query OrdersOrderHydrate($id: ID!) {
-      order(id: $id) {
-        id
-        name
-        email
-        note
-        tags
-        customAttributes { key value }
-        customer { id email displayName }
-        billingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }
-        shippingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }
-        currencyCode
-        presentmentCurrencyCode
-        displayFinancialStatus
-        displayFulfillmentStatus
-        currentTotalPriceSet { shopMoney { amount currencyCode } }
-        totalPriceSet { shopMoney { amount currencyCode } }
-        totalTaxSet { shopMoney { amount currencyCode } }
-        totalDiscountsSet { shopMoney { amount currencyCode } }
-        discountCodes
-        lineItems(first: 10) {
-          nodes {
-            id
-            title
-            name
-            quantity
-            currentQuantity
-            sku
-            variantTitle
-            requiresShipping
-            taxable
-            customAttributes { key value }
-            originalUnitPriceSet { shopMoney { amount currencyCode } }
-            originalTotalSet { shopMoney { amount currencyCode } }
-            variant { id title sku }
-            taxLines { title rate priceSet { shopMoney { amount currencyCode } } }
-          }
-        }
-      }
-    }
-"#;
+const ORDER_HYDRATE_QUERY: &str =
+    include_str!("../../config/parity-requests/orders/order-hydrate-pageable.graphql");
 // These hydrate queries are forwarded verbatim to the backend; their exact text
 // must match the recorded `OrdersDraftOrder*Hydrate` cassette calls (compact
 // two-space layout, customer carries firstName/lastName) so the strict cassette
