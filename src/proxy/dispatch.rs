@@ -1031,6 +1031,9 @@ impl DraftProxy {
                 return Some(self.selected_order_with_return_status(&order, selection));
             }
         }
+        if let Some(value) = self.fulfillment_return_node_value_by_id(id, selection) {
+            return Some(value);
+        }
         if let Some(value) = self.app_node_value_by_id(id, selection, request) {
             return Some(value);
         }

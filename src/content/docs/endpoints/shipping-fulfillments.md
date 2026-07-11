@@ -208,6 +208,13 @@ location records; missing or inactive destinations return the local
 `Location not found.` user error, and successful move payloads serialize the
 assigned-location id/name from that stored location rather than from fixture
 constants.
+Generic `node(id:)` and `nodes(ids:)` now read order-backed fulfillment and
+fulfillment-order resources from the same normalized order graph as
+`fulfillment(id:)`, `fulfillmentOrder(id:)`, and nested `Order` selections:
+`Fulfillment`, `FulfillmentEvent`, `FulfillmentLineItem`, `FulfillmentOrder`,
+`FulfillmentHold`, and `FulfillmentOrderLineItem` resolve locally, reflect
+staged lifecycle changes immediately, preserve duplicate/order semantics for
+`nodes(ids:)`, and return `null` for missing or deleted IDs.
 
 Delivery settings and delivery promise settings are read-only in snapshot mode
 and return the captured empty/no-feature shape there. Live modes forward those

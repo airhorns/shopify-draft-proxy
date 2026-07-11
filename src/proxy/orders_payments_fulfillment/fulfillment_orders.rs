@@ -1850,7 +1850,8 @@ impl DraftProxy {
             .iter_mut()
             .find(|fulfillment| fulfillment["id"].as_str() == Some(fulfillment_id.as_str()))?;
         let preserve_lifecycle_status = fulfillment_status_is(fulfillment, "CANCELLED")
-            || fulfillment_display_status_is(fulfillment, "DELIVERED");
+            || fulfillment_display_status_is(fulfillment, "DELIVERED")
+            || fulfillment_display_status_is(fulfillment, "IN_TRANSIT");
         fulfillment["trackingInfo"] = json!(tracking_info);
         if !preserve_lifecycle_status {
             fulfillment["status"] = json!("SUCCESS");
