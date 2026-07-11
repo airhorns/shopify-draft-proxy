@@ -304,6 +304,9 @@ impl DraftProxy {
                 "shopPolicyOrder": self.store.base.shop_policies.order,
                 "deliveryProfiles": self.store.base.delivery_profiles.records.clone(),
                 "deliveryProfileOrder": self.store.base.delivery_profiles.order,
+                "orders": self.store.base.orders.records.clone(),
+                "orderOrder": self.store.base.orders.order,
+                "orderCountBaselines": self.store.base.order_count_baselines.clone(),
                 "discounts": self.store.base.discounts.records.clone(),
                 "discountOrder": self.store.base.discounts.order,
                 "giftCards": self.store.base.gift_cards.clone(),
@@ -1206,6 +1209,15 @@ impl DraftProxy {
             product_variant_state_map_from_json(&state["baseState"]["productVariants"]),
             string_array_from_json(&state["baseState"]["productVariantOrder"]),
         );
+        self.store.base.orders.replace_with_order(
+            value_map_from_json(state["baseState"].get("orders")),
+            state["baseState"]
+                .get("orderOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
+        self.store.base.order_count_baselines =
+            value_map_from_json(state["baseState"].get("orderCountBaselines"));
         self.store.staged.products.replace_with_order(
             product_state_map_from_json(&state["stagedState"]["products"]),
             string_array_from_json(&state["stagedState"]["productOrder"]),

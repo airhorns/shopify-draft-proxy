@@ -1,0 +1,42 @@
+mutation DeliveryProfileVariantAssociationUpdate($id: ID!, $profile: DeliveryProfileInput!) {
+  deliveryProfileUpdate(id: $id, profile: $profile) {
+    profile {
+      id
+      name
+      productVariantsCount {
+        count
+        precision
+      }
+      profileItems(first: 5) {
+        nodes {
+          product {
+            id
+            title
+          }
+          variants(first: 5) {
+            nodes {
+              id
+              title
+            }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+              startCursor
+              endCursor
+            }
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

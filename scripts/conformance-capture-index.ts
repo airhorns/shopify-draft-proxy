@@ -8388,6 +8388,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'order-live-hybrid-mixed-catalog',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-order-live-hybrid-mixed-catalog-conformance.ts',
+    purpose:
+      'LiveHybrid orders/order/ordersCount mixed catalog evidence: a real upstream order plus a staged candidate order, update-wins-by-id behavior, and delete tombstone suppression over upstream list/count reads.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/order-live-hybrid-mixed-catalog.json',
+      'config/parity-specs/orders/order-live-hybrid-mixed-catalog.json',
+      'config/parity-requests/orders/order-live-hybrid-mixed-catalog-create.graphql',
+      'config/parity-requests/orders/order-live-hybrid-mixed-catalog-update.graphql',
+      'config/parity-requests/orders/order-live-hybrid-mixed-catalog-delete.graphql',
+      'config/parity-requests/orders/order-live-hybrid-mixed-catalog-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable test orders, updates and deletes the upstream-baseline order, then deletes the candidate order after recording expected reads.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'abandoned-checkout-empty-read',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-abandoned-checkout-conformance.ts',
@@ -12571,6 +12591,32 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'shipping-fulfillments',
+    captureId: 'delivery-profile-variant-associations',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-delivery-profile-variant-associations-conformance.ts',
+    purpose:
+      'deliveryProfileCreate and deliveryProfileUpdate variant association behavior for valid ProductVariant, nonexistent ProductVariant, and wrong-GID-type targets.',
+    requiredAuthScopes: [
+      'read_products',
+      'write_products',
+      'read_shipping',
+      'write_shipping',
+      'delivery profile management access',
+    ],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/delivery-profile-variant-associations.json',
+      'config/parity-specs/shipping-fulfillments/delivery-profile-variant-associations.json',
+      'config/parity-requests/shipping-fulfillments/delivery-profile-variant-association-product-create.graphql',
+      'config/parity-requests/shipping-fulfillments/delivery-profile-variant-association-create.graphql',
+      'config/parity-requests/shipping-fulfillments/delivery-profile-variant-association-update.graphql',
+      'config/parity-requests/shipping-fulfillments/delivery-profile-variant-association-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product and delivery profiles for valid/missing association branches, records wrong-type validation, then removes created profiles and deletes the product in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
     captureId: 'delivery-profile-update-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-delivery-profile-update-validation-conformance.ts',
@@ -14219,6 +14265,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}customer-merge-parity.json`,
       'config/parity-specs/customers/customerMerge-parity.json',
       'config/parity-requests/customers/customer-merge-hydrate.graphql',
+      'config/parity-requests/customers/customer-merge-attached-hydrate.graphql',
     ],
     cleanupBehavior: 'Creates disposable customers; merge consumes source records and cleanup removes leftovers.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -14280,6 +14327,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}customer-merge-attached-resources-parity.json`,
       'config/parity-specs/customers/customerMerge-attached-resources-parity.json',
       'config/parity-specs/customers/customerMerge-draft-orders-parity.json',
+      'config/parity-requests/customers/customer-merge-attached-hydrate.graphql',
       'config/parity-requests/customers/customer-merge-attached-resources-downstream-read.graphql',
       'config/parity-requests/customers/customer-merge-draft-order-create.graphql',
       'config/parity-requests/customers/customer-merge-draft-orders-read.graphql',

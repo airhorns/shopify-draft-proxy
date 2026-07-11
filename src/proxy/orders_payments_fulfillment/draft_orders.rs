@@ -1892,7 +1892,10 @@ impl DraftProxy {
     }
 
     pub(super) fn ensure_order_hydrated(&mut self, request: &Request, id: &str) {
-        if self.config.read_mode == ReadMode::Snapshot || id.is_empty() {
+        if self.config.read_mode == ReadMode::Snapshot
+            || id.is_empty()
+            || self.store.staged.orders.is_tombstoned(id)
+        {
             return;
         }
         // Always attempt a fresh upstream read so the order reflects its live
@@ -1960,6 +1963,7 @@ impl DraftProxy {
         order["lineItems"]["nodes"] = json!(hydrated_line_items);
         order["lineItems"]["pageInfo"] =
             connection_page_info(false, false, first_line_item_cursor, last_line_item_cursor);
+        normalize_hydrated_order(&mut order);
         self.store.staged.orders.insert(id.to_string(), order);
     }
 

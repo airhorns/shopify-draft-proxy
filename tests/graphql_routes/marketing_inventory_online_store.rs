@@ -901,6 +901,131 @@ fn marketing_empty_reads_keep_shopify_connection_shapes() {
 }
 
 #[test]
+fn marketing_activity_source_and_medium_uses_tactic_domain_and_fallback_labels() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingSourceAndMediumRegression(
+          $displayAd: MarketingActivityCreateExternalInput!
+          $emailAffiliate: MarketingActivityCreateExternalInput!
+          $searchNewsletter: MarketingActivityCreateExternalInput!
+          $instagramAd: MarketingActivityCreateExternalInput!
+          $customDomainAd: MarketingActivityCreateExternalInput!
+        ) {
+          displayAd: marketingActivityCreateExternal(input: $displayAd) {
+            marketingActivity { sourceAndMedium marketingEvent { sourceAndMedium } }
+            userErrors { field message code }
+          }
+          emailAffiliate: marketingActivityCreateExternal(input: $emailAffiliate) {
+            marketingActivity { sourceAndMedium marketingEvent { sourceAndMedium } }
+            userErrors { field message code }
+          }
+          searchNewsletter: marketingActivityCreateExternal(input: $searchNewsletter) {
+            marketingActivity { sourceAndMedium marketingEvent { sourceAndMedium } }
+            userErrors { field message code }
+          }
+          instagramAd: marketingActivityCreateExternal(input: $instagramAd) {
+            marketingActivity { sourceAndMedium marketingEvent { sourceAndMedium } }
+            userErrors { field message code }
+          }
+          customDomainAd: marketingActivityCreateExternal(input: $customDomainAd) {
+            marketingActivity { sourceAndMedium marketingEvent { sourceAndMedium } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "displayAd": {
+                "title": "Display ad",
+                "remoteId": "source-medium-display-ad",
+                "status": "ACTIVE",
+                "remoteUrl": "https://example.com/source-medium-display-ad",
+                "tactic": "AD",
+                "marketingChannelType": "DISPLAY",
+                "utm": {"campaign": "display-ad", "source": "display", "medium": "ad"}
+            },
+            "emailAffiliate": {
+                "title": "Email affiliate",
+                "remoteId": "source-medium-email-affiliate",
+                "status": "ACTIVE",
+                "remoteUrl": "https://example.com/source-medium-email-affiliate",
+                "tactic": "AFFILIATE",
+                "marketingChannelType": "EMAIL",
+                "utm": {"campaign": "email-affiliate", "source": "email", "medium": "affiliate"}
+            },
+            "searchNewsletter": {
+                "title": "Search newsletter",
+                "remoteId": "source-medium-search-newsletter",
+                "status": "ACTIVE",
+                "remoteUrl": "https://example.com/source-medium-search-newsletter",
+                "tactic": "NEWSLETTER",
+                "marketingChannelType": "SEARCH",
+                "utm": {"campaign": "search-newsletter", "source": "search", "medium": "newsletter"}
+            },
+            "instagramAd": {
+                "title": "Instagram display ad",
+                "remoteId": "source-medium-instagram-display-ad",
+                "status": "ACTIVE",
+                "remoteUrl": "https://example.com/source-medium-instagram-display-ad",
+                "referringDomain": "instagram.com",
+                "tactic": "AD",
+                "marketingChannelType": "DISPLAY",
+                "utm": {"campaign": "instagram-display-ad", "source": "instagram", "medium": "ad"}
+            },
+            "customDomainAd": {
+                "title": "Custom domain ad",
+                "remoteId": "source-medium-custom-domain-ad",
+                "status": "ACTIVE",
+                "remoteUrl": "https://example.com/source-medium-custom-domain-ad",
+                "referringDomain": "partner.example",
+                "tactic": "AD",
+                "marketingChannelType": "DISPLAY",
+                "utm": {"campaign": "custom-domain-ad", "source": "partner", "medium": "ad"}
+            }
+        }),
+    ));
+    let data = &response.body["data"];
+    let actual = json!({
+        "displayAd": {
+            "activity": data["displayAd"]["marketingActivity"]["sourceAndMedium"],
+            "event": data["displayAd"]["marketingActivity"]["marketingEvent"]["sourceAndMedium"],
+            "userErrors": data["displayAd"]["userErrors"]
+        },
+        "emailAffiliate": {
+            "activity": data["emailAffiliate"]["marketingActivity"]["sourceAndMedium"],
+            "event": data["emailAffiliate"]["marketingActivity"]["marketingEvent"]["sourceAndMedium"],
+            "userErrors": data["emailAffiliate"]["userErrors"]
+        },
+        "searchNewsletter": {
+            "activity": data["searchNewsletter"]["marketingActivity"]["sourceAndMedium"],
+            "event": data["searchNewsletter"]["marketingActivity"]["marketingEvent"]["sourceAndMedium"],
+            "userErrors": data["searchNewsletter"]["userErrors"]
+        },
+        "instagramAd": {
+            "activity": data["instagramAd"]["marketingActivity"]["sourceAndMedium"],
+            "event": data["instagramAd"]["marketingActivity"]["marketingEvent"]["sourceAndMedium"],
+            "userErrors": data["instagramAd"]["userErrors"]
+        },
+        "customDomainAd": {
+            "activity": data["customDomainAd"]["marketingActivity"]["sourceAndMedium"],
+            "event": data["customDomainAd"]["marketingActivity"]["marketingEvent"]["sourceAndMedium"],
+            "userErrors": data["customDomainAd"]["userErrors"]
+        }
+    });
+
+    assert_eq!(
+        actual,
+        json!({
+            "displayAd": { "activity": "Display ad", "event": "Display ad", "userErrors": [] },
+            "emailAffiliate": { "activity": "Affiliate link", "event": "Affiliate link", "userErrors": [] },
+            "searchNewsletter": { "activity": "Search newsletter", "event": "Search newsletter", "userErrors": [] },
+            "instagramAd": { "activity": "Instagram ad", "event": "Instagram ad", "userErrors": [] },
+            "customDomainAd": { "activity": "partner.example ad", "event": "partner.example ad", "userErrors": [] }
+        })
+    );
+}
+
+#[test]
 fn marketing_live_hybrid_cold_read_forwards_non_empty_upstream_catalog() {
     let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
     let captured_requests = Arc::clone(&upstream_requests);

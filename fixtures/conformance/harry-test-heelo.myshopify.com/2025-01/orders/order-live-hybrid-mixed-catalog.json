@@ -1,0 +1,792 @@
+{
+  "scenarioId": "order-live-hybrid-mixed-catalog",
+  "capturedAt": "2026-07-11T02:02:47.643Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "notes": "Captured from live Shopify Admin GraphQL. The live expected operations create/update/delete disposable orders. The upstreamCalls cassette intentionally records the pre-local-write existing-order baseline that LiveHybrid proxy replay hydrates while supported mutations remain staged locally.",
+  "operations": {
+    "existingCreate": {
+      "query": "mutation OrderLiveHybridMixedCatalogCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        email\n        note\n        tags\n        processedAt\n        displayFinancialStatus\n        displayFulfillmentStatus\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "order": {
+          "email": "har-2272-existing-20260711020225@example.com",
+          "note": "HAR-2272 existing mixed catalog 20260711020225",
+          "tags": ["har-2272-live-hybrid-mixed-catalog", "har-2272-mixed-20260711020225", "existing"],
+          "test": true,
+          "currency": "USD",
+          "processedAt": "2024-01-01T00:00:00Z",
+          "lineItems": [
+            {
+              "title": "HAR-2272 existing mixed catalog",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "11.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": false,
+              "taxable": false,
+              "sku": "har-2272-existing-20260711020225"
+            }
+          ],
+          "financialStatus": "PENDING"
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8938797826354",
+                "email": "har-2272-existing-20260711020225@example.com",
+                "note": "HAR-2272 existing mixed catalog 20260711020225",
+                "tags": ["existing", "har-2272-live-hybrid-mixed-catalog", "har-2272-mixed-20260711020225"],
+                "processedAt": "2024-01-01T00:00:00Z",
+                "displayFinancialStatus": "PENDING",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "baselineRead": {
+      "query": "query OrderLiveHybridMixedCatalogRead($existingId: ID!, $query: String!, $first: Int!) {\n    existing: order(id: $existingId) {\n      email\n      note\n      tags\n      processedAt\n    }\n    visible: orders(first: $first, query: $query, sortKey: PROCESSED_AT, reverse: false) {\n      nodes {\n        email\n        note\n        tags\n        processedAt\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n    total: ordersCount(query: $query, limit: null) {\n      count\n      precision\n    }\n  }",
+      "variables": {
+        "existingId": "gid://shopify/Order/8938797826354",
+        "query": "tag:har-2272-mixed-20260711020225",
+        "first": 5
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "existing": {
+              "email": "har-2272-existing-20260711020225@example.com",
+              "note": "HAR-2272 existing mixed catalog 20260711020225",
+              "tags": ["existing", "har-2272-live-hybrid-mixed-catalog", "har-2272-mixed-20260711020225"],
+              "processedAt": "2024-01-01T00:00:00Z"
+            },
+            "visible": {
+              "nodes": [
+                {
+                  "email": "har-2272-existing-20260711020225@example.com",
+                  "note": "HAR-2272 existing mixed catalog 20260711020225",
+                  "tags": ["existing", "har-2272-live-hybrid-mixed-catalog", "har-2272-mixed-20260711020225"],
+                  "processedAt": "2024-01-01T00:00:00Z"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "total": {
+              "count": 1,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "baselineHydrate": {
+      "query": "\n    query OrdersOrderHydrate($id: ID!) {\n      order(id: $id) {\n        id\n        name\n        email\n        note\n        tags\n        customAttributes { key value }\n        customer { id email displayName }\n        billingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }\n        shippingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }\n        currencyCode\n        presentmentCurrencyCode\n        displayFinancialStatus\n        displayFulfillmentStatus\n        currentTotalPriceSet { shopMoney { amount currencyCode } }\n        totalPriceSet { shopMoney { amount currencyCode } }\n        totalTaxSet { shopMoney { amount currencyCode } }\n        totalDiscountsSet { shopMoney { amount currencyCode } }\n        discountCodes\n        lineItems(first: 10) {\n          nodes {\n            id\n            title\n            name\n            quantity\n            currentQuantity\n            sku\n            variantTitle\n            requiresShipping\n            taxable\n            customAttributes { key value }\n            originalUnitPriceSet { shopMoney { amount currencyCode } }\n            originalTotalSet { shopMoney { amount currencyCode } }\n            variant { id title sku }\n            taxLines { title rate priceSet { shopMoney { amount currencyCode } } }\n          }\n        }\n      }\n    }\n",
+      "variables": {
+        "id": "gid://shopify/Order/8938797826354"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8938797826354",
+              "name": "#1822",
+              "email": "har-2272-existing-20260711020225@example.com",
+              "note": "HAR-2272 existing mixed catalog 20260711020225",
+              "tags": ["existing", "har-2272-live-hybrid-mixed-catalog", "har-2272-mixed-20260711020225"],
+              "customAttributes": [],
+              "customer": {
+                "id": "gid://shopify/Customer/10947299868978",
+                "email": "har-2272-existing-20260711020225@example.com",
+                "displayName": "har-2272-existing-20260711020225@example.com"
+              },
+              "billingAddress": null,
+              "shippingAddress": null,
+              "currencyCode": "USD",
+              "presentmentCurrencyCode": "USD",
+              "displayFinancialStatus": "PENDING",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "11.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "11.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "totalTaxSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "totalDiscountsSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "discountCodes": [],
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19925001044274",
+                    "title": "HAR-2272 existing mixed catalog",
+                    "name": "HAR-2272 existing mixed catalog",
+                    "quantity": 1,
+                    "currentQuantity": 1,
+                    "sku": "har-2272-existing-20260711020225",
+                    "variantTitle": null,
+                    "requiresShipping": false,
+                    "taxable": false,
+                    "customAttributes": [],
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "11.0",
+                        "currencyCode": "USD"
+                      }
+                    },
+                    "originalTotalSet": {
+                      "shopMoney": {
+                        "amount": "11.0",
+                        "currencyCode": "USD"
+                      }
+                    },
+                    "variant": null,
+                    "taxLines": []
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 23,
+              "actualQueryCost": 9,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "candidateCreate": {
+      "query": "mutation OrderLiveHybridMixedCatalogCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        email\n        note\n        tags\n        processedAt\n        displayFinancialStatus\n        displayFulfillmentStatus\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "order": {
+          "email": "har-2272-candidate-20260711020225@example.com",
+          "note": "HAR-2272 candidate mixed catalog 20260711020225",
+          "tags": ["har-2272-live-hybrid-mixed-catalog", "har-2272-mixed-20260711020225", "candidate"],
+          "test": true,
+          "currency": "USD",
+          "processedAt": "2024-01-02T00:00:00Z",
+          "lineItems": [
+            {
+              "title": "HAR-2272 candidate mixed catalog",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "12.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": false,
+              "taxable": false,
+              "sku": "har-2272-candidate-20260711020225"
+            }
+          ],
+          "financialStatus": "PENDING"
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8938798055730",
+                "email": "har-2272-candidate-20260711020225@example.com",
+                "note": "HAR-2272 candidate mixed catalog 20260711020225",
+                "tags": ["candidate", "har-2272-live-hybrid-mixed-catalog", "har-2272-mixed-20260711020225"],
+                "processedAt": "2024-01-02T00:00:00Z",
+                "displayFinancialStatus": "PENDING",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "mixedAfterCreateRead": {
+      "query": "query OrderLiveHybridMixedCatalogRead($existingId: ID!, $query: String!, $first: Int!) {\n    existing: order(id: $existingId) {\n      email\n      note\n      tags\n      processedAt\n    }\n    visible: orders(first: $first, query: $query, sortKey: PROCESSED_AT, reverse: false) {\n      nodes {\n        email\n        note\n        tags\n        processedAt\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n    total: ordersCount(query: $query, limit: null) {\n      count\n      precision\n    }\n  }",
+      "variables": {
+        "existingId": "gid://shopify/Order/8938797826354",
+        "query": "tag:har-2272-mixed-20260711020225",
+        "first": 5
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "existing": {
+              "email": "har-2272-existing-20260711020225@example.com",
+              "note": "HAR-2272 existing mixed catalog 20260711020225",
+              "tags": ["existing", "har-2272-live-hybrid-mixed-catalog", "har-2272-mixed-20260711020225"],
+              "processedAt": "2024-01-01T00:00:00Z"
+            },
+            "visible": {
+              "nodes": [
+                {
+                  "email": "har-2272-existing-20260711020225@example.com",
+                  "note": "HAR-2272 existing mixed catalog 20260711020225",
+                  "tags": ["existing", "har-2272-live-hybrid-mixed-catalog", "har-2272-mixed-20260711020225"],
+                  "processedAt": "2024-01-01T00:00:00Z"
+                },
+                {
+                  "email": "har-2272-candidate-20260711020225@example.com",
+                  "note": "HAR-2272 candidate mixed catalog 20260711020225",
+                  "tags": ["candidate", "har-2272-live-hybrid-mixed-catalog", "har-2272-mixed-20260711020225"],
+                  "processedAt": "2024-01-02T00:00:00Z"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "total": {
+              "count": 2,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1889,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "existingUpdate": {
+      "query": "mutation OrderLiveHybridMixedCatalogUpdate($input: OrderInput!) {\n    orderUpdate(input: $input) {\n      order {\n        id\n        email\n        note\n        tags\n        processedAt\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Order/8938797826354",
+          "note": "HAR-2272 edited existing mixed catalog 20260711020225",
+          "tags": ["har-2272-live-hybrid-mixed-catalog", "har-2272-mixed-20260711020225", "existing", "edited"]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderUpdate": {
+              "order": {
+                "id": "gid://shopify/Order/8938797826354",
+                "email": "har-2272-existing-20260711020225@example.com",
+                "note": "HAR-2272 edited existing mixed catalog 20260711020225",
+                "tags": ["edited", "existing", "har-2272-live-hybrid-mixed-catalog", "har-2272-mixed-20260711020225"],
+                "processedAt": "2024-01-01T00:00:00Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1891,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "afterUpdateRead": {
+      "query": "query OrderLiveHybridMixedCatalogRead($existingId: ID!, $query: String!, $first: Int!) {\n    existing: order(id: $existingId) {\n      email\n      note\n      tags\n      processedAt\n    }\n    visible: orders(first: $first, query: $query, sortKey: PROCESSED_AT, reverse: false) {\n      nodes {\n        email\n        note\n        tags\n        processedAt\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n    total: ordersCount(query: $query, limit: null) {\n      count\n      precision\n    }\n  }",
+      "variables": {
+        "existingId": "gid://shopify/Order/8938797826354",
+        "query": "tag:har-2272-mixed-20260711020225",
+        "first": 5
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "existing": {
+              "email": "har-2272-existing-20260711020225@example.com",
+              "note": "HAR-2272 edited existing mixed catalog 20260711020225",
+              "tags": ["edited", "existing", "har-2272-live-hybrid-mixed-catalog", "har-2272-mixed-20260711020225"],
+              "processedAt": "2024-01-01T00:00:00Z"
+            },
+            "visible": {
+              "nodes": [
+                {
+                  "email": "har-2272-existing-20260711020225@example.com",
+                  "note": "HAR-2272 edited existing mixed catalog 20260711020225",
+                  "tags": ["edited", "existing", "har-2272-live-hybrid-mixed-catalog", "har-2272-mixed-20260711020225"],
+                  "processedAt": "2024-01-01T00:00:00Z"
+                },
+                {
+                  "email": "har-2272-candidate-20260711020225@example.com",
+                  "note": "HAR-2272 candidate mixed catalog 20260711020225",
+                  "tags": ["candidate", "har-2272-live-hybrid-mixed-catalog", "har-2272-mixed-20260711020225"],
+                  "processedAt": "2024-01-02T00:00:00Z"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "total": {
+              "count": 2,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1877,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "existingDelete": {
+      "query": "mutation OrderLiveHybridMixedCatalogDelete($orderId: ID!) {\n    orderDelete(orderId: $orderId) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8938797826354"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderDelete": {
+              "deletedId": "gid://shopify/Order/8938797826354",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1869,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "afterDeleteRead": {
+      "query": "query OrderLiveHybridMixedCatalogRead($existingId: ID!, $query: String!, $first: Int!) {\n    existing: order(id: $existingId) {\n      email\n      note\n      tags\n      processedAt\n    }\n    visible: orders(first: $first, query: $query, sortKey: PROCESSED_AT, reverse: false) {\n      nodes {\n        email\n        note\n        tags\n        processedAt\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n    total: ordersCount(query: $query, limit: null) {\n      count\n      precision\n    }\n  }",
+      "variables": {
+        "existingId": "gid://shopify/Order/8938797826354",
+        "query": "tag:har-2272-mixed-20260711020225",
+        "first": 5
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "existing": null,
+            "visible": {
+              "nodes": [
+                {
+                  "email": "har-2272-candidate-20260711020225@example.com",
+                  "note": "HAR-2272 candidate mixed catalog 20260711020225",
+                  "tags": ["candidate", "har-2272-live-hybrid-mixed-catalog", "har-2272-mixed-20260711020225"],
+                  "processedAt": "2024-01-02T00:00:00Z"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "total": {
+              "count": 1,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OrderLiveHybridMixedCatalogRead",
+      "variables": {
+        "existingId": "gid://shopify/Order/8938797826354",
+        "query": "tag:har-2272-mixed-20260711020225",
+        "first": 5
+      },
+      "query": "query OrderLiveHybridMixedCatalogRead($existingId: ID!, $query: String!, $first: Int!) {\n    existing: order(id: $existingId) {\n      email\n      note\n      tags\n      processedAt\n    }\n    visible: orders(first: $first, query: $query, sortKey: PROCESSED_AT, reverse: false) {\n      nodes {\n        email\n        note\n        tags\n        processedAt\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n    total: ordersCount(query: $query, limit: null) {\n      count\n      precision\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "existing": {
+              "email": "har-2272-existing-20260711020225@example.com",
+              "note": "HAR-2272 existing mixed catalog 20260711020225",
+              "tags": ["existing", "har-2272-live-hybrid-mixed-catalog", "har-2272-mixed-20260711020225"],
+              "processedAt": "2024-01-01T00:00:00Z"
+            },
+            "visible": {
+              "nodes": [
+                {
+                  "email": "har-2272-existing-20260711020225@example.com",
+                  "note": "HAR-2272 existing mixed catalog 20260711020225",
+                  "tags": ["existing", "har-2272-live-hybrid-mixed-catalog", "har-2272-mixed-20260711020225"],
+                  "processedAt": "2024-01-01T00:00:00Z"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "total": {
+              "count": 1,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OrdersOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8938797826354"
+      },
+      "query": "\n    query OrdersOrderHydrate($id: ID!) {\n      order(id: $id) {\n        id\n        name\n        email\n        note\n        tags\n        customAttributes { key value }\n        customer { id email displayName }\n        billingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }\n        shippingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }\n        currencyCode\n        presentmentCurrencyCode\n        displayFinancialStatus\n        displayFulfillmentStatus\n        currentTotalPriceSet { shopMoney { amount currencyCode } }\n        totalPriceSet { shopMoney { amount currencyCode } }\n        totalTaxSet { shopMoney { amount currencyCode } }\n        totalDiscountsSet { shopMoney { amount currencyCode } }\n        discountCodes\n        lineItems(first: 10) {\n          nodes {\n            id\n            title\n            name\n            quantity\n            currentQuantity\n            sku\n            variantTitle\n            requiresShipping\n            taxable\n            customAttributes { key value }\n            originalUnitPriceSet { shopMoney { amount currencyCode } }\n            originalTotalSet { shopMoney { amount currencyCode } }\n            variant { id title sku }\n            taxLines { title rate priceSet { shopMoney { amount currencyCode } } }\n          }\n        }\n      }\n    }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8938797826354",
+              "name": "#1822",
+              "email": "har-2272-existing-20260711020225@example.com",
+              "note": "HAR-2272 existing mixed catalog 20260711020225",
+              "tags": ["existing", "har-2272-live-hybrid-mixed-catalog", "har-2272-mixed-20260711020225"],
+              "customAttributes": [],
+              "customer": {
+                "id": "gid://shopify/Customer/10947299868978",
+                "email": "har-2272-existing-20260711020225@example.com",
+                "displayName": "har-2272-existing-20260711020225@example.com"
+              },
+              "billingAddress": null,
+              "shippingAddress": null,
+              "currencyCode": "USD",
+              "presentmentCurrencyCode": "USD",
+              "displayFinancialStatus": "PENDING",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "11.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "11.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "totalTaxSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "totalDiscountsSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "discountCodes": [],
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19925001044274",
+                    "title": "HAR-2272 existing mixed catalog",
+                    "name": "HAR-2272 existing mixed catalog",
+                    "quantity": 1,
+                    "currentQuantity": 1,
+                    "sku": "har-2272-existing-20260711020225",
+                    "variantTitle": null,
+                    "requiresShipping": false,
+                    "taxable": false,
+                    "customAttributes": [],
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "11.0",
+                        "currencyCode": "USD"
+                      }
+                    },
+                    "originalTotalSet": {
+                      "shopMoney": {
+                        "amount": "11.0",
+                        "currencyCode": "USD"
+                      }
+                    },
+                    "variant": null,
+                    "taxLines": []
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 23,
+              "actualQueryCost": 9,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OrderLiveHybridMixedCatalogRead",
+      "variables": {
+        "existingId": "gid://shopify/Order/8938797826354",
+        "query": "tag:har-2272-mixed-20260711020225",
+        "first": 5
+      },
+      "query": "query OrderLiveHybridMixedCatalogRead($existingId: ID!, $query: String!, $first: Int!) {\n    existing: order(id: $existingId) {\n      email\n      note\n      tags\n      processedAt\n    }\n    visible: orders(first: $first, query: $query, sortKey: PROCESSED_AT, reverse: false) {\n      nodes {\n        email\n        note\n        tags\n        processedAt\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n    total: ordersCount(query: $query, limit: null) {\n      count\n      precision\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "existing": {
+              "email": "har-2272-existing-20260711020225@example.com",
+              "note": "HAR-2272 existing mixed catalog 20260711020225",
+              "tags": ["existing", "har-2272-live-hybrid-mixed-catalog", "har-2272-mixed-20260711020225"],
+              "processedAt": "2024-01-01T00:00:00Z"
+            },
+            "visible": {
+              "nodes": [
+                {
+                  "email": "har-2272-existing-20260711020225@example.com",
+                  "note": "HAR-2272 existing mixed catalog 20260711020225",
+                  "tags": ["existing", "har-2272-live-hybrid-mixed-catalog", "har-2272-mixed-20260711020225"],
+                  "processedAt": "2024-01-01T00:00:00Z"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "total": {
+              "count": 1,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OrderLiveHybridMixedCatalogRead",
+      "variables": {
+        "existingId": "gid://shopify/Order/8938797826354",
+        "query": "tag:har-2272-mixed-20260711020225",
+        "first": 5
+      },
+      "query": "query OrderLiveHybridMixedCatalogRead($existingId: ID!, $query: String!, $first: Int!) {\n    existing: order(id: $existingId) {\n      email\n      note\n      tags\n      processedAt\n    }\n    visible: orders(first: $first, query: $query, sortKey: PROCESSED_AT, reverse: false) {\n      nodes {\n        email\n        note\n        tags\n        processedAt\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n    total: ordersCount(query: $query, limit: null) {\n      count\n      precision\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "existing": {
+              "email": "har-2272-existing-20260711020225@example.com",
+              "note": "HAR-2272 existing mixed catalog 20260711020225",
+              "tags": ["existing", "har-2272-live-hybrid-mixed-catalog", "har-2272-mixed-20260711020225"],
+              "processedAt": "2024-01-01T00:00:00Z"
+            },
+            "visible": {
+              "nodes": [
+                {
+                  "email": "har-2272-existing-20260711020225@example.com",
+                  "note": "HAR-2272 existing mixed catalog 20260711020225",
+                  "tags": ["existing", "har-2272-live-hybrid-mixed-catalog", "har-2272-mixed-20260711020225"],
+                  "processedAt": "2024-01-01T00:00:00Z"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "total": {
+              "count": 1,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "query": "mutation OrderLiveHybridMixedCatalogDelete($orderId: ID!) {\n    orderDelete(orderId: $orderId) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8938798055730"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderDelete": {
+              "deletedId": "gid://shopify/Order/8938798055730",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,93 @@
+{
+  "scenarioId": "order-live-hybrid-mixed-catalog",
+  "operationNames": ["orderCreate", "orderUpdate", "orderDelete", "order", "orders", "ordersCount"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "downstream-read-parity",
+    "search-filtering",
+    "sort-order",
+    "count-limit",
+    "pagination-shape",
+    "runtime-staging"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/order-live-hybrid-mixed-catalog.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/order-live-hybrid-mixed-catalog-create.graphql",
+    "variablesCapturePath": "$.operations.candidateCreate.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live 2025-01 Shopify capture for a mixed order catalog: a real pre-existing tagged order, a second disposable order created with the same tag, an update to the existing order, and a delete tombstone. Proxy replay stages only the candidate order locally and uses recorded upstream baseline/hydration calls for the untouched existing order, proving LiveHybrid orders/order/orderCount merge upstream plus staged state without runtime Shopify writes.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "candidate-create-baseline",
+        "capturePath": "$.operations.candidateCreate.response.payload.data.orderCreate",
+        "proxyPath": "$.data.orderCreate",
+        "selectedPaths": [
+          "$.order.email",
+          "$.order.note",
+          "$.order.tags",
+          "$.order.processedAt",
+          "$.order.displayFinancialStatus",
+          "$.order.displayFulfillmentStatus",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "mixed-read-after-staged-create",
+        "capturePath": "$.operations.mixedAfterCreateRead.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-live-hybrid-mixed-catalog-read.graphql",
+          "variablesCapturePath": "$.operations.mixedAfterCreateRead.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "existing-order-update-wins-by-id",
+        "capturePath": "$.operations.existingUpdate.response.payload.data.orderUpdate",
+        "proxyPath": "$.data.orderUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-live-hybrid-mixed-catalog-update.graphql",
+          "variablesCapturePath": "$.operations.existingUpdate.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "mixed-read-after-existing-update",
+        "capturePath": "$.operations.afterUpdateRead.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-live-hybrid-mixed-catalog-read.graphql",
+          "variablesCapturePath": "$.operations.afterUpdateRead.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "existing-order-delete-tombstone",
+        "capturePath": "$.operations.existingDelete.response.payload.data.orderDelete",
+        "proxyPath": "$.data.orderDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-live-hybrid-mixed-catalog-delete.graphql",
+          "variablesCapturePath": "$.operations.existingDelete.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "mixed-read-after-existing-delete",
+        "capturePath": "$.operations.afterDeleteRead.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-live-hybrid-mixed-catalog-read.graphql",
+          "variablesCapturePath": "$.operations.afterDeleteRead.variables",
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  }
+}

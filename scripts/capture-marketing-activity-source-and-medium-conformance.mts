@@ -60,6 +60,11 @@ const expectedSourceAndMedium: Record<string, string> = {
   messageOther: 'Twitter message',
   adReferringDomain: 'Instagram ad',
   adNoDomain: 'Search ad',
+  displayAd: 'Display ad',
+  emailAffiliate: 'Affiliate link',
+  searchNewsletter: 'Search newsletter',
+  displayInstagramAd: 'Instagram ad',
+  customDomainAd: 'partner.example ad',
 };
 
 function readRecord(value: unknown): Record<string, unknown> | null {

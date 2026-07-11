@@ -609,22 +609,80 @@ pub(in crate::proxy) fn marketing_source_and_medium(
     tactic: &str,
     referring_domain: Option<&str>,
 ) -> String {
-    match (channel, tactic, referring_domain) {
-        ("EMAIL", "ABANDONED_CART", _) => "Abandoned cart email",
-        ("SEARCH", "AFFILIATE", _) => "Affiliate link",
-        ("DISPLAY", "LOYALTY", _) => "Loyalty program",
-        ("DISPLAY", "RETARGETING", Some("facebook.com")) => "Facebook retargeting ad",
-        ("DISPLAY", "RETARGETING", _) => "Retargeting ad",
-        ("SEARCH", "MESSAGE", Some("facebook.com")) => "Message via Facebook Messenger",
-        ("SEARCH", "MESSAGE", Some("twitter.com")) => "Twitter message",
-        ("SEARCH", "AD", Some("instagram.com")) => "Instagram ad",
-        ("SEARCH", "AD", Some(domain)) => return format!("{domain} ad"),
-        ("SEARCH", "AD", _) => "Search ad",
-        (_, "AD", _) => "Ad",
-        ("EMAIL", "NEWSLETTER", _) => "Email newsletter",
-        _ => "Email newsletter",
+    let referring_domain = referring_domain.and_then(marketing_referring_domain_label);
+    match tactic {
+        "ABANDONED_CART" => "Abandoned cart email".to_string(),
+        "AFFILIATE" => "Affiliate link".to_string(),
+        "LOYALTY" => "Loyalty program".to_string(),
+        "RETARGETING" => referring_domain
+            .map(|domain| format!("{domain} retargeting ad"))
+            .unwrap_or_else(|| "Retargeting ad".to_string()),
+        "MESSAGE" => match referring_domain.as_deref() {
+            Some("Facebook") => "Message via Facebook Messenger".to_string(),
+            Some(domain) => format!("{domain} message"),
+            None => "Message".to_string(),
+        },
+        "AD" => referring_domain
+            .map(|domain| format!("{domain} ad"))
+            .unwrap_or_else(|| marketing_channel_tactic_source_and_medium(channel, tactic)),
+        _ => marketing_channel_tactic_source_and_medium(channel, tactic),
     }
-    .to_string()
+}
+
+fn marketing_referring_domain_label(domain: &str) -> Option<String> {
+    let trimmed = domain.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let lowercase = trimmed.to_ascii_lowercase();
+    let normalized = lowercase.strip_prefix("www.").unwrap_or(&lowercase);
+    match normalized {
+        "facebook" | "facebook.com" => Some("Facebook".to_string()),
+        "twitter" | "twitter.com" => Some("Twitter".to_string()),
+        "instagram" | "instagram.com" => Some("Instagram".to_string()),
+        domain if domain.ends_with(".facebook.com") => Some("Facebook".to_string()),
+        domain if domain.ends_with(".twitter.com") => Some("Twitter".to_string()),
+        domain if domain.ends_with(".instagram.com") => Some("Instagram".to_string()),
+        _ => Some(trimmed.to_string()),
+    }
+}
+
+fn marketing_channel_tactic_source_and_medium(channel: &str, tactic: &str) -> String {
+    let channel = marketing_titleize_enum(channel);
+    let tactic = marketing_humanize_enum(tactic);
+    match (channel.is_empty(), tactic.is_empty()) {
+        (true, true) => String::new(),
+        (true, false) => marketing_titleize_phrase(&tactic),
+        (false, true) => channel,
+        (false, false) => format!("{channel} {tactic}"),
+    }
+}
+
+fn marketing_titleize_enum(value: &str) -> String {
+    marketing_titleize_phrase(&marketing_humanize_enum(value))
+}
+
+fn marketing_titleize_phrase(value: &str) -> String {
+    let mut chars = value.chars();
+    match chars.next() {
+        Some(first) => {
+            let mut output = String::new();
+            output.extend(first.to_uppercase());
+            output.push_str(chars.as_str());
+            output
+        }
+        None => String::new(),
+    }
+}
+
+fn marketing_humanize_enum(value: &str) -> String {
+    value
+        .trim()
+        .split('_')
+        .filter(|part| !part.is_empty())
+        .map(str::to_ascii_lowercase)
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 fn marketing_record_id(record: &Value) -> Option<String> {
@@ -2061,6 +2119,43 @@ fn marketing_activity_delete_not_external_error() -> Value {
         "The marketing activity must be an external activity.",
         Some("ACTIVITY_NOT_EXTERNAL"),
     )
+}
+
+#[cfg(test)]
+#[test]
+fn marketing_source_and_medium_uses_tactic_before_channel_and_aliases_domains() {
+    assert_eq!(
+        marketing_source_and_medium("SEARCH", "ABANDONED_CART", None),
+        "Abandoned cart email"
+    );
+    assert_eq!(
+        marketing_source_and_medium("EMAIL", "AFFILIATE", None),
+        "Affiliate link"
+    );
+    assert_eq!(
+        marketing_source_and_medium("SEARCH", "LOYALTY", None),
+        "Loyalty program"
+    );
+    assert_eq!(
+        marketing_source_and_medium("EMAIL", "RETARGETING", Some("twitter.com")),
+        "Twitter retargeting ad"
+    );
+    assert_eq!(
+        marketing_source_and_medium("DISPLAY", "MESSAGE", Some("instagram.com")),
+        "Instagram message"
+    );
+    assert_eq!(
+        marketing_source_and_medium("DISPLAY", "AD", Some("partner.example")),
+        "partner.example ad"
+    );
+    assert_eq!(
+        marketing_source_and_medium("SEARCH", "NEWSLETTER", None),
+        "Search newsletter"
+    );
+    assert_eq!(
+        marketing_source_and_medium("", "NEWSLETTER", None),
+        "Newsletter"
+    );
 }
 
 #[cfg(test)]

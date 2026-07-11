@@ -1,0 +1,18 @@
+mutation DeliveryProfileVariantAssociationProduct($product: ProductCreateInput!) {
+  productCreate(product: $product) {
+    product {
+      id
+      title
+      variants(first: 1) {
+        nodes {
+          id
+          title
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
