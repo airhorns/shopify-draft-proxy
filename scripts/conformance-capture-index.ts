@@ -8813,13 +8813,14 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-fulfillment-multi-tracking-conformance.ts',
     purpose:
-      'fulfillmentCreate and fulfillmentTrackingInfoUpdate multi-package tracking numbers/urls behavior and downstream order fulfillment visibility.',
+      'fulfillmentCreate, fulfillmentTrackingInfoUpdate, and fulfillmentTrackingInfoUpdateV2 multi-package tracking numbers/urls behavior and downstream order fulfillment visibility.',
     requiredAuthScopes: ['read_orders', 'write_orders', 'read_fulfillments', 'write_fulfillments'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}fulfillment-multi-tracking-info.json`,
       'config/parity-specs/orders/fulfillment-multi-tracking-info.json',
       'config/parity-requests/orders/fulfillmentCreate-multi-tracking.graphql',
       'config/parity-requests/orders/fulfillmentTrackingInfoUpdate-multi-tracking.graphql',
+      'config/parity-requests/orders/fulfillmentTrackingInfoUpdateV2-multi-tracking.graphql',
       'config/parity-requests/orders/fulfillment-multi-tracking-read.graphql',
     ],
     cleanupBehavior:
@@ -11779,6 +11780,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}fulfillment-order-lifecycle.json`,
       'config/parity-specs/shipping-fulfillments/fulfillment-order-lifecycle-local-staging.json',
       'config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-order-read.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-prepared-for-pickup.graphql',
     ],
     cleanupBehavior: 'Cancels disposable order and records cleanup captures.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
