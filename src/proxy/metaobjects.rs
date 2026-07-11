@@ -3162,6 +3162,36 @@ impl DraftProxy {
         Some(record)
     }
 
+    fn hydrate_metaobjects_by_ids(&mut self, request: &Request, ids: &[String]) {
+        if self.config.read_mode == ReadMode::Snapshot || ids.is_empty() {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": "#graphql\n  query MetaobjectBulkDeleteHydrateByIds($ids: [ID!]!) {\n    nodes(ids: $ids) {\n      __typename\n      ... on Metaobject {\n        id\n        handle\n        type\n        displayName\n        createdAt\n        updatedAt\n        capabilities {\n          publishable {\n            status\n          }\n          onlineStore {\n            templateSuffix\n          }\n        }\n        fields {\n          key\n          type\n          value\n          jsonValue\n          definition {\n            key\n            name\n            required\n            type {\n              name\n              category\n            }\n          }\n        }\n        titleField: field(key: \"title\") {\n          key\n          type\n          value\n          jsonValue\n          definition {\n            key\n            name\n            required\n            type {\n              name\n              category\n            }\n          }\n        }\n      }\n    }\n  }\n",
+                "variables": {"ids": ids}
+            }),
+        );
+        let nodes = response.body["data"]["nodes"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        for node in nodes {
+            if node.get("__typename").and_then(Value::as_str) != Some("Metaobject") {
+                continue;
+            }
+            let mut record = node;
+            if let Some(record_object) = record.as_object_mut() {
+                record_object.remove("__typename");
+            }
+            let Some(id) = record.get("id").and_then(Value::as_str) else {
+                continue;
+            };
+            self.store.staged.metaobjects.insert(id.to_string(), record);
+        }
+    }
+
     fn hydrate_metaobject_by_handle(
         &mut self,
         request: &Request,
@@ -3963,13 +3993,24 @@ impl DraftProxy {
             return Value::Null;
         }
 
-        let mut user_errors = Vec::new();
+        let user_errors: Vec<Value> = Vec::new();
         let mut touched_ids = Vec::new();
         if let Some(ids) = ids {
-            for (index, id) in ids.into_iter().enumerate() {
-                let record = self
-                    .metaobject_by_id(&id)
-                    .or_else(|| self.hydrate_metaobject_by_id(request, &id));
+            let mut ids_to_hydrate = Vec::new();
+            for id in &ids {
+                if !id.is_empty()
+                    && self.metaobject_by_id(id).is_none()
+                    && !self.store.staged.metaobjects.is_tombstoned(id)
+                    && !ids_to_hydrate
+                        .iter()
+                        .any(|existing_id: &String| existing_id == id)
+                {
+                    ids_to_hydrate.push(id.clone());
+                }
+            }
+            self.hydrate_metaobjects_by_ids(request, &ids_to_hydrate);
+            for id in ids {
+                let record = self.metaobject_by_id(&id);
                 if let Some(record) = record {
                     self.store.staged.metaobjects.remove(&id);
                     self.store.staged.metaobjects.tombstone(id.clone());
@@ -3977,21 +4018,20 @@ impl DraftProxy {
                         self.increment_metaobject_definition_count(meta_type, -1);
                     }
                     touched_ids.push(id);
-                } else {
-                    user_errors.push(metaobject_user_error(
-                        vec!["where", "ids", &index.to_string()],
-                        "Record not found",
-                        "RECORD_NOT_FOUND",
-                        json!(id),
-                        json!(index),
-                    ));
                 }
             }
         } else if let Some(meta_type) = meta_type {
-            if self.metaobject_definition_by_type(&meta_type).is_none() {
+            let has_local_rows_for_type = self.store.staged.metaobjects.values().any(|record| {
+                record.get("type").and_then(Value::as_str) == Some(meta_type.as_str())
+            });
+            if !has_local_rows_for_type && self.metaobject_definition_by_type(&meta_type).is_none()
+            {
                 self.hydrate_metaobjects_by_type(request, &meta_type);
             }
-            if self.metaobject_definition_by_type(&meta_type).is_none() {
+            let has_rows_for_type = self.store.staged.metaobjects.values().any(|record| {
+                record.get("type").and_then(Value::as_str) == Some(meta_type.as_str())
+            });
+            if self.metaobject_definition_by_type(&meta_type).is_none() && !has_rows_for_type {
                 return selected_json(
                     &json!({
                         "job": null,

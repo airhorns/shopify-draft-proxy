@@ -36,6 +36,12 @@ Local staged mutations:
 - `return(id:)` resolves staged return records and returns `null` for missing IDs in snapshot mode. Nested
   `Order.returns` reads are derived from the same staged return records through the order-to-return index, so top-level
   and nested reads observe the same staged status, quantity, shipping-fee, and line-item state.
+- Generic `node(id:)` and `nodes(ids:)` resolve staged `Return`, `ReturnableFulfillment`, `ReturnLineItem`,
+  `UnverifiedReturnLineItem`, `ReverseDelivery`, `ReverseDeliveryLineItem`, `ReverseFulfillmentOrder`, and
+  `ReverseFulfillmentOrderLineItem` records from the order-backed return/reverse-logistics graph. Return creation,
+  close/reopen, reverse delivery create/update, reverse fulfillment disposal, dump/restore, and order deletion are
+  reflected immediately where they affect the selected node. Missing, consumed, or deleted IDs return `null`, and
+  `nodes(ids:)` preserves input order and duplicates.
 - `Order.returnStatus` is derived from the effective return lifecycle attached to the order and is projected consistently
   through singular `order`, `orders`, generic `node`, and nested mutation-payload order selections. Captured 2026-04
   behavior maps zero returns to `NO_RETURN`, any `REQUESTED` return to `RETURN_REQUESTED`, otherwise any `OPEN` return

@@ -1,0 +1,102 @@
+query FunctionsLiveHybridOverlayRead(
+  $stagedValidationId: ID!
+  $baseValidationId: ID!
+  $cartFunctionId: String!
+  $cartFunctionApiType: String!
+) {
+  stagedValidation: validation(id: $stagedValidationId) {
+    id
+    title
+    enabled
+    blockOnFailure
+    shopifyFunction {
+      id
+      handle
+      apiType
+      app {
+        apiKey
+      }
+    }
+  }
+  baseValidation: validation(id: $baseValidationId) {
+    id
+    title
+    enabled
+    blockOnFailure
+    shopifyFunction {
+      id
+      handle
+      apiType
+      app {
+        apiKey
+      }
+    }
+  }
+  validations(first: 5, reverse: true) {
+    nodes {
+      title
+      enabled
+      blockOnFailure
+      shopifyFunction {
+        handle
+        app {
+          apiKey
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+  cartTransforms(first: 5) {
+    nodes {
+      id
+      functionId
+      blockOnFailure
+      metafield(namespace: "bundles", key: "config") {
+        namespace
+        key
+        type
+        value
+        ownerType
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+  allFunctions: shopifyFunctions(first: 20) {
+    nodes {
+      id
+      handle
+      apiType
+      app {
+        apiKey
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+  cartFunctions: shopifyFunctions(first: 20, apiType: $cartFunctionApiType) {
+    nodes {
+      id
+      handle
+      apiType
+      app {
+        apiKey
+      }
+    }
+  }
+  upstreamCartFunction: shopifyFunction(id: $cartFunctionId) {
+    id
+    handle
+    apiType
+    app {
+      apiKey
+    }
+  }
+}

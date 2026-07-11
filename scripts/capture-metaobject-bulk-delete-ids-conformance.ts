@@ -22,11 +22,10 @@ type SeedState = {
   type: string;
   firstHandle: string;
   secondHandle: string;
-  survivorHandle: string;
+  missingId: string;
   definitionId?: string;
   firstId?: string;
   secondId?: string;
-  survivorId?: string;
 };
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
@@ -38,27 +37,153 @@ const outputPath = path.join(outputDir, 'metaobject-bulk-delete-ids-lifecycle.js
 const runId = Date.now().toString();
 const seed: SeedState = {
   type: `codex_bulk_delete_ids_${runId}`,
-  firstHandle: `codex-bulk-delete-ids-first-${runId}`,
-  secondHandle: `codex-bulk-delete-ids-second-${runId}`,
-  survivorHandle: `codex-bulk-delete-ids-survivor-${runId}`,
+  firstHandle: `codex-bulk-delete-first-${runId}`,
+  secondHandle: `codex-bulk-delete-second-${runId}`,
+  missingId: `gid://shopify/Metaobject/999${runId}`,
 };
 
-const definitionCreateMutation = await readFile(
-  'config/parity-requests/metaobjects/metaobject-bulk-delete-ids-definition-create.graphql',
-  'utf8',
-);
-const entryCreateMutation = await readFile(
-  'config/parity-requests/metaobjects/metaobject-bulk-delete-ids-entry-create.graphql',
-  'utf8',
-);
 const bulkDeleteMutation = await readFile(
   'config/parity-requests/metaobjects/metaobject-bulk-delete-ids-delete.graphql',
   'utf8',
 );
-const downstreamReadQuery = await readFile(
+const bulkReadQuery = await readFile(
   'config/parity-requests/metaobjects/metaobject-bulk-delete-ids-read.graphql',
   'utf8',
 );
+
+const hydrateByIdsQuery = `#graphql
+  query MetaobjectBulkDeleteHydrateByIds($ids: [ID!]!) {
+    nodes(ids: $ids) {
+      __typename
+      ... on Metaobject {
+        id
+        handle
+        type
+        displayName
+        createdAt
+        updatedAt
+        capabilities {
+          publishable {
+            status
+          }
+          onlineStore {
+            templateSuffix
+          }
+        }
+        fields {
+          key
+          type
+          value
+          jsonValue
+          definition {
+            key
+            name
+            required
+            type {
+              name
+              category
+            }
+          }
+        }
+        titleField: field(key: "title") {
+          key
+          type
+          value
+          jsonValue
+          definition {
+            key
+            name
+            required
+            type {
+              name
+              category
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
+const definitionFields = `#graphql
+  fragment MetaobjectBulkDeleteIdsDefinitionFields on MetaobjectDefinition {
+    id
+    type
+    name
+    displayNameKey
+    fieldDefinitions {
+      key
+      name
+      required
+      type {
+        name
+        category
+      }
+    }
+    metaobjectsCount
+  }
+`;
+
+const entryFields = `#graphql
+  fragment MetaobjectBulkDeleteIdsEntryFields on Metaobject {
+    id
+    handle
+    type
+    displayName
+    updatedAt
+    fields {
+      key
+      type
+      value
+      jsonValue
+      definition {
+        key
+        name
+        required
+        type {
+          name
+          category
+        }
+      }
+    }
+  }
+`;
+
+const definitionCreateMutation = `#graphql
+  ${definitionFields}
+  mutation MetaobjectBulkDeleteIdsDefinitionCreate($definition: MetaobjectDefinitionCreateInput!) {
+    metaobjectDefinitionCreate(definition: $definition) {
+      metaobjectDefinition {
+        ...MetaobjectBulkDeleteIdsDefinitionFields
+      }
+      userErrors {
+        field
+        message
+        code
+        elementKey
+        elementIndex
+      }
+    }
+  }
+`;
+
+const entryCreateMutation = `#graphql
+  ${entryFields}
+  mutation MetaobjectBulkDeleteIdsEntryCreate($metaobject: MetaobjectCreateInput!) {
+    metaobjectCreate(metaobject: $metaobject) {
+      metaobject {
+        ...MetaobjectBulkDeleteIdsEntryFields
+      }
+      userErrors {
+        field
+        message
+        code
+        elementKey
+        elementIndex
+      }
+    }
+  }
+`;
 
 const entryDeleteMutation = `#graphql
   mutation MetaobjectBulkDeleteIdsEntryCleanup($id: ID!) {
@@ -151,6 +276,23 @@ function captureFromResult(
   };
 }
 
+function upstreamCallFromCapture(capture: Capture): {
+  operationName: string;
+  variables: Record<string, unknown>;
+  query: string;
+  response: { status: number; body: unknown };
+} {
+  return {
+    operationName: capture.name,
+    variables: capture.request.variables,
+    query: capture.request.query,
+    response: {
+      status: capture.status,
+      body: capture.response,
+    },
+  };
+}
+
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const { runGraphqlRaw } = createAdminGraphqlClient({
   adminOrigin,
@@ -173,6 +315,34 @@ async function runSuccessMutation(
   const capture = await captureGraphql(name, query, variables);
   assertNoUserErrors(capture.response, userErrorPath, name);
   return capture;
+}
+
+function sleep(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function metaobjectReadsAreDeleted(capture: Capture): boolean {
+  return (
+    readPath(capture.response, ['data', 'first']) === null &&
+    readPath(capture.response, ['data', 'missing']) === null &&
+    readPath(capture.response, ['data', 'second']) === null
+  );
+}
+
+async function captureSettledDeletedRead(variables: Record<string, unknown>): Promise<Capture> {
+  const captures: Capture[] = [];
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const capture = await captureGraphql('downstream-after-bulk-delete-settled-read', bulkReadQuery, variables);
+    captures.push(capture);
+    if (metaobjectReadsAreDeleted(capture)) {
+      return capture;
+    }
+    await sleep(1000);
+  }
+
+  throw new Error(
+    `Timed out waiting for explicit-ID bulk delete job to hide all selected rows: ${JSON.stringify(captures.at(-1), null, 2)}`,
+  );
 }
 
 async function writeBlocker(stage: string, error: unknown, captures: Capture[]): Promise<void> {
@@ -202,21 +372,8 @@ async function writeBlocker(stage: string, error: unknown, captures: Capture[]):
   console.error(`Wrote blocker evidence to ${blockerPath}`);
 }
 
-function entryVariables(handle: string, title: string, body: string): Record<string, unknown> {
-  return {
-    metaobject: {
-      type: seed.type,
-      handle,
-      fields: [
-        { key: 'title', value: title },
-        { key: 'body', value: body },
-      ],
-    },
-  };
-}
-
 async function captureCleanup(cleanup: Capture[]): Promise<void> {
-  for (const entryId of [seed.firstId, seed.secondId, seed.survivorId]) {
+  for (const entryId of [seed.firstId, seed.secondId]) {
     if (!entryId) {
       continue;
     }
@@ -231,23 +388,22 @@ async function captureCleanup(cleanup: Capture[]): Promise<void> {
   }
 }
 
-let definitionCreate: Capture | null = null;
-let firstEntryCreate: Capture | null = null;
-let secondEntryCreate: Capture | null = null;
-let survivorEntryCreate: Capture | null = null;
-let bulkDelete: Capture | null = null;
-let downstreamRead: Capture | null = null;
+const setupCaptures: Capture[] = [];
+const seededReads: Capture[] = [];
+const upstreamCalls: ReturnType<typeof upstreamCallFromCapture>[] = [];
+const bulkDeleteCaptures: Capture[] = [];
+const downstreamReads: Capture[] = [];
 const cleanupCaptures: Capture[] = [];
 let fatalError: unknown = null;
 
 try {
-  definitionCreate = await runSuccessMutation(
+  const definitionCreate = await runSuccessMutation(
     'setup-definition-create',
     definitionCreateMutation,
     {
       definition: {
         type: seed.type,
-        name: `Codex Bulk Delete IDs ${runId}`,
+        name: `Codex Bulk IDs ${runId}`,
         displayNameKey: 'title',
         fieldDefinitions: [
           {
@@ -267,95 +423,92 @@ try {
     },
     ['data', 'metaobjectDefinitionCreate', 'userErrors'],
   );
+  setupCaptures.push(definitionCreate);
   seed.definitionId = extractId(
     definitionCreate.response,
     ['data', 'metaobjectDefinitionCreate', 'metaobjectDefinition', 'id'],
     'definition create',
   );
 
-  firstEntryCreate = await runSuccessMutation(
+  const firstCreate = await runSuccessMutation(
     'setup-first-entry-create',
     entryCreateMutation,
-    entryVariables(seed.firstHandle, 'Bulk delete IDs first', 'First entry selected by the ids bulk delete branch.'),
+    {
+      metaobject: {
+        type: seed.type,
+        handle: seed.firstHandle,
+        fields: [
+          { key: 'title', value: 'Bulk delete first' },
+          { key: 'body', value: 'First entry selected by ID bulk delete.' },
+        ],
+      },
+    },
     ['data', 'metaobjectCreate', 'userErrors'],
   );
+  setupCaptures.push(firstCreate);
   seed.firstId = extractId(
-    firstEntryCreate.response,
+    firstCreate.response,
     ['data', 'metaobjectCreate', 'metaobject', 'id'],
     'first entry create',
   );
 
-  secondEntryCreate = await runSuccessMutation(
+  const secondCreate = await runSuccessMutation(
     'setup-second-entry-create',
     entryCreateMutation,
-    entryVariables(
-      seed.secondHandle,
-      'Bulk delete IDs second',
-      'Second entry left unselected by the ids bulk delete branch.',
-    ),
+    {
+      metaobject: {
+        type: seed.type,
+        handle: seed.secondHandle,
+        fields: [
+          { key: 'title', value: 'Bulk delete second' },
+          { key: 'body', value: 'Second entry selected by ID bulk delete.' },
+        ],
+      },
+    },
     ['data', 'metaobjectCreate', 'userErrors'],
   );
+  setupCaptures.push(secondCreate);
   seed.secondId = extractId(
-    secondEntryCreate.response,
+    secondCreate.response,
     ['data', 'metaobjectCreate', 'metaobject', 'id'],
     'second entry create',
   );
 
-  survivorEntryCreate = await runSuccessMutation(
-    'setup-survivor-entry-create',
-    entryCreateMutation,
-    entryVariables(
-      seed.survivorHandle,
-      'Bulk delete IDs survivor',
-      'Surviving entry proves id-scoped bulk delete does not delete the whole type.',
-    ),
-    ['data', 'metaobjectCreate', 'userErrors'],
-  );
-  seed.survivorId = extractId(
-    survivorEntryCreate.response,
-    ['data', 'metaobjectCreate', 'metaobject', 'id'],
-    'survivor entry create',
-  );
-
-  bulkDelete = await runSuccessMutation('bulk-delete-by-ids', bulkDeleteMutation, { ids: [seed.firstId] }, [
-    'data',
-    'metaobjectBulkDelete',
-    'userErrors',
-  ]);
-
-  downstreamRead = await captureGraphql('downstream-after-bulk-delete-ids-read', downstreamReadQuery, {
-    type: seed.type,
+  const readVariables = {
     firstId: seed.firstId,
+    missingId: seed.missingId,
     secondId: seed.secondId,
-    survivorId: seed.survivorId,
-  });
+  };
+  const deleteVariables = {
+    ids: [seed.firstId, seed.missingId, seed.secondId],
+  };
+
+  seededReads.push(await captureGraphql('seeded-before-bulk-delete-read', bulkReadQuery, readVariables));
+  const hydrateByIds = await captureGraphql('MetaobjectBulkDeleteHydrateByIds', hydrateByIdsQuery, deleteVariables);
+  upstreamCalls.push(upstreamCallFromCapture(hydrateByIds));
+  bulkDeleteCaptures.push(
+    await runSuccessMutation('bulk-delete-by-ids', bulkDeleteMutation, deleteVariables, [
+      'data',
+      'metaobjectBulkDelete',
+      'userErrors',
+    ]),
+  );
+  downstreamReads.push(await captureSettledDeletedRead(readVariables));
 } catch (error) {
   fatalError = error;
-  await writeBlocker(
-    'capture',
-    error,
-    [definitionCreate, firstEntryCreate, secondEntryCreate, survivorEntryCreate, bulkDelete, downstreamRead].filter(
-      (capture): capture is Capture => capture !== null,
-    ),
-  );
+  await writeBlocker('capture', error, [...setupCaptures, ...seededReads, ...bulkDeleteCaptures, ...downstreamReads]);
 }
 
 try {
   await captureCleanup(cleanupCaptures);
 } catch (error) {
-  await writeBlocker(
-    'cleanup',
-    error,
-    [
-      definitionCreate,
-      firstEntryCreate,
-      secondEntryCreate,
-      survivorEntryCreate,
-      bulkDelete,
-      downstreamRead,
-      ...cleanupCaptures,
-    ].filter((capture): capture is Capture => capture !== null),
-  );
+  await writeBlocker('cleanup', error, [
+    ...setupCaptures,
+    ...seededReads,
+    ...bulkDeleteCaptures,
+    ...downstreamReads,
+    ...cleanupCaptures,
+  ]);
   fatalError ??= error;
 }
 
@@ -372,19 +525,15 @@ await writeFile(
       storeDomain,
       apiVersion,
       seed,
-      setup: {
-        definitionCreate,
-        firstEntryCreate,
-        secondEntryCreate,
-        survivorEntryCreate,
-      },
-      bulkDelete,
-      downstreamRead,
+      setup: setupCaptures,
+      seededReads,
+      bulkDelete: bulkDeleteCaptures,
+      downstreamReads,
       cleanup: cleanupCaptures,
-      upstreamCalls: [],
+      upstreamCalls,
     },
     null,
     2,
   )}\n`,
 );
-console.log(`Wrote metaobject bulk-delete ids conformance fixture to ${outputPath}`);
+console.log(`Wrote metaobject bulk-delete IDs conformance fixture to ${outputPath}`);

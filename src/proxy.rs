@@ -271,6 +271,7 @@ struct BaseState {
     saved_searches: OrderedRecords<SavedSearchRecord>,
     shop_policies: OrderedRecords<ShopPolicyRecord>,
     delivery_profiles: OrderedRecords<Value>,
+    discounts: OrderedRecords<Value>,
     marketing_activities: OrderedRecords<Value>,
     marketing_events: OrderedRecords<Value>,
     gift_cards: BTreeMap<String, Value>,
@@ -281,9 +282,27 @@ struct BaseState {
     available_locales: BTreeMap<String, String>,
     shop_locales: BTreeMap<String, Value>,
     localization_product_ids: BTreeSet<String>,
+    function_metadata: BTreeMap<String, Value>,
+    function_metadata_order: Vec<String>,
+    function_metadata_catalog_hydrated: bool,
+    function_metadata_hydrated_api_types: BTreeSet<String>,
+    function_validations: BTreeMap<String, Value>,
+    function_validation_order: Vec<String>,
+    function_validations_catalog_hydrated: bool,
+    function_cart_transforms: BTreeMap<String, Value>,
+    function_cart_transform_order: Vec<String>,
+    function_cart_transforms_catalog_hydrated: bool,
+    function_fulfillment_constraint_rules: BTreeMap<String, Value>,
+    function_fulfillment_constraint_rule_order: Vec<String>,
     metafield_definitions: BTreeMap<MetafieldDefinitionKey, Value>,
     metafield_definition_owner_catalogs: BTreeSet<String>,
     metafield_definition_namespaces: BTreeSet<(String, String)>,
+    b2b_companies: OrderedRecords<Value>,
+    b2b_locations: OrderedRecords<Value>,
+    b2b_contacts: OrderedRecords<Value>,
+    b2b_contact_roles: OrderedRecords<Value>,
+    b2b_role_assignments: OrderedRecords<Value>,
+    b2b_staff_assignments: OrderedRecords<Value>,
 }
 
 type MetafieldDefinitionKey = (String, String, String);
@@ -349,6 +368,7 @@ struct StagedState {
     collections: StagedRecords<Value>,
     collection_jobs: BTreeMap<String, Value>,
     fulfillment_order_deadlines: BTreeMap<String, String>,
+    fulfillment_order_cursors: BTreeMap<String, BTreeMap<String, String>>,
     bulk_operations: BTreeMap<String, Value>,
     bulk_operation_staged_uploads: BTreeMap<String, Option<u64>>,
     bulk_operation_staged_upload_bodies: BTreeMap<String, String>,
@@ -403,11 +423,13 @@ struct StagedState {
     marketing_delete_all_external_app_ids: BTreeSet<String>,
     webhook_subscriptions: BTreeMap<String, Value>,
     b2b_companies: BTreeMap<String, Value>,
+    deleted_b2b_company_ids: BTreeSet<String>,
     b2b_locations: StagedRecords<Value>,
     b2b_contacts: BTreeMap<String, Value>,
     b2b_contact_roles: BTreeMap<String, Value>,
     b2b_role_assignments: BTreeMap<String, Value>,
     b2b_staff_assignments: BTreeMap<String, Value>,
+    deleted_b2b_staff_assignment_ids: BTreeSet<String>,
     next_b2b_company_id: u64,
     inventory_levels: BTreeMap<(String, String), BTreeMap<String, i64>>,
     inventory_level_order: Vec<(String, String)>,
@@ -420,6 +442,7 @@ struct StagedState {
     inactive_inventory_levels: BTreeSet<(String, String)>,
     inventory_quantity_updated_at: BTreeMap<(String, String, String), String>,
     next_inventory_quantity_timestamp: u64,
+    inventory_adjustment_groups: BTreeMap<String, Value>,
     inventory_transfers: BTreeMap<String, InventoryTransferRecord>,
     inventory_shipments: BTreeMap<String, InventoryShipmentRecord>,
     metaobject_definitions: StagedRecords<Value>,
@@ -503,11 +526,17 @@ struct StagedState {
     function_metadata_order: Vec<String>,
     function_validations: BTreeMap<String, Value>,
     function_validation_order: Vec<String>,
+    deleted_function_validation_ids: BTreeSet<String>,
     function_cart_transforms: BTreeMap<String, Value>,
     function_cart_transform_order: Vec<String>,
+    deleted_function_cart_transform_ids: BTreeSet<String>,
     function_fulfillment_constraint_rules: BTreeMap<String, Value>,
     function_fulfillment_constraint_rule_order: Vec<String>,
+    deleted_function_fulfillment_constraint_rule_ids: BTreeSet<String>,
     tax_app_configuration: Option<Value>,
+    function_validations_dirty: bool,
+    function_cart_transforms_dirty: bool,
+    function_fulfillment_constraint_rules_dirty: bool,
     // True once any function lifecycle (validation / cart-transform) has been
     // staged this session. Distinguishes a post-delete local read (serve the
     // empty local result) from a cold read with no local backing (forward to
@@ -2092,7 +2121,6 @@ pub(in crate::proxy) use self::app_shipping_helpers::*;
 pub(in crate::proxy) use self::b2b_customers::*;
 pub(in crate::proxy) use self::civil_date::*;
 pub(in crate::proxy) use self::connection::*;
-pub(in crate::proxy) use self::discounts::*;
 pub(in crate::proxy) use self::functions::*;
 pub(in crate::proxy) use self::json_helpers::*;
 pub(in crate::proxy) use self::localization_markets_catalogs::*;

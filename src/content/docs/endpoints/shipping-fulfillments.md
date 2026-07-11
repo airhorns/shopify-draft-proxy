@@ -33,6 +33,7 @@ The implemented mutation roots are:
 - `deliveryCustomizationDelete`
 - `deliveryCustomizationUpdate`
 - `fulfillmentEventCreate`
+- `fulfillmentOrderLineItemsPreparedForPickup`
 - `fulfillmentServiceCreate`
 - `fulfillmentServiceDelete`
 - `fulfillmentServiceUpdate`
@@ -74,7 +75,6 @@ The registry-only mutation roots are:
 - `fulfillmentOrderCancel`
 - `fulfillmentOrderClose`
 - `fulfillmentOrderHold`
-- `fulfillmentOrderLineItemsPreparedForPickup`
 - `fulfillmentOrderMove`
 - `fulfillmentOrderOpen`
 - `fulfillmentOrderReleaseHold`
@@ -192,6 +192,24 @@ fulfillment orders are recomputed from current status and assignment: terminal
 Split fulfillment orders preserve fulfillment-service actions observed on the
 source order, while merge recomputes peer-sensitive actions so `MERGE` is absent
 when no compatible open peer remains.
+`fulfillmentOrderLineItemsPreparedForPickup` stages pickup preparation for
+selected order-backed fulfillment orders that resolve from staged, observed, or
+LiveHybrid-hydrated order state. The local branch validates every requested
+fulfillment order before applying any state change: structurally invalid
+non-fulfillment-order GIDs return Shopify's top-level `invalid id` /
+`RESOURCE_NOT_FOUND` shape, unknown IDs return a payload `userErrors` entry on
+the indexed `fulfillmentOrderId` field with `FULFILLMENT_ORDER_INVALID`, and
+non-pickup, closed, canceled, or zero-remaining fulfillment orders return the
+same payload user-error shape without staging or logging. Successful batches
+move only the requested pickup fulfillment orders to `IN_PROGRESS`, recompute
+their supported actions, mark their line items prepared for pickup, project
+`fulfillableQuantity: 0` while preserving the stored remaining quantities, and
+refresh the parent order's display fulfillment status. The mutation retains the
+original raw request for commit replay, and the staged result is visible through
+`fulfillmentOrder`, `fulfillmentOrders`, `assignedFulfillmentOrders`, and nested
+`Order.fulfillmentOrders` reads. Existing public evidence covers the invalid-ID
+and non-pickup validation branches; successful pickup preparation is covered by
+focused Rust runtime tests until a disposable pickup-order capture is available.
 Locally created order fulfillment orders derive their initial `assignedLocation`
 from the first active observed/staged shop location that fulfills online orders;
 the runtime does not fabricate
@@ -208,6 +226,27 @@ location records; missing or inactive destinations return the local
 `Location not found.` user error, and successful move payloads serialize the
 assigned-location id/name from that stored location rather than from fixture
 constants.
+Top-level fulfillment-order catalogs compute an effective connection from the
+read-only upstream catalog response plus local staged lifecycle records when
+staged fulfillment-order state is present. Matching IDs are overlaid with the
+staged record, unrelated upstream records remain visible, and staged-only
+replacement or split records are appended before local filtering, sorting, and
+cursor windowing. If upstream catalog hydration is unavailable, these roots
+fall back to the staged local set. `fulfillmentOrders` excludes closed or
+cancelled records unless `includeClosed: true` is present and models `id`,
+`status`, `assigned_location_id`, `updated_at`, and free-text query terms.
+`assignedFulfillmentOrders` excludes closed records and applies
+`assignmentStatus` plus `locationIds`; `manualHoldsFulfillmentOrders` narrows to
+held records and applies its modeled order-search terms. The catalog roots
+share local `sortKey: ID` / `UPDATED_AT`, `reverse`, and cursor window
+semantics over that effective set.
+Generic `node(id:)` and `nodes(ids:)` now read order-backed fulfillment and
+fulfillment-order resources from the same normalized order graph as
+`fulfillment(id:)`, `fulfillmentOrder(id:)`, and nested `Order` selections:
+`Fulfillment`, `FulfillmentEvent`, `FulfillmentLineItem`, `FulfillmentOrder`,
+`FulfillmentHold`, and `FulfillmentOrderLineItem` resolve locally, reflect
+staged lifecycle changes immediately, preserve duplicate/order semantics for
+`nodes(ids:)`, and return `null` for missing or deleted IDs.
 
 Delivery settings and delivery promise settings are read-only in snapshot mode
 and return the captured empty/no-feature shape there. Live modes forward those

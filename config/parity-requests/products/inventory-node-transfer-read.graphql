@@ -1,0 +1,46 @@
+query InventoryNodeTransferRead($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    __typename
+    id
+    ... on InventoryTransfer {
+      name
+      status
+      totalQuantity
+      origin {
+        name
+      }
+      destination {
+        name
+      }
+      lineItems(first: 10) {
+        nodes {
+          id
+          title
+          totalQuantity
+          shippableQuantity
+          shippedQuantity
+          processableQuantity
+          pickedForShipmentQuantity
+          inventoryItem {
+            id
+            sku
+            tracked
+          }
+        }
+      }
+    }
+    ... on InventoryTransferLineItem {
+      title
+      totalQuantity
+      shippableQuantity
+      shippedQuantity
+      processableQuantity
+      pickedForShipmentQuantity
+      inventoryItem {
+        id
+        sku
+        tracked
+      }
+    }
+  }
+}

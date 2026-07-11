@@ -3,8 +3,297 @@ use super::*;
 const MAX_SELLING_PLANS_PER_GROUP: usize = 31;
 const INT32_MIN: i64 = i32::MIN as i64;
 const INT32_MAX: i64 = i32::MAX as i64;
+const SELLING_PLAN_GROUP_HYDRATE_NODES_QUERY: &str = r#"
+query sellingPlanGroupHydrateNodes($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    __typename
+    id
+    ... on SellingPlanGroup {
+      appId
+      name
+      merchantCode
+      description
+      options
+      position
+      createdAt
+      products(first: 250) {
+        nodes {
+          __typename
+          id
+          title
+          handle
+          status
+          createdAt
+          updatedAt
+          variants(first: 50) {
+            nodes {
+              __typename
+              id
+              title
+              sku
+              barcode
+              price
+              compareAtPrice
+              taxable
+              inventoryPolicy
+              inventoryQuantity
+              selectedOptions { name value }
+              inventoryItem { id tracked requiresShipping }
+            }
+          }
+        }
+      }
+      productVariants(first: 250) {
+        nodes {
+          __typename
+          id
+          title
+          sku
+          barcode
+          price
+          compareAtPrice
+          taxable
+          inventoryPolicy
+          inventoryQuantity
+          selectedOptions { name value }
+          inventoryItem { id tracked requiresShipping }
+          product { id title handle status createdAt updatedAt }
+        }
+      }
+      sellingPlans(first: 250) {
+        nodes {
+          __typename
+          id
+          name
+          description
+          options
+          position
+          category
+          createdAt
+          billingPolicy {
+            __typename
+            ... on SellingPlanRecurringBillingPolicy { interval intervalCount minCycles maxCycles }
+          }
+          deliveryPolicy {
+            __typename
+            ... on SellingPlanRecurringDeliveryPolicy { interval intervalCount cutoff intent preAnchorBehavior }
+          }
+          inventoryPolicy { reserve }
+          pricingPolicies {
+            __typename
+            ... on SellingPlanFixedPricingPolicy {
+              adjustmentType
+              adjustmentValue {
+                __typename
+                ... on SellingPlanPricingPolicyPercentageValue { percentage }
+                ... on MoneyV2 { amount currencyCode }
+              }
+            }
+            ... on SellingPlanRecurringPricingPolicy {
+              afterCycle
+              createdAt
+              adjustmentType
+              adjustmentValue {
+                __typename
+                ... on SellingPlanPricingPolicyPercentageValue { percentage }
+                ... on MoneyV2 { amount currencyCode }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+"#;
 
 impl DraftProxy {
+    pub(in crate::proxy) fn hydrate_selling_plan_groups_for_read(
+        &mut self,
+        request: &Request,
+        fields: &[RootFieldSelection],
+    ) {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return;
+        }
+
+        let mut group_ids = Vec::new();
+        let mut needs_connection_hydrate = false;
+        for field in fields {
+            match field.name.as_str() {
+                "sellingPlanGroup" => {
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                    push_unique_string(&mut group_ids, &id);
+                }
+                "sellingPlanGroups" => needs_connection_hydrate = true,
+                _ => {}
+            }
+        }
+
+        if needs_connection_hydrate {
+            let response = (self.upstream_transport)(request.clone());
+            let observed_groups = observed_selling_plan_group_values_for_fields(&response, fields);
+            for id in observed_groups
+                .iter()
+                .filter_map(|group| group.get("id").and_then(Value::as_str))
+            {
+                push_unique_string(&mut group_ids, id);
+            }
+            self.hydrate_selling_plan_group_nodes_for_observation(request, group_ids.clone());
+            for group in observed_groups {
+                self.observe_selling_plan_group_value(&group, false);
+            }
+        }
+
+        self.hydrate_selling_plan_group_nodes_for_observation(request, group_ids);
+    }
+
+    pub(in crate::proxy) fn hydrate_selling_plan_mutation_targets(
+        &mut self,
+        request: &Request,
+        root_field: &str,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return;
+        }
+        let Some(field) = mutation_root_field(query, variables, root_field) else {
+            return;
+        };
+
+        let mut group_ids = Vec::new();
+        let mut product_ids = Vec::new();
+        let mut variant_ids = Vec::new();
+        match root_field {
+            "sellingPlanGroupCreate" => {
+                let resources =
+                    resolved_object_field(&field.arguments, "resources").unwrap_or_default();
+                product_ids.extend(list_string_field(&resources, "productIds"));
+                variant_ids.extend(list_string_field(&resources, "productVariantIds"));
+            }
+            "sellingPlanGroupUpdate"
+            | "sellingPlanGroupDelete"
+            | "sellingPlanGroupAddProducts"
+            | "sellingPlanGroupRemoveProducts"
+            | "sellingPlanGroupAddProductVariants"
+            | "sellingPlanGroupRemoveProductVariants" => {
+                push_unique_string(
+                    &mut group_ids,
+                    resolved_string_field(&field.arguments, "id").unwrap_or_default(),
+                );
+                if matches!(
+                    root_field,
+                    "sellingPlanGroupAddProducts" | "sellingPlanGroupRemoveProducts"
+                ) {
+                    product_ids.extend(list_string_field(&field.arguments, "productIds"));
+                }
+                if matches!(
+                    root_field,
+                    "sellingPlanGroupAddProductVariants" | "sellingPlanGroupRemoveProductVariants"
+                ) {
+                    variant_ids.extend(list_string_field(&field.arguments, "productVariantIds"));
+                }
+            }
+            "productJoinSellingPlanGroups" | "productLeaveSellingPlanGroups" => {
+                push_unique_string(
+                    &mut product_ids,
+                    resolved_string_field(&field.arguments, "id").unwrap_or_default(),
+                );
+                group_ids.extend(list_string_field(&field.arguments, "sellingPlanGroupIds"));
+            }
+            "productVariantJoinSellingPlanGroups" | "productVariantLeaveSellingPlanGroups" => {
+                push_unique_string(
+                    &mut variant_ids,
+                    resolved_string_field(&field.arguments, "id").unwrap_or_default(),
+                );
+                group_ids.extend(list_string_field(&field.arguments, "sellingPlanGroupIds"));
+            }
+            _ => {}
+        }
+
+        self.hydrate_product_nodes_for_observation_with_request(request, product_ids);
+        self.hydrate_product_nodes_for_observation_with_request(request, variant_ids);
+        self.hydrate_selling_plan_group_nodes_for_observation(request, group_ids);
+    }
+
+    fn hydrate_selling_plan_group_nodes_for_observation(
+        &mut self,
+        request: &Request,
+        ids: Vec<String>,
+    ) {
+        let ids = ids
+            .into_iter()
+            .filter(|id| !id.is_empty())
+            .filter(|id| self.store.selling_plan_group_by_id(id).is_none())
+            .collect::<Vec<_>>();
+        if ids.is_empty() {
+            return;
+        }
+
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": SELLING_PLAN_GROUP_HYDRATE_NODES_QUERY,
+                "operationName": "sellingPlanGroupHydrateNodes",
+                "variables": { "ids": ids }
+            }),
+        );
+        self.observe_selling_plan_groups_response(&response, false);
+    }
+
+    fn observe_selling_plan_groups_response(&mut self, response: &Response, replace: bool) {
+        for group in observed_selling_plan_group_values(response) {
+            self.observe_selling_plan_group_value(&group, replace);
+        }
+    }
+
+    fn observe_selling_plan_group_value(&mut self, value: &Value, replace: bool) {
+        let Some(group) = selling_plan_group_record_from_observed_json(value) else {
+            return;
+        };
+        if !replace
+            && (self.store.selling_plan_group_by_id(&group.id).is_some()
+                || self
+                    .store
+                    .selling_plan_groups()
+                    .iter()
+                    .any(|existing| existing.merchant_code == group.merchant_code))
+        {
+            return;
+        }
+
+        for product in observed_connection_nodes(value.get("products")) {
+            if let Some(product_id) = product.get("id").and_then(Value::as_str) {
+                for variant in product
+                    .get("variants")
+                    .and_then(|connection| connection.get("nodes"))
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                {
+                    let mut variant_value = variant.clone();
+                    if let Some(object) = variant_value.as_object_mut() {
+                        object.insert("productId".to_string(), json!(product_id));
+                    }
+                    if let Some(mut variant) =
+                        product_variant_state_from_observed_json(&variant_value)
+                    {
+                        variant.product_id = product_id.to_string();
+                        self.store.stage_product_variant(variant);
+                    }
+                }
+            }
+            self.store.stage_observed_product_json(&product);
+        }
+        for variant in observed_connection_nodes(value.get("productVariants")) {
+            if let Some(variant) = product_variant_state_from_observed_json(&variant) {
+                self.store.stage_product_variant(variant);
+            }
+        }
+        self.store.stage_selling_plan_group(group);
+    }
+
     pub(in crate::proxy) fn selling_plan_group_query_data(
         &self,
         fields: &[RootFieldSelection],
@@ -518,57 +807,6 @@ impl DraftProxy {
         }
     }
 
-    /// Decide whether a selling-plan mutation can be served authentically from
-    /// local staged state. A lifecycle scenario stages its product/group locally
-    /// before operating on it, so we own the truth and answer locally. A
-    /// validation scenario instead exercises Shopify's own error behaviour
-    /// against live-store products/groups that were never staged here; for those
-    /// we must forward upstream rather than fabricate an inaccurate
-    /// NOT_FOUND/GROUP_DOES_NOT_EXIST userError from empty local state.
-    pub(in crate::proxy) fn selling_plan_mutation_serves_locally(
-        &self,
-        root_field: &str,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> bool {
-        let Some(field) = mutation_root_field(query, variables, root_field) else {
-            // Unparseable: let the local handler surface the parse error.
-            return true;
-        };
-        match root_field {
-            "sellingPlanGroupCreate" => {
-                let resources =
-                    resolved_object_field(&field.arguments, "resources").unwrap_or_default();
-                let product_ids = list_string_field(&resources, "productIds");
-                let variant_ids = list_string_field(&resources, "productVariantIds");
-                product_ids
-                    .iter()
-                    .all(|id| self.has_resource(id, ResourceKind::Product))
-                    && variant_ids
-                        .iter()
-                        .all(|id| self.has_resource(id, ResourceKind::ProductVariant))
-            }
-            "sellingPlanGroupUpdate"
-            | "sellingPlanGroupDelete"
-            | "sellingPlanGroupAddProducts"
-            | "sellingPlanGroupRemoveProducts"
-            | "sellingPlanGroupAddProductVariants"
-            | "sellingPlanGroupRemoveProductVariants" => {
-                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                self.store.selling_plan_group_by_id(&id).is_some()
-            }
-            "productJoinSellingPlanGroups" | "productLeaveSellingPlanGroups" => {
-                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                self.has_resource(&id, ResourceKind::Product)
-            }
-            "productVariantJoinSellingPlanGroups" | "productVariantLeaveSellingPlanGroups" => {
-                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                self.has_resource(&id, ResourceKind::ProductVariant)
-            }
-            _ => true,
-        }
-    }
-
     fn join_leave_preflight_errors(
         &self,
         resource_kind: ResourceKind,
@@ -783,7 +1021,9 @@ impl DraftProxy {
                     .iter()
                     .any(|id| variant_ids.contains(id))
         });
-        let count = groups.len();
+        let count = self
+            .direct_group_ids_for_resource(ResourceKind::Product, &product.id)
+            .len();
         self.apply_selling_plan_overlay(selections, base, groups, count)
     }
 
@@ -865,6 +1105,233 @@ impl ResourceKind {
             Self::ProductVariant => "productVariant",
         }
     }
+}
+
+fn observed_selling_plan_group_values(response: &Response) -> Vec<Value> {
+    let mut groups = Vec::new();
+    if let Some(group) = response
+        .body
+        .pointer("/data/sellingPlanGroup")
+        .filter(|group| group.is_object())
+    {
+        groups.push(group.clone());
+    }
+    groups.extend(observed_connection_nodes(
+        response.body.pointer("/data/sellingPlanGroups"),
+    ));
+    groups.extend(
+        response
+            .body
+            .pointer("/data/nodes")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter(|node| observed_value_is_selling_plan_group(node))
+            .cloned(),
+    );
+    if let Some(node) = response
+        .body
+        .pointer("/data/node")
+        .filter(|node| observed_value_is_selling_plan_group(node))
+    {
+        groups.push(node.clone());
+    }
+    groups
+}
+
+fn observed_selling_plan_group_values_for_fields(
+    response: &Response,
+    fields: &[RootFieldSelection],
+) -> Vec<Value> {
+    let Some(data) = response.body.get("data") else {
+        return Vec::new();
+    };
+    let mut groups = Vec::new();
+    for field in fields {
+        match field.name.as_str() {
+            "sellingPlanGroup" => {
+                if let Some(group) = data
+                    .get(&field.response_key)
+                    .filter(|group| observed_value_is_selling_plan_group(group))
+                {
+                    groups.push(group.clone());
+                }
+            }
+            "sellingPlanGroups" => {
+                groups.extend(observed_connection_nodes(data.get(&field.response_key)));
+            }
+            _ => {}
+        }
+    }
+    groups
+}
+
+fn observed_value_is_selling_plan_group(value: &Value) -> bool {
+    value
+        .get("__typename")
+        .and_then(Value::as_str)
+        .is_some_and(|typename| typename == "SellingPlanGroup")
+        || value
+            .get("id")
+            .and_then(Value::as_str)
+            .is_some_and(|id| is_shopify_gid_of_type(id, "SellingPlanGroup"))
+}
+
+fn observed_connection_nodes(value: Option<&Value>) -> Vec<Value> {
+    let mut nodes = value
+        .and_then(|connection| connection.get("nodes"))
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter(|node| node.is_object())
+        .cloned()
+        .collect::<Vec<_>>();
+    nodes.extend(
+        value
+            .and_then(|connection| connection.get("edges"))
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|edge| edge.get("node"))
+            .filter(|node| node.is_object())
+            .cloned(),
+    );
+    nodes
+}
+
+fn selling_plan_group_record_from_observed_json(value: &Value) -> Option<SellingPlanGroupRecord> {
+    let id = value.get("id")?.as_str()?.to_string();
+    let name = value
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let created_at = value
+        .get("createdAt")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let product_ids = observed_connection_nodes(value.get("products"))
+        .into_iter()
+        .filter_map(|product| {
+            product
+                .get("id")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        })
+        .collect::<Vec<_>>();
+    let product_variant_ids = observed_connection_nodes(value.get("productVariants"))
+        .into_iter()
+        .filter_map(|variant| {
+            variant
+                .get("id")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        })
+        .collect::<Vec<_>>();
+    let selling_plans = observed_connection_nodes(value.get("sellingPlans"))
+        .into_iter()
+        .enumerate()
+        .filter_map(|(index, plan)| selling_plan_record_from_observed_json(&plan, index))
+        .collect::<Vec<_>>();
+
+    Some(SellingPlanGroupRecord {
+        id,
+        app_id: value
+            .get("appId")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+        merchant_code: value
+            .get("merchantCode")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .unwrap_or_else(|| name.clone()),
+        description: value
+            .get("description")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        options: string_values_from_json(value.get("options")),
+        position: value.get("position").and_then(Value::as_i64).unwrap_or(1),
+        updated_at: value
+            .get("updatedAt")
+            .and_then(Value::as_str)
+            .unwrap_or(&created_at)
+            .to_string(),
+        created_at,
+        name,
+        selling_plans,
+        product_ids,
+        product_variant_ids,
+    })
+}
+
+fn selling_plan_record_from_observed_json(
+    value: &Value,
+    index: usize,
+) -> Option<SellingPlanRecord> {
+    let id = value.get("id")?.as_str()?.to_string();
+    Some(SellingPlanRecord {
+        id,
+        name: value
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        description: value
+            .get("description")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        options: string_values_from_json(value.get("options")),
+        position: value
+            .get("position")
+            .and_then(Value::as_i64)
+            .unwrap_or((index + 1) as i64),
+        category: value
+            .get("category")
+            .and_then(Value::as_str)
+            .unwrap_or("OTHER")
+            .to_string(),
+        created_at: value
+            .get("createdAt")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        billing_policy: value
+            .get("billingPolicy")
+            .filter(|policy| policy.is_object())
+            .cloned()
+            .unwrap_or_else(|| json!({ "__typename": "SellingPlanFixedBillingPolicy" })),
+        delivery_policy: value
+            .get("deliveryPolicy")
+            .filter(|policy| policy.is_object())
+            .cloned()
+            .unwrap_or_else(|| json!({ "__typename": "SellingPlanFixedDeliveryPolicy" })),
+        inventory_policy: value
+            .get("inventoryPolicy")
+            .filter(|policy| policy.is_object())
+            .cloned()
+            .unwrap_or_else(|| json!({ "reserve": "ON_FULFILLMENT" })),
+        pricing_policies: value
+            .get("pricingPolicies")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter(|policy| policy.is_object())
+            .cloned()
+            .collect(),
+    })
+}
+
+fn string_values_from_json(value: Option<&Value>) -> Vec<String> {
+    value
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .map(str::to_string)
+        .collect()
 }
 
 fn selected_selling_plan_group_connection<NodeJson>(

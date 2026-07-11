@@ -1,62 +1,52 @@
-query MetaobjectBulkDeleteByIdsRead($type: String!, $firstId: ID!, $secondId: ID!, $survivorId: ID!) {
+query MetaobjectBulkDeleteByIdsRead($firstId: ID!, $missingId: ID!, $secondId: ID!) {
   first: metaobject(id: $firstId) {
     id
     handle
     type
     displayName
+    updatedAt
     fields {
       key
+      type
       value
+      jsonValue
+      definition {
+        key
+        name
+        required
+        type {
+          name
+          category
+        }
+      }
     }
+  }
+  missing: metaobject(id: $missingId) {
+    id
+    handle
+    type
+    displayName
+    updatedAt
   }
   second: metaobject(id: $secondId) {
     id
     handle
     type
     displayName
+    updatedAt
     fields {
       key
-      value
-    }
-  }
-  survivor: metaobject(id: $survivorId) {
-    id
-    handle
-    type
-    displayName
-    fields {
-      key
-      value
-    }
-  }
-  catalog: metaobjects(type: $type, first: 10) {
-    nodes {
-      id
-      handle
       type
-      displayName
-      fields {
+      value
+      jsonValue
+      definition {
         key
-        value
-      }
-    }
-    pageInfo {
-      hasNextPage
-      hasPreviousPage
-    }
-  }
-  definition: metaobjectDefinitionByType(type: $type) {
-    id
-    type
-    name
-    displayNameKey
-    fieldDefinitions {
-      key
-      name
-      required
-      type {
         name
-        category
+        required
+        type {
+          name
+          category
+        }
       }
     }
   }

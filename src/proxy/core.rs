@@ -262,6 +262,13 @@ impl DraftProxy {
                 })
             })
             .collect::<Vec<_>>();
+        let base_metafield_definition_owner_catalogs = self
+            .store
+            .base
+            .metafield_definition_owner_catalogs
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>();
         let deleted_metafield_definitions = self
             .store
             .staged
@@ -275,6 +282,12 @@ impl DraftProxy {
                 })
             })
             .collect::<Vec<_>>();
+        let base_metafield_definitions_value = Value::Object(base_metafield_definitions);
+        let base_metafield_definition_owner_catalogs_value =
+            json!(base_metafield_definition_owner_catalogs);
+        let base_metafield_definition_namespaces_value =
+            json!(base_metafield_definition_namespaces);
+        let deleted_metafield_definitions_value = json!(deleted_metafield_definitions);
         let mut snapshot = json!({
             "baseState": {
                 "products": product_state_map_json(&self.store.base.products.records),
@@ -287,6 +300,8 @@ impl DraftProxy {
                 "shopPolicyOrder": self.store.base.shop_policies.order,
                 "deliveryProfiles": self.store.base.delivery_profiles.records.clone(),
                 "deliveryProfileOrder": self.store.base.delivery_profiles.order,
+                "discounts": self.store.base.discounts.records.clone(),
+                "discountOrder": self.store.base.discounts.order,
                 "giftCards": self.store.base.gift_cards.clone(),
                 "giftCardConfiguration": self.store.base.gift_card_configuration.clone().unwrap_or(Value::Null),
                 "shop": self.store.base.shop.clone(),
@@ -294,10 +309,7 @@ impl DraftProxy {
                 "publicationCount": self.store.base.publication_count,
                 "availableLocales": available_locales,
                 "shopLocales": self.store.base.shop_locales.clone(),
-                "localizationProductIds": self.store.base.localization_product_ids.iter().cloned().collect::<Vec<_>>(),
-                "metafieldDefinitions": Value::Object(base_metafield_definitions),
-                "metafieldDefinitionOwnerCatalogs": self.store.base.metafield_definition_owner_catalogs.iter().cloned().collect::<Vec<_>>(),
-                "metafieldDefinitionNamespaces": base_metafield_definition_namespaces
+                "localizationProductIds": self.store.base.localization_product_ids.iter().cloned().collect::<Vec<_>>()
             },
             "stagedState": {
                 "products": product_state_map_json(&self.store.staged.products.records),
@@ -352,7 +364,7 @@ impl DraftProxy {
                 "draftOrderTags": self.store.staged.draft_order_tags.clone(),
                 "returns": self.store.staged.returns.clone(),
                 "returnsByOrder": self.store.staged.returns_by_order.clone(),
-               "reverseDeliveries": self.store.staged.reverse_deliveries.clone(),
+                "reverseDeliveries": self.store.staged.reverse_deliveries.clone(),
                 "reverseFulfillmentOrders": self.store.staged.reverse_fulfillment_orders.clone(),
                 "observedShippingLocations": self.store.staged.observed_shipping_locations.clone(),
                 "observedShippingLocationOrder": self.store.staged.observed_shipping_location_order.clone(),
@@ -379,10 +391,122 @@ impl DraftProxy {
                 "deletedDiscountIds": self.store.staged.discounts.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "discountRedeemCodeBulkCreations": self.store.staged.discount_redeem_code_bulk_creations.clone(),
                 "ownerMetafields": self.store.staged.owner_metafields.clone(),
-                "deletedOwnerMetafields": deleted_owner_metafields,
-                "deletedMetafieldDefinitions": deleted_metafield_definitions
+                "deletedOwnerMetafields": deleted_owner_metafields
             }
         });
+        snapshot["baseState"]["metafieldDefinitions"] = base_metafield_definitions_value;
+        snapshot["baseState"]["metafieldDefinitionOwnerCatalogs"] =
+            base_metafield_definition_owner_catalogs_value;
+        snapshot["baseState"]["metafieldDefinitionNamespaces"] =
+            base_metafield_definition_namespaces_value;
+        snapshot["stagedState"]["deletedMetafieldDefinitions"] =
+            deleted_metafield_definitions_value;
+        if !self.store.base.b2b_companies.records.is_empty()
+            || !self.store.base.b2b_companies.order.is_empty()
+        {
+            snapshot["baseState"]["b2bCompanies"] =
+                json!(self.store.base.b2b_companies.records.clone());
+            snapshot["baseState"]["b2bCompanyOrder"] =
+                json!(self.store.base.b2b_companies.order.clone());
+        }
+        if !self.store.base.b2b_locations.records.is_empty()
+            || !self.store.base.b2b_locations.order.is_empty()
+        {
+            snapshot["baseState"]["b2bLocations"] =
+                json!(self.store.base.b2b_locations.records.clone());
+            snapshot["baseState"]["b2bLocationOrder"] =
+                json!(self.store.base.b2b_locations.order.clone());
+        }
+        if !self.store.base.b2b_contacts.records.is_empty()
+            || !self.store.base.b2b_contacts.order.is_empty()
+        {
+            snapshot["baseState"]["b2bContacts"] =
+                json!(self.store.base.b2b_contacts.records.clone());
+            snapshot["baseState"]["b2bContactOrder"] =
+                json!(self.store.base.b2b_contacts.order.clone());
+        }
+        if !self.store.base.b2b_contact_roles.records.is_empty()
+            || !self.store.base.b2b_contact_roles.order.is_empty()
+        {
+            snapshot["baseState"]["b2bContactRoles"] =
+                json!(self.store.base.b2b_contact_roles.records.clone());
+            snapshot["baseState"]["b2bContactRoleOrder"] =
+                json!(self.store.base.b2b_contact_roles.order.clone());
+        }
+        if !self.store.base.b2b_role_assignments.records.is_empty()
+            || !self.store.base.b2b_role_assignments.order.is_empty()
+        {
+            snapshot["baseState"]["b2bRoleAssignments"] =
+                json!(self.store.base.b2b_role_assignments.records.clone());
+            snapshot["baseState"]["b2bRoleAssignmentOrder"] =
+                json!(self.store.base.b2b_role_assignments.order.clone());
+        }
+        if !self.store.base.b2b_staff_assignments.records.is_empty()
+            || !self.store.base.b2b_staff_assignments.order.is_empty()
+        {
+            snapshot["baseState"]["b2bStaffAssignments"] =
+                json!(self.store.base.b2b_staff_assignments.records.clone());
+            snapshot["baseState"]["b2bStaffAssignmentOrder"] =
+                json!(self.store.base.b2b_staff_assignments.order.clone());
+        }
+        if !self.store.base.function_metadata.is_empty() {
+            snapshot["baseState"]["functionMetadata"] =
+                json!(self.store.base.function_metadata.clone());
+            snapshot["baseState"]["functionMetadataOrder"] =
+                json!(self.store.base.function_metadata_order.clone());
+        }
+        if self.store.base.function_metadata_catalog_hydrated {
+            snapshot["baseState"]["functionMetadataCatalogHydrated"] = json!(true);
+        }
+        if !self
+            .store
+            .base
+            .function_metadata_hydrated_api_types
+            .is_empty()
+        {
+            snapshot["baseState"]["functionMetadataHydratedApiTypes"] = json!(self
+                .store
+                .base
+                .function_metadata_hydrated_api_types
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
+        if !self.store.base.function_validations.is_empty() {
+            snapshot["baseState"]["functionValidations"] =
+                json!(self.store.base.function_validations.clone());
+            snapshot["baseState"]["functionValidationOrder"] =
+                json!(self.store.base.function_validation_order.clone());
+        }
+        if self.store.base.function_validations_catalog_hydrated {
+            snapshot["baseState"]["functionValidationsCatalogHydrated"] = json!(true);
+        }
+        if !self.store.base.function_cart_transforms.is_empty() {
+            snapshot["baseState"]["functionCartTransforms"] =
+                json!(self.store.base.function_cart_transforms.clone());
+            snapshot["baseState"]["functionCartTransformOrder"] =
+                json!(self.store.base.function_cart_transform_order.clone());
+        }
+        if self.store.base.function_cart_transforms_catalog_hydrated {
+            snapshot["baseState"]["functionCartTransformsCatalogHydrated"] = json!(true);
+        }
+        if !self
+            .store
+            .base
+            .function_fulfillment_constraint_rules
+            .is_empty()
+        {
+            snapshot["baseState"]["functionFulfillmentConstraintRules"] = json!(self
+                .store
+                .base
+                .function_fulfillment_constraint_rules
+                .clone());
+            snapshot["baseState"]["functionFulfillmentConstraintRuleOrder"] = json!(self
+                .store
+                .base
+                .function_fulfillment_constraint_rule_order
+                .clone());
+        }
         if !self.store.staged.media_ready_on_read.is_empty() {
             snapshot["stagedState"]["mediaReadyOnReadIds"] = json!(self
                 .store
@@ -595,10 +719,39 @@ impl DraftProxy {
                 json!(self.store.staged.b2b_role_assignments.clone());
             snapshot["stagedState"]["b2bStaffAssignments"] =
                 json!(self.store.staged.b2b_staff_assignments.clone());
+            snapshot["stagedState"]["deletedB2bCompanyIds"] = json!(self
+                .store
+                .staged
+                .deleted_b2b_company_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+            snapshot["stagedState"]["deletedB2bLocationIds"] = json!(self
+                .store
+                .staged
+                .b2b_locations
+                .tombstones
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+            snapshot["stagedState"]["deletedB2bContactIds"] = json!(self
+                .store
+                .staged
+                .deleted_b2b_contact_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
             snapshot["stagedState"]["deletedB2bContactRoleAssignmentIds"] = json!(self
                 .store
                 .staged
                 .deleted_b2b_contact_role_assignment_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+            snapshot["stagedState"]["deletedB2bStaffAssignmentIds"] = json!(self
+                .store
+                .staged
+                .deleted_b2b_staff_assignment_ids
                 .iter()
                 .cloned()
                 .collect::<Vec<_>>());
@@ -624,6 +777,11 @@ impl DraftProxy {
         if !self.store.staged.inventory_level_order.is_empty() {
             snapshot["stagedState"]["inventoryLevelOrder"] =
                 inventory_level_order_json(&self.store.staged.inventory_level_order);
+        }
+        if !self.store.staged.fulfillment_order_cursors.is_empty() {
+            snapshot["stagedState"]["fulfillmentOrderCursors"] =
+                serde_json::to_value(&self.store.staged.fulfillment_order_cursors)
+                    .unwrap_or_default();
         }
         if !self.store.staged.inventory_level_cursors.is_empty() {
             snapshot["stagedState"]["inventoryLevelCursors"] =
@@ -651,6 +809,10 @@ impl DraftProxy {
         if self.store.staged.next_inventory_quantity_timestamp != 0 {
             snapshot["stagedState"]["nextInventoryQuantityTimestamp"] =
                 json!(self.store.staged.next_inventory_quantity_timestamp);
+        }
+        if !self.store.staged.inventory_adjustment_groups.is_empty() {
+            snapshot["stagedState"]["inventoryAdjustmentGroups"] =
+                json!(self.store.staged.inventory_adjustment_groups);
         }
         if !self.store.staged.metaobject_definitions.records.is_empty() {
             snapshot["stagedState"]["metaobjectDefinitions"] =
@@ -817,6 +979,47 @@ impl DraftProxy {
             snapshot["stagedState"]["functionMetadataOrder"] =
                 json!(self.store.staged.function_metadata_order.clone());
         }
+        if !self.store.staged.function_validations.is_empty() {
+            snapshot["stagedState"]["functionValidations"] =
+                json!(self.store.staged.function_validations.clone());
+            snapshot["stagedState"]["functionValidationOrder"] =
+                json!(self.store.staged.function_validation_order.clone());
+        }
+        if !self.store.staged.deleted_function_validation_ids.is_empty() {
+            snapshot["stagedState"]["deletedFunctionValidationIds"] = json!(self
+                .store
+                .staged
+                .deleted_function_validation_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
+        if self.store.staged.function_validations_dirty {
+            snapshot["stagedState"]["functionValidationsDirty"] = json!(true);
+        }
+        if !self.store.staged.function_cart_transforms.is_empty() {
+            snapshot["stagedState"]["functionCartTransforms"] =
+                json!(self.store.staged.function_cart_transforms.clone());
+            snapshot["stagedState"]["functionCartTransformOrder"] =
+                json!(self.store.staged.function_cart_transform_order.clone());
+        }
+        if !self
+            .store
+            .staged
+            .deleted_function_cart_transform_ids
+            .is_empty()
+        {
+            snapshot["stagedState"]["deletedFunctionCartTransformIds"] = json!(self
+                .store
+                .staged
+                .deleted_function_cart_transform_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
+        if self.store.staged.function_cart_transforms_dirty {
+            snapshot["stagedState"]["functionCartTransformsDirty"] = json!(true);
+        }
         if self.store.staged.functions_dirty {
             snapshot["stagedState"]["functionsDirty"] = json!(true);
         }
@@ -836,6 +1039,27 @@ impl DraftProxy {
                 .staged
                 .function_fulfillment_constraint_rule_order
                 .clone());
+        }
+        if !self
+            .store
+            .staged
+            .deleted_function_fulfillment_constraint_rule_ids
+            .is_empty()
+        {
+            snapshot["stagedState"]["deletedFunctionFulfillmentConstraintRuleIds"] = json!(self
+                .store
+                .staged
+                .deleted_function_fulfillment_constraint_rule_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
+        if self
+            .store
+            .staged
+            .function_fulfillment_constraint_rules_dirty
+        {
+            snapshot["stagedState"]["functionFulfillmentConstraintRulesDirty"] = json!(true);
         }
         if let Some(configuration) = &self.store.staged.tax_app_configuration {
             snapshot["stagedState"]["taxAppConfiguration"] = configuration.clone();
@@ -888,11 +1112,23 @@ impl DraftProxy {
 
     fn has_staged_b2b_state(&self) -> bool {
         !self.store.staged.b2b_companies.is_empty()
+            || !self.store.staged.deleted_b2b_company_ids.is_empty()
             || !self.store.staged.b2b_locations.is_empty()
             || !self.store.staged.b2b_contacts.is_empty()
+            || !self.store.staged.deleted_b2b_contact_ids.is_empty()
             || !self.store.staged.b2b_contact_roles.is_empty()
             || !self.store.staged.b2b_role_assignments.is_empty()
+            || !self
+                .store
+                .staged
+                .deleted_b2b_contact_role_assignment_ids
+                .is_empty()
             || !self.store.staged.b2b_staff_assignments.is_empty()
+            || !self
+                .store
+                .staged
+                .deleted_b2b_staff_assignment_ids
+                .is_empty()
     }
 
     pub(in crate::proxy) fn dump_state(&self, request: &Request) -> Response {
@@ -1125,6 +1361,13 @@ impl DraftProxy {
             saved_search_state_map_from_json(&state["baseState"]["savedSearches"]),
             string_array_from_json(&state["baseState"]["savedSearchOrder"]),
         );
+        self.store.base.discounts.replace_with_order(
+            value_map_from_json(state["baseState"].get("discounts")),
+            state["baseState"]
+                .get("discountOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
         self.store.base.gift_cards = value_map_from_json(state["baseState"].get("giftCards"));
         self.store.base.gift_card_configuration = state["baseState"]
             .get("giftCardConfiguration")
@@ -1201,6 +1444,65 @@ impl DraftProxy {
             .unwrap_or_default()
             .into_iter()
             .collect();
+        self.store.base.function_metadata =
+            value_map_from_json(state["baseState"].get("functionMetadata"));
+        self.store.base.function_metadata_order = state["baseState"]
+            .get("functionMetadataOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| self.store.base.function_metadata.keys().cloned().collect());
+        self.store.base.function_metadata_catalog_hydrated = state["baseState"]
+            ["functionMetadataCatalogHydrated"]
+            .as_bool()
+            .unwrap_or(false);
+        self.store.base.function_metadata_hydrated_api_types =
+            string_set_from_json(state["baseState"].get("functionMetadataHydratedApiTypes"));
+        self.store.base.function_validations =
+            value_map_from_json(state["baseState"].get("functionValidations"));
+        self.store.base.function_validation_order = state["baseState"]
+            .get("functionValidationOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| {
+                self.store
+                    .base
+                    .function_validations
+                    .keys()
+                    .cloned()
+                    .collect()
+            });
+        self.store.base.function_validations_catalog_hydrated = state["baseState"]
+            ["functionValidationsCatalogHydrated"]
+            .as_bool()
+            .unwrap_or(false);
+        self.store.base.function_cart_transforms =
+            value_map_from_json(state["baseState"].get("functionCartTransforms"));
+        self.store.base.function_cart_transform_order = state["baseState"]
+            .get("functionCartTransformOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| {
+                self.store
+                    .base
+                    .function_cart_transforms
+                    .keys()
+                    .cloned()
+                    .collect()
+            });
+        self.store.base.function_cart_transforms_catalog_hydrated = state["baseState"]
+            ["functionCartTransformsCatalogHydrated"]
+            .as_bool()
+            .unwrap_or(false);
+        self.store.base.function_fulfillment_constraint_rules =
+            value_map_from_json(state["baseState"].get("functionFulfillmentConstraintRules"));
+        self.store.base.function_fulfillment_constraint_rule_order = state["baseState"]
+            .get("functionFulfillmentConstraintRuleOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| {
+                self.store
+                    .base
+                    .function_fulfillment_constraint_rules
+                    .keys()
+                    .cloned()
+                    .collect()
+            });
         self.store.base.metafield_definitions =
             metafield_definition_map_from_json(state["baseState"].get("metafieldDefinitions"));
         self.store.base.metafield_definition_owner_catalogs = state["baseState"]
@@ -1213,6 +1515,48 @@ impl DraftProxy {
             metafield_definition_namespace_set_from_json(
                 state["baseState"].get("metafieldDefinitionNamespaces"),
             );
+        self.store.base.b2b_companies.replace_with_order(
+            value_map_from_json(state["baseState"].get("b2bCompanies")),
+            state["baseState"]
+                .get("b2bCompanyOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
+        self.store.base.b2b_locations.replace_with_order(
+            value_map_from_json(state["baseState"].get("b2bLocations")),
+            state["baseState"]
+                .get("b2bLocationOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
+        self.store.base.b2b_contacts.replace_with_order(
+            value_map_from_json(state["baseState"].get("b2bContacts")),
+            state["baseState"]
+                .get("b2bContactOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
+        self.store.base.b2b_contact_roles.replace_with_order(
+            value_map_from_json(state["baseState"].get("b2bContactRoles")),
+            state["baseState"]
+                .get("b2bContactRoleOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
+        self.store.base.b2b_role_assignments.replace_with_order(
+            value_map_from_json(state["baseState"].get("b2bRoleAssignments")),
+            state["baseState"]
+                .get("b2bRoleAssignmentOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
+        self.store.base.b2b_staff_assignments.replace_with_order(
+            value_map_from_json(state["baseState"].get("b2bStaffAssignments")),
+            state["baseState"]
+                .get("b2bStaffAssignmentOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
         self.store.staged.publication_ids =
             string_array_from_json(&state["stagedState"]["publicationIds"])
                 .into_iter()
@@ -1550,6 +1894,10 @@ impl DraftProxy {
             Some("deliveryCustomizationOrder"),
             Some("deletedDeliveryCustomizationIds"),
         );
+        self.store.staged.fulfillment_order_cursors = state["stagedState"]
+            .get("fulfillmentOrderCursors")
+            .and_then(|value| serde_json::from_value(value.clone()).ok())
+            .unwrap_or_default();
         self.store.staged.inventory_levels =
             inventory_levels_from_json(&state["stagedState"]["inventoryLevels"]);
         self.store.staged.inventory_level_ids =
@@ -1578,6 +1926,8 @@ impl DraftProxy {
             "nextInventoryQuantityTimestamp",
             0,
         );
+        self.store.staged.inventory_adjustment_groups =
+            value_map_from_json(state["stagedState"].get("inventoryAdjustmentGroups"));
         self.store.staged.location_limit_reached = state["stagedState"]
             .get("locationLimitReached")
             .and_then(Value::as_bool)
@@ -1620,7 +1970,7 @@ impl DraftProxy {
             &state["stagedState"],
             "b2bLocations",
             Some("b2bLocationOrder"),
-            None,
+            Some("deletedB2bLocationIds"),
         );
         self.store.staged.b2b_contacts =
             value_map_from_json(state["stagedState"].get("b2bContacts"));
@@ -1747,6 +2097,12 @@ impl DraftProxy {
             .unwrap_or_default()
             .into_iter()
             .collect();
+        self.store.staged.deleted_b2b_company_ids = state["stagedState"]
+            .get("deletedB2bCompanyIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         self.store.staged.b2b_contact_role_assignments = state["stagedState"]
             .get("b2bContactRoleAssignments")
             .and_then(Value::as_object)
@@ -1759,6 +2115,12 @@ impl DraftProxy {
             .unwrap_or_default();
         self.store.staged.deleted_b2b_contact_role_assignment_ids = state["stagedState"]
             .get("deletedB2bContactRoleAssignmentIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.staged.deleted_b2b_staff_assignment_ids = state["stagedState"]
+            .get("deletedB2bStaffAssignmentIds")
             .map(string_array_from_json)
             .unwrap_or_default()
             .into_iter()
@@ -1827,6 +2189,44 @@ impl DraftProxy {
                     .cloned()
                     .collect()
             });
+        self.store.staged.function_validations =
+            value_map_from_json(state["stagedState"].get("functionValidations"));
+        self.store.staged.function_validation_order = state["stagedState"]
+            .get("functionValidationOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| {
+                self.store
+                    .staged
+                    .function_validations
+                    .keys()
+                    .cloned()
+                    .collect()
+            });
+        self.store.staged.deleted_function_validation_ids =
+            string_set_from_json(state["stagedState"].get("deletedFunctionValidationIds"));
+        self.store.staged.function_validations_dirty = state["stagedState"]
+            ["functionValidationsDirty"]
+            .as_bool()
+            .unwrap_or(false);
+        self.store.staged.function_cart_transforms =
+            value_map_from_json(state["stagedState"].get("functionCartTransforms"));
+        self.store.staged.function_cart_transform_order = state["stagedState"]
+            .get("functionCartTransformOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| {
+                self.store
+                    .staged
+                    .function_cart_transforms
+                    .keys()
+                    .cloned()
+                    .collect()
+            });
+        self.store.staged.deleted_function_cart_transform_ids =
+            string_set_from_json(state["stagedState"].get("deletedFunctionCartTransformIds"));
+        self.store.staged.function_cart_transforms_dirty = state["stagedState"]
+            ["functionCartTransformsDirty"]
+            .as_bool()
+            .unwrap_or(false);
         self.store.staged.functions_dirty = state["stagedState"]["functionsDirty"]
             .as_bool()
             .unwrap_or(false);
@@ -1843,6 +2243,17 @@ impl DraftProxy {
                     .cloned()
                     .collect()
             });
+        self.store
+            .staged
+            .deleted_function_fulfillment_constraint_rule_ids = string_set_from_json(
+            state["stagedState"].get("deletedFunctionFulfillmentConstraintRuleIds"),
+        );
+        self.store
+            .staged
+            .function_fulfillment_constraint_rules_dirty = state["stagedState"]
+            ["functionFulfillmentConstraintRulesDirty"]
+            .as_bool()
+            .unwrap_or(false);
         self.store.staged.tax_app_configuration = state["stagedState"]
             .get("taxAppConfiguration")
             .filter(|value| value.is_object())

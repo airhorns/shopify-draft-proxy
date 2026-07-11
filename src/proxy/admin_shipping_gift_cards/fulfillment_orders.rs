@@ -4,6 +4,13 @@ use crate::proxy::orders_payments_fulfillment::{
     data_response, fulfillment_order_display_status, fulfillment_order_nodes,
     fulfillment_order_nodes_mut,
 };
+use crate::proxy::search::{parse_search_query, search_string_matches, ParsedSearchTerm};
+
+#[derive(Clone)]
+struct FulfillmentOrderConnectionRecord {
+    node: Value,
+    cursor: Option<String>,
+}
 
 const SHIPPING_FULFILLMENT_ORDER_HYDRATE_QUERY: &str = r#"
 query ShippingFulfillmentOrderHydrate($id: ID!) {
@@ -148,6 +155,26 @@ const SHIPPING_FULFILLMENT_ORDER_DIRECT_MULTILINE_HYDRATE_QUERY: &str = r#"query
     }
   }"#;
 
+const SHIPPING_FULFILLMENT_ORDER_PICKUP_HYDRATE_QUERY: &str = r#"query ShippingFulfillmentOrderPickupHydrate($id: ID!) {
+    fulfillmentOrder(id: $id) {
+      id
+      status
+      requestStatus
+      fulfillAt
+      fulfillBy
+      updatedAt
+      deliveryMethod {
+        methodType
+      }
+      supportedActions { action }
+      assignedLocation { name location { id name } }
+      fulfillmentHolds { id handle reason reasonNotes displayReason heldByApp { id title } heldByRequestingApp }
+      merchantRequests(first: 10) { nodes { kind message requestOptions } }
+      lineItems(first: 20) { nodes { id totalQuantity remainingQuantity lineItem { id title quantity fulfillableQuantity } } }
+      order { id name displayFulfillmentStatus }
+    }
+  }"#;
+
 const SHIPPING_FULFILLMENT_ORDER_RELEASE_HOLD_HYDRATE_QUERY: &str = r#"query FulfillmentOrderReleaseHoldSelectiveHydrate($id: ID!) {
   fulfillmentOrder(id: $id) {
     id
@@ -212,21 +239,17 @@ impl DraftProxy {
         let Some(fields) = root_fields(query, variables) else {
             return json_error(400, "Could not parse shipping fulfillment-order read");
         };
-        // Top-level fulfillment-order *connection* reads (`fulfillmentOrders`,
-        // `assignedFulfillmentOrders`, `manualHoldsFulfillmentOrders`) project the
-        // locally-staged set. When no fulfillment orders have been staged in this
-        // session the local engine can only return empty connections, which is never
-        // richer than the store's real catalog — so forward the read upstream and
-        // serve the authoritative store result (singular `fulfillmentOrder(id:)`
-        // reads keep their dedicated hydration path below).
         let all_connection_reads = fields.iter().all(|field| {
             matches!(
                 field.name.as_str(),
                 "fulfillmentOrders" | "assignedFulfillmentOrders" | "manualHoldsFulfillmentOrders"
             )
         });
-        if all_connection_reads && self.shipping_fulfillment_orders().is_empty() {
-            return (self.upstream_transport)(request.clone());
+        if all_connection_reads {
+            if self.shipping_fulfillment_orders().is_empty() {
+                return (self.upstream_transport)(request.clone());
+            }
+            return self.shipping_fulfillment_order_connection_read_response(request, &fields);
         }
         let data = root_payload_json(&fields, |field| {
             Some(match field.name.as_str() {
@@ -238,78 +261,10 @@ impl DraftProxy {
                         .unwrap_or(Value::Null);
                     nullable_selected_json(&fulfillment_order, &field.selection)
                 }
-                "fulfillmentOrders" => {
-                    // The staged fulfillment-order engine keeps closed/cancelled
-                    // records on the order (split/merge/cancel leave a zeroed
-                    // CLOSED sibling), and these root connections read the same
-                    // staged set as the nested `order { fulfillmentOrders }`
-                    // projection. `includeClosed` is therefore a no-op superset
-                    // here: every staged record is returned so the two read paths
-                    // agree.
-                    let nodes = self.shipping_fulfillment_orders();
-                    selected_connection_json_with_args(
-                        nodes,
-                        &field.arguments,
-                        &field.selection,
-                        value_id_cursor,
-                    )
-                }
-                "assignedFulfillmentOrders" => {
-                    // `assignedFulfillmentOrders` is scoped to the *open* (assigned)
-                    // records and honours the `assignmentStatus` + `locationIds`
-                    // filters: closed/cancelled orders drop out, the assignment
-                    // status maps onto request status / pending cancellation
-                    // requests, and a non-empty location list narrows to the
-                    // matching assigned locations.
-                    let assignment_status =
-                        resolved_string_field(&field.arguments, "assignmentStatus");
-                    let location_ids = resolved_string_list_arg(&field.arguments, "locationIds");
-                    let nodes = self
-                        .shipping_fulfillment_orders()
-                        .into_iter()
-                        .filter(|order| {
-                            !matches!(order["status"].as_str(), Some("CLOSED") | Some("CANCELLED"))
-                        })
-                        .filter(|order| {
-                            assignment_status
-                                .as_deref()
-                                .map(|status| {
-                                    fulfillment_order_matches_assignment_status(order, status)
-                                })
-                                .unwrap_or(true)
-                        })
-                        .filter(|order| {
-                            location_ids.is_empty()
-                                || order["assignedLocation"]["location"]["id"]
-                                    .as_str()
-                                    .map(|id| location_ids.iter().any(|wanted| wanted == id))
-                                    .unwrap_or(false)
-                        })
-                        .collect::<Vec<_>>();
-                    selected_connection_json_with_args(
-                        nodes,
-                        &field.arguments,
-                        &field.selection,
-                        |fulfillment_order| {
-                            format!("cursor:{}", value_id_cursor(fulfillment_order))
-                        },
-                    )
-                }
-                "manualHoldsFulfillmentOrders" => {
-                    let nodes = self
-                        .shipping_fulfillment_orders()
-                        .into_iter()
-                        .filter(|order| {
-                            order["status"].as_str() == Some("ON_HOLD")
-                                || !fulfillment_order_holds(order).is_empty()
-                        })
-                        .collect::<Vec<_>>();
-                    selected_connection_json_with_args(
-                        nodes,
-                        &field.arguments,
-                        &field.selection,
-                        value_id_cursor,
-                    )
+                "fulfillmentOrders"
+                | "assignedFulfillmentOrders"
+                | "manualHoldsFulfillmentOrders" => {
+                    self.shipping_fulfillment_order_connection_field(field, Vec::new())
                 }
                 _ => return None,
             })
@@ -317,6 +272,491 @@ impl DraftProxy {
         ok_json(json!({ "data": data }))
     }
 
+    fn shipping_fulfillment_order_connection_read_response(
+        &mut self,
+        request: &Request,
+        fields: &[RootFieldSelection],
+    ) -> Response {
+        let upstream_response = (self.upstream_transport)(request.clone());
+        let upstream_body = if upstream_response.status < 400 {
+            self.observe_shipping_fulfillment_order_connection_response(
+                fields,
+                &upstream_response.body,
+            );
+            Some(upstream_response.body)
+        } else {
+            None
+        };
+        let data = root_payload_json(fields, |field| {
+            let live_records = upstream_body
+                .as_ref()
+                .map(|body| self.shipping_fulfillment_order_connection_records(body, field))
+                .unwrap_or_default();
+            Some(match field.name.as_str() {
+                "fulfillmentOrders"
+                | "assignedFulfillmentOrders"
+                | "manualHoldsFulfillmentOrders" => {
+                    self.shipping_fulfillment_order_connection_field(field, live_records)
+                }
+                _ => return None,
+            })
+        });
+        ok_json(json!({ "data": data }))
+    }
+
+    fn observe_shipping_fulfillment_order_connection_response(
+        &mut self,
+        fields: &[RootFieldSelection],
+        body: &Value,
+    ) {
+        for field in fields {
+            for record in self.shipping_fulfillment_order_connection_records(body, field) {
+                self.stage_observed_shipping_fulfillment_order_cursor(field, &record);
+                self.stage_observed_shipping_fulfillment_order_record(record.node);
+            }
+        }
+    }
+
+    fn shipping_fulfillment_order_connection_records(
+        &self,
+        body: &Value,
+        field: &RootFieldSelection,
+    ) -> Vec<FulfillmentOrderConnectionRecord> {
+        if !matches!(
+            field.name.as_str(),
+            "fulfillmentOrders" | "assignedFulfillmentOrders" | "manualHoldsFulfillmentOrders"
+        ) {
+            return Vec::new();
+        }
+        let connection = &body["data"][&field.response_key];
+        let edge_records = connection
+            .get("edges")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|edge| {
+                Some(FulfillmentOrderConnectionRecord {
+                    node: edge.get("node")?.clone(),
+                    cursor: edge
+                        .get("cursor")
+                        .and_then(Value::as_str)
+                        .map(str::to_string),
+                })
+            })
+            .collect::<Vec<_>>();
+        if !edge_records.is_empty() {
+            return edge_records;
+        }
+        connection_nodes(connection)
+            .into_iter()
+            .map(|node| FulfillmentOrderConnectionRecord { node, cursor: None })
+            .collect()
+    }
+
+    fn shipping_fulfillment_order_connection_field(
+        &self,
+        field: &RootFieldSelection,
+        live_records: Vec<FulfillmentOrderConnectionRecord>,
+    ) -> Value {
+        let records = self.shipping_effective_fulfillment_order_records(field, live_records);
+        let result = staged_connection_query(
+            records,
+            &field.arguments,
+            |record, query| self.fulfillment_order_root_search_decision(field, &record.node, query),
+            |record, sort_key| fulfillment_order_staged_sort_key(&record.node, sort_key),
+            fulfillment_order_record_cursor,
+        );
+        selected_typed_connection_with_page_info(
+            &result.records,
+            &field.selection,
+            |record, selection| selected_json(&record.node, selection),
+            fulfillment_order_record_cursor,
+            result.page_info,
+        )
+    }
+
+    fn shipping_effective_fulfillment_order_records(
+        &self,
+        field: &RootFieldSelection,
+        live_records: Vec<FulfillmentOrderConnectionRecord>,
+    ) -> Vec<FulfillmentOrderConnectionRecord> {
+        let staged_nodes = self.shipping_fulfillment_orders();
+        let staged_by_id = staged_nodes
+            .iter()
+            .filter_map(|node| node["id"].as_str().map(|id| (id.to_string(), node.clone())))
+            .collect::<BTreeMap<_, _>>();
+        let mut seen_ids = BTreeSet::new();
+        let mut effective = Vec::new();
+        for live_record in live_records {
+            let live_node = live_record.node;
+            let Some(id) = live_node["id"].as_str().map(str::to_string) else {
+                effective.push(FulfillmentOrderConnectionRecord {
+                    node: live_node,
+                    cursor: live_record.cursor,
+                });
+                continue;
+            };
+            seen_ids.insert(id.clone());
+            effective.push(FulfillmentOrderConnectionRecord {
+                node: staged_by_id.get(&id).cloned().unwrap_or(live_node),
+                cursor: live_record.cursor,
+            });
+        }
+        for staged_node in staged_nodes {
+            if staged_node["id"]
+                .as_str()
+                .map(|id| seen_ids.contains(id))
+                .unwrap_or(false)
+            {
+                continue;
+            }
+            let cursor = self.shipping_fulfillment_order_staged_cursor(field, &staged_node);
+            effective.push(FulfillmentOrderConnectionRecord {
+                node: staged_node,
+                cursor,
+            });
+        }
+        effective
+    }
+
+    fn stage_observed_shipping_fulfillment_order_cursor(
+        &mut self,
+        field: &RootFieldSelection,
+        record: &FulfillmentOrderConnectionRecord,
+    ) {
+        let Some(id) = record.node["id"].as_str() else {
+            return;
+        };
+        let Some(cursor) = record.cursor.as_deref() else {
+            return;
+        };
+        self.store
+            .staged
+            .fulfillment_order_cursors
+            .entry(id.to_string())
+            .or_default()
+            .insert(fulfillment_order_cursor_key(field), cursor.to_string());
+    }
+
+    fn shipping_fulfillment_order_staged_cursor(
+        &self,
+        field: &RootFieldSelection,
+        fulfillment_order: &Value,
+    ) -> Option<String> {
+        let id = fulfillment_order["id"].as_str()?;
+        self.store
+            .staged
+            .fulfillment_order_cursors
+            .get(id)?
+            .get(&fulfillment_order_cursor_key(field))
+            .cloned()
+    }
+
+    fn fulfillment_order_root_search_decision(
+        &self,
+        field: &RootFieldSelection,
+        fulfillment_order: &Value,
+        query: Option<&str>,
+    ) -> StagedSearchDecision {
+        match field.name.as_str() {
+            "fulfillmentOrders" => {
+                if !resolved_bool_field(&field.arguments, "includeClosed").unwrap_or(false)
+                    && fulfillment_order_is_closed(fulfillment_order)
+                {
+                    return StagedSearchDecision::NoMatch;
+                }
+                fulfillment_order_search_decision(fulfillment_order, query)
+            }
+            "assignedFulfillmentOrders" => {
+                if fulfillment_order_is_closed(fulfillment_order) {
+                    return StagedSearchDecision::NoMatch;
+                }
+                let assignment_status = resolved_string_field(&field.arguments, "assignmentStatus");
+                if assignment_status.as_deref().is_some_and(|status| {
+                    !fulfillment_order_matches_assignment_status(fulfillment_order, status)
+                }) {
+                    return StagedSearchDecision::NoMatch;
+                }
+                let location_ids = resolved_string_list_arg(&field.arguments, "locationIds");
+                if !location_ids.is_empty()
+                    && !fulfillment_order_assigned_location_matches_any(
+                        fulfillment_order,
+                        &location_ids,
+                    )
+                {
+                    return StagedSearchDecision::NoMatch;
+                }
+                StagedSearchDecision::Match
+            }
+            "manualHoldsFulfillmentOrders" => {
+                if fulfillment_order["status"].as_str() != Some("ON_HOLD")
+                    && fulfillment_order_holds(fulfillment_order).is_empty()
+                {
+                    return StagedSearchDecision::NoMatch;
+                }
+                manual_holds_fulfillment_order_search_decision(fulfillment_order, query)
+            }
+            _ => StagedSearchDecision::Unsupported,
+        }
+    }
+
+    fn stage_observed_shipping_fulfillment_order_record(&mut self, fulfillment_order: Value) {
+        let Some(id) = fulfillment_order["id"].as_str().map(str::to_string) else {
+            return;
+        };
+        if self.fulfillment_order_has_local_mutation(&id)
+            || fulfillment_order["order"]["id"].as_str().is_none()
+        {
+            return;
+        }
+        self.stage_shipping_fulfillment_order_record(fulfillment_order);
+    }
+
+    fn fulfillment_order_has_local_mutation(&self, fulfillment_order_id: &str) -> bool {
+        self.log_entries.iter().any(|entry| {
+            entry["stagedResourceIds"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .any(|id| id.as_str() == Some(fulfillment_order_id))
+        })
+    }
+
+    pub(in crate::proxy) fn shipping_fulfillment_order_local_order_read(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Response {
+        let Some(fields) = root_fields(query, variables) else {
+            return json_error(400, "Could not parse shipping fulfillment-order order read");
+        };
+        let data = root_payload_json(&fields, |field| {
+            Some(match field.name.as_str() {
+                "order" => {
+                    let id = resolved_string_field(&field.arguments, "id")
+                        .or_else(|| resolved_string_field(&field.arguments, "orderId"))
+                        .unwrap_or_default();
+                    let order = self
+                        .store
+                        .staged
+                        .orders
+                        .get(&id)
+                        .cloned()
+                        .unwrap_or(Value::Null);
+                    selected_json(&order, &field.selection)
+                }
+                "fulfillmentOrder" => {
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                    let fulfillment_order = self
+                        .shipping_fulfillment_order_by_id(&id)
+                        .unwrap_or(Value::Null);
+                    nullable_selected_json(&fulfillment_order, &field.selection)
+                }
+                "fulfillmentOrders"
+                | "assignedFulfillmentOrders"
+                | "manualHoldsFulfillmentOrders" => {
+                    self.shipping_fulfillment_order_connection_field(field, Vec::new())
+                }
+                _ => return None,
+            })
+        });
+        ok_json(json!({ "data": data }))
+    }
+
+    pub(in crate::proxy) fn should_handle_shipping_fulfillment_order_local_order_read(
+        &self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> bool {
+        let Some(fields) = root_fields(query, variables) else {
+            return false;
+        };
+        fields.iter().any(|field| match field.name.as_str() {
+            "order" => {
+                let order_id = resolved_string_field(&field.arguments, "id")
+                    .or_else(|| resolved_string_field(&field.arguments, "orderId"));
+                let selects_fulfillment_orders =
+                    selected_child_selection(&field.selection, "fulfillmentOrders").is_some();
+                selects_fulfillment_orders
+                    && order_id.is_some_and(|id| self.store.staged.orders.contains_key(&id))
+            }
+            "fulfillmentOrder"
+            | "fulfillmentOrders"
+            | "assignedFulfillmentOrders"
+            | "manualHoldsFulfillmentOrders" => !self.store.staged.orders.is_empty(),
+            _ => false,
+        })
+    }
+}
+
+fn fulfillment_order_is_closed(order: &Value) -> bool {
+    matches!(order["status"].as_str(), Some("CLOSED") | Some("CANCELLED"))
+        || matches!(order["requestStatus"].as_str(), Some("CLOSED"))
+}
+
+fn fulfillment_order_assigned_location_matches_any(order: &Value, location_ids: &[String]) -> bool {
+    order["assignedLocation"]["location"]["id"]
+        .as_str()
+        .map(|id| {
+            location_ids
+                .iter()
+                .any(|wanted| resource_id_matches_gid_or_tail(id, wanted))
+        })
+        .unwrap_or(false)
+}
+
+fn fulfillment_order_staged_sort_key(order: &Value, sort_key: Option<&str>) -> StagedSortKey {
+    match sort_key.unwrap_or("ID") {
+        "UPDATED_AT" => vec![StagedSortValue::String(
+            order["updatedAt"].as_str().unwrap_or_default().to_string(),
+        )],
+        _ => vec![resource_id_tail_sort_value(order["id"].as_str())],
+    }
+}
+
+fn fulfillment_order_record_cursor(record: &FulfillmentOrderConnectionRecord) -> String {
+    record
+        .cursor
+        .clone()
+        .unwrap_or_else(|| value_id_cursor(&record.node))
+}
+
+fn fulfillment_order_cursor_key(field: &RootFieldSelection) -> String {
+    format!(
+        "{}:{}",
+        field.name,
+        resolved_string_field(&field.arguments, "sortKey").unwrap_or_else(|| "ID".to_string())
+    )
+}
+
+fn fulfillment_order_search_decision(order: &Value, query: Option<&str>) -> StagedSearchDecision {
+    let Some(query) = query.map(str::trim).filter(|query| !query.is_empty()) else {
+        return StagedSearchDecision::Match;
+    };
+    let Some(expression) = parse_search_query(query) else {
+        return StagedSearchDecision::Unsupported;
+    };
+    StagedSearchDecision::from_bool(
+        expression.matches_with(&mut |term| fulfillment_order_search_term_matches(order, term)),
+    )
+}
+
+fn manual_holds_fulfillment_order_search_decision(
+    order: &Value,
+    query: Option<&str>,
+) -> StagedSearchDecision {
+    let Some(query) = query.map(str::trim).filter(|query| !query.is_empty()) else {
+        return StagedSearchDecision::Match;
+    };
+    let Some(expression) = parse_search_query(query) else {
+        return StagedSearchDecision::Unsupported;
+    };
+    StagedSearchDecision::from_bool(
+        expression.matches_with(&mut |term| {
+            manual_holds_fulfillment_order_search_term_matches(order, term)
+        }),
+    )
+}
+
+fn fulfillment_order_search_term_matches(order: &Value, term: &ParsedSearchTerm) -> bool {
+    match term.field.as_deref() {
+        Some("assigned_location_id") => order["assignedLocation"]["location"]["id"]
+            .as_str()
+            .is_some_and(|id| resource_id_matches_gid_or_tail(id, &term.value)),
+        Some("id") => fulfillment_order_id_matches_query(order, &term.value),
+        Some("status") => order["status"]
+            .as_str()
+            .is_some_and(|status| status.eq_ignore_ascii_case(&term.value)),
+        Some("updated_at") => order["updatedAt"]
+            .as_str()
+            .is_some_and(|updated_at| comparable_string_matches(updated_at, &term.value)),
+        Some(_) => false,
+        None => fulfillment_order_free_text_matches(order, &term.value),
+    }
+}
+
+fn manual_holds_fulfillment_order_search_term_matches(
+    order: &Value,
+    term: &ParsedSearchTerm,
+) -> bool {
+    match term.field.as_deref() {
+        Some("order_financial_status") => {
+            order_value_string(order, &["order", "displayFinancialStatus"])
+                .or_else(|| order_value_string(order, &["order", "financialStatus"]))
+                .is_some_and(|status| status.eq_ignore_ascii_case(&term.value))
+        }
+        Some("order_risk_level") => order_value_string(order, &["order", "riskLevel"])
+            .is_some_and(|risk| risk.eq_ignore_ascii_case(&term.value)),
+        Some("shipping_address_coordinates_validated") => order
+            .pointer("/order/shippingAddress/coordinatesValidated")
+            .and_then(Value::as_bool)
+            .is_some_and(|actual| {
+                matches!(
+                    term.value.to_ascii_lowercase().as_str(),
+                    "true" | "1" | "yes"
+                ) == actual
+            }),
+        Some(_) => false,
+        None => fulfillment_order_free_text_matches(order, &term.value),
+    }
+}
+
+fn fulfillment_order_id_matches_query(order: &Value, query_value: &str) -> bool {
+    let Some(id) = order["id"].as_str() else {
+        return false;
+    };
+    let (operator, value) = search_comparator(query_value);
+    if operator == "=" {
+        return resource_id_matches_gid_or_tail(id, value);
+    }
+    comparable_string_matches(resource_id_tail(id), query_value)
+}
+
+fn comparable_string_matches(actual: &str, query_value: &str) -> bool {
+    let (operator, expected) = search_comparator(query_value);
+    if let (Ok(actual), Ok(expected)) = (actual.parse::<i64>(), expected.parse::<i64>()) {
+        return match operator {
+            ">=" => actual >= expected,
+            ">" => actual > expected,
+            "<=" => actual <= expected,
+            "<" => actual < expected,
+            _ => actual == expected,
+        };
+    }
+    match operator {
+        ">=" => actual >= expected,
+        ">" => actual > expected,
+        "<=" => actual <= expected,
+        "<" => actual < expected,
+        _ => actual == expected,
+    }
+}
+
+fn fulfillment_order_free_text_matches(order: &Value, query_value: &str) -> bool {
+    [
+        order["id"].as_str(),
+        order["status"].as_str(),
+        order["requestStatus"].as_str(),
+        order["assignedLocation"]["name"].as_str(),
+        order["assignedLocation"]["location"]["id"].as_str(),
+        order["assignedLocation"]["location"]["name"].as_str(),
+        order["order"]["id"].as_str(),
+        order["order"]["name"].as_str(),
+    ]
+    .into_iter()
+    .flatten()
+    .any(|actual| search_string_matches(actual, query_value))
+}
+
+fn order_value_string(order: &Value, path: &[&str]) -> Option<String> {
+    let mut value = order;
+    for segment in path {
+        value = value.get(*segment)?;
+    }
+    value.as_str().map(str::to_string)
+}
+
+impl DraftProxy {
     pub(in crate::proxy) fn shipping_fulfillment_order_mutation_response(
         &mut self,
         root_field: &str,
@@ -350,6 +790,8 @@ impl DraftProxy {
             "fulfillmentOrdersSetFulfillmentDeadline" => {
                 self.fulfillment_order_set_deadline_store_backed(query, variables, request)
             }
+            "fulfillmentOrderLineItemsPreparedForPickup" => self
+                .fulfillment_order_prepared_for_pickup_store_backed(query, variables, request),
             "fulfillmentOrderClose" => {
                 self.fulfillment_order_close_store_backed(query, variables, request)
             }
@@ -1220,6 +1662,109 @@ impl DraftProxy {
         )
     }
 
+    fn fulfillment_order_prepared_for_pickup_store_backed(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let (response_key, payload_selection, arguments) =
+            Self::fulfillment_order_store_backed_parts(
+                "fulfillmentOrderLineItemsPreparedForPickup",
+                query,
+                variables,
+            );
+        let Some(input) = resolved_object_field(&arguments, "input") else {
+            return fulfillment_order_data_response(
+                &response_key,
+                fulfillment_order_prepared_for_pickup_payload_json(
+                    &payload_selection,
+                    vec![user_error(["input"], "Input is required.", Some("INVALID"))],
+                ),
+            );
+        };
+        let requested = resolved_object_list_field(&input, "lineItemsByFulfillmentOrder")
+            .into_iter()
+            .enumerate()
+            .filter_map(|(index, item)| {
+                resolved_string_field(&item, "fulfillmentOrderId").map(|id| (index, id))
+            })
+            .collect::<Vec<_>>();
+
+        for (_, id) in &requested {
+            if shopify_gid_resource_type(id) != Some("FulfillmentOrder")
+                || fulfillment_order_id_is_invalid(id)
+            {
+                return ok_json(fulfillment_order_structural_invalid_id_data(
+                    &response_key,
+                    "fulfillmentOrderLineItemsPreparedForPickup",
+                ));
+            }
+        }
+
+        for (_, id) in &requested {
+            self.ensure_shipping_fulfillment_order_pickup_hydrated(request, id);
+        }
+
+        let mut errors = Vec::new();
+        let mut locations = Vec::new();
+        for (input_index, id) in &requested {
+            match self.shipping_fulfillment_order_by_id(id) {
+                Some(fulfillment_order)
+                    if fulfillment_order_is_pickup_preparable(&fulfillment_order) =>
+                {
+                    if let Some(location) = self.shipping_fulfillment_order_location(id) {
+                        locations.push((id.clone(), location));
+                    }
+                }
+                _ => errors.push(fulfillment_order_prepared_for_pickup_invalid_error(
+                    *input_index,
+                    id,
+                )),
+            }
+        }
+
+        if !errors.is_empty() {
+            return fulfillment_order_data_response(
+                &response_key,
+                fulfillment_order_prepared_for_pickup_payload_json(&payload_selection, errors),
+            );
+        }
+
+        let timestamp = self.next_shipping_fulfillment_timestamp();
+        for (_id, (order_id, index)) in &locations {
+            if let Some(order) = self.store.staged.orders.get_mut(order_id) {
+                if let Some(nodes) = fulfillment_order_nodes_mut(order) {
+                    let mut fulfillment_order = nodes[*index].clone();
+                    fulfillment_order["status"] = json!("IN_PROGRESS");
+                    fulfillment_order["updatedAt"] = json!(timestamp);
+                    fulfillment_order["supportedActions"] =
+                        shipping_fulfillment_supported_actions(&[
+                            "CREATE_FULFILLMENT",
+                            "REPORT_PROGRESS",
+                            "HOLD",
+                            "MARK_AS_OPEN",
+                        ]);
+                    mark_fulfillment_order_lines_prepared_for_pickup(&mut fulfillment_order);
+                    nodes[*index] = fulfillment_order;
+                }
+                update_order_display_fulfillment_status(order);
+            }
+        }
+        self.record_mutation_log_entry(
+            request,
+            query,
+            variables,
+            "fulfillmentOrderLineItemsPreparedForPickup",
+            requested.into_iter().map(|(_, id)| id).collect(),
+        );
+
+        fulfillment_order_data_response(
+            &response_key,
+            fulfillment_order_prepared_for_pickup_payload_json(&payload_selection, vec![]),
+        )
+    }
+
     fn fulfillment_order_guardrail_response(
         &self,
         root_field: &str,
@@ -1318,6 +1863,33 @@ impl DraftProxy {
             {
                 break;
             }
+        }
+        self.shipping_fulfillment_order_location(id).is_some()
+    }
+
+    fn ensure_shipping_fulfillment_order_pickup_hydrated(
+        &mut self,
+        request: &Request,
+        id: &str,
+    ) -> bool {
+        if id.is_empty() {
+            return false;
+        }
+        if self
+            .shipping_fulfillment_order_by_id(id)
+            .is_some_and(|order| !order["deliveryMethod"]["methodType"].is_null())
+        {
+            return true;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": SHIPPING_FULFILLMENT_ORDER_PICKUP_HYDRATE_QUERY,
+                "variables": { "id": id }
+            }),
+        );
+        if response.status < 400 {
+            self.stage_shipping_fulfillment_order_hydrate_response(id, &response.body);
         }
         self.shipping_fulfillment_order_location(id).is_some()
     }
@@ -1521,14 +2093,24 @@ impl DraftProxy {
     }
 
     fn shipping_fulfillment_orders(&self) -> Vec<Value> {
-        self.store
-            .staged
-            .orders
-            .values()
-            .filter_map(fulfillment_order_nodes)
-            .flatten()
-            .cloned()
-            .collect()
+        let mut records = Vec::new();
+        for order in self.store.staged.orders.values() {
+            let Some(nodes) = fulfillment_order_nodes(order) else {
+                continue;
+            };
+            let mut order_summary = order.clone();
+            if let Some(object) = order_summary.as_object_mut() {
+                object.remove("fulfillmentOrders");
+            }
+            for node in nodes {
+                let mut node = node.clone();
+                if !node["order"].is_object() {
+                    node["order"] = order_summary.clone();
+                }
+                records.push(node);
+            }
+        }
+        records
     }
 
     fn shipping_move_destination_location(&self, location_id: &str) -> Option<Value> {
@@ -1536,6 +2118,12 @@ impl DraftProxy {
             .staged
             .locations
             .get(location_id)
+            .or_else(|| {
+                self.store
+                    .staged
+                    .fulfillment_service_locations
+                    .get(location_id)
+            })
             .filter(|location| location["isActive"].as_bool().unwrap_or(true))
             .cloned()
     }
@@ -1579,101 +2167,8 @@ impl DraftProxy {
     }
 
     fn next_shipping_fulfillment_timestamp(&mut self) -> String {
-        let offset = self.next_synthetic_id;
         self.next_synthetic_id += 1;
-        format!(
-            "2026-01-01T00:{:02}:{:02}Z",
-            (offset / 60) % 60,
-            offset % 60
-        )
-    }
-
-    pub(in crate::proxy) fn shipping_fulfillment_order_local_order_read(
-        &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
-        let Some(fields) = root_fields(query, variables) else {
-            return json_error(400, "Could not parse shipping fulfillment-order order read");
-        };
-        let data = root_payload_json(&fields, |field| {
-            Some(match field.name.as_str() {
-                "order" => {
-                    let id = resolved_string_field(&field.arguments, "id")
-                        .or_else(|| resolved_string_field(&field.arguments, "orderId"))
-                        .unwrap_or_default();
-                    let order = self
-                        .store
-                        .staged
-                        .orders
-                        .get(&id)
-                        .cloned()
-                        .unwrap_or(Value::Null);
-                    selected_json(&order, &field.selection)
-                }
-                "fulfillmentOrder" => {
-                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    let fulfillment_order = self
-                        .shipping_fulfillment_order_by_id(&id)
-                        .unwrap_or(Value::Null);
-                    nullable_selected_json(&fulfillment_order, &field.selection)
-                }
-                "fulfillmentOrders" | "assignedFulfillmentOrders" => {
-                    // Same staged set + no-op `includeClosed` as the dedicated
-                    // root read above; keep both paths returning every staged
-                    // record so closed siblings remain visible.
-                    let nodes = self.shipping_fulfillment_orders();
-                    selected_connection_json_with_args(
-                        nodes,
-                        &field.arguments,
-                        &field.selection,
-                        value_id_cursor,
-                    )
-                }
-                "manualHoldsFulfillmentOrders" => {
-                    let nodes = self
-                        .shipping_fulfillment_orders()
-                        .into_iter()
-                        .filter(|order| {
-                            order["status"].as_str() == Some("ON_HOLD")
-                                || !fulfillment_order_holds(order).is_empty()
-                        })
-                        .collect::<Vec<_>>();
-                    selected_connection_json_with_args(
-                        nodes,
-                        &field.arguments,
-                        &field.selection,
-                        value_id_cursor,
-                    )
-                }
-                _ => return None,
-            })
-        });
-        ok_json(json!({ "data": data }))
-    }
-
-    pub(in crate::proxy) fn should_handle_shipping_fulfillment_order_local_order_read(
-        &self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> bool {
-        let Some(fields) = root_fields(query, variables) else {
-            return false;
-        };
-        fields.iter().any(|field| match field.name.as_str() {
-            "order" => {
-                let order_id = resolved_string_field(&field.arguments, "id")
-                    .or_else(|| resolved_string_field(&field.arguments, "orderId"));
-                let selects_fulfillment_orders =
-                    selected_child_selection(&field.selection, "fulfillmentOrders").is_some();
-                selects_fulfillment_orders
-                    && order_id.is_some_and(|id| self.store.staged.orders.contains_key(&id))
-            }
-            "fulfillmentOrder" | "fulfillmentOrders" | "manualHoldsFulfillmentOrders" => {
-                !self.store.staged.orders.is_empty()
-            }
-            _ => false,
-        })
+        self.next_mutation_timestamp()
     }
 }
 
@@ -1706,6 +2201,67 @@ fn fulfillment_order_line_item_quantities(
             Some((id, quantity))
         })
         .collect()
+}
+
+fn fulfillment_order_structural_invalid_id_data(response_key: &str, root_field: &str) -> Value {
+    let mut data = serde_json::Map::new();
+    data.insert(response_key.to_string(), Value::Null);
+    json!({
+        "data": Value::Object(data),
+        "errors": [{
+            "message": "invalid id",
+            "extensions": { "code": "RESOURCE_NOT_FOUND" },
+            "path": [root_field]
+        }]
+    })
+}
+
+fn fulfillment_order_prepared_for_pickup_payload_json(
+    selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    selected_json(&json!({ "userErrors": user_errors }), selection)
+}
+
+fn fulfillment_order_prepared_for_pickup_invalid_error(index: usize, id: &str) -> Value {
+    user_error(
+        [
+            "input",
+            "lineItemsByFulfillmentOrder",
+            &index.to_string(),
+            "fulfillmentOrderId",
+        ],
+        &format!(
+            "Invalid fulfillment_order_id provided {}",
+            resource_id_tail(id)
+        ),
+        Some("FULFILLMENT_ORDER_INVALID"),
+    )
+}
+
+fn fulfillment_order_is_pickup_preparable(order: &Value) -> bool {
+    if order["deliveryMethod"]["methodType"].as_str() != Some("PICK_UP") {
+        return false;
+    }
+    if !matches!(order["status"].as_str(), Some("OPEN")) {
+        return false;
+    }
+    fulfillment_order_line_item_nodes(order)
+        .iter()
+        .any(|line| line["remainingQuantity"].as_i64().unwrap_or(0) > 0)
+}
+
+fn mark_fulfillment_order_lines_prepared_for_pickup(order: &mut Value) {
+    for line in order["lineItems"]["nodes"]
+        .as_array_mut()
+        .into_iter()
+        .flatten()
+    {
+        line["__draftProxyPreparedForPickup"] = json!(true);
+        if let Some(line_item) = line["lineItem"].as_object_mut() {
+            line_item.insert("fulfillableQuantity".to_string(), json!(0));
+        }
+    }
 }
 
 /// True when a fulfillment-order mutation response indicates the local engine

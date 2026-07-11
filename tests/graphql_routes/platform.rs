@@ -119,6 +119,115 @@ fn fulfillment_order_hydrate_transport(
     }
 }
 
+fn fulfillment_order_catalog_transport(
+    orders: Vec<Value>,
+    observed_queries: Arc<Mutex<Vec<String>>>,
+) -> impl Fn(Request) -> Response + Send + Sync + 'static {
+    let orders = Arc::new(Mutex::new(orders));
+    move |request| {
+        let body: Value = serde_json::from_str(&request.body).unwrap();
+        let query = body["query"].as_str().unwrap_or_default().to_string();
+        observed_queries.lock().unwrap().push(query.clone());
+        let requested_id = body["variables"]["id"].as_str().unwrap_or_default();
+        let hydrated = orders.lock().unwrap().iter().find_map(|order| {
+            order["fulfillmentOrders"]["nodes"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .find(|node| node["id"].as_str() == Some(requested_id))
+                .map(|node| {
+                    let mut node = node.clone();
+                    node["order"] = json!({
+                        "id": order["id"],
+                        "name": order["name"],
+                        "displayFulfillmentStatus": order["displayFulfillmentStatus"]
+                    });
+                    (order.clone(), node)
+                })
+        });
+        let body = if query.contains("node(id: $id)") {
+            let node = hydrated
+                .as_ref()
+                .map(|(_, node)| node.clone())
+                .unwrap_or(Value::Null);
+            json!({ "data": { "node": node } })
+        } else if query.contains("fulfillmentOrder(id: $id)") {
+            let fulfillment_order = hydrated
+                .as_ref()
+                .map(|(_, node)| node.clone())
+                .unwrap_or(Value::Null);
+            json!({ "data": { "fulfillmentOrder": fulfillment_order } })
+        } else if let Some(root_key) = if query.contains("manualHoldsFulfillmentOrders(") {
+            Some("manualHoldsFulfillmentOrders")
+        } else if query.contains("assignedFulfillmentOrders(") {
+            Some("assignedFulfillmentOrders")
+        } else if query.contains("fulfillmentOrders(") {
+            Some("fulfillmentOrders")
+        } else {
+            None
+        } {
+            let nodes = orders
+                .lock()
+                .unwrap()
+                .iter()
+                .flat_map(|order| {
+                    order["fulfillmentOrders"]["nodes"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .map(|node| {
+                            let mut node = node.clone();
+                            node["order"] = json!({
+                                "id": order["id"],
+                                "name": order["name"],
+                                "displayFulfillmentStatus": order["displayFulfillmentStatus"]
+                            });
+                            node
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>();
+            let mut data = serde_json::Map::new();
+            data.insert(
+                root_key.to_string(),
+                json!({
+                    "nodes": nodes,
+                    "edges": [],
+                    "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                    }
+                }),
+            );
+            let mut body = serde_json::Map::new();
+            body.insert("data".to_string(), Value::Object(data));
+            Value::Object(body)
+        } else {
+            let order = hydrated
+                .as_ref()
+                .map(|(order, _)| order.clone())
+                .unwrap_or(Value::Null);
+            json!({ "data": { "order": order } })
+        };
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body,
+        }
+    }
+}
+
+fn resource_id_tail_for_test(id: &str) -> &str {
+    id.rsplit('/')
+        .next()
+        .unwrap_or(id)
+        .split('?')
+        .next()
+        .unwrap_or_default()
+}
+
 fn fulfillment_order_order_fixture(
     order_id: &str,
     name: &str,
@@ -180,6 +289,54 @@ fn fulfillment_order_order_fixture(
             }]
         }
     })
+}
+
+struct FulfillmentOrderCatalogFixture<'a> {
+    order_id: &'a str,
+    name: &'a str,
+    fulfillment_order_id: &'a str,
+    line_item_id: &'a str,
+    status: &'a str,
+    location_id: &'a str,
+    location_name: &'a str,
+    updated_at: &'a str,
+}
+
+fn fulfillment_order_catalog_fixture(input: FulfillmentOrderCatalogFixture<'_>) -> Value {
+    let mut order = fulfillment_order_order_fixture(
+        input.order_id,
+        input.name,
+        input.fulfillment_order_id,
+        input.line_item_id,
+        1,
+        input.status,
+    );
+    let fulfillment_order = &mut order["fulfillmentOrders"]["nodes"][0];
+    fulfillment_order["updatedAt"] = json!(input.updated_at);
+    fulfillment_order["assignedLocation"] = json!({
+        "name": input.location_name,
+        "location": {
+            "id": input.location_id,
+            "name": input.location_name
+        }
+    });
+    order
+}
+
+fn fulfillment_order_ids(response: &Response, root_key: &str) -> Vec<String> {
+    response.body["data"][root_key]["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|node| node["id"].as_str().unwrap().to_string())
+        .collect()
+}
+
+fn required_string(value: &Value, context: &str) -> String {
+    value
+        .as_str()
+        .unwrap_or_else(|| panic!("{context} should be a string, got {value:?}"))
+        .to_string()
 }
 
 fn create_fulfillment_order_test_order(proxy: &mut DraftProxy, quantity: i64) -> (Value, Value) {
@@ -1473,7 +1630,7 @@ fn fulfillment_order_split_and_merge_stage_remaining_records_and_read_back() {
     let root_list_after_merge = proxy.process_request(json_graphql_request(
         r#"
         query ReadRootAfterMerge {
-          fulfillmentOrders(first: 5) { nodes { id } }
+          fulfillmentOrders(first: 5, includeClosed: true) { nodes { id } }
         }
         "#,
         json!({}),
@@ -2401,6 +2558,629 @@ fn generic_node_reads_keep_well_formed_absent_and_unknown_ids_null() {
             "absentProduct": null,
             "unknownType": null,
             "nodes": [null, null]
+        })
+    );
+}
+
+#[test]
+fn generic_node_reads_project_customer_payment_store_credit_and_gift_card_records() {
+    let mut proxy = snapshot_proxy();
+
+    let customer_setup = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AdminNodeCustomerSetup($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer {
+              id
+              email
+              displayName
+              addressesV2(first: 2) {
+                nodes { id address1 city countryCodeV2 }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "admin-node-customer@example.test",
+                "firstName": "Node",
+                "lastName": "Customer",
+                "addresses": [{
+                    "address1": "1 Node St",
+                    "city": "Ottawa",
+                    "countryCode": "CA",
+                    "provinceCode": "ON",
+                    "zip": "K1A 0B1"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(customer_setup.status, 200);
+    assert_eq!(
+        customer_setup.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    let customer_id = required_string(
+        &customer_setup.body["data"]["customerCreate"]["customer"]["id"],
+        "created customer id",
+    );
+    let address_id = required_string(
+        &customer_setup.body["data"]["customerCreate"]["customer"]["addressesV2"]["nodes"][0]["id"],
+        "created address id",
+    );
+
+    let payment_setup = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AdminNodeCustomerPaymentMethodSetup($customerId: ID!) {
+          customerPaymentMethodCreditCardCreate(
+            customerId: $customerId
+            sessionId: "sess_node"
+            billingAddress: {
+              firstName: "Node"
+              lastName: "Billing"
+              address1: "2 Billing St"
+              city: "Toronto"
+              zip: "M5V 2T6"
+              country: "CA"
+              province: "ON"
+            }
+          ) {
+            customerPaymentMethod {
+              id
+              customer { id }
+              instrument {
+                __typename
+                ... on CustomerCreditCard {
+                  maskedNumber
+                  lastDigits
+                  billingAddress { address1 city countryCodeV2 }
+                }
+              }
+              revokedAt
+              revokedReason
+            }
+            processing
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "customerId": customer_id }),
+    ));
+    assert_eq!(payment_setup.status, 200);
+    assert_eq!(
+        payment_setup.body["data"]["customerPaymentMethodCreditCardCreate"]["userErrors"],
+        json!([])
+    );
+    let payment_method_id = required_string(
+        &payment_setup.body["data"]["customerPaymentMethodCreditCardCreate"]
+            ["customerPaymentMethod"]["id"],
+        "created payment method id",
+    );
+
+    let store_credit_setup = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AdminNodeStoreCreditSetup($customerId: ID!) {
+          credit: storeCreditAccountCredit(
+            id: $customerId
+            creditInput: { creditAmount: { amount: "10.00", currencyCode: USD } }
+          ) {
+            storeCreditAccountTransaction {
+              id
+              __typename
+              amount { amount currencyCode }
+              balanceAfterTransaction { amount currencyCode }
+              account { id owner { ... on Customer { id } } balance { amount currencyCode } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "customerId": customer_id }),
+    ));
+    assert_eq!(store_credit_setup.status, 200);
+    assert_eq!(
+        store_credit_setup.body["data"]["credit"]["userErrors"],
+        json!([])
+    );
+    let store_credit_account_id = required_string(
+        &store_credit_setup.body["data"]["credit"]["storeCreditAccountTransaction"]["account"]
+            ["id"],
+        "store credit account id",
+    );
+    let store_credit_credit_id = required_string(
+        &store_credit_setup.body["data"]["credit"]["storeCreditAccountTransaction"]["id"],
+        "store credit credit transaction id",
+    );
+
+    let store_credit_debit = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AdminNodeStoreCreditDebitSetup($accountId: ID!) {
+          debit: storeCreditAccountDebit(
+            id: $accountId
+            debitInput: { debitAmount: { amount: "3.00", currencyCode: USD } }
+          ) {
+            storeCreditAccountTransaction {
+              id
+              __typename
+              amount { amount currencyCode }
+              balanceAfterTransaction { amount currencyCode }
+              account { id balance { amount currencyCode } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "accountId": store_credit_account_id }),
+    ));
+    assert_eq!(store_credit_debit.status, 200);
+    assert_eq!(
+        store_credit_debit.body["data"]["debit"]["userErrors"],
+        json!([])
+    );
+    let store_credit_debit_id = required_string(
+        &store_credit_debit.body["data"]["debit"]["storeCreditAccountTransaction"]["id"],
+        "store credit debit transaction id",
+    );
+
+    restore_shop_currency(&mut proxy, "CAD");
+    let gift_card_setup = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AdminNodeGiftCardSetup {
+          create: giftCardCreate(input: { initialValue: "20.00", notify: false }) {
+            giftCard { id balance { amount currencyCode } }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(gift_card_setup.status, 200);
+    assert_eq!(
+        gift_card_setup.body["data"]["create"]["userErrors"],
+        json!([])
+    );
+    let gift_card_id = required_string(
+        &gift_card_setup.body["data"]["create"]["giftCard"]["id"],
+        "gift card id",
+    );
+
+    let gift_card_transactions = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AdminNodeGiftCardTransactions($id: ID!) {
+          credit: giftCardCredit(
+            id: $id
+            creditInput: { creditAmount: { amount: "2.00", currencyCode: CAD }, note: "node credit" }
+          ) {
+            giftCardCreditTransaction { id note amount { amount currencyCode } giftCard { id balance { amount currencyCode } } }
+            userErrors { field code message }
+          }
+          debit: giftCardDebit(
+            id: $id
+            debitInput: { debitAmount: { amount: "4.00", currencyCode: CAD }, note: "node debit" }
+          ) {
+            giftCardDebitTransaction { id note amount { amount currencyCode } giftCard { id balance { amount currencyCode } } }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "id": gift_card_id }),
+    ));
+    assert_eq!(gift_card_transactions.status, 200);
+    assert_eq!(
+        gift_card_transactions.body["data"]["credit"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        gift_card_transactions.body["data"]["debit"]["userErrors"],
+        json!([])
+    );
+    let gift_card_credit_id = required_string(
+        &gift_card_transactions.body["data"]["credit"]["giftCardCreditTransaction"]["id"],
+        "gift card credit transaction id",
+    );
+    let gift_card_debit_id = required_string(
+        &gift_card_transactions.body["data"]["debit"]["giftCardDebitTransaction"]["id"],
+        "gift card debit transaction id",
+    );
+
+    let node_read = proxy.process_request(json_graphql_request(
+        r#"
+        query AdminNodeReadback(
+          $customerId: ID!
+          $addressId: ID!
+          $paymentMethodId: ID!
+          $storeCreditAccountId: ID!
+          $storeCreditCreditId: ID!
+          $storeCreditDebitId: ID!
+          $giftCardCreditId: ID!
+          $giftCardDebitId: ID!
+          $ids: [ID!]!
+        ) {
+          customerNode: node(id: $customerId) {
+            __typename
+            ... on Customer {
+              id
+              email
+              displayName
+              addressesV2(first: 2) { nodes { id address1 city countryCodeV2 } }
+            }
+          }
+          addressNode: node(id: $addressId) {
+            __typename
+            ... on MailingAddress { id address1 city countryCodeV2 }
+          }
+          paymentNode: node(id: $paymentMethodId) {
+            __typename
+            ... on CustomerPaymentMethod {
+              id
+              customer { id }
+              revokedAt
+              revokedReason
+              instrument {
+                __typename
+                ... on CustomerCreditCard {
+                  maskedNumber
+                  lastDigits
+                  billingAddress { address1 city countryCodeV2 }
+                }
+              }
+            }
+          }
+          storeCreditAccountNode: node(id: $storeCreditAccountId) {
+            __typename
+            ... on StoreCreditAccount {
+              id
+              owner { ... on Customer { id } }
+              balance { amount currencyCode }
+              transactions(first: 5) {
+                nodes {
+                  __typename
+                  ... on StoreCreditAccountCreditTransaction { id amount { amount currencyCode } balanceAfterTransaction { amount currencyCode } }
+                  ... on StoreCreditAccountDebitTransaction { id amount { amount currencyCode } balanceAfterTransaction { amount currencyCode } }
+                }
+              }
+            }
+          }
+          storeCreditCreditNode: node(id: $storeCreditCreditId) {
+            __typename
+            ... on StoreCreditAccountCreditTransaction {
+              id
+              amount { amount currencyCode }
+              balanceAfterTransaction { amount currencyCode }
+              account { id }
+            }
+          }
+          storeCreditDebitNode: node(id: $storeCreditDebitId) {
+            __typename
+            ... on StoreCreditAccountDebitTransaction {
+              id
+              amount { amount currencyCode }
+              balanceAfterTransaction { amount currencyCode }
+              account { id }
+            }
+          }
+          giftCardCreditNode: node(id: $giftCardCreditId) {
+            __typename
+            ... on GiftCardCreditTransaction {
+              id
+              note
+              amount { amount currencyCode }
+              giftCard { id balance { amount currencyCode } }
+            }
+          }
+          giftCardDebitNode: node(id: $giftCardDebitId) {
+            __typename
+            ... on GiftCardDebitTransaction {
+              id
+              note
+              amount { amount currencyCode }
+              giftCard { id balance { amount currencyCode } }
+            }
+          }
+          ordered: nodes(ids: $ids) {
+            __typename
+            ... on MailingAddress { id address1 }
+            ... on StoreCreditAccountCreditTransaction { id amount { amount currencyCode } }
+            ... on GiftCardDebitTransaction { id note }
+            ... on Customer { id email }
+          }
+        }
+        "#,
+        json!({
+            "customerId": customer_id,
+            "addressId": address_id,
+            "paymentMethodId": payment_method_id,
+            "storeCreditAccountId": store_credit_account_id,
+            "storeCreditCreditId": store_credit_credit_id,
+            "storeCreditDebitId": store_credit_debit_id,
+            "giftCardCreditId": gift_card_credit_id,
+            "giftCardDebitId": gift_card_debit_id,
+            "ids": [
+                address_id,
+                "gid://shopify/CustomerPaymentMethod/999999999999",
+                store_credit_credit_id,
+                gift_card_debit_id,
+                customer_id
+            ]
+        }),
+    ));
+    assert_eq!(node_read.status, 200);
+    assert_eq!(node_read.body.get("errors"), None);
+    assert_eq!(
+        node_read.body["data"]["customerNode"],
+        json!({
+            "__typename": "Customer",
+            "id": customer_id,
+            "email": "admin-node-customer@example.test",
+            "displayName": "Node Customer",
+            "addressesV2": {
+                "nodes": [{
+                    "id": address_id,
+                    "address1": "1 Node St",
+                    "city": "Ottawa",
+                    "countryCodeV2": "CA"
+                }]
+            }
+        })
+    );
+    assert_eq!(
+        node_read.body["data"]["addressNode"],
+        json!({
+            "__typename": "MailingAddress",
+            "id": address_id,
+            "address1": "1 Node St",
+            "city": "Ottawa",
+            "countryCodeV2": "CA"
+        })
+    );
+    assert_eq!(
+        node_read.body["data"]["paymentNode"],
+        json!({
+            "__typename": "CustomerPaymentMethod",
+            "id": payment_method_id,
+            "customer": { "id": customer_id },
+            "revokedAt": Value::Null,
+            "revokedReason": Value::Null,
+            "instrument": {
+                "__typename": "CustomerCreditCard",
+                "maskedNumber": Value::Null,
+                "lastDigits": Value::Null,
+                "billingAddress": {
+                    "address1": "2 Billing St",
+                    "city": "Toronto",
+                    "countryCodeV2": "CA"
+                }
+            }
+        })
+    );
+    assert_eq!(
+        node_read.body["data"]["storeCreditAccountNode"],
+        json!({
+            "__typename": "StoreCreditAccount",
+            "id": store_credit_account_id,
+            "owner": { "id": customer_id },
+            "balance": { "amount": "7.0", "currencyCode": "USD" },
+            "transactions": {
+                "nodes": [
+                    {
+                        "__typename": "StoreCreditAccountCreditTransaction",
+                        "id": store_credit_credit_id,
+                        "amount": { "amount": "10.0", "currencyCode": "USD" },
+                        "balanceAfterTransaction": { "amount": "10.0", "currencyCode": "USD" }
+                    },
+                    {
+                        "__typename": "StoreCreditAccountDebitTransaction",
+                        "id": store_credit_debit_id,
+                        "amount": { "amount": "-3.0", "currencyCode": "USD" },
+                        "balanceAfterTransaction": { "amount": "7.0", "currencyCode": "USD" }
+                    }
+                ]
+            }
+        })
+    );
+    assert_eq!(
+        node_read.body["data"]["storeCreditCreditNode"],
+        json!({
+            "__typename": "StoreCreditAccountCreditTransaction",
+            "id": store_credit_credit_id,
+            "amount": { "amount": "10.0", "currencyCode": "USD" },
+            "balanceAfterTransaction": { "amount": "10.0", "currencyCode": "USD" },
+            "account": { "id": store_credit_account_id }
+        })
+    );
+    assert_eq!(
+        node_read.body["data"]["storeCreditDebitNode"],
+        json!({
+            "__typename": "StoreCreditAccountDebitTransaction",
+            "id": store_credit_debit_id,
+            "amount": { "amount": "-3.0", "currencyCode": "USD" },
+            "balanceAfterTransaction": { "amount": "7.0", "currencyCode": "USD" },
+            "account": { "id": store_credit_account_id }
+        })
+    );
+    assert_eq!(
+        node_read.body["data"]["giftCardCreditNode"],
+        json!({
+            "__typename": "GiftCardCreditTransaction",
+            "id": gift_card_credit_id,
+            "note": "node credit",
+            "amount": { "amount": "2.0", "currencyCode": "CAD" },
+            "giftCard": {
+                "id": gift_card_id,
+                "balance": { "amount": "22.0", "currencyCode": "CAD" }
+            }
+        })
+    );
+    assert_eq!(
+        node_read.body["data"]["giftCardDebitNode"],
+        json!({
+            "__typename": "GiftCardDebitTransaction",
+            "id": gift_card_debit_id,
+            "note": "node debit",
+            "amount": { "amount": "-4.0", "currencyCode": "CAD" },
+            "giftCard": {
+                "id": gift_card_id,
+                "balance": { "amount": "18.0", "currencyCode": "CAD" }
+            }
+        })
+    );
+    assert_eq!(
+        node_read.body["data"]["ordered"],
+        json!([
+            {
+                "__typename": "MailingAddress",
+                "id": address_id,
+                "address1": "1 Node St"
+            },
+            Value::Null,
+            {
+                "__typename": "StoreCreditAccountCreditTransaction",
+                "id": store_credit_credit_id,
+                "amount": { "amount": "10.0", "currencyCode": "USD" }
+            },
+            {
+                "__typename": "GiftCardDebitTransaction",
+                "id": gift_card_debit_id,
+                "note": "node debit"
+            },
+            {
+                "__typename": "Customer",
+                "id": customer_id,
+                "email": "admin-node-customer@example.test"
+            }
+        ])
+    );
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    let mut restored_proxy = snapshot_proxy();
+    let restore = restored_proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let restored_read = restored_proxy.process_request(json_graphql_request(
+        r#"
+        query AdminNodeRestoredRead($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            __typename
+            ... on Customer { id }
+            ... on MailingAddress { id }
+            ... on CustomerPaymentMethod { id }
+            ... on StoreCreditAccount { id }
+            ... on StoreCreditAccountCreditTransaction { id }
+            ... on GiftCardCreditTransaction { id }
+          }
+        }
+        "#,
+        json!({
+            "ids": [
+                customer_id,
+                address_id,
+                payment_method_id,
+                store_credit_account_id,
+                store_credit_credit_id,
+                gift_card_credit_id
+            ]
+        }),
+    ));
+    assert_eq!(restored_read.status, 200);
+    assert_eq!(
+        restored_read.body["data"]["nodes"],
+        json!([
+            { "__typename": "Customer", "id": customer_id },
+            { "__typename": "MailingAddress", "id": address_id },
+            { "__typename": "CustomerPaymentMethod", "id": payment_method_id },
+            { "__typename": "StoreCreditAccount", "id": store_credit_account_id },
+            { "__typename": "StoreCreditAccountCreditTransaction", "id": store_credit_credit_id },
+            { "__typename": "GiftCardCreditTransaction", "id": gift_card_credit_id }
+        ])
+    );
+
+    let reset = restored_proxy.process_request(request_with_body("POST", "/__meta/reset", ""));
+    assert_eq!(reset.status, 200);
+    let reset_read = restored_proxy.process_request(json_graphql_request(
+        r#"
+        query AdminNodeResetRead($ids: [ID!]!) {
+          nodes(ids: $ids) { __typename ... on Node { id } }
+        }
+        "#,
+        json!({
+            "ids": [
+                customer_id,
+                address_id,
+                payment_method_id,
+                store_credit_account_id,
+                store_credit_credit_id,
+                gift_card_credit_id
+            ]
+        }),
+    ));
+    assert_eq!(reset_read.status, 200);
+    assert_eq!(
+        reset_read.body["data"]["nodes"],
+        json!([null, null, null, null, null, null])
+    );
+
+    let revoke = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AdminNodePaymentMethodRevoke($id: ID!) {
+          customerPaymentMethodRevoke(customerPaymentMethodId: $id) {
+            revokedCustomerPaymentMethodId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": payment_method_id }),
+    ));
+    assert_eq!(revoke.status, 200);
+    assert_eq!(
+        revoke.body["data"]["customerPaymentMethodRevoke"]["userErrors"],
+        json!([])
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AdminNodeCustomerDelete($id: ID!) {
+          customerDelete(input: { id: $id }) {
+            deletedCustomerId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": customer_id }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["customerDelete"]["userErrors"],
+        json!([])
+    );
+
+    let removed_read = proxy.process_request(json_graphql_request(
+        r#"
+        query AdminNodeRemovedRead($customerId: ID!, $addressId: ID!, $paymentMethodId: ID!) {
+          customerNode: node(id: $customerId) { __typename ... on Customer { id } }
+          addressNode: node(id: $addressId) { __typename ... on MailingAddress { id } }
+          paymentNode: node(id: $paymentMethodId) { __typename ... on CustomerPaymentMethod { id } }
+        }
+        "#,
+        json!({
+            "customerId": customer_id,
+            "addressId": address_id,
+            "paymentMethodId": payment_method_id
+        }),
+    ));
+    assert_eq!(removed_read.status, 200);
+    assert_eq!(
+        removed_read.body["data"],
+        json!({
+            "customerNode": null,
+            "addressNode": null,
+            "paymentNode": null
         })
     );
 }
@@ -5726,6 +6506,361 @@ fn fulfillment_order_hold_release_stages_real_numeric_ids_and_downstream_reads()
 }
 
 #[test]
+fn fulfillment_order_top_level_catalog_merges_live_siblings_after_local_hold() {
+    let held_order_id = "gid://shopify/Order/7001101";
+    let held_fulfillment_order_id = "gid://shopify/FulfillmentOrder/70011011";
+    let live_order_id = "gid://shopify/Order/7001102";
+    let live_fulfillment_order_id = "gid://shopify/FulfillmentOrder/70011021";
+    let observed_queries = Arc::new(Mutex::new(Vec::new()));
+    let mut proxy = snapshot_proxy().with_upstream_transport(fulfillment_order_catalog_transport(
+        vec![
+            fulfillment_order_order_fixture(
+                held_order_id,
+                "#70011",
+                held_fulfillment_order_id,
+                "gid://shopify/FulfillmentOrderLineItem/70011012",
+                1,
+                "OPEN",
+            ),
+            fulfillment_order_order_fixture(
+                live_order_id,
+                "#70012",
+                live_fulfillment_order_id,
+                "gid://shopify/FulfillmentOrderLineItem/70011022",
+                1,
+                "OPEN",
+            ),
+        ],
+        observed_queries.clone(),
+    ));
+
+    let hold = proxy.process_request(json_graphql_request(
+        r#"
+        mutation HoldOneCatalogFulfillmentOrder($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) {
+          fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) {
+            fulfillmentOrder { id status }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": held_fulfillment_order_id,
+            "fulfillmentHold": {
+                "reason": "INVENTORY_OUT_OF_STOCK",
+                "handle": "catalog-hold"
+            }
+        }),
+    ));
+    assert_eq!(hold.status, 200);
+    assert_eq!(
+        hold.body["data"]["fulfillmentOrderHold"]["fulfillmentOrder"]["status"],
+        json!("ON_HOLD")
+    );
+
+    let catalog = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadFulfillmentOrderCatalogAfterHold {
+          fulfillmentOrders(first: 10, includeClosed: true, sortKey: ID) {
+            nodes { id status order { id name } }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let nodes = catalog.body["data"]["fulfillmentOrders"]["nodes"]
+        .as_array()
+        .unwrap();
+    let query_snapshot = observed_queries.lock().unwrap().clone();
+    assert!(
+        nodes.iter().any(
+            |node| node["id"].as_str() == Some(held_fulfillment_order_id)
+                && node["status"].as_str() == Some("ON_HOLD")
+        ),
+        "locally held fulfillment order should stay overlaid in the top-level catalog: {nodes:#?}"
+    );
+    assert!(
+        nodes
+            .iter()
+            .any(|node| node["id"].as_str() == Some(live_fulfillment_order_id)),
+        "unrelated upstream fulfillment order disappeared after staging a hold: nodes={nodes:#?}; upstream_queries={query_snapshot:#?}; body={:#?}",
+        catalog.body
+    );
+    let queries = query_snapshot;
+    assert!(queries
+        .iter()
+        .any(|query| query.contains("ShippingFulfillmentOrderHydrate")));
+    assert!(queries
+        .iter()
+        .all(|query| query.trim_start().starts_with("query")));
+}
+
+#[test]
+fn fulfillment_order_top_level_catalog_applies_filters_sort_and_cursor_windows() {
+    let location_a = "gid://shopify/Location/70012044";
+    let location_b = "gid://shopify/Location/70012055";
+    let open_a = "gid://shopify/FulfillmentOrder/70012011";
+    let closed_b = "gid://shopify/FulfillmentOrder/70012021";
+    let open_c = "gid://shopify/FulfillmentOrder/70012031";
+    let held_d = "gid://shopify/FulfillmentOrder/70012041";
+    let observed_queries = Arc::new(Mutex::new(Vec::new()));
+    let mut proxy = snapshot_proxy().with_upstream_transport(fulfillment_order_catalog_transport(
+        vec![
+            fulfillment_order_catalog_fixture(FulfillmentOrderCatalogFixture {
+                order_id: "gid://shopify/Order/7001201",
+                name: "#7001201",
+                fulfillment_order_id: open_a,
+                line_item_id: "gid://shopify/FulfillmentOrderLineItem/70012012",
+                status: "OPEN",
+                location_id: location_a,
+                location_name: "North warehouse",
+                updated_at: "2026-06-15T11:00:10Z",
+            }),
+            fulfillment_order_catalog_fixture(FulfillmentOrderCatalogFixture {
+                order_id: "gid://shopify/Order/7001202",
+                name: "#7001202",
+                fulfillment_order_id: closed_b,
+                line_item_id: "gid://shopify/FulfillmentOrderLineItem/70012022",
+                status: "CLOSED",
+                location_id: location_b,
+                location_name: "South warehouse",
+                updated_at: "2026-06-15T11:00:20Z",
+            }),
+            fulfillment_order_catalog_fixture(FulfillmentOrderCatalogFixture {
+                order_id: "gid://shopify/Order/7001203",
+                name: "#7001203",
+                fulfillment_order_id: open_c,
+                line_item_id: "gid://shopify/FulfillmentOrderLineItem/70012032",
+                status: "OPEN",
+                location_id: location_b,
+                location_name: "South warehouse",
+                updated_at: "2026-06-15T11:00:30Z",
+            }),
+            fulfillment_order_catalog_fixture(FulfillmentOrderCatalogFixture {
+                order_id: "gid://shopify/Order/7001204",
+                name: "#7001204",
+                fulfillment_order_id: held_d,
+                line_item_id: "gid://shopify/FulfillmentOrderLineItem/70012042",
+                status: "ON_HOLD",
+                location_id: location_a,
+                location_name: "North warehouse",
+                updated_at: "2026-06-15T11:00:40Z",
+            }),
+        ],
+        observed_queries.clone(),
+    ));
+
+    let hydrate = proxy.process_request(json_graphql_request(
+        r#"
+        query HydrateOneFulfillmentOrder($id: ID!) {
+          fulfillmentOrder(id: $id) { id status updatedAt }
+        }
+        "#,
+        json!({ "id": open_a }),
+    ));
+    assert_eq!(
+        hydrate.body["data"]["fulfillmentOrder"]["id"],
+        json!(open_a)
+    );
+
+    let default_open = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadOpenFulfillmentOrders {
+          fulfillmentOrders(first: 10, sortKey: ID) {
+            nodes { id status }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let query_snapshot = observed_queries.lock().unwrap().clone();
+    assert_eq!(
+        fulfillment_order_ids(&default_open, "fulfillmentOrders"),
+        vec![open_a, open_c, held_d],
+        "default open catalog body={:#?}; upstream_queries={query_snapshot:#?}",
+        default_open.body
+    );
+
+    let include_closed = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadAllFulfillmentOrders {
+          fulfillmentOrders(first: 10, includeClosed: true, sortKey: ID) {
+            nodes { id status }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        fulfillment_order_ids(&include_closed, "fulfillmentOrders"),
+        vec![open_a, closed_b, open_c, held_d]
+    );
+
+    let status_filtered = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadStatusFilteredFulfillmentOrders($query: String!) {
+          fulfillmentOrders(first: 10, includeClosed: true, query: $query, sortKey: ID) {
+            nodes { id status }
+          }
+        }
+        "#,
+        json!({ "query": "status:OPEN" }),
+    ));
+    assert_eq!(
+        fulfillment_order_ids(&status_filtered, "fulfillmentOrders"),
+        vec![open_a, open_c]
+    );
+
+    let location_filtered = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadLocationFilteredFulfillmentOrders($query: String!) {
+          fulfillmentOrders(first: 10, includeClosed: true, query: $query, sortKey: ID) {
+            nodes { id assignedLocation { location { id } } }
+          }
+        }
+        "#,
+        json!({ "query": "assigned_location_id:70012055" }),
+    ));
+    assert_eq!(
+        fulfillment_order_ids(&location_filtered, "fulfillmentOrders"),
+        vec![closed_b, open_c]
+    );
+
+    let updated_filtered = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadUpdatedFilteredFulfillmentOrders($query: String!) {
+          fulfillmentOrders(first: 10, includeClosed: true, query: $query, sortKey: UPDATED_AT) {
+            nodes { id updatedAt }
+          }
+        }
+        "#,
+        json!({ "query": "updated_at:>=2026-06-15T11:00:20Z" }),
+    ));
+    assert_eq!(
+        fulfillment_order_ids(&updated_filtered, "fulfillmentOrders"),
+        vec![closed_b, open_c, held_d]
+    );
+
+    let reverse_updated = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadReverseUpdatedFulfillmentOrders {
+          fulfillmentOrders(first: 2, includeClosed: true, sortKey: UPDATED_AT, reverse: true) {
+            nodes { id updatedAt }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        fulfillment_order_ids(&reverse_updated, "fulfillmentOrders"),
+        vec![held_d, open_c]
+    );
+    assert_eq!(
+        reverse_updated.body["data"]["fulfillmentOrders"]["pageInfo"]["hasNextPage"],
+        json!(true)
+    );
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadFirstFulfillmentOrderWindow {
+          fulfillmentOrders(first: 2, includeClosed: true, sortKey: ID) {
+            nodes { id }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        fulfillment_order_ids(&first_page, "fulfillmentOrders"),
+        vec![open_a, closed_b]
+    );
+    let after = first_page.body["data"]["fulfillmentOrders"]["pageInfo"]["endCursor"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let next_page = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadNextFulfillmentOrderWindow($after: String!) {
+          fulfillmentOrders(first: 2, after: $after, includeClosed: true, sortKey: ID) {
+            nodes { id }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "after": after }),
+    ));
+    assert_eq!(
+        fulfillment_order_ids(&next_page, "fulfillmentOrders"),
+        vec![open_c, held_d]
+    );
+    assert_eq!(
+        next_page.body["data"]["fulfillmentOrders"]["pageInfo"]["hasPreviousPage"],
+        json!(true)
+    );
+    let before = next_page.body["data"]["fulfillmentOrders"]["pageInfo"]["startCursor"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let previous_page = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadPreviousFulfillmentOrderWindow($before: String!) {
+          fulfillmentOrders(last: 1, before: $before, includeClosed: true, sortKey: ID) {
+            nodes { id }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "before": before }),
+    ));
+    assert_eq!(
+        fulfillment_order_ids(&previous_page, "fulfillmentOrders"),
+        vec![closed_b]
+    );
+    assert_eq!(
+        previous_page.body["data"]["fulfillmentOrders"]["pageInfo"]["hasNextPage"],
+        json!(true)
+    );
+
+    let assigned = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadAssignedFulfillmentOrders($locationIds: [ID!]) {
+          assignedFulfillmentOrders(first: 10, locationIds: $locationIds, sortKey: ID) {
+            nodes { id status assignedLocation { location { id } } }
+          }
+        }
+        "#,
+        json!({ "locationIds": [location_b] }),
+    ));
+    assert_eq!(
+        fulfillment_order_ids(&assigned, "assignedFulfillmentOrders"),
+        vec![open_c]
+    );
+
+    let manual_holds = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadManualHoldsFulfillmentOrders {
+          manualHoldsFulfillmentOrders(first: 1, reverse: true) {
+            nodes { id status }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        fulfillment_order_ids(&manual_holds, "manualHoldsFulfillmentOrders"),
+        vec![held_d]
+    );
+    assert!(observed_queries
+        .lock()
+        .unwrap()
+        .iter()
+        .all(|query| query.trim_start().starts_with("query")));
+}
+
+#[test]
 fn fulfillment_order_status_deadline_move_and_cancel_stage_real_numeric_ids() {
     let order_id = "gid://shopify/Order/7002001";
     let fulfillment_order_id = "gid://shopify/FulfillmentOrder/2234567890";
@@ -6621,6 +7756,313 @@ fn fulfillment_order_deadline_stages_existing_orders_and_reports_all_missing_ids
         after_happy.body["data"]["order"]["displayFulfillmentStatus"],
         json!("UNFULFILLED")
     );
+}
+
+#[test]
+fn fulfillment_order_prepared_for_pickup_stages_selected_orders_only() {
+    let order_id = "gid://shopify/Order/7005201";
+    let prepared_id = "gid://shopify/FulfillmentOrder/70052011";
+    let untouched_id = "gid://shopify/FulfillmentOrder/70052012";
+    let mut order = fulfillment_order_order_fixture(
+        order_id,
+        "#70052",
+        prepared_id,
+        "gid://shopify/FulfillmentOrderLineItem/70052021",
+        2,
+        "OPEN",
+    );
+    let sibling = fulfillment_order_order_fixture(
+        order_id,
+        "#70052",
+        untouched_id,
+        "gid://shopify/FulfillmentOrderLineItem/70052022",
+        1,
+        "OPEN",
+    );
+    {
+        let nodes = order["fulfillmentOrders"]["nodes"].as_array_mut().unwrap();
+        nodes[0]["deliveryMethod"] = json!({ "methodType": "PICK_UP" });
+        let mut untouched = sibling["fulfillmentOrders"]["nodes"][0].clone();
+        untouched["deliveryMethod"] = json!({ "methodType": "PICK_UP" });
+        nodes.push(untouched);
+    }
+    let mut proxy =
+        snapshot_proxy().with_upstream_transport(fulfillment_order_hydrate_transport(vec![order]));
+
+    let prehydrate = proxy.process_request(json_graphql_request(
+        r#"
+        query HydratePickupFulfillmentOrders($preparedId: ID!, $untouchedId: ID!) {
+          prepared: fulfillmentOrder(id: $preparedId) { id status deliveryMethod { methodType } }
+          untouched: fulfillmentOrder(id: $untouchedId) { id status deliveryMethod { methodType } }
+        }
+        "#,
+        json!({ "preparedId": prepared_id, "untouchedId": untouched_id }),
+    ));
+    assert_eq!(
+        prehydrate.body["data"]["prepared"]["deliveryMethod"]["methodType"],
+        json!("PICK_UP")
+    );
+    assert_eq!(
+        prehydrate.body["data"]["untouched"]["deliveryMethod"]["methodType"],
+        json!("PICK_UP")
+    );
+
+    let prepared = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PreparedForPickupRuntime($input: FulfillmentOrderLineItemsPreparedForPickupInput!) {
+          fulfillmentOrderLineItemsPreparedForPickup(input: $input) {
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "lineItemsByFulfillmentOrder": [
+                    { "fulfillmentOrderId": prepared_id }
+                ]
+            }
+        }),
+    ));
+    assert_eq!(prepared.status, 200);
+    assert_eq!(
+        prepared.body["data"]["fulfillmentOrderLineItemsPreparedForPickup"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadPreparedForPickupOrder($orderId: ID!) {
+          order(id: $orderId) {
+            displayFulfillmentStatus
+            fulfillmentOrders(first: 10) {
+              nodes {
+                id
+                status
+                supportedActions { action }
+                lineItems(first: 5) {
+                  nodes {
+                    id
+                    remainingQuantity
+                    lineItem { fulfillableQuantity }
+                  }
+                }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "orderId": order_id }),
+    ));
+    let nodes = read.body["data"]["order"]["fulfillmentOrders"]["nodes"]
+        .as_array()
+        .unwrap();
+    let prepared_node = nodes
+        .iter()
+        .find(|node| node["id"].as_str() == Some(prepared_id))
+        .unwrap();
+    let untouched_node = nodes
+        .iter()
+        .find(|node| node["id"].as_str() == Some(untouched_id))
+        .unwrap();
+    assert_eq!(prepared_node["status"], json!("IN_PROGRESS"));
+    assert!(prepared_node["supportedActions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|action| action["action"] == json!("MARK_AS_OPEN")));
+    assert_eq!(
+        prepared_node["lineItems"]["nodes"][0]["remainingQuantity"],
+        json!(2)
+    );
+    assert_eq!(
+        prepared_node["lineItems"]["nodes"][0]["lineItem"]["fulfillableQuantity"],
+        json!(0)
+    );
+    assert_eq!(untouched_node["status"], json!("OPEN"));
+    assert_eq!(
+        untouched_node["lineItems"]["nodes"][0]["lineItem"]["fulfillableQuantity"],
+        json!(1)
+    );
+    assert_eq!(
+        read.body["data"]["order"]["displayFulfillmentStatus"],
+        json!("IN_PROGRESS")
+    );
+
+    let entries = log_snapshot(&proxy)["entries"].as_array().unwrap().clone();
+    assert_eq!(entries.len(), 1);
+    assert_eq!(
+        entries[0]["interpreted"]["primaryRootField"],
+        json!("fulfillmentOrderLineItemsPreparedForPickup")
+    );
+    assert!(entries[0]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("PreparedForPickupRuntime"));
+    assert_eq!(entries[0]["stagedResourceIds"], json!([prepared_id]));
+}
+
+#[test]
+fn fulfillment_order_prepared_for_pickup_invalid_batches_are_atomic() {
+    let order_id = "gid://shopify/Order/7005301";
+    let valid_id = "gid://shopify/FulfillmentOrder/70053011";
+    let unknown_id = "gid://shopify/FulfillmentOrder/70053999";
+    let mut order = fulfillment_order_order_fixture(
+        order_id,
+        "#70053",
+        valid_id,
+        "gid://shopify/FulfillmentOrderLineItem/70053021",
+        1,
+        "OPEN",
+    );
+    order["fulfillmentOrders"]["nodes"][0]["deliveryMethod"] = json!({ "methodType": "PICK_UP" });
+    let mut proxy =
+        snapshot_proxy().with_upstream_transport(fulfillment_order_hydrate_transport(vec![order]));
+
+    let prehydrate = proxy.process_request(json_graphql_request(
+        r#"
+        query HydrateValidPickupFulfillmentOrder($id: ID!) {
+          fulfillmentOrder(id: $id) { id status deliveryMethod { methodType } }
+        }
+        "#,
+        json!({ "id": valid_id }),
+    ));
+    assert_eq!(
+        prehydrate.body["data"]["fulfillmentOrder"]["deliveryMethod"]["methodType"],
+        json!("PICK_UP")
+    );
+
+    let mixed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PreparedForPickupMixedInvalid($input: FulfillmentOrderLineItemsPreparedForPickupInput!) {
+          fulfillmentOrderLineItemsPreparedForPickup(input: $input) {
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "lineItemsByFulfillmentOrder": [
+                    { "fulfillmentOrderId": valid_id },
+                    { "fulfillmentOrderId": unknown_id }
+                ]
+            }
+        }),
+    ));
+    assert_eq!(
+        mixed.body["data"]["fulfillmentOrderLineItemsPreparedForPickup"]["userErrors"],
+        json!([{
+            "field": ["input", "lineItemsByFulfillmentOrder", "1", "fulfillmentOrderId"],
+            "message": "Invalid fulfillment_order_id provided 70053999",
+            "code": "FULFILLMENT_ORDER_INVALID"
+        }])
+    );
+    let after_mixed = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadValidPickupAfterMixedInvalid($id: ID!) {
+          fulfillmentOrder(id: $id) {
+            id
+            status
+            lineItems(first: 5) { nodes { lineItem { fulfillableQuantity } } }
+          }
+        }
+        "#,
+        json!({ "id": valid_id }),
+    ));
+    assert_eq!(
+        after_mixed.body["data"]["fulfillmentOrder"]["status"],
+        json!("OPEN")
+    );
+    assert_eq!(
+        after_mixed.body["data"]["fulfillmentOrder"]["lineItems"]["nodes"][0]["lineItem"]
+            ["fulfillableQuantity"],
+        json!(1)
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+}
+
+#[test]
+fn fulfillment_order_prepared_for_pickup_rejects_wrong_kind_and_ineligible_orders() {
+    let mut wrong_kind_proxy = snapshot_proxy();
+    let wrong_kind = wrong_kind_proxy.process_request(json_graphql_request(
+        r#"
+        mutation PreparedForPickupWrongKind($input: FulfillmentOrderLineItemsPreparedForPickupInput!) {
+          fulfillmentOrderLineItemsPreparedForPickup(input: $input) {
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "lineItemsByFulfillmentOrder": [
+                    { "fulfillmentOrderId": "gid://shopify/Product/70054011" }
+                ]
+            }
+        }),
+    ));
+    assert_eq!(wrong_kind.body["errors"][0]["message"], json!("invalid id"));
+    assert_eq!(
+        wrong_kind.body["errors"][0]["extensions"]["code"],
+        json!("RESOURCE_NOT_FOUND")
+    );
+    assert_eq!(
+        wrong_kind.body["data"]["fulfillmentOrderLineItemsPreparedForPickup"],
+        Value::Null
+    );
+    assert_eq!(log_snapshot(&wrong_kind_proxy)["entries"], json!([]));
+
+    for (case, status, quantity, method_type) in [
+        ("shipping", "OPEN", 1, "SHIPPING"),
+        ("closed", "CLOSED", 1, "PICK_UP"),
+        ("cancelled", "CANCELLED", 1, "PICK_UP"),
+        ("fulfilled", "OPEN", 0, "PICK_UP"),
+    ] {
+        let order_id = format!("gid://shopify/Order/70054-{case}");
+        let fulfillment_order_id = format!("gid://shopify/FulfillmentOrder/70054{}", case.len());
+        let line_item_id = format!("gid://shopify/FulfillmentOrderLineItem/70054{}", quantity);
+        let mut order = fulfillment_order_order_fixture(
+            &order_id,
+            "#70054",
+            &fulfillment_order_id,
+            &line_item_id,
+            quantity,
+            status,
+        );
+        order["fulfillmentOrders"]["nodes"][0]["deliveryMethod"] =
+            json!({ "methodType": method_type });
+        let mut proxy = snapshot_proxy()
+            .with_upstream_transport(fulfillment_order_hydrate_transport(vec![order]));
+
+        let response = proxy.process_request(json_graphql_request(
+            r#"
+            mutation PreparedForPickupIneligible($input: FulfillmentOrderLineItemsPreparedForPickupInput!) {
+              fulfillmentOrderLineItemsPreparedForPickup(input: $input) {
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "input": {
+                    "lineItemsByFulfillmentOrder": [
+                        { "fulfillmentOrderId": fulfillment_order_id }
+                    ]
+                }
+            }),
+        ));
+
+        assert_eq!(
+            response.body["data"]["fulfillmentOrderLineItemsPreparedForPickup"]["userErrors"],
+            json!([{
+                "field": ["input", "lineItemsByFulfillmentOrder", "0", "fulfillmentOrderId"],
+                "message": format!(
+                    "Invalid fulfillment_order_id provided {}",
+                    resource_id_tail_for_test(&fulfillment_order_id)
+                ),
+                "code": "FULFILLMENT_ORDER_INVALID"
+            }]),
+            "{case}"
+        );
+        assert_eq!(log_snapshot(&proxy)["entries"], json!([]), "{case}");
+    }
 }
 
 #[test]

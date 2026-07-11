@@ -1,26 +1,25 @@
 {
-  "capturedAt": "2026-07-11T06:21:03.517Z",
+  "capturedAt": "2026-07-11T16:52:33.368Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "seed": {
-    "type": "codex_bulk_delete_ids_1783750861789",
-    "firstHandle": "codex-bulk-delete-ids-first-1783750861789",
-    "secondHandle": "codex-bulk-delete-ids-second-1783750861789",
-    "survivorHandle": "codex-bulk-delete-ids-survivor-1783750861789",
-    "definitionId": "gid://shopify/MetaobjectDefinition/19755303218",
-    "firstId": "gid://shopify/Metaobject/204931105074",
-    "secondId": "gid://shopify/Metaobject/204931137842",
-    "survivorId": "gid://shopify/Metaobject/204931170610"
+    "type": "codex_bulk_delete_ids_1783788750805",
+    "firstHandle": "codex-bulk-delete-first-1783788750805",
+    "secondHandle": "codex-bulk-delete-second-1783788750805",
+    "missingId": "gid://shopify/Metaobject/9991783788750805",
+    "definitionId": "gid://shopify/MetaobjectDefinition/19766051122",
+    "firstId": "gid://shopify/Metaobject/204978389298",
+    "secondId": "gid://shopify/Metaobject/204978422066"
   },
-  "setup": {
-    "definitionCreate": {
+  "setup": [
+    {
       "name": "setup-definition-create",
       "request": {
-        "query": "mutation MetaobjectBulkDeleteByIdsDefinitionCreate($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      name\n      displayNameKey\n      fieldDefinitions {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n      metaobjectsCount\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "query": "#graphql\n  #graphql\n  fragment MetaobjectBulkDeleteIdsDefinitionFields on MetaobjectDefinition {\n    id\n    type\n    name\n    displayNameKey\n    fieldDefinitions {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n    metaobjectsCount\n  }\n\n  mutation MetaobjectBulkDeleteIdsDefinitionCreate($definition: MetaobjectDefinitionCreateInput!) {\n    metaobjectDefinitionCreate(definition: $definition) {\n      metaobjectDefinition {\n        ...MetaobjectBulkDeleteIdsDefinitionFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
           "definition": {
-            "type": "codex_bulk_delete_ids_1783750861789",
-            "name": "Codex Bulk Delete IDs 1783750861789",
+            "type": "codex_bulk_delete_ids_1783788750805",
+            "name": "Codex Bulk IDs 1783788750805",
             "displayNameKey": "title",
             "fieldDefinitions": [
               {
@@ -44,9 +43,9 @@
         "data": {
           "metaobjectDefinitionCreate": {
             "metaobjectDefinition": {
-              "id": "gid://shopify/MetaobjectDefinition/19755303218",
-              "type": "codex_bulk_delete_ids_1783750861789",
-              "name": "Codex Bulk Delete IDs 1783750861789",
+              "id": "gid://shopify/MetaobjectDefinition/19766051122",
+              "type": "codex_bulk_delete_ids_1783788750805",
+              "name": "Codex Bulk IDs 1783788750805",
               "displayNameKey": "title",
               "fieldDefinitions": [
                 {
@@ -86,22 +85,22 @@
         }
       }
     },
-    "firstEntryCreate": {
+    {
       "name": "setup-first-entry-create",
       "request": {
-        "query": "mutation MetaobjectBulkDeleteByIdsEntryCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      fields {\n        key\n        type\n        value\n        jsonValue\n        definition {\n          key\n          name\n          required\n          type {\n            name\n            category\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "query": "#graphql\n  #graphql\n  fragment MetaobjectBulkDeleteIdsEntryFields on Metaobject {\n    id\n    handle\n    type\n    displayName\n    updatedAt\n    fields {\n      key\n      type\n      value\n      jsonValue\n      definition {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n  }\n\n  mutation MetaobjectBulkDeleteIdsEntryCreate($metaobject: MetaobjectCreateInput!) {\n    metaobjectCreate(metaobject: $metaobject) {\n      metaobject {\n        ...MetaobjectBulkDeleteIdsEntryFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
           "metaobject": {
-            "type": "codex_bulk_delete_ids_1783750861789",
-            "handle": "codex-bulk-delete-ids-first-1783750861789",
+            "type": "codex_bulk_delete_ids_1783788750805",
+            "handle": "codex-bulk-delete-first-1783788750805",
             "fields": [
               {
                 "key": "title",
-                "value": "Bulk delete IDs first"
+                "value": "Bulk delete first"
               },
               {
                 "key": "body",
-                "value": "First entry selected by the ids bulk delete branch."
+                "value": "First entry selected by ID bulk delete."
               }
             ]
           }
@@ -112,16 +111,17 @@
         "data": {
           "metaobjectCreate": {
             "metaobject": {
-              "id": "gid://shopify/Metaobject/204931105074",
-              "handle": "codex-bulk-delete-ids-first-1783750861789",
-              "type": "codex_bulk_delete_ids_1783750861789",
-              "displayName": "Bulk delete IDs first",
+              "id": "gid://shopify/Metaobject/204978389298",
+              "handle": "codex-bulk-delete-first-1783788750805",
+              "type": "codex_bulk_delete_ids_1783788750805",
+              "displayName": "Bulk delete first",
+              "updatedAt": "2026-07-11T16:52:31Z",
               "fields": [
                 {
                   "key": "title",
                   "type": "single_line_text_field",
-                  "value": "Bulk delete IDs first",
-                  "jsonValue": "Bulk delete IDs first",
+                  "value": "Bulk delete first",
+                  "jsonValue": "Bulk delete first",
                   "definition": {
                     "key": "title",
                     "name": "Title",
@@ -135,8 +135,8 @@
                 {
                   "key": "body",
                   "type": "multi_line_text_field",
-                  "value": "First entry selected by the ids bulk delete branch.",
-                  "jsonValue": "First entry selected by the ids bulk delete branch.",
+                  "value": "First entry selected by ID bulk delete.",
+                  "jsonValue": "First entry selected by ID bulk delete.",
                   "definition": {
                     "key": "body",
                     "name": "Body",
@@ -165,22 +165,22 @@
         }
       }
     },
-    "secondEntryCreate": {
+    {
       "name": "setup-second-entry-create",
       "request": {
-        "query": "mutation MetaobjectBulkDeleteByIdsEntryCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      fields {\n        key\n        type\n        value\n        jsonValue\n        definition {\n          key\n          name\n          required\n          type {\n            name\n            category\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "query": "#graphql\n  #graphql\n  fragment MetaobjectBulkDeleteIdsEntryFields on Metaobject {\n    id\n    handle\n    type\n    displayName\n    updatedAt\n    fields {\n      key\n      type\n      value\n      jsonValue\n      definition {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n  }\n\n  mutation MetaobjectBulkDeleteIdsEntryCreate($metaobject: MetaobjectCreateInput!) {\n    metaobjectCreate(metaobject: $metaobject) {\n      metaobject {\n        ...MetaobjectBulkDeleteIdsEntryFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
           "metaobject": {
-            "type": "codex_bulk_delete_ids_1783750861789",
-            "handle": "codex-bulk-delete-ids-second-1783750861789",
+            "type": "codex_bulk_delete_ids_1783788750805",
+            "handle": "codex-bulk-delete-second-1783788750805",
             "fields": [
               {
                 "key": "title",
-                "value": "Bulk delete IDs second"
+                "value": "Bulk delete second"
               },
               {
                 "key": "body",
-                "value": "Second entry selected by the ids bulk delete branch."
+                "value": "Second entry selected by ID bulk delete."
               }
             ]
           }
@@ -191,16 +191,17 @@
         "data": {
           "metaobjectCreate": {
             "metaobject": {
-              "id": "gid://shopify/Metaobject/204931137842",
-              "handle": "codex-bulk-delete-ids-second-1783750861789",
-              "type": "codex_bulk_delete_ids_1783750861789",
-              "displayName": "Bulk delete IDs second",
+              "id": "gid://shopify/Metaobject/204978422066",
+              "handle": "codex-bulk-delete-second-1783788750805",
+              "type": "codex_bulk_delete_ids_1783788750805",
+              "displayName": "Bulk delete second",
+              "updatedAt": "2026-07-11T16:52:31Z",
               "fields": [
                 {
                   "key": "title",
                   "type": "single_line_text_field",
-                  "value": "Bulk delete IDs second",
-                  "jsonValue": "Bulk delete IDs second",
+                  "value": "Bulk delete second",
+                  "jsonValue": "Bulk delete second",
                   "definition": {
                     "key": "title",
                     "name": "Title",
@@ -214,8 +215,8 @@
                 {
                   "key": "body",
                   "type": "multi_line_text_field",
-                  "value": "Second entry selected by the ids bulk delete branch.",
-                  "jsonValue": "Second entry selected by the ids bulk delete branch.",
+                  "value": "Second entry selected by ID bulk delete.",
+                  "jsonValue": "Second entry selected by ID bulk delete.",
                   "definition": {
                     "key": "body",
                     "name": "Body",
@@ -243,253 +244,193 @@
           }
         }
       }
-    },
-    "survivorEntryCreate": {
-      "name": "setup-survivor-entry-create",
+    }
+  ],
+  "seededReads": [
+    {
+      "name": "seeded-before-bulk-delete-read",
       "request": {
-        "query": "mutation MetaobjectBulkDeleteByIdsEntryCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      fields {\n        key\n        type\n        value\n        jsonValue\n        definition {\n          key\n          name\n          required\n          type {\n            name\n            category\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "query": "query MetaobjectBulkDeleteByIdsRead($firstId: ID!, $missingId: ID!, $secondId: ID!) {\n  first: metaobject(id: $firstId) {\n    id\n    handle\n    type\n    displayName\n    updatedAt\n    fields {\n      key\n      type\n      value\n      jsonValue\n      definition {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n  }\n  missing: metaobject(id: $missingId) {\n    id\n    handle\n    type\n    displayName\n    updatedAt\n  }\n  second: metaobject(id: $secondId) {\n    id\n    handle\n    type\n    displayName\n    updatedAt\n    fields {\n      key\n      type\n      value\n      jsonValue\n      definition {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n  }\n}\n",
         "variables": {
-          "metaobject": {
-            "type": "codex_bulk_delete_ids_1783750861789",
-            "handle": "codex-bulk-delete-ids-survivor-1783750861789",
-            "fields": [
-              {
-                "key": "title",
-                "value": "Bulk delete IDs survivor"
-              },
-              {
-                "key": "body",
-                "value": "Surviving entry proves id-scoped bulk delete does not delete the whole type."
-              }
-            ]
-          }
+          "firstId": "gid://shopify/Metaobject/204978389298",
+          "missingId": "gid://shopify/Metaobject/9991783788750805",
+          "secondId": "gid://shopify/Metaobject/204978422066"
         }
       },
       "status": 200,
       "response": {
         "data": {
-          "metaobjectCreate": {
-            "metaobject": {
-              "id": "gid://shopify/Metaobject/204931170610",
-              "handle": "codex-bulk-delete-ids-survivor-1783750861789",
-              "type": "codex_bulk_delete_ids_1783750861789",
-              "displayName": "Bulk delete IDs survivor",
-              "fields": [
-                {
+          "first": {
+            "id": "gid://shopify/Metaobject/204978389298",
+            "handle": "codex-bulk-delete-first-1783788750805",
+            "type": "codex_bulk_delete_ids_1783788750805",
+            "displayName": "Bulk delete first",
+            "updatedAt": "2026-07-11T16:52:31Z",
+            "fields": [
+              {
+                "key": "title",
+                "type": "single_line_text_field",
+                "value": "Bulk delete first",
+                "jsonValue": "Bulk delete first",
+                "definition": {
                   "key": "title",
-                  "type": "single_line_text_field",
-                  "value": "Bulk delete IDs survivor",
-                  "jsonValue": "Bulk delete IDs survivor",
-                  "definition": {
-                    "key": "title",
-                    "name": "Title",
-                    "required": true,
-                    "type": {
-                      "name": "single_line_text_field",
-                      "category": "TEXT"
-                    }
-                  }
-                },
-                {
-                  "key": "body",
-                  "type": "multi_line_text_field",
-                  "value": "Surviving entry proves id-scoped bulk delete does not delete the whole type.",
-                  "jsonValue": "Surviving entry proves id-scoped bulk delete does not delete the whole type.",
-                  "definition": {
-                    "key": "body",
-                    "name": "Body",
-                    "required": false,
-                    "type": {
-                      "name": "multi_line_text_field",
-                      "category": "TEXT"
-                    }
+                  "name": "Title",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
                   }
                 }
-              ]
-            },
-            "userErrors": []
+              },
+              {
+                "key": "body",
+                "type": "multi_line_text_field",
+                "value": "First entry selected by ID bulk delete.",
+                "jsonValue": "First entry selected by ID bulk delete.",
+                "definition": {
+                  "key": "body",
+                  "name": "Body",
+                  "required": false,
+                  "type": {
+                    "name": "multi_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              }
+            ]
+          },
+          "missing": null,
+          "second": {
+            "id": "gid://shopify/Metaobject/204978422066",
+            "handle": "codex-bulk-delete-second-1783788750805",
+            "type": "codex_bulk_delete_ids_1783788750805",
+            "displayName": "Bulk delete second",
+            "updatedAt": "2026-07-11T16:52:31Z",
+            "fields": [
+              {
+                "key": "title",
+                "type": "single_line_text_field",
+                "value": "Bulk delete second",
+                "jsonValue": "Bulk delete second",
+                "definition": {
+                  "key": "title",
+                  "name": "Title",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              },
+              {
+                "key": "body",
+                "type": "multi_line_text_field",
+                "value": "Second entry selected by ID bulk delete.",
+                "jsonValue": "Second entry selected by ID bulk delete.",
+                "definition": {
+                  "key": "body",
+                  "name": "Body",
+                  "required": false,
+                  "type": {
+                    "name": "multi_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              }
+            ]
           }
         },
         "extensions": {
           "cost": {
-            "requestedQueryCost": 13,
-            "actualQueryCost": 13,
+            "requestedQueryCost": 9,
+            "actualQueryCost": 9,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1987,
+              "currentlyAvailable": 1991,
               "restoreRate": 100
             }
           }
         }
       }
     }
-  },
-  "bulkDelete": {
-    "name": "bulk-delete-by-ids",
-    "request": {
-      "query": "mutation MetaobjectBulkDeleteByIds($ids: [ID!]!) {\n  metaobjectBulkDelete(where: { ids: $ids }) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
-      "variables": {
-        "ids": ["gid://shopify/Metaobject/204931105074"]
-      }
-    },
-    "status": 200,
-    "response": {
-      "data": {
-        "metaobjectBulkDelete": {
-          "job": {
-            "id": "gid://shopify/Job/fec61107-72c8-41e4-8002-9ee56772652b",
-            "done": false
-          },
-          "userErrors": []
+  ],
+  "bulkDelete": [
+    {
+      "name": "bulk-delete-by-ids",
+      "request": {
+        "query": "mutation MetaobjectBulkDeleteByIds($ids: [ID!]!) {\n  metaobjectBulkDelete(where: { ids: $ids }) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "ids": [
+            "gid://shopify/Metaobject/204978389298",
+            "gid://shopify/Metaobject/9991783788750805",
+            "gid://shopify/Metaobject/204978422066"
+          ]
         }
       },
-      "extensions": {
-        "cost": {
-          "requestedQueryCost": 10,
-          "actualQueryCost": 10,
-          "throttleStatus": {
-            "maximumAvailable": 2000,
-            "currentlyAvailable": 1990,
-            "restoreRate": 100
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectBulkDelete": {
+            "job": {
+              "id": "gid://shopify/Job/a969f25a-145e-4570-83d2-03f5ac180077",
+              "done": false
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
           }
         }
       }
     }
-  },
-  "downstreamRead": {
-    "name": "downstream-after-bulk-delete-ids-read",
-    "request": {
-      "query": "query MetaobjectBulkDeleteByIdsRead($type: String!, $firstId: ID!, $secondId: ID!, $survivorId: ID!) {\n  first: metaobject(id: $firstId) {\n    id\n    handle\n    type\n    displayName\n    fields {\n      key\n      value\n    }\n  }\n  second: metaobject(id: $secondId) {\n    id\n    handle\n    type\n    displayName\n    fields {\n      key\n      value\n    }\n  }\n  survivor: metaobject(id: $survivorId) {\n    id\n    handle\n    type\n    displayName\n    fields {\n      key\n      value\n    }\n  }\n  catalog: metaobjects(type: $type, first: 10) {\n    nodes {\n      id\n      handle\n      type\n      displayName\n      fields {\n        key\n        value\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n  definition: metaobjectDefinitionByType(type: $type) {\n    id\n    type\n    name\n    displayNameKey\n    fieldDefinitions {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n",
-      "variables": {
-        "type": "codex_bulk_delete_ids_1783750861789",
-        "firstId": "gid://shopify/Metaobject/204931105074",
-        "secondId": "gid://shopify/Metaobject/204931137842",
-        "survivorId": "gid://shopify/Metaobject/204931170610"
-      }
-    },
-    "status": 200,
-    "response": {
-      "data": {
-        "first": null,
-        "second": {
-          "id": "gid://shopify/Metaobject/204931137842",
-          "handle": "codex-bulk-delete-ids-second-1783750861789",
-          "type": "codex_bulk_delete_ids_1783750861789",
-          "displayName": "Bulk delete IDs second",
-          "fields": [
-            {
-              "key": "title",
-              "value": "Bulk delete IDs second"
-            },
-            {
-              "key": "body",
-              "value": "Second entry selected by the ids bulk delete branch."
-            }
-          ]
-        },
-        "survivor": {
-          "id": "gid://shopify/Metaobject/204931170610",
-          "handle": "codex-bulk-delete-ids-survivor-1783750861789",
-          "type": "codex_bulk_delete_ids_1783750861789",
-          "displayName": "Bulk delete IDs survivor",
-          "fields": [
-            {
-              "key": "title",
-              "value": "Bulk delete IDs survivor"
-            },
-            {
-              "key": "body",
-              "value": "Surviving entry proves id-scoped bulk delete does not delete the whole type."
-            }
-          ]
-        },
-        "catalog": {
-          "nodes": [
-            {
-              "id": "gid://shopify/Metaobject/204931137842",
-              "handle": "codex-bulk-delete-ids-second-1783750861789",
-              "type": "codex_bulk_delete_ids_1783750861789",
-              "displayName": "Bulk delete IDs second",
-              "fields": [
-                {
-                  "key": "title",
-                  "value": "Bulk delete IDs second"
-                },
-                {
-                  "key": "body",
-                  "value": "Second entry selected by the ids bulk delete branch."
-                }
-              ]
-            },
-            {
-              "id": "gid://shopify/Metaobject/204931170610",
-              "handle": "codex-bulk-delete-ids-survivor-1783750861789",
-              "type": "codex_bulk_delete_ids_1783750861789",
-              "displayName": "Bulk delete IDs survivor",
-              "fields": [
-                {
-                  "key": "title",
-                  "value": "Bulk delete IDs survivor"
-                },
-                {
-                  "key": "body",
-                  "value": "Surviving entry proves id-scoped bulk delete does not delete the whole type."
-                }
-              ]
-            }
-          ],
-          "pageInfo": {
-            "hasNextPage": false,
-            "hasPreviousPage": false
-          }
-        },
-        "definition": {
-          "id": "gid://shopify/MetaobjectDefinition/19755303218",
-          "type": "codex_bulk_delete_ids_1783750861789",
-          "name": "Codex Bulk Delete IDs 1783750861789",
-          "displayNameKey": "title",
-          "fieldDefinitions": [
-            {
-              "key": "title",
-              "name": "Title",
-              "required": true,
-              "type": {
-                "name": "single_line_text_field",
-                "category": "TEXT"
-              }
-            },
-            {
-              "key": "body",
-              "name": "Body",
-              "required": false,
-              "type": {
-                "name": "multi_line_text_field",
-                "category": "TEXT"
-              }
-            }
-          ]
+  ],
+  "downstreamReads": [
+    {
+      "name": "downstream-after-bulk-delete-settled-read",
+      "request": {
+        "query": "query MetaobjectBulkDeleteByIdsRead($firstId: ID!, $missingId: ID!, $secondId: ID!) {\n  first: metaobject(id: $firstId) {\n    id\n    handle\n    type\n    displayName\n    updatedAt\n    fields {\n      key\n      type\n      value\n      jsonValue\n      definition {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n  }\n  missing: metaobject(id: $missingId) {\n    id\n    handle\n    type\n    displayName\n    updatedAt\n  }\n  second: metaobject(id: $secondId) {\n    id\n    handle\n    type\n    displayName\n    updatedAt\n    fields {\n      key\n      type\n      value\n      jsonValue\n      definition {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n  }\n}\n",
+        "variables": {
+          "firstId": "gid://shopify/Metaobject/204978389298",
+          "missingId": "gid://shopify/Metaobject/9991783788750805",
+          "secondId": "gid://shopify/Metaobject/204978422066"
         }
       },
-      "extensions": {
-        "cost": {
-          "requestedQueryCost": 19,
-          "actualQueryCost": 13,
-          "throttleStatus": {
-            "maximumAvailable": 2000,
-            "currentlyAvailable": 1986,
-            "restoreRate": 100
+      "status": 200,
+      "response": {
+        "data": {
+          "first": null,
+          "missing": null,
+          "second": null
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 9,
+            "actualQueryCost": 3,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1997,
+              "restoreRate": 100
+            }
           }
         }
       }
     }
-  },
+  ],
   "cleanup": [
     {
       "name": "cleanup-metaobject-delete",
       "request": {
         "query": "#graphql\n  mutation MetaobjectBulkDeleteIdsEntryCleanup($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/204931105074"
+          "id": "gid://shopify/Metaobject/204978389298"
         }
       },
       "status": 200,
@@ -526,15 +467,23 @@
       "request": {
         "query": "#graphql\n  mutation MetaobjectBulkDeleteIdsEntryCleanup($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/204931137842"
+          "id": "gid://shopify/Metaobject/204978422066"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDelete": {
-            "deletedId": "gid://shopify/Metaobject/204931137842",
-            "userErrors": []
+            "deletedId": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Record not found",
+                "code": "RECORD_NOT_FOUND",
+                "elementKey": null,
+                "elementIndex": null
+              }
+            ]
           }
         },
         "extensions": {
@@ -543,36 +492,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1989,
-              "restoreRate": 100
-            }
-          }
-        }
-      }
-    },
-    {
-      "name": "cleanup-metaobject-delete",
-      "request": {
-        "query": "#graphql\n  mutation MetaobjectBulkDeleteIdsEntryCleanup($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
-        "variables": {
-          "id": "gid://shopify/Metaobject/204931170610"
-        }
-      },
-      "status": 200,
-      "response": {
-        "data": {
-          "metaobjectDelete": {
-            "deletedId": "gid://shopify/Metaobject/204931170610",
-            "userErrors": []
-          }
-        },
-        "extensions": {
-          "cost": {
-            "requestedQueryCost": 10,
-            "actualQueryCost": 10,
-            "throttleStatus": {
-              "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
+              "currentlyAvailable": 1988,
               "restoreRate": 100
             }
           }
@@ -584,14 +504,14 @@
       "request": {
         "query": "#graphql\n  mutation MetaobjectBulkDeleteIdsDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/19755303218"
+          "id": "gid://shopify/MetaobjectDefinition/19766051122"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/19755303218",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19766051122",
             "userErrors": []
           }
         },
@@ -601,7 +521,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
+              "currentlyAvailable": 1987,
               "restoreRate": 100
             }
           }
@@ -609,5 +529,158 @@
       }
     }
   ],
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "MetaobjectBulkDeleteHydrateByIds",
+      "variables": {
+        "ids": [
+          "gid://shopify/Metaobject/204978389298",
+          "gid://shopify/Metaobject/9991783788750805",
+          "gid://shopify/Metaobject/204978422066"
+        ]
+      },
+      "query": "#graphql\n  query MetaobjectBulkDeleteHydrateByIds($ids: [ID!]!) {\n    nodes(ids: $ids) {\n      __typename\n      ... on Metaobject {\n        id\n        handle\n        type\n        displayName\n        createdAt\n        updatedAt\n        capabilities {\n          publishable {\n            status\n          }\n          onlineStore {\n            templateSuffix\n          }\n        }\n        fields {\n          key\n          type\n          value\n          jsonValue\n          definition {\n            key\n            name\n            required\n            type {\n              name\n              category\n            }\n          }\n        }\n        titleField: field(key: \"title\") {\n          key\n          type\n          value\n          jsonValue\n          definition {\n            key\n            name\n            required\n            type {\n              name\n              category\n            }\n          }\n        }\n      }\n    }\n  }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Metaobject",
+                "id": "gid://shopify/Metaobject/204978389298",
+                "handle": "codex-bulk-delete-first-1783788750805",
+                "type": "codex_bulk_delete_ids_1783788750805",
+                "displayName": "Bulk delete first",
+                "createdAt": "2026-07-11T16:52:31Z",
+                "updatedAt": "2026-07-11T16:52:31Z",
+                "capabilities": {
+                  "publishable": null,
+                  "onlineStore": null
+                },
+                "fields": [
+                  {
+                    "key": "title",
+                    "type": "single_line_text_field",
+                    "value": "Bulk delete first",
+                    "jsonValue": "Bulk delete first",
+                    "definition": {
+                      "key": "title",
+                      "name": "Title",
+                      "required": true,
+                      "type": {
+                        "name": "single_line_text_field",
+                        "category": "TEXT"
+                      }
+                    }
+                  },
+                  {
+                    "key": "body",
+                    "type": "multi_line_text_field",
+                    "value": "First entry selected by ID bulk delete.",
+                    "jsonValue": "First entry selected by ID bulk delete.",
+                    "definition": {
+                      "key": "body",
+                      "name": "Body",
+                      "required": false,
+                      "type": {
+                        "name": "multi_line_text_field",
+                        "category": "TEXT"
+                      }
+                    }
+                  }
+                ],
+                "titleField": {
+                  "key": "title",
+                  "type": "single_line_text_field",
+                  "value": "Bulk delete first",
+                  "jsonValue": "Bulk delete first",
+                  "definition": {
+                    "key": "title",
+                    "name": "Title",
+                    "required": true,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                }
+              },
+              null,
+              {
+                "__typename": "Metaobject",
+                "id": "gid://shopify/Metaobject/204978422066",
+                "handle": "codex-bulk-delete-second-1783788750805",
+                "type": "codex_bulk_delete_ids_1783788750805",
+                "displayName": "Bulk delete second",
+                "createdAt": "2026-07-11T16:52:31Z",
+                "updatedAt": "2026-07-11T16:52:31Z",
+                "capabilities": {
+                  "publishable": null,
+                  "onlineStore": null
+                },
+                "fields": [
+                  {
+                    "key": "title",
+                    "type": "single_line_text_field",
+                    "value": "Bulk delete second",
+                    "jsonValue": "Bulk delete second",
+                    "definition": {
+                      "key": "title",
+                      "name": "Title",
+                      "required": true,
+                      "type": {
+                        "name": "single_line_text_field",
+                        "category": "TEXT"
+                      }
+                    }
+                  },
+                  {
+                    "key": "body",
+                    "type": "multi_line_text_field",
+                    "value": "Second entry selected by ID bulk delete.",
+                    "jsonValue": "Second entry selected by ID bulk delete.",
+                    "definition": {
+                      "key": "body",
+                      "name": "Body",
+                      "required": false,
+                      "type": {
+                        "name": "multi_line_text_field",
+                        "category": "TEXT"
+                      }
+                    }
+                  }
+                ],
+                "titleField": {
+                  "key": "title",
+                  "type": "single_line_text_field",
+                  "value": "Bulk delete second",
+                  "jsonValue": "Bulk delete second",
+                  "definition": {
+                    "key": "title",
+                    "name": "Title",
+                    "required": true,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }
