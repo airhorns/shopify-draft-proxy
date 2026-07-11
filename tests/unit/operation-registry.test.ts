@@ -164,9 +164,9 @@ describe('operation registry', () => {
     expect(adminMutationCoverageAudit()).toEqual({
       capturedMutationCount: 514,
       registeredMutationCount: 438,
-      implementedMutationCount: 403,
+      implementedMutationCount: 404,
       implementedMutationRuntimeTestEvidence: {
-        withRuntimeTests: 128,
+        withRuntimeTests: 129,
         withoutRuntimeTests: 275,
       },
       declaredUnimplemented: [
@@ -186,7 +186,6 @@ describe('operation registry', () => {
         'menuCreate',
         'menuDelete',
         'menuUpdate',
-        'metaobjectBulkDelete',
         'mobilePlatformApplicationDelete',
         'orderRiskAssessmentCreate',
         'privacyFeaturesDisable',
