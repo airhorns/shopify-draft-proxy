@@ -1,6 +1,7 @@
 use super::common::*;
 use pretty_assertions::assert_eq;
 use std::collections::BTreeMap;
+use std::sync::{Arc, Mutex};
 
 const BULK_OPERATION_STORAGE_BYTE_LIMIT: usize = 65_535;
 
@@ -66,6 +67,635 @@ fn create_bulk_metadata_product(proxy: &mut DraftProxy, title: &str) -> String {
         .as_str()
         .unwrap()
         .to_string()
+}
+
+fn delivery_customization_function_metadata(id: &str, handle: &str) -> Value {
+    json!({
+        "__typename": "ShopifyFunction",
+        "id": id,
+        "title": handle,
+        "handle": handle,
+        "apiType": "DELIVERY_CUSTOMIZATION",
+        "appKey": "347082227713",
+        "app": {
+            "__typename": "App",
+            "id": "gid://shopify/App/347082227713",
+            "title": "Delivery Customization App",
+            "handle": "delivery-customization-app",
+            "apiKey": "347082227713"
+        }
+    })
+}
+
+fn delivery_customization_function_proxy(
+    functions: Vec<Value>,
+    upstream_hits: Arc<Mutex<Vec<Value>>>,
+) -> DraftProxy {
+    configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body).unwrap();
+        upstream_hits.lock().unwrap().push(body.clone());
+        let response_body = match body.get("operationName").and_then(Value::as_str) {
+            Some("FunctionHydrateByHandle") => {
+                let handle = body["variables"]["handle"].as_str().unwrap_or_default();
+                let api_type = body["variables"]["apiType"].as_str().unwrap_or_default();
+                let nodes = functions
+                    .iter()
+                    .filter(|function| {
+                        function["handle"].as_str() == Some(handle)
+                            && function["apiType"].as_str() == Some(api_type)
+                    })
+                    .cloned()
+                    .collect::<Vec<_>>();
+                json!({ "data": { "shopifyFunctions": { "nodes": nodes } } })
+            }
+            Some("FunctionHydrateById") => {
+                let id = body["variables"]["id"].as_str().unwrap_or_default();
+                let function = functions
+                    .iter()
+                    .find(|function| function["id"].as_str() == Some(id))
+                    .cloned()
+                    .unwrap_or(Value::Null);
+                json!({ "data": { "shopifyFunction": function } })
+            }
+            _ => json!({
+                "errors": [{
+                    "message": format!("unexpected delivery customization upstream request: {body}")
+                }]
+            }),
+        };
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: response_body,
+        }
+    })
+}
+
+#[test]
+fn delivery_customization_lifecycle_reads_nodes_state_and_logs_are_local() {
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = delivery_customization_function_proxy(
+        vec![delivery_customization_function_metadata(
+            "gid://shopify/ShopifyFunction/delivery-a",
+            "delivery-a",
+        )],
+        Arc::clone(&upstream_hits),
+    );
+    let app_request = |query: &str, variables: Value| {
+        let mut request = json_graphql_request(query, variables);
+        request.headers.insert(
+            "x-shopify-draft-proxy-api-client-id".to_string(),
+            "347082227713".to_string(),
+        );
+        request
+    };
+
+    let read_query = r#"
+      query DeliveryCustomizationRead($id: ID!, $missingId: ID!, $query: String) {
+        missing: deliveryCustomization(id: $missingId) { id }
+        deliveryCustomization(id: $id) {
+          id
+          title
+          enabled
+          functionId
+          shopifyFunction { id handle apiType }
+          metafield(namespace: "$app:shipping", key: "config") { namespace key type value jsonValue compareDigest ownerType }
+          metafields(first: 5) { nodes { namespace key type value createdAt updatedAt } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+        }
+        deliveryCustomizations(first: 5, query: $query, sortKey: TITLE, reverse: true) {
+          edges { cursor node { id title enabled functionId } }
+          nodes { id title enabled }
+          pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+        }
+      }
+    "#;
+    let empty = proxy.process_request(app_request(
+        read_query,
+        json!({
+            "id": "gid://shopify/DeliveryCustomization/1",
+            "missingId": "gid://shopify/DeliveryCustomization/404",
+            "query": null
+        }),
+    ));
+    assert_eq!(empty.status, 200);
+    assert_eq!(empty.body["data"]["missing"], Value::Null);
+    assert_eq!(empty.body["data"]["deliveryCustomization"], Value::Null);
+    assert_eq!(
+        empty.body["data"]["deliveryCustomizations"]["nodes"],
+        json!([])
+    );
+    assert_eq!(
+        empty.body["data"]["deliveryCustomizations"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": null,
+            "endCursor": null
+        })
+    );
+
+    let create_query = r#"
+      mutation DeliveryCustomizationCreate($input: DeliveryCustomizationInput!) {
+        deliveryCustomizationCreate(deliveryCustomization: $input) {
+          deliveryCustomization {
+            id
+            title
+            enabled
+            functionId
+            shopifyFunction { id handle apiType }
+            metafield(namespace: "$app:shipping", key: "config") { namespace key type value }
+            metafields(first: 5) { edges { node { namespace key type value createdAt updatedAt } } }
+          }
+          userErrors { field code message }
+        }
+      }
+    "#;
+    let log_before = log_snapshot(&proxy);
+    let missing_title = proxy.process_request(app_request(
+        create_query,
+        json!({
+            "input": {
+                "enabled": true,
+                "functionHandle": "delivery-a",
+                "metafields": []
+            }
+        }),
+    ));
+    assert_eq!(missing_title.status, 200);
+    assert_eq!(
+        missing_title.body["data"]["deliveryCustomizationCreate"]["deliveryCustomization"],
+        Value::Null
+    );
+    assert_eq!(
+        missing_title.body["data"]["deliveryCustomizationCreate"]["userErrors"],
+        json!([{
+            "field": ["deliveryCustomization", "title"],
+            "code": "REQUIRED_INPUT_FIELD",
+            "message": "Required input field must be present."
+        }])
+    );
+    assert_eq!(
+        log_snapshot(&proxy),
+        log_before,
+        "failed delivery customization create must not append a mutation log entry"
+    );
+
+    let create = proxy.process_request(app_request(
+        create_query,
+        json!({
+            "input": {
+                "title": "Before delivery customization",
+                "enabled": true,
+                "functionHandle": "delivery-a",
+                "metafields": [{
+                    "namespace": "$app:shipping",
+                    "key": "config",
+                    "type": "json",
+                    "value": "{\"rate\":\"standard\"}"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    let create_payload = &create.body["data"]["deliveryCustomizationCreate"];
+    assert_eq!(create_payload["userErrors"], json!([]));
+    let customization_id = create_payload["deliveryCustomization"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(customization_id, "gid://shopify/DeliveryCustomization/1");
+    assert_eq!(
+        create_payload["deliveryCustomization"]["functionId"],
+        json!("gid://shopify/ShopifyFunction/delivery-a")
+    );
+    assert_eq!(
+        create_payload["deliveryCustomization"]["shopifyFunction"]["handle"],
+        json!("delivery-a")
+    );
+    assert_eq!(
+        create_payload["deliveryCustomization"]["metafield"],
+        json!({
+            "namespace": "app--347082227713--shipping",
+            "key": "config",
+            "type": "json",
+            "value": "{\"rate\":\"standard\"}"
+        })
+    );
+    let log_after_create = log_snapshot(&proxy);
+    assert_eq!(log_after_create["entries"].as_array().unwrap().len(), 1);
+    assert!(log_after_create["entries"][0]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("deliveryCustomizationCreate"));
+    assert_eq!(
+        log_after_create["entries"][0]["stagedResourceIds"],
+        json!([customization_id])
+    );
+
+    let read = proxy.process_request(app_request(
+        read_query,
+        json!({
+            "id": customization_id,
+            "missingId": "gid://shopify/DeliveryCustomization/404",
+            "query": "title:Before"
+        }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["deliveryCustomization"]["title"],
+        json!("Before delivery customization")
+    );
+    assert_eq!(
+        read.body["data"]["deliveryCustomization"]["metafield"]["jsonValue"],
+        json!({ "rate": "standard" })
+    );
+    assert_eq!(
+        read.body["data"]["deliveryCustomizations"]["nodes"],
+        json!([{
+            "id": "gid://shopify/DeliveryCustomization/1",
+            "title": "Before delivery customization",
+            "enabled": true
+        }])
+    );
+
+    let node_read = proxy.process_request(app_request(
+        r#"
+        query DeliveryCustomizationNodeRead($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            ... on DeliveryCustomization {
+              id
+              title
+              enabled
+              functionId
+            }
+          }
+        }
+        "#,
+        json!({
+            "ids": [
+                "gid://shopify/DeliveryCustomization/404",
+                "gid://shopify/DeliveryCustomization/1"
+            ]
+        }),
+    ));
+    assert_eq!(node_read.status, 200);
+    assert_eq!(node_read.body["data"]["nodes"][0], Value::Null);
+    assert_eq!(
+        node_read.body["data"]["nodes"][1],
+        json!({
+            "id": "gid://shopify/DeliveryCustomization/1",
+            "title": "Before delivery customization",
+            "enabled": true,
+            "functionId": "gid://shopify/ShopifyFunction/delivery-a"
+        })
+    );
+
+    let update_query = r#"
+      mutation DeliveryCustomizationUpdate($id: ID!, $input: DeliveryCustomizationInput!) {
+        deliveryCustomizationUpdate(id: $id, deliveryCustomization: $input) {
+          deliveryCustomization {
+            id
+            title
+            enabled
+            functionId
+            metafield(namespace: "$app:shipping", key: "config") { namespace key type value createdAt updatedAt }
+          }
+          userErrors { field code message }
+        }
+      }
+    "#;
+    let rejected_function_update = proxy.process_request(app_request(
+        update_query,
+        json!({
+            "id": "gid://shopify/DeliveryCustomization/1",
+            "input": { "functionId": "gid://shopify/ShopifyFunction/delivery-b" }
+        }),
+    ));
+    assert_eq!(rejected_function_update.status, 200);
+    assert_eq!(
+        rejected_function_update.body["data"]["deliveryCustomizationUpdate"]
+            ["deliveryCustomization"],
+        Value::Null
+    );
+    assert_eq!(
+        rejected_function_update.body["data"]["deliveryCustomizationUpdate"]["userErrors"],
+        json!([{
+            "field": ["deliveryCustomization", "functionId"],
+            "code": "FUNCTION_ID_CANNOT_BE_CHANGED",
+            "message": "Function ID cannot be changed."
+        }])
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        1,
+        "rejected function change must not stage or log"
+    );
+
+    let update = proxy.process_request(app_request(
+        update_query,
+        json!({
+            "id": "gid://shopify/DeliveryCustomization/1",
+            "input": {
+                "title": "After delivery customization",
+                "enabled": false,
+                "functionHandle": "delivery-a",
+                "metafields": [{
+                    "namespace": "$app:shipping",
+                    "key": "config",
+                    "type": "json",
+                    "value": "{\"rate\":\"express\"}"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["deliveryCustomizationUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["deliveryCustomizationUpdate"]["deliveryCustomization"]["title"],
+        json!("After delivery customization")
+    );
+    assert_eq!(
+        update.body["data"]["deliveryCustomizationUpdate"]["deliveryCustomization"]["enabled"],
+        json!(false)
+    );
+    assert_eq!(
+        update.body["data"]["deliveryCustomizationUpdate"]["deliveryCustomization"]["metafield"]
+            ["value"],
+        json!("{\"rate\":\"express\"}")
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 2);
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    assert!(dump.body["state"]["stagedState"]["deliveryCustomizations"]
+        .get("gid://shopify/DeliveryCustomization/1")
+        .is_some());
+    let mut restored_proxy = snapshot_proxy();
+    let restore = restored_proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    let restored_read = restored_proxy.process_request(app_request(
+        read_query,
+        json!({
+            "id": "gid://shopify/DeliveryCustomization/1",
+            "missingId": "gid://shopify/DeliveryCustomization/404",
+            "query": "enabled:false"
+        }),
+    ));
+    assert_eq!(
+        restored_read.body["data"]["deliveryCustomization"]["title"],
+        json!("After delivery customization")
+    );
+    assert_eq!(
+        restored_read.body["data"]["deliveryCustomizations"]["nodes"][0]["enabled"],
+        json!(false)
+    );
+
+    let activation = proxy.process_request(app_request(
+        r#"
+        mutation DeliveryCustomizationActivation($ids: [ID!]!, $enabled: Boolean!) {
+          deliveryCustomizationActivation(ids: $ids, enabled: $enabled) {
+            ids
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({
+            "ids": [
+                "gid://shopify/DeliveryCustomization/1",
+                "gid://shopify/DeliveryCustomization/404"
+            ],
+            "enabled": true
+        }),
+    ));
+    assert_eq!(activation.status, 200);
+    assert_eq!(
+        activation.body["data"]["deliveryCustomizationActivation"]["ids"],
+        json!(["gid://shopify/DeliveryCustomization/1"])
+    );
+    assert_eq!(
+        activation.body["data"]["deliveryCustomizationActivation"]["userErrors"],
+        json!([{
+            "field": ["ids"],
+            "code": "DELIVERY_CUSTOMIZATION_NOT_FOUND",
+            "message": "Could not find delivery customizations with IDs: gid://shopify/DeliveryCustomization/404"
+        }])
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 3);
+
+    let delete = proxy.process_request(app_request(
+        r#"
+        mutation DeliveryCustomizationDelete($id: ID!) {
+          deliveryCustomizationDelete(id: $id) {
+            deletedId
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/DeliveryCustomization/1" }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["deliveryCustomizationDelete"],
+        json!({
+            "deletedId": "gid://shopify/DeliveryCustomization/1",
+            "userErrors": []
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 4);
+    let deleted_read = proxy.process_request(app_request(
+        read_query,
+        json!({
+            "id": "gid://shopify/DeliveryCustomization/1",
+            "missingId": "gid://shopify/DeliveryCustomization/404",
+            "query": null
+        }),
+    ));
+    assert_eq!(
+        deleted_read.body["data"]["deliveryCustomization"],
+        Value::Null
+    );
+    assert_eq!(
+        deleted_read.body["data"]["deliveryCustomizations"]["nodes"],
+        json!([])
+    );
+    let deleted_node = proxy.process_request(app_request(
+        "query DeletedDeliveryCustomizationNode($id: ID!) { node(id: $id) { id } }",
+        json!({ "id": "gid://shopify/DeliveryCustomization/1" }),
+    ));
+    assert_eq!(deleted_node.body["data"]["node"], Value::Null);
+
+    assert_eq!(
+        upstream_hits.lock().unwrap().len(),
+        1,
+        "local lifecycle should only hydrate ShopifyFunction metadata, never write upstream"
+    );
+}
+
+#[test]
+fn delivery_customization_active_limit_rejects_without_staging_or_logging() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+      mutation DeliveryCustomizationLimit($input: DeliveryCustomizationInput!) {
+        deliveryCustomizationCreate(deliveryCustomization: $input) {
+          deliveryCustomization { id enabled }
+          userErrors { field code message }
+        }
+      }
+    "#;
+
+    for index in 0..25 {
+        let create = proxy.process_request(json_graphql_request(
+            create_query,
+            json!({
+                "input": {
+                    "title": format!("Delivery customization {index}"),
+                    "enabled": true,
+                    "functionId": "gid://shopify/ShopifyFunction/delivery-limit",
+                    "metafields": []
+                }
+            }),
+        ));
+        assert_eq!(create.status, 200);
+        assert_eq!(
+            create.body["data"]["deliveryCustomizationCreate"]["userErrors"],
+            json!([]),
+            "active create {index} should fit under the local limit"
+        );
+    }
+    let log_len_before = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
+
+    let overflow = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "input": {
+                "title": "Overflow delivery customization",
+                "enabled": true,
+                "functionId": "gid://shopify/ShopifyFunction/delivery-limit",
+                "metafields": []
+            }
+        }),
+    ));
+    assert_eq!(overflow.status, 200);
+    assert_eq!(
+        overflow.body["data"]["deliveryCustomizationCreate"]["deliveryCustomization"],
+        Value::Null
+    );
+    assert_eq!(
+        overflow.body["data"]["deliveryCustomizationCreate"]["userErrors"],
+        json!([{
+            "field": ["deliveryCustomization", "enabled"],
+            "code": "MAXIMUM_DELIVERY_CUSTOMIZATIONS",
+            "message": "Cannot have more than 25 active delivery customizations."
+        }])
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        log_len_before,
+        "overflow validation must not append a mutation log entry"
+    );
+    let missing_activation_at_limit = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryCustomizationMissingActivationAtLimit($ids: [ID!]!) {
+          deliveryCustomizationActivation(ids: $ids, enabled: true) {
+            ids
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({
+            "ids": ["gid://shopify/DeliveryCustomization/404"]
+        }),
+    ));
+    assert_eq!(missing_activation_at_limit.status, 200);
+    assert_eq!(
+        missing_activation_at_limit.body["data"]["deliveryCustomizationActivation"]["ids"],
+        json!([])
+    );
+    assert_eq!(
+        missing_activation_at_limit.body["data"]["deliveryCustomizationActivation"]["userErrors"],
+        json!([{
+            "field": ["ids"],
+            "code": "DELIVERY_CUSTOMIZATION_NOT_FOUND",
+            "message": "Could not find delivery customizations with IDs: gid://shopify/DeliveryCustomization/404"
+        }])
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        log_len_before,
+        "missing activation at the active limit must not append a mutation log entry"
+    );
+
+    let create_disabled = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "input": {
+                "title": "Disabled delivery customization",
+                "enabled": false,
+                "functionId": "gid://shopify/ShopifyFunction/delivery-limit",
+                "metafields": []
+            }
+        }),
+    ));
+    let disabled_id = create_disabled.body["data"]["deliveryCustomizationCreate"]
+        ["deliveryCustomization"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let log_len_with_disabled = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
+    let limit_activation = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryCustomizationLimitActivation($ids: [ID!]!) {
+          deliveryCustomizationActivation(ids: $ids, enabled: true) {
+            ids
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "ids": [disabled_id] }),
+    ));
+    assert_eq!(limit_activation.status, 200);
+    assert_eq!(
+        limit_activation.body["data"]["deliveryCustomizationActivation"]["ids"],
+        json!([])
+    );
+    assert_eq!(
+        limit_activation.body["data"]["deliveryCustomizationActivation"]["userErrors"],
+        json!([{
+            "field": ["deliveryCustomization", "enabled"],
+            "code": "MAXIMUM_DELIVERY_CUSTOMIZATIONS",
+            "message": "Cannot have more than 25 active delivery customizations."
+        }])
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        log_len_with_disabled,
+        "limit activation must not append a mutation log entry"
+    );
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query DeliveryCustomizationLimitRead {
+          deliveryCustomizations(first: 30, query: "enabled:true") {
+            nodes { id enabled }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["deliveryCustomizations"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        25
+    );
 }
 
 #[test]

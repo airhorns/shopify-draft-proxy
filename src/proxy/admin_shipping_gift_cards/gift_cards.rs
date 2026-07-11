@@ -34,7 +34,8 @@ const GIFT_CARD_HYDRATE_QUERY_PREFIX: &str = r#"#graphql
             defaultPhoneNumber { phoneNumber }
           }
         }
-        transactions(first: 250) {
+"#;
+const GIFT_CARD_HYDRATE_TRANSACTIONS: &str = r#"        transactions(first: 250) {
           nodes {
             __typename
             id
@@ -42,16 +43,15 @@ const GIFT_CARD_HYDRATE_QUERY_PREFIX: &str = r#"#graphql
             processedAt
             amount { amount currencyCode }
           }
-"#;
-const GIFT_CARD_HYDRATE_TRANSACTIONS_PAGE_INFO: &str = r#"          pageInfo {
+          pageInfo {
             hasNextPage
             hasPreviousPage
             startCursor
             endCursor
           }
+        }
 "#;
-const GIFT_CARD_HYDRATE_QUERY_SUFFIX: &str = r#"        }
-      }
+const GIFT_CARD_HYDRATE_QUERY_SUFFIX: &str = r#"      }
       giftCardConfiguration {
         issueLimit { amount currencyCode }
         purchaseLimit { amount currencyCode }
@@ -67,10 +67,10 @@ const GIFT_CARD_CREATE_CONFIGURATION_QUERY: &str = r#"#graphql
   }
 "#;
 
-fn gift_card_hydrate_query(include_transactions_page_info: bool) -> String {
+fn gift_card_hydrate_query(include_transactions: bool) -> String {
     let mut query = String::from(GIFT_CARD_HYDRATE_QUERY_PREFIX);
-    if include_transactions_page_info {
-        query.push_str(GIFT_CARD_HYDRATE_TRANSACTIONS_PAGE_INFO);
+    if include_transactions {
+        query.push_str(GIFT_CARD_HYDRATE_TRANSACTIONS);
     }
     query.push_str(GIFT_CARD_HYDRATE_QUERY_SUFFIX);
     query
@@ -798,7 +798,9 @@ impl DraftProxy {
             .unwrap_or_else(|| "0".to_string());
         let requested_amount_number = requested_amount.parse::<f64>().unwrap_or(0.0);
         let mut user_errors = self.gift_card_plan_errors_for_field(field);
-        let mut card = self.gift_card_effective_record_for_mutation(request, &id);
+        let mut card = self
+            .gift_card_effective_record(&id)
+            .or_else(|| self.hydrate_gift_card(request, &id, true));
 
         if user_errors.is_empty() && requested_amount_number <= 0.0 {
             user_errors.push(gift_card_user_error(

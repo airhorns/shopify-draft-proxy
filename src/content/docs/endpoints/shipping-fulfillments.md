@@ -19,6 +19,8 @@ arbitrary documents.
 
 The implemented read roots are:
 
+- `deliveryCustomization`
+- `deliveryCustomizations`
 - `locationsAvailableForDeliveryProfilesConnection`
 
 The implemented mutation roots are:
@@ -26,6 +28,10 @@ The implemented mutation roots are:
 - `carrierServiceCreate`
 - `carrierServiceDelete`
 - `carrierServiceUpdate`
+- `deliveryCustomizationActivation`
+- `deliveryCustomizationCreate`
+- `deliveryCustomizationDelete`
+- `deliveryCustomizationUpdate`
 - `fulfillmentEventCreate`
 - `fulfillmentServiceCreate`
 - `fulfillmentServiceDelete`
@@ -52,8 +58,6 @@ The registry-only read roots are:
 - `availableCarrierServices`
 - `carrierService`
 - `carrierServices`
-- `deliveryCustomization`
-- `deliveryCustomizations`
 - `deliveryPromiseParticipants`
 - `deliveryPromiseProvider`
 - `deliveryPromiseSettings`
@@ -78,10 +82,6 @@ The registry-only mutation roots are:
 - `fulfillmentOrderReschedule`
 - `fulfillmentOrdersReroute`
 - `fulfillmentOrdersSetFulfillmentDeadline`
-- `deliveryCustomizationActivation`
-- `deliveryCustomizationCreate`
-- `deliveryCustomizationDelete`
-- `deliveryCustomizationUpdate`
 - `deliveryPromiseParticipantsUpdate`
 - `deliveryPromiseProviderUpsert`
 - `deliverySettingUpdate`
@@ -250,6 +250,29 @@ boundary cursors instead of returning a canned connection envelope. Captured
 creates a disposable profile and then lists `deliveryProfiles`, asserting the
 merchant default profile remains visible alongside the staged create.
 
+Delivery customization slices stage create, update, activation, and delete
+mutations locally without writing to Shopify during normal proxy runtime.
+Successful mutations retain the original raw GraphQL request for commit replay;
+validation failures return `userErrors` and do not stage records or append
+mutation-log entries. The local record model stores the customization id, title,
+enabled state, owning Shopify Function identity, selected Function metadata,
+metafields, and timestamps. Create resolves a Function by handle from the
+current app when needed, rejects missing or ambiguous Function identifiers,
+enforces the active-customization limit, validates required title/enabled input
+and metafield fields, and preserves `$app` metafield namespace behavior for the
+requesting API client. Update preserves Function identity, supports title,
+enabled state, and metafield replacement, and rejects unknown customization IDs
+or attempts to move a customization to another Function. Activation updates
+known IDs idempotently and reports unknown or over-limit inputs through
+Shopify-shaped `userErrors`; delete tombstones known IDs so later detail and
+generic Node reads return null. `deliveryCustomization(id:)` and
+`deliveryCustomizations(first/last/after/before/query/sortKey/reverse:)` read
+from the staged customization store, return Shopify-like null/empty shapes when
+no local data exists, apply selected fields and connection windows, and reflect
+read-after-write state immediately. Generic `node(id:)` and `nodes(ids:)` reads
+resolve staged delivery customizations through the same normalized record,
+preserve `nodes(ids:)` input order, and return null for missing or deleted IDs.
+
 Local pickup mutations stage settings on active local locations and retain the
 original raw GraphQL request for commit replay. `locationLocalPickupEnable`
 accepts captured standard pickup times, rejects non-standard values with
@@ -282,10 +305,13 @@ with `/endpoints/orders/` and `/endpoints/returns/`.
 
 - Implemented local slices should not be described as broad
   shipping/fulfillments root support beyond their covered request families.
-- Delivery customization and delivery promise mutations are Shopify
-  Function-backed or provider-backed and remain unsupported until function
-  ownership, activation eligibility, metafields, provider state, validation,
-  cleanup, and downstream reads are modeled locally.
+- Delivery promise mutations are provider-backed and remain unsupported until
+  provider state, validation, cleanup, and downstream reads are modeled locally.
+- Delivery customization runtime behavior is covered by local integration tests.
+  Live Shopify parity capture for successful lifecycle writes also requires an
+  installed delivery-customization Shopify Function in the conformance app; when
+  that Function is unavailable, proxy-only runtime tests must not be treated as
+  captured Shopify evidence.
 - Fulfillment constraint rule metadata roots are covered by the Functions
   endpoint group, not by the shipping/fulfillments local slices.
 - Validation-only shipping and fulfillment specs prove guardrail payloads and

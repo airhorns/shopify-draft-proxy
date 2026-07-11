@@ -336,7 +336,11 @@ impl DraftProxy {
                 if !selection_errors.is_empty() {
                     return ok_json(json!({ "errors": selection_errors }));
                 }
-                if let Some(data) = self.local_node_query_data(&fields, false, Some(request)) {
+                let allow_unknown_null =
+                    Self::node_fields_only_target_resource_type(&fields, "DeliveryCustomization");
+                if let Some(data) =
+                    self.local_node_query_data(&fields, allow_unknown_null, Some(request))
+                {
                     ok_json(json!({ "data": data }))
                 } else if self.config.read_mode != ReadMode::Snapshot {
                     // Cold read: forward upstream and hydrate the observed
@@ -356,6 +360,28 @@ impl DraftProxy {
             }
             _ => no_dispatcher("admin-platform", root_field),
         }
+    }
+
+    fn node_fields_only_target_resource_type(
+        fields: &[RootFieldSelection],
+        resource_type: &str,
+    ) -> bool {
+        !fields.is_empty()
+            && fields.iter().all(|field| match field.name.as_str() {
+                "node" => resolved_string_field(&field.arguments, "id")
+                    .as_deref()
+                    .is_some_and(|id| shopify_gid_resource_type(id) == Some(resource_type)),
+                "nodes" => field
+                    .arguments
+                    .get("ids")
+                    .map(resolved_string_list)
+                    .filter(|ids| !ids.is_empty())
+                    .is_some_and(|ids| {
+                        ids.iter()
+                            .all(|id| shopify_gid_resource_type(id) == Some(resource_type))
+                    }),
+                _ => false,
+            })
     }
 
     fn orders_query_response(
@@ -623,6 +649,19 @@ impl DraftProxy {
             }
             if let Some(location) = self.location_for_read(id) {
                 return Some(selected_json(&location, selection));
+            }
+        }
+        if shopify_gid_resource_type(id) == Some("DeliveryCustomization") {
+            if self.store.staged.delivery_customizations.is_tombstoned(id) {
+                return Some(Value::Null);
+            }
+            if let Some(customization) = self.store.staged.delivery_customizations.get(id) {
+                let api_client_id = request.and_then(request_app_namespace_api_client_id);
+                return Some(selected_delivery_customization_json(
+                    customization,
+                    selection,
+                    api_client_id.as_deref(),
+                ));
             }
         }
         if shopify_gid_resource_type(id) == Some("ProductFeed") {
@@ -1323,7 +1362,11 @@ impl DraftProxy {
                 if operation.operation_type == OperationType::Mutation
                     && matches!(
                         root_field,
-                        "orderMarkAsPaid" | "refundCreate" | "orderEditBegin" | "orderEditCommit"
+                        "orderMarkAsPaid"
+                            | "orderCreateManualPayment"
+                            | "refundCreate"
+                            | "orderEditBegin"
+                            | "orderEditCommit"
                     ) =>
             {
                 if let Some(data) = self.money_bag_presentment_local_data(request, query, variables)
@@ -1532,6 +1575,16 @@ impl DraftProxy {
                     json_error(400, "Could not parse GraphQL operation")
                 }
             }
+            (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && root_field == "orderInvoiceSend" =>
+            {
+                if let Some(data) = self.order_invoice_send_local_data(request, query, variables) {
+                    ok_json(data)
+                } else {
+                    no_dispatcher("orders", root_field)
+                }
+            }
             (_, CapabilityExecution::OverlayRead) | (_, CapabilityExecution::StageLocally) => {
                 Self::dispatch_capability_fallback(execution, root_field)
             }
@@ -1561,6 +1614,15 @@ impl DraftProxy {
                     } else {
                         ok_json(json!({ "data": delivery_settings_read_data(&fields) }))
                     }
+                } else if fields.iter().all(|field| {
+                    matches!(
+                        field.name.as_str(),
+                        "deliveryCustomization" | "deliveryCustomizations"
+                    )
+                }) {
+                    ok_json(json!({
+                        "data": self.delivery_customization_query_data(&fields, Some(request))
+                    }))
                 } else if matches!(root_field, "carrierService" | "carrierServices") {
                     ok_json(json!({ "data": self.carrier_service_read_data(&fields) }))
                 } else if matches!(root_field, "deliveryProfile" | "deliveryProfiles") {
@@ -1621,6 +1683,31 @@ impl DraftProxy {
                 } else {
                     no_dispatcher("shipping-fulfillments", root_field)
                 }
+            }
+            (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && operation.root_fields.iter().all(|field| {
+                        matches!(
+                            field.as_str(),
+                            "deliveryCustomizationActivation"
+                                | "deliveryCustomizationCreate"
+                                | "deliveryCustomizationDelete"
+                                | "deliveryCustomizationUpdate"
+                        )
+                    }) =>
+            {
+                let fields = try_root_fields!(query, variables);
+                let result = self.delivery_customization_mutation_data(request, &fields);
+                if !result.staged_ids.is_empty() {
+                    self.record_mutation_log_entry(
+                        request,
+                        query,
+                        variables,
+                        root_field,
+                        result.staged_ids,
+                    );
+                }
+                ok_json(json!({ "data": result.data }))
             }
             (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation

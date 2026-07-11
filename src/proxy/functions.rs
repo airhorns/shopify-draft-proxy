@@ -399,6 +399,44 @@ impl DraftProxy {
         self.resolve_function_metadata(request, id, handle, "PAYMENT_CUSTOMIZATION")
     }
 
+    pub(in crate::proxy) fn resolve_delivery_customization_function(
+        &mut self,
+        request: &Request,
+        id: Option<&str>,
+        handle: Option<&str>,
+    ) -> Option<Value> {
+        self.resolve_function_metadata(request, id, handle, "DELIVERY_CUSTOMIZATION")
+    }
+
+    pub(in crate::proxy) fn delivery_customization_record_matches_function_key(
+        &mut self,
+        request: &Request,
+        record: &Value,
+        candidate_key: &str,
+    ) -> bool {
+        self.delivery_customization_record_function_key(request, record)
+            .as_deref()
+            == Some(candidate_key)
+    }
+
+    fn delivery_customization_record_function_key(
+        &mut self,
+        request: &Request,
+        record: &Value,
+    ) -> Option<String> {
+        if let Some(id) = record["functionId"].as_str() {
+            return Some(delivery_customization_function_key(id));
+        }
+        let handle = record["shopifyFunction"]["handle"].as_str()?;
+        self.resolve_delivery_customization_function(request, None, Some(handle))
+            .and_then(|function| {
+                function["id"]
+                    .as_str()
+                    .map(delivery_customization_function_key)
+            })
+            .or_else(|| Some(delivery_customization_function_key(handle)))
+    }
+
     pub(in crate::proxy) fn payment_customization_record_matches_function_key(
         &mut self,
         request: &Request,

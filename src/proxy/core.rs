@@ -372,6 +372,9 @@ impl DraftProxy {
                 "deliveryProfiles": self.store.staged.delivery_profiles.records.clone(),
                 "deliveryProfileOrder": self.store.staged.delivery_profiles.order.clone(),
                 "deletedDeliveryProfileIds": self.store.staged.delivery_profiles.tombstones.iter().cloned().collect::<Vec<_>>(),
+                "deliveryCustomizations": self.store.staged.delivery_customizations.records.clone(),
+                "deliveryCustomizationOrder": self.store.staged.delivery_customizations.order.clone(),
+                "deletedDeliveryCustomizationIds": self.store.staged.delivery_customizations.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "publicationIds": self.store.staged.publication_ids.iter().cloned().collect::<Vec<_>>(),
                 "createdPublicationIds": self.store.staged.created_publication_ids.iter().cloned().collect::<Vec<_>>(),
                 "publications": self.store.staged.publications.clone(),
@@ -1560,6 +1563,13 @@ impl DraftProxy {
             "deliveryProfiles",
             Some("deliveryProfileOrder"),
             Some("deletedDeliveryProfileIds"),
+        );
+        replace_staged_value_records(
+            &mut self.store.staged.delivery_customizations,
+            &state["stagedState"],
+            "deliveryCustomizations",
+            Some("deliveryCustomizationOrder"),
+            Some("deletedDeliveryCustomizationIds"),
         );
         self.store.staged.fulfillment_order_cursors = state["stagedState"]
             .get("fulfillmentOrderCursors")
