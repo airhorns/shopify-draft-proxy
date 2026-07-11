@@ -1095,10 +1095,30 @@ impl DraftProxy {
                     .unwrap_or(Value::Null),
             );
         }
-        if let Some(function) = self.store.staged.function_metadata.get(id) {
+        if let Some(function) = self
+            .store
+            .staged
+            .function_metadata
+            .get(id)
+            .or_else(|| self.store.base.function_metadata.get(id))
+        {
             return Some(selected_json(function, selection));
         }
-        if let Some(validation) = self.store.staged.function_validations.get(id) {
+        if self
+            .store
+            .staged
+            .deleted_function_validation_ids
+            .contains(id)
+        {
+            return Some(Value::Null);
+        }
+        if let Some(validation) = self
+            .store
+            .staged
+            .function_validations
+            .get(id)
+            .or_else(|| self.store.base.function_validations.get(id))
+        {
             return Some(selected_json(
                 &validation_record_for_selection(validation, selection),
                 selection,
@@ -1116,7 +1136,21 @@ impl DraftProxy {
                 selection,
             ));
         }
-        if let Some(cart_transform) = self.store.staged.function_cart_transforms.get(id) {
+        if self
+            .store
+            .staged
+            .deleted_function_cart_transform_ids
+            .contains(id)
+        {
+            return Some(Value::Null);
+        }
+        if let Some(cart_transform) = self
+            .store
+            .staged
+            .function_cart_transforms
+            .get(id)
+            .or_else(|| self.store.base.function_cart_transforms.get(id))
+        {
             return Some(selected_json(
                 &cart_transform_record_for_selection(cart_transform, selection),
                 selection,
@@ -1134,11 +1168,25 @@ impl DraftProxy {
                 selection,
             ));
         }
+        if self
+            .store
+            .staged
+            .deleted_function_fulfillment_constraint_rule_ids
+            .contains(id)
+        {
+            return Some(Value::Null);
+        }
         if let Some(rule) = self
             .store
             .staged
             .function_fulfillment_constraint_rules
             .get(id)
+            .or_else(|| {
+                self.store
+                    .base
+                    .function_fulfillment_constraint_rules
+                    .get(id)
+            })
         {
             return Some(selected_json(
                 &fulfillment_constraint_rule_record_for_selection(rule, selection),
@@ -3155,22 +3203,29 @@ impl DraftProxy {
             (CapabilityDomain::Functions, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query =>
             {
-                // A cold function read (no validation/cart-transform staged this
-                // session) forwards to the upstream so `shopifyFunctions` /
-                // `shopifyFunction` reflect the shop's real installed functions
-                // and their app ownership metadata. Once a lifecycle is staged we
-                // serve locally (read-after-write / read-after-delete).
-                if self.config.read_mode != ReadMode::Snapshot && !self.local_has_function_state() {
+                let fields = try_root_fields!(&query, &variables);
+                // A cold function read forwards to the upstream so
+                // `shopifyFunctions` / `shopifyFunction` / lifecycle catalogs
+                // reflect the shop's real installed Functions. Once the
+                // requested roots intersect known base or staged overlay state,
+                // hydrate the relevant upstream families and resolve from the
+                // effective catalog.
+                if self.config.read_mode != ReadMode::Snapshot
+                    && !self.function_read_has_local_overlay(&fields)
+                {
                     let response = (self.upstream_transport)(request.clone());
                     if response.status == 200 {
                         self.hydrate_function_metadata_from_response_data(&response.body["data"]);
+                        self.mark_function_read_fields_hydrated(&fields);
                     }
                     response
                 } else {
-                    let fields = try_root_fields!(&query, &variables);
                     let selection_errors =
                         functions_output_selection_errors(&query, &variables, &fields);
                     if selection_errors.is_empty() {
+                        if self.config.read_mode != ReadMode::Snapshot {
+                            self.hydrate_function_read_fields(request, &fields);
+                        }
                         ok_json(
                             json!({ "data": self.functions_metadata_read_data(request, &fields) }),
                         )
