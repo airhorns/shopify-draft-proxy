@@ -4756,6 +4756,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'metaobject-bulk-delete-ids',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-bulk-delete-ids-conformance.ts',
+    purpose:
+      'Metaobject bulk delete by explicit IDs with a mixed existing/stale selector, exact batched nodes(ids:) hydration cassette, and downstream deleted-row reads.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-bulk-delete-ids-lifecycle.json`,
+      'config/parity-specs/metaobjects/metaobject-bulk-delete-ids-lifecycle.json',
+      'config/parity-requests/metaobjects/metaobject-bulk-delete-ids-delete.graphql',
+      'config/parity-requests/metaobjects/metaobject-bulk-delete-ids-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates a disposable definition and two rows, bulk deletes rows by an IDs selector that includes one stale ID, then deletes any remaining rows and the definition.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'metaobject-bulk-delete-edge-cases',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-bulk-delete-edge-cases-conformance.ts',
@@ -11243,6 +11261,36 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Deletes active payment customizations before capture, creates disposable active customizations in one validation request, then deletes every row returned by the request.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'admin-platform',
+    captureId: 'admin-node-customer-balance-node-read',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-admin-node-customer-balance-node-read-conformance.ts',
+    purpose:
+      'Generic Node read-after-write for disposable Customer, MailingAddress, StoreCreditAccount, store-credit credit/debit transactions, GiftCard, and gift-card credit/debit transactions.',
+    requiredAuthScopes: [
+      'read_customers',
+      'write_customers',
+      'read_store_credit_accounts',
+      'write_store_credit_account_transactions',
+      'read_gift_cards',
+      'write_gift_cards',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}admin-node-customer-balance-node-read.json`,
+      'config/parity-specs/admin-platform/admin-node-customer-balance-node-read.json',
+      'config/parity-requests/admin-platform/admin-node-customer-balance-customer-create.graphql',
+      'config/parity-requests/admin-platform/admin-node-customer-balance-store-credit-credit.graphql',
+      'config/parity-requests/admin-platform/admin-node-customer-balance-store-credit-debit.graphql',
+      'config/parity-requests/admin-platform/admin-node-customer-balance-gift-card-create.graphql',
+      'config/parity-requests/admin-platform/admin-node-customer-balance-gift-card-credit.graphql',
+      'config/parity-requests/admin-platform/admin-node-customer-balance-gift-card-debit.graphql',
+      'config/parity-requests/admin-platform/admin-node-customer-balance-node-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates a disposable customer/address/store-credit account and gift card, debits remaining store credit, deletes the customer, and deactivates the gift card in best-effort cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

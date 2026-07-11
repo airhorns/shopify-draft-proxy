@@ -4232,6 +4232,10 @@ fn discount_bulk_root_action(name: &str) -> Option<(&'static str, DiscountBulkAc
     }
 }
 
+pub(in crate::proxy) fn is_discount_bulk_action_root(name: &str) -> bool {
+    discount_bulk_root_action(name).is_some()
+}
+
 fn discount_bulk_saved_search_id(field: &RootFieldSelection) -> Option<String> {
     resolved_string_field(&field.arguments, "savedSearchId")
         .or_else(|| resolved_string_field(&field.arguments, "saved_search_id"))
