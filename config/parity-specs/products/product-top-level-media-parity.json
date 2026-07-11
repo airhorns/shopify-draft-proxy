@@ -1,0 +1,216 @@
+{
+  "scenarioId": "product-top-level-media-parity",
+  "operationNames": ["productCreate", "productUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "mutation-no-write-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-top-level-media-parity.json"
+  ],
+  "runtimeTestFiles": ["src/proxy/media_products_saved_searches.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/product-top-level-media-create.graphql",
+    "apiVersion": "2025-01",
+    "variablesCapturePath": "$.validCreate.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Shopify productCreate/productUpdate top-level media argument behavior with a valid image source, valid external-video source, invalid image source, and disposable product cleanup. The proxy request sequence uses only public Admin GraphQL mutations/queries.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "valid-create-image-media-payload",
+        "capturePath": "$.validCreate.response.payload.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.productCreate.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy generates a stable synthetic Product GID for the local staged session."
+          },
+          {
+            "path": "$.productCreate.product.media.nodes[0].id",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "The proxy generates a stable synthetic MediaImage GID for the local staged session."
+          }
+        ]
+      },
+      {
+        "name": "read-after-valid-create-image-processing",
+        "capturePath": "$.readAfterValidCreate.response.payload.data.product",
+        "proxyPath": "$.data.product",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-top-level-media-read.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy generates a stable synthetic Product GID for the local staged session."
+          },
+          {
+            "path": "$.media.nodes[0].id",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "The proxy generates a stable synthetic MediaImage GID for the local staged session."
+          }
+        ]
+      },
+      {
+        "name": "valid-update-external-video-appends-media",
+        "capturePath": "$.validUpdate.response.payload.data.productUpdate.product",
+        "proxyPath": "$.data.productUpdate.product",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-top-level-media-update.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "product": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+              },
+              "title": {
+                "fromCapturePath": "$.validUpdate.variables.product.title"
+              }
+            },
+            "media": {
+              "fromCapturePath": "$.validUpdate.variables.media"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy generates a stable synthetic Product GID for the local staged session."
+          },
+          {
+            "path": "$.media.nodes[0].id",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "The proxy generates a stable synthetic MediaImage GID for the local staged session."
+          },
+          {
+            "path": "$.media.nodes[1].id",
+            "matcher": "shopify-gid:ExternalVideo",
+            "reason": "The proxy generates a stable synthetic ExternalVideo GID for the local staged session."
+          }
+        ]
+      },
+      {
+        "name": "read-after-valid-update-preserves-and-appends-media",
+        "capturePath": "$.readAfterValidUpdate.response.payload.data.product",
+        "proxyPath": "$.data.product",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-top-level-media-read.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy generates a stable synthetic Product GID for the local staged session."
+          },
+          {
+            "path": "$.media.nodes[0].id",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "The proxy generates a stable synthetic MediaImage GID for the local staged session."
+          },
+          {
+            "path": "$.media.nodes[1].id",
+            "matcher": "shopify-gid:ExternalVideo",
+            "reason": "The proxy generates a stable synthetic ExternalVideo GID for the local staged session."
+          }
+        ]
+      },
+      {
+        "name": "invalid-update-media-user-errors-and-unchanged-product",
+        "capturePath": "$.invalidUpdate.response.payload.data.productUpdate",
+        "proxyPath": "$.data.productUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-top-level-media-update.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "product": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+              },
+              "title": {
+                "fromCapturePath": "$.invalidUpdate.variables.product.title"
+              }
+            },
+            "media": {
+              "fromCapturePath": "$.invalidUpdate.variables.media"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy generates a stable synthetic Product GID for the local staged session."
+          },
+          {
+            "path": "$.product.media.nodes[0].id",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "The proxy generates a stable synthetic MediaImage GID for the local staged session."
+          },
+          {
+            "path": "$.product.media.nodes[1].id",
+            "matcher": "shopify-gid:ExternalVideo",
+            "reason": "The proxy generates a stable synthetic ExternalVideo GID for the local staged session."
+          }
+        ]
+      },
+      {
+        "name": "read-after-invalid-update-remains-unchanged",
+        "capturePath": "$.readAfterInvalidUpdate.response.payload.data.product",
+        "proxyPath": "$.data.product",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-top-level-media-read.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy generates a stable synthetic Product GID for the local staged session."
+          },
+          {
+            "path": "$.media.nodes[0].id",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "The proxy generates a stable synthetic MediaImage GID for the local staged session."
+          },
+          {
+            "path": "$.media.nodes[1].id",
+            "matcher": "shopify-gid:ExternalVideo",
+            "reason": "The proxy generates a stable synthetic ExternalVideo GID for the local staged session."
+          }
+        ]
+      },
+      {
+        "name": "invalid-create-media-null-product",
+        "capturePath": "$.invalidCreate.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-top-level-media-create.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.invalidCreate.variables"
+        }
+      }
+    ]
+  }
+}

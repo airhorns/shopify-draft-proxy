@@ -1,0 +1,1353 @@
+{
+  "scenario": "inventory-item-levels-connection-windowing-2026-04",
+  "capturedAt": "2026-07-10T16:44:21.663Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "setup": {
+    "sku": "INV-ITEM-LEVEL-1783701856472",
+    "productId": "gid://shopify/Product/10236063121714",
+    "inventoryItemId": "gid://shopify/InventoryItem/53564958638386",
+    "sourceLocationId": "gid://shopify/Location/113884234034",
+    "destinationLocationId": "gid://shopify/Location/113884266802",
+    "firstConnectionLevelId": "gid://shopify/InventoryLevel/152183472434?inventory_item_id=53564958638386",
+    "secondConnectionLevelId": "gid://shopify/InventoryLevel/152183505202?inventory_item_id=53564958638386"
+  },
+  "operations": {
+    "sourceLocationAdd": {
+      "query": "mutation InventoryConnectionLocationAdd($input: LocationAddInput!) {\n  locationAdd(input: $input) {\n    location {\n      id\n      name\n      isActive\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Inventory Item Levels Source 1783701856472",
+          "address": {
+            "countryCode": "US"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "locationAdd": {
+            "location": {
+              "id": "gid://shopify/Location/113884234034",
+              "name": "Inventory Item Levels Source 1783701856472",
+              "isActive": true
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "destinationLocationAdd": {
+      "query": "mutation InventoryConnectionLocationAdd($input: LocationAddInput!) {\n  locationAdd(input: $input) {\n    location {\n      id\n      name\n      isActive\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Inventory Item Levels Destination 1783701856472",
+          "address": {
+            "countryCode": "US"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "locationAdd": {
+            "location": {
+              "id": "gid://shopify/Location/113884266802",
+              "name": "Inventory Item Levels Destination 1783701856472",
+              "isActive": true
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "productSet": {
+      "query": "mutation InventoryConnectionProductSet($input: ProductSetInput!, $synchronous: Boolean!) {\n  productSet(input: $input, synchronous: $synchronous) {\n    product {\n      id\n      title\n      handle\n      status\n      variants(first: 10) {\n        nodes {\n          id\n          title\n          sku\n          inventoryQuantity\n          inventoryItem {\n            id\n            tracked\n            requiresShipping\n          }\n        }\n      }\n    }\n    productSetOperation {\n      id\n      status\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "synchronous": true,
+        "input": {
+          "title": "Inventory item levels 1783701856472",
+          "status": "ACTIVE",
+          "productOptions": [
+            {
+              "name": "Title",
+              "position": 1,
+              "values": [
+                {
+                  "name": "Default Title"
+                }
+              ]
+            }
+          ],
+          "variants": [
+            {
+              "optionValues": [
+                {
+                  "optionName": "Title",
+                  "name": "Default Title"
+                }
+              ],
+              "price": "10.00",
+              "sku": "INV-ITEM-LEVEL-1783701856472",
+              "inventoryItem": {
+                "tracked": true,
+                "requiresShipping": true
+              },
+              "inventoryQuantities": [
+                {
+                  "locationId": "gid://shopify/Location/113884234034",
+                  "name": "available",
+                  "quantity": 0
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "productSet": {
+            "product": {
+              "id": "gid://shopify/Product/10236063121714",
+              "title": "Inventory item levels 1783701856472",
+              "handle": "inventory-item-levels-1783701856472",
+              "status": "ACTIVE",
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51459657040178",
+                    "title": "Default Title",
+                    "sku": "INV-ITEM-LEVEL-1783701856472",
+                    "inventoryQuantity": 0,
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53564958638386",
+                      "tracked": true,
+                      "requiresShipping": true
+                    }
+                  }
+                ]
+              }
+            },
+            "productSetOperation": null,
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 21,
+            "actualQueryCost": 14,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "inventorySet": {
+      "query": "#graphql\nmutation InventoryQuantityContractSet($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {\n  inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {\n    inventoryAdjustmentGroup {\n      reason\n      referenceDocumentUri\n      changes {\n        name\n        delta\n        quantityAfterChange\n        item {\n          id\n        }\n        location {\n          id\n          name\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "available",
+          "reason": "correction",
+          "referenceDocumentUri": "logistics://inventory-item-levels/set/1783701856472",
+          "quantities": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53564958638386",
+              "locationId": "gid://shopify/Location/113884234034",
+              "quantity": 4,
+              "changeFromQuantity": 0
+            }
+          ]
+        },
+        "idempotencyKey": "inventory-item-levels-set-1783701856472"
+      },
+      "response": {
+        "data": {
+          "inventorySetQuantities": {
+            "inventoryAdjustmentGroup": {
+              "reason": "correction",
+              "referenceDocumentUri": "logistics://inventory-item-levels/set/1783701856472",
+              "changes": [
+                {
+                  "name": "available",
+                  "delta": 4,
+                  "quantityAfterChange": null,
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53564958638386"
+                  },
+                  "location": {
+                    "id": "gid://shopify/Location/113884234034",
+                    "name": "Inventory Item Levels Source 1783701856472"
+                  }
+                },
+                {
+                  "name": "on_hand",
+                  "delta": 4,
+                  "quantityAfterChange": null,
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53564958638386"
+                  },
+                  "location": {
+                    "id": "gid://shopify/Location/113884234034",
+                    "name": "Inventory Item Levels Source 1783701856472"
+                  }
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "inventoryActivate": {
+      "query": "mutation InventoryItemLevelsActivate(\n  $inventoryItemId: ID!\n  $locationId: ID!\n  $available: Int\n  $idempotencyKey: String!\n) {\n  inventoryActivate(\n    inventoryItemId: $inventoryItemId\n    locationId: $locationId\n    available: $available\n  ) @idempotent(key: $idempotencyKey) {\n    inventoryLevel {\n      id\n      isActive\n      location {\n        id\n        name\n      }\n      quantities(names: [\"available\", \"on_hand\", \"damaged\"]) {\n        name\n        quantity\n      }\n      item {\n        id\n        tracked\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "inventoryItemId": "gid://shopify/InventoryItem/53564958638386",
+        "locationId": "gid://shopify/Location/113884266802",
+        "available": 9,
+        "idempotencyKey": "inventory-item-levels-activate-1783701856472"
+      },
+      "response": {
+        "data": {
+          "inventoryActivate": {
+            "inventoryLevel": {
+              "id": "gid://shopify/InventoryLevel/152183505202?inventory_item_id=53564958638386",
+              "isActive": true,
+              "location": {
+                "id": "gid://shopify/Location/113884266802",
+                "name": "Inventory Item Levels Destination 1783701856472"
+              },
+              "quantities": [
+                {
+                  "name": "available",
+                  "quantity": 9
+                },
+                {
+                  "name": "on_hand",
+                  "quantity": 9
+                },
+                {
+                  "name": "damaged",
+                  "quantity": 0
+                }
+              ],
+              "item": {
+                "id": "gid://shopify/InventoryItem/53564958638386",
+                "tracked": true
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "inventoryAdjust": {
+      "query": "#graphql\nmutation InventoryQuantityContractAdjust($input: InventoryAdjustQuantitiesInput!, $idempotencyKey: String!) {\n  inventoryAdjustQuantities(input: $input) @idempotent(key: $idempotencyKey) {\n    inventoryAdjustmentGroup {\n      reason\n      referenceDocumentUri\n      changes {\n        name\n        delta\n        quantityAfterChange\n        item {\n          id\n        }\n        location {\n          id\n          name\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "available",
+          "reason": "correction",
+          "referenceDocumentUri": "logistics://inventory-item-levels/adjust/1783701856472",
+          "changes": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53564958638386",
+              "locationId": "gid://shopify/Location/113884266802",
+              "delta": 1,
+              "changeFromQuantity": 9
+            }
+          ]
+        },
+        "idempotencyKey": "inventory-item-levels-adjust-1783701856472"
+      },
+      "response": {
+        "data": {
+          "inventoryAdjustQuantities": {
+            "inventoryAdjustmentGroup": {
+              "reason": "correction",
+              "referenceDocumentUri": "logistics://inventory-item-levels/adjust/1783701856472",
+              "changes": [
+                {
+                  "name": "available",
+                  "delta": 1,
+                  "quantityAfterChange": null,
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53564958638386"
+                  },
+                  "location": {
+                    "id": "gid://shopify/Location/113884266802",
+                    "name": "Inventory Item Levels Destination 1783701856472"
+                  }
+                },
+                {
+                  "name": "on_hand",
+                  "delta": 1,
+                  "quantityAfterChange": null,
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53564958638386"
+                  },
+                  "location": {
+                    "id": "gid://shopify/Location/113884266802",
+                    "name": "Inventory Item Levels Destination 1783701856472"
+                  }
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "activeRead": {
+      "query": "query InventoryItemLevelsConnectionRead(\n  $inventoryItemId: ID!\n  $itemQuery: String!\n  $missingItemQuery: String!\n  $invalidLocationQuery: String!\n) {\n  inventoryItem(id: $inventoryItemId) {\n    id\n    activeLevels: inventoryLevels(first: 10) {\n      edges {\n        cursor\n        node {\n          id\n          isActive\n          item {\n            id\n          }\n          location {\n            id\n            name\n          }\n          quantities(names: [\"available\", \"on_hand\", \"damaged\"]) {\n            name\n            quantity\n          }\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    allLevels: inventoryLevels(first: 10, includeInactive: true) {\n      edges {\n        cursor\n        node {\n          id\n          isActive\n          item {\n            id\n          }\n          location {\n            id\n            name\n          }\n          quantities(names: [\"available\", \"on_hand\", \"damaged\"]) {\n            name\n            quantity\n          }\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    firstPage: inventoryLevels(first: 1, includeInactive: true) {\n      nodes {\n        id\n        isActive\n        item {\n          id\n        }\n        location {\n          id\n          name\n        }\n        quantities(names: [\"available\", \"on_hand\", \"damaged\"]) {\n          name\n          quantity\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    filtered: inventoryLevels(first: 5, includeInactive: true, query: $itemQuery) {\n      nodes {\n        id\n        isActive\n        item {\n          id\n        }\n        location {\n          id\n          name\n        }\n        quantities(names: [\"available\", \"on_hand\", \"damaged\"]) {\n          name\n          quantity\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    emptyFilter: inventoryLevels(first: 5, includeInactive: true, query: $missingItemQuery) {\n      nodes {\n        id\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    invalidLocationFilter: inventoryLevels(first: 5, includeInactive: true, query: $invalidLocationQuery) {\n      nodes {\n        id\n        isActive\n        item {\n          id\n        }\n        location {\n          id\n          name\n        }\n        quantities(names: [\"available\", \"on_hand\", \"damaged\"]) {\n          name\n          quantity\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    reverseLevels: inventoryLevels(first: 10, includeInactive: true, reverse: true) {\n      nodes {\n        id\n        isActive\n        item {\n          id\n        }\n        location {\n          id\n          name\n        }\n        quantities(names: [\"available\", \"on_hand\", \"damaged\"]) {\n          name\n          quantity\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "inventoryItemId": "gid://shopify/InventoryItem/53564958638386",
+        "itemQuery": "inventory_item_id:53564958638386",
+        "missingItemQuery": "inventory_item_id:1",
+        "invalidLocationQuery": "location_id:113884266802"
+      },
+      "response": {
+        "data": {
+          "inventoryItem": {
+            "id": "gid://shopify/InventoryItem/53564958638386",
+            "activeLevels": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo1Njc3NjU1NjUxMTUzOCwibGFzdF92YWx1ZSI6IjU2Nzc2NTU2NTExNTM4In0=",
+                  "node": {
+                    "id": "gid://shopify/InventoryLevel/152183472434?inventory_item_id=53564958638386",
+                    "isActive": true,
+                    "item": {
+                      "id": "gid://shopify/InventoryItem/53564958638386"
+                    },
+                    "location": {
+                      "id": "gid://shopify/Location/113884234034",
+                      "name": "Inventory Item Levels Source 1783701856472"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 4
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 4
+                      },
+                      {
+                        "name": "damaged",
+                        "quantity": 0
+                      }
+                    ]
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo1Njc3NjU1NjU0NDMwNiwibGFzdF92YWx1ZSI6IjU2Nzc2NTU2NTQ0MzA2In0=",
+                  "node": {
+                    "id": "gid://shopify/InventoryLevel/152183505202?inventory_item_id=53564958638386",
+                    "isActive": true,
+                    "item": {
+                      "id": "gid://shopify/InventoryItem/53564958638386"
+                    },
+                    "location": {
+                      "id": "gid://shopify/Location/113884266802",
+                      "name": "Inventory Item Levels Destination 1783701856472"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 10
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 10
+                      },
+                      {
+                        "name": "damaged",
+                        "quantity": 0
+                      }
+                    ]
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo1Njc3NjU1NjUxMTUzOCwibGFzdF92YWx1ZSI6IjU2Nzc2NTU2NTExNTM4In0=",
+                "endCursor": "eyJsYXN0X2lkIjo1Njc3NjU1NjU0NDMwNiwibGFzdF92YWx1ZSI6IjU2Nzc2NTU2NTQ0MzA2In0="
+              }
+            },
+            "allLevels": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo1Njc3NjU1NjUxMTUzOCwibGFzdF92YWx1ZSI6IjU2Nzc2NTU2NTExNTM4In0=",
+                  "node": {
+                    "id": "gid://shopify/InventoryLevel/152183472434?inventory_item_id=53564958638386",
+                    "isActive": true,
+                    "item": {
+                      "id": "gid://shopify/InventoryItem/53564958638386"
+                    },
+                    "location": {
+                      "id": "gid://shopify/Location/113884234034",
+                      "name": "Inventory Item Levels Source 1783701856472"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 4
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 4
+                      },
+                      {
+                        "name": "damaged",
+                        "quantity": 0
+                      }
+                    ]
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo1Njc3NjU1NjU0NDMwNiwibGFzdF92YWx1ZSI6IjU2Nzc2NTU2NTQ0MzA2In0=",
+                  "node": {
+                    "id": "gid://shopify/InventoryLevel/152183505202?inventory_item_id=53564958638386",
+                    "isActive": true,
+                    "item": {
+                      "id": "gid://shopify/InventoryItem/53564958638386"
+                    },
+                    "location": {
+                      "id": "gid://shopify/Location/113884266802",
+                      "name": "Inventory Item Levels Destination 1783701856472"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 10
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 10
+                      },
+                      {
+                        "name": "damaged",
+                        "quantity": 0
+                      }
+                    ]
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo1Njc3NjU1NjUxMTUzOCwibGFzdF92YWx1ZSI6IjU2Nzc2NTU2NTExNTM4In0=",
+                "endCursor": "eyJsYXN0X2lkIjo1Njc3NjU1NjU0NDMwNiwibGFzdF92YWx1ZSI6IjU2Nzc2NTU2NTQ0MzA2In0="
+              }
+            },
+            "firstPage": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/InventoryLevel/152183472434?inventory_item_id=53564958638386",
+                  "isActive": true,
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53564958638386"
+                  },
+                  "location": {
+                    "id": "gid://shopify/Location/113884234034",
+                    "name": "Inventory Item Levels Source 1783701856472"
+                  },
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 4
+                    },
+                    {
+                      "name": "on_hand",
+                      "quantity": 4
+                    },
+                    {
+                      "name": "damaged",
+                      "quantity": 0
+                    }
+                  ]
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo1Njc3NjU1NjUxMTUzOCwibGFzdF92YWx1ZSI6IjU2Nzc2NTU2NTExNTM4In0=",
+                "endCursor": "eyJsYXN0X2lkIjo1Njc3NjU1NjUxMTUzOCwibGFzdF92YWx1ZSI6IjU2Nzc2NTU2NTExNTM4In0="
+              }
+            },
+            "filtered": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/InventoryLevel/152183472434?inventory_item_id=53564958638386",
+                  "isActive": true,
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53564958638386"
+                  },
+                  "location": {
+                    "id": "gid://shopify/Location/113884234034",
+                    "name": "Inventory Item Levels Source 1783701856472"
+                  },
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 4
+                    },
+                    {
+                      "name": "on_hand",
+                      "quantity": 4
+                    },
+                    {
+                      "name": "damaged",
+                      "quantity": 0
+                    }
+                  ]
+                },
+                {
+                  "id": "gid://shopify/InventoryLevel/152183505202?inventory_item_id=53564958638386",
+                  "isActive": true,
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53564958638386"
+                  },
+                  "location": {
+                    "id": "gid://shopify/Location/113884266802",
+                    "name": "Inventory Item Levels Destination 1783701856472"
+                  },
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 10
+                    },
+                    {
+                      "name": "on_hand",
+                      "quantity": 10
+                    },
+                    {
+                      "name": "damaged",
+                      "quantity": 0
+                    }
+                  ]
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo1Njc3NjU1NjUxMTUzOCwibGFzdF92YWx1ZSI6IjU2Nzc2NTU2NTExNTM4In0=",
+                "endCursor": "eyJsYXN0X2lkIjo1Njc3NjU1NjU0NDMwNiwibGFzdF92YWx1ZSI6IjU2Nzc2NTU2NTQ0MzA2In0="
+              }
+            },
+            "emptyFilter": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            },
+            "invalidLocationFilter": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/InventoryLevel/152183472434?inventory_item_id=53564958638386",
+                  "isActive": true,
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53564958638386"
+                  },
+                  "location": {
+                    "id": "gid://shopify/Location/113884234034",
+                    "name": "Inventory Item Levels Source 1783701856472"
+                  },
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 4
+                    },
+                    {
+                      "name": "on_hand",
+                      "quantity": 4
+                    },
+                    {
+                      "name": "damaged",
+                      "quantity": 0
+                    }
+                  ]
+                },
+                {
+                  "id": "gid://shopify/InventoryLevel/152183505202?inventory_item_id=53564958638386",
+                  "isActive": true,
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53564958638386"
+                  },
+                  "location": {
+                    "id": "gid://shopify/Location/113884266802",
+                    "name": "Inventory Item Levels Destination 1783701856472"
+                  },
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 10
+                    },
+                    {
+                      "name": "on_hand",
+                      "quantity": 10
+                    },
+                    {
+                      "name": "damaged",
+                      "quantity": 0
+                    }
+                  ]
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo1Njc3NjU1NjUxMTUzOCwibGFzdF92YWx1ZSI6IjU2Nzc2NTU2NTExNTM4In0=",
+                "endCursor": "eyJsYXN0X2lkIjo1Njc3NjU1NjU0NDMwNiwibGFzdF92YWx1ZSI6IjU2Nzc2NTU2NTQ0MzA2In0="
+              }
+            },
+            "reverseLevels": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/InventoryLevel/152183505202?inventory_item_id=53564958638386",
+                  "isActive": true,
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53564958638386"
+                  },
+                  "location": {
+                    "id": "gid://shopify/Location/113884266802",
+                    "name": "Inventory Item Levels Destination 1783701856472"
+                  },
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 10
+                    },
+                    {
+                      "name": "on_hand",
+                      "quantity": 10
+                    },
+                    {
+                      "name": "damaged",
+                      "quantity": 0
+                    }
+                  ]
+                },
+                {
+                  "id": "gid://shopify/InventoryLevel/152183472434?inventory_item_id=53564958638386",
+                  "isActive": true,
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53564958638386"
+                  },
+                  "location": {
+                    "id": "gid://shopify/Location/113884234034",
+                    "name": "Inventory Item Levels Source 1783701856472"
+                  },
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 4
+                    },
+                    {
+                      "name": "on_hand",
+                      "quantity": 4
+                    },
+                    {
+                      "name": "damaged",
+                      "quantity": 0
+                    }
+                  ]
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo1Njc3NjU1NjU0NDMwNiwibGFzdF92YWx1ZSI6IjU2Nzc2NTU2NTQ0MzA2In0=",
+                "endCursor": "eyJsYXN0X2lkIjo1Njc3NjU1NjUxMTUzOCwibGFzdF92YWx1ZSI6IjU2Nzc2NTU2NTExNTM4In0="
+              }
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 94,
+            "actualQueryCost": 46,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1954,
+              "restoreRate": 100
+            }
+          },
+          "search": [
+            {
+              "path": ["inventoryItem", "invalidLocationFilter"],
+              "query": "location_id:113884266802",
+              "parsed": {
+                "field": "location_id",
+                "match_all": "113884266802"
+              },
+              "warnings": [
+                {
+                  "field": "location_id",
+                  "message": "Invalid search field for this query.",
+                  "code": "invalid_field"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "inventoryDeactivate": {
+      "query": "mutation InventoryInactiveLifecycleDeactivate($inventoryLevelId: ID!, $idempotencyKey: String!) {\n  inventoryDeactivate(inventoryLevelId: $inventoryLevelId) @idempotent(key: $idempotencyKey) {\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "inventoryLevelId": "gid://shopify/InventoryLevel/152183472434?inventory_item_id=53564958638386",
+        "idempotencyKey": "inventory-item-levels-deactivate-1783701856472"
+      },
+      "response": {
+        "data": {
+          "inventoryDeactivate": {
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1958,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "inactiveRead": {
+      "query": "query InventoryItemLevelsConnectionRead(\n  $inventoryItemId: ID!\n  $itemQuery: String!\n  $missingItemQuery: String!\n  $invalidLocationQuery: String!\n) {\n  inventoryItem(id: $inventoryItemId) {\n    id\n    activeLevels: inventoryLevels(first: 10) {\n      edges {\n        cursor\n        node {\n          id\n          isActive\n          item {\n            id\n          }\n          location {\n            id\n            name\n          }\n          quantities(names: [\"available\", \"on_hand\", \"damaged\"]) {\n            name\n            quantity\n          }\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    allLevels: inventoryLevels(first: 10, includeInactive: true) {\n      edges {\n        cursor\n        node {\n          id\n          isActive\n          item {\n            id\n          }\n          location {\n            id\n            name\n          }\n          quantities(names: [\"available\", \"on_hand\", \"damaged\"]) {\n            name\n            quantity\n          }\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    firstPage: inventoryLevels(first: 1, includeInactive: true) {\n      nodes {\n        id\n        isActive\n        item {\n          id\n        }\n        location {\n          id\n          name\n        }\n        quantities(names: [\"available\", \"on_hand\", \"damaged\"]) {\n          name\n          quantity\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    filtered: inventoryLevels(first: 5, includeInactive: true, query: $itemQuery) {\n      nodes {\n        id\n        isActive\n        item {\n          id\n        }\n        location {\n          id\n          name\n        }\n        quantities(names: [\"available\", \"on_hand\", \"damaged\"]) {\n          name\n          quantity\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    emptyFilter: inventoryLevels(first: 5, includeInactive: true, query: $missingItemQuery) {\n      nodes {\n        id\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    invalidLocationFilter: inventoryLevels(first: 5, includeInactive: true, query: $invalidLocationQuery) {\n      nodes {\n        id\n        isActive\n        item {\n          id\n        }\n        location {\n          id\n          name\n        }\n        quantities(names: [\"available\", \"on_hand\", \"damaged\"]) {\n          name\n          quantity\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    reverseLevels: inventoryLevels(first: 10, includeInactive: true, reverse: true) {\n      nodes {\n        id\n        isActive\n        item {\n          id\n        }\n        location {\n          id\n          name\n        }\n        quantities(names: [\"available\", \"on_hand\", \"damaged\"]) {\n          name\n          quantity\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "inventoryItemId": "gid://shopify/InventoryItem/53564958638386",
+        "itemQuery": "inventory_item_id:53564958638386",
+        "missingItemQuery": "inventory_item_id:1",
+        "invalidLocationQuery": "location_id:113884266802"
+      },
+      "response": {
+        "data": {
+          "inventoryItem": {
+            "id": "gid://shopify/InventoryItem/53564958638386",
+            "activeLevels": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo1Njc3NjU1NjU0NDMwNiwibGFzdF92YWx1ZSI6IjU2Nzc2NTU2NTQ0MzA2In0=",
+                  "node": {
+                    "id": "gid://shopify/InventoryLevel/152183505202?inventory_item_id=53564958638386",
+                    "isActive": true,
+                    "item": {
+                      "id": "gid://shopify/InventoryItem/53564958638386"
+                    },
+                    "location": {
+                      "id": "gid://shopify/Location/113884266802",
+                      "name": "Inventory Item Levels Destination 1783701856472"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 10
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 10
+                      },
+                      {
+                        "name": "damaged",
+                        "quantity": 0
+                      }
+                    ]
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo1Njc3NjU1NjU0NDMwNiwibGFzdF92YWx1ZSI6IjU2Nzc2NTU2NTQ0MzA2In0=",
+                "endCursor": "eyJsYXN0X2lkIjo1Njc3NjU1NjU0NDMwNiwibGFzdF92YWx1ZSI6IjU2Nzc2NTU2NTQ0MzA2In0="
+              }
+            },
+            "allLevels": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo1Njc3NjU1NjUxMTUzOCwibGFzdF92YWx1ZSI6IjU2Nzc2NTU2NTExNTM4In0=",
+                  "node": {
+                    "id": "gid://shopify/InventoryLevel/152183472434?inventory_item_id=53564958638386",
+                    "isActive": false,
+                    "item": {
+                      "id": "gid://shopify/InventoryItem/53564958638386"
+                    },
+                    "location": {
+                      "id": "gid://shopify/Location/113884234034",
+                      "name": "Inventory Item Levels Source 1783701856472"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 4
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 4
+                      },
+                      {
+                        "name": "damaged",
+                        "quantity": 0
+                      }
+                    ]
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo1Njc3NjU1NjU0NDMwNiwibGFzdF92YWx1ZSI6IjU2Nzc2NTU2NTQ0MzA2In0=",
+                  "node": {
+                    "id": "gid://shopify/InventoryLevel/152183505202?inventory_item_id=53564958638386",
+                    "isActive": true,
+                    "item": {
+                      "id": "gid://shopify/InventoryItem/53564958638386"
+                    },
+                    "location": {
+                      "id": "gid://shopify/Location/113884266802",
+                      "name": "Inventory Item Levels Destination 1783701856472"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 10
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 10
+                      },
+                      {
+                        "name": "damaged",
+                        "quantity": 0
+                      }
+                    ]
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo1Njc3NjU1NjUxMTUzOCwibGFzdF92YWx1ZSI6IjU2Nzc2NTU2NTExNTM4In0=",
+                "endCursor": "eyJsYXN0X2lkIjo1Njc3NjU1NjU0NDMwNiwibGFzdF92YWx1ZSI6IjU2Nzc2NTU2NTQ0MzA2In0="
+              }
+            },
+            "firstPage": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/InventoryLevel/152183472434?inventory_item_id=53564958638386",
+                  "isActive": false,
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53564958638386"
+                  },
+                  "location": {
+                    "id": "gid://shopify/Location/113884234034",
+                    "name": "Inventory Item Levels Source 1783701856472"
+                  },
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 4
+                    },
+                    {
+                      "name": "on_hand",
+                      "quantity": 4
+                    },
+                    {
+                      "name": "damaged",
+                      "quantity": 0
+                    }
+                  ]
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo1Njc3NjU1NjUxMTUzOCwibGFzdF92YWx1ZSI6IjU2Nzc2NTU2NTExNTM4In0=",
+                "endCursor": "eyJsYXN0X2lkIjo1Njc3NjU1NjUxMTUzOCwibGFzdF92YWx1ZSI6IjU2Nzc2NTU2NTExNTM4In0="
+              }
+            },
+            "filtered": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/InventoryLevel/152183472434?inventory_item_id=53564958638386",
+                  "isActive": false,
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53564958638386"
+                  },
+                  "location": {
+                    "id": "gid://shopify/Location/113884234034",
+                    "name": "Inventory Item Levels Source 1783701856472"
+                  },
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 4
+                    },
+                    {
+                      "name": "on_hand",
+                      "quantity": 4
+                    },
+                    {
+                      "name": "damaged",
+                      "quantity": 0
+                    }
+                  ]
+                },
+                {
+                  "id": "gid://shopify/InventoryLevel/152183505202?inventory_item_id=53564958638386",
+                  "isActive": true,
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53564958638386"
+                  },
+                  "location": {
+                    "id": "gid://shopify/Location/113884266802",
+                    "name": "Inventory Item Levels Destination 1783701856472"
+                  },
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 10
+                    },
+                    {
+                      "name": "on_hand",
+                      "quantity": 10
+                    },
+                    {
+                      "name": "damaged",
+                      "quantity": 0
+                    }
+                  ]
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo1Njc3NjU1NjUxMTUzOCwibGFzdF92YWx1ZSI6IjU2Nzc2NTU2NTExNTM4In0=",
+                "endCursor": "eyJsYXN0X2lkIjo1Njc3NjU1NjU0NDMwNiwibGFzdF92YWx1ZSI6IjU2Nzc2NTU2NTQ0MzA2In0="
+              }
+            },
+            "emptyFilter": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            },
+            "invalidLocationFilter": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/InventoryLevel/152183472434?inventory_item_id=53564958638386",
+                  "isActive": false,
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53564958638386"
+                  },
+                  "location": {
+                    "id": "gid://shopify/Location/113884234034",
+                    "name": "Inventory Item Levels Source 1783701856472"
+                  },
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 4
+                    },
+                    {
+                      "name": "on_hand",
+                      "quantity": 4
+                    },
+                    {
+                      "name": "damaged",
+                      "quantity": 0
+                    }
+                  ]
+                },
+                {
+                  "id": "gid://shopify/InventoryLevel/152183505202?inventory_item_id=53564958638386",
+                  "isActive": true,
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53564958638386"
+                  },
+                  "location": {
+                    "id": "gid://shopify/Location/113884266802",
+                    "name": "Inventory Item Levels Destination 1783701856472"
+                  },
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 10
+                    },
+                    {
+                      "name": "on_hand",
+                      "quantity": 10
+                    },
+                    {
+                      "name": "damaged",
+                      "quantity": 0
+                    }
+                  ]
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo1Njc3NjU1NjUxMTUzOCwibGFzdF92YWx1ZSI6IjU2Nzc2NTU2NTExNTM4In0=",
+                "endCursor": "eyJsYXN0X2lkIjo1Njc3NjU1NjU0NDMwNiwibGFzdF92YWx1ZSI6IjU2Nzc2NTU2NTQ0MzA2In0="
+              }
+            },
+            "reverseLevels": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/InventoryLevel/152183505202?inventory_item_id=53564958638386",
+                  "isActive": true,
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53564958638386"
+                  },
+                  "location": {
+                    "id": "gid://shopify/Location/113884266802",
+                    "name": "Inventory Item Levels Destination 1783701856472"
+                  },
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 10
+                    },
+                    {
+                      "name": "on_hand",
+                      "quantity": 10
+                    },
+                    {
+                      "name": "damaged",
+                      "quantity": 0
+                    }
+                  ]
+                },
+                {
+                  "id": "gid://shopify/InventoryLevel/152183472434?inventory_item_id=53564958638386",
+                  "isActive": false,
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53564958638386"
+                  },
+                  "location": {
+                    "id": "gid://shopify/Location/113884234034",
+                    "name": "Inventory Item Levels Source 1783701856472"
+                  },
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 4
+                    },
+                    {
+                      "name": "on_hand",
+                      "quantity": 4
+                    },
+                    {
+                      "name": "damaged",
+                      "quantity": 0
+                    }
+                  ]
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo1Njc3NjU1NjU0NDMwNiwibGFzdF92YWx1ZSI6IjU2Nzc2NTU2NTQ0MzA2In0=",
+                "endCursor": "eyJsYXN0X2lkIjo1Njc3NjU1NjUxMTUzOCwibGFzdF92YWx1ZSI6IjU2Nzc2NTU2NTExNTM4In0="
+              }
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 94,
+            "actualQueryCost": 45,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1930,
+              "restoreRate": 100
+            }
+          },
+          "search": [
+            {
+              "path": ["inventoryItem", "invalidLocationFilter"],
+              "query": "location_id:113884266802",
+              "parsed": {
+                "field": "location_id",
+                "match_all": "113884266802"
+              },
+              "warnings": [
+                {
+                  "field": "location_id",
+                  "message": "Invalid search field for this query.",
+                  "code": "invalid_field"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "windowRead": {
+      "query": "query InventoryItemLevelsConnectionWindow(\n  $inventoryItemId: ID!\n  $after: String!\n  $before: String!\n) {\n  inventoryItem(id: $inventoryItemId) {\n    afterFirst: inventoryLevels(first: 1, includeInactive: true, after: $after) {\n      nodes {\n        id\n        isActive\n        item {\n          id\n        }\n        location {\n          id\n          name\n        }\n        quantities(names: [\"available\", \"on_hand\", \"damaged\"]) {\n          name\n          quantity\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    beforeSecond: inventoryLevels(last: 1, includeInactive: true, before: $before) {\n      nodes {\n        id\n        isActive\n        item {\n          id\n        }\n        location {\n          id\n          name\n        }\n        quantities(names: [\"available\", \"on_hand\", \"damaged\"]) {\n          name\n          quantity\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "inventoryItemId": "gid://shopify/InventoryItem/53564958638386",
+        "after": "eyJsYXN0X2lkIjo1Njc3NjU1NjUxMTUzOCwibGFzdF92YWx1ZSI6IjU2Nzc2NTU2NTExNTM4In0=",
+        "before": "eyJsYXN0X2lkIjo1Njc3NjU1NjU0NDMwNiwibGFzdF92YWx1ZSI6IjU2Nzc2NTU2NTQ0MzA2In0="
+      },
+      "response": {
+        "data": {
+          "inventoryItem": {
+            "afterFirst": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/InventoryLevel/152183505202?inventory_item_id=53564958638386",
+                  "isActive": true,
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53564958638386"
+                  },
+                  "location": {
+                    "id": "gid://shopify/Location/113884266802",
+                    "name": "Inventory Item Levels Destination 1783701856472"
+                  },
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 10
+                    },
+                    {
+                      "name": "on_hand",
+                      "quantity": 10
+                    },
+                    {
+                      "name": "damaged",
+                      "quantity": 0
+                    }
+                  ]
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "eyJsYXN0X2lkIjo1Njc3NjU1NjU0NDMwNiwibGFzdF92YWx1ZSI6IjU2Nzc2NTU2NTQ0MzA2In0=",
+                "endCursor": "eyJsYXN0X2lkIjo1Njc3NjU1NjU0NDMwNiwibGFzdF92YWx1ZSI6IjU2Nzc2NTU2NTQ0MzA2In0="
+              }
+            },
+            "beforeSecond": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/InventoryLevel/152183472434?inventory_item_id=53564958638386",
+                  "isActive": false,
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53564958638386"
+                  },
+                  "location": {
+                    "id": "gid://shopify/Location/113884234034",
+                    "name": "Inventory Item Levels Source 1783701856472"
+                  },
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 4
+                    },
+                    {
+                      "name": "on_hand",
+                      "quantity": 4
+                    },
+                    {
+                      "name": "damaged",
+                      "quantity": 0
+                    }
+                  ]
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo1Njc3NjU1NjUxMTUzOCwibGFzdF92YWx1ZSI6IjU2Nzc2NTU2NTExNTM4In0=",
+                "endCursor": "eyJsYXN0X2lkIjo1Njc3NjU1NjUxMTUzOCwibGFzdF92YWx1ZSI6IjU2Nzc2NTU2NTExNTM4In0="
+              }
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1936,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "productDelete": {
+      "data": {
+        "productDelete": {
+          "deletedProductId": "gid://shopify/Product/10236063121714",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1938,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "relocationDestination:gid://shopify/Location/113884234034": "gid://shopify/Location/113884102962",
+    "locationDeactivate:gid://shopify/Location/113884234034": {
+      "data": {
+        "locationDeactivate": {
+          "location": {
+            "id": "gid://shopify/Location/113884234034",
+            "isActive": false
+          },
+          "locationDeactivateUserErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1956,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "locationDelete:gid://shopify/Location/113884234034": {
+      "data": {
+        "locationDelete": {
+          "deletedLocationId": "gid://shopify/Location/113884234034",
+          "locationDeleteUserErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "relocationDestination:gid://shopify/Location/113884266802": "gid://shopify/Location/113884102962",
+    "locationDeactivate:gid://shopify/Location/113884266802": {
+      "data": {
+        "locationDeactivate": {
+          "location": {
+            "id": "gid://shopify/Location/113884266802",
+            "isActive": false
+          },
+          "locationDeactivateUserErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "locationDelete:gid://shopify/Location/113884266802": {
+      "data": {
+        "locationDelete": {
+          "deletedLocationId": "gid://shopify/Location/113884266802",
+          "locationDeleteUserErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

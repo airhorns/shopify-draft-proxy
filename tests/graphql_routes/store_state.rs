@@ -633,6 +633,118 @@ fn state_version_header_advances_on_mutation_and_holds_on_reads() {
 }
 
 #[test]
+fn conditional_directives_skip_root_mutations_and_project_nested_reads() {
+    let mut proxy = snapshot_proxy();
+
+    let skipped_create = proxy.process_request(graphql_request(
+        r#"
+        mutation ConditionalCreate($product: ProductInput!, $skipCreate: Boolean!) {
+          skippedCreate: productCreate(product: $product) @include(if: true) @skip(if: $skipCreate) {
+            product { id title }
+            userErrors { message }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "title": "Skipped product",
+                "handle": "skipped-product"
+            },
+            "skipCreate": true
+        }),
+    ));
+    assert_eq!(skipped_create.status, 200);
+    assert_eq!(skipped_create.body, json!({ "data": {} }));
+
+    let empty_log = proxy.process_request(request("GET", "/__meta/log", ""));
+    assert_eq!(empty_log.status, 200);
+    assert_eq!(empty_log.body["entries"], json!([]));
+
+    let create = proxy.process_request(graphql_request(
+        r#"
+        mutation CreateIncludedProduct($product: ProductInput!) {
+          productCreate(product: $product) {
+            product { id title handle status seo { title description } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "title": "Included product",
+                "handle": "included-product",
+                "seo": {
+                    "title": "Visible SEO",
+                    "description": "Hidden SEO"
+                }
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    let product_id = create.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .expect("included product should be staged")
+        .to_string();
+    assert_eq!(
+        product_id, "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+        "skipped mutation must not allocate synthetic ids"
+    );
+
+    let read = proxy.process_request(graphql_request(
+        r#"
+        fragment ProductBits on Product {
+          aliasStatus: status
+          seo @skip(if: true) {
+            title
+            description
+          }
+        }
+
+        query ConditionalRead(
+          $id: ID!,
+          $includeTitle: Boolean!,
+          $skipInline: Boolean!,
+          $includeSpread: Boolean!
+        ) {
+          skippedRoot: product(id: $id) @include(if: false) {
+            id
+          }
+          product(id: $id) {
+            id
+            title @include(if: $includeTitle)
+            hiddenHandle: handle @skip(if: true)
+            ... on Product @skip(if: $skipInline) {
+              vendor
+            }
+            ...ProductBits @include(if: $includeSpread)
+          }
+        }
+        "#,
+        json!({
+            "id": product_id,
+            "includeTitle": false,
+            "skipInline": true,
+            "includeSpread": true
+        }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body,
+        json!({
+            "data": {
+                "product": {
+                    "id": "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+                    "aliasStatus": "ACTIVE"
+                }
+            }
+        })
+    );
+
+    let log = proxy.process_request(request("GET", "/__meta/log", ""));
+    assert_eq!(log.body["entries"].as_array().unwrap().len(), 1);
+}
+
+#[test]
 fn product_downstream_read_uses_staged_store_instead_of_operation_name_fixture() {
     let mut proxy = snapshot_proxy();
     let create = proxy.process_request(graphql_request(

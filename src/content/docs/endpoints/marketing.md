@@ -39,6 +39,13 @@ Snapshot reads are served from normalized marketing activity and event records h
 - Local event filtering supports bare/default full-text terms plus `description`, `id`, `remote_id`, `channel_handle`, `started_at`, `scheduled_to_end_at`, `scheduled_to_start_at`, `tactic`, and `type`.
 - Modeled activity sort keys are `CREATED_AT` (default), `ID`, and `TITLE`. Modeled event sort keys are `ID` (default) and `STARTED_AT`.
 
+LiveHybrid marketing reads now forward to Shopify and observe returned marketing activity/event records as base catalog state:
+
+- A cold LiveHybrid proxy with no local marketing overlay returns Shopify's upstream response verbatim for registered marketing read roots, preserving aliases, opaque cursors, pageInfo, and Shopify's own search/sort behavior for pre-existing rows.
+- After local staged marketing writes or tombstones exist, the proxy overlays staged activity/event records and tombstones on the observed base catalog, then recomputes selected marketing roots from the effective catalog without hiding unrelated upstream records. Non-marketing roots in the same upstream response are left intact.
+- Observed opaque cursors are retained on base activity/event records, while newly staged local records continue to use stable synthetic `cursor:<gid>` cursors.
+- The live `marketing-live-hybrid-non-empty-read` parity scenario captures two disposable Shopify external marketing activities and replays non-empty cold LiveHybrid activity/event reads through upstream cassette entries. Runtime tests cover staged create/update/delete overlay on top of that observed upstream catalog.
+
 External activity lifecycle:
 
 - External create/update/upsert/delete roots stage `MarketingActivity` and nested `MarketingEvent` records locally from remote ID and UTM attribution evidence.

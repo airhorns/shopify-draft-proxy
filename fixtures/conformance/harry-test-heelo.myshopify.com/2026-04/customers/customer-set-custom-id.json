@@ -1,0 +1,671 @@
+{
+  "scenarioId": "customer-set-custom-id",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-07-10T11:53:56.834Z",
+  "notes": "Live Shopify Admin GraphQL customerSet(identifier.customId) evidence. Setup creates CUSTOMER id metafield definitions, records no-match create, matching update, downstream customerByIdentifier/metafield readback, missing/disabled custom-id definition, input mismatch, malformed identifier, and a duplicate-assignment probe. Cleanup deletes created customers and definitions.",
+  "cases": {
+    "validDefinition": {
+      "label": "metafieldDefinitionCreate valid CUSTOMER id customId definition",
+      "request": {
+        "query": "mutation CustomerSetCustomIdDefinitionCreate($definition: MetafieldDefinitionInput!) {\n  metafieldDefinitionCreate(definition: $definition) {\n    createdDefinition {\n      id\n      namespace\n      key\n      ownerType\n      type {\n        name\n      }\n      capabilities {\n        uniqueValues {\n          enabled\n          eligible\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "definition": {
+            "ownerType": "CUSTOMER",
+            "namespace": "custom_set_mrevnqnt",
+            "key": "external_id",
+            "name": "Customer Custom ID mrevnqnt",
+            "type": "id"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "metafieldDefinitionCreate": {
+            "createdDefinition": {
+              "id": "gid://shopify/MetafieldDefinition/224813875506",
+              "namespace": "custom_set_mrevnqnt",
+              "key": "external_id",
+              "ownerType": "CUSTOMER",
+              "type": {
+                "name": "id"
+              },
+              "capabilities": {
+                "uniqueValues": {
+                  "enabled": true,
+                  "eligible": true
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "disabledDefinition": {
+      "label": "metafieldDefinitionCreate disabled CUSTOMER id customId definition",
+      "request": {
+        "query": "mutation CustomerSetCustomIdDefinitionCreate($definition: MetafieldDefinitionInput!) {\n  metafieldDefinitionCreate(definition: $definition) {\n    createdDefinition {\n      id\n      namespace\n      key\n      ownerType\n      type {\n        name\n      }\n      capabilities {\n        uniqueValues {\n          enabled\n          eligible\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "definition": {
+            "ownerType": "CUSTOMER",
+            "namespace": "custom_set_mrevnqnt",
+            "key": "disabled_external_id",
+            "name": "Customer Disabled Custom ID mrevnqnt",
+            "type": "id",
+            "capabilities": {
+              "uniqueValues": {
+                "enabled": false
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "metafieldDefinitionCreate": {
+            "createdDefinition": null,
+            "userErrors": [
+              {
+                "field": ["definition"],
+                "message": "Capability unique_values is required for type id but is disabled",
+                "code": "CAPABILITY_REQUIRED_BUT_DISABLED"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "createNoMatch": {
+      "label": "customerSet customId no-match create",
+      "request": {
+        "query": "mutation CustomerSetCustomId(\n  $identifier: CustomerSetIdentifiers\n  $input: CustomerSetInput!\n  $namespace: String!\n  $key: String!\n) {\n  customerSet(identifier: $identifier, input: $input) {\n    customer {\n      id\n      firstName\n      lastName\n      displayName\n      externalId: metafield(namespace: $namespace, key: $key) {\n        id\n        namespace\n        key\n        type\n        value\n      }\n      metafields(first: 5) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "namespace": "custom_set_mrevnqnt",
+          "key": "external_id",
+          "identifier": {
+            "customId": {
+              "namespace": "custom_set_mrevnqnt",
+              "key": "external_id",
+              "value": "created-mrevnqnt"
+            }
+          },
+          "input": {
+            "firstName": "CustomId",
+            "lastName": "Created"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "customerSet": {
+            "customer": {
+              "id": "gid://shopify/Customer/10944530907442",
+              "firstName": "CustomId",
+              "lastName": "Created",
+              "displayName": "CustomId Created",
+              "externalId": {
+                "id": "gid://shopify/Metafield/44946356830514",
+                "namespace": "custom_set_mrevnqnt",
+                "key": "external_id",
+                "type": "id",
+                "value": "created-mrevnqnt"
+              },
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/44946356830514",
+                    "namespace": "custom_set_mrevnqnt",
+                    "key": "external_id",
+                    "type": "id",
+                    "value": "created-mrevnqnt"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 15,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1985,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "updateMatching": {
+      "label": "customerSet customId matching update",
+      "request": {
+        "query": "mutation CustomerSetCustomId(\n  $identifier: CustomerSetIdentifiers\n  $input: CustomerSetInput!\n  $namespace: String!\n  $key: String!\n) {\n  customerSet(identifier: $identifier, input: $input) {\n    customer {\n      id\n      firstName\n      lastName\n      displayName\n      externalId: metafield(namespace: $namespace, key: $key) {\n        id\n        namespace\n        key\n        type\n        value\n      }\n      metafields(first: 5) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "namespace": "custom_set_mrevnqnt",
+          "key": "external_id",
+          "identifier": {
+            "customId": {
+              "namespace": "custom_set_mrevnqnt",
+              "key": "external_id",
+              "value": "created-mrevnqnt"
+            }
+          },
+          "input": {
+            "firstName": "CustomId",
+            "lastName": "Updated"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "customerSet": {
+            "customer": {
+              "id": "gid://shopify/Customer/10944530907442",
+              "firstName": "CustomId",
+              "lastName": "Updated",
+              "displayName": "CustomId Updated",
+              "externalId": {
+                "id": "gid://shopify/Metafield/44946356830514",
+                "namespace": "custom_set_mrevnqnt",
+                "key": "external_id",
+                "type": "id",
+                "value": "created-mrevnqnt"
+              },
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/44946356830514",
+                    "namespace": "custom_set_mrevnqnt",
+                    "key": "external_id",
+                    "type": "id",
+                    "value": "created-mrevnqnt"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 15,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1985,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "readBack": {
+      "label": "customerSet customId readback",
+      "request": {
+        "query": "query CustomerSetCustomIdRead(\n  $identifier: CustomerIdentifierInput!\n  $customerId: ID!\n  $namespace: String!\n  $key: String!\n) {\n  byIdentifier: customerByIdentifier(identifier: $identifier) {\n    id\n    firstName\n    lastName\n    displayName\n    externalId: metafield(namespace: $namespace, key: $key) {\n      id\n      namespace\n      key\n      type\n      value\n    }\n    metafields(first: 5) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n  byId: customer(id: $customerId) {\n    id\n    firstName\n    lastName\n    displayName\n    externalId: metafield(namespace: $namespace, key: $key) {\n      id\n      namespace\n      key\n      type\n      value\n    }\n    metafields(first: 5) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n}\n",
+        "variables": {
+          "identifier": {
+            "customId": {
+              "namespace": "custom_set_mrevnqnt",
+              "key": "external_id",
+              "value": "created-mrevnqnt"
+            }
+          },
+          "customerId": "gid://shopify/Customer/10944530907442",
+          "namespace": "custom_set_mrevnqnt",
+          "key": "external_id"
+        }
+      },
+      "response": {
+        "data": {
+          "byIdentifier": {
+            "id": "gid://shopify/Customer/10944530907442",
+            "firstName": "CustomId",
+            "lastName": "Updated",
+            "displayName": "CustomId Updated",
+            "externalId": {
+              "id": "gid://shopify/Metafield/44946356830514",
+              "namespace": "custom_set_mrevnqnt",
+              "key": "external_id",
+              "type": "id",
+              "value": "created-mrevnqnt"
+            },
+            "metafields": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Metafield/44946356830514",
+                  "namespace": "custom_set_mrevnqnt",
+                  "key": "external_id",
+                  "type": "id",
+                  "value": "created-mrevnqnt"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            }
+          },
+          "byId": {
+            "id": "gid://shopify/Customer/10944530907442",
+            "firstName": "CustomId",
+            "lastName": "Updated",
+            "displayName": "CustomId Updated",
+            "externalId": {
+              "id": "gid://shopify/Metafield/44946356830514",
+              "namespace": "custom_set_mrevnqnt",
+              "key": "external_id",
+              "type": "id",
+              "value": "created-mrevnqnt"
+            },
+            "metafields": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Metafield/44946356830514",
+                  "namespace": "custom_set_mrevnqnt",
+                  "key": "external_id",
+                  "type": "id",
+                  "value": "created-mrevnqnt"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 14,
+            "actualQueryCost": 12,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "validations": {
+      "missingDefinition": {
+        "label": "customerSet customId missing definition",
+        "request": {
+          "query": "mutation CustomerSetCustomId(\n  $identifier: CustomerSetIdentifiers\n  $input: CustomerSetInput!\n  $namespace: String!\n  $key: String!\n) {\n  customerSet(identifier: $identifier, input: $input) {\n    customer {\n      id\n      firstName\n      lastName\n      displayName\n      externalId: metafield(namespace: $namespace, key: $key) {\n        id\n        namespace\n        key\n        type\n        value\n      }\n      metafields(first: 5) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+          "variables": {
+            "namespace": "custom_set_mrevnqnt",
+            "key": "missing_external_id",
+            "identifier": {
+              "customId": {
+                "namespace": "custom_set_mrevnqnt",
+                "key": "missing_external_id",
+                "value": "missing-mrevnqnt"
+              }
+            },
+            "input": {
+              "firstName": "CustomId",
+              "lastName": "MissingDefinition"
+            }
+          }
+        },
+        "response": {
+          "errors": [
+            {
+              "message": "Metafield definition of type 'id' is required when using custom ids.",
+              "locations": [
+                {
+                  "line": 7,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "NOT_FOUND"
+              },
+              "path": ["customerSet"]
+            }
+          ],
+          "data": {
+            "customerSet": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "disabledUnique": {
+        "label": "customerSet customId disabled unique definition",
+        "request": {
+          "query": "mutation CustomerSetCustomId(\n  $identifier: CustomerSetIdentifiers\n  $input: CustomerSetInput!\n  $namespace: String!\n  $key: String!\n) {\n  customerSet(identifier: $identifier, input: $input) {\n    customer {\n      id\n      firstName\n      lastName\n      displayName\n      externalId: metafield(namespace: $namespace, key: $key) {\n        id\n        namespace\n        key\n        type\n        value\n      }\n      metafields(first: 5) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+          "variables": {
+            "namespace": "custom_set_mrevnqnt",
+            "key": "disabled_external_id",
+            "identifier": {
+              "customId": {
+                "namespace": "custom_set_mrevnqnt",
+                "key": "disabled_external_id",
+                "value": "disabled-mrevnqnt"
+              }
+            },
+            "input": {
+              "firstName": "CustomId",
+              "lastName": "DisabledUnique"
+            }
+          }
+        },
+        "response": {
+          "errors": [
+            {
+              "message": "Metafield definition of type 'id' is required when using custom ids.",
+              "locations": [
+                {
+                  "line": 7,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "NOT_FOUND"
+              },
+              "path": ["customerSet"]
+            }
+          ],
+          "data": {
+            "customerSet": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "mismatch": {
+        "label": "customerSet customId input mismatch",
+        "request": {
+          "query": "mutation CustomerSetCustomId(\n  $identifier: CustomerSetIdentifiers\n  $input: CustomerSetInput!\n  $namespace: String!\n  $key: String!\n) {\n  customerSet(identifier: $identifier, input: $input) {\n    customer {\n      id\n      firstName\n      lastName\n      displayName\n      externalId: metafield(namespace: $namespace, key: $key) {\n        id\n        namespace\n        key\n        type\n        value\n      }\n      metafields(first: 5) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+          "variables": {
+            "namespace": "custom_set_mrevnqnt",
+            "key": "external_id",
+            "identifier": {
+              "customId": {
+                "namespace": "custom_set_mrevnqnt",
+                "key": "external_id",
+                "value": "mismatch-mrevnqnt"
+              }
+            },
+            "input": {
+              "firstName": "CustomId",
+              "lastName": "Mismatch",
+              "metafields": [
+                {
+                  "namespace": "custom_set_mrevnqnt",
+                  "key": "external_id",
+                  "type": "id",
+                  "value": "input-mrevnqnt"
+                }
+              ]
+            }
+          }
+        },
+        "response": {
+          "errors": [
+            {
+              "message": "Variable $input of type CustomerSetInput! was provided invalid value for metafields (Field is not defined on CustomerSetInput)",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": {
+                  "firstName": "CustomId",
+                  "lastName": "Mismatch",
+                  "metafields": [
+                    {
+                      "namespace": "custom_set_mrevnqnt",
+                      "key": "external_id",
+                      "type": "id",
+                      "value": "input-mrevnqnt"
+                    }
+                  ]
+                },
+                "problems": [
+                  {
+                    "path": ["metafields"],
+                    "explanation": "Field is not defined on CustomerSetInput"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "malformed": {
+        "label": "customerSet customId malformed identifier",
+        "request": {
+          "query": "mutation CustomerSetCustomId(\n  $identifier: CustomerSetIdentifiers\n  $input: CustomerSetInput!\n  $namespace: String!\n  $key: String!\n) {\n  customerSet(identifier: $identifier, input: $input) {\n    customer {\n      id\n      firstName\n      lastName\n      displayName\n      externalId: metafield(namespace: $namespace, key: $key) {\n        id\n        namespace\n        key\n        type\n        value\n      }\n      metafields(first: 5) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+          "variables": {
+            "namespace": "custom_set_mrevnqnt",
+            "key": "external_id",
+            "identifier": {
+              "customId": {
+                "namespace": "custom_set_mrevnqnt",
+                "value": "malformed-mrevnqnt"
+              }
+            },
+            "input": {
+              "firstName": "CustomId",
+              "lastName": "Malformed"
+            }
+          }
+        },
+        "response": {
+          "errors": [
+            {
+              "message": "Variable $identifier of type CustomerSetIdentifiers was provided invalid value for customId.key (Expected value to not be null)",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": {
+                  "customId": {
+                    "namespace": "custom_set_mrevnqnt",
+                    "value": "malformed-mrevnqnt"
+                  }
+                },
+                "problems": [
+                  {
+                    "path": ["customId", "key"],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "duplicateAssignment": {
+        "label": "customerSet customId duplicate assignment probe",
+        "request": {
+          "query": "mutation CustomerSetCustomId(\n  $identifier: CustomerSetIdentifiers\n  $input: CustomerSetInput!\n  $namespace: String!\n  $key: String!\n) {\n  customerSet(identifier: $identifier, input: $input) {\n    customer {\n      id\n      firstName\n      lastName\n      displayName\n      externalId: metafield(namespace: $namespace, key: $key) {\n        id\n        namespace\n        key\n        type\n        value\n      }\n      metafields(first: 5) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+          "variables": {
+            "namespace": "custom_set_mrevnqnt",
+            "key": "external_id",
+            "identifier": {
+              "customId": {
+                "namespace": "custom_set_mrevnqnt",
+                "key": "external_id",
+                "value": "duplicate-mrevnqnt"
+              }
+            },
+            "input": {
+              "firstName": "CustomId",
+              "lastName": "DuplicateAssignment",
+              "metafields": [
+                {
+                  "namespace": "custom_set_mrevnqnt",
+                  "key": "external_id",
+                  "type": "id",
+                  "value": "created-mrevnqnt"
+                }
+              ]
+            }
+          }
+        },
+        "response": {
+          "errors": [
+            {
+              "message": "Variable $input of type CustomerSetInput! was provided invalid value for metafields (Field is not defined on CustomerSetInput)",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": {
+                  "firstName": "CustomId",
+                  "lastName": "DuplicateAssignment",
+                  "metafields": [
+                    {
+                      "namespace": "custom_set_mrevnqnt",
+                      "key": "external_id",
+                      "type": "id",
+                      "value": "created-mrevnqnt"
+                    }
+                  ]
+                },
+                "problems": [
+                  {
+                    "path": ["metafields"],
+                    "explanation": "Field is not defined on CustomerSetInput"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "customers": [
+      {
+        "label": "cleanup customerDelete",
+        "request": {
+          "query": "#graphql\n  mutation CustomerSetCustomIdCustomerDelete($input: CustomerDeleteInput!) {\n    customerDelete(input: $input) {\n      deletedCustomerId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+          "variables": {
+            "input": {
+              "id": "gid://shopify/Customer/10944530907442"
+            }
+          }
+        },
+        "response": {
+          "data": {
+            "customerDelete": {
+              "deletedCustomerId": "gid://shopify/Customer/10944530907442",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    ],
+    "definitions": [
+      {
+        "label": "cleanup metafieldDefinitionDelete",
+        "request": {
+          "query": "mutation CustomerSetCustomIdDefinitionDelete($id: ID!, $deleteAllAssociatedMetafields: Boolean!) {\n  metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: $deleteAllAssociatedMetafields) {\n    deletedDefinitionId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+          "variables": {
+            "id": "gid://shopify/MetafieldDefinition/224813875506",
+            "deleteAllAssociatedMetafields": true
+          }
+        },
+        "response": {
+          "data": {
+            "metafieldDefinitionDelete": {
+              "deletedDefinitionId": "gid://shopify/MetafieldDefinition/224813875506",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "upstreamCalls": []
+}

@@ -1,0 +1,311 @@
+query DiscountEntitlementConnectionsReadWindow(
+  $productDiscountId: ID!
+  $collectionDiscountId: ID!
+  $productAfter: String!
+  $productBefore: String!
+  $variantAfter: String!
+  $variantBefore: String!
+  $collectionAfter: String!
+  $collectionBefore: String!
+) {
+  productDiscount: discountNode(id: $productDiscountId) {
+    discount {
+      __typename
+      ... on DiscountCodeBxgy {
+        customerBuys {
+          items {
+            __typename
+            ... on DiscountProducts {
+              afterProducts: products(first: 1, after: $productAfter) {
+                nodes {
+                  id
+                  title
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+              beforeProducts: products(last: 1, before: $productBefore) {
+                nodes {
+                  id
+                  title
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+              reverseProducts: products(first: 2, reverse: true) {
+                nodes {
+                  id
+                  title
+                }
+                edges {
+                  cursor
+                  node {
+                    id
+                    title
+                  }
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+              afterVariants: productVariants(first: 1, after: $variantAfter) {
+                nodes {
+                  id
+                  sku
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+              beforeVariants: productVariants(last: 1, before: $variantBefore) {
+                nodes {
+                  id
+                  sku
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+              reverseVariants: productVariants(first: 2, reverse: true) {
+                nodes {
+                  id
+                  sku
+                }
+                edges {
+                  cursor
+                  node {
+                    id
+                    sku
+                  }
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+            }
+          }
+        }
+        customerGets {
+          items {
+            __typename
+            ... on DiscountProducts {
+              afterProducts: products(first: 1, after: $productAfter) {
+                nodes {
+                  id
+                  title
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+              beforeProducts: products(last: 1, before: $productBefore) {
+                nodes {
+                  id
+                  title
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+              reverseProducts: products(first: 2, reverse: true) {
+                nodes {
+                  id
+                  title
+                }
+                edges {
+                  cursor
+                  node {
+                    id
+                    title
+                  }
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+              afterVariants: productVariants(first: 1, after: $variantAfter) {
+                nodes {
+                  id
+                  sku
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+              beforeVariants: productVariants(last: 1, before: $variantBefore) {
+                nodes {
+                  id
+                  sku
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+              reverseVariants: productVariants(first: 2, reverse: true) {
+                nodes {
+                  id
+                  sku
+                }
+                edges {
+                  cursor
+                  node {
+                    id
+                    sku
+                  }
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  collectionDiscount: discountNode(id: $collectionDiscountId) {
+    discount {
+      __typename
+      ... on DiscountCodeBxgy {
+        customerBuys {
+          items {
+            __typename
+            ... on DiscountCollections {
+              afterCollections: collections(first: 1, after: $collectionAfter) {
+                nodes {
+                  id
+                  title
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+              beforeCollections: collections(last: 1, before: $collectionBefore) {
+                nodes {
+                  id
+                  title
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+              reverseCollections: collections(first: 2, reverse: true) {
+                nodes {
+                  id
+                  title
+                }
+                edges {
+                  cursor
+                  node {
+                    id
+                    title
+                  }
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+            }
+          }
+        }
+        customerGets {
+          items {
+            __typename
+            ... on DiscountCollections {
+              afterCollections: collections(first: 1, after: $collectionAfter) {
+                nodes {
+                  id
+                  title
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+              beforeCollections: collections(last: 1, before: $collectionBefore) {
+                nodes {
+                  id
+                  title
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+              reverseCollections: collections(first: 2, reverse: true) {
+                nodes {
+                  id
+                  title
+                }
+                edges {
+                  cursor
+                  node {
+                    id
+                    title
+                  }
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

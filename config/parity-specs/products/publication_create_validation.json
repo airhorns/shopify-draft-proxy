@@ -24,8 +24,8 @@
         "expectedDifferences": [
           {
             "path": "$.publication.id",
-            "matcher": "shopify-gid:Publication",
-            "reason": "Publication ids are generated independently by Shopify and the local synthetic allocator."
+            "matcher": "regex:^gid://shopify/Publication/[0-9]+\\?shopify-draft-proxy=synthetic$",
+            "reason": "Shopify returns a shop-generated Publication id; the proxy must use its instance synthetic allocator for local created publications."
           }
         ]
       },
