@@ -1,0 +1,73 @@
+{
+  "scenarioId": "mixed-admin-platform-payments-read",
+  "capturedAt": "2026-07-10T16:40:59.883Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "request": {
+    "query": "query MixedAdminPlatformPaymentsRead($type: PaymentTermsType) {\n  poll: job(id: \"gid://shopify/Job/0\") {\n    id\n    done\n    query {\n      __typename\n    }\n  }\n  terms: paymentTermsTemplates(paymentTermsType: $type) {\n    id\n    name\n    paymentTermsType\n  }\n}\n",
+    "variables": {
+      "type": "NET"
+    }
+  },
+  "variables": {
+    "type": "NET"
+  },
+  "response": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "poll": {
+          "id": "gid://shopify/Job/0",
+          "done": true,
+          "query": {
+            "__typename": "QueryRoot"
+          }
+        },
+        "terms": [
+          {
+            "id": "gid://shopify/PaymentTermsTemplate/2",
+            "name": "Net 7",
+            "paymentTermsType": "NET"
+          },
+          {
+            "id": "gid://shopify/PaymentTermsTemplate/3",
+            "name": "Net 15",
+            "paymentTermsType": "NET"
+          },
+          {
+            "id": "gid://shopify/PaymentTermsTemplate/4",
+            "name": "Net 30",
+            "paymentTermsType": "NET"
+          },
+          {
+            "id": "gid://shopify/PaymentTermsTemplate/8",
+            "name": "Net 45",
+            "paymentTermsType": "NET"
+          },
+          {
+            "id": "gid://shopify/PaymentTermsTemplate/5",
+            "name": "Net 60",
+            "paymentTermsType": "NET"
+          },
+          {
+            "id": "gid://shopify/PaymentTermsTemplate/6",
+            "name": "Net 90",
+            "paymentTermsType": "NET"
+          }
+        ]
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 3,
+          "actualQueryCost": 3,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1997,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
