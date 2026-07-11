@@ -438,7 +438,13 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
         entry!("orderClose", Mutation, Orders, true, ["tests/graphql_routes.rs"]),
         entry!("orderOpen", Mutation, Orders, true, ["tests/graphql_routes.rs"]),
         entry!("orderMarkAsPaid", Mutation, Orders, true, []),
-        entry!("orderCreateManualPayment", Mutation, Orders, false, []),
+        entry!(
+            "orderCreateManualPayment",
+            Mutation,
+            Orders,
+            true,
+            ["tests/graphql_routes/orders.rs"]
+        ),
         entry!("orderRiskAssessmentCreate", Mutation, Orders, false, []),
         entry!("customerPaymentMethodCreateFromDuplicationData", Mutation, Payments, true, []),
         entry!("customerPaymentMethodCreditCardCreate", Mutation, Payments, true, []),
@@ -470,7 +476,13 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
         entry!("transactionVoid", Mutation, Payments, true, []),
         entry!("orderCustomerSet", Mutation, Orders, true, ["tests/graphql_routes.rs"]),
         entry!("orderCustomerRemove", Mutation, Orders, true, ["tests/graphql_routes.rs"]),
-        entry!("orderInvoiceSend", Mutation, Orders, false, []),
+        entry!(
+            "orderInvoiceSend",
+            Mutation,
+            Orders,
+            true,
+            ["tests/graphql_routes/orders.rs"]
+        ),
         entry!("taxSummaryCreate", Mutation, Orders, false, []),
         entry!("orderCancel", Mutation, Orders, true, []),
         entry!("fulfillmentCreate", Mutation, Orders, true, []),

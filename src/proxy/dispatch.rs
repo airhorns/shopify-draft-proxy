@@ -1292,7 +1292,11 @@ impl DraftProxy {
                 if operation.operation_type == OperationType::Mutation
                     && matches!(
                         root_field,
-                        "orderMarkAsPaid" | "refundCreate" | "orderEditBegin" | "orderEditCommit"
+                        "orderMarkAsPaid"
+                            | "orderCreateManualPayment"
+                            | "refundCreate"
+                            | "orderEditBegin"
+                            | "orderEditCommit"
                     ) =>
             {
                 if let Some(data) = self.money_bag_presentment_local_data(request, query, variables)
@@ -1499,6 +1503,16 @@ impl DraftProxy {
                     ok_json(data)
                 } else {
                     json_error(400, "Could not parse GraphQL operation")
+                }
+            }
+            (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && root_field == "orderInvoiceSend" =>
+            {
+                if let Some(data) = self.order_invoice_send_local_data(request, query, variables) {
+                    ok_json(data)
+                } else {
+                    no_dispatcher("orders", root_field)
                 }
             }
             (_, CapabilityExecution::OverlayRead) | (_, CapabilityExecution::StageLocally) => {
