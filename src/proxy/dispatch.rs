@@ -154,6 +154,18 @@ fn is_online_store_content_root(root: &str) -> bool {
     )
 }
 
+fn is_discount_bulk_action_root(root: &str) -> bool {
+    matches!(
+        root,
+        "discountCodeBulkActivate"
+            | "discountCodeBulkDeactivate"
+            | "discountCodeBulkDelete"
+            | "discountAutomaticBulkActivate"
+            | "discountAutomaticBulkDeactivate"
+            | "discountAutomaticBulkDelete"
+    )
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct MultiRootDispatchKey {
     domain: CapabilityDomain,
