@@ -7,6 +7,7 @@ use super::*;
 const MEDIA_FILE_UPDATE_HYDRATE_QUERY: &str = "query MediaFileUpdateHydrate($fileIds: [ID!]!) {\n  nodes(ids: $fileIds) {\n    id\n    __typename\n    ... on File {\n      alt\n      createdAt\n      fileStatus\n    }\n    ... on MediaImage {\n      image { url width height }\n      preview { image { url width height } }\n    }\n    ... on GenericFile {\n      url\n    }\n  }\n}";
 const MEDIA_FILE_SAVED_SEARCH_HYDRATE_QUERY: &str = "query MediaFileSavedSearchHydrate($id: ID!) {\n  node(id: $id) {\n    __typename\n    ... on SavedSearch {\n      id\n      name\n      query\n      resourceType\n    }\n  }\n}";
 pub(in crate::proxy) const MEDIA_PRODUCT_HYDRATE_QUERY: &str = "query MediaProductHydrate($id: ID!) {\n  product(id: $id) {\n    id\n    title\n    handle\n    status\n    media(first: 50) {\n      nodes {\n        id\n        alt\n        mediaContentType\n        status\n        preview { image { url width height } }\n        ... on MediaImage { image { url width height } }\n      }\n    }\n    variants(first: 50) {\n      nodes {\n        id\n        title\n        media(first: 10) { nodes { id } }\n      }\n    }\n  }\n}";
+const MEDIA_PRODUCTS_HYDRATE_QUERY: &str = "query MediaProductHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    ... on Product {\n      id\n      title\n      handle\n      status\n      media(first: 50) {\n        nodes {\n          id\n          alt\n          mediaContentType\n          status\n          preview { image { url width height } }\n          ... on MediaImage { image { url width height } }\n        }\n      }\n      variants(first: 50) {\n        nodes {\n          id\n          title\n          media(first: 10) { nodes { id } }\n        }\n      }\n    }\n  }\n}";
 // fileDelete / fileUpdate cascade clearing needs to know which products (and
 // their variants) a media file is attached to, so a delete or detach can remove
 // the file id from those owners. Shopify exposes no local reverse index, so in
@@ -632,10 +633,14 @@ impl DraftProxy {
                 extend_unique_strings(&mut product_ids, list_string_field(input, field));
             }
         }
-        for product_id in product_ids {
-            if product_id.is_empty() || self.store.product_by_id(&product_id).is_some() {
-                continue;
-            }
+        product_ids.retain(|product_id| {
+            !product_id.is_empty() && self.store.product_by_id(product_id).is_none()
+        });
+        if product_ids.is_empty() {
+            return;
+        }
+        if product_ids.len() == 1 {
+            let product_id = &product_ids[0];
             let response = self.upstream_post(
                 request,
                 json!({
@@ -645,11 +650,28 @@ impl DraftProxy {
                 }),
             );
             if response.status >= 400 {
-                continue;
+                return;
             }
             if response.body["data"]["product"].is_object() {
                 let product_node = response.body["data"]["product"].clone();
                 self.observe_media_product_node(&product_node);
+            }
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": MEDIA_PRODUCTS_HYDRATE_QUERY,
+                "operationName": "MediaProductHydrate",
+                "variables": { "ids": product_ids },
+            }),
+        );
+        if response.status >= 400 {
+            return;
+        }
+        if let Some(nodes) = response.body["data"]["nodes"].as_array() {
+            for product_node in nodes.iter().filter(|node| node.is_object()) {
+                self.observe_media_product_node(product_node);
             }
         }
     }

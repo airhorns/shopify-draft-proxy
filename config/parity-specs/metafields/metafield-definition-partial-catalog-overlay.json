@@ -1,0 +1,182 @@
+{
+  "scenarioId": "metafield-definition-partial-catalog-overlay",
+  "operationNames": [
+    "metafieldDefinitionCreate",
+    "metafieldDefinition",
+    "metafieldDefinitions",
+    "metafieldDefinitionDelete"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "selected-fields",
+    "connection-shape",
+    "read-after-write",
+    "read-after-delete",
+    "runtime-staging",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/metafield-definition-partial-catalog-overlay.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/metafield_definitions.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafields/metafield-definition-owner-scoped-create.graphql",
+    "variablesCapturePath": "$.captures.duplicateReal.request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "duplicate-real-definition-taken-from-upstream-catalog",
+        "capturePath": "$.captures.duplicateReal.response.data.metafieldDefinitionCreate",
+        "proxyPath": "$.data.metafieldDefinitionCreate"
+      },
+      {
+        "name": "create-local-definition-overlay",
+        "capturePath": "$.captures.localCreate.response.data.metafieldDefinitionCreate",
+        "proxyPath": "$.data.metafieldDefinitionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-owner-scoped-create.graphql",
+          "variablesCapturePath": "$.captures.localCreate.request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "merged-detail-list-count-pageinfo-read",
+        "capturePath": "$.captures.mergedRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-partial-catalog-read.graphql",
+          "variablesCapturePath": "$.captures.mergedRead.request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.localDetail.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy returns the staged synthetic definition ID for the locally created overlay."
+          },
+          {
+            "path": "$.localCatalog.nodes[*].id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The local catalog includes the staged local definition with a synthetic ID."
+          },
+          {
+            "path": "$.realCatalog.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the local overlay uses stable definition cursors."
+          },
+          {
+            "path": "$.realCatalog.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the local overlay uses stable definition cursors."
+          },
+          {
+            "path": "$.realCatalog.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the local overlay uses stable definition cursors."
+          },
+          {
+            "path": "$.localCatalog.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the local overlay uses stable definition cursors."
+          },
+          {
+            "path": "$.localCatalog.edges[*].node.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The local catalog edge for the staged local definition uses a synthetic ID."
+          },
+          {
+            "path": "$.localCatalog.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the local overlay uses stable definition cursors."
+          },
+          {
+            "path": "$.localCatalog.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the local overlay uses stable definition cursors."
+          },
+          {
+            "path": "$.otherCatalog.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the local overlay uses stable definition cursors."
+          },
+          {
+            "path": "$.otherCatalog.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the local overlay uses stable definition cursors."
+          }
+        ]
+      },
+      {
+        "name": "delete-real-definition-tombstone",
+        "capturePath": "$.captures.deleteReal.response.data.metafieldDefinitionDelete",
+        "proxyPath": "$.data.metafieldDefinitionDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-lifecycle-delete.graphql",
+          "variablesCapturePath": "$.captures.deleteReal.request.variables"
+        }
+      },
+      {
+        "name": "read-after-delete-merges-local-and-tombstone",
+        "capturePath": "$.captures.readAfterDelete.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-partial-catalog-read-after-delete.graphql",
+          "variablesCapturePath": "$.captures.readAfterDelete.request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.localDetail.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy keeps the staged local definition with a synthetic ID after tombstoning the real baseline definition."
+          },
+          {
+            "path": "$.localCatalog.nodes[*].id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The remaining local catalog node is the staged local definition with a synthetic ID."
+          },
+          {
+            "path": "$.localCatalog.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the local overlay uses stable definition cursors."
+          },
+          {
+            "path": "$.localCatalog.edges[*].node.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The remaining local catalog edge node is the staged local definition with a synthetic ID."
+          },
+          {
+            "path": "$.localCatalog.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the local overlay uses stable definition cursors."
+          },
+          {
+            "path": "$.localCatalog.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the local overlay uses stable definition cursors."
+          },
+          {
+            "path": "$.otherCatalog.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the local overlay uses stable definition cursors."
+          },
+          {
+            "path": "$.otherCatalog.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque cursors while the local overlay uses stable definition cursors."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Records a partial local metafield-definition overlay: the proxy must hydrate the real PRODUCT catalog before duplicate validation, reject a duplicate real namespace/key with TAKEN, stage a local create without forwarding it, merge real, unrelated, and staged definitions in detail/list/count reads, and tombstone the hydrated real definition on delete while preserving the staged local definition."
+}

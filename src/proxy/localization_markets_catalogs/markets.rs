@@ -488,8 +488,8 @@ impl DraftProxy {
         let data = root_payload_json(fields, |field| {
             let value = match field.name.as_str() {
                 "marketCreate" => self.market_create_response(field),
-                "marketUpdate" => self.market_update_response(field),
-                "marketDelete" => self.market_delete_response(field),
+                "marketUpdate" => self.market_update_response(field, request),
+                "marketDelete" => self.market_delete_response(field, request),
                 _ => Value::Null,
             };
             if let Some(id) = value["market"]["id"]
@@ -504,6 +504,7 @@ impl DraftProxy {
             Some(value)
         });
         if !staged_ids.is_empty() {
+            self.mark_markets_family_dirty("markets");
             self.record_mutation_log_entry(
                 request,
                 query,
@@ -513,6 +514,84 @@ impl DraftProxy {
             );
         }
         data
+    }
+
+    pub(in crate::proxy) fn market_mutation_wrong_resource_response(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> Option<Response> {
+        let errors = fields
+            .iter()
+            .filter_map(market_mutation_wrong_resource_error)
+            .collect::<Vec<_>>();
+        if errors.is_empty() {
+            return None;
+        }
+        let data = fields
+            .iter()
+            .map(|field| (field.response_key.clone(), Value::Null))
+            .collect::<serde_json::Map<_, _>>();
+        Some(ok_json(json!({
+            "data": Value::Object(data),
+            "errors": errors
+        })))
+    }
+
+    pub(in crate::proxy) fn market_mutation_target_preflight(
+        &mut self,
+        fields: &[RootFieldSelection],
+        request: &Request,
+    ) {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return;
+        }
+        let ids = fields
+            .iter()
+            .filter(|field| matches!(field.name.as_str(), "marketUpdate" | "marketDelete"))
+            .filter_map(|field| resolved_string_field(&field.arguments, "id"))
+            .filter(|id| !self.store.staged.markets.contains_key(id))
+            .filter(|id| !self.store.staged.deleted_market_ids.contains(id))
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        self.hydrate_market_mutation_targets(&ids, request);
+    }
+
+    fn hydrate_market_mutation_target(&mut self, id: &str, request: &Request) {
+        self.hydrate_market_mutation_targets(&[id.to_string()], request);
+    }
+
+    fn hydrate_market_mutation_targets(&mut self, ids: &[String], request: &Request) {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return;
+        }
+        let ids = ids
+            .iter()
+            .filter(|id| !id.trim().is_empty())
+            .filter(|id| !self.store.staged.markets.contains_key(*id))
+            .filter(|id| !self.store.staged.deleted_market_ids.contains(*id))
+            .cloned()
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        if ids.is_empty() {
+            return;
+        }
+        let body = json!({
+            "query": MARKET_MUTATION_TARGETS_HYDRATE_QUERY,
+            "variables": { "ids": ids },
+            "operationName": "MarketsMutationPreflightHydrate",
+        });
+        self.run_markets_preflight(request, body, |proxy, body| {
+            proxy.hydrate_markets_from_upstream(body);
+            for family in ["markets", "catalogs", "priceLists", "webPresences"] {
+                proxy
+                    .store
+                    .staged
+                    .markets_hydrated_scopes
+                    .insert(format!("{family}:{{}}"));
+            }
+        });
     }
 
     pub(in crate::proxy) fn market_create_response(&mut self, field: &RootFieldSelection) -> Value {
@@ -639,13 +718,20 @@ impl DraftProxy {
             &region_codes,
             &shop_currency_code,
         );
+        self.store.staged.deleted_market_ids.remove(&id);
         self.store.staged.markets.insert(id, market.clone());
         self.selected_market_payload(field, market, Vec::new())
     }
 
-    pub(in crate::proxy) fn market_delete_response(&mut self, field: &RootFieldSelection) -> Value {
+    pub(in crate::proxy) fn market_delete_response(
+        &mut self,
+        field: &RootFieldSelection,
+        request: &Request,
+    ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        self.hydrate_market_mutation_target(&id, request);
         let payload = if self.store.staged.markets.remove(&id).is_some() {
+            self.store.staged.deleted_market_ids.insert(id.clone());
             self.cascade_market_delete(&id);
             json!({"deletedId": id, "userErrors": []})
         } else {
@@ -655,6 +741,8 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn cascade_market_delete(&mut self, market_id: &str) {
+        self.mark_markets_family_dirty("catalogs");
+        self.mark_markets_family_dirty("webPresences");
         self.store.staged.web_presences.retain(|_, web_presence| {
             !web_presence_market_ids(web_presence)
                 .iter()
@@ -675,8 +763,13 @@ impl DraftProxy {
             });
     }
 
-    pub(in crate::proxy) fn market_update_response(&mut self, field: &RootFieldSelection) -> Value {
+    pub(in crate::proxy) fn market_update_response(
+        &mut self,
+        field: &RootFieldSelection,
+        request: &Request,
+    ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        self.hydrate_market_mutation_target(&id, request);
         let Some(existing_market) = self.store.staged.markets.get(&id).cloned() else {
             return selected_market_error(
                 field,
@@ -724,15 +817,19 @@ impl DraftProxy {
         }
 
         for catalog_id in catalogs_to_add {
+            self.mark_markets_family_dirty("catalogs");
             self.add_market_to_catalog(&catalog_id, &id);
         }
         for catalog_id in list_string_field(&input, "catalogsToDelete") {
+            self.mark_markets_family_dirty("catalogs");
             self.remove_market_from_catalog(&catalog_id, &id);
         }
         for web_presence_id in web_presences_to_add {
+            self.mark_markets_family_dirty("webPresences");
             self.add_market_to_web_presence(&web_presence_id, &id);
         }
         for web_presence_id in list_string_field(&input, "webPresencesToDelete") {
+            self.mark_markets_family_dirty("webPresences");
             self.remove_market_from_web_presence(&web_presence_id, &id);
         }
 
@@ -955,22 +1052,54 @@ impl DraftProxy {
             .find_map(|market| market_record_country_region(market, &normalized))
     }
 
-    pub(in crate::proxy) fn hydrate_backup_region_markets_from_upstream(
+    pub(in crate::proxy) fn available_backup_region_for_code(
+        &self,
+        country_code: &str,
+    ) -> Option<Value> {
+        self.store
+            .staged
+            .available_backup_regions
+            .get(&country_code.to_ascii_uppercase())
+            .cloned()
+    }
+
+    pub(in crate::proxy) fn hydrate_available_backup_regions_from_upstream(
         &mut self,
         request: &Request,
     ) -> Response {
         let response = self.upstream_post(
             request,
             json!({
-                "query": BACKUP_REGION_MARKETS_HYDRATE_QUERY,
-                "operationName": "BackupRegionMarketsHydrate",
-                "variables": { "first": 250, "regionsFirst": 250 }
+                "query": BACKUP_REGION_AVAILABLE_HYDRATE_QUERY,
+                "operationName": "BackupRegionAvailableHydrate",
+                "variables": {}
             }),
         );
         if response.status < 400 {
-            self.hydrate_markets_from_upstream(&response.body);
+            self.hydrate_available_backup_regions_from_body(&response.body);
         }
         response
+    }
+
+    fn hydrate_available_backup_regions_from_body(&mut self, body: &Value) {
+        let Some(regions) = body
+            .pointer("/data/availableBackupRegions")
+            .and_then(Value::as_array)
+        else {
+            return;
+        };
+        for region in regions {
+            let Some(code) = region_code_from_node(region).map(|code| code.to_ascii_uppercase())
+            else {
+                continue;
+            };
+            if let Some(region) = market_region_country_from_node(region, &code) {
+                self.store
+                    .staged
+                    .available_backup_regions
+                    .insert(code, region);
+            }
+        }
     }
 
     /// True when any markets-domain record has been staged. Tracks local markets query state (minus the product check, since the Rust
@@ -979,30 +1108,50 @@ impl DraftProxy {
     /// locally (read-after-write); before that, cold reads forward upstream.
     pub(in crate::proxy) fn has_markets_overlay_state(&self) -> bool {
         !self.store.staged.markets.is_empty()
+            || !self.store.staged.deleted_market_ids.is_empty()
             || !self.store.staged.catalogs.is_empty()
             || !self.store.staged.price_lists.is_empty()
             || !self.store.staged.web_presences.is_empty()
     }
 
-    /// LiveHybrid cold-read decision for the Markets domain. When
-    /// this returns true the dispatcher forwards the original request verbatim
-    /// upstream and hydrates the staged store from the response.
+    /// LiveHybrid cold-read decision for the Markets domain. When this returns
+    /// true, at least one requested root/scope still needs Shopify baseline
+    /// data before local staged deltas can be projected correctly.
     pub(in crate::proxy) fn markets_should_fetch_upstream(
         &self,
-        root_field: &str,
+        fields: &[RootFieldSelection],
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> bool {
-        match root_field {
-            "market" => !markets_variables_have_local_id(variables, &self.store.staged.markets),
-            "catalog" => !markets_variables_have_local_id(variables, &self.store.staged.catalogs),
-            "priceList" => {
-                !markets_variables_have_local_id(variables, &self.store.staged.price_lists)
+        let plural_localizable_state_selected = fields
+            .iter()
+            .any(|field| field.name == "marketLocalizableResources")
+            && self.has_market_localizable_resource_state();
+        fields.iter().any(|field| {
+            self.markets_field_should_fetch_upstream(
+                field,
+                variables,
+                plural_localizable_state_selected,
+            )
+        })
+    }
+
+    fn markets_field_should_fetch_upstream(
+        &self,
+        field: &RootFieldSelection,
+        variables: &BTreeMap<String, ResolvedValue>,
+        plural_localizable_state_selected: bool,
+    ) -> bool {
+        match field.name.as_str() {
+            "market" => {
+                !markets_field_has_local_id(&field.arguments, &self.store.staged.markets)
+                    && !resolved_string_field(&field.arguments, "id")
+                        .is_some_and(|id| self.store.staged.deleted_market_ids.contains(&id))
             }
-            // A market-localizable resource read forwards once per resource: until the
-            // resource's content has been observed (cold read or mutation preflight),
-            // forward verbatim so Shopify reports its real content/digests; afterwards
-            // serve the staged read-after-write projection locally.
-            "marketLocalizableResource" => resolved_string_field(variables, "resourceId")
+            "catalog" => !markets_field_has_local_id(&field.arguments, &self.store.staged.catalogs),
+            "priceList" => {
+                !markets_field_has_local_id(&field.arguments, &self.store.staged.price_lists)
+            }
+            "marketLocalizableResource" => resolved_string_field(&field.arguments, "resourceId")
                 .map(|resource_id| {
                     !self
                         .store
@@ -1016,12 +1165,73 @@ impl DraftProxy {
             | "catalogsCount"
             | "priceLists"
             | "webPresences"
-            | "marketsResolvedValues" => !self.has_markets_overlay_state(),
+            | "marketsResolvedValues" => markets_hydration_scope_keys(field)
+                .iter()
+                .any(|key| self.markets_scope_needs_upstream(key)),
             "marketLocalizableResources" => !self.has_market_localizable_resource_state(),
             "marketLocalizableResourcesByIds" => {
-                self.market_localizable_resources_by_ids_should_fetch_upstream(variables)
+                !plural_localizable_state_selected
+                    && self.market_localizable_resources_by_ids_should_fetch_upstream(variables)
             }
             _ => false,
+        }
+    }
+
+    pub(in crate::proxy) fn mark_markets_family_dirty(&mut self, family: &str) {
+        self.store
+            .staged
+            .markets_dirty_families
+            .insert(family.to_string());
+    }
+
+    #[allow(dead_code)]
+    fn markets_scope_needs_upstream(&self, key: &str) -> bool {
+        if self.store.staged.markets_hydrated_scopes.contains(key) {
+            return false;
+        }
+        let family = markets_scope_family(key);
+        !self.store.staged.markets_dirty_families.contains(family)
+            || self.markets_family_has_records(family)
+    }
+
+    #[allow(dead_code)]
+    fn markets_family_has_records(&self, family: &str) -> bool {
+        match family {
+            "markets" => !self.store.staged.markets.is_empty(),
+            "catalogs" => !self.store.staged.catalogs.is_empty(),
+            "priceLists" => !self.store.staged.price_lists.is_empty(),
+            "webPresences" => !self.store.staged.web_presences.is_empty(),
+            _ => false,
+        }
+    }
+
+    #[allow(dead_code)]
+    pub(in crate::proxy) fn hydrate_markets_from_upstream_for_fields(
+        &mut self,
+        body: &Value,
+        fields: &[RootFieldSelection],
+    ) {
+        let normalized = markets_body_with_canonical_response_keys(body, fields);
+        self.hydrate_markets_from_upstream(&normalized);
+        self.mark_markets_hydrated_scopes_from_fields(&normalized, fields);
+    }
+
+    #[allow(dead_code)]
+    fn mark_markets_hydrated_scopes_from_fields(
+        &mut self,
+        body: &Value,
+        fields: &[RootFieldSelection],
+    ) {
+        let Some(data) = body.get("data").and_then(Value::as_object) else {
+            return;
+        };
+        for field in fields {
+            if !markets_response_connection_complete(data.get(&field.response_key)) {
+                continue;
+            }
+            for key in markets_hydration_scope_keys(field) {
+                self.store.staged.markets_hydrated_scopes.insert(key);
+            }
         }
     }
 
@@ -1061,7 +1271,9 @@ impl DraftProxy {
         );
         for record in &market_records {
             if let Some(id) = record_gid(record, "Market") {
-                self.store.staged.markets.insert(id, record.clone());
+                if !self.store.staged.deleted_market_ids.contains(&id) {
+                    self.store.staged.markets.insert(id, record.clone());
+                }
             }
         }
         // Catalogs: top-level plus nested under each market.
@@ -1088,7 +1300,13 @@ impl DraftProxy {
         }
         for record in &price_list_records {
             if let Some(id) = record_gid(record, "PriceList") {
-                self.store.staged.price_lists.insert(id, record.clone());
+                if markets_record_is_richer_than_existing(
+                    &self.store.staged.price_lists,
+                    &id,
+                    record,
+                ) {
+                    self.store.staged.price_lists.insert(id, record.clone());
+                }
             }
         }
         // Web presences: top-level plus nested under each market.
@@ -1159,4 +1377,128 @@ impl DraftProxy {
             self.stage_observed_market_localizable_resource(record);
         }
     }
+}
+
+fn market_mutation_wrong_resource_error(field: &RootFieldSelection) -> Option<Value> {
+    if !matches!(field.name.as_str(), "marketUpdate" | "marketDelete") {
+        return None;
+    }
+    let id = resolved_string_field(&field.arguments, "id")?;
+    match shopify_gid_resource_type(&id) {
+        Some("Market") | None => None,
+        Some(_) => Some(json!({
+            "message": format!("Invalid id: {id}"),
+            "locations": [{"line": field.location.line, "column": field.location.column}],
+            "extensions": {"code": "RESOURCE_NOT_FOUND"},
+            "path": [field.response_key.clone()]
+        })),
+    }
+}
+
+fn markets_field_has_local_id(
+    arguments: &BTreeMap<String, ResolvedValue>,
+    records: &BTreeMap<String, Value>,
+) -> bool {
+    resolved_string_field(arguments, "id")
+        .as_deref()
+        .is_some_and(|id| is_synthetic_gid(id) || records.contains_key(id))
+}
+
+fn markets_hydration_scope_keys(field: &RootFieldSelection) -> Vec<String> {
+    match field.name.as_str() {
+        "markets" => vec![markets_hydration_scope_key("markets", &field.arguments)],
+        "catalogs" | "catalogsCount" => {
+            vec![markets_hydration_scope_key("catalogs", &field.arguments)]
+        }
+        "priceLists" => vec![markets_hydration_scope_key("priceLists", &field.arguments)],
+        "webPresences" => vec![markets_hydration_scope_key(
+            "webPresences",
+            &field.arguments,
+        )],
+        "marketsResolvedValues" => field
+            .selection
+            .iter()
+            .filter_map(|selection| match selection.name.as_str() {
+                "catalogs" => Some(markets_hydration_scope_key(
+                    "catalogs",
+                    &selection.arguments,
+                )),
+                "webPresences" => Some(markets_hydration_scope_key(
+                    "webPresences",
+                    &selection.arguments,
+                )),
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+#[allow(dead_code)]
+fn markets_hydration_scope_key(
+    family: &str,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> String {
+    let scope_arguments = arguments
+        .iter()
+        .filter(|(name, _)| !markets_pagination_argument(name))
+        .map(|(name, value)| (name.clone(), resolved_value_json(value)))
+        .collect::<serde_json::Map<_, _>>();
+    format!("{family}:{}", Value::Object(scope_arguments))
+}
+
+#[allow(dead_code)]
+fn markets_scope_family(key: &str) -> &str {
+    key.split_once(':').map(|(family, _)| family).unwrap_or(key)
+}
+
+#[allow(dead_code)]
+fn markets_pagination_argument(name: &str) -> bool {
+    matches!(name, "first" | "last" | "after" | "before")
+}
+
+#[allow(dead_code)]
+fn markets_response_connection_complete(value: Option<&Value>) -> bool {
+    let Some(connection) = value.filter(|value| value.is_object()) else {
+        return false;
+    };
+    if connection.get("nodes").is_none() && connection.get("edges").is_none() {
+        return false;
+    }
+    connection
+        .get("pageInfo")
+        .and_then(|page_info| page_info.get("hasNextPage"))
+        .and_then(Value::as_bool)
+        != Some(true)
+}
+
+fn markets_record_is_richer_than_existing(
+    records: &BTreeMap<String, Value>,
+    id: &str,
+    candidate: &Value,
+) -> bool {
+    records
+        .get(id)
+        .map(|existing| {
+            candidate.as_object().map_or(0, serde_json::Map::len)
+                > existing.as_object().map_or(0, serde_json::Map::len)
+        })
+        .unwrap_or(true)
+}
+
+#[allow(dead_code)]
+fn markets_body_with_canonical_response_keys(body: &Value, fields: &[RootFieldSelection]) -> Value {
+    let mut normalized = body.clone();
+    let Some(data) = normalized.get_mut("data").and_then(Value::as_object_mut) else {
+        return normalized;
+    };
+    for field in fields {
+        if field.response_key == field.name || data.contains_key(&field.name) {
+            continue;
+        }
+        if let Some(value) = data.get(&field.response_key).cloned() {
+            data.insert(field.name.clone(), value);
+        }
+    }
+    normalized
 }

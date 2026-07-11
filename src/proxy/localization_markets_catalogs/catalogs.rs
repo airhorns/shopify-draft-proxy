@@ -716,8 +716,12 @@ impl DraftProxy {
             }
         }
         if let Some(currency) = resolved_string_field(&input, "currency") {
+            let currency_changed = price_list_currency(&updated) != currency;
             if let Some(object) = updated.as_object_mut() {
                 object.insert("currency".to_string(), json!(currency));
+            }
+            if currency_changed {
+                clear_fixed_price_nodes(&mut updated);
             }
         }
         if let Some(parent) = parent_update.as_ref() {
@@ -804,7 +808,7 @@ impl DraftProxy {
         &mut self,
         fields: &[RootFieldSelection],
         request: &Request,
-        variables: &BTreeMap<String, ResolvedValue>,
+        _variables: &BTreeMap<String, ResolvedValue>,
     ) {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return;
@@ -821,15 +825,23 @@ impl DraftProxy {
             )
         });
         let body = if by_product {
+            let preflight_variables = product_fixed_prices_preflight_variables(fields);
+            if !self.product_fixed_prices_preflight_needed(&preflight_variables) {
+                return;
+            }
             json!({
                 "query": FIXED_PRICE_BY_PRODUCT_PREFLIGHT_QUERY,
-                "variables": product_fixed_prices_preflight_variables(variables),
+                "variables": preflight_variables,
                 "operationName": "MarketsMutationPreflightHydrate",
             })
         } else if variant_level {
+            let preflight_variables = variant_fixed_prices_preflight_variables(fields);
+            if !self.variant_fixed_prices_preflight_needed(&preflight_variables) {
+                return;
+            }
             json!({
                 "query": FIXED_PRICE_VARIANT_PREFLIGHT_QUERY,
-                "variables": variant_fixed_prices_preflight_variables(fields),
+                "variables": preflight_variables,
                 "operationName": "MarketsMutationPreflightHydrate",
             })
         } else {
@@ -838,7 +850,48 @@ impl DraftProxy {
         self.run_markets_preflight(request, body, Self::stage_fixed_price_preflight);
     }
 
-    fn run_markets_preflight(
+    fn product_fixed_prices_preflight_needed(&self, variables: &Value) -> bool {
+        let Some(price_list_id) = variables.get("priceListId").and_then(Value::as_str) else {
+            return false;
+        };
+        if price_list_id.is_empty() {
+            return false;
+        }
+        if !self.store.staged.price_lists.contains_key(price_list_id) {
+            return true;
+        }
+        Self::fixed_price_preflight_string_array(variables, "productIds")
+            .iter()
+            .any(|id| self.store.product_by_id(id).is_none())
+    }
+
+    fn variant_fixed_prices_preflight_needed(&self, variables: &Value) -> bool {
+        let Some(price_list_id) = variables.get("priceListId").and_then(Value::as_str) else {
+            return false;
+        };
+        if price_list_id.is_empty() {
+            return false;
+        }
+        if !self.store.staged.price_lists.contains_key(price_list_id) {
+            return true;
+        }
+        Self::fixed_price_preflight_string_array(variables, "variantIds")
+            .iter()
+            .any(|id| !self.store.has_product_variant_reference(id))
+    }
+
+    fn fixed_price_preflight_string_array(value: &Value, field: &str) -> Vec<String> {
+        value
+            .get(field)
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .map(str::to_string)
+            .collect()
+    }
+
+    pub(in crate::proxy) fn run_markets_preflight(
         &mut self,
         request: &Request,
         body: Value,
