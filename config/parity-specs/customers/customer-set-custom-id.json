@@ -1,0 +1,210 @@
+{
+  "scenarioId": "customer-set-custom-id",
+  "operationNames": ["metafieldDefinitionCreate", "customerSet", "customerByIdentifier", "customer"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["upsert-parity", "read-after-write", "top-level-error-parity", "variable-coercion"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/customers/customer-set-custom-id.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/customers.rs", "tests/graphql_routes/metafield_definitions.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customer-set-custom-id-definition-create.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.cases.validDefinition.request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict replay of Shopify-backed customerSet(identifier.customId) no-match create, matching update, downstream customerByIdentifier/customer metafield readback, missing-definition, disabled-id-definition, malformed customId, and unsupported input.metafields variable coercion. Shopify unique id definitions prevent durable duplicate customer metafield state; corrupt duplicate effective-state handling is covered by focused runtime tests.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.metafieldDefinitionCreate.createdDefinition.id",
+        "matcher": "shopify-gid:MetafieldDefinition",
+        "reason": "The proxy stages a deterministic synthetic metafield definition ID while Shopify returned a live-store definition ID."
+      },
+      {
+        "path": "$.customerSet.customer.id",
+        "matcher": "shopify-gid:Customer",
+        "reason": "The proxy stages customerSet locally and returns synthetic customer IDs."
+      },
+      {
+        "path": "$.customerSet.customer.externalId.id",
+        "matcher": "shopify-gid:Metafield",
+        "reason": "The proxy stages customer metafields locally and returns synthetic metafield IDs."
+      },
+      {
+        "path": "$.customerSet.customer.metafields.nodes[*].id",
+        "matcher": "shopify-gid:Metafield",
+        "reason": "The proxy stages customer metafields locally and returns synthetic metafield IDs."
+      }
+    ],
+    "targets": [
+      {
+        "name": "valid-definition-create",
+        "capturePath": "$.cases.validDefinition.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "disabled-id-definition-create",
+        "capturePath": "$.cases.disabledDefinition.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-set-custom-id-definition-create.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases.disabledDefinition.request.variables"
+        }
+      },
+      {
+        "name": "custom-id-create",
+        "capturePath": "$.cases.createNoMatch.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-set-custom-id.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases.createNoMatch.request.variables"
+        }
+      },
+      {
+        "name": "custom-id-update",
+        "capturePath": "$.cases.updateMatching.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-set-custom-id.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases.updateMatching.request.variables"
+        }
+      },
+      {
+        "name": "custom-id-readback",
+        "capturePath": "$.cases.readBack.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-set-custom-id-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "identifier": {
+              "fromCapturePath": "$.cases.readBack.request.variables.identifier"
+            },
+            "customerId": {
+              "fromProxyResponse": "custom-id-update",
+              "path": "$.data.customerSet.customer.id"
+            },
+            "namespace": {
+              "fromCapturePath": "$.cases.readBack.request.variables.namespace"
+            },
+            "key": {
+              "fromCapturePath": "$.cases.readBack.request.variables.key"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.byIdentifier.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The proxy reads back the locally staged customer ID."
+          },
+          {
+            "path": "$.byId.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The proxy reads back the locally staged customer ID."
+          },
+          {
+            "path": "$.byIdentifier.externalId.id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy reads back the locally staged metafield ID."
+          },
+          {
+            "path": "$.byId.externalId.id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy reads back the locally staged metafield ID."
+          },
+          {
+            "path": "$.byIdentifier.metafields.nodes[*].id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy reads back the locally staged metafield ID."
+          },
+          {
+            "path": "$.byId.metafields.nodes[*].id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy reads back the locally staged metafield ID."
+          }
+        ]
+      },
+      {
+        "name": "missing-definition-errors",
+        "capturePath": "$.cases.validations.missingDefinition.response.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].extensions", "$[0].path"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-set-custom-id.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases.validations.missingDefinition.request.variables"
+        }
+      },
+      {
+        "name": "missing-definition-data",
+        "capturePath": "$.cases.validations.missingDefinition.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-set-custom-id.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases.validations.missingDefinition.request.variables"
+        }
+      },
+      {
+        "name": "disabled-unique-definition-errors",
+        "capturePath": "$.cases.validations.disabledUnique.response.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].extensions", "$[0].path"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-set-custom-id.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases.validations.disabledUnique.request.variables"
+        }
+      },
+      {
+        "name": "disabled-unique-definition-data",
+        "capturePath": "$.cases.validations.disabledUnique.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-set-custom-id.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases.validations.disabledUnique.request.variables"
+        }
+      },
+      {
+        "name": "unsupported-input-metafields-mismatch-shape",
+        "capturePath": "$.cases.validations.mismatch.response",
+        "proxyPath": "$",
+        "selectedPaths": ["$.errors[0].message", "$.errors[0].extensions"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-set-custom-id.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases.validations.mismatch.request.variables"
+        }
+      },
+      {
+        "name": "malformed-custom-id-shape",
+        "capturePath": "$.cases.validations.malformed.response",
+        "proxyPath": "$",
+        "selectedPaths": ["$.errors[0].message", "$.errors[0].extensions"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-set-custom-id.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases.validations.malformed.request.variables"
+        }
+      },
+      {
+        "name": "duplicate-assignment-probe-shape",
+        "capturePath": "$.cases.validations.duplicateAssignment.response",
+        "proxyPath": "$",
+        "selectedPaths": ["$.errors[0].message", "$.errors[0].extensions"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-set-custom-id.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases.validations.duplicateAssignment.request.variables"
+        }
+      }
+    ]
+  }
+}

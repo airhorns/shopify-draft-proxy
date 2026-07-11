@@ -1,10 +1,24 @@
 {
   "scenarioId": "collection-top-level-staged-read",
-  "operationNames": ["collectionCreate", "collectionUpdate", "collectionDelete", "collections", "collectionsCount"],
+  "operationNames": [
+    "collectionCreate",
+    "collectionUpdate",
+    "collectionDelete",
+    "collectionByIdentifier",
+    "collectionByHandle",
+    "collections",
+    "collectionsCount"
+  ],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "downstream-read-parity", "runtime-staging"],
+  "assertionKinds": [
+    "payload-shape",
+    "downstream-read-parity",
+    "runtime-staging",
+    "null-empty-behavior",
+    "deprecated-root"
+  ],
   "liveCaptureFiles": [
-    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/collection-top-level-staged-read.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/collection-top-level-staged-read.json"
   ],
   "runtimeTestFiles": ["src/proxy.rs"],
   "proxyRequest": {
@@ -12,7 +26,7 @@
     "variablesCapturePath": "$.operations.firstCreate.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live Shopify capture for top-level collections/collectionsCount read-after-write after two collectionCreate calls, a collectionUpdate, and a collectionDelete. The replay uses only public GraphQL requests; volatile collection ids and cursor strings are path-scoped expected differences.",
+  "notes": "Live Shopify 2026-04 capture for top-level collections/collectionsCount plus collectionByIdentifier and deprecated collectionByHandle read-after-write after two collectionCreate calls, a collectionUpdate, and a collectionDelete. The replay uses only public GraphQL requests; volatile collection ids and cursor strings are path-scoped expected differences.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
@@ -50,9 +64,43 @@
         "proxyPath": "$.data",
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/collection-top-level-staged-read-initial-page1.graphql",
-          "variablesCapturePath": "$.operations.initialPage1.variables"
+          "variables": {
+            "firstCollectionId": {
+              "fromPrimaryProxyPath": "$.data.collectionCreate.collection.id"
+            },
+            "firstHandle": {
+              "fromCapturePath": "$.operations.initialPage1.variables.firstHandle"
+            },
+            "firstHandleQuery": {
+              "fromCapturePath": "$.operations.initialPage1.variables.firstHandleQuery"
+            },
+            "sharedQuery": {
+              "fromCapturePath": "$.operations.initialPage1.variables.sharedQuery"
+            },
+            "first": {
+              "fromCapturePath": "$.operations.initialPage1.variables.first"
+            },
+            "limit": {
+              "fromCapturePath": "$.operations.initialPage1.variables.limit"
+            }
+          }
         },
         "expectedDifferences": [
+          {
+            "path": "$.createdByIdentifierId.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The exact collection id differs between live capture and local replay."
+          },
+          {
+            "path": "$.createdByIdentifierHandle.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The exact collection id differs between live capture and local replay."
+          },
+          {
+            "path": "$.createdByHandleRoot.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The exact collection id differs between live capture and local replay."
+          },
           {
             "path": "$.firstByHandle.nodes[0].id",
             "matcher": "shopify-gid:Collection",
@@ -153,9 +201,41 @@
         "proxyPath": "$.data",
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/collection-top-level-staged-read-post-update.graphql",
-          "variablesCapturePath": "$.operations.postUpdate.variables"
+          "variables": {
+            "updatedCollectionId": {
+              "fromProxyResponse": "update-first",
+              "path": "$.data.collectionUpdate.collection.id"
+            },
+            "oldHandle": {
+              "fromCapturePath": "$.operations.postUpdate.variables.oldHandle"
+            },
+            "newHandle": {
+              "fromCapturePath": "$.operations.postUpdate.variables.newHandle"
+            },
+            "oldHandleQuery": {
+              "fromCapturePath": "$.operations.postUpdate.variables.oldHandleQuery"
+            },
+            "newHandleQuery": {
+              "fromCapturePath": "$.operations.postUpdate.variables.newHandleQuery"
+            }
+          }
         },
         "expectedDifferences": [
+          {
+            "path": "$.updatedByIdentifierId.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The updated collection id differs between live capture and local replay."
+          },
+          {
+            "path": "$.updatedByIdentifierHandle.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The updated collection id differs between live capture and local replay."
+          },
+          {
+            "path": "$.updatedByHandleRoot.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The updated collection id differs between live capture and local replay."
+          },
           {
             "path": "$.newByHandle.nodes[0].id",
             "matcher": "shopify-gid:Collection",
@@ -192,7 +272,21 @@
         "proxyPath": "$.data",
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/collection-top-level-staged-read-post-delete.graphql",
-          "variablesCapturePath": "$.operations.postDelete.variables"
+          "variables": {
+            "sharedQuery": {
+              "fromCapturePath": "$.operations.postDelete.variables.sharedQuery"
+            },
+            "deletedCollectionId": {
+              "fromProxyResponse": "delete-second",
+              "path": "$.data.collectionDelete.deletedCollectionId"
+            },
+            "deletedHandle": {
+              "fromCapturePath": "$.operations.postDelete.variables.deletedHandle"
+            },
+            "deletedHandleQuery": {
+              "fromCapturePath": "$.operations.postDelete.variables.deletedHandleQuery"
+            }
+          }
         },
         "expectedDifferences": [
           {

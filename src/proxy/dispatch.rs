@@ -58,6 +58,15 @@ fn observed_node_values(response: &Response) -> Vec<Value> {
     {
         nodes.push(node.clone());
     }
+    for pointer in ["/data/productByIdentifier", "/data/productByHandle"] {
+        if let Some(node) = response
+            .body
+            .pointer(pointer)
+            .filter(|node| node.is_object())
+        {
+            nodes.push(node.clone());
+        }
+    }
     nodes
 }
 
@@ -254,6 +263,20 @@ impl DraftProxy {
                     )
                 } else {
                     (self.upstream_transport)(request.clone())
+                }
+            }
+            "collectionByIdentifier" | "collectionByHandle" => {
+                let fields = try_root_fields!(query, variables);
+                if self.collection_identifier_read_needs_upstream(&fields) {
+                    let response = (self.upstream_transport)(request.clone());
+                    if response.status < 400 {
+                        self.observe_collections_read_response(&response);
+                    }
+                    response
+                } else {
+                    ok_json(
+                        json!({ "data": self.collection_membership_downstream_read_data(&fields) }),
+                    )
                 }
             }
             "publication"
@@ -629,6 +652,14 @@ impl DraftProxy {
         if let Some(abandonment) = self.store.staged.abandonments.get(id) {
             return Some(selected_json(abandonment, selection));
         }
+        if shopify_gid_resource_type(id) == Some("Order") {
+            if self.store.staged.orders.is_tombstoned(id) {
+                return Some(Value::Null);
+            }
+            if let Some(order) = self.staged_order_record_for_id(id) {
+                return Some(self.selected_order_with_return_status(&order, selection));
+            }
+        }
         if let Some(value) = self.app_node_value_by_id(id, selection, request) {
             return Some(value);
         }
@@ -897,7 +928,7 @@ impl DraftProxy {
         let capability_domain = draft.capability_domain;
         let capability_execution = draft.capability_execution;
         let notes = draft.notes;
-        let root_fields = parse_operation(query)
+        let root_fields = parse_operation_with_variables(query, variables)
             .map(|operation| operation.root_fields)
             .unwrap_or_else(|| vec![root_field.clone()]);
         self.log_entries.push(json!({
@@ -1792,6 +1823,15 @@ impl DraftProxy {
             }
             (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "customerGenerateAccountActivationUrl" | "customerSendAccountInviteEmail"
+                    ) =>
+            {
+                self.customer_outbound_lifecycle_response(request, query, variables)
+            }
+            (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
                     && root_field == "customerMerge" =>
             {
                 self.customer_merge(query, variables, request)
@@ -2020,11 +2060,11 @@ impl DraftProxy {
             return response;
         }
 
-        let Some(operation) = parse_operation(&query) else {
+        let Some(operation) = parse_operation_with_variables(&query, &variables) else {
             return json_error(400, "Could not parse GraphQL operation");
         };
         let Some(root_field) = operation.primary_root_field() else {
-            return json_error(400, "Operation has no root field");
+            return ok_json(json!({ "data": {} }));
         };
 
         let schema_input_errors = public_admin_schema_input_errors(
@@ -2266,7 +2306,7 @@ impl DraftProxy {
                     )
                 }) {
                     ok_json(json!({
-                        "data": self.payment_customization_query_data(&fields)
+                        "data": self.payment_customization_query_data(request, &fields)
                     }))
                 } else if root_field == "paymentTermsTemplates" {
                     ok_json(json!({ "data": payment_terms_templates_query_data(&fields) }))
@@ -2377,7 +2417,7 @@ impl DraftProxy {
                 if operation.operation_type == OperationType::Query =>
             {
                 let fields = try_root_fields!(&query, &variables);
-                ok_json(json!({ "data": self.marketing_query_data(&fields) }))
+                self.marketing_query_response(request, &fields)
             }
             (CapabilityDomain::Marketing, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation =>
@@ -2468,15 +2508,19 @@ impl DraftProxy {
             (CapabilityDomain::Markets, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query =>
             {
+                let fields = try_root_fields!(&query, &variables);
                 // Cold LiveHybrid reads forward verbatim upstream and hydrate the
-                // staged stores as a side effect; once a lifecycle has staged
-                // markets-domain records we serve locally (read-after-write).
+                // staged stores as a side effect. If local markets-family rows
+                // already exist, keep the upstream response as hydration input
+                // and render from the effective local graph so staged deltas are
+                // merged instead of replacing unrelated families.
                 if self.config.read_mode == ReadMode::LiveHybrid
-                    && self.markets_should_fetch_upstream(root_field, &variables)
+                    && self.markets_should_fetch_upstream(&fields, &variables)
                 {
+                    let had_markets_overlay_state = self.has_markets_overlay_state();
                     let response = (self.upstream_transport)(request.clone());
                     if response.status < 400 {
-                        self.hydrate_markets_from_upstream(&response.body);
+                        self.hydrate_markets_from_upstream_for_fields(&response.body, &fields);
                         // A single verbatim forward returns whatever the client
                         // selected, which can span domains (e.g. a localization
                         // source read selects `markets` alongside `shopLocales`
@@ -2487,9 +2531,10 @@ impl DraftProxy {
                         // objects, not locale arrays).
                         self.hydrate_localization_from_upstream(&response.body);
                     }
-                    return response;
+                    if !had_markets_overlay_state {
+                        return response;
+                    }
                 }
-                let fields = try_root_fields!(&query, &variables);
                 if operation
                     .root_fields
                     .iter()
@@ -2523,6 +2568,9 @@ impl DraftProxy {
             {
                 let fields = try_root_fields!(&query, &variables);
                 self.hydrate_market_currency_defaults_if_needed(request, &fields);
+                if let Some(response) = self.market_mutation_wrong_resource_response(&fields) {
+                    return response;
+                }
                 let data = if operation.root_fields.iter().all(|field| {
                     matches!(
                         field.as_str(),
@@ -2580,6 +2628,7 @@ impl DraftProxy {
                 }) {
                     self.catalog_mutation_data(&fields, request, &query, &variables)
                 } else {
+                    self.market_mutation_target_preflight(&fields, request);
                     self.market_create_mutation_data(&fields, request, &query, &variables)
                 };
                 if operation.root_fields.iter().all(|field| {

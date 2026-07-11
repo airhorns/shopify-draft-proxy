@@ -1,0 +1,46 @@
+mutation OrderReturnStatusReturnProcess($input: ReturnProcessInput!) {
+  returnProcess(input: $input) {
+    return {
+      id
+      name
+      status
+      closedAt
+      totalQuantity
+      returnLineItems(first: 10) {
+        nodes {
+          id
+          quantity
+          processedQuantity
+          unprocessedQuantity
+        }
+      }
+      order {
+        id
+        name
+        returnStatus
+        returns(first: 10) {
+          nodes {
+            id
+            name
+            status
+            closedAt
+            totalQuantity
+            returnLineItems(first: 10) {
+              nodes {
+                id
+                quantity
+                processedQuantity
+                unprocessedQuantity
+              }
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

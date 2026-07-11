@@ -1,0 +1,48 @@
+{
+  "scenarioId": "marketing-live-hybrid-non-empty-read",
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "upstream-read-parity",
+    "downstream-read-parity",
+    "pagination-shape",
+    "sort-order",
+    "search-filter",
+    "singular-read-parity"
+  ],
+  "operationNames": ["marketingActivities", "marketingActivity", "marketingEvents", "marketingEvent"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/marketing/marketing-live-hybrid-non-empty-read.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
+  "proxyConfig": {
+    "readMode": "live-hybrid"
+  },
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/marketing/marketing-live-hybrid-non-empty-read.graphql",
+    "variablesCapturePath": "$.operations.read.request.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "cold-live-hybrid-non-empty-read",
+        "capturePath": "$.operations.read.response.payload.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "cold-live-hybrid-after-window",
+        "capturePath": "$.operations.readAfter.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-live-hybrid-non-empty-read-after.graphql",
+          "variablesCapturePath": "$.operations.readAfter.request.variables",
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  },
+  "notes": "Creates two disposable external marketing activities in Shopify, captures non-empty activity/event reads with aliases, singular lookups, title search, title sort, opaque cursors, and an after-cursor window, then replays those exact reads through a cold LiveHybrid proxy using upstreamCalls cassette entries. Runtime tests cover staged create/update/delete overlay on top of the observed upstream catalog."
+}
