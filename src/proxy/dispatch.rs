@@ -1,3 +1,4 @@
+use super::discounts::is_discount_bulk_action_root;
 use super::*;
 use crate::graphql::{DirectiveSelection, VariableDefinitionInfo};
 
@@ -576,6 +577,7 @@ impl DraftProxy {
             }
             "sellingPlanGroup" | "sellingPlanGroups" => {
                 let fields = try_root_fields!(query, variables);
+                self.hydrate_selling_plan_groups_for_read(request, &fields);
                 if product_root_fields_select_shop_currency_money(&fields) {
                     self.hydrate_shop_pricing_state_if_missing(request, true, false);
                 }
@@ -1031,16 +1033,50 @@ impl DraftProxy {
                 return Some(self.selected_order_with_return_status(&order, selection));
             }
         }
+        if shopify_gid_resource_type(id) == Some("Customer") {
+            if let Some(value) = self.customer_node_value_by_id(id, selection) {
+                return Some(value);
+            }
+        }
+        if shopify_gid_resource_type(id) == Some("MailingAddress") {
+            if let Some(value) = self.customer_address_node_value_by_id(id, selection) {
+                return Some(value);
+            }
+        }
+        if shopify_gid_resource_type(id) == Some("CustomerPaymentMethod") {
+            if let Some(value) = self.customer_payment_method_node_value_by_id(id, selection) {
+                return Some(value);
+            }
+        }
+        if matches!(
+            shopify_gid_resource_type(id),
+            Some(
+                "StoreCreditAccount"
+                    | "StoreCreditAccountCreditTransaction"
+                    | "StoreCreditAccountDebitTransaction"
+                    | "StoreCreditAccountDebitRevertTransaction"
+                    | "StoreCreditAccountTransaction"
+            )
+        ) {
+            if let Some(value) = self.store_credit_node_value_by_id(id, selection) {
+                return Some(value);
+            }
+        }
         if let Some(value) = self.app_node_value_by_id(id, selection, request) {
             return Some(value);
         }
         if shopify_gid_resource_type(id) == Some("GiftCard") {
             return Some(
-                self.store
-                    .staged
-                    .gift_cards
-                    .get(id)
-                    .map(|card| selected_json(card, selection))
+                self.gift_card_node_value_by_id(id, selection)
+                    .unwrap_or(Value::Null),
+            );
+        }
+        if matches!(
+            shopify_gid_resource_type(id),
+            Some("GiftCardCreditTransaction" | "GiftCardDebitTransaction")
+        ) {
+            return Some(
+                self.gift_card_transaction_node_value_by_id(id, selection)
                     .unwrap_or(Value::Null),
             );
         }
@@ -1105,6 +1141,9 @@ impl DraftProxy {
         }
         if let Some(discount) = self.discount_node_value_by_id(id, selection) {
             return Some(discount);
+        }
+        if let Some(inventory) = self.inventory_node_value_by_id(id, selection) {
+            return Some(inventory);
         }
         if let Some(file) = self.store.staged.media_files.get(id) {
             return Some(selected_json(file, selection));
@@ -1535,12 +1574,7 @@ impl DraftProxy {
                             | "productVariantLeaveSellingPlanGroups"
                     ) =>
             {
-                // Validation scenarios reference live-store products/groups that
-                // were never staged here; serve those from upstream rather than
-                // fabricate an inaccurate userError from empty local state.
-                if !self.selling_plan_mutation_serves_locally(root_field, query, variables) {
-                    return (self.upstream_transport)(request.clone());
-                }
+                self.hydrate_selling_plan_mutation_targets(request, root_field, query, variables);
                 let outcome = self.selling_plan_group_mutation(root_field, query, variables);
                 self.finalize_mutation_outcome(request, query, variables, outcome)
             }
@@ -1854,6 +1888,7 @@ impl DraftProxy {
                             | "fulfillmentCreateV2"
                             | "fulfillmentCancel"
                             | "fulfillmentTrackingInfoUpdate"
+                            | "fulfillmentTrackingInfoUpdateV2"
                             | "fulfillmentEventCreate"
                             | "orderEditAddVariant"
                             | "orderEditSetQuantity"
@@ -2125,6 +2160,7 @@ impl DraftProxy {
                             | "fulfillmentOrderReleaseHold"
                             | "fulfillmentOrderCancel"
                             | "fulfillmentOrderClose"
+                            | "fulfillmentOrderLineItemsPreparedForPickup"
                             | "fulfillmentOrderReschedule"
                             | "fulfillmentOrdersReroute"
                             | "fulfillmentOrderSplit"
@@ -2511,22 +2547,6 @@ impl DraftProxy {
             && product_operation_selects_shop_currency_money(&query, &variables)
         {
             self.hydrate_shop_pricing_state_if_missing(request, true, false);
-        }
-        // Discount bulk activate/deactivate/delete jobs run upstream (the async
-        // `job` is the real recorded one), but the proxy must mirror their effect
-        // onto its local overlay so later reads in the same scenario see the
-        // transition. Forward byte-for-byte, then apply the overlay side effect
-        // when the job was accepted. Bulk fields embedded in a locally-dispatched
-        // omnibus mutation do not reach here (their primary root field is the
-        // create), so this only affects standalone bulk requests.
-        if operation.operation_type == OperationType::Mutation
-            && is_discount_bulk_action_root(root_field)
-        {
-            let response = (self.upstream_transport)(request.clone());
-            if response.status == 200 {
-                self.apply_discount_bulk_overlay_effects(&query, &variables, &response.body);
-            }
-            return response;
         }
         match (capability.domain, capability.execution) {
             (CapabilityDomain::Products, execution) => self.dispatch_products_graphql(

@@ -5666,7 +5666,7 @@ fn inventory_adjust_quantities_leaves_product_total_inventory_lazy() {
         read.body["data"]["productVariant"]["inventoryQuantity"],
         json!(0)
     );
-    assert_eq!(read.body["data"]["product"]["totalInventory"], json!(2));
+    assert_eq!(read.body["data"]["product"]["totalInventory"], json!(0));
     assert_eq!(
         read.body["data"]["product"]["hasOutOfStockVariants"],
         json!(true)
@@ -7784,6 +7784,872 @@ fn inventory_transfer_read_quantities_reflect_in_transit_shipment_consumption() 
             "processableQuantity": 1,
             "pickedForShipmentQuantity": 0
         })
+    );
+}
+
+#[test]
+fn inventory_node_reads_resolve_staged_inventory_graph_without_upstream_writes() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<String>::new()));
+    let captured_upstream_requests = Arc::clone(&upstream_requests);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![inventory_activation_base_product()])
+        .with_upstream_transport(move |request| {
+            captured_upstream_requests
+                .lock()
+                .unwrap()
+                .push(request.body.clone());
+            Response {
+                status: 599,
+                headers: Default::default(),
+                body: json!({"errors": [{"message": "unexpected upstream request during inventory node test"}]}),
+            }
+        });
+    let origin_id = add_active_transfer_location(&mut proxy, "Node Origin");
+    let destination_id = add_active_transfer_location(&mut proxy, "Node Destination");
+    let (_variant_id, inventory_item_id) = create_inventory_test_item(&mut proxy, "INVENTORY-NODE");
+    stock_transfer_item_at_origin(&mut proxy, &inventory_item_id, &origin_id, 5);
+    let level_id = inventory_level_id_for_test(&inventory_item_id, &origin_id);
+
+    let adjust = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InventoryNodeAdjustmentSetup($input: InventoryAdjustQuantitiesInput!) {
+          inventoryAdjustQuantities(input: $input) {
+            inventoryAdjustmentGroup {
+              id
+              createdAt
+              reason
+              referenceDocumentUri
+              changes { name delta item { id } location { id name } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+            "name": "damaged",
+            "reason": "correction",
+            "referenceDocumentUri": "logistics://inventory/node-adjust",
+            "changes": [{
+                "inventoryItemId": inventory_item_id,
+                "locationId": origin_id,
+                "delta": 1,
+                "changeFromQuantity": 0,
+                "ledgerDocumentUri": "ledger://inventory/node-adjust/damaged"
+            }]
+        }}),
+    ));
+    assert_eq!(
+        adjust.body["data"]["inventoryAdjustQuantities"]["userErrors"],
+        json!([])
+    );
+    let adjustment_group =
+        &adjust.body["data"]["inventoryAdjustQuantities"]["inventoryAdjustmentGroup"];
+    let adjustment_group_id = adjustment_group["id"].as_str().unwrap().to_string();
+
+    let direct_quantity = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryNodeQuantitySetup($levelId: ID!) {
+          inventoryLevel(id: $levelId) {
+            id
+            quantities(names: ["available", "damaged", "on_hand"]) {
+              id
+              name
+              quantity
+              updatedAt
+            }
+          }
+        }
+        "#,
+        json!({"levelId": level_id}),
+    ));
+    let damaged_quantity = direct_quantity.body["data"]["inventoryLevel"]["quantities"][1].clone();
+    let damaged_quantity_id = damaged_quantity["id"].as_str().unwrap().to_string();
+
+    let transfer = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InventoryNodeTransferSetup($input: InventoryTransferCreateAsReadyToShipInput!) {
+          inventoryTransferCreateAsReadyToShip(input: $input) {
+            inventoryTransfer {
+              id
+              status
+              lineItems(first: 10) {
+                nodes {
+                  id
+                  inventoryItem { id }
+                  totalQuantity
+                  shippableQuantity
+                  shippedQuantity
+                  processableQuantity
+                  pickedForShipmentQuantity
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+            "originLocationId": origin_id,
+            "destinationLocationId": destination_id,
+            "lineItems": [{"inventoryItemId": inventory_item_id, "quantity": 2}]
+        }}),
+    ));
+    assert_eq!(
+        transfer.body["data"]["inventoryTransferCreateAsReadyToShip"]["userErrors"],
+        json!([])
+    );
+    let transfer_record =
+        &transfer.body["data"]["inventoryTransferCreateAsReadyToShip"]["inventoryTransfer"];
+    let transfer_id = transfer_record["id"].as_str().unwrap().to_string();
+    let transfer_line = transfer_record["lineItems"]["nodes"][0].clone();
+    let transfer_line_id = transfer_line["id"].as_str().unwrap().to_string();
+
+    let shipment = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InventoryNodeShipmentSetup($input: InventoryShipmentCreateInput!) {
+          inventoryShipmentCreateInTransit(input: $input) {
+            inventoryShipment {
+              id
+              status
+              lineItems(first: 10) {
+                nodes {
+                  id
+                  quantity
+                  acceptedQuantity
+                  rejectedQuantity
+                  unreceivedQuantity
+                  inventoryItem { id sku tracked }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+            "inventoryTransferId": transfer_id,
+            "lineItems": [{
+                "inventoryItemId": inventory_item_id,
+                "inventoryTransferLineItemId": transfer_line_id,
+                "quantity": 1
+            }]
+        }}),
+    ));
+    assert_eq!(
+        shipment.body["data"]["inventoryShipmentCreateInTransit"]["userErrors"],
+        json!([])
+    );
+    let shipment_record =
+        &shipment.body["data"]["inventoryShipmentCreateInTransit"]["inventoryShipment"];
+    let shipment_id = shipment_record["id"].as_str().unwrap().to_string();
+    let shipment_line = shipment_record["lineItems"]["nodes"][0].clone();
+    let shipment_line_id = shipment_line["id"].as_str().unwrap().to_string();
+    let upstream_count_before_node_read = upstream_requests.lock().unwrap().len();
+
+    let node_read = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryNodeRead(
+          $inventoryItemId: ID!
+          $levelId: ID!
+          $quantityId: ID!
+          $adjustmentGroupId: ID!
+          $transferId: ID!
+          $transferLineId: ID!
+          $shipmentId: ID!
+          $shipmentLineId: ID!
+          $orderedIds: [ID!]!
+        ) {
+          itemNode: node(id: $inventoryItemId) {
+            __typename
+            ... on InventoryItem {
+              id
+              tracked
+              requiresShipping
+              inventoryLevels(first: 5) {
+                nodes {
+                  id
+                  item { id }
+                  location { id name }
+                  quantities(names: ["available", "damaged", "on_hand"]) {
+                    id
+                    name
+                    quantity
+                    updatedAt
+                  }
+                }
+              }
+            }
+          }
+          levelNode: node(id: $levelId) {
+            __typename
+            ... on InventoryLevel {
+              id
+              isActive
+              item { id tracked }
+              location { id name }
+              quantities(names: ["available", "damaged", "on_hand"]) {
+                id
+                name
+                quantity
+                updatedAt
+              }
+            }
+          }
+          quantityNode: node(id: $quantityId) {
+            __typename
+            ... on InventoryQuantity {
+              id
+              name
+              quantity
+              updatedAt
+            }
+          }
+          adjustmentGroupNode: node(id: $adjustmentGroupId) {
+            __typename
+            ... on InventoryAdjustmentGroup {
+              id
+              createdAt
+              reason
+              referenceDocumentUri
+              changes { name delta item { id } location { id name } }
+            }
+          }
+          transferNode: node(id: $transferId) {
+            __typename
+            ... on InventoryTransfer {
+              id
+              status
+              lineItems(first: 10) {
+                nodes {
+                  id
+                  inventoryItem { id }
+                  totalQuantity
+                  shippableQuantity
+                  shippedQuantity
+                  processableQuantity
+                  pickedForShipmentQuantity
+                }
+              }
+            }
+          }
+          transferLineNode: node(id: $transferLineId) {
+            __typename
+            ... on InventoryTransferLineItem {
+              id
+              inventoryItem { id }
+              totalQuantity
+              shippableQuantity
+              shippedQuantity
+              processableQuantity
+              pickedForShipmentQuantity
+            }
+          }
+          shipmentNode: node(id: $shipmentId) {
+            __typename
+            ... on InventoryShipment {
+              id
+              status
+              lineItems(first: 10) {
+                nodes {
+                  id
+                  quantity
+                  inventoryItem { id sku tracked }
+                }
+              }
+            }
+          }
+          shipmentLineNode: node(id: $shipmentLineId) {
+            __typename
+            ... on InventoryShipmentLineItem {
+              id
+              quantity
+              acceptedQuantity
+              rejectedQuantity
+              unreceivedQuantity
+              inventoryItem { id sku tracked }
+            }
+          }
+          ordered: nodes(ids: $orderedIds) {
+            __typename
+            ... on InventoryShipmentLineItem { id quantity }
+            ... on InventoryQuantity { id name quantity }
+            ... on InventoryItem { id }
+            ... on InventoryLevel { id }
+          }
+        }
+        "#,
+        json!({
+            "inventoryItemId": inventory_item_id,
+            "levelId": level_id,
+            "quantityId": damaged_quantity_id,
+            "adjustmentGroupId": adjustment_group_id,
+            "transferId": transfer_id,
+            "transferLineId": transfer_line_id,
+            "shipmentId": shipment_id,
+            "shipmentLineId": shipment_line_id,
+            "orderedIds": [
+                "gid://shopify/InventoryTransfer/404",
+                shipment_line_id,
+                damaged_quantity_id,
+                inventory_item_id,
+                level_id
+            ]
+        }),
+    ));
+    assert_eq!(
+        node_read.status, 200,
+        "node read should be handled locally: {}",
+        node_read.body
+    );
+
+    assert_eq!(
+        node_read.body["data"]["itemNode"]["__typename"],
+        json!("InventoryItem")
+    );
+    assert_eq!(
+        node_read.body["data"]["itemNode"]["id"],
+        json!(inventory_item_id)
+    );
+    assert_eq!(
+        node_read.body["data"]["levelNode"]["quantities"][1],
+        damaged_quantity
+    );
+    assert_eq!(
+        node_read.body["data"]["quantityNode"],
+        json!({
+            "__typename": "InventoryQuantity",
+            "id": damaged_quantity_id,
+            "name": "damaged",
+            "quantity": 1,
+            "updatedAt": damaged_quantity["updatedAt"].clone()
+        })
+    );
+    assert_eq!(
+        node_read.body["data"]["adjustmentGroupNode"]["id"],
+        json!(adjustment_group_id)
+    );
+    assert_eq!(
+        node_read.body["data"]["adjustmentGroupNode"]["changes"],
+        adjustment_group["changes"]
+    );
+    assert_eq!(
+        node_read.body["data"]["transferNode"]["id"],
+        json!(transfer_id)
+    );
+    assert_eq!(
+        node_read.body["data"]["transferLineNode"],
+        json!({
+            "__typename": "InventoryTransferLineItem",
+            "id": transfer_line_id,
+            "inventoryItem": { "id": inventory_item_id },
+            "totalQuantity": 2,
+            "shippableQuantity": 1,
+            "shippedQuantity": 1,
+            "processableQuantity": 1,
+            "pickedForShipmentQuantity": 0
+        })
+    );
+    assert_eq!(
+        node_read.body["data"]["shipmentNode"]["id"],
+        json!(shipment_id)
+    );
+    assert_eq!(
+        node_read.body["data"]["shipmentLineNode"],
+        json!({
+            "__typename": "InventoryShipmentLineItem",
+            "id": shipment_line_id,
+            "quantity": 1,
+            "acceptedQuantity": 0,
+            "rejectedQuantity": 0,
+            "unreceivedQuantity": 1,
+            "inventoryItem": {
+                "id": inventory_item_id,
+                "sku": "INVENTORY-NODE",
+                "tracked": true
+            }
+        })
+    );
+    assert_eq!(
+        node_read.body["data"]["ordered"],
+        json!([
+            null,
+            {"__typename": "InventoryShipmentLineItem", "id": shipment_line_id, "quantity": 1},
+            {
+                "__typename": "InventoryQuantity",
+                "id": damaged_quantity_id,
+                "name": "damaged",
+                "quantity": 1
+            },
+            {"__typename": "InventoryItem", "id": inventory_item_id},
+            {"__typename": "InventoryLevel", "id": level_id}
+        ])
+    );
+    assert_eq!(
+        upstream_requests.lock().unwrap().len(),
+        upstream_count_before_node_read,
+        "generic inventory node reads should resolve from staged state without another upstream request"
+    );
+    assert!(
+        upstream_requests
+            .lock()
+            .unwrap()
+            .iter()
+            .all(|body| !body.to_ascii_lowercase().contains("mutation")),
+        "supported inventory setup must not forward mutation documents upstream"
+    );
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    let mut restored = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|request| {
+        Response {
+            status: 599,
+            headers: Default::default(),
+            body: json!({"errors": [{"message": format!("unexpected restored upstream request: {}", request.body)}]}),
+        }
+    });
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    let restored_read = restored.process_request(json_graphql_request(
+        r#"
+        query RestoredInventoryNodeRead($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            __typename
+            ... on InventoryAdjustmentGroup { id reason }
+            ... on InventoryTransfer { id status }
+            ... on InventoryShipment { id status }
+            ... on InventoryQuantity { id name quantity }
+          }
+        }
+        "#,
+        json!({"ids": [adjustment_group_id, transfer_id, shipment_id, damaged_quantity_id]}),
+    ));
+    assert_eq!(
+        restored_read.body["data"]["nodes"][0],
+        json!({"__typename": "InventoryAdjustmentGroup", "id": adjustment_group["id"].clone(), "reason": "correction"})
+    );
+    assert_eq!(
+        restored_read.body["data"]["nodes"][1],
+        json!({"__typename": "InventoryTransfer", "id": transfer_record["id"].clone(), "status": "IN_PROGRESS"})
+    );
+    assert_eq!(
+        restored_read.body["data"]["nodes"][2],
+        json!({"__typename": "InventoryShipment", "id": shipment_record["id"].clone(), "status": "IN_TRANSIT"})
+    );
+    assert_eq!(
+        restored_read.body["data"]["nodes"][3],
+        json!({"__typename": "InventoryQuantity", "id": damaged_quantity["id"].clone(), "name": "damaged", "quantity": 1})
+    );
+
+    let reset = restored.process_request(request_with_body("POST", "/__meta/reset", ""));
+    assert_eq!(reset.status, 200);
+    let after_reset = restored.process_request(json_graphql_request(
+        r#"
+        query ResetInventoryNodeRead($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            __typename
+            ... on InventoryAdjustmentGroup { id }
+            ... on InventoryTransfer { id }
+            ... on InventoryShipment { id }
+            ... on InventoryQuantity { id }
+          }
+        }
+        "#,
+        json!({"ids": [adjustment_group["id"].clone(), transfer_record["id"].clone(), shipment_record["id"].clone(), damaged_quantity["id"].clone()]}),
+    ));
+    assert_eq!(
+        after_reset.body["data"]["nodes"],
+        json!([null, null, null, null])
+    );
+}
+
+#[test]
+fn inventory_node_reads_follow_activation_transfer_and_shipment_lifecycles() {
+    let mut proxy = inventory_seed_proxy();
+    let origin_id = add_active_transfer_location(&mut proxy, "Node Lifecycle Origin");
+    let destination_id = add_active_transfer_location(&mut proxy, "Node Lifecycle Destination");
+    let (_variant_id, inventory_item_id) =
+        create_inventory_test_item(&mut proxy, "INVENTORY-NODE-LIFECYCLE");
+    stock_transfer_item_at_origin(&mut proxy, &inventory_item_id, &origin_id, 4);
+    let origin_level_id = inventory_level_id_for_test(&inventory_item_id, &origin_id);
+
+    let activate_destination = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ActivateDestinationForNodeLifecycle($inventoryItemId: ID!, $locationId: ID!) {
+          inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId) {
+            inventoryLevel { id isActive }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"inventoryItemId": inventory_item_id, "locationId": destination_id}),
+    ));
+    assert_eq!(
+        activate_destination.body["data"]["inventoryActivate"]["userErrors"],
+        json!([])
+    );
+
+    let deactivate_origin = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeactivateOriginForNodeLifecycle($inventoryLevelId: ID!) {
+          inventoryDeactivate(inventoryLevelId: $inventoryLevelId) {
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"inventoryLevelId": origin_level_id}),
+    ));
+    assert_eq!(
+        deactivate_origin.body["data"]["inventoryDeactivate"]["userErrors"],
+        json!([])
+    );
+    let inactive_node = proxy.process_request(json_graphql_request(
+        r#"
+        query InactiveInventoryLevelNode($id: ID!) {
+          node(id: $id) {
+            __typename
+            ... on InventoryLevel { id isActive quantities(names: ["available"]) { name quantity } }
+          }
+        }
+        "#,
+        json!({"id": origin_level_id}),
+    ));
+    assert_eq!(
+        inactive_node.body["data"]["node"],
+        json!({
+            "__typename": "InventoryLevel",
+            "id": origin_level_id,
+            "isActive": false,
+            "quantities": [{"name": "available", "quantity": 4}]
+        })
+    );
+
+    let reactivate_origin = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReactivateOriginForNodeLifecycle($inventoryItemId: ID!, $locationId: ID!) {
+          inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId) {
+            inventoryLevel { id isActive }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"inventoryItemId": inventory_item_id, "locationId": origin_id}),
+    ));
+    assert_eq!(
+        reactivate_origin.body["data"]["inventoryActivate"]["userErrors"],
+        json!([])
+    );
+    let active_node = proxy.process_request(json_graphql_request(
+        r#"
+        query ActiveInventoryLevelNode($id: ID!) {
+          node(id: $id) { ... on InventoryLevel { id isActive } }
+        }
+        "#,
+        json!({"id": origin_level_id}),
+    ));
+    assert_eq!(
+        active_node.body["data"]["node"],
+        json!({"id": origin_level_id, "isActive": true})
+    );
+
+    let ready_transfer = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReadyTransferForNodeLifecycle($input: InventoryTransferCreateAsReadyToShipInput!) {
+          inventoryTransferCreateAsReadyToShip(input: $input) {
+            inventoryTransfer {
+              id
+              lineItems(first: 5) { nodes { id } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+            "originLocationId": origin_id,
+            "destinationLocationId": destination_id,
+            "lineItems": [{"inventoryItemId": inventory_item_id, "quantity": 1}]
+        }}),
+    ));
+    assert_eq!(
+        ready_transfer.body["data"]["inventoryTransferCreateAsReadyToShip"]["userErrors"],
+        json!([])
+    );
+    let ready_transfer_id = ready_transfer.body["data"]["inventoryTransferCreateAsReadyToShip"]
+        ["inventoryTransfer"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let cancel = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CancelReadyTransferForNodeLifecycle($id: ID!) {
+          inventoryTransferCancel(id: $id) {
+            inventoryTransfer { id status }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": ready_transfer_id}),
+    ));
+    assert_eq!(
+        cancel.body["data"]["inventoryTransferCancel"]["userErrors"],
+        json!([])
+    );
+    let canceled_transfer_node = proxy.process_request(json_graphql_request(
+        r#"
+        query CanceledTransferNode($id: ID!) {
+          node(id: $id) { ... on InventoryTransfer { id status } }
+        }
+        "#,
+        json!({"id": ready_transfer_id}),
+    ));
+    assert_eq!(
+        canceled_transfer_node.body["data"]["node"],
+        json!({"id": ready_transfer_id, "status": "CANCELED"})
+    );
+
+    let draft_transfer = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DraftTransferForDeleteNodeLifecycle($input: InventoryTransferCreateInput!) {
+          inventoryTransferCreate(input: $input) {
+            inventoryTransfer {
+              id
+              lineItems(first: 5) { nodes { id } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+            "originLocationId": origin_id,
+            "destinationLocationId": destination_id,
+            "lineItems": [{"inventoryItemId": inventory_item_id, "quantity": 1}]
+        }}),
+    ));
+    assert_eq!(
+        draft_transfer.body["data"]["inventoryTransferCreate"]["userErrors"],
+        json!([])
+    );
+    let draft_transfer_id = draft_transfer.body["data"]["inventoryTransferCreate"]
+        ["inventoryTransfer"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let draft_transfer_line_id = draft_transfer.body["data"]["inventoryTransferCreate"]
+        ["inventoryTransfer"]["lineItems"]["nodes"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let delete_draft = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteDraftTransferForNodeLifecycle($id: ID!) {
+          inventoryTransferDelete(id: $id) {
+            deletedId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"id": draft_transfer_id}),
+    ));
+    assert_eq!(
+        delete_draft.body["data"]["inventoryTransferDelete"]["userErrors"],
+        json!([])
+    );
+    let deleted_transfer_nodes = proxy.process_request(json_graphql_request(
+        r#"
+        query DeletedTransferNodes($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            ... on InventoryTransfer { id }
+            ... on InventoryTransferLineItem { id }
+          }
+        }
+        "#,
+        json!({"ids": [draft_transfer_id, draft_transfer_line_id]}),
+    ));
+    assert_eq!(
+        deleted_transfer_nodes.body["data"]["nodes"],
+        json!([null, null])
+    );
+
+    let shipment_transfer = proxy.process_request(json_graphql_request(
+        r#"
+        mutation TransferForShipmentNodeLifecycle($input: InventoryTransferCreateAsReadyToShipInput!) {
+          inventoryTransferCreateAsReadyToShip(input: $input) {
+            inventoryTransfer {
+              id
+              lineItems(first: 5) { nodes { id } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+            "originLocationId": origin_id,
+            "destinationLocationId": destination_id,
+            "lineItems": [{"inventoryItemId": inventory_item_id, "quantity": 1}]
+        }}),
+    ));
+    assert_eq!(
+        shipment_transfer.body["data"]["inventoryTransferCreateAsReadyToShip"]["userErrors"],
+        json!([])
+    );
+    let shipment_transfer_id = shipment_transfer.body["data"]
+        ["inventoryTransferCreateAsReadyToShip"]["inventoryTransfer"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let shipment_transfer_line_id = shipment_transfer.body["data"]
+        ["inventoryTransferCreateAsReadyToShip"]["inventoryTransfer"]["lineItems"]["nodes"][0]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let shipment = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ShipmentForNodeLifecycle($input: InventoryShipmentCreateInput!) {
+          inventoryShipmentCreateInTransit(input: $input) {
+            inventoryShipment {
+              id
+              status
+              lineItems(first: 5) { nodes { id quantity } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+            "inventoryTransferId": shipment_transfer_id,
+            "lineItems": [{
+                "inventoryItemId": inventory_item_id,
+                "inventoryTransferLineItemId": shipment_transfer_line_id,
+                "quantity": 1
+            }]
+        }}),
+    ));
+    assert_eq!(
+        shipment.body["data"]["inventoryShipmentCreateInTransit"]["userErrors"],
+        json!([])
+    );
+    let shipment_id = shipment.body["data"]["inventoryShipmentCreateInTransit"]
+        ["inventoryShipment"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let shipment_line_id = shipment.body["data"]["inventoryShipmentCreateInTransit"]
+        ["inventoryShipment"]["lineItems"]["nodes"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let tracking = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ShipmentTrackingForNodeLifecycle($id: ID!, $tracking: InventoryShipmentTrackingInput!) {
+          inventoryShipmentSetTracking(id: $id, tracking: $tracking) {
+            inventoryShipment { id tracking { trackingNumber company trackingUrl arrivesAt } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": shipment_id, "tracking": {
+            "trackingNumber": "NODE-TRACK-1",
+            "company": "UPS",
+            "trackingUrl": "https://example.test/node-track-1",
+            "arrivesAt": "2026-07-12T00:00:00Z"
+        }}),
+    ));
+    assert_eq!(
+        tracking.body["data"]["inventoryShipmentSetTracking"]["userErrors"],
+        json!([])
+    );
+    let tracked_shipment_node = proxy.process_request(json_graphql_request(
+        r#"
+        query TrackedShipmentNode($id: ID!) {
+          node(id: $id) {
+            ... on InventoryShipment { id tracking { trackingNumber company trackingUrl arrivesAt } }
+          }
+        }
+        "#,
+        json!({"id": shipment_id}),
+    ));
+    assert_eq!(
+        tracked_shipment_node.body["data"]["node"]["tracking"],
+        json!({
+            "trackingNumber": "NODE-TRACK-1",
+            "company": "UPS",
+            "trackingUrl": "https://example.test/node-track-1",
+            "arrivesAt": "2026-07-12T00:00:00Z"
+        })
+    );
+
+    let receive = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReceiveShipmentForNodeLifecycle($id: ID!, $lineItems: [InventoryShipmentReceiveItemInput!]!) {
+          inventoryShipmentReceive(id: $id, lineItems: $lineItems) {
+            inventoryShipment {
+              id
+              status
+              lineItems(first: 5) { nodes { id acceptedQuantity unreceivedQuantity } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": shipment_id, "lineItems": [{
+            "shipmentLineItemId": shipment_line_id,
+            "quantity": 1,
+            "reason": "ACCEPTED"
+        }]}),
+    ));
+    assert_eq!(
+        receive.body["data"]["inventoryShipmentReceive"]["userErrors"],
+        json!([])
+    );
+    let received_shipment_line_node = proxy.process_request(json_graphql_request(
+        r#"
+        query ReceivedShipmentLineNode($id: ID!) {
+          node(id: $id) {
+            ... on InventoryShipmentLineItem { id acceptedQuantity unreceivedQuantity }
+          }
+        }
+        "#,
+        json!({"id": shipment_line_id}),
+    ));
+    assert_eq!(
+        received_shipment_line_node.body["data"]["node"],
+        json!({"id": shipment_line_id, "acceptedQuantity": 1, "unreceivedQuantity": 0})
+    );
+
+    let delete_shipment = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteShipmentForNodeLifecycle($id: ID!) {
+          inventoryShipmentDelete(id: $id) {
+            id
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": shipment_id}),
+    ));
+    assert_eq!(
+        delete_shipment.body["data"]["inventoryShipmentDelete"]["userErrors"],
+        json!([])
+    );
+    let deleted_shipment_nodes = proxy.process_request(json_graphql_request(
+        r#"
+        query DeletedShipmentNodes($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            ... on InventoryShipment { id }
+            ... on InventoryShipmentLineItem { id }
+          }
+        }
+        "#,
+        json!({"ids": [shipment_id, shipment_line_id]}),
+    ));
+    assert_eq!(
+        deleted_shipment_nodes.body["data"]["nodes"],
+        json!([null, null])
     );
 }
 

@@ -109,6 +109,16 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
         NodeResolverBehavior::ProjectLocalRecord,
     ),
     entry(
+        "Customer",
+        "DraftProxy::customer_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "CustomerPaymentMethod",
+        "DraftProxy::customer_payment_method_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
         "CustomerSegmentMembersQuery",
         "DraftProxy::local_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
@@ -140,12 +150,67 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
     ),
     entry(
         "GiftCard",
-        "DraftProxy::local_node_value_by_id",
+        "DraftProxy::gift_card_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "GiftCardCreditTransaction",
+        "DraftProxy::gift_card_transaction_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "GiftCardDebitTransaction",
+        "DraftProxy::gift_card_transaction_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "InventoryAdjustmentGroup",
+        "DraftProxy::inventory_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "InventoryItem",
+        "DraftProxy::inventory_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "InventoryLevel",
+        "DraftProxy::inventory_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "InventoryQuantity",
+        "DraftProxy::inventory_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "InventoryShipment",
+        "DraftProxy::inventory_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "InventoryShipmentLineItem",
+        "DraftProxy::inventory_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "InventoryTransfer",
+        "DraftProxy::inventory_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "InventoryTransferLineItem",
+        "DraftProxy::inventory_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
     ),
     entry(
         "Location",
         "DraftProxy::local_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "MailingAddress",
+        "DraftProxy::customer_address_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
     ),
     entry(
@@ -227,6 +292,31 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
         "ShopifyPaymentsDispute",
         "local_node_value::is_safe_no_data_node_gid",
         NodeResolverBehavior::ReturnKnownNull,
+    ),
+    entry(
+        "StoreCreditAccount",
+        "DraftProxy::store_credit_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "StoreCreditAccountCreditTransaction",
+        "DraftProxy::store_credit_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "StoreCreditAccountDebitRevertTransaction",
+        "DraftProxy::store_credit_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "StoreCreditAccountDebitTransaction",
+        "DraftProxy::store_credit_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "StoreCreditAccountTransaction",
+        "DraftProxy::store_credit_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
     ),
     entry(
         "TaxAppConfiguration",
