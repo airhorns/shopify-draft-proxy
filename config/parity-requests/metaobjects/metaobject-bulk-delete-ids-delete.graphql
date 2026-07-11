@@ -1,0 +1,15 @@
+mutation MetaobjectBulkDeleteByIds($ids: [ID!]!) {
+  metaobjectBulkDelete(where: { ids: $ids }) {
+    job {
+      id
+      done
+    }
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
+    }
+  }
+}

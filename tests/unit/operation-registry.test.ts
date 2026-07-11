@@ -164,9 +164,9 @@ describe('operation registry', () => {
     expect(adminMutationCoverageAudit()).toEqual({
       capturedMutationCount: 514,
       registeredMutationCount: 438,
-      implementedMutationCount: 409,
+      implementedMutationCount: 410,
       implementedMutationRuntimeTestEvidence: {
-        withRuntimeTests: 134,
+        withRuntimeTests: 135,
         withoutRuntimeTests: 275,
       },
       declaredUnimplemented: [
@@ -180,7 +180,6 @@ describe('operation registry', () => {
         'menuCreate',
         'menuDelete',
         'menuUpdate',
-        'metaobjectBulkDelete',
         'mobilePlatformApplicationDelete',
         'orderRiskAssessmentCreate',
         'privacyFeaturesDisable',
@@ -290,9 +289,9 @@ describe('operation registry', () => {
   it('audits captured Shopify Node implementors against the explicit Rust resolver inventory', () => {
     expect(nodeResolverCoverageAudit()).toEqual({
       capturedNodeImplementorCount: 203,
-      localNodeResolverTypeCount: 66,
+      localNodeResolverTypeCount: 76,
       localResolverBehaviorCounts: {
-        projectLocalRecord: 63,
+        projectLocalRecord: 73,
         returnKnownNull: 3,
       },
       unsupported: [
@@ -325,10 +324,8 @@ describe('operation registry', () => {
         'CompanyLocationStaffMemberAssignment',
         'ConsentPolicy',
         'CurrencyExchangeAdjustment',
-        'Customer',
         'CustomerAccountAppExtensionPage',
         'CustomerAccountNativePage',
-        'CustomerPaymentMethod',
         'CustomerVisit',
         'DeliveryCarrierService',
         'DeliveryCondition',
@@ -357,12 +354,9 @@ describe('operation registry', () => {
         'ExchangeV2',
         'FulfillmentOrderDestination',
         'FulfillmentOrderMerchantRequest',
-        'GiftCardCreditTransaction',
-        'GiftCardDebitTransaction',
         'InventoryItemMeasurement',
         'LineItem',
         'LineItemGroup',
-        'MailingAddress',
         'Market',
         'MarketCatalog',
         'MarketingActivity',
@@ -415,10 +409,6 @@ describe('operation registry', () => {
         'ShopifyPaymentsPayout',
         'StaffMember',
         'StandardMetafieldDefinitionTemplate',
-        'StoreCreditAccount',
-        'StoreCreditAccountCreditTransaction',
-        'StoreCreditAccountDebitRevertTransaction',
-        'StoreCreditAccountDebitTransaction',
         'StorefrontAccessToken',
         'SubscriptionBillingAttempt',
         'SubscriptionContract',
@@ -435,7 +425,7 @@ describe('operation registry', () => {
         'WebhookSubscription',
         'WebPixel',
       ],
-      localInventoryNotInCapturedNodeInterface: ['TaxAppConfiguration'],
+      localInventoryNotInCapturedNodeInterface: ['StoreCreditAccountTransaction', 'TaxAppConfiguration'],
     });
   });
 });
