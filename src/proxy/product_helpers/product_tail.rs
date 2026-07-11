@@ -1635,19 +1635,6 @@ fn feedback_generated_at_is_future(generated_at: &str) -> bool {
     generated_at > now.as_secs() as i64
 }
 
-fn app_granted_access_scopes(request: &Request) -> Vec<String> {
-    request_header(request, "x-shopify-draft-proxy-access-scopes")
-        .map(|header| {
-            header
-                .split(',')
-                .map(str::trim)
-                .filter(|scope| !scope.is_empty())
-                .map(str::to_string)
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
 fn resource_feedback_scope_is_explicitly_missing(request: &Request) -> bool {
     request_header(request, ACCESS_SCOPES_HEADER).is_some()
         && !app_access_scope_handles(&current_app_installation_from_request(request))

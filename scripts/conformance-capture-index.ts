@@ -10064,6 +10064,30 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'functions',
+    captureId: 'functions-live-hybrid-overlay',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-functions-live-hybrid-overlay-conformance.ts',
+    purpose:
+      'LiveHybrid Functions overlay evidence that one locally staged validation lifecycle preserves unrelated upstream/base validations, cart transforms, and ShopifyFunction metadata.',
+    requiredAuthScopes: [
+      'shopifyFunctions read access',
+      'read_validations',
+      'write_validations for disposable validation create/delete lifecycle capture',
+      'read_cart_transforms',
+      'write_cart_transforms for disposable cart transform create/delete lifecycle capture',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}functions-live-hybrid-overlay-read.json`,
+      'config/parity-specs/functions/functions-live-hybrid-overlay-read.json',
+      'config/parity-requests/functions/functions-live-hybrid-overlay-stage.graphql',
+      'config/parity-requests/functions/functions-live-hybrid-overlay-read.graphql',
+    ],
+    cleanupBehavior:
+      'Deletes disposable validations and cart transforms for the released conformance Functions before capture, creates one base validation and one base cart transform, records upstream hydrate cassettes, creates one later validation lifecycle, captures downstream overlay reads, then deletes created resources.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'functions',
     captureId: 'functions-non-catalog-hydrate',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-functions-non-catalog-hydrate-conformance.ts',

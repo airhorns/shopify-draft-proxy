@@ -279,6 +279,18 @@ struct BaseState {
     available_locales: BTreeMap<String, String>,
     shop_locales: BTreeMap<String, Value>,
     localization_product_ids: BTreeSet<String>,
+    function_metadata: BTreeMap<String, Value>,
+    function_metadata_order: Vec<String>,
+    function_metadata_catalog_hydrated: bool,
+    function_metadata_hydrated_api_types: BTreeSet<String>,
+    function_validations: BTreeMap<String, Value>,
+    function_validation_order: Vec<String>,
+    function_validations_catalog_hydrated: bool,
+    function_cart_transforms: BTreeMap<String, Value>,
+    function_cart_transform_order: Vec<String>,
+    function_cart_transforms_catalog_hydrated: bool,
+    function_fulfillment_constraint_rules: BTreeMap<String, Value>,
+    function_fulfillment_constraint_rule_order: Vec<String>,
 }
 
 type MetafieldDefinitionKey = (String, String, String);
@@ -489,11 +501,17 @@ struct StagedState {
     function_metadata_order: Vec<String>,
     function_validations: BTreeMap<String, Value>,
     function_validation_order: Vec<String>,
+    deleted_function_validation_ids: BTreeSet<String>,
     function_cart_transforms: BTreeMap<String, Value>,
     function_cart_transform_order: Vec<String>,
+    deleted_function_cart_transform_ids: BTreeSet<String>,
     function_fulfillment_constraint_rules: BTreeMap<String, Value>,
     function_fulfillment_constraint_rule_order: Vec<String>,
+    deleted_function_fulfillment_constraint_rule_ids: BTreeSet<String>,
     tax_app_configuration: Option<Value>,
+    function_validations_dirty: bool,
+    function_cart_transforms_dirty: bool,
+    function_fulfillment_constraint_rules_dirty: bool,
     // True once any function lifecycle (validation / cart-transform) has been
     // staged this session. Distinguishes a post-delete local read (serve the
     // empty local result) from a cold read with no local backing (forward to

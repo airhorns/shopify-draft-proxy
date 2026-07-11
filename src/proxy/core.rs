@@ -338,6 +338,64 @@ impl DraftProxy {
                 "deletedOwnerMetafields": deleted_owner_metafields
             }
         });
+        if !self.store.base.function_metadata.is_empty() {
+            snapshot["baseState"]["functionMetadata"] =
+                json!(self.store.base.function_metadata.clone());
+            snapshot["baseState"]["functionMetadataOrder"] =
+                json!(self.store.base.function_metadata_order.clone());
+        }
+        if self.store.base.function_metadata_catalog_hydrated {
+            snapshot["baseState"]["functionMetadataCatalogHydrated"] = json!(true);
+        }
+        if !self
+            .store
+            .base
+            .function_metadata_hydrated_api_types
+            .is_empty()
+        {
+            snapshot["baseState"]["functionMetadataHydratedApiTypes"] = json!(self
+                .store
+                .base
+                .function_metadata_hydrated_api_types
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
+        if !self.store.base.function_validations.is_empty() {
+            snapshot["baseState"]["functionValidations"] =
+                json!(self.store.base.function_validations.clone());
+            snapshot["baseState"]["functionValidationOrder"] =
+                json!(self.store.base.function_validation_order.clone());
+        }
+        if self.store.base.function_validations_catalog_hydrated {
+            snapshot["baseState"]["functionValidationsCatalogHydrated"] = json!(true);
+        }
+        if !self.store.base.function_cart_transforms.is_empty() {
+            snapshot["baseState"]["functionCartTransforms"] =
+                json!(self.store.base.function_cart_transforms.clone());
+            snapshot["baseState"]["functionCartTransformOrder"] =
+                json!(self.store.base.function_cart_transform_order.clone());
+        }
+        if self.store.base.function_cart_transforms_catalog_hydrated {
+            snapshot["baseState"]["functionCartTransformsCatalogHydrated"] = json!(true);
+        }
+        if !self
+            .store
+            .base
+            .function_fulfillment_constraint_rules
+            .is_empty()
+        {
+            snapshot["baseState"]["functionFulfillmentConstraintRules"] = json!(self
+                .store
+                .base
+                .function_fulfillment_constraint_rules
+                .clone());
+            snapshot["baseState"]["functionFulfillmentConstraintRuleOrder"] = json!(self
+                .store
+                .base
+                .function_fulfillment_constraint_rule_order
+                .clone());
+        }
         if !self.store.staged.media_ready_on_read.is_empty() {
             snapshot["stagedState"]["mediaReadyOnReadIds"] = json!(self
                 .store
@@ -738,6 +796,47 @@ impl DraftProxy {
             snapshot["stagedState"]["functionMetadataOrder"] =
                 json!(self.store.staged.function_metadata_order.clone());
         }
+        if !self.store.staged.function_validations.is_empty() {
+            snapshot["stagedState"]["functionValidations"] =
+                json!(self.store.staged.function_validations.clone());
+            snapshot["stagedState"]["functionValidationOrder"] =
+                json!(self.store.staged.function_validation_order.clone());
+        }
+        if !self.store.staged.deleted_function_validation_ids.is_empty() {
+            snapshot["stagedState"]["deletedFunctionValidationIds"] = json!(self
+                .store
+                .staged
+                .deleted_function_validation_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
+        if self.store.staged.function_validations_dirty {
+            snapshot["stagedState"]["functionValidationsDirty"] = json!(true);
+        }
+        if !self.store.staged.function_cart_transforms.is_empty() {
+            snapshot["stagedState"]["functionCartTransforms"] =
+                json!(self.store.staged.function_cart_transforms.clone());
+            snapshot["stagedState"]["functionCartTransformOrder"] =
+                json!(self.store.staged.function_cart_transform_order.clone());
+        }
+        if !self
+            .store
+            .staged
+            .deleted_function_cart_transform_ids
+            .is_empty()
+        {
+            snapshot["stagedState"]["deletedFunctionCartTransformIds"] = json!(self
+                .store
+                .staged
+                .deleted_function_cart_transform_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
+        if self.store.staged.function_cart_transforms_dirty {
+            snapshot["stagedState"]["functionCartTransformsDirty"] = json!(true);
+        }
         if self.store.staged.functions_dirty {
             snapshot["stagedState"]["functionsDirty"] = json!(true);
         }
@@ -757,6 +856,27 @@ impl DraftProxy {
                 .staged
                 .function_fulfillment_constraint_rule_order
                 .clone());
+        }
+        if !self
+            .store
+            .staged
+            .deleted_function_fulfillment_constraint_rule_ids
+            .is_empty()
+        {
+            snapshot["stagedState"]["deletedFunctionFulfillmentConstraintRuleIds"] = json!(self
+                .store
+                .staged
+                .deleted_function_fulfillment_constraint_rule_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
+        if self
+            .store
+            .staged
+            .function_fulfillment_constraint_rules_dirty
+        {
+            snapshot["stagedState"]["functionFulfillmentConstraintRulesDirty"] = json!(true);
         }
         if let Some(configuration) = &self.store.staged.tax_app_configuration {
             snapshot["stagedState"]["taxAppConfiguration"] = configuration.clone();
@@ -1122,6 +1242,65 @@ impl DraftProxy {
             .unwrap_or_default()
             .into_iter()
             .collect();
+        self.store.base.function_metadata =
+            value_map_from_json(state["baseState"].get("functionMetadata"));
+        self.store.base.function_metadata_order = state["baseState"]
+            .get("functionMetadataOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| self.store.base.function_metadata.keys().cloned().collect());
+        self.store.base.function_metadata_catalog_hydrated = state["baseState"]
+            ["functionMetadataCatalogHydrated"]
+            .as_bool()
+            .unwrap_or(false);
+        self.store.base.function_metadata_hydrated_api_types =
+            string_set_from_json(state["baseState"].get("functionMetadataHydratedApiTypes"));
+        self.store.base.function_validations =
+            value_map_from_json(state["baseState"].get("functionValidations"));
+        self.store.base.function_validation_order = state["baseState"]
+            .get("functionValidationOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| {
+                self.store
+                    .base
+                    .function_validations
+                    .keys()
+                    .cloned()
+                    .collect()
+            });
+        self.store.base.function_validations_catalog_hydrated = state["baseState"]
+            ["functionValidationsCatalogHydrated"]
+            .as_bool()
+            .unwrap_or(false);
+        self.store.base.function_cart_transforms =
+            value_map_from_json(state["baseState"].get("functionCartTransforms"));
+        self.store.base.function_cart_transform_order = state["baseState"]
+            .get("functionCartTransformOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| {
+                self.store
+                    .base
+                    .function_cart_transforms
+                    .keys()
+                    .cloned()
+                    .collect()
+            });
+        self.store.base.function_cart_transforms_catalog_hydrated = state["baseState"]
+            ["functionCartTransformsCatalogHydrated"]
+            .as_bool()
+            .unwrap_or(false);
+        self.store.base.function_fulfillment_constraint_rules =
+            value_map_from_json(state["baseState"].get("functionFulfillmentConstraintRules"));
+        self.store.base.function_fulfillment_constraint_rule_order = state["baseState"]
+            .get("functionFulfillmentConstraintRuleOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| {
+                self.store
+                    .base
+                    .function_fulfillment_constraint_rules
+                    .keys()
+                    .cloned()
+                    .collect()
+            });
         self.store.staged.publication_ids =
             string_array_from_json(&state["stagedState"]["publicationIds"])
                 .into_iter()
@@ -1733,6 +1912,44 @@ impl DraftProxy {
                     .cloned()
                     .collect()
             });
+        self.store.staged.function_validations =
+            value_map_from_json(state["stagedState"].get("functionValidations"));
+        self.store.staged.function_validation_order = state["stagedState"]
+            .get("functionValidationOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| {
+                self.store
+                    .staged
+                    .function_validations
+                    .keys()
+                    .cloned()
+                    .collect()
+            });
+        self.store.staged.deleted_function_validation_ids =
+            string_set_from_json(state["stagedState"].get("deletedFunctionValidationIds"));
+        self.store.staged.function_validations_dirty = state["stagedState"]
+            ["functionValidationsDirty"]
+            .as_bool()
+            .unwrap_or(false);
+        self.store.staged.function_cart_transforms =
+            value_map_from_json(state["stagedState"].get("functionCartTransforms"));
+        self.store.staged.function_cart_transform_order = state["stagedState"]
+            .get("functionCartTransformOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| {
+                self.store
+                    .staged
+                    .function_cart_transforms
+                    .keys()
+                    .cloned()
+                    .collect()
+            });
+        self.store.staged.deleted_function_cart_transform_ids =
+            string_set_from_json(state["stagedState"].get("deletedFunctionCartTransformIds"));
+        self.store.staged.function_cart_transforms_dirty = state["stagedState"]
+            ["functionCartTransformsDirty"]
+            .as_bool()
+            .unwrap_or(false);
         self.store.staged.functions_dirty = state["stagedState"]["functionsDirty"]
             .as_bool()
             .unwrap_or(false);
@@ -1749,6 +1966,17 @@ impl DraftProxy {
                     .cloned()
                     .collect()
             });
+        self.store
+            .staged
+            .deleted_function_fulfillment_constraint_rule_ids = string_set_from_json(
+            state["stagedState"].get("deletedFunctionFulfillmentConstraintRuleIds"),
+        );
+        self.store
+            .staged
+            .function_fulfillment_constraint_rules_dirty = state["stagedState"]
+            ["functionFulfillmentConstraintRulesDirty"]
+            .as_bool()
+            .unwrap_or(false);
         self.store.staged.tax_app_configuration = state["stagedState"]
             .get("taxAppConfiguration")
             .filter(|value| value.is_object())

@@ -5178,6 +5178,404 @@ fn functions_shopify_functions_without_api_type_returns_all_local_metadata_and_w
 }
 
 #[test]
+fn functions_live_hybrid_reads_merge_upstream_records_after_one_local_validation_lifecycle() {
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let hit_log = Arc::clone(&upstream_hits);
+    let upstream_validation_function = json!({
+        "id": "gid://shopify/ShopifyFunction/upstream-validation",
+        "title": "Upstream Validation Function",
+        "handle": "upstream-validation",
+        "apiType": "cart_checkout_validation",
+        "description": "Real validation function",
+        "appKey": "upstream-validation-key",
+        "app": {
+            "__typename": "App",
+            "id": "gid://shopify/App/upstream-validation-app",
+            "title": "Upstream Validation App",
+            "handle": "upstream-validation-app",
+            "apiKey": "upstream-validation-key"
+        }
+    });
+    let upstream_cart_function = json!({
+        "id": "gid://shopify/ShopifyFunction/upstream-cart",
+        "title": "Upstream Cart Function",
+        "handle": "upstream-cart",
+        "apiType": "cart_transform",
+        "description": "Real cart transform function",
+        "appKey": "upstream-cart-key",
+        "app": {
+            "__typename": "App",
+            "id": "gid://shopify/App/upstream-cart-app",
+            "title": "Upstream Cart App",
+            "handle": "upstream-cart-app",
+            "apiKey": "upstream-cart-key"
+        }
+    });
+    let upstream_validation = json!({
+        "id": "gid://shopify/Validation/upstream-validation",
+        "title": "Upstream validation",
+        "enabled": true,
+        "blockOnFailure": true,
+        "shopifyFunction": upstream_validation_function.clone(),
+        "metafields": { "nodes": [] }
+    });
+    let upstream_cart_transform = json!({
+        "id": "gid://shopify/CartTransform/upstream-cart-transform",
+        "functionId": "gid://shopify/ShopifyFunction/upstream-cart",
+        "blockOnFailure": false,
+        "metafield": {
+            "namespace": "bundles",
+            "key": "config",
+            "type": "json",
+            "value": "{\"mode\":\"upstream\"}",
+            "ownerType": "CARTTRANSFORM"
+        },
+        "metafields": {
+            "nodes": [{
+                "namespace": "bundles",
+                "key": "config",
+                "type": "json",
+                "value": "{\"mode\":\"upstream\"}",
+                "ownerType": "CARTTRANSFORM"
+            }]
+        }
+    });
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value =
+            serde_json::from_str(&request.body).expect("function overlay body should parse");
+        hit_log.lock().unwrap().push(body.clone());
+        let operation_name = body["operationName"].as_str().unwrap_or_default();
+        let query = body["query"].as_str().unwrap_or_default();
+        let response_body = match operation_name {
+            "FunctionHydrateByHandle" => {
+                let handle = body["variables"]["handle"].as_str().unwrap_or_default();
+                let nodes = test_function_metadata_by_id_or_handle(None, Some(handle))
+                    .into_iter()
+                    .collect::<Vec<_>>();
+                json!({ "data": { "shopifyFunctions": { "nodes": nodes } } })
+            }
+            "FunctionHydrateById" => {
+                let id = body["variables"]["id"].as_str().unwrap_or_default();
+                let function = [
+                    upstream_validation_function.clone(),
+                    upstream_cart_function.clone(),
+                ]
+                .into_iter()
+                .find(|function| function["id"].as_str() == Some(id))
+                .unwrap_or(Value::Null);
+                json!({ "data": { "shopifyFunction": function } })
+            }
+            _ if query.contains("validations") => json!({
+                "data": { "validations": { "nodes": [upstream_validation.clone()] } }
+            }),
+            _ if query.contains("cartTransforms") => json!({
+                "data": { "cartTransforms": { "nodes": [upstream_cart_transform.clone()] } }
+            }),
+            _ if query.contains("shopifyFunctions") => json!({
+                "data": {
+                    "shopifyFunctions": {
+                        "nodes": [
+                            upstream_validation_function.clone(),
+                            upstream_cart_function.clone()
+                        ]
+                    }
+                }
+            }),
+            _ if query.contains("shopifyFunction") => json!({
+                "data": { "shopifyFunction": upstream_cart_function.clone() }
+            }),
+            _ => json!({
+                "errors": [{
+                    "message": format!("unexpected function overlay upstream request: {body}")
+                }]
+            }),
+        };
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: response_body,
+        }
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageOnlyOneValidation {
+          validationCreate(validation: { functionHandle: "validation-local", title: "Local validation", enable: true }) {
+            validation { id title shopifyFunction { handle } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        create.body["data"]["validationCreate"]["userErrors"],
+        json!([])
+    );
+    let staged_validation_id = json_string(
+        &create.body["data"]["validationCreate"]["validation"]["id"],
+        "staged validation id",
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadFunctionsOverlayAfterValidationStage($stagedValidationId: ID!) {
+          stagedValidation: validation(id: $stagedValidationId) {
+            id
+            title
+            shopifyFunction { handle app { apiKey } }
+          }
+          baseValidation: validation(id: "gid://shopify/Validation/upstream-validation") {
+            id
+            title
+            shopifyFunction { handle app { apiKey } }
+          }
+          validations(first: 2, reverse: true) {
+            nodes { id title shopifyFunction { handle app { apiKey } } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          cartTransforms(first: 5) {
+            nodes {
+              id
+              functionId
+              blockOnFailure
+              metafield(namespace: "bundles", key: "config") { value ownerType }
+            }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          allFunctions: shopifyFunctions(first: 10) {
+            nodes { id handle apiType app { apiKey } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          cartFunctions: shopifyFunctions(first: 10, apiType: CART_TRANSFORM) {
+            nodes { id handle apiType app { apiKey } }
+          }
+          upstreamCartFunction: shopifyFunction(id: "gid://shopify/ShopifyFunction/upstream-cart") {
+            id
+            handle
+            apiType
+            app { apiKey }
+          }
+        }
+        "#,
+        json!({ "stagedValidationId": staged_validation_id.clone() }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["stagedValidation"]["title"],
+        json!("Local validation")
+    );
+    assert_eq!(
+        read.body["data"]["baseValidation"]["shopifyFunction"]["app"]["apiKey"],
+        json!("upstream-validation-key")
+    );
+    assert_eq!(
+        read.body["data"]["validations"]["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|node| json_string(&node["title"], "validation title"))
+            .collect::<Vec<_>>(),
+        vec!["Local validation", "Upstream validation"]
+    );
+    assert_eq!(
+        read.body["data"]["validations"]["pageInfo"]["hasPreviousPage"],
+        json!(false)
+    );
+    assert_eq!(
+        read.body["data"]["cartTransforms"]["nodes"][0]["metafield"],
+        json!({ "value": "{\"mode\":\"upstream\"}", "ownerType": "CARTTRANSFORM" })
+    );
+    let mut function_handles = read.body["data"]["allFunctions"]["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|node| json_string(&node["handle"], "function handle"))
+        .collect::<Vec<_>>();
+    function_handles.sort();
+    assert_eq!(
+        function_handles,
+        vec!["upstream-cart", "upstream-validation", "validation-local"]
+    );
+    assert_eq!(
+        read.body["data"]["cartFunctions"]["nodes"],
+        json!([{
+            "id": "gid://shopify/ShopifyFunction/upstream-cart",
+            "handle": "upstream-cart",
+            "apiType": "cart_transform",
+            "app": { "apiKey": "upstream-cart-key" }
+        }])
+    );
+    assert_eq!(
+        read.body["data"]["upstreamCartFunction"]["app"]["apiKey"],
+        json!("upstream-cart-key")
+    );
+    assert!(
+        upstream_hits
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|body| body["query"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("cartTransforms")),
+        "post-stage read should still hydrate unrelated cart transforms"
+    );
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    assert_eq!(
+        dump.body["state"]["baseState"]["functionValidations"]
+            ["gid://shopify/Validation/upstream-validation"]["shopifyFunction"]["app"]["apiKey"],
+        json!("upstream-validation-key")
+    );
+    let dumped_cart_transform_metafield = &dump.body["state"]["baseState"]
+        ["functionCartTransforms"]["gid://shopify/CartTransform/upstream-cart-transform"]
+        ["metafield"];
+    assert_eq!(
+        dumped_cart_transform_metafield["value"],
+        json!("{\"mode\":\"upstream\"}")
+    );
+    assert_eq!(
+        dumped_cart_transform_metafield["ownerType"],
+        json!("CARTTRANSFORM")
+    );
+    assert_eq!(
+        dump.body["state"]["stagedState"]["functionValidations"][staged_validation_id.as_str()]
+            ["title"],
+        json!("Local validation")
+    );
+    assert_eq!(
+        dump.body["state"]["stagedState"]["functionValidationsDirty"],
+        json!(true)
+    );
+
+    let mut restored = snapshot_proxy();
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    let restored_read = restored.process_request(json_graphql_request(
+        r#"
+        query RestoredFunctionsOverlay($stagedValidationId: ID!) {
+          stagedValidation: validation(id: $stagedValidationId) {
+            id
+            title
+          }
+          baseValidation: validation(id: "gid://shopify/Validation/upstream-validation") {
+            id
+            title
+            shopifyFunction { handle app { apiKey } }
+          }
+          cartTransforms(first: 5) {
+            nodes {
+              id
+              metafield(namespace: "bundles", key: "config") { value ownerType }
+            }
+          }
+          allFunctions: shopifyFunctions(first: 10) {
+            nodes { handle apiType app { apiKey } }
+          }
+        }
+        "#,
+        json!({ "stagedValidationId": staged_validation_id.clone() }),
+    ));
+    assert_eq!(restored_read.status, 200);
+    assert_eq!(
+        restored_read.body["data"]["stagedValidation"]["title"],
+        json!("Local validation")
+    );
+    assert_eq!(
+        restored_read.body["data"]["baseValidation"]["shopifyFunction"]["app"]["apiKey"],
+        json!("upstream-validation-key")
+    );
+    assert_eq!(
+        restored_read.body["data"]["cartTransforms"]["nodes"][0]["metafield"],
+        json!({ "value": "{\"mode\":\"upstream\"}", "ownerType": "CARTTRANSFORM" })
+    );
+    let mut restored_function_handles = restored_read.body["data"]["allFunctions"]["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|node| json_string(&node["handle"], "restored function handle"))
+        .collect::<Vec<_>>();
+    restored_function_handles.sort();
+    assert_eq!(
+        restored_function_handles,
+        vec!["upstream-cart", "upstream-validation", "validation-local"]
+    );
+
+    let delete_base = restored.process_request(json_graphql_request(
+        r#"
+        mutation DeleteRestoredBaseValidation {
+          validationDelete(id: "gid://shopify/Validation/upstream-validation") {
+            deletedId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(delete_base.status, 200);
+    assert_eq!(
+        delete_base.body["data"]["validationDelete"],
+        json!({
+            "deletedId": "gid://shopify/Validation/upstream-validation",
+            "userErrors": []
+        })
+    );
+    let tombstone_dump = restored.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(tombstone_dump.status, 200);
+    assert!(
+        tombstone_dump.body["state"]["stagedState"]["deletedFunctionValidationIds"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("gid://shopify/Validation/upstream-validation")),
+        "restored base validation delete should dump an authoritative tombstone"
+    );
+
+    let mut tombstone_restored = snapshot_proxy();
+    let tombstone_restore = tombstone_restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &tombstone_dump.body.to_string(),
+    ));
+    assert_eq!(tombstone_restore.status, 200);
+    let tombstone_read = tombstone_restored.process_request(json_graphql_request(
+        r#"
+        query ReadRestoredFunctionTombstone {
+          baseValidation: validation(id: "gid://shopify/Validation/upstream-validation") {
+            id
+          }
+          validations(first: 10) {
+            nodes { title }
+          }
+          cartTransforms(first: 5) {
+            nodes { id }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(tombstone_read.status, 200);
+    assert_eq!(tombstone_read.body["data"]["baseValidation"], Value::Null);
+    assert_eq!(
+        tombstone_read.body["data"]["validations"]["nodes"],
+        json!([{ "title": "Local validation" }])
+    );
+    assert_eq!(
+        tombstone_read.body["data"]["cartTransforms"]["nodes"][0]["id"],
+        json!("gid://shopify/CartTransform/upstream-cart-transform")
+    );
+}
+
+#[test]
 fn functions_create_uses_authenticated_app_identity_for_ownership() {
     let mut proxy = function_metadata_proxy();
 
