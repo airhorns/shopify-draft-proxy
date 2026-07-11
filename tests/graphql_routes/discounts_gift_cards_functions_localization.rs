@@ -5761,6 +5761,73 @@ fn functions_validation_create_title_fallback_uses_hydrated_function_title() {
 }
 
 #[test]
+fn functions_handle_lookup_uses_narrow_query_and_reuses_metadata() {
+    let upstream_hits = Arc::new(Mutex::new(Vec::new()));
+    let mut proxy = function_metadata_proxy_with_hits(Arc::clone(&upstream_hits));
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RepeatedHandleFunctionValidation {
+          first: validationCreate(validation: { functionHandle: "validation-alpha", title: "First" }) {
+            validation { id functionHandle shopifyFunction { id handle apiType } }
+            userErrors { field message code }
+          }
+          second: validationCreate(validation: { functionHandle: "validation-alpha", title: "Second" }) {
+            validation { id functionHandle shopifyFunction { id handle apiType } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["first"]["userErrors"], json!([]));
+    assert_eq!(create.body["data"]["second"]["userErrors"], json!([]));
+
+    let follow_up = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReusedHandleFunctionValidation {
+          validationCreate(validation: { functionHandle: "validation-alpha", title: "Third" }) {
+            validation { id functionHandle }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(follow_up.status, 200);
+    assert_eq!(
+        follow_up.body["data"]["validationCreate"]["userErrors"],
+        json!([])
+    );
+
+    let hits = upstream_hits.lock().unwrap();
+    let handle_hits = hits
+        .iter()
+        .filter(|body| body["operationName"].as_str() == Some("FunctionHydrateByHandle"))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        handle_hits.len(),
+        1,
+        "repeated same-handle validation creates should reuse hydrated function metadata"
+    );
+    let query = handle_hits[0]["query"].as_str().unwrap_or_default();
+    assert!(
+        query.contains("shopifyFunctions(first: 1, handle: $handle)"),
+        "single-handle lookup should query Shopify by handle instead of scanning the catalog: {query}"
+    );
+    assert!(
+        !query.contains("first: 100"),
+        "single-handle lookup should not scan the first 100 Shopify functions: {query}"
+    );
+    assert_eq!(
+        handle_hits[0]["variables"],
+        json!({ "handle": "validation-alpha", "apiType": "VALIDATION" })
+    );
+}
+
+#[test]
 fn functions_cold_reads_forward_and_hydrate_non_catalog_function_metadata() {
     let upstream_hits = Arc::new(Mutex::new(0usize));
     let hit_counter = Arc::clone(&upstream_hits);
