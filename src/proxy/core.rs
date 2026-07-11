@@ -262,6 +262,13 @@ impl DraftProxy {
                 })
             })
             .collect::<Vec<_>>();
+        let base_metafield_definition_owner_catalogs = self
+            .store
+            .base
+            .metafield_definition_owner_catalogs
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>();
         let deleted_metafield_definitions = self
             .store
             .staged
@@ -275,6 +282,12 @@ impl DraftProxy {
                 })
             })
             .collect::<Vec<_>>();
+        let base_metafield_definitions_value = Value::Object(base_metafield_definitions);
+        let base_metafield_definition_owner_catalogs_value =
+            json!(base_metafield_definition_owner_catalogs);
+        let base_metafield_definition_namespaces_value =
+            json!(base_metafield_definition_namespaces);
+        let deleted_metafield_definitions_value = json!(deleted_metafield_definitions);
         let mut snapshot = json!({
             "baseState": {
                 "products": product_state_map_json(&self.store.base.products.records),
@@ -294,10 +307,7 @@ impl DraftProxy {
                 "publicationCount": self.store.base.publication_count,
                 "availableLocales": available_locales,
                 "shopLocales": self.store.base.shop_locales.clone(),
-                "localizationProductIds": self.store.base.localization_product_ids.iter().cloned().collect::<Vec<_>>(),
-                "metafieldDefinitions": Value::Object(base_metafield_definitions),
-                "metafieldDefinitionOwnerCatalogs": self.store.base.metafield_definition_owner_catalogs.iter().cloned().collect::<Vec<_>>(),
-                "metafieldDefinitionNamespaces": base_metafield_definition_namespaces
+                "localizationProductIds": self.store.base.localization_product_ids.iter().cloned().collect::<Vec<_>>()
             },
             "stagedState": {
                 "products": product_state_map_json(&self.store.staged.products.records),
@@ -376,10 +386,16 @@ impl DraftProxy {
                 "deletedDiscountIds": self.store.staged.discounts.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "discountRedeemCodeBulkCreations": self.store.staged.discount_redeem_code_bulk_creations.clone(),
                 "ownerMetafields": self.store.staged.owner_metafields.clone(),
-                "deletedOwnerMetafields": deleted_owner_metafields,
-                "deletedMetafieldDefinitions": deleted_metafield_definitions
+                "deletedOwnerMetafields": deleted_owner_metafields
             }
         });
+        snapshot["baseState"]["metafieldDefinitions"] = base_metafield_definitions_value;
+        snapshot["baseState"]["metafieldDefinitionOwnerCatalogs"] =
+            base_metafield_definition_owner_catalogs_value;
+        snapshot["baseState"]["metafieldDefinitionNamespaces"] =
+            base_metafield_definition_namespaces_value;
+        snapshot["stagedState"]["deletedMetafieldDefinitions"] =
+            deleted_metafield_definitions_value;
         if !self.store.staged.media_ready_on_read.is_empty() {
             snapshot["stagedState"]["mediaReadyOnReadIds"] = json!(self
                 .store
