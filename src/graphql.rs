@@ -1,7 +1,8 @@
 use std::collections::BTreeMap;
 
 use graphql_parser::query::{
-    parse_query, Definition, Field, OperationDefinition, Selection, Type, TypeCondition, Value,
+    parse_query, Definition, Directive, Field, OperationDefinition, Selection, Type, TypeCondition,
+    Value,
 };
 use graphql_parser::Pos;
 
@@ -46,6 +47,16 @@ pub struct ParsedDocument {
     pub location: SourceLocation,
     pub variable_definitions: BTreeMap<String, VariableDefinitionInfo>,
     pub root_fields: Vec<RootFieldSelection>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct DirectiveInvocation {
+    pub name: String,
+    pub location: SourceLocation,
+    pub owner_location: SourceLocation,
+    pub path: Vec<String>,
+    pub raw_arguments: BTreeMap<String, RawArgumentValue>,
+    pub arguments: BTreeMap<String, ResolvedValue>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -138,7 +149,14 @@ impl RawArgumentValue {
 }
 
 pub fn parse_operation(query: &str) -> Option<ParsedOperation> {
-    let document = parsed_document(query, &BTreeMap::new())?;
+    parse_operation_with_variables(query, &BTreeMap::new())
+}
+
+pub fn parse_operation_with_variables(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<ParsedOperation> {
+    let document = parsed_document(query, variables)?;
     Some(ParsedOperation {
         operation_type: document.operation_type,
         root_fields: document
@@ -161,6 +179,22 @@ pub fn parsed_document_with_operation_name(
     variables: &BTreeMap<String, ResolvedValue>,
     operation_name: Option<&str>,
 ) -> Option<ParsedDocument> {
+    parsed_document_with_operation_name_and_directives(query, variables, operation_name, true)
+}
+
+pub fn parsed_document_unfiltered(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<ParsedDocument> {
+    parsed_document_with_operation_name_and_directives(query, variables, None, false)
+}
+
+fn parsed_document_with_operation_name_and_directives(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+    operation_name: Option<&str>,
+    apply_conditional_directives: bool,
+) -> Option<ParsedDocument> {
     let document = parse_query::<&str>(query).ok()?;
     let fragments = fragment_selections(&document.definitions);
     let operation = document
@@ -180,8 +214,40 @@ pub fn parsed_document_with_operation_name(
         operation_path: operation_path(operation_type, name),
         location: source_location(location),
         variable_definitions: variable_definition_infos(variable_definitions),
-        root_fields: root_field_selections(selections, variables, &fragments),
+        root_fields: root_field_selections(
+            selections,
+            variables,
+            &fragments,
+            apply_conditional_directives,
+        ),
     })
+}
+
+pub fn directive_invocations(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<Vec<DirectiveInvocation>> {
+    let document = parse_query::<&str>(query).ok()?;
+    let fragments = fragment_selections(&document.definitions);
+    let operation = document
+        .definitions
+        .iter()
+        .filter_map(|definition| match definition {
+            Definition::Operation(operation) => Some(operation),
+            Definition::Fragment(_) => None,
+        })
+        .find(|operation| operation_name_matches(operation, None))?;
+
+    let (operation_type, name, _, _, selections) = operation_parts(operation);
+    let mut invocations = Vec::new();
+    collect_selection_directive_invocations(
+        selections,
+        variables,
+        &fragments,
+        &[operation_path(operation_type, name)],
+        &mut invocations,
+    );
+    Some(invocations)
 }
 
 pub fn root_field_arguments(
@@ -220,38 +286,73 @@ fn selected_fields<'a>(
     selections: &'a [Selection<'a, &'a str>],
     variables: &BTreeMap<String, ResolvedValue>,
     fragments: &FragmentSelections<'a>,
+    apply_conditional_directives: bool,
 ) -> Vec<SelectedField> {
     selections
         .iter()
         .flat_map(|selection| match selection {
-            Selection::Field(field) => vec![SelectedField {
-                name: field.name.to_string(),
-                response_key: field.alias.unwrap_or(field.name).to_string(),
-                location: source_location(field.position),
-                arguments: field_arguments(field, variables),
-                selection: selected_fields(&field.selection_set.items, variables, fragments),
-                type_condition: None,
-            }],
+            Selection::Field(field) => {
+                if apply_conditional_directives
+                    && !directives_include_selection(&field.directives, variables)
+                {
+                    return Vec::new();
+                }
+                vec![SelectedField {
+                    name: field.name.to_string(),
+                    response_key: field.alias.unwrap_or(field.name).to_string(),
+                    location: source_location(field.position),
+                    arguments: field_arguments(field, variables),
+                    selection: selected_fields(
+                        &field.selection_set.items,
+                        variables,
+                        fragments,
+                        apply_conditional_directives,
+                    ),
+                    type_condition: None,
+                }]
+            }
             Selection::InlineFragment(fragment) => {
+                if apply_conditional_directives
+                    && !directives_include_selection(&fragment.directives, variables)
+                {
+                    return Vec::new();
+                }
                 let type_condition = fragment
                     .type_condition
                     .as_ref()
                     .map(type_condition_name)
                     .map(str::to_string);
                 with_type_condition(
-                    selected_fields(&fragment.selection_set.items, variables, fragments),
+                    selected_fields(
+                        &fragment.selection_set.items,
+                        variables,
+                        fragments,
+                        apply_conditional_directives,
+                    ),
                     type_condition,
                 )
             }
-            Selection::FragmentSpread(fragment) => fragments
-                .get(fragment.fragment_name)
-                .map(|fragment_selection| {
-                    with_type_condition(
-                        selected_fields(fragment_selection.selection_set, variables, fragments),
-                        fragment_selection.type_condition.map(str::to_string),
-                    )
-                })
-                .unwrap_or_default(),
+            Selection::FragmentSpread(fragment) => {
+                if apply_conditional_directives
+                    && !directives_include_selection(&fragment.directives, variables)
+                {
+                    return Vec::new();
+                }
+                fragments
+                    .get(fragment.fragment_name)
+                    .map(|fragment_selection| {
+                        with_type_condition(
+                            selected_fields(
+                                fragment_selection.selection_set,
+                                variables,
+                                fragments,
+                                apply_conditional_directives,
+                            ),
+                            fragment_selection.type_condition.map(str::to_string),
+                        )
+                    })
+                    .unwrap_or_default()
+            }
         })
         .collect()
 }
@@ -420,9 +521,16 @@ fn root_field_selections<'a>(
     selections: &'a [Selection<'a, &'a str>],
     variables: &BTreeMap<String, ResolvedValue>,
     fragments: &FragmentSelections<'a>,
+    apply_conditional_directives: bool,
 ) -> Vec<RootFieldSelection> {
     let mut fields = Vec::new();
-    collect_root_field_selections(selections, variables, fragments, &mut fields);
+    collect_root_field_selections(
+        selections,
+        variables,
+        fragments,
+        apply_conditional_directives,
+        &mut fields,
+    );
     fields
 }
 
@@ -430,41 +538,207 @@ fn collect_root_field_selections<'a>(
     selections: &'a [Selection<'a, &'a str>],
     variables: &BTreeMap<String, ResolvedValue>,
     fragments: &FragmentSelections<'a>,
+    apply_conditional_directives: bool,
     fields: &mut Vec<RootFieldSelection>,
 ) {
     for selection in selections {
         match selection {
-            Selection::Field(field) => fields.push(RootFieldSelection {
-                name: field.name.to_string(),
-                response_key: field.alias.unwrap_or(field.name).to_string(),
-                location: source_location(field.position),
-                directives: field
-                    .directives
-                    .iter()
-                    .map(|directive| directive.name.to_string())
-                    .collect(),
-                raw_arguments: raw_field_arguments(field, variables),
-                arguments: field_arguments(field, variables),
-                selection: selected_fields(&field.selection_set.items, variables, fragments),
-            }),
-            Selection::InlineFragment(fragment) => collect_root_field_selections(
-                &fragment.selection_set.items,
-                variables,
-                fragments,
-                fields,
-            ),
+            Selection::Field(field) => {
+                if apply_conditional_directives
+                    && !directives_include_selection(&field.directives, variables)
+                {
+                    continue;
+                }
+                fields.push(RootFieldSelection {
+                    name: field.name.to_string(),
+                    response_key: field.alias.unwrap_or(field.name).to_string(),
+                    location: source_location(field.position),
+                    directives: field
+                        .directives
+                        .iter()
+                        .map(|directive| directive.name.to_string())
+                        .collect(),
+                    raw_arguments: raw_field_arguments(field, variables),
+                    arguments: field_arguments(field, variables),
+                    selection: selected_fields(
+                        &field.selection_set.items,
+                        variables,
+                        fragments,
+                        apply_conditional_directives,
+                    ),
+                });
+            }
+            Selection::InlineFragment(fragment) => {
+                if apply_conditional_directives
+                    && !directives_include_selection(&fragment.directives, variables)
+                {
+                    continue;
+                }
+                collect_root_field_selections(
+                    &fragment.selection_set.items,
+                    variables,
+                    fragments,
+                    apply_conditional_directives,
+                    fields,
+                );
+            }
             Selection::FragmentSpread(fragment) => {
+                if apply_conditional_directives
+                    && !directives_include_selection(&fragment.directives, variables)
+                {
+                    continue;
+                }
                 if let Some(fragment_selection) = fragments.get(fragment.fragment_name) {
                     collect_root_field_selections(
                         fragment_selection.selection_set,
                         variables,
                         fragments,
+                        apply_conditional_directives,
                         fields,
                     );
                 }
             }
         }
     }
+}
+
+fn collect_selection_directive_invocations<'a>(
+    selections: &'a [Selection<'a, &'a str>],
+    variables: &BTreeMap<String, ResolvedValue>,
+    fragments: &FragmentSelections<'a>,
+    path: &[String],
+    invocations: &mut Vec<DirectiveInvocation>,
+) {
+    for selection in selections {
+        match selection {
+            Selection::Field(field) => {
+                let mut field_path = path.to_vec();
+                field_path.push(field.alias.unwrap_or(field.name).to_string());
+                push_directive_invocations(
+                    &field.directives,
+                    variables,
+                    source_location(field.position),
+                    &field_path,
+                    invocations,
+                );
+                collect_selection_directive_invocations(
+                    &field.selection_set.items,
+                    variables,
+                    fragments,
+                    &field_path,
+                    invocations,
+                );
+            }
+            Selection::InlineFragment(fragment) => {
+                let fragment_path = match fragment.type_condition.as_ref().map(type_condition_name)
+                {
+                    Some(type_condition) => {
+                        let mut path = path.to_vec();
+                        path.push(format!("... on {type_condition}"));
+                        path
+                    }
+                    None => path.to_vec(),
+                };
+                push_directive_invocations(
+                    &fragment.directives,
+                    variables,
+                    source_location(fragment.position),
+                    &fragment_path,
+                    invocations,
+                );
+                collect_selection_directive_invocations(
+                    &fragment.selection_set.items,
+                    variables,
+                    fragments,
+                    path,
+                    invocations,
+                );
+            }
+            Selection::FragmentSpread(fragment) => {
+                let mut spread_path = path.to_vec();
+                spread_path.push(format!("...{}", fragment.fragment_name));
+                push_directive_invocations(
+                    &fragment.directives,
+                    variables,
+                    source_location(fragment.position),
+                    &spread_path,
+                    invocations,
+                );
+                if let Some(fragment_selection) = fragments.get(fragment.fragment_name) {
+                    collect_selection_directive_invocations(
+                        fragment_selection.selection_set,
+                        variables,
+                        fragments,
+                        path,
+                        invocations,
+                    );
+                }
+            }
+        }
+    }
+}
+
+fn push_directive_invocations<'a>(
+    directives: &'a [Directive<'a, &'a str>],
+    variables: &BTreeMap<String, ResolvedValue>,
+    owner_location: SourceLocation,
+    path: &[String],
+    invocations: &mut Vec<DirectiveInvocation>,
+) {
+    for directive in directives {
+        let raw_arguments = raw_directive_arguments(directive, variables);
+        let arguments = raw_arguments
+            .iter()
+            .map(|(name, value)| (name.clone(), value.resolved_value()))
+            .collect();
+        invocations.push(DirectiveInvocation {
+            name: directive.name.to_string(),
+            location: source_location(directive.position),
+            owner_location,
+            path: path.to_vec(),
+            raw_arguments,
+            arguments,
+        });
+    }
+}
+
+fn directives_include_selection<'a>(
+    directives: &[Directive<'a, &'a str>],
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    let skip = directives
+        .iter()
+        .filter(|directive| directive.name == "skip")
+        .any(|directive| directive_if_argument(directive, variables) == Some(true));
+    if skip {
+        return false;
+    }
+    !directives
+        .iter()
+        .filter(|directive| directive.name == "include")
+        .any(|directive| directive_if_argument(directive, variables) == Some(false))
+}
+
+fn directive_if_argument<'a>(
+    directive: &Directive<'a, &'a str>,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<bool> {
+    let (_, value) = directive.arguments.iter().find(|(name, _)| *name == "if")?;
+    match raw_argument_value(value, variables).resolved_value() {
+        ResolvedValue::Bool(value) => Some(value),
+        _ => None,
+    }
+}
+
+fn raw_directive_arguments<'a>(
+    directive: &Directive<'a, &'a str>,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> BTreeMap<String, RawArgumentValue> {
+    directive
+        .arguments
+        .iter()
+        .map(|(name, value)| (name.to_string(), raw_argument_value(value, variables)))
+        .collect()
 }
 
 fn raw_argument_value<'a>(

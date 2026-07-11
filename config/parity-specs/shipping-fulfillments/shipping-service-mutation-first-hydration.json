@@ -1,0 +1,96 @@
+{
+  "scenarioId": "shipping-service-mutation-first-hydration",
+  "operationNames": [
+    "carrierServiceCreate",
+    "carrierServiceUpdate",
+    "carrierServiceDelete",
+    "carrierService",
+    "carrierServices",
+    "fulfillmentServiceCreate",
+    "fulfillmentServiceUpdate",
+    "fulfillmentServiceDelete",
+    "fulfillmentService",
+    "location",
+    "shop"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "mutation-first-hydration-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/shipping-service-mutation-first-hydration.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/admin_app_shipping.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-lifecycle-update.graphql",
+    "variablesCapturePath": "$.carrierUpdate.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL 2026-04 evidence for carrier-service and fulfillment-service mutation-first lifecycle handling. The setup creates disposable app-owned services in Shopify, records exact query-only hydrate cassettes for existing mutation targets and effective uniqueness catalogs, then captures update/delete and duplicate-create behavior. Parity replay starts from an empty local proxy state and must hydrate those real Shopify records before staging supported mutations locally.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "carrier-update-existing-resource",
+        "capturePath": "$.carrierUpdate.response.payload.data.carrierServiceUpdate",
+        "proxyPath": "$.data.carrierServiceUpdate",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "carrier-delete-existing-resource",
+        "capturePath": "$.carrierDelete.response.payload.data.carrierServiceDelete",
+        "proxyPath": "$.data.carrierServiceDelete",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-lifecycle-delete.graphql",
+          "variablesCapturePath": "$.carrierDelete.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "carrier-duplicate-create-hydrated-catalog",
+        "capturePath": "$.carrierDuplicateCreate.response.payload.data.carrierServiceCreate",
+        "proxyPath": "$.data.carrierServiceCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-create-uniqueness.graphql",
+          "variablesCapturePath": "$.carrierDuplicateCreate.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "fulfillment-delete-existing-resource",
+        "capturePath": "$.fulfillmentDelete.response.payload.data.fulfillmentServiceDelete",
+        "proxyPath": "$.data.fulfillmentServiceDelete",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-lifecycle-delete.graphql",
+          "variablesCapturePath": "$.fulfillmentDelete.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "fulfillment-update-existing-resource",
+        "capturePath": "$.fulfillmentUpdate.response.payload.data.fulfillmentServiceUpdate",
+        "proxyPath": "$.data.fulfillmentServiceUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-lifecycle-update.graphql",
+          "variablesCapturePath": "$.fulfillmentUpdate.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "fulfillment-duplicate-create-hydrated-catalog",
+        "capturePath": "$.fulfillmentDuplicateCreate.response.payload.data.fulfillmentServiceCreate",
+        "proxyPath": "$.data.fulfillmentServiceCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql",
+          "variablesCapturePath": "$.fulfillmentDuplicateCreate.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

@@ -1,12 +1,35 @@
-/// Read query used to hydrate a discount that is not staged locally so an
-/// activate/deactivate transition or partial update can be applied against its
-/// real configuration. Must match recorded `DiscountHydrate` upstream calls
-/// byte-for-byte; update cassettes are strict on query text + variables.
-pub(super) const DISCOUNT_HYDRATE_QUERY: &str = r#"#graphql
-  query DiscountHydrate($id: ID!) {
+pub(super) const DISCOUNT_CONTEXT_REFS_HYDRATE_QUERY: &str = r#"#graphql
+  query DiscountContextRefsHydrate($ids: [ID!]!) {
+    nodes(ids: $ids) {
+      __typename
+      id
+      ... on Customer {
+        displayName
+        email
+      }
+      ... on Segment {
+        name
+        query
+        creationDate
+        lastEditDate
+      }
+    }
+  }
+"#;
+
+pub(super) fn discount_hydrate_query_for_kind(discount_kind: &str) -> &'static str {
+    if discount_kind == "automatic" {
+        DISCOUNT_AUTOMATIC_HYDRATE_QUERY
+    } else {
+        DISCOUNT_CODE_HYDRATE_QUERY
+    }
+}
+
+const DISCOUNT_CODE_HYDRATE_QUERY: &str = r#"#graphql
+  query DiscountCodeHydrate($id: ID!) {
     codeNode: codeDiscountNode(id: $id) {
       id
-      metafields(first: 250) {
+      metafields(first: 10) {
         nodes {
           id
           namespace
@@ -75,19 +98,19 @@ pub(super) const DISCOUNT_HYDRATE_QUERY: &str = r#"#graphql
                 allItems
               }
               ... on DiscountProducts {
-                products(first: 250) {
+                products(first: 10) {
                   nodes {
                     id
                   }
                 }
-                productVariants(first: 250) {
+                productVariants(first: 10) {
                   nodes {
                     id
                   }
                 }
               }
               ... on DiscountCollections {
-                collections(first: 250) {
+                collections(first: 10) {
                   nodes {
                     id
                   }
@@ -109,7 +132,7 @@ pub(super) const DISCOUNT_HYDRATE_QUERY: &str = r#"#graphql
               greaterThanOrEqualToQuantity
             }
           }
-          codes(first: 250) {
+          codes(first: 10) {
             nodes {
               id
               code
@@ -201,19 +224,19 @@ pub(super) const DISCOUNT_HYDRATE_QUERY: &str = r#"#graphql
             items {
               __typename
               ... on DiscountProducts {
-                products(first: 250) {
+                products(first: 10) {
                   nodes {
                     id
                   }
                 }
-                productVariants(first: 250) {
+                productVariants(first: 10) {
                   nodes {
                     id
                   }
                 }
               }
               ... on DiscountCollections {
-                collections(first: 250) {
+                collections(first: 10) {
                   nodes {
                     id
                   }
@@ -246,19 +269,19 @@ pub(super) const DISCOUNT_HYDRATE_QUERY: &str = r#"#graphql
             items {
               __typename
               ... on DiscountProducts {
-                products(first: 250) {
+                products(first: 10) {
                   nodes {
                     id
                   }
                 }
-                productVariants(first: 250) {
+                productVariants(first: 10) {
                   nodes {
                     id
                   }
                 }
               }
               ... on DiscountCollections {
-                collections(first: 250) {
+                collections(first: 10) {
                   nodes {
                     id
                   }
@@ -266,7 +289,7 @@ pub(super) const DISCOUNT_HYDRATE_QUERY: &str = r#"#graphql
               }
             }
           }
-          codes(first: 250) {
+          codes(first: 10) {
             nodes {
               id
               code
@@ -338,7 +361,7 @@ pub(super) const DISCOUNT_HYDRATE_QUERY: &str = r#"#graphql
           }
           appliesOnOneTimePurchase
           appliesOnSubscription
-          codes(first: 250) {
+          codes(first: 10) {
             nodes {
               id
               code
@@ -348,9 +371,14 @@ pub(super) const DISCOUNT_HYDRATE_QUERY: &str = r#"#graphql
         }
       }
     }
+  }
+"#;
+
+const DISCOUNT_AUTOMATIC_HYDRATE_QUERY: &str = r#"#graphql
+  query DiscountAutomaticHydrate($id: ID!) {
     automaticNode: automaticDiscountNode(id: $id) {
       id
-      metafields(first: 250) {
+      metafields(first: 10) {
         nodes {
           id
           namespace
@@ -417,19 +445,19 @@ pub(super) const DISCOUNT_HYDRATE_QUERY: &str = r#"#graphql
                 allItems
               }
               ... on DiscountProducts {
-                products(first: 250) {
+                products(first: 10) {
                   nodes {
                     id
                   }
                 }
-                productVariants(first: 250) {
+                productVariants(first: 10) {
                   nodes {
                     id
                   }
                 }
               }
               ... on DiscountCollections {
-                collections(first: 250) {
+                collections(first: 10) {
                   nodes {
                     id
                   }
@@ -532,19 +560,19 @@ pub(super) const DISCOUNT_HYDRATE_QUERY: &str = r#"#graphql
             items {
               __typename
               ... on DiscountProducts {
-                products(first: 250) {
+                products(first: 10) {
                   nodes {
                     id
                   }
                 }
-                productVariants(first: 250) {
+                productVariants(first: 10) {
                   nodes {
                     id
                   }
                 }
               }
               ... on DiscountCollections {
-                collections(first: 250) {
+                collections(first: 10) {
                   nodes {
                     id
                   }
@@ -577,19 +605,19 @@ pub(super) const DISCOUNT_HYDRATE_QUERY: &str = r#"#graphql
             items {
               __typename
               ... on DiscountProducts {
-                products(first: 250) {
+                products(first: 10) {
                   nodes {
                     id
                   }
                 }
-                productVariants(first: 250) {
+                productVariants(first: 10) {
                   nodes {
                     id
                   }
                 }
               }
               ... on DiscountCollections {
-                collections(first: 250) {
+                collections(first: 10) {
                   nodes {
                     id
                   }
@@ -665,5 +693,3 @@ pub(super) const DISCOUNT_HYDRATE_QUERY: &str = r#"#graphql
     }
   }
 "#;
-
-pub(super) const DISCOUNT_UPDATE_HYDRATE_QUERY: &str = DISCOUNT_HYDRATE_QUERY;

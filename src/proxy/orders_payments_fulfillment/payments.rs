@@ -6,6 +6,12 @@ use super::*;
 // cassette that matches this `include_str!` const exactly.
 const REFUND_ORDER_HYDRATE_QUERY: &str =
     include_str!("../../../config/parity-requests/orders/refund-order-hydrate.graphql");
+const PAYMENT_CUSTOMIZATION_HYDRATE_BY_ID_QUERY: &str = include_str!(
+    "../../../config/parity-requests/payments/payment-customization-hydrate-by-id.graphql"
+);
+const PAYMENT_CUSTOMIZATION_HYDRATE_CATALOG_QUERY: &str = include_str!(
+    "../../../config/parity-requests/payments/payment-customization-hydrate-catalog.graphql"
+);
 const FINAL_CAPTURE_UNSUPPORTED_PAYMENT_PROVIDER_MESSAGE: &str =
     "Setting final capture is not supported for this transaction's payment gateway. Please remove the parameter or set it to null, then try again.";
 
@@ -2004,14 +2010,27 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn payment_customization_query_data(
-        &self,
+        &mut self,
+        request: &Request,
         fields: &[RootFieldSelection],
     ) -> Value {
+        for field in fields {
+            match field.name.as_str() {
+                "paymentCustomization" => {
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                    self.hydrate_payment_customization_by_id(request, &id);
+                }
+                "paymentCustomizations" => {
+                    self.hydrate_payment_customization_catalog(request);
+                }
+                _ => {}
+            }
+        }
         root_payload_json(fields, |field| {
             Some(match field.name.as_str() {
                 "paymentCustomization" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    match self.store.staged.payment_customizations.get(&id) {
+                    match self.payment_customization_effective_record(&id) {
                         Some(record) => selected_json(record, &field.selection),
                         None => Value::Null,
                     }
@@ -2021,7 +2040,15 @@ impl DraftProxy {
                         .store
                         .staged
                         .payment_customizations
-                        .values()
+                        .iter()
+                        .filter(|(id, _)| {
+                            !self
+                                .store
+                                .staged
+                                .deleted_payment_customization_ids
+                                .contains(*id)
+                        })
+                        .map(|(_, record)| record)
                         .cloned()
                         .collect::<Vec<_>>();
                     records.sort_by_key(|record| {
@@ -2032,6 +2059,112 @@ impl DraftProxy {
                 _ => return None,
             })
         })
+    }
+
+    fn payment_customization_effective_record(&self, id: &str) -> Option<&Value> {
+        if self
+            .store
+            .staged
+            .deleted_payment_customization_ids
+            .contains(id)
+        {
+            return None;
+        }
+        self.store.staged.payment_customizations.get(id)
+    }
+
+    fn stage_payment_customization_record(&mut self, record: Value) -> Option<Value> {
+        let record = normalize_payment_customization_record(record)?;
+        let id = record["id"].as_str()?.to_string();
+        self.store
+            .staged
+            .deleted_payment_customization_ids
+            .remove(&id);
+        self.store
+            .staged
+            .payment_customizations
+            .insert(id, record.clone());
+        Some(record)
+    }
+
+    fn observe_payment_customization_record(&mut self, record: Value) -> Option<Value> {
+        let record = normalize_payment_customization_record(record)?;
+        let id = record["id"].as_str()?.to_string();
+        if self
+            .store
+            .staged
+            .deleted_payment_customization_ids
+            .contains(&id)
+        {
+            return None;
+        }
+        if let Some(existing) = self.store.staged.payment_customizations.get(&id) {
+            return Some(existing.clone());
+        }
+        self.store
+            .staged
+            .payment_customizations
+            .insert(id, record.clone());
+        Some(record)
+    }
+
+    fn hydrate_payment_customization_by_id(
+        &mut self,
+        request: &Request,
+        id: &str,
+    ) -> Option<Value> {
+        if id.is_empty()
+            || self.payment_customization_effective_record(id).is_some()
+            || self
+                .store
+                .staged
+                .deleted_payment_customization_ids
+                .contains(id)
+            || self.config.read_mode != ReadMode::LiveHybrid
+        {
+            return self.payment_customization_effective_record(id).cloned();
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": PAYMENT_CUSTOMIZATION_HYDRATE_BY_ID_QUERY,
+                "operationName": "PaymentCustomizationHydrateById",
+                "variables": { "id": id }
+            }),
+        );
+        if !(200..300).contains(&response.status) {
+            return None;
+        }
+        self.observe_payment_customization_record(
+            response.body["data"]["paymentCustomization"].clone(),
+        )
+    }
+
+    fn hydrate_payment_customization_catalog(&mut self, request: &Request) {
+        if self.store.staged.payment_customization_catalog_hydrated
+            || self.config.read_mode != ReadMode::LiveHybrid
+        {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": PAYMENT_CUSTOMIZATION_HYDRATE_CATALOG_QUERY,
+                "operationName": "PaymentCustomizationHydrateCatalog",
+                "variables": {}
+            }),
+        );
+        if !(200..300).contains(&response.status) {
+            return;
+        }
+        for record in response.body["data"]["paymentCustomizations"]["nodes"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default()
+        {
+            self.observe_payment_customization_record(record);
+        }
+        self.store.staged.payment_customization_catalog_hydrated = true;
     }
 
     pub(in crate::proxy) fn payment_customization_mutation_data(
@@ -2053,9 +2186,11 @@ impl DraftProxy {
                     api_client_id.as_deref(),
                 ),
                 "paymentCustomizationActivation" => {
-                    self.payment_customization_activation_payload(field)
+                    self.payment_customization_activation_payload(request, field)
                 }
-                "paymentCustomizationDelete" => self.payment_customization_delete_payload(field),
+                "paymentCustomizationDelete" => {
+                    self.payment_customization_delete_payload(request, field)
+                }
                 _ => return None,
             })
         })
@@ -2135,10 +2270,7 @@ impl DraftProxy {
             resolved_function.as_ref(),
             &timestamp,
         );
-        self.store
-            .staged
-            .payment_customizations
-            .insert(id.clone(), record.clone());
+        self.stage_payment_customization_record(record.clone());
         payment_customization_record_payload(&record, &field.selection)
     }
 
@@ -2151,7 +2283,10 @@ impl DraftProxy {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let input =
             resolved_object_field(&field.arguments, "paymentCustomization").unwrap_or_default();
-        let Some(existing) = self.store.staged.payment_customizations.get(&id).cloned() else {
+        let Some(existing) = self
+            .hydrate_payment_customization_by_id(request, &id)
+            .or_else(|| self.payment_customization_effective_record(&id).cloned())
+        else {
             return payment_customization_error_payload(
                 &field.selection,
                 vec![payment_customization_not_found_error(&id)],
@@ -2232,15 +2367,13 @@ impl DraftProxy {
                 payment_customization_metafields(&input, api_client_id, &timestamp, Some(&updated));
             payment_customization_set_metafields(&mut updated, metafields);
         }
-        self.store
-            .staged
-            .payment_customizations
-            .insert(id.clone(), updated.clone());
+        self.stage_payment_customization_record(updated.clone());
         payment_customization_record_payload(&updated, &field.selection)
     }
 
     pub(in crate::proxy) fn payment_customization_activation_payload(
         &mut self,
+        request: &Request,
         field: &RootFieldSelection,
     ) -> Value {
         let ids = resolved_string_list_arg(&field.arguments, "ids");
@@ -2248,16 +2381,27 @@ impl DraftProxy {
             Some(ResolvedValue::Bool(value)) => *value,
             _ => false,
         };
+        if enabled {
+            self.hydrate_payment_customization_catalog(request);
+        }
         let mut valid_ids = Vec::new();
         let mut missing_ids = Vec::new();
         for id in ids {
+            self.hydrate_payment_customization_by_id(request, &id);
             match self.store.staged.payment_customizations.get_mut(&id) {
-                Some(record) => {
+                Some(record)
+                    if !self
+                        .store
+                        .staged
+                        .deleted_payment_customization_ids
+                        .contains(&id) =>
+                {
                     if record["enabled"].as_bool() != Some(enabled) {
                         record["enabled"] = json!(enabled);
                     }
                     valid_ids.push(id);
                 }
+                Some(_) => missing_ids.push(id),
                 None => missing_ids.push(id),
             }
         }
@@ -2273,9 +2417,11 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn payment_customization_delete_payload(
         &mut self,
+        request: &Request,
         field: &RootFieldSelection,
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        self.hydrate_payment_customization_by_id(request, &id);
         if self
             .store
             .staged
@@ -2283,6 +2429,10 @@ impl DraftProxy {
             .remove(&id)
             .is_some()
         {
+            self.store
+                .staged
+                .deleted_payment_customization_ids
+                .insert(id.clone());
             payment_customization_payload(None, &field.selection, Vec::new(), None, Some(json!(id)))
         } else {
             payment_customization_payload(

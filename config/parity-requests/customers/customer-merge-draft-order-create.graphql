@@ -1,0 +1,20 @@
+mutation CustomerMergeDraftOrderCreate($input: DraftOrderInput!) {
+  draftOrderCreate(input: $input) {
+    draftOrder {
+      id
+      name
+      status
+      email
+      tags
+      customer {
+        id
+        email
+        displayName
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

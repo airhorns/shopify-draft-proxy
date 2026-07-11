@@ -1,0 +1,95 @@
+query MarketsFamilyMixedOverlayRead(
+  $marketQuery: String!
+  $catalogQuery: String!
+  $marketsFirst: Int!
+  $catalogsFirst: Int!
+  $catalogsWindowFirst: Int!
+  $priceListsFirst: Int!
+  $webPresencesFirst: Int!
+) {
+  markets(first: $marketsFirst, query: $marketQuery, sortKey: NAME, reverse: true) {
+    nodes {
+      id
+      name
+      handle
+      status
+      type
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+  catalogs(first: $catalogsFirst, query: $catalogQuery, sortKey: TITLE, reverse: true) {
+    nodes {
+      id
+      title
+      status
+      ... on MarketCatalog {
+        markets(first: 5) {
+          nodes {
+            id
+            name
+          }
+        }
+      }
+      priceList {
+        id
+        name
+        currency
+      }
+    }
+  }
+  catalogsWindow: catalogs(first: $catalogsWindowFirst, query: $catalogQuery, sortKey: TITLE, reverse: true) {
+    nodes {
+      id
+      title
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+  catalogsCount(query: $catalogQuery) {
+    count
+    precision
+  }
+  priceLists(first: $priceListsFirst) {
+    nodes {
+      id
+      name
+      currency
+      catalog {
+        id
+        title
+        status
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+  webPresences(first: $webPresencesFirst) {
+    nodes {
+      id
+      subfolderSuffix
+      defaultLocale {
+        locale
+        name
+        primary
+        published
+      }
+      markets(first: 5) {
+        nodes {
+          id
+          name
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+}
