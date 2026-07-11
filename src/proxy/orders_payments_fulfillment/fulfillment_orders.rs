@@ -1116,6 +1116,7 @@ impl DraftProxy {
                 return self.fulfillment_order_not_found_payload(&field.name, &field.selection);
             };
             normalize_order_fulfillment_orders(&mut order, assigned_location.as_ref());
+            let order_summary = fulfillment_order_parent_order_summary(&order);
             let Some(nodes) = fulfillment_order_nodes_mut(&mut order) else {
                 return self.fulfillment_order_not_found_payload(&field.name, &field.selection);
             };
@@ -1166,8 +1167,9 @@ impl DraftProxy {
                     updated_lines.push(line);
                 }
             }
+            let timestamp = self.next_mutation_timestamp();
             original["lineItems"] = order_connection(updated_lines);
-            original["updatedAt"] = json!("2026-05-11T10:00:00Z");
+            original["updatedAt"] = json!(timestamp.clone());
             set_fulfillment_order_status_from_lines(&mut original);
 
             let mut remaining = original.clone();
@@ -1176,9 +1178,11 @@ impl DraftProxy {
             remaining["status"] = json!("OPEN");
             remaining["requestStatus"] = json!("UNSUBMITTED");
             remaining["lineItems"] = order_connection(remaining_lines);
-            remaining["updatedAt"] = json!("2026-05-11T10:00:00Z");
+            remaining["updatedAt"] = json!(timestamp);
             normalize_fulfillment_order_record(&mut remaining, assigned_location.as_ref());
             set_fulfillment_order_status_from_lines(&mut remaining);
+            original["order"] = order_summary.clone();
+            remaining["order"] = order_summary;
 
             nodes[index] = original.clone();
             nodes.push(remaining.clone());
@@ -1390,8 +1394,9 @@ impl DraftProxy {
                 }
                 remove_ids.push(source_id.clone());
             }
+            let timestamp = self.next_mutation_timestamp();
             target["lineItems"] = order_connection(merged_lines);
-            target["updatedAt"] = json!("2026-05-11T10:00:00Z");
+            target["updatedAt"] = json!(timestamp.clone());
             set_fulfillment_order_status_from_lines(&mut target);
             let has_merge_peer = nodes.iter().enumerate().any(|(index, node)| {
                 if index == target_index {
@@ -1414,7 +1419,7 @@ impl DraftProxy {
                     .find(|node| node["id"].as_str() == Some(remove_id.as_str()))
                 {
                     node["status"] = json!("CLOSED");
-                    node["updatedAt"] = json!("2026-05-11T10:00:00Z");
+                    node["updatedAt"] = json!(timestamp.clone());
                     node["supportedActions"] = json!([]);
                     if let Some(lines) = node["lineItems"]["nodes"].as_array_mut() {
                         for line in lines {
@@ -1940,4 +1945,12 @@ impl DraftProxy {
             &field.selection,
         ))
     }
+}
+
+fn fulfillment_order_parent_order_summary(order: &Value) -> Value {
+    let mut order_summary = order.clone();
+    if let Some(object) = order_summary.as_object_mut() {
+        object.remove("fulfillmentOrders");
+    }
+    order_summary
 }
