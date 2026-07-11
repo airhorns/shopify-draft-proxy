@@ -119,5 +119,72 @@
       "source": "marketing",
       "medium": "test"
     }
+  },
+  "displayAd": {
+    "title": "Source medium display ad",
+    "remoteId": "source-medium-display-ad",
+    "status": "ACTIVE",
+    "remoteUrl": "https://example.com/source-medium-display-ad",
+    "tactic": "AD",
+    "marketingChannelType": "DISPLAY",
+    "utm": {
+      "campaign": "source-medium-display-ad",
+      "source": "marketing",
+      "medium": "test"
+    }
+  },
+  "emailAffiliate": {
+    "title": "Source medium email affiliate",
+    "remoteId": "source-medium-email-affiliate",
+    "status": "ACTIVE",
+    "remoteUrl": "https://example.com/source-medium-email-affiliate",
+    "tactic": "AFFILIATE",
+    "marketingChannelType": "EMAIL",
+    "utm": {
+      "campaign": "source-medium-email-affiliate",
+      "source": "marketing",
+      "medium": "test"
+    }
+  },
+  "searchNewsletter": {
+    "title": "Source medium search newsletter",
+    "remoteId": "source-medium-search-newsletter",
+    "status": "ACTIVE",
+    "remoteUrl": "https://example.com/source-medium-search-newsletter",
+    "tactic": "NEWSLETTER",
+    "marketingChannelType": "SEARCH",
+    "utm": {
+      "campaign": "source-medium-search-newsletter",
+      "source": "marketing",
+      "medium": "test"
+    }
+  },
+  "displayInstagramAd": {
+    "title": "Source medium display instagram ad",
+    "remoteId": "source-medium-display-instagram-ad",
+    "status": "ACTIVE",
+    "remoteUrl": "https://example.com/source-medium-display-instagram-ad",
+    "tactic": "AD",
+    "marketingChannelType": "DISPLAY",
+    "referringDomain": "instagram.com",
+    "utm": {
+      "campaign": "source-medium-display-instagram-ad",
+      "source": "marketing",
+      "medium": "test"
+    }
+  },
+  "customDomainAd": {
+    "title": "Source medium custom domain ad",
+    "remoteId": "source-medium-custom-domain-ad",
+    "status": "ACTIVE",
+    "remoteUrl": "https://example.com/source-medium-custom-domain-ad",
+    "tactic": "AD",
+    "marketingChannelType": "DISPLAY",
+    "referringDomain": "partner.example",
+    "utm": {
+      "campaign": "source-medium-custom-domain-ad",
+      "source": "marketing",
+      "medium": "test"
+    }
   }
 }
