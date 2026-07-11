@@ -1,9 +1,283 @@
 {
+  "upstreamCalls": [
+    {
+      "operationName": "ProductSetTargetHydrateById",
+      "query": "query ProductSetTargetHydrateById($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    ...ProductSetTargetHydratedProduct\n  }\n}\n\nfragment ProductSetTargetHydratedProduct on Product {\n  id\n  title\n  handle\n  status\n  vendor\n  productType\n  tags\n  totalInventory\n  tracksInventory\n  createdAt\n  updatedAt\n  publishedAt\n  descriptionHtml\n  onlineStorePreviewUrl\n  templateSuffix\n  seo {\n    title\n    description\n  }\n  options {\n    id\n    name\n    position\n    values\n    optionValues {\n      id\n      name\n      hasVariants\n    }\n  }\n  variants(first: 100) {\n    nodes {\n      id\n      title\n      sku\n      barcode\n      price\n      compareAtPrice\n      taxable\n      inventoryPolicy\n      inventoryQuantity\n      selectedOptions {\n        name\n        value\n      }\n      inventoryItem {\n        id\n        tracked\n        requiresShipping\n      }\n    }\n  }\n  collections(first: 10) {\n    nodes {\n      id\n      title\n      handle\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n}\n",
+      "variables": {
+        "ids": ["gid://shopify/Product/10236066201906"]
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10236066201906",
+                "title": "Hermes Product Graph Updated 1783702678932",
+                "handle": "hermes-product-graph-1783702678932",
+                "status": "DRAFT",
+                "vendor": "HERMES",
+                "productType": "SNOWBOARD",
+                "tags": ["1783702678932", "conformance", "product-graph"],
+                "totalInventory": 10,
+                "tracksInventory": true,
+                "createdAt": "2026-07-10T16:57:59Z",
+                "updatedAt": "2026-07-10T16:58:06Z",
+                "publishedAt": null,
+                "descriptionHtml": "",
+                "onlineStorePreviewUrl": "https://qek9113szp8j0twg-92891250994.shopifypreview.com/products_preview?preview_key=b86cbca5a4c2de052aa6bea633b95714&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNy0xMFQxNzo1ODowNy4zNzhaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--85095c064385a07e0633fc878516775040144a00",
+                "templateSuffix": null,
+                "seo": {
+                  "title": null,
+                  "description": null
+                },
+                "options": [
+                  {
+                    "id": "gid://shopify/ProductOption/12795625799986",
+                    "name": "Color",
+                    "position": 1,
+                    "values": ["Blue", "Black"],
+                    "optionValues": [
+                      {
+                        "id": "gid://shopify/ProductOptionValue/8286321443122",
+                        "name": "Blue",
+                        "hasVariants": true
+                      },
+                      {
+                        "id": "gid://shopify/ProductOptionValue/8286321475890",
+                        "name": "Black",
+                        "hasVariants": true
+                      }
+                    ]
+                  }
+                ],
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51459662545202",
+                      "title": "Blue",
+                      "sku": "GRAPH-BLUE-UPDATED-1783702678932",
+                      "barcode": null,
+                      "price": "89.99",
+                      "compareAtPrice": null,
+                      "taxable": true,
+                      "inventoryPolicy": "DENY",
+                      "inventoryQuantity": 10,
+                      "selectedOptions": [
+                        {
+                          "name": "Color",
+                          "value": "Blue"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53564964241714",
+                        "tracked": true,
+                        "requiresShipping": true
+                      }
+                    },
+                    {
+                      "id": "gid://shopify/ProductVariant/51459662577970",
+                      "title": "Black",
+                      "sku": "GRAPH-BLACK-UPDATED-1783702678932",
+                      "barcode": null,
+                      "price": "59.99",
+                      "compareAtPrice": null,
+                      "taxable": true,
+                      "inventoryPolicy": "DENY",
+                      "inventoryQuantity": 1,
+                      "selectedOptions": [
+                        {
+                          "name": "Color",
+                          "value": "Black"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53564964274482",
+                        "tracked": false,
+                        "requiresShipping": true
+                      }
+                    }
+                  ]
+                },
+                "collections": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Collection/514285142322",
+                      "title": "Hermes Product Graph Collection 1783702678932",
+                      "handle": "hermes-product-graph-collection-1783702678932"
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 39,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ProductSetTargetHydrateByHandle",
+      "query": "query ProductSetTargetHydrateByHandle($handle: String!) {\n  productByIdentifier(identifier: { handle: $handle }) {\n    ...ProductSetTargetHydratedProduct\n  }\n}\n\nfragment ProductSetTargetHydratedProduct on Product {\n  id\n  title\n  handle\n  status\n  vendor\n  productType\n  tags\n  totalInventory\n  tracksInventory\n  createdAt\n  updatedAt\n  publishedAt\n  descriptionHtml\n  onlineStorePreviewUrl\n  templateSuffix\n  seo {\n    title\n    description\n  }\n  options {\n    id\n    name\n    position\n    values\n    optionValues {\n      id\n      name\n      hasVariants\n    }\n  }\n  variants(first: 100) {\n    nodes {\n      id\n      title\n      sku\n      barcode\n      price\n      compareAtPrice\n      taxable\n      inventoryPolicy\n      inventoryQuantity\n      selectedOptions {\n        name\n        value\n      }\n      inventoryItem {\n        id\n        tracked\n        requiresShipping\n      }\n    }\n  }\n  collections(first: 10) {\n    nodes {\n      id\n      title\n      handle\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n}\n",
+      "variables": {
+        "handle": "hermes-product-graph-1783702678932"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "productByIdentifier": {
+              "id": "gid://shopify/Product/10236066201906",
+              "title": "Hermes Product Graph Preexisting ID 1783702678932",
+              "handle": "hermes-product-graph-1783702678932",
+              "status": "DRAFT",
+              "vendor": "HERMES",
+              "productType": "SNOWBOARD",
+              "tags": ["1783702678932", "conformance", "product-graph"],
+              "totalInventory": 10,
+              "tracksInventory": true,
+              "createdAt": "2026-07-10T16:57:59Z",
+              "updatedAt": "2026-07-10T16:58:07Z",
+              "publishedAt": null,
+              "descriptionHtml": "",
+              "onlineStorePreviewUrl": "https://qek9113szp8j0twg-92891250994.shopifypreview.com/products_preview?preview_key=c5bb7a6b3da4fd1853a92feaa439d236&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNy0xMFQxNzo1ODowNy44MjhaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--5d011f39f75381e1bc0769c9a9872c6ee208f16f",
+              "templateSuffix": null,
+              "seo": {
+                "title": null,
+                "description": null
+              },
+              "options": [
+                {
+                  "id": "gid://shopify/ProductOption/12795625799986",
+                  "name": "Color",
+                  "position": 1,
+                  "values": ["Blue", "Black"],
+                  "optionValues": [
+                    {
+                      "id": "gid://shopify/ProductOptionValue/8286321443122",
+                      "name": "Blue",
+                      "hasVariants": true
+                    },
+                    {
+                      "id": "gid://shopify/ProductOptionValue/8286321475890",
+                      "name": "Black",
+                      "hasVariants": true
+                    }
+                  ]
+                }
+              ],
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51459662545202",
+                    "title": "Blue",
+                    "sku": "GRAPH-BLUE-UPDATED-1783702678932",
+                    "barcode": null,
+                    "price": "89.99",
+                    "compareAtPrice": null,
+                    "taxable": true,
+                    "inventoryPolicy": "DENY",
+                    "inventoryQuantity": 10,
+                    "selectedOptions": [
+                      {
+                        "name": "Color",
+                        "value": "Blue"
+                      }
+                    ],
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53564964241714",
+                      "tracked": true,
+                      "requiresShipping": true
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/ProductVariant/51459662577970",
+                    "title": "Black",
+                    "sku": "GRAPH-BLACK-UPDATED-1783702678932",
+                    "barcode": null,
+                    "price": "59.99",
+                    "compareAtPrice": null,
+                    "taxable": true,
+                    "inventoryPolicy": "DENY",
+                    "inventoryQuantity": 1,
+                    "selectedOptions": [
+                      {
+                        "name": "Color",
+                        "value": "Black"
+                      }
+                    ],
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53564964274482",
+                      "tracked": false,
+                      "requiresShipping": true
+                    }
+                  }
+                ]
+              },
+              "collections": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Collection/514285142322",
+                    "title": "Hermes Product Graph Collection 1783702678932",
+                    "handle": "hermes-product-graph-collection-1783702678932"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 39,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
   "readOnlyBaselines": {
     "locationsCatalog": {
       "data": {
         "locations": {
           "edges": [
+            {
+              "cursor": "eyJsYXN0X2lkIjoxMTM4ODQxMDI5NjIsImxhc3RfdmFsdWUiOiJIQVItMjMzMiBQcm9iZSBEZXN0aW5hdGlvbiAxNzgzNzAxMjk0MDQ3In0=",
+              "node": {
+                "id": "gid://shopify/Location/113884102962",
+                "name": "HAR-2332 Probe Destination 1783701294047",
+                "isActive": true
+              }
+            },
+            {
+              "cursor": "eyJsYXN0X2lkIjoxMTM4ODQwNzAxOTQsImxhc3RfdmFsdWUiOiJIQVItMjMzMiBQcm9iZSBTb3VyY2UgMTc4MzcwMTI5NDA0NyJ9",
+              "node": {
+                "id": "gid://shopify/Location/113884070194",
+                "name": "HAR-2332 Probe Source 1783701294047",
+                "isActive": true
+              }
+            },
             {
               "cursor": "eyJsYXN0X2lkIjoxMTI4Mjk3NTk3OTQsImxhc3RfdmFsdWUiOiJIQVItNTcxIHRyYW5zZmVyIGRlc3RpbmF0aW9uIDIwMjYwNTA1MDAwNjE5In0=",
               "node": {
@@ -41,6 +315,86 @@
               "node": {
                 "id": "gid://shopify/Location/112831103282",
                 "name": "HAR-658 lifecycle 20260505013332",
+                "isActive": true
+              }
+            },
+            {
+              "cursor": "eyJsYXN0X2lkIjoxMTM3OTIxNTU5NTQsImxhc3RfdmFsdWUiOiJJbnZlbnRvcnkgQ29ubmVjdGlvbiAxNzgzMTc2NjM5MzY2In0=",
+              "node": {
+                "id": "gid://shopify/Location/113792155954",
+                "name": "Inventory Connection 1783176639366",
+                "isActive": true
+              }
+            },
+            {
+              "cursor": "eyJsYXN0X2lkIjoxMTM3OTIxODg3MjIsImxhc3RfdmFsdWUiOiJJbnZlbnRvcnkgQ29ubmVjdGlvbiAxNzgzMTc2NjYxMDQ2In0=",
+              "node": {
+                "id": "gid://shopify/Location/113792188722",
+                "name": "Inventory Connection 1783176661046",
+                "isActive": true
+              }
+            },
+            {
+              "cursor": "eyJsYXN0X2lkIjoxMTM3OTIyNTQyNTgsImxhc3RfdmFsdWUiOiJJbnZlbnRvcnkgQ29ubmVjdGlvbiBEZXN0aW5hdGlvbiAxNzgzMTc2Njk2Njc4In0=",
+              "node": {
+                "id": "gid://shopify/Location/113792254258",
+                "name": "Inventory Connection Destination 1783176696678",
+                "isActive": true
+              }
+            },
+            {
+              "cursor": "eyJsYXN0X2lkIjoxMTM3OTIzMTk3OTQsImxhc3RfdmFsdWUiOiJJbnZlbnRvcnkgQ29ubmVjdGlvbiBEZXN0aW5hdGlvbiAxNzgzMTc2NzI0NzE5In0=",
+              "node": {
+                "id": "gid://shopify/Location/113792319794",
+                "name": "Inventory Connection Destination 1783176724719",
+                "isActive": true
+              }
+            },
+            {
+              "cursor": "eyJsYXN0X2lkIjoxMTM3OTIzODUzMzAsImxhc3RfdmFsdWUiOiJJbnZlbnRvcnkgQ29ubmVjdGlvbiBEZXN0aW5hdGlvbiAxNzgzMTc2NzQ3NzM3In0=",
+              "node": {
+                "id": "gid://shopify/Location/113792385330",
+                "name": "Inventory Connection Destination 1783176747737",
+                "isActive": true
+              }
+            },
+            {
+              "cursor": "eyJsYXN0X2lkIjoxMTM3OTI0NTA4NjYsImxhc3RfdmFsdWUiOiJJbnZlbnRvcnkgQ29ubmVjdGlvbiBEZXN0aW5hdGlvbiAxNzgzMTc2NzYyMjEyIn0=",
+              "node": {
+                "id": "gid://shopify/Location/113792450866",
+                "name": "Inventory Connection Destination 1783176762212",
+                "isActive": true
+              }
+            },
+            {
+              "cursor": "eyJsYXN0X2lkIjoxMTM3OTI1ODE5MzgsImxhc3RfdmFsdWUiOiJJbnZlbnRvcnkgQ29ubmVjdGlvbiBEZXN0aW5hdGlvbiAxNzgzMTc3MDkxNDY2In0=",
+              "node": {
+                "id": "gid://shopify/Location/113792581938",
+                "name": "Inventory Connection Destination 1783177091466",
+                "isActive": true
+              }
+            },
+            {
+              "cursor": "eyJsYXN0X2lkIjoxMTM4ODM5MzkxMjIsImxhc3RfdmFsdWUiOiJJbnZlbnRvcnkgSXRlbSBMZXZlbHMgRGVzdGluYXRpb24gMTc4MzcwMDg5NjE5OCJ9",
+              "node": {
+                "id": "gid://shopify/Location/113883939122",
+                "name": "Inventory Item Levels Destination 1783700896198",
+                "isActive": true
+              }
+            },
+            {
+              "cursor": "eyJsYXN0X2lkIjoxMTM4ODM5MDYzNTQsImxhc3RfdmFsdWUiOiJJbnZlbnRvcnkgSXRlbSBMZXZlbHMgU291cmNlIDE3ODM3MDA4OTYxOTgifQ==",
+              "node": {
+                "id": "gid://shopify/Location/113883906354",
+                "name": "Inventory Item Levels Source 1783700896198",
+                "isActive": true
+              }
+            },
+            {
+              "cursor": "eyJsYXN0X2lkIjoxMTM4Mjg2MjY3MzgsImxhc3RfdmFsdWUiOiJJbnZlbnRvcnkgcGF0aCBwcm9kdWN0IHNpYmxpbmcgMTc4MzM5NTg3OTIzNiJ9",
+              "node": {
+                "id": "gid://shopify/Location/113828626738",
+                "name": "Inventory path product sibling 1783395879236",
                 "isActive": true
               }
             },
@@ -85,6 +439,22 @@
               }
             },
             {
+              "cursor": "eyJsYXN0X2lkIjoxMTM3ODM1MDUyMDIsImxhc3RfdmFsdWUiOiJJbnZlbnRvcnkgdHJhbnNmZXIgY29uZm9ybWFuY2UgZGVzdGluYXRpb24gMTc4MzEyMDcyNzI2MiJ9",
+              "node": {
+                "id": "gid://shopify/Location/113783505202",
+                "name": "Inventory transfer conformance destination 1783120727262",
+                "isActive": true
+              }
+            },
+            {
+              "cursor": "eyJsYXN0X2lkIjoxMTM3ODM1NzA3MzgsImxhc3RfdmFsdWUiOiJJbnZlbnRvcnkgdHJhbnNmZXIgY29uZm9ybWFuY2UgZGVzdGluYXRpb24gMTc4MzEyMDcyNzI2Mi16ZXJvLW9yaWdpbiJ9",
+              "node": {
+                "id": "gid://shopify/Location/113783570738",
+                "name": "Inventory transfer conformance destination 1783120727262-zero-origin",
+                "isActive": true
+              }
+            },
+            {
               "cursor": "eyJsYXN0X2lkIjoxMTI4NjQ3NTYwMTgsImxhc3RfdmFsdWUiOiJJbnZlbnRvcnkgdHJhbnNmZXIgY29uZm9ybWFuY2Ugb3JpZ2luIDE3NzgxMDUyMTI3NzIifQ==",
               "node": {
                 "id": "gid://shopify/Location/112864756018",
@@ -121,6 +491,22 @@
               "node": {
                 "id": "gid://shopify/Location/113491607858",
                 "name": "Inventory transfer conformance origin 1781556548951",
+                "isActive": true
+              }
+            },
+            {
+              "cursor": "eyJsYXN0X2lkIjoxMTM3ODM0NzI0MzQsImxhc3RfdmFsdWUiOiJJbnZlbnRvcnkgdHJhbnNmZXIgY29uZm9ybWFuY2Ugb3JpZ2luIDE3ODMxMjA3MjcyNjIifQ==",
+              "node": {
+                "id": "gid://shopify/Location/113783472434",
+                "name": "Inventory transfer conformance origin 1783120727262",
+                "isActive": true
+              }
+            },
+            {
+              "cursor": "eyJsYXN0X2lkIjoxMTM3ODM1Mzc5NzAsImxhc3RfdmFsdWUiOiJJbnZlbnRvcnkgdHJhbnNmZXIgY29uZm9ybWFuY2Ugb3JpZ2luIDE3ODMxMjA3MjcyNjItemVyby1vcmlnaW4ifQ==",
+              "node": {
+                "id": "gid://shopify/Location/113783537970",
+                "name": "Inventory transfer conformance origin 1783120727262-zero-origin",
                 "isActive": true
               }
             },
@@ -178,10 +564,10 @@
       "extensions": {
         "cost": {
           "requestedQueryCost": 9,
-          "actualQueryCost": 5,
+          "actualQueryCost": 7,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1995,
+            "currentlyAvailable": 1993,
             "restoreRate": 100
           }
         }
@@ -192,12 +578,12 @@
     "variables": {
       "synchronous": true,
       "input": {
-        "title": "Hermes Product Graph 1783088692213",
+        "title": "Hermes Product Graph 1783702678932",
         "status": "DRAFT",
         "vendor": "HERMES",
         "productType": "SNOWBOARD",
         "category": "gid://shopify/TaxonomyCategory/aa-1-1",
-        "tags": ["conformance", "product-graph", "1783088692213"],
+        "tags": ["conformance", "product-graph", "1783702678932"],
         "productOptions": [
           {
             "name": "Color",
@@ -220,7 +606,7 @@
                 "name": "Blue"
               }
             ],
-            "sku": "GRAPH-BLUE-1783088692213",
+            "sku": "GRAPH-BLUE-1783702678932",
             "price": "79.99",
             "inventoryQuantities": [
               {
@@ -246,7 +632,7 @@
                 "name": "Black"
               }
             ],
-            "sku": "GRAPH-BLACK-1783088692213",
+            "sku": "GRAPH-BLACK-1783702678932",
             "price": "69.99",
             "inventoryQuantities": [
               {
@@ -275,9 +661,9 @@
       "data": {
         "productSet": {
           "product": {
-            "id": "gid://shopify/Product/10230803857714",
-            "title": "Hermes Product Graph 1783088692213",
-            "handle": "hermes-product-graph-1783088692213",
+            "id": "gid://shopify/Product/10236066201906",
+            "title": "Hermes Product Graph 1783702678932",
+            "handle": "hermes-product-graph-1783702678932",
             "status": "DRAFT",
             "vendor": "HERMES",
             "productType": "SNOWBOARD",
@@ -285,22 +671,22 @@
               "id": "gid://shopify/TaxonomyCategory/aa-1-1",
               "fullName": "Apparel & Accessories > Clothing > Activewear"
             },
-            "tags": ["1783088692213", "conformance", "product-graph"],
+            "tags": ["1783702678932", "conformance", "product-graph"],
             "totalInventory": 7,
             "options": [
               {
-                "id": "gid://shopify/ProductOption/12789317665074",
+                "id": "gid://shopify/ProductOption/12795625799986",
                 "name": "Color",
                 "position": 1,
                 "values": ["Blue", "Black"],
                 "optionValues": [
                   {
-                    "id": "gid://shopify/ProductOptionValue/8258838298930",
+                    "id": "gid://shopify/ProductOptionValue/8286321443122",
                     "name": "Blue",
                     "hasVariants": true
                   },
                   {
-                    "id": "gid://shopify/ProductOptionValue/8258838331698",
+                    "id": "gid://shopify/ProductOptionValue/8286321475890",
                     "name": "Black",
                     "hasVariants": true
                   }
@@ -310,9 +696,9 @@
             "variants": {
               "nodes": [
                 {
-                  "id": "gid://shopify/ProductVariant/51421277782322",
+                  "id": "gid://shopify/ProductVariant/51459662545202",
                   "title": "Blue",
-                  "sku": "GRAPH-BLUE-1783088692213",
+                  "sku": "GRAPH-BLUE-1783702678932",
                   "price": "79.99",
                   "inventoryQuantity": 7,
                   "selectedOptions": [
@@ -322,13 +708,13 @@
                     }
                   ],
                   "inventoryItem": {
-                    "id": "gid://shopify/InventoryItem/53526332342578",
+                    "id": "gid://shopify/InventoryItem/53564964241714",
                     "tracked": true,
                     "requiresShipping": true,
                     "inventoryLevels": {
                       "nodes": [
                         {
-                          "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53526332342578",
+                          "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53564964241714",
                           "location": {
                             "id": "gid://shopify/Location/106318463282",
                             "name": "My Custom Location"
@@ -337,7 +723,7 @@
                             {
                               "name": "available",
                               "quantity": 2,
-                              "updatedAt": "2026-07-03T14:24:52Z"
+                              "updatedAt": "2026-07-10T16:57:59Z"
                             },
                             {
                               "name": "on_hand",
@@ -352,7 +738,7 @@
                           ]
                         },
                         {
-                          "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53526332342578",
+                          "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53564964241714",
                           "location": {
                             "id": "gid://shopify/Location/106318430514",
                             "name": "Shop location"
@@ -361,7 +747,7 @@
                             {
                               "name": "available",
                               "quantity": 5,
-                              "updatedAt": "2026-07-03T14:24:52Z"
+                              "updatedAt": "2026-07-10T16:57:59Z"
                             },
                             {
                               "name": "on_hand",
@@ -380,9 +766,9 @@
                   }
                 },
                 {
-                  "id": "gid://shopify/ProductVariant/51421277815090",
+                  "id": "gid://shopify/ProductVariant/51459662577970",
                   "title": "Black",
-                  "sku": "GRAPH-BLACK-1783088692213",
+                  "sku": "GRAPH-BLACK-1783702678932",
                   "price": "69.99",
                   "inventoryQuantity": 3,
                   "selectedOptions": [
@@ -392,13 +778,13 @@
                     }
                   ],
                   "inventoryItem": {
-                    "id": "gid://shopify/InventoryItem/53526332375346",
+                    "id": "gid://shopify/InventoryItem/53564964274482",
                     "tracked": false,
                     "requiresShipping": true,
                     "inventoryLevels": {
                       "nodes": [
                         {
-                          "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53526332375346",
+                          "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53564964274482",
                           "location": {
                             "id": "gid://shopify/Location/106318463282",
                             "name": "My Custom Location"
@@ -407,7 +793,7 @@
                             {
                               "name": "available",
                               "quantity": 3,
-                              "updatedAt": "2026-07-03T14:24:52Z"
+                              "updatedAt": "2026-07-10T16:57:59Z"
                             },
                             {
                               "name": "on_hand",
@@ -430,7 +816,7 @@
             "metafields": {
               "nodes": [
                 {
-                  "id": "gid://shopify/Metafield/44690803228978",
+                  "id": "gid://shopify/Metafield/44962913288498",
                   "namespace": "custom",
                   "key": "material",
                   "type": "single_line_text_field",
@@ -457,18 +843,18 @@
     }
   },
   "downstreamReadVariables": {
-    "id": "gid://shopify/Product/10230803857714",
-    "variantOneId": "gid://shopify/ProductVariant/51421277782322",
-    "inventoryItemOneId": "gid://shopify/InventoryItem/53526332342578",
-    "variantTwoId": "gid://shopify/ProductVariant/51421277815090",
-    "inventoryItemTwoId": "gid://shopify/InventoryItem/53526332375346"
+    "id": "gid://shopify/Product/10236066201906",
+    "variantOneId": "gid://shopify/ProductVariant/51459662545202",
+    "inventoryItemOneId": "gid://shopify/InventoryItem/53564964241714",
+    "variantTwoId": "gid://shopify/ProductVariant/51459662577970",
+    "inventoryItemTwoId": "gid://shopify/InventoryItem/53564964274482"
   },
   "downstreamRead": {
     "data": {
       "product": {
-        "id": "gid://shopify/Product/10230803857714",
-        "title": "Hermes Product Graph 1783088692213",
-        "handle": "hermes-product-graph-1783088692213",
+        "id": "gid://shopify/Product/10236066201906",
+        "title": "Hermes Product Graph 1783702678932",
+        "handle": "hermes-product-graph-1783702678932",
         "status": "DRAFT",
         "vendor": "HERMES",
         "productType": "SNOWBOARD",
@@ -476,7 +862,7 @@
           "id": "gid://shopify/TaxonomyCategory/aa-1-1",
           "fullName": "Apparel & Accessories > Clothing > Activewear"
         },
-        "tags": ["1783088692213", "conformance", "product-graph"],
+        "tags": ["1783702678932", "conformance", "product-graph"],
         "totalInventory": 7,
         "descriptionHtml": "",
         "templateSuffix": null,
@@ -484,21 +870,21 @@
           "title": null,
           "description": null
         },
-        "onlineStorePreviewUrl": "https://5qlfa4wec6y4e585-92891250994.shopifypreview.com/products_preview?preview_key=4cf4e5f8e5c26578efc1dd96319ff9bf&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNy0wM1QxNToyNDo1My4xOTRaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--5b4fc8c8586c68f431a32489c0e5b5759ff11847",
+        "onlineStorePreviewUrl": "https://qek9113szp8j0twg-92891250994.shopifypreview.com/products_preview?preview_key=12edefc380e47bcb793e5e7091fed6f3&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNy0xMFQxNzo1ODowMC4yODhaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--f0590a32383f37e102e166f3e70eb61052c2fe39",
         "options": [
           {
-            "id": "gid://shopify/ProductOption/12789317665074",
+            "id": "gid://shopify/ProductOption/12795625799986",
             "name": "Color",
             "position": 1,
             "values": ["Blue", "Black"],
             "optionValues": [
               {
-                "id": "gid://shopify/ProductOptionValue/8258838298930",
+                "id": "gid://shopify/ProductOptionValue/8286321443122",
                 "name": "Blue",
                 "hasVariants": true
               },
               {
-                "id": "gid://shopify/ProductOptionValue/8258838331698",
+                "id": "gid://shopify/ProductOptionValue/8286321475890",
                 "name": "Black",
                 "hasVariants": true
               }
@@ -508,9 +894,9 @@
         "variants": {
           "nodes": [
             {
-              "id": "gid://shopify/ProductVariant/51421277782322",
+              "id": "gid://shopify/ProductVariant/51459662545202",
               "title": "Blue",
-              "sku": "GRAPH-BLUE-1783088692213",
+              "sku": "GRAPH-BLUE-1783702678932",
               "barcode": null,
               "price": "79.99",
               "compareAtPrice": null,
@@ -524,7 +910,7 @@
                 }
               ],
               "inventoryItem": {
-                "id": "gid://shopify/InventoryItem/53526332342578",
+                "id": "gid://shopify/InventoryItem/53564964241714",
                 "tracked": true,
                 "requiresShipping": true,
                 "measurement": {
@@ -539,7 +925,7 @@
                 "inventoryLevels": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53526332342578",
+                      "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53564964241714",
                       "location": {
                         "id": "gid://shopify/Location/106318463282",
                         "name": "My Custom Location"
@@ -548,7 +934,7 @@
                         {
                           "name": "available",
                           "quantity": 2,
-                          "updatedAt": "2026-07-03T14:24:52Z"
+                          "updatedAt": "2026-07-10T16:57:59Z"
                         },
                         {
                           "name": "on_hand",
@@ -563,7 +949,7 @@
                       ]
                     },
                     {
-                      "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53526332342578",
+                      "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53564964241714",
                       "location": {
                         "id": "gid://shopify/Location/106318430514",
                         "name": "Shop location"
@@ -572,7 +958,7 @@
                         {
                           "name": "available",
                           "quantity": 5,
-                          "updatedAt": "2026-07-03T14:24:52Z"
+                          "updatedAt": "2026-07-10T16:57:59Z"
                         },
                         {
                           "name": "on_hand",
@@ -591,9 +977,9 @@
               }
             },
             {
-              "id": "gid://shopify/ProductVariant/51421277815090",
+              "id": "gid://shopify/ProductVariant/51459662577970",
               "title": "Black",
-              "sku": "GRAPH-BLACK-1783088692213",
+              "sku": "GRAPH-BLACK-1783702678932",
               "barcode": null,
               "price": "69.99",
               "compareAtPrice": null,
@@ -607,7 +993,7 @@
                 }
               ],
               "inventoryItem": {
-                "id": "gid://shopify/InventoryItem/53526332375346",
+                "id": "gid://shopify/InventoryItem/53564964274482",
                 "tracked": false,
                 "requiresShipping": true,
                 "measurement": {
@@ -622,7 +1008,7 @@
                 "inventoryLevels": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53526332375346",
+                      "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53564964274482",
                       "location": {
                         "id": "gid://shopify/Location/106318463282",
                         "name": "My Custom Location"
@@ -631,7 +1017,7 @@
                         {
                           "name": "available",
                           "quantity": 3,
-                          "updatedAt": "2026-07-03T14:24:52Z"
+                          "updatedAt": "2026-07-10T16:57:59Z"
                         },
                         {
                           "name": "on_hand",
@@ -658,7 +1044,7 @@
           "nodes": []
         },
         "metafield": {
-          "id": "gid://shopify/Metafield/44690803228978",
+          "id": "gid://shopify/Metafield/44962913288498",
           "namespace": "custom",
           "key": "material",
           "type": "single_line_text_field",
@@ -667,7 +1053,7 @@
         "metafields": {
           "nodes": [
             {
-              "id": "gid://shopify/Metafield/44690803228978",
+              "id": "gid://shopify/Metafield/44962913288498",
               "namespace": "custom",
               "key": "material",
               "type": "single_line_text_field",
@@ -677,14 +1063,14 @@
         }
       },
       "variantOne": {
-        "id": "gid://shopify/ProductVariant/51421277782322",
+        "id": "gid://shopify/ProductVariant/51459662545202",
         "inventoryQuantity": 7,
         "inventoryItem": {
-          "id": "gid://shopify/InventoryItem/53526332342578",
+          "id": "gid://shopify/InventoryItem/53564964241714",
           "inventoryLevels": {
             "nodes": [
               {
-                "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53526332342578",
+                "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53564964241714",
                 "location": {
                   "id": "gid://shopify/Location/106318463282",
                   "name": "My Custom Location"
@@ -693,7 +1079,7 @@
                   {
                     "name": "available",
                     "quantity": 2,
-                    "updatedAt": "2026-07-03T14:24:52Z"
+                    "updatedAt": "2026-07-10T16:57:59Z"
                   },
                   {
                     "name": "on_hand",
@@ -708,7 +1094,7 @@
                 ]
               },
               {
-                "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53526332342578",
+                "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53564964241714",
                 "location": {
                   "id": "gid://shopify/Location/106318430514",
                   "name": "Shop location"
@@ -717,7 +1103,7 @@
                   {
                     "name": "available",
                     "quantity": 5,
-                    "updatedAt": "2026-07-03T14:24:52Z"
+                    "updatedAt": "2026-07-10T16:57:59Z"
                   },
                   {
                     "name": "on_hand",
@@ -735,16 +1121,16 @@
           }
         },
         "product": {
-          "id": "gid://shopify/Product/10230803857714",
+          "id": "gid://shopify/Product/10236066201906",
           "totalInventory": 7
         }
       },
       "stockOne": {
-        "id": "gid://shopify/InventoryItem/53526332342578",
+        "id": "gid://shopify/InventoryItem/53564964241714",
         "inventoryLevels": {
           "nodes": [
             {
-              "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53526332342578",
+              "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53564964241714",
               "location": {
                 "id": "gid://shopify/Location/106318463282",
                 "name": "My Custom Location"
@@ -753,7 +1139,7 @@
                 {
                   "name": "available",
                   "quantity": 2,
-                  "updatedAt": "2026-07-03T14:24:52Z"
+                  "updatedAt": "2026-07-10T16:57:59Z"
                 },
                 {
                   "name": "on_hand",
@@ -768,7 +1154,7 @@
               ]
             },
             {
-              "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53526332342578",
+              "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53564964241714",
               "location": {
                 "id": "gid://shopify/Location/106318430514",
                 "name": "Shop location"
@@ -777,7 +1163,7 @@
                 {
                   "name": "available",
                   "quantity": 5,
-                  "updatedAt": "2026-07-03T14:24:52Z"
+                  "updatedAt": "2026-07-10T16:57:59Z"
                 },
                 {
                   "name": "on_hand",
@@ -794,23 +1180,23 @@
           ]
         },
         "variant": {
-          "id": "gid://shopify/ProductVariant/51421277782322",
+          "id": "gid://shopify/ProductVariant/51459662545202",
           "inventoryQuantity": 7,
           "product": {
-            "id": "gid://shopify/Product/10230803857714",
+            "id": "gid://shopify/Product/10236066201906",
             "totalInventory": 7
           }
         }
       },
       "variantTwo": {
-        "id": "gid://shopify/ProductVariant/51421277815090",
+        "id": "gid://shopify/ProductVariant/51459662577970",
         "inventoryQuantity": 3,
         "inventoryItem": {
-          "id": "gid://shopify/InventoryItem/53526332375346",
+          "id": "gid://shopify/InventoryItem/53564964274482",
           "inventoryLevels": {
             "nodes": [
               {
-                "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53526332375346",
+                "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53564964274482",
                 "location": {
                   "id": "gid://shopify/Location/106318463282",
                   "name": "My Custom Location"
@@ -819,7 +1205,7 @@
                   {
                     "name": "available",
                     "quantity": 3,
-                    "updatedAt": "2026-07-03T14:24:52Z"
+                    "updatedAt": "2026-07-10T16:57:59Z"
                   },
                   {
                     "name": "on_hand",
@@ -837,16 +1223,16 @@
           }
         },
         "product": {
-          "id": "gid://shopify/Product/10230803857714",
+          "id": "gid://shopify/Product/10236066201906",
           "totalInventory": 7
         }
       },
       "stockTwo": {
-        "id": "gid://shopify/InventoryItem/53526332375346",
+        "id": "gid://shopify/InventoryItem/53564964274482",
         "inventoryLevels": {
           "nodes": [
             {
-              "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53526332375346",
+              "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53564964274482",
               "location": {
                 "id": "gid://shopify/Location/106318463282",
                 "name": "My Custom Location"
@@ -855,7 +1241,7 @@
                 {
                   "name": "available",
                   "quantity": 3,
-                  "updatedAt": "2026-07-03T14:24:52Z"
+                  "updatedAt": "2026-07-10T16:57:59Z"
                 },
                 {
                   "name": "on_hand",
@@ -872,10 +1258,10 @@
           ]
         },
         "variant": {
-          "id": "gid://shopify/ProductVariant/51421277815090",
+          "id": "gid://shopify/ProductVariant/51459662577970",
           "inventoryQuantity": 3,
           "product": {
-            "id": "gid://shopify/Product/10230803857714",
+            "id": "gid://shopify/Product/10236066201906",
             "totalInventory": 7
           }
         }
@@ -887,7 +1273,7 @@
         "actualQueryCost": 59,
         "throttleStatus": {
           "maximumAvailable": 2000,
-          "currentlyAvailable": 1921,
+          "currentlyAvailable": 1941,
           "restoreRate": 100
         }
       }
@@ -898,14 +1284,14 @@
       "variables": {
         "synchronous": true,
         "identifier": {
-          "id": "gid://shopify/Product/10230803857714"
+          "id": "gid://shopify/Product/10236066201906"
         },
         "input": {
-          "title": "Hermes Product Graph Updated 1783088692213",
+          "title": "Hermes Product Graph Updated 1783702678932",
           "status": "DRAFT",
           "productOptions": [
             {
-              "id": "gid://shopify/ProductOption/12789317665074",
+              "id": "gid://shopify/ProductOption/12795625799986",
               "name": "Color",
               "position": 1,
               "values": [
@@ -920,14 +1306,14 @@
           ],
           "variants": [
             {
-              "id": "gid://shopify/ProductVariant/51421277782322",
+              "id": "gid://shopify/ProductVariant/51459662545202",
               "optionValues": [
                 {
                   "optionName": "Color",
                   "name": "Blue"
                 }
               ],
-              "sku": "GRAPH-BLUE-UPDATED-1783088692213",
+              "sku": "GRAPH-BLUE-UPDATED-1783702678932",
               "price": "89.99",
               "inventoryQuantities": [
                 {
@@ -943,14 +1329,14 @@
               ]
             },
             {
-              "id": "gid://shopify/ProductVariant/51421277815090",
+              "id": "gid://shopify/ProductVariant/51459662577970",
               "optionValues": [
                 {
                   "optionName": "Color",
                   "name": "Black"
                 }
               ],
-              "sku": "GRAPH-BLACK-UPDATED-1783088692213",
+              "sku": "GRAPH-BLACK-UPDATED-1783702678932",
               "price": "59.99",
               "inventoryQuantities": [
                 {
@@ -967,9 +1353,9 @@
         "data": {
           "productSet": {
             "product": {
-              "id": "gid://shopify/Product/10230803857714",
-              "title": "Hermes Product Graph Updated 1783088692213",
-              "handle": "hermes-product-graph-1783088692213",
+              "id": "gid://shopify/Product/10236066201906",
+              "title": "Hermes Product Graph Updated 1783702678932",
+              "handle": "hermes-product-graph-1783702678932",
               "status": "DRAFT",
               "vendor": "HERMES",
               "productType": "SNOWBOARD",
@@ -977,22 +1363,22 @@
                 "id": "gid://shopify/TaxonomyCategory/aa-1-1",
                 "fullName": "Apparel & Accessories > Clothing > Activewear"
               },
-              "tags": ["1783088692213", "conformance", "product-graph"],
+              "tags": ["1783702678932", "conformance", "product-graph"],
               "totalInventory": 7,
               "options": [
                 {
-                  "id": "gid://shopify/ProductOption/12789317665074",
+                  "id": "gid://shopify/ProductOption/12795625799986",
                   "name": "Color",
                   "position": 1,
                   "values": ["Blue", "Black"],
                   "optionValues": [
                     {
-                      "id": "gid://shopify/ProductOptionValue/8258838298930",
+                      "id": "gid://shopify/ProductOptionValue/8286321443122",
                       "name": "Blue",
                       "hasVariants": true
                     },
                     {
-                      "id": "gid://shopify/ProductOptionValue/8258838331698",
+                      "id": "gid://shopify/ProductOptionValue/8286321475890",
                       "name": "Black",
                       "hasVariants": true
                     }
@@ -1002,9 +1388,9 @@
               "variants": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/ProductVariant/51421277782322",
+                    "id": "gid://shopify/ProductVariant/51459662545202",
                     "title": "Blue",
-                    "sku": "GRAPH-BLUE-UPDATED-1783088692213",
+                    "sku": "GRAPH-BLUE-UPDATED-1783702678932",
                     "price": "89.99",
                     "inventoryQuantity": 10,
                     "selectedOptions": [
@@ -1014,13 +1400,13 @@
                       }
                     ],
                     "inventoryItem": {
-                      "id": "gid://shopify/InventoryItem/53526332342578",
+                      "id": "gid://shopify/InventoryItem/53564964241714",
                       "tracked": true,
                       "requiresShipping": true,
                       "inventoryLevels": {
                         "nodes": [
                           {
-                            "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53526332342578",
+                            "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53564964241714",
                             "location": {
                               "id": "gid://shopify/Location/106318463282",
                               "name": "My Custom Location"
@@ -1029,7 +1415,7 @@
                               {
                                 "name": "available",
                                 "quantity": 4,
-                                "updatedAt": "2026-07-03T14:24:53Z"
+                                "updatedAt": "2026-07-10T16:58:00Z"
                               },
                               {
                                 "name": "on_hand",
@@ -1044,7 +1430,7 @@
                             ]
                           },
                           {
-                            "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53526332342578",
+                            "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53564964241714",
                             "location": {
                               "id": "gid://shopify/Location/106318430514",
                               "name": "Shop location"
@@ -1053,7 +1439,7 @@
                               {
                                 "name": "available",
                                 "quantity": 6,
-                                "updatedAt": "2026-07-03T14:24:53Z"
+                                "updatedAt": "2026-07-10T16:58:00Z"
                               },
                               {
                                 "name": "on_hand",
@@ -1072,9 +1458,9 @@
                     }
                   },
                   {
-                    "id": "gid://shopify/ProductVariant/51421277815090",
+                    "id": "gid://shopify/ProductVariant/51459662577970",
                     "title": "Black",
-                    "sku": "GRAPH-BLACK-UPDATED-1783088692213",
+                    "sku": "GRAPH-BLACK-UPDATED-1783702678932",
                     "price": "59.99",
                     "inventoryQuantity": 1,
                     "selectedOptions": [
@@ -1084,13 +1470,13 @@
                       }
                     ],
                     "inventoryItem": {
-                      "id": "gid://shopify/InventoryItem/53526332375346",
+                      "id": "gid://shopify/InventoryItem/53564964274482",
                       "tracked": false,
                       "requiresShipping": true,
                       "inventoryLevels": {
                         "nodes": [
                           {
-                            "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53526332375346",
+                            "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53564964274482",
                             "location": {
                               "id": "gid://shopify/Location/106318463282",
                               "name": "My Custom Location"
@@ -1099,7 +1485,7 @@
                               {
                                 "name": "available",
                                 "quantity": 1,
-                                "updatedAt": "2026-07-03T14:24:53Z"
+                                "updatedAt": "2026-07-10T16:58:00Z"
                               },
                               {
                                 "name": "on_hand",
@@ -1122,7 +1508,7 @@
               "metafields": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/Metafield/44690803228978",
+                    "id": "gid://shopify/Metafield/44962913288498",
                     "namespace": "custom",
                     "key": "material",
                     "type": "single_line_text_field",
@@ -1141,7 +1527,7 @@
             "actualQueryCost": 24,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1920,
+              "currentlyAvailable": 1943,
               "restoreRate": 100
             }
           }
@@ -1149,18 +1535,18 @@
       }
     },
     "downstreamReadVariables": {
-      "id": "gid://shopify/Product/10230803857714",
-      "variantOneId": "gid://shopify/ProductVariant/51421277782322",
-      "inventoryItemOneId": "gid://shopify/InventoryItem/53526332342578",
-      "variantTwoId": "gid://shopify/ProductVariant/51421277815090",
-      "inventoryItemTwoId": "gid://shopify/InventoryItem/53526332375346"
+      "id": "gid://shopify/Product/10236066201906",
+      "variantOneId": "gid://shopify/ProductVariant/51459662545202",
+      "inventoryItemOneId": "gid://shopify/InventoryItem/53564964241714",
+      "variantTwoId": "gid://shopify/ProductVariant/51459662577970",
+      "inventoryItemTwoId": "gid://shopify/InventoryItem/53564964274482"
     },
     "downstreamRead": {
       "data": {
         "product": {
-          "id": "gid://shopify/Product/10230803857714",
-          "title": "Hermes Product Graph Updated 1783088692213",
-          "handle": "hermes-product-graph-1783088692213",
+          "id": "gid://shopify/Product/10236066201906",
+          "title": "Hermes Product Graph Updated 1783702678932",
+          "handle": "hermes-product-graph-1783702678932",
           "status": "DRAFT",
           "vendor": "HERMES",
           "productType": "SNOWBOARD",
@@ -1168,7 +1554,7 @@
             "id": "gid://shopify/TaxonomyCategory/aa-1-1",
             "fullName": "Apparel & Accessories > Clothing > Activewear"
           },
-          "tags": ["1783088692213", "conformance", "product-graph"],
+          "tags": ["1783702678932", "conformance", "product-graph"],
           "totalInventory": 7,
           "descriptionHtml": "",
           "templateSuffix": null,
@@ -1176,21 +1562,21 @@
             "title": null,
             "description": null
           },
-          "onlineStorePreviewUrl": "https://5qlfa4wec6y4e585-92891250994.shopifypreview.com/products_preview?preview_key=d850fb0b4fcb69b5574439b560a99390&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNy0wM1QxNToyNDo1My45NDNaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--5e3f2c856edde33f9274034ee4166a95eb7b16a6",
+          "onlineStorePreviewUrl": "https://qek9113szp8j0twg-92891250994.shopifypreview.com/products_preview?preview_key=6c9f00eafceb157b8fbc703fec61ccd4&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNy0xMFQxNzo1ODowMS4wMjlaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--0d8ef76f7b3176124e55260ca379ea83a57a7bac",
           "options": [
             {
-              "id": "gid://shopify/ProductOption/12789317665074",
+              "id": "gid://shopify/ProductOption/12795625799986",
               "name": "Color",
               "position": 1,
               "values": ["Blue", "Black"],
               "optionValues": [
                 {
-                  "id": "gid://shopify/ProductOptionValue/8258838298930",
+                  "id": "gid://shopify/ProductOptionValue/8286321443122",
                   "name": "Blue",
                   "hasVariants": true
                 },
                 {
-                  "id": "gid://shopify/ProductOptionValue/8258838331698",
+                  "id": "gid://shopify/ProductOptionValue/8286321475890",
                   "name": "Black",
                   "hasVariants": true
                 }
@@ -1200,9 +1586,9 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51421277782322",
+                "id": "gid://shopify/ProductVariant/51459662545202",
                 "title": "Blue",
-                "sku": "GRAPH-BLUE-UPDATED-1783088692213",
+                "sku": "GRAPH-BLUE-UPDATED-1783702678932",
                 "barcode": null,
                 "price": "89.99",
                 "compareAtPrice": null,
@@ -1216,7 +1602,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53526332342578",
+                  "id": "gid://shopify/InventoryItem/53564964241714",
                   "tracked": true,
                   "requiresShipping": true,
                   "measurement": {
@@ -1231,7 +1617,7 @@
                   "inventoryLevels": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53526332342578",
+                        "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53564964241714",
                         "location": {
                           "id": "gid://shopify/Location/106318463282",
                           "name": "My Custom Location"
@@ -1240,7 +1626,7 @@
                           {
                             "name": "available",
                             "quantity": 4,
-                            "updatedAt": "2026-07-03T14:24:53Z"
+                            "updatedAt": "2026-07-10T16:58:00Z"
                           },
                           {
                             "name": "on_hand",
@@ -1255,7 +1641,7 @@
                         ]
                       },
                       {
-                        "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53526332342578",
+                        "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53564964241714",
                         "location": {
                           "id": "gid://shopify/Location/106318430514",
                           "name": "Shop location"
@@ -1264,7 +1650,7 @@
                           {
                             "name": "available",
                             "quantity": 6,
-                            "updatedAt": "2026-07-03T14:24:53Z"
+                            "updatedAt": "2026-07-10T16:58:00Z"
                           },
                           {
                             "name": "on_hand",
@@ -1283,9 +1669,9 @@
                 }
               },
               {
-                "id": "gid://shopify/ProductVariant/51421277815090",
+                "id": "gid://shopify/ProductVariant/51459662577970",
                 "title": "Black",
-                "sku": "GRAPH-BLACK-UPDATED-1783088692213",
+                "sku": "GRAPH-BLACK-UPDATED-1783702678932",
                 "barcode": null,
                 "price": "59.99",
                 "compareAtPrice": null,
@@ -1299,7 +1685,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53526332375346",
+                  "id": "gid://shopify/InventoryItem/53564964274482",
                   "tracked": false,
                   "requiresShipping": true,
                   "measurement": {
@@ -1314,7 +1700,7 @@
                   "inventoryLevels": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53526332375346",
+                        "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53564964274482",
                         "location": {
                           "id": "gid://shopify/Location/106318463282",
                           "name": "My Custom Location"
@@ -1323,7 +1709,7 @@
                           {
                             "name": "available",
                             "quantity": 1,
-                            "updatedAt": "2026-07-03T14:24:53Z"
+                            "updatedAt": "2026-07-10T16:58:00Z"
                           },
                           {
                             "name": "on_hand",
@@ -1350,7 +1736,7 @@
             "nodes": []
           },
           "metafield": {
-            "id": "gid://shopify/Metafield/44690803228978",
+            "id": "gid://shopify/Metafield/44962913288498",
             "namespace": "custom",
             "key": "material",
             "type": "single_line_text_field",
@@ -1359,7 +1745,7 @@
           "metafields": {
             "nodes": [
               {
-                "id": "gid://shopify/Metafield/44690803228978",
+                "id": "gid://shopify/Metafield/44962913288498",
                 "namespace": "custom",
                 "key": "material",
                 "type": "single_line_text_field",
@@ -1369,14 +1755,14 @@
           }
         },
         "variantOne": {
-          "id": "gid://shopify/ProductVariant/51421277782322",
+          "id": "gid://shopify/ProductVariant/51459662545202",
           "inventoryQuantity": 10,
           "inventoryItem": {
-            "id": "gid://shopify/InventoryItem/53526332342578",
+            "id": "gid://shopify/InventoryItem/53564964241714",
             "inventoryLevels": {
               "nodes": [
                 {
-                  "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53526332342578",
+                  "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53564964241714",
                   "location": {
                     "id": "gid://shopify/Location/106318463282",
                     "name": "My Custom Location"
@@ -1385,7 +1771,7 @@
                     {
                       "name": "available",
                       "quantity": 4,
-                      "updatedAt": "2026-07-03T14:24:53Z"
+                      "updatedAt": "2026-07-10T16:58:00Z"
                     },
                     {
                       "name": "on_hand",
@@ -1400,7 +1786,7 @@
                   ]
                 },
                 {
-                  "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53526332342578",
+                  "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53564964241714",
                   "location": {
                     "id": "gid://shopify/Location/106318430514",
                     "name": "Shop location"
@@ -1409,7 +1795,7 @@
                     {
                       "name": "available",
                       "quantity": 6,
-                      "updatedAt": "2026-07-03T14:24:53Z"
+                      "updatedAt": "2026-07-10T16:58:00Z"
                     },
                     {
                       "name": "on_hand",
@@ -1427,16 +1813,16 @@
             }
           },
           "product": {
-            "id": "gid://shopify/Product/10230803857714",
+            "id": "gid://shopify/Product/10236066201906",
             "totalInventory": 7
           }
         },
         "stockOne": {
-          "id": "gid://shopify/InventoryItem/53526332342578",
+          "id": "gid://shopify/InventoryItem/53564964241714",
           "inventoryLevels": {
             "nodes": [
               {
-                "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53526332342578",
+                "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53564964241714",
                 "location": {
                   "id": "gid://shopify/Location/106318463282",
                   "name": "My Custom Location"
@@ -1445,7 +1831,7 @@
                   {
                     "name": "available",
                     "quantity": 4,
-                    "updatedAt": "2026-07-03T14:24:53Z"
+                    "updatedAt": "2026-07-10T16:58:00Z"
                   },
                   {
                     "name": "on_hand",
@@ -1460,7 +1846,7 @@
                 ]
               },
               {
-                "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53526332342578",
+                "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53564964241714",
                 "location": {
                   "id": "gid://shopify/Location/106318430514",
                   "name": "Shop location"
@@ -1469,7 +1855,7 @@
                   {
                     "name": "available",
                     "quantity": 6,
-                    "updatedAt": "2026-07-03T14:24:53Z"
+                    "updatedAt": "2026-07-10T16:58:00Z"
                   },
                   {
                     "name": "on_hand",
@@ -1486,23 +1872,23 @@
             ]
           },
           "variant": {
-            "id": "gid://shopify/ProductVariant/51421277782322",
+            "id": "gid://shopify/ProductVariant/51459662545202",
             "inventoryQuantity": 10,
             "product": {
-              "id": "gid://shopify/Product/10230803857714",
+              "id": "gid://shopify/Product/10236066201906",
               "totalInventory": 7
             }
           }
         },
         "variantTwo": {
-          "id": "gid://shopify/ProductVariant/51421277815090",
+          "id": "gid://shopify/ProductVariant/51459662577970",
           "inventoryQuantity": 1,
           "inventoryItem": {
-            "id": "gid://shopify/InventoryItem/53526332375346",
+            "id": "gid://shopify/InventoryItem/53564964274482",
             "inventoryLevels": {
               "nodes": [
                 {
-                  "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53526332375346",
+                  "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53564964274482",
                   "location": {
                     "id": "gid://shopify/Location/106318463282",
                     "name": "My Custom Location"
@@ -1511,7 +1897,7 @@
                     {
                       "name": "available",
                       "quantity": 1,
-                      "updatedAt": "2026-07-03T14:24:53Z"
+                      "updatedAt": "2026-07-10T16:58:00Z"
                     },
                     {
                       "name": "on_hand",
@@ -1529,16 +1915,16 @@
             }
           },
           "product": {
-            "id": "gid://shopify/Product/10230803857714",
+            "id": "gid://shopify/Product/10236066201906",
             "totalInventory": 7
           }
         },
         "stockTwo": {
-          "id": "gid://shopify/InventoryItem/53526332375346",
+          "id": "gid://shopify/InventoryItem/53564964274482",
           "inventoryLevels": {
             "nodes": [
               {
-                "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53526332375346",
+                "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53564964274482",
                 "location": {
                   "id": "gid://shopify/Location/106318463282",
                   "name": "My Custom Location"
@@ -1547,7 +1933,7 @@
                   {
                     "name": "available",
                     "quantity": 1,
-                    "updatedAt": "2026-07-03T14:24:53Z"
+                    "updatedAt": "2026-07-10T16:58:00Z"
                   },
                   {
                     "name": "on_hand",
@@ -1564,10 +1950,10 @@
             ]
           },
           "variant": {
-            "id": "gid://shopify/ProductVariant/51421277815090",
+            "id": "gid://shopify/ProductVariant/51459662577970",
             "inventoryQuantity": 1,
             "product": {
-              "id": "gid://shopify/Product/10230803857714",
+              "id": "gid://shopify/Product/10236066201906",
               "totalInventory": 7
             }
           }
@@ -1579,7 +1965,7 @@
           "actualQueryCost": 59,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1911,
+            "currentlyAvailable": 1934,
             "restoreRate": 100
           }
         }
@@ -1592,9 +1978,9 @@
         "data": {
           "productSet": {
             "product": {
-              "id": "gid://shopify/Product/10230803857714",
-              "title": "Hermes Product Graph 1783088692213",
-              "handle": "hermes-product-graph-1783088692213",
+              "id": "gid://shopify/Product/10236066201906",
+              "title": "Hermes Product Graph 1783702678932",
+              "handle": "hermes-product-graph-1783702678932",
               "status": "DRAFT",
               "vendor": "HERMES",
               "productType": "SNOWBOARD",
@@ -1602,22 +1988,22 @@
                 "id": "gid://shopify/TaxonomyCategory/aa-1-1",
                 "fullName": "Apparel & Accessories > Clothing > Activewear"
               },
-              "tags": ["1783088692213", "conformance", "product-graph"],
+              "tags": ["1783702678932", "conformance", "product-graph"],
               "totalInventory": 7,
               "options": [
                 {
-                  "id": "gid://shopify/ProductOption/12789317665074",
+                  "id": "gid://shopify/ProductOption/12795625799986",
                   "name": "Color",
                   "position": 1,
                   "values": ["Blue", "Black"],
                   "optionValues": [
                     {
-                      "id": "gid://shopify/ProductOptionValue/8258838298930",
+                      "id": "gid://shopify/ProductOptionValue/8286321443122",
                       "name": "Blue",
                       "hasVariants": true
                     },
                     {
-                      "id": "gid://shopify/ProductOptionValue/8258838331698",
+                      "id": "gid://shopify/ProductOptionValue/8286321475890",
                       "name": "Black",
                       "hasVariants": true
                     }
@@ -1627,9 +2013,9 @@
               "variants": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/ProductVariant/51421277782322",
+                    "id": "gid://shopify/ProductVariant/51459662545202",
                     "title": "Blue",
-                    "sku": "GRAPH-BLUE-1783088692213",
+                    "sku": "GRAPH-BLUE-1783702678932",
                     "price": "79.99",
                     "inventoryQuantity": 7,
                     "selectedOptions": [
@@ -1639,13 +2025,13 @@
                       }
                     ],
                     "inventoryItem": {
-                      "id": "gid://shopify/InventoryItem/53526332342578",
+                      "id": "gid://shopify/InventoryItem/53564964241714",
                       "tracked": true,
                       "requiresShipping": true,
                       "inventoryLevels": {
                         "nodes": [
                           {
-                            "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53526332342578",
+                            "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53564964241714",
                             "location": {
                               "id": "gid://shopify/Location/106318463282",
                               "name": "My Custom Location"
@@ -1654,7 +2040,7 @@
                               {
                                 "name": "available",
                                 "quantity": 2,
-                                "updatedAt": "2026-07-03T14:24:52Z"
+                                "updatedAt": "2026-07-10T16:57:59Z"
                               },
                               {
                                 "name": "on_hand",
@@ -1669,7 +2055,7 @@
                             ]
                           },
                           {
-                            "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53526332342578",
+                            "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53564964241714",
                             "location": {
                               "id": "gid://shopify/Location/106318430514",
                               "name": "Shop location"
@@ -1678,7 +2064,7 @@
                               {
                                 "name": "available",
                                 "quantity": 5,
-                                "updatedAt": "2026-07-03T14:24:52Z"
+                                "updatedAt": "2026-07-10T16:57:59Z"
                               },
                               {
                                 "name": "on_hand",
@@ -1697,9 +2083,9 @@
                     }
                   },
                   {
-                    "id": "gid://shopify/ProductVariant/51421277815090",
+                    "id": "gid://shopify/ProductVariant/51459662577970",
                     "title": "Black",
-                    "sku": "GRAPH-BLACK-1783088692213",
+                    "sku": "GRAPH-BLACK-1783702678932",
                     "price": "69.99",
                     "inventoryQuantity": 3,
                     "selectedOptions": [
@@ -1709,13 +2095,13 @@
                       }
                     ],
                     "inventoryItem": {
-                      "id": "gid://shopify/InventoryItem/53526332375346",
+                      "id": "gid://shopify/InventoryItem/53564964274482",
                       "tracked": false,
                       "requiresShipping": true,
                       "inventoryLevels": {
                         "nodes": [
                           {
-                            "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53526332375346",
+                            "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53564964274482",
                             "location": {
                               "id": "gid://shopify/Location/106318463282",
                               "name": "My Custom Location"
@@ -1724,7 +2110,7 @@
                               {
                                 "name": "available",
                                 "quantity": 3,
-                                "updatedAt": "2026-07-03T14:24:52Z"
+                                "updatedAt": "2026-07-10T16:57:59Z"
                               },
                               {
                                 "name": "on_hand",
@@ -1747,7 +2133,7 @@
               "metafields": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/Metafield/44690803228978",
+                    "id": "gid://shopify/Metafield/44962913288498",
                     "namespace": "custom",
                     "key": "material",
                     "type": "single_line_text_field",
@@ -1776,9 +2162,9 @@
         "data": {
           "productSet": {
             "product": {
-              "id": "gid://shopify/Product/10230803890482",
-              "title": "Hermes Product Graph 1783088692213",
-              "handle": "hermes-product-graph-1783088692214",
+              "id": "gid://shopify/Product/10236066234674",
+              "title": "Hermes Product Graph 1783702678932",
+              "handle": "hermes-product-graph-1783702678933",
               "status": "DRAFT",
               "vendor": "HERMES",
               "productType": "SNOWBOARD",
@@ -1786,22 +2172,22 @@
                 "id": "gid://shopify/TaxonomyCategory/aa-1-1",
                 "fullName": "Apparel & Accessories > Clothing > Activewear"
               },
-              "tags": ["1783088692213", "conformance", "product-graph"],
+              "tags": ["1783702678932", "conformance", "product-graph"],
               "totalInventory": 7,
               "options": [
                 {
-                  "id": "gid://shopify/ProductOption/12789317697842",
+                  "id": "gid://shopify/ProductOption/12795625832754",
                   "name": "Color",
                   "position": 1,
                   "values": ["Blue", "Black"],
                   "optionValues": [
                     {
-                      "id": "gid://shopify/ProductOptionValue/8258838364466",
+                      "id": "gid://shopify/ProductOptionValue/8286321508658",
                       "name": "Blue",
                       "hasVariants": true
                     },
                     {
-                      "id": "gid://shopify/ProductOptionValue/8258838397234",
+                      "id": "gid://shopify/ProductOptionValue/8286321541426",
                       "name": "Black",
                       "hasVariants": true
                     }
@@ -1811,9 +2197,9 @@
               "variants": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/ProductVariant/51421277847858",
+                    "id": "gid://shopify/ProductVariant/51459662610738",
                     "title": "Blue",
-                    "sku": "GRAPH-BLUE-1783088692213",
+                    "sku": "GRAPH-BLUE-1783702678932",
                     "price": "79.99",
                     "inventoryQuantity": 7,
                     "selectedOptions": [
@@ -1823,13 +2209,13 @@
                       }
                     ],
                     "inventoryItem": {
-                      "id": "gid://shopify/InventoryItem/53526332408114",
+                      "id": "gid://shopify/InventoryItem/53564964307250",
                       "tracked": true,
                       "requiresShipping": true,
                       "inventoryLevels": {
                         "nodes": [
                           {
-                            "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53526332408114",
+                            "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53564964307250",
                             "location": {
                               "id": "gid://shopify/Location/106318463282",
                               "name": "My Custom Location"
@@ -1838,7 +2224,7 @@
                               {
                                 "name": "available",
                                 "quantity": 2,
-                                "updatedAt": "2026-07-03T14:24:54Z"
+                                "updatedAt": "2026-07-10T16:58:01Z"
                               },
                               {
                                 "name": "on_hand",
@@ -1853,7 +2239,7 @@
                             ]
                           },
                           {
-                            "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53526332408114",
+                            "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53564964307250",
                             "location": {
                               "id": "gid://shopify/Location/106318430514",
                               "name": "Shop location"
@@ -1862,7 +2248,7 @@
                               {
                                 "name": "available",
                                 "quantity": 5,
-                                "updatedAt": "2026-07-03T14:24:54Z"
+                                "updatedAt": "2026-07-10T16:58:01Z"
                               },
                               {
                                 "name": "on_hand",
@@ -1881,9 +2267,9 @@
                     }
                   },
                   {
-                    "id": "gid://shopify/ProductVariant/51421277880626",
+                    "id": "gid://shopify/ProductVariant/51459662643506",
                     "title": "Black",
-                    "sku": "GRAPH-BLACK-1783088692213",
+                    "sku": "GRAPH-BLACK-1783702678932",
                     "price": "69.99",
                     "inventoryQuantity": 3,
                     "selectedOptions": [
@@ -1893,13 +2279,13 @@
                       }
                     ],
                     "inventoryItem": {
-                      "id": "gid://shopify/InventoryItem/53526332440882",
+                      "id": "gid://shopify/InventoryItem/53564964340018",
                       "tracked": false,
                       "requiresShipping": true,
                       "inventoryLevels": {
                         "nodes": [
                           {
-                            "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53526332440882",
+                            "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53564964340018",
                             "location": {
                               "id": "gid://shopify/Location/106318463282",
                               "name": "My Custom Location"
@@ -1908,7 +2294,7 @@
                               {
                                 "name": "available",
                                 "quantity": 3,
-                                "updatedAt": "2026-07-03T14:24:54Z"
+                                "updatedAt": "2026-07-10T16:58:01Z"
                               },
                               {
                                 "name": "on_hand",
@@ -1931,7 +2317,7 @@
               "metafields": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/Metafield/44690803294514",
+                    "id": "gid://shopify/Metafield/44962914042162",
                     "namespace": "custom",
                     "key": "material",
                     "type": "single_line_text_field",
@@ -1950,7 +2336,7 @@
             "actualQueryCost": 91,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1845,
+              "currentlyAvailable": 1865,
               "restoreRate": 100
             }
           }
@@ -1961,10 +2347,10 @@
       "variables": {
         "synchronous": true,
         "identifier": {
-          "id": "gid://shopify/Product/10230803890482"
+          "id": "gid://shopify/Product/10236066234674"
         },
         "input": {
-          "title": "Hermes Product Set Normalization 1783088692213",
+          "title": "Hermes Product Set Normalization 1783702678932",
           "handle": "  Another Weird/Handle 300 % ",
           "status": "DRAFT"
         }
@@ -1973,8 +2359,8 @@
         "data": {
           "productSet": {
             "product": {
-              "id": "gid://shopify/Product/10230803890482",
-              "title": "Hermes Product Set Normalization 1783088692213",
+              "id": "gid://shopify/Product/10236066234674",
+              "title": "Hermes Product Set Normalization 1783702678932",
               "handle": "another-weird-handle-300",
               "status": "DRAFT",
               "vendor": "HERMES",
@@ -1983,22 +2369,22 @@
                 "id": "gid://shopify/TaxonomyCategory/aa-1-1",
                 "fullName": "Apparel & Accessories > Clothing > Activewear"
               },
-              "tags": ["1783088692213", "conformance", "product-graph"],
+              "tags": ["1783702678932", "conformance", "product-graph"],
               "totalInventory": 7,
               "options": [
                 {
-                  "id": "gid://shopify/ProductOption/12789317697842",
+                  "id": "gid://shopify/ProductOption/12795625832754",
                   "name": "Color",
                   "position": 1,
                   "values": ["Blue", "Black"],
                   "optionValues": [
                     {
-                      "id": "gid://shopify/ProductOptionValue/8258838364466",
+                      "id": "gid://shopify/ProductOptionValue/8286321508658",
                       "name": "Blue",
                       "hasVariants": true
                     },
                     {
-                      "id": "gid://shopify/ProductOptionValue/8258838397234",
+                      "id": "gid://shopify/ProductOptionValue/8286321541426",
                       "name": "Black",
                       "hasVariants": true
                     }
@@ -2008,9 +2394,9 @@
               "variants": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/ProductVariant/51421277847858",
+                    "id": "gid://shopify/ProductVariant/51459662610738",
                     "title": "Blue",
-                    "sku": "GRAPH-BLUE-1783088692213",
+                    "sku": "GRAPH-BLUE-1783702678932",
                     "price": "79.99",
                     "inventoryQuantity": 7,
                     "selectedOptions": [
@@ -2020,13 +2406,13 @@
                       }
                     ],
                     "inventoryItem": {
-                      "id": "gid://shopify/InventoryItem/53526332408114",
+                      "id": "gid://shopify/InventoryItem/53564964307250",
                       "tracked": true,
                       "requiresShipping": true,
                       "inventoryLevels": {
                         "nodes": [
                           {
-                            "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53526332408114",
+                            "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53564964307250",
                             "location": {
                               "id": "gid://shopify/Location/106318463282",
                               "name": "My Custom Location"
@@ -2035,7 +2421,7 @@
                               {
                                 "name": "available",
                                 "quantity": 2,
-                                "updatedAt": "2026-07-03T14:24:54Z"
+                                "updatedAt": "2026-07-10T16:58:01Z"
                               },
                               {
                                 "name": "on_hand",
@@ -2050,7 +2436,7 @@
                             ]
                           },
                           {
-                            "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53526332408114",
+                            "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53564964307250",
                             "location": {
                               "id": "gid://shopify/Location/106318430514",
                               "name": "Shop location"
@@ -2059,7 +2445,7 @@
                               {
                                 "name": "available",
                                 "quantity": 5,
-                                "updatedAt": "2026-07-03T14:24:54Z"
+                                "updatedAt": "2026-07-10T16:58:01Z"
                               },
                               {
                                 "name": "on_hand",
@@ -2078,9 +2464,9 @@
                     }
                   },
                   {
-                    "id": "gid://shopify/ProductVariant/51421277880626",
+                    "id": "gid://shopify/ProductVariant/51459662643506",
                     "title": "Black",
-                    "sku": "GRAPH-BLACK-1783088692213",
+                    "sku": "GRAPH-BLACK-1783702678932",
                     "price": "69.99",
                     "inventoryQuantity": 3,
                     "selectedOptions": [
@@ -2090,13 +2476,13 @@
                       }
                     ],
                     "inventoryItem": {
-                      "id": "gid://shopify/InventoryItem/53526332440882",
+                      "id": "gid://shopify/InventoryItem/53564964340018",
                       "tracked": false,
                       "requiresShipping": true,
                       "inventoryLevels": {
                         "nodes": [
                           {
-                            "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53526332440882",
+                            "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53564964340018",
                             "location": {
                               "id": "gid://shopify/Location/106318463282",
                               "name": "My Custom Location"
@@ -2105,7 +2491,7 @@
                               {
                                 "name": "available",
                                 "quantity": 3,
-                                "updatedAt": "2026-07-03T14:24:54Z"
+                                "updatedAt": "2026-07-10T16:58:01Z"
                               },
                               {
                                 "name": "on_hand",
@@ -2128,7 +2514,7 @@
               "metafields": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/Metafield/44690803294514",
+                    "id": "gid://shopify/Metafield/44962914042162",
                     "namespace": "custom",
                     "key": "material",
                     "type": "single_line_text_field",
@@ -2147,8 +2533,455 @@
             "actualQueryCost": 24,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1895,
+              "currentlyAvailable": 1908,
               "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "preExistingUpdate": {
+    "id": {
+      "hydrate": {
+        "variables": {
+          "ids": ["gid://shopify/Product/10236066201906"]
+        },
+        "response": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10236066201906",
+                "title": "Hermes Product Graph Updated 1783702678932",
+                "handle": "hermes-product-graph-1783702678932",
+                "status": "DRAFT",
+                "vendor": "HERMES",
+                "productType": "SNOWBOARD",
+                "tags": ["1783702678932", "conformance", "product-graph"],
+                "totalInventory": 10,
+                "tracksInventory": true,
+                "createdAt": "2026-07-10T16:57:59Z",
+                "updatedAt": "2026-07-10T16:58:06Z",
+                "publishedAt": null,
+                "descriptionHtml": "",
+                "onlineStorePreviewUrl": "https://qek9113szp8j0twg-92891250994.shopifypreview.com/products_preview?preview_key=b86cbca5a4c2de052aa6bea633b95714&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNy0xMFQxNzo1ODowNy4zNzhaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--85095c064385a07e0633fc878516775040144a00",
+                "templateSuffix": null,
+                "seo": {
+                  "title": null,
+                  "description": null
+                },
+                "options": [
+                  {
+                    "id": "gid://shopify/ProductOption/12795625799986",
+                    "name": "Color",
+                    "position": 1,
+                    "values": ["Blue", "Black"],
+                    "optionValues": [
+                      {
+                        "id": "gid://shopify/ProductOptionValue/8286321443122",
+                        "name": "Blue",
+                        "hasVariants": true
+                      },
+                      {
+                        "id": "gid://shopify/ProductOptionValue/8286321475890",
+                        "name": "Black",
+                        "hasVariants": true
+                      }
+                    ]
+                  }
+                ],
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51459662545202",
+                      "title": "Blue",
+                      "sku": "GRAPH-BLUE-UPDATED-1783702678932",
+                      "barcode": null,
+                      "price": "89.99",
+                      "compareAtPrice": null,
+                      "taxable": true,
+                      "inventoryPolicy": "DENY",
+                      "inventoryQuantity": 10,
+                      "selectedOptions": [
+                        {
+                          "name": "Color",
+                          "value": "Blue"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53564964241714",
+                        "tracked": true,
+                        "requiresShipping": true
+                      }
+                    },
+                    {
+                      "id": "gid://shopify/ProductVariant/51459662577970",
+                      "title": "Black",
+                      "sku": "GRAPH-BLACK-UPDATED-1783702678932",
+                      "barcode": null,
+                      "price": "59.99",
+                      "compareAtPrice": null,
+                      "taxable": true,
+                      "inventoryPolicy": "DENY",
+                      "inventoryQuantity": 1,
+                      "selectedOptions": [
+                        {
+                          "name": "Color",
+                          "value": "Black"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53564964274482",
+                        "tracked": false,
+                        "requiresShipping": true
+                      }
+                    }
+                  ]
+                },
+                "collections": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Collection/514285142322",
+                      "title": "Hermes Product Graph Collection 1783702678932",
+                      "handle": "hermes-product-graph-collection-1783702678932"
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 39,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "mutation": {
+        "variables": {
+          "synchronous": true,
+          "identifier": {
+            "id": "gid://shopify/Product/10236066201906"
+          },
+          "input": {
+            "title": "Hermes Product Graph Preexisting ID 1783702678932"
+          }
+        },
+        "response": {
+          "data": {
+            "productSet": {
+              "product": {
+                "id": "gid://shopify/Product/10236066201906",
+                "title": "Hermes Product Graph Preexisting ID 1783702678932",
+                "handle": "hermes-product-graph-1783702678932",
+                "status": "DRAFT",
+                "vendor": "HERMES",
+                "productType": "SNOWBOARD",
+                "tags": ["1783702678932", "conformance", "product-graph"],
+                "options": [
+                  {
+                    "id": "gid://shopify/ProductOption/12795625799986",
+                    "name": "Color",
+                    "position": 1,
+                    "values": ["Blue", "Black"],
+                    "optionValues": [
+                      {
+                        "id": "gid://shopify/ProductOptionValue/8286321443122",
+                        "name": "Blue",
+                        "hasVariants": true
+                      },
+                      {
+                        "id": "gid://shopify/ProductOptionValue/8286321475890",
+                        "name": "Black",
+                        "hasVariants": true
+                      }
+                    ]
+                  }
+                ],
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51459662545202",
+                      "title": "Blue",
+                      "sku": "GRAPH-BLUE-UPDATED-1783702678932",
+                      "price": "89.99",
+                      "selectedOptions": [
+                        {
+                          "name": "Color",
+                          "value": "Blue"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53564964241714",
+                        "tracked": true,
+                        "requiresShipping": true
+                      }
+                    },
+                    {
+                      "id": "gid://shopify/ProductVariant/51459662577970",
+                      "title": "Black",
+                      "sku": "GRAPH-BLACK-UPDATED-1783702678932",
+                      "price": "59.99",
+                      "selectedOptions": [
+                        {
+                          "name": "Color",
+                          "value": "Black"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53564964274482",
+                        "tracked": false,
+                        "requiresShipping": true
+                      }
+                    }
+                  ]
+                }
+              },
+              "productSetOperation": null,
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 27,
+              "actualQueryCost": 17,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "handle": {
+      "hydrate": {
+        "variables": {
+          "handle": "hermes-product-graph-1783702678932"
+        },
+        "response": {
+          "data": {
+            "productByIdentifier": {
+              "id": "gid://shopify/Product/10236066201906",
+              "title": "Hermes Product Graph Preexisting ID 1783702678932",
+              "handle": "hermes-product-graph-1783702678932",
+              "status": "DRAFT",
+              "vendor": "HERMES",
+              "productType": "SNOWBOARD",
+              "tags": ["1783702678932", "conformance", "product-graph"],
+              "totalInventory": 10,
+              "tracksInventory": true,
+              "createdAt": "2026-07-10T16:57:59Z",
+              "updatedAt": "2026-07-10T16:58:07Z",
+              "publishedAt": null,
+              "descriptionHtml": "",
+              "onlineStorePreviewUrl": "https://qek9113szp8j0twg-92891250994.shopifypreview.com/products_preview?preview_key=c5bb7a6b3da4fd1853a92feaa439d236&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNy0xMFQxNzo1ODowNy44MjhaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--5d011f39f75381e1bc0769c9a9872c6ee208f16f",
+              "templateSuffix": null,
+              "seo": {
+                "title": null,
+                "description": null
+              },
+              "options": [
+                {
+                  "id": "gid://shopify/ProductOption/12795625799986",
+                  "name": "Color",
+                  "position": 1,
+                  "values": ["Blue", "Black"],
+                  "optionValues": [
+                    {
+                      "id": "gid://shopify/ProductOptionValue/8286321443122",
+                      "name": "Blue",
+                      "hasVariants": true
+                    },
+                    {
+                      "id": "gid://shopify/ProductOptionValue/8286321475890",
+                      "name": "Black",
+                      "hasVariants": true
+                    }
+                  ]
+                }
+              ],
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51459662545202",
+                    "title": "Blue",
+                    "sku": "GRAPH-BLUE-UPDATED-1783702678932",
+                    "barcode": null,
+                    "price": "89.99",
+                    "compareAtPrice": null,
+                    "taxable": true,
+                    "inventoryPolicy": "DENY",
+                    "inventoryQuantity": 10,
+                    "selectedOptions": [
+                      {
+                        "name": "Color",
+                        "value": "Blue"
+                      }
+                    ],
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53564964241714",
+                      "tracked": true,
+                      "requiresShipping": true
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/ProductVariant/51459662577970",
+                    "title": "Black",
+                    "sku": "GRAPH-BLACK-UPDATED-1783702678932",
+                    "barcode": null,
+                    "price": "59.99",
+                    "compareAtPrice": null,
+                    "taxable": true,
+                    "inventoryPolicy": "DENY",
+                    "inventoryQuantity": 1,
+                    "selectedOptions": [
+                      {
+                        "name": "Color",
+                        "value": "Black"
+                      }
+                    ],
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53564964274482",
+                      "tracked": false,
+                      "requiresShipping": true
+                    }
+                  }
+                ]
+              },
+              "collections": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Collection/514285142322",
+                    "title": "Hermes Product Graph Collection 1783702678932",
+                    "handle": "hermes-product-graph-collection-1783702678932"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 39,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "mutation": {
+        "variables": {
+          "synchronous": true,
+          "identifier": {
+            "handle": "hermes-product-graph-1783702678932"
+          },
+          "input": {
+            "title": "Hermes Product Graph Preexisting Handle 1783702678932",
+            "handle": "hermes-product-graph-1783702678932"
+          }
+        },
+        "response": {
+          "data": {
+            "productSet": {
+              "product": {
+                "id": "gid://shopify/Product/10236066201906",
+                "title": "Hermes Product Graph Preexisting Handle 1783702678932",
+                "handle": "hermes-product-graph-1783702678932",
+                "status": "DRAFT",
+                "vendor": "HERMES",
+                "productType": "SNOWBOARD",
+                "tags": ["1783702678932", "conformance", "product-graph"],
+                "options": [
+                  {
+                    "id": "gid://shopify/ProductOption/12795625799986",
+                    "name": "Color",
+                    "position": 1,
+                    "values": ["Blue", "Black"],
+                    "optionValues": [
+                      {
+                        "id": "gid://shopify/ProductOptionValue/8286321443122",
+                        "name": "Blue",
+                        "hasVariants": true
+                      },
+                      {
+                        "id": "gid://shopify/ProductOptionValue/8286321475890",
+                        "name": "Black",
+                        "hasVariants": true
+                      }
+                    ]
+                  }
+                ],
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51459662545202",
+                      "title": "Blue",
+                      "sku": "GRAPH-BLUE-UPDATED-1783702678932",
+                      "price": "89.99",
+                      "selectedOptions": [
+                        {
+                          "name": "Color",
+                          "value": "Blue"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53564964241714",
+                        "tracked": true,
+                        "requiresShipping": true
+                      }
+                    },
+                    {
+                      "id": "gid://shopify/ProductVariant/51459662577970",
+                      "title": "Black",
+                      "sku": "GRAPH-BLACK-UPDATED-1783702678932",
+                      "price": "59.99",
+                      "selectedOptions": [
+                        {
+                          "name": "Color",
+                          "value": "Black"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53564964274482",
+                        "tracked": false,
+                        "requiresShipping": true
+                      }
+                    }
+                  ]
+                }
+              },
+              "productSetOperation": null,
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 27,
+              "actualQueryCost": 17,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
             }
           }
         }
@@ -2157,21 +2990,37 @@
   },
   "liveRequirements": {
     "inventoryQuantitiesLocationIds": [
+      "gid://shopify/Location/113884102962",
+      "gid://shopify/Location/113884070194",
       "gid://shopify/Location/112829759794",
       "gid://shopify/Location/112829956402",
       "gid://shopify/Location/112833036594",
       "gid://shopify/Location/112833069362",
       "gid://shopify/Location/112831103282",
+      "gid://shopify/Location/113792155954",
+      "gid://shopify/Location/113792188722",
+      "gid://shopify/Location/113792254258",
+      "gid://shopify/Location/113792319794",
+      "gid://shopify/Location/113792385330",
+      "gid://shopify/Location/113792450866",
+      "gid://shopify/Location/113792581938",
+      "gid://shopify/Location/113883939122",
+      "gid://shopify/Location/113883906354",
+      "gid://shopify/Location/113828626738",
       "gid://shopify/Location/112864788786",
       "gid://shopify/Location/112864919858",
       "gid://shopify/Location/112864985394",
       "gid://shopify/Location/112865149234",
       "gid://shopify/Location/113491640626",
+      "gid://shopify/Location/113783505202",
+      "gid://shopify/Location/113783570738",
       "gid://shopify/Location/112864756018",
       "gid://shopify/Location/112864887090",
       "gid://shopify/Location/112864952626",
       "gid://shopify/Location/112865116466",
       "gid://shopify/Location/113491607858",
+      "gid://shopify/Location/113783472434",
+      "gid://shopify/Location/113783537970",
       "gid://shopify/Location/112885236018",
       "gid://shopify/Location/112885137714",
       "gid://shopify/Location/112850207026",

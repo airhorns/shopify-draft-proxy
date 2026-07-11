@@ -1,0 +1,57 @@
+#graphql
+mutation PriceListUpdateCurrencyFixedPrices($id: ID!, $input: PriceListUpdateInput!) {
+  priceListUpdate(id: $id, input: $input) {
+    priceList {
+      id
+      name
+      currency
+      fixedPricesCount
+      parent {
+        adjustment {
+          type
+          value
+        }
+      }
+      catalog {
+        id
+        title
+        status
+      }
+      prices(first: 10, originType: FIXED) {
+        edges {
+          cursor
+          node {
+            price {
+              amount
+              currencyCode
+            }
+            compareAtPrice {
+              amount
+              currencyCode
+            }
+            originType
+            variant {
+              id
+              sku
+              product {
+                id
+                title
+              }
+            }
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

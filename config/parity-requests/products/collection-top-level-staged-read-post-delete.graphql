@@ -1,4 +1,9 @@
-query CollectionTopLevelStagedReadPostDelete($sharedQuery: String!, $deletedHandleQuery: String!) {
+query CollectionTopLevelStagedReadPostDelete(
+  $sharedQuery: String!
+  $deletedCollectionId: ID!
+  $deletedHandle: String!
+  $deletedHandleQuery: String!
+) {
   remainingShared: collections(first: 10, query: $sharedQuery, sortKey: ID) {
     nodes {
       id
@@ -20,5 +25,14 @@ query CollectionTopLevelStagedReadPostDelete($sharedQuery: String!, $deletedHand
   deletedCount: collectionsCount(query: $deletedHandleQuery) {
     count
     precision
+  }
+  deletedIdentifierId: collectionByIdentifier(identifier: { id: $deletedCollectionId }) {
+    id
+  }
+  deletedIdentifierHandle: collectionByIdentifier(identifier: { handle: $deletedHandle }) {
+    id
+  }
+  deletedHandleRoot: collectionByHandle(handle: $deletedHandle) {
+    id
   }
 }

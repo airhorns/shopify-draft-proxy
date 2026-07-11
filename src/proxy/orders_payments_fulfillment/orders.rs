@@ -240,7 +240,7 @@ pub(in crate::proxy) fn order_matches_term(order: &Value, key: &str, value: &str
     match key {
         "id" => Some(order_matches_id(order, value)),
         "tag" => {
-            let want = value.to_ascii_lowercase();
+            let want = value.trim_matches('"').trim_matches('\'');
             Some(
                 order
                     .get("tags")
@@ -248,7 +248,7 @@ pub(in crate::proxy) fn order_matches_term(order: &Value, key: &str, value: &str
                     .is_some_and(|tags| {
                         tags.iter()
                             .filter_map(Value::as_str)
-                            .any(|tag| tag.to_ascii_lowercase() == want)
+                            .any(|tag| tag.eq_ignore_ascii_case(want))
                     }),
             )
         }
@@ -1367,7 +1367,7 @@ impl DraftProxy {
                         .get(&id)
                         .map(|order| self.payment_terms_owner_record_with_effective_due(order))
                         .unwrap_or(Value::Null);
-                    nullable_selected_json(&order, &field.selection)
+                    self.selected_order_with_return_status(&order, &field.selection)
                 }
                 "orders" => self.staged_orders_connection(field),
                 "ordersCount" => self.staged_orders_count(field),
@@ -1406,23 +1406,23 @@ impl DraftProxy {
         )
     }
 
-    pub(super) fn staged_orders_connection(&self, field: &RootFieldSelection) -> Value {
+    pub(in crate::proxy) fn staged_orders_connection(&self, field: &RootFieldSelection) -> Value {
         let result = self.matching_orders_query(&field.arguments);
         // Window with the order id as the opaque cursor. The next-page request in
         // the catalog scenario feeds this connection's own `endCursor` back as
         // `after`, so the cursor only needs to round-trip with itself — it is not
         // compared against Shopify's recorded opaque cursors.
-        selected_json(
-            &connection_json_with_cursor(
-                result
-                    .records
-                    .into_iter()
-                    .map(|order| self.payment_terms_owner_record_with_effective_due(&order))
-                    .collect::<Vec<_>>(),
-                |_, order| value_id_cursor(order),
-                result.page_info,
-            ),
+        let records = result
+            .records
+            .into_iter()
+            .map(|order| self.payment_terms_owner_record_with_effective_due(&order))
+            .collect::<Vec<_>>();
+        selected_typed_connection_with_page_info(
+            &records,
             &field.selection,
+            |order, selection| self.selected_order_with_return_status(order, selection),
+            value_id_cursor,
+            result.page_info,
         )
     }
 
@@ -1636,10 +1636,15 @@ impl DraftProxy {
             "orderCreate",
             vec![order_id],
         );
-        selected_json(
-            &json!({ "order": order, "userErrors": [] }),
-            &field.selection,
-        )
+        let payload = json!({ "order": order.clone(), "userErrors": [] });
+        selected_payload_json(&field.selection, |selection| {
+            match selection.name.as_str() {
+                "order" => {
+                    Some(self.selected_order_with_return_status(&order, &selection.selection))
+                }
+                _ => selected_field_json(&payload, selection),
+            }
+        })
     }
 
     pub(super) fn stage_order_lifecycle(

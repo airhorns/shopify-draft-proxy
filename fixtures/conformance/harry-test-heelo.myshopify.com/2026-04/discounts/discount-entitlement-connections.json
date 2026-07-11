@@ -1,0 +1,2453 @@
+{
+  "metadata": {
+    "storeDomain": "harry-test-heelo.myshopify.com",
+    "apiVersion": "2026-04",
+    "capturedAt": "2026-07-10T16:55:59.971Z",
+    "runId": "1783702550706"
+  },
+  "requests": {
+    "setup": {
+      "document": "mutation DiscountEntitlementConnectionsSetup(\n  $alphaProduct: ProductCreateInput!\n  $bravoProduct: ProductCreateInput!\n  $alphaVariantProduct: ProductCreateInput!\n  $bravoVariantProduct: ProductCreateInput!\n  $alphaCollection: CollectionInput!\n  $bravoCollection: CollectionInput!\n) {\n  alphaProduct: productCreate(product: $alphaProduct) {\n    product {\n      id\n      title\n      handle\n      variants(first: 5) {\n        nodes {\n          id\n          title\n          sku\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  bravoProduct: productCreate(product: $bravoProduct) {\n    product {\n      id\n      title\n      handle\n      variants(first: 5) {\n        nodes {\n          id\n          title\n          sku\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  alphaVariantProduct: productCreate(product: $alphaVariantProduct) {\n    product {\n      id\n      title\n      handle\n      variants(first: 5) {\n        nodes {\n          id\n          title\n          sku\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  bravoVariantProduct: productCreate(product: $bravoVariantProduct) {\n    product {\n      id\n      title\n      handle\n      variants(first: 5) {\n        nodes {\n          id\n          title\n          sku\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  alphaCollection: collectionCreate(input: $alphaCollection) {\n    collection {\n      id\n      title\n      handle\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  bravoCollection: collectionCreate(input: $bravoCollection) {\n    collection {\n      id\n      title\n      handle\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "alphaProduct": {
+          "title": "zzzzzz SDP entitlement 1783702550706 Alpha product",
+          "status": "ACTIVE",
+          "vendor": "HERMES",
+          "productType": "CONFORMANCE",
+          "tags": ["conformance", "discount-entitlement-connections", "1783702550706"],
+          "productOptions": [
+            {
+              "name": "Color",
+              "values": [
+                {
+                  "name": "Seed"
+                }
+              ]
+            }
+          ]
+        },
+        "bravoProduct": {
+          "title": "zzzzzz SDP entitlement 1783702550706 Bravo product",
+          "status": "ACTIVE",
+          "vendor": "HERMES",
+          "productType": "CONFORMANCE",
+          "tags": ["conformance", "discount-entitlement-connections", "1783702550706"],
+          "productOptions": [
+            {
+              "name": "Color",
+              "values": [
+                {
+                  "name": "Seed"
+                }
+              ]
+            }
+          ]
+        },
+        "alphaVariantProduct": {
+          "title": "zzzzzz SDP entitlement 1783702550706 Alpha variant product",
+          "status": "ACTIVE",
+          "vendor": "HERMES",
+          "productType": "CONFORMANCE",
+          "tags": ["conformance", "discount-entitlement-connections", "1783702550706"],
+          "productOptions": [
+            {
+              "name": "Color",
+              "values": [
+                {
+                  "name": "Seed"
+                }
+              ]
+            }
+          ]
+        },
+        "bravoVariantProduct": {
+          "title": "zzzzzz SDP entitlement 1783702550706 Bravo variant product",
+          "status": "ACTIVE",
+          "vendor": "HERMES",
+          "productType": "CONFORMANCE",
+          "tags": ["conformance", "discount-entitlement-connections", "1783702550706"],
+          "productOptions": [
+            {
+              "name": "Color",
+              "values": [
+                {
+                  "name": "Seed"
+                }
+              ]
+            }
+          ]
+        },
+        "alphaCollection": {
+          "title": "zzzzzz SDP entitlement 1783702550706 Alpha collection"
+        },
+        "bravoCollection": {
+          "title": "zzzzzz SDP entitlement 1783702550706 Bravo collection"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "alphaProduct": {
+              "product": {
+                "id": "gid://shopify/Product/10236065022258",
+                "title": "zzzzzz SDP entitlement 1783702550706 Alpha product",
+                "handle": "zzzzzz-sdp-entitlement-1783702550706-alpha-product",
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51459660808498",
+                      "title": "Seed",
+                      "sku": null
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            },
+            "bravoProduct": {
+              "product": {
+                "id": "gid://shopify/Product/10236065055026",
+                "title": "zzzzzz SDP entitlement 1783702550706 Bravo product",
+                "handle": "zzzzzz-sdp-entitlement-1783702550706-bravo-product",
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51459660841266",
+                      "title": "Seed",
+                      "sku": null
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            },
+            "alphaVariantProduct": {
+              "product": {
+                "id": "gid://shopify/Product/10236065087794",
+                "title": "zzzzzz SDP entitlement 1783702550706 Alpha variant product",
+                "handle": "zzzzzz-sdp-entitlement-1783702550706-alpha-variant-product",
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51459660874034",
+                      "title": "Seed",
+                      "sku": null
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            },
+            "bravoVariantProduct": {
+              "product": {
+                "id": "gid://shopify/Product/10236065120562",
+                "title": "zzzzzz SDP entitlement 1783702550706 Bravo variant product",
+                "handle": "zzzzzz-sdp-entitlement-1783702550706-bravo-variant-product",
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51459660906802",
+                      "title": "Seed",
+                      "sku": null
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            },
+            "alphaCollection": {
+              "collection": {
+                "id": "gid://shopify/Collection/514284880178",
+                "title": "zzzzzz SDP entitlement 1783702550706 Alpha collection",
+                "handle": "zzzzzz-sdp-entitlement-1783702550706-alpha-collection"
+              },
+              "userErrors": []
+            },
+            "bravoCollection": {
+              "collection": {
+                "id": "gid://shopify/Collection/514284912946",
+                "title": "zzzzzz SDP entitlement 1783702550706 Bravo collection",
+                "handle": "zzzzzz-sdp-entitlement-1783702550706-bravo-collection"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 80,
+              "actualQueryCost": 72,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1928,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "variantCreate": {
+      "document": "mutation DiscountEntitlementConnectionsVariantCreate(\n  $alphaProductId: ID!\n  $bravoProductId: ID!\n  $alphaVariants: [ProductVariantsBulkInput!]!\n  $bravoVariants: [ProductVariantsBulkInput!]!\n) {\n  alphaVariants: productVariantsBulkCreate(productId: $alphaProductId, variants: $alphaVariants) {\n    product {\n      id\n      title\n      variants(first: 5) {\n        nodes {\n          id\n          title\n          sku\n        }\n      }\n    }\n    productVariants {\n      id\n      title\n      sku\n      product {\n        id\n        title\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  bravoVariants: productVariantsBulkCreate(productId: $bravoProductId, variants: $bravoVariants) {\n    product {\n      id\n      title\n      variants(first: 5) {\n        nodes {\n          id\n          title\n          sku\n        }\n      }\n    }\n    productVariants {\n      id\n      title\n      sku\n      product {\n        id\n        title\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "alphaProductId": "gid://shopify/Product/10236065087794",
+        "bravoProductId": "gid://shopify/Product/10236065120562",
+        "alphaVariants": [
+          {
+            "optionValues": [
+              {
+                "optionName": "Color",
+                "name": "Alpha entitlement"
+              }
+            ],
+            "price": "10.00",
+            "inventoryItem": {
+              "sku": "SDPENTALPHA1783702550706"
+            }
+          }
+        ],
+        "bravoVariants": [
+          {
+            "optionValues": [
+              {
+                "optionName": "Color",
+                "name": "Bravo entitlement"
+              }
+            ],
+            "price": "11.00",
+            "inventoryItem": {
+              "sku": "SDPENTBRAVO1783702550706"
+            }
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "alphaVariants": {
+              "product": {
+                "id": "gid://shopify/Product/10236065087794",
+                "title": "zzzzzz SDP entitlement 1783702550706 Alpha variant product",
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51459660874034",
+                      "title": "Seed",
+                      "sku": null
+                    },
+                    {
+                      "id": "gid://shopify/ProductVariant/51459660939570",
+                      "title": "Alpha entitlement",
+                      "sku": "SDPENTALPHA1783702550706"
+                    }
+                  ]
+                }
+              },
+              "productVariants": [
+                {
+                  "id": "gid://shopify/ProductVariant/51459660939570",
+                  "title": "Alpha entitlement",
+                  "sku": "SDPENTALPHA1783702550706",
+                  "product": {
+                    "id": "gid://shopify/Product/10236065087794",
+                    "title": "zzzzzz SDP entitlement 1783702550706 Alpha variant product"
+                  }
+                }
+              ],
+              "userErrors": []
+            },
+            "bravoVariants": {
+              "product": {
+                "id": "gid://shopify/Product/10236065120562",
+                "title": "zzzzzz SDP entitlement 1783702550706 Bravo variant product",
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51459660906802",
+                      "title": "Seed",
+                      "sku": null
+                    },
+                    {
+                      "id": "gid://shopify/ProductVariant/51459660972338",
+                      "title": "Bravo entitlement",
+                      "sku": "SDPENTBRAVO1783702550706"
+                    }
+                  ]
+                }
+              },
+              "productVariants": [
+                {
+                  "id": "gid://shopify/ProductVariant/51459660972338",
+                  "title": "Bravo entitlement",
+                  "sku": "SDPENTBRAVO1783702550706",
+                  "product": {
+                    "id": "gid://shopify/Product/10236065120562",
+                    "title": "zzzzzz SDP entitlement 1783702550706 Bravo variant product"
+                  }
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 32,
+              "actualQueryCost": 30,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1970,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "discountCreate": {
+      "document": "mutation DiscountEntitlementConnectionsDiscountCreate(\n  $productInput: DiscountCodeBxgyInput!\n  $collectionInput: DiscountCodeBxgyInput!\n) {\n  productDiscount: discountCodeBxgyCreate(bxgyCodeDiscount: $productInput) {\n    codeDiscountNode {\n      id\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBxgy {\n          title\n          customerBuys {\n            items {\n              __typename\n            }\n          }\n          customerGets {\n            items {\n              __typename\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  collectionDiscount: discountCodeBxgyCreate(bxgyCodeDiscount: $collectionInput) {\n    codeDiscountNode {\n      id\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBxgy {\n          title\n          customerBuys {\n            items {\n              __typename\n            }\n          }\n          customerGets {\n            items {\n              __typename\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "productInput": {
+          "title": "zzzzzz SDP entitlement 1783702550706 Product discount",
+          "code": "SDPENTP1783702550706",
+          "startsAt": "2026-07-24T16:55:50.706Z",
+          "context": {
+            "all": "ALL"
+          },
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10236065022258", "gid://shopify/Product/10236065055026"],
+                "productVariantsToAdd": [
+                  "gid://shopify/ProductVariant/51459660939570",
+                  "gid://shopify/ProductVariant/51459660972338"
+                ]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10236065022258", "gid://shopify/Product/10236065055026"],
+                "productVariantsToAdd": [
+                  "gid://shopify/ProductVariant/51459660939570",
+                  "gid://shopify/ProductVariant/51459660972338"
+                ]
+              }
+            }
+          }
+        },
+        "collectionInput": {
+          "title": "zzzzzz SDP entitlement 1783702550706 Collection discount",
+          "code": "SDPENTC1783702550706",
+          "startsAt": "2026-07-24T16:55:50.706Z",
+          "context": {
+            "all": "ALL"
+          },
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "collections": {
+                "add": ["gid://shopify/Collection/514284880178", "gid://shopify/Collection/514284912946"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "collections": {
+                "add": ["gid://shopify/Collection/514284880178", "gid://shopify/Collection/514284912946"]
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productDiscount": {
+              "codeDiscountNode": {
+                "id": "gid://shopify/DiscountCodeNode/1659411562802",
+                "codeDiscount": {
+                  "__typename": "DiscountCodeBxgy",
+                  "title": "zzzzzz SDP entitlement 1783702550706 Product discount",
+                  "customerBuys": {
+                    "items": {
+                      "__typename": "DiscountProducts"
+                    }
+                  },
+                  "customerGets": {
+                    "items": {
+                      "__typename": "DiscountProducts"
+                    }
+                  }
+                }
+              },
+              "userErrors": []
+            },
+            "collectionDiscount": {
+              "codeDiscountNode": {
+                "id": "gid://shopify/DiscountCodeNode/1659411595570",
+                "codeDiscount": {
+                  "__typename": "DiscountCodeBxgy",
+                  "title": "zzzzzz SDP entitlement 1783702550706 Collection discount",
+                  "customerBuys": {
+                    "items": {
+                      "__typename": "DiscountCollections"
+                    }
+                  },
+                  "customerGets": {
+                    "items": {
+                      "__typename": "DiscountCollections"
+                    }
+                  }
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 30,
+              "actualQueryCost": 30,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1970,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "readInitial": {
+      "document": "query DiscountEntitlementConnectionsReadInitial(\n  $productDiscountId: ID!\n  $collectionDiscountId: ID!\n  $catalogQuery: String!\n  $catalogFirst: Int!\n) {\n  productDiscount: discountNode(id: $productDiscountId) {\n    id\n    discount {\n      __typename\n      ... on DiscountCodeBxgy {\n        title\n        customerBuys {\n          items {\n            __typename\n            ... on DiscountProducts {\n              products(first: 2) {\n                nodes {\n                  id\n                  title\n                  handle\n                  status\n                }\n                edges {\n                  cursor\n                  node {\n                    id\n                    title\n                  }\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n              productVariants(first: 2) {\n                nodes {\n                  id\n                  title\n                  sku\n                  product {\n                    id\n                    title\n                  }\n                }\n                edges {\n                  cursor\n                  node {\n                    id\n                    sku\n                  }\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n            }\n          }\n        }\n        customerGets {\n          items {\n            __typename\n            ... on DiscountProducts {\n              products(first: 2) {\n                nodes {\n                  id\n                  title\n                  handle\n                  status\n                }\n                edges {\n                  cursor\n                  node {\n                    id\n                    title\n                  }\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n              productVariants(first: 2) {\n                nodes {\n                  id\n                  title\n                  sku\n                  product {\n                    id\n                    title\n                  }\n                }\n                edges {\n                  cursor\n                  node {\n                    id\n                    sku\n                  }\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n  collectionDiscount: discountNode(id: $collectionDiscountId) {\n    id\n    discount {\n      __typename\n      ... on DiscountCodeBxgy {\n        title\n        customerBuys {\n          items {\n            __typename\n            ... on DiscountCollections {\n              collections(first: 2) {\n                nodes {\n                  id\n                  title\n                  handle\n                }\n                edges {\n                  cursor\n                  node {\n                    id\n                    title\n                  }\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n            }\n          }\n        }\n        customerGets {\n          items {\n            __typename\n            ... on DiscountCollections {\n              collections(first: 2) {\n                nodes {\n                  id\n                  title\n                  handle\n                }\n                edges {\n                  cursor\n                  node {\n                    id\n                    title\n                  }\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n  catalog: discountNodes(first: $catalogFirst, sortKey: TITLE, reverse: true, query: $catalogQuery) {\n    nodes {\n      id\n      discount {\n        __typename\n        ... on DiscountCodeBxgy {\n          title\n          customerBuys {\n            items {\n              __typename\n              ... on DiscountProducts {\n                products(first: 2) {\n                  nodes {\n                    id\n                    title\n                  }\n                }\n                productVariants(first: 2) {\n                  nodes {\n                    id\n                    sku\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 2) {\n                  nodes {\n                    id\n                    title\n                  }\n                }\n              }\n            }\n          }\n          customerGets {\n            items {\n              __typename\n              ... on DiscountProducts {\n                products(first: 2) {\n                  nodes {\n                    id\n                    title\n                  }\n                }\n                productVariants(first: 2) {\n                  nodes {\n                    id\n                    sku\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 2) {\n                  nodes {\n                    id\n                    title\n                  }\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "productDiscountId": "gid://shopify/DiscountCodeNode/1659411562802",
+        "collectionDiscountId": "gid://shopify/DiscountCodeNode/1659411595570",
+        "catalogQuery": "status:scheduled",
+        "catalogFirst": 2
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productDiscount": {
+              "id": "gid://shopify/DiscountCodeNode/1659411562802",
+              "discount": {
+                "__typename": "DiscountCodeBxgy",
+                "title": "zzzzzz SDP entitlement 1783702550706 Product discount",
+                "customerBuys": {
+                  "items": {
+                    "__typename": "DiscountProducts",
+                    "products": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Product/10236065022258",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Alpha product",
+                          "handle": "zzzzzz-sdp-entitlement-1783702550706-alpha-product",
+                          "status": "ACTIVE"
+                        },
+                        {
+                          "id": "gid://shopify/Product/10236065055026",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Bravo product",
+                          "handle": "zzzzzz-sdp-entitlement-1783702550706-bravo-product",
+                          "status": "ACTIVE"
+                        }
+                      ],
+                      "edges": [
+                        {
+                          "cursor": "eyJsYXN0X2lkIjoxMDIzNjA2NTAyMjI1OCwibGFzdF92YWx1ZSI6MTAyMzYwNjUwMjIyNTh9",
+                          "node": {
+                            "id": "gid://shopify/Product/10236065022258",
+                            "title": "zzzzzz SDP entitlement 1783702550706 Alpha product"
+                          }
+                        },
+                        {
+                          "cursor": "eyJsYXN0X2lkIjoxMDIzNjA2NTA1NTAyNiwibGFzdF92YWx1ZSI6MTAyMzYwNjUwNTUwMjZ9",
+                          "node": {
+                            "id": "gid://shopify/Product/10236065055026",
+                            "title": "zzzzzz SDP entitlement 1783702550706 Bravo product"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjoxMDIzNjA2NTAyMjI1OCwibGFzdF92YWx1ZSI6MTAyMzYwNjUwMjIyNTh9",
+                        "endCursor": "eyJsYXN0X2lkIjoxMDIzNjA2NTA1NTAyNiwibGFzdF92YWx1ZSI6MTAyMzYwNjUwNTUwMjZ9"
+                      }
+                    },
+                    "productVariants": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/ProductVariant/51459660939570",
+                          "title": "Alpha entitlement",
+                          "sku": "SDPENTALPHA1783702550706",
+                          "product": {
+                            "id": "gid://shopify/Product/10236065087794",
+                            "title": "zzzzzz SDP entitlement 1783702550706 Alpha variant product"
+                          }
+                        },
+                        {
+                          "id": "gid://shopify/ProductVariant/51459660972338",
+                          "title": "Bravo entitlement",
+                          "sku": "SDPENTBRAVO1783702550706",
+                          "product": {
+                            "id": "gid://shopify/Product/10236065120562",
+                            "title": "zzzzzz SDP entitlement 1783702550706 Bravo variant product"
+                          }
+                        }
+                      ],
+                      "edges": [
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo1MTQ1OTY2MDkzOTU3MCwibGFzdF92YWx1ZSI6NTE0NTk2NjA5Mzk1NzB9",
+                          "node": {
+                            "id": "gid://shopify/ProductVariant/51459660939570",
+                            "sku": "SDPENTALPHA1783702550706"
+                          }
+                        },
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo1MTQ1OTY2MDk3MjMzOCwibGFzdF92YWx1ZSI6NTE0NTk2NjA5NzIzMzh9",
+                          "node": {
+                            "id": "gid://shopify/ProductVariant/51459660972338",
+                            "sku": "SDPENTBRAVO1783702550706"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo1MTQ1OTY2MDkzOTU3MCwibGFzdF92YWx1ZSI6NTE0NTk2NjA5Mzk1NzB9",
+                        "endCursor": "eyJsYXN0X2lkIjo1MTQ1OTY2MDk3MjMzOCwibGFzdF92YWx1ZSI6NTE0NTk2NjA5NzIzMzh9"
+                      }
+                    }
+                  }
+                },
+                "customerGets": {
+                  "items": {
+                    "__typename": "DiscountProducts",
+                    "products": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Product/10236065022258",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Alpha product",
+                          "handle": "zzzzzz-sdp-entitlement-1783702550706-alpha-product",
+                          "status": "ACTIVE"
+                        },
+                        {
+                          "id": "gid://shopify/Product/10236065055026",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Bravo product",
+                          "handle": "zzzzzz-sdp-entitlement-1783702550706-bravo-product",
+                          "status": "ACTIVE"
+                        }
+                      ],
+                      "edges": [
+                        {
+                          "cursor": "eyJsYXN0X2lkIjoxMDIzNjA2NTAyMjI1OCwibGFzdF92YWx1ZSI6MTAyMzYwNjUwMjIyNTh9",
+                          "node": {
+                            "id": "gid://shopify/Product/10236065022258",
+                            "title": "zzzzzz SDP entitlement 1783702550706 Alpha product"
+                          }
+                        },
+                        {
+                          "cursor": "eyJsYXN0X2lkIjoxMDIzNjA2NTA1NTAyNiwibGFzdF92YWx1ZSI6MTAyMzYwNjUwNTUwMjZ9",
+                          "node": {
+                            "id": "gid://shopify/Product/10236065055026",
+                            "title": "zzzzzz SDP entitlement 1783702550706 Bravo product"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjoxMDIzNjA2NTAyMjI1OCwibGFzdF92YWx1ZSI6MTAyMzYwNjUwMjIyNTh9",
+                        "endCursor": "eyJsYXN0X2lkIjoxMDIzNjA2NTA1NTAyNiwibGFzdF92YWx1ZSI6MTAyMzYwNjUwNTUwMjZ9"
+                      }
+                    },
+                    "productVariants": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/ProductVariant/51459660939570",
+                          "title": "Alpha entitlement",
+                          "sku": "SDPENTALPHA1783702550706",
+                          "product": {
+                            "id": "gid://shopify/Product/10236065087794",
+                            "title": "zzzzzz SDP entitlement 1783702550706 Alpha variant product"
+                          }
+                        },
+                        {
+                          "id": "gid://shopify/ProductVariant/51459660972338",
+                          "title": "Bravo entitlement",
+                          "sku": "SDPENTBRAVO1783702550706",
+                          "product": {
+                            "id": "gid://shopify/Product/10236065120562",
+                            "title": "zzzzzz SDP entitlement 1783702550706 Bravo variant product"
+                          }
+                        }
+                      ],
+                      "edges": [
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo1MTQ1OTY2MDkzOTU3MCwibGFzdF92YWx1ZSI6NTE0NTk2NjA5Mzk1NzB9",
+                          "node": {
+                            "id": "gid://shopify/ProductVariant/51459660939570",
+                            "sku": "SDPENTALPHA1783702550706"
+                          }
+                        },
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo1MTQ1OTY2MDk3MjMzOCwibGFzdF92YWx1ZSI6NTE0NTk2NjA5NzIzMzh9",
+                          "node": {
+                            "id": "gid://shopify/ProductVariant/51459660972338",
+                            "sku": "SDPENTBRAVO1783702550706"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo1MTQ1OTY2MDkzOTU3MCwibGFzdF92YWx1ZSI6NTE0NTk2NjA5Mzk1NzB9",
+                        "endCursor": "eyJsYXN0X2lkIjo1MTQ1OTY2MDk3MjMzOCwibGFzdF92YWx1ZSI6NTE0NTk2NjA5NzIzMzh9"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "collectionDiscount": {
+              "id": "gid://shopify/DiscountCodeNode/1659411595570",
+              "discount": {
+                "__typename": "DiscountCodeBxgy",
+                "title": "zzzzzz SDP entitlement 1783702550706 Collection discount",
+                "customerBuys": {
+                  "items": {
+                    "__typename": "DiscountCollections",
+                    "collections": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Collection/514284880178",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Alpha collection",
+                          "handle": "zzzzzz-sdp-entitlement-1783702550706-alpha-collection"
+                        },
+                        {
+                          "id": "gid://shopify/Collection/514284912946",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Bravo collection",
+                          "handle": "zzzzzz-sdp-entitlement-1783702550706-bravo-collection"
+                        }
+                      ],
+                      "edges": [
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo1MTQyODQ4ODAxNzgsImxhc3RfdmFsdWUiOjUxNDI4NDg4MDE3OH0=",
+                          "node": {
+                            "id": "gid://shopify/Collection/514284880178",
+                            "title": "zzzzzz SDP entitlement 1783702550706 Alpha collection"
+                          }
+                        },
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo1MTQyODQ5MTI5NDYsImxhc3RfdmFsdWUiOjUxNDI4NDkxMjk0Nn0=",
+                          "node": {
+                            "id": "gid://shopify/Collection/514284912946",
+                            "title": "zzzzzz SDP entitlement 1783702550706 Bravo collection"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo1MTQyODQ4ODAxNzgsImxhc3RfdmFsdWUiOjUxNDI4NDg4MDE3OH0=",
+                        "endCursor": "eyJsYXN0X2lkIjo1MTQyODQ5MTI5NDYsImxhc3RfdmFsdWUiOjUxNDI4NDkxMjk0Nn0="
+                      }
+                    }
+                  }
+                },
+                "customerGets": {
+                  "items": {
+                    "__typename": "DiscountCollections",
+                    "collections": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Collection/514284880178",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Alpha collection",
+                          "handle": "zzzzzz-sdp-entitlement-1783702550706-alpha-collection"
+                        },
+                        {
+                          "id": "gid://shopify/Collection/514284912946",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Bravo collection",
+                          "handle": "zzzzzz-sdp-entitlement-1783702550706-bravo-collection"
+                        }
+                      ],
+                      "edges": [
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo1MTQyODQ4ODAxNzgsImxhc3RfdmFsdWUiOjUxNDI4NDg4MDE3OH0=",
+                          "node": {
+                            "id": "gid://shopify/Collection/514284880178",
+                            "title": "zzzzzz SDP entitlement 1783702550706 Alpha collection"
+                          }
+                        },
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo1MTQyODQ5MTI5NDYsImxhc3RfdmFsdWUiOjUxNDI4NDkxMjk0Nn0=",
+                          "node": {
+                            "id": "gid://shopify/Collection/514284912946",
+                            "title": "zzzzzz SDP entitlement 1783702550706 Bravo collection"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo1MTQyODQ4ODAxNzgsImxhc3RfdmFsdWUiOjUxNDI4NDg4MDE3OH0=",
+                        "endCursor": "eyJsYXN0X2lkIjo1MTQyODQ5MTI5NDYsImxhc3RfdmFsdWUiOjUxNDI4NDkxMjk0Nn0="
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "catalog": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/DiscountCodeNode/1659411562802",
+                  "discount": {
+                    "__typename": "DiscountCodeBxgy",
+                    "title": "zzzzzz SDP entitlement 1783702550706 Product discount",
+                    "customerBuys": {
+                      "items": {
+                        "__typename": "DiscountProducts",
+                        "products": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/Product/10236065022258",
+                              "title": "zzzzzz SDP entitlement 1783702550706 Alpha product"
+                            },
+                            {
+                              "id": "gid://shopify/Product/10236065055026",
+                              "title": "zzzzzz SDP entitlement 1783702550706 Bravo product"
+                            }
+                          ]
+                        },
+                        "productVariants": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/ProductVariant/51459660939570",
+                              "sku": "SDPENTALPHA1783702550706"
+                            },
+                            {
+                              "id": "gid://shopify/ProductVariant/51459660972338",
+                              "sku": "SDPENTBRAVO1783702550706"
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    "customerGets": {
+                      "items": {
+                        "__typename": "DiscountProducts",
+                        "products": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/Product/10236065022258",
+                              "title": "zzzzzz SDP entitlement 1783702550706 Alpha product"
+                            },
+                            {
+                              "id": "gid://shopify/Product/10236065055026",
+                              "title": "zzzzzz SDP entitlement 1783702550706 Bravo product"
+                            }
+                          ]
+                        },
+                        "productVariants": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/ProductVariant/51459660939570",
+                              "sku": "SDPENTALPHA1783702550706"
+                            },
+                            {
+                              "id": "gid://shopify/ProductVariant/51459660972338",
+                              "sku": "SDPENTBRAVO1783702550706"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/DiscountCodeNode/1659411595570",
+                  "discount": {
+                    "__typename": "DiscountCodeBxgy",
+                    "title": "zzzzzz SDP entitlement 1783702550706 Collection discount",
+                    "customerBuys": {
+                      "items": {
+                        "__typename": "DiscountCollections",
+                        "collections": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/Collection/514284880178",
+                              "title": "zzzzzz SDP entitlement 1783702550706 Alpha collection"
+                            },
+                            {
+                              "id": "gid://shopify/Collection/514284912946",
+                              "title": "zzzzzz SDP entitlement 1783702550706 Bravo collection"
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    "customerGets": {
+                      "items": {
+                        "__typename": "DiscountCollections",
+                        "collections": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/Collection/514284880178",
+                              "title": "zzzzzz SDP entitlement 1783702550706 Alpha collection"
+                            },
+                            {
+                              "id": "gid://shopify/Collection/514284912946",
+                              "title": "zzzzzz SDP entitlement 1783702550706 Bravo collection"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxNjU5NDExNTYyODAyLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBlbnRpdGxlbWVudCAxNzgzNzAyNTUwNzA2IHByb2R1Y3QgZGlzY291bnQifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxNjU5NDExNTk1NTcwLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBlbnRpdGxlbWVudCAxNzgzNzAyNTUwNzA2IGNvbGxlY3Rpb24gZGlzY291bnQifQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 58,
+              "actualQueryCost": 58,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1942,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "readWindow": {
+      "document": "query DiscountEntitlementConnectionsReadWindow(\n  $productDiscountId: ID!\n  $collectionDiscountId: ID!\n  $productAfter: String!\n  $productBefore: String!\n  $variantAfter: String!\n  $variantBefore: String!\n  $collectionAfter: String!\n  $collectionBefore: String!\n) {\n  productDiscount: discountNode(id: $productDiscountId) {\n    discount {\n      __typename\n      ... on DiscountCodeBxgy {\n        customerBuys {\n          items {\n            __typename\n            ... on DiscountProducts {\n              afterProducts: products(first: 1, after: $productAfter) {\n                nodes {\n                  id\n                  title\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n              beforeProducts: products(last: 1, before: $productBefore) {\n                nodes {\n                  id\n                  title\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n              reverseProducts: products(first: 2, reverse: true) {\n                nodes {\n                  id\n                  title\n                }\n                edges {\n                  cursor\n                  node {\n                    id\n                    title\n                  }\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n              afterVariants: productVariants(first: 1, after: $variantAfter) {\n                nodes {\n                  id\n                  sku\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n              beforeVariants: productVariants(last: 1, before: $variantBefore) {\n                nodes {\n                  id\n                  sku\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n              reverseVariants: productVariants(first: 2, reverse: true) {\n                nodes {\n                  id\n                  sku\n                }\n                edges {\n                  cursor\n                  node {\n                    id\n                    sku\n                  }\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n            }\n          }\n        }\n        customerGets {\n          items {\n            __typename\n            ... on DiscountProducts {\n              afterProducts: products(first: 1, after: $productAfter) {\n                nodes {\n                  id\n                  title\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n              beforeProducts: products(last: 1, before: $productBefore) {\n                nodes {\n                  id\n                  title\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n              reverseProducts: products(first: 2, reverse: true) {\n                nodes {\n                  id\n                  title\n                }\n                edges {\n                  cursor\n                  node {\n                    id\n                    title\n                  }\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n              afterVariants: productVariants(first: 1, after: $variantAfter) {\n                nodes {\n                  id\n                  sku\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n              beforeVariants: productVariants(last: 1, before: $variantBefore) {\n                nodes {\n                  id\n                  sku\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n              reverseVariants: productVariants(first: 2, reverse: true) {\n                nodes {\n                  id\n                  sku\n                }\n                edges {\n                  cursor\n                  node {\n                    id\n                    sku\n                  }\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n  collectionDiscount: discountNode(id: $collectionDiscountId) {\n    discount {\n      __typename\n      ... on DiscountCodeBxgy {\n        customerBuys {\n          items {\n            __typename\n            ... on DiscountCollections {\n              afterCollections: collections(first: 1, after: $collectionAfter) {\n                nodes {\n                  id\n                  title\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n              beforeCollections: collections(last: 1, before: $collectionBefore) {\n                nodes {\n                  id\n                  title\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n              reverseCollections: collections(first: 2, reverse: true) {\n                nodes {\n                  id\n                  title\n                }\n                edges {\n                  cursor\n                  node {\n                    id\n                    title\n                  }\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n            }\n          }\n        }\n        customerGets {\n          items {\n            __typename\n            ... on DiscountCollections {\n              afterCollections: collections(first: 1, after: $collectionAfter) {\n                nodes {\n                  id\n                  title\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n              beforeCollections: collections(last: 1, before: $collectionBefore) {\n                nodes {\n                  id\n                  title\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n              reverseCollections: collections(first: 2, reverse: true) {\n                nodes {\n                  id\n                  title\n                }\n                edges {\n                  cursor\n                  node {\n                    id\n                    title\n                  }\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "productDiscountId": "gid://shopify/DiscountCodeNode/1659411562802",
+        "collectionDiscountId": "gid://shopify/DiscountCodeNode/1659411595570",
+        "productAfter": "eyJsYXN0X2lkIjoxMDIzNjA2NTAyMjI1OCwibGFzdF92YWx1ZSI6MTAyMzYwNjUwMjIyNTh9",
+        "productBefore": "eyJsYXN0X2lkIjoxMDIzNjA2NTA1NTAyNiwibGFzdF92YWx1ZSI6MTAyMzYwNjUwNTUwMjZ9",
+        "variantAfter": "eyJsYXN0X2lkIjo1MTQ1OTY2MDkzOTU3MCwibGFzdF92YWx1ZSI6NTE0NTk2NjA5Mzk1NzB9",
+        "variantBefore": "eyJsYXN0X2lkIjo1MTQ1OTY2MDk3MjMzOCwibGFzdF92YWx1ZSI6NTE0NTk2NjA5NzIzMzh9",
+        "collectionAfter": "eyJsYXN0X2lkIjo1MTQyODQ4ODAxNzgsImxhc3RfdmFsdWUiOjUxNDI4NDg4MDE3OH0=",
+        "collectionBefore": "eyJsYXN0X2lkIjo1MTQyODQ5MTI5NDYsImxhc3RfdmFsdWUiOjUxNDI4NDkxMjk0Nn0="
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productDiscount": {
+              "discount": {
+                "__typename": "DiscountCodeBxgy",
+                "customerBuys": {
+                  "items": {
+                    "__typename": "DiscountProducts",
+                    "afterProducts": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Product/10236065055026",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Bravo product"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": true,
+                        "startCursor": "eyJsYXN0X2lkIjoxMDIzNjA2NTA1NTAyNiwibGFzdF92YWx1ZSI6MTAyMzYwNjUwNTUwMjZ9",
+                        "endCursor": "eyJsYXN0X2lkIjoxMDIzNjA2NTA1NTAyNiwibGFzdF92YWx1ZSI6MTAyMzYwNjUwNTUwMjZ9"
+                      }
+                    },
+                    "beforeProducts": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Product/10236065022258",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Alpha product"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": true,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjoxMDIzNjA2NTAyMjI1OCwibGFzdF92YWx1ZSI6MTAyMzYwNjUwMjIyNTh9",
+                        "endCursor": "eyJsYXN0X2lkIjoxMDIzNjA2NTAyMjI1OCwibGFzdF92YWx1ZSI6MTAyMzYwNjUwMjIyNTh9"
+                      }
+                    },
+                    "reverseProducts": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Product/10236065055026",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Bravo product"
+                        },
+                        {
+                          "id": "gid://shopify/Product/10236065022258",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Alpha product"
+                        }
+                      ],
+                      "edges": [
+                        {
+                          "cursor": "eyJsYXN0X2lkIjoxMDIzNjA2NTA1NTAyNiwibGFzdF92YWx1ZSI6MTAyMzYwNjUwNTUwMjZ9",
+                          "node": {
+                            "id": "gid://shopify/Product/10236065055026",
+                            "title": "zzzzzz SDP entitlement 1783702550706 Bravo product"
+                          }
+                        },
+                        {
+                          "cursor": "eyJsYXN0X2lkIjoxMDIzNjA2NTAyMjI1OCwibGFzdF92YWx1ZSI6MTAyMzYwNjUwMjIyNTh9",
+                          "node": {
+                            "id": "gid://shopify/Product/10236065022258",
+                            "title": "zzzzzz SDP entitlement 1783702550706 Alpha product"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjoxMDIzNjA2NTA1NTAyNiwibGFzdF92YWx1ZSI6MTAyMzYwNjUwNTUwMjZ9",
+                        "endCursor": "eyJsYXN0X2lkIjoxMDIzNjA2NTAyMjI1OCwibGFzdF92YWx1ZSI6MTAyMzYwNjUwMjIyNTh9"
+                      }
+                    },
+                    "afterVariants": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/ProductVariant/51459660972338",
+                          "sku": "SDPENTBRAVO1783702550706"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": true,
+                        "startCursor": "eyJsYXN0X2lkIjo1MTQ1OTY2MDk3MjMzOCwibGFzdF92YWx1ZSI6NTE0NTk2NjA5NzIzMzh9",
+                        "endCursor": "eyJsYXN0X2lkIjo1MTQ1OTY2MDk3MjMzOCwibGFzdF92YWx1ZSI6NTE0NTk2NjA5NzIzMzh9"
+                      }
+                    },
+                    "beforeVariants": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/ProductVariant/51459660939570",
+                          "sku": "SDPENTALPHA1783702550706"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": true,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo1MTQ1OTY2MDkzOTU3MCwibGFzdF92YWx1ZSI6NTE0NTk2NjA5Mzk1NzB9",
+                        "endCursor": "eyJsYXN0X2lkIjo1MTQ1OTY2MDkzOTU3MCwibGFzdF92YWx1ZSI6NTE0NTk2NjA5Mzk1NzB9"
+                      }
+                    },
+                    "reverseVariants": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/ProductVariant/51459660972338",
+                          "sku": "SDPENTBRAVO1783702550706"
+                        },
+                        {
+                          "id": "gid://shopify/ProductVariant/51459660939570",
+                          "sku": "SDPENTALPHA1783702550706"
+                        }
+                      ],
+                      "edges": [
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo1MTQ1OTY2MDk3MjMzOCwibGFzdF92YWx1ZSI6NTE0NTk2NjA5NzIzMzh9",
+                          "node": {
+                            "id": "gid://shopify/ProductVariant/51459660972338",
+                            "sku": "SDPENTBRAVO1783702550706"
+                          }
+                        },
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo1MTQ1OTY2MDkzOTU3MCwibGFzdF92YWx1ZSI6NTE0NTk2NjA5Mzk1NzB9",
+                          "node": {
+                            "id": "gid://shopify/ProductVariant/51459660939570",
+                            "sku": "SDPENTALPHA1783702550706"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo1MTQ1OTY2MDk3MjMzOCwibGFzdF92YWx1ZSI6NTE0NTk2NjA5NzIzMzh9",
+                        "endCursor": "eyJsYXN0X2lkIjo1MTQ1OTY2MDkzOTU3MCwibGFzdF92YWx1ZSI6NTE0NTk2NjA5Mzk1NzB9"
+                      }
+                    }
+                  }
+                },
+                "customerGets": {
+                  "items": {
+                    "__typename": "DiscountProducts",
+                    "afterProducts": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Product/10236065055026",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Bravo product"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": true,
+                        "startCursor": "eyJsYXN0X2lkIjoxMDIzNjA2NTA1NTAyNiwibGFzdF92YWx1ZSI6MTAyMzYwNjUwNTUwMjZ9",
+                        "endCursor": "eyJsYXN0X2lkIjoxMDIzNjA2NTA1NTAyNiwibGFzdF92YWx1ZSI6MTAyMzYwNjUwNTUwMjZ9"
+                      }
+                    },
+                    "beforeProducts": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Product/10236065022258",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Alpha product"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": true,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjoxMDIzNjA2NTAyMjI1OCwibGFzdF92YWx1ZSI6MTAyMzYwNjUwMjIyNTh9",
+                        "endCursor": "eyJsYXN0X2lkIjoxMDIzNjA2NTAyMjI1OCwibGFzdF92YWx1ZSI6MTAyMzYwNjUwMjIyNTh9"
+                      }
+                    },
+                    "reverseProducts": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Product/10236065055026",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Bravo product"
+                        },
+                        {
+                          "id": "gid://shopify/Product/10236065022258",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Alpha product"
+                        }
+                      ],
+                      "edges": [
+                        {
+                          "cursor": "eyJsYXN0X2lkIjoxMDIzNjA2NTA1NTAyNiwibGFzdF92YWx1ZSI6MTAyMzYwNjUwNTUwMjZ9",
+                          "node": {
+                            "id": "gid://shopify/Product/10236065055026",
+                            "title": "zzzzzz SDP entitlement 1783702550706 Bravo product"
+                          }
+                        },
+                        {
+                          "cursor": "eyJsYXN0X2lkIjoxMDIzNjA2NTAyMjI1OCwibGFzdF92YWx1ZSI6MTAyMzYwNjUwMjIyNTh9",
+                          "node": {
+                            "id": "gid://shopify/Product/10236065022258",
+                            "title": "zzzzzz SDP entitlement 1783702550706 Alpha product"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjoxMDIzNjA2NTA1NTAyNiwibGFzdF92YWx1ZSI6MTAyMzYwNjUwNTUwMjZ9",
+                        "endCursor": "eyJsYXN0X2lkIjoxMDIzNjA2NTAyMjI1OCwibGFzdF92YWx1ZSI6MTAyMzYwNjUwMjIyNTh9"
+                      }
+                    },
+                    "afterVariants": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/ProductVariant/51459660972338",
+                          "sku": "SDPENTBRAVO1783702550706"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": true,
+                        "startCursor": "eyJsYXN0X2lkIjo1MTQ1OTY2MDk3MjMzOCwibGFzdF92YWx1ZSI6NTE0NTk2NjA5NzIzMzh9",
+                        "endCursor": "eyJsYXN0X2lkIjo1MTQ1OTY2MDk3MjMzOCwibGFzdF92YWx1ZSI6NTE0NTk2NjA5NzIzMzh9"
+                      }
+                    },
+                    "beforeVariants": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/ProductVariant/51459660939570",
+                          "sku": "SDPENTALPHA1783702550706"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": true,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo1MTQ1OTY2MDkzOTU3MCwibGFzdF92YWx1ZSI6NTE0NTk2NjA5Mzk1NzB9",
+                        "endCursor": "eyJsYXN0X2lkIjo1MTQ1OTY2MDkzOTU3MCwibGFzdF92YWx1ZSI6NTE0NTk2NjA5Mzk1NzB9"
+                      }
+                    },
+                    "reverseVariants": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/ProductVariant/51459660972338",
+                          "sku": "SDPENTBRAVO1783702550706"
+                        },
+                        {
+                          "id": "gid://shopify/ProductVariant/51459660939570",
+                          "sku": "SDPENTALPHA1783702550706"
+                        }
+                      ],
+                      "edges": [
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo1MTQ1OTY2MDk3MjMzOCwibGFzdF92YWx1ZSI6NTE0NTk2NjA5NzIzMzh9",
+                          "node": {
+                            "id": "gid://shopify/ProductVariant/51459660972338",
+                            "sku": "SDPENTBRAVO1783702550706"
+                          }
+                        },
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo1MTQ1OTY2MDkzOTU3MCwibGFzdF92YWx1ZSI6NTE0NTk2NjA5Mzk1NzB9",
+                          "node": {
+                            "id": "gid://shopify/ProductVariant/51459660939570",
+                            "sku": "SDPENTALPHA1783702550706"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo1MTQ1OTY2MDk3MjMzOCwibGFzdF92YWx1ZSI6NTE0NTk2NjA5NzIzMzh9",
+                        "endCursor": "eyJsYXN0X2lkIjo1MTQ1OTY2MDkzOTU3MCwibGFzdF92YWx1ZSI6NTE0NTk2NjA5Mzk1NzB9"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "collectionDiscount": {
+              "discount": {
+                "__typename": "DiscountCodeBxgy",
+                "customerBuys": {
+                  "items": {
+                    "__typename": "DiscountCollections",
+                    "afterCollections": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Collection/514284912946",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Bravo collection"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": true,
+                        "startCursor": "eyJsYXN0X2lkIjo1MTQyODQ5MTI5NDYsImxhc3RfdmFsdWUiOjUxNDI4NDkxMjk0Nn0=",
+                        "endCursor": "eyJsYXN0X2lkIjo1MTQyODQ5MTI5NDYsImxhc3RfdmFsdWUiOjUxNDI4NDkxMjk0Nn0="
+                      }
+                    },
+                    "beforeCollections": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Collection/514284880178",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Alpha collection"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": true,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo1MTQyODQ4ODAxNzgsImxhc3RfdmFsdWUiOjUxNDI4NDg4MDE3OH0=",
+                        "endCursor": "eyJsYXN0X2lkIjo1MTQyODQ4ODAxNzgsImxhc3RfdmFsdWUiOjUxNDI4NDg4MDE3OH0="
+                      }
+                    },
+                    "reverseCollections": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Collection/514284912946",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Bravo collection"
+                        },
+                        {
+                          "id": "gid://shopify/Collection/514284880178",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Alpha collection"
+                        }
+                      ],
+                      "edges": [
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo1MTQyODQ5MTI5NDYsImxhc3RfdmFsdWUiOjUxNDI4NDkxMjk0Nn0=",
+                          "node": {
+                            "id": "gid://shopify/Collection/514284912946",
+                            "title": "zzzzzz SDP entitlement 1783702550706 Bravo collection"
+                          }
+                        },
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo1MTQyODQ4ODAxNzgsImxhc3RfdmFsdWUiOjUxNDI4NDg4MDE3OH0=",
+                          "node": {
+                            "id": "gid://shopify/Collection/514284880178",
+                            "title": "zzzzzz SDP entitlement 1783702550706 Alpha collection"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo1MTQyODQ5MTI5NDYsImxhc3RfdmFsdWUiOjUxNDI4NDkxMjk0Nn0=",
+                        "endCursor": "eyJsYXN0X2lkIjo1MTQyODQ4ODAxNzgsImxhc3RfdmFsdWUiOjUxNDI4NDg4MDE3OH0="
+                      }
+                    }
+                  }
+                },
+                "customerGets": {
+                  "items": {
+                    "__typename": "DiscountCollections",
+                    "afterCollections": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Collection/514284912946",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Bravo collection"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": true,
+                        "startCursor": "eyJsYXN0X2lkIjo1MTQyODQ5MTI5NDYsImxhc3RfdmFsdWUiOjUxNDI4NDkxMjk0Nn0=",
+                        "endCursor": "eyJsYXN0X2lkIjo1MTQyODQ5MTI5NDYsImxhc3RfdmFsdWUiOjUxNDI4NDkxMjk0Nn0="
+                      }
+                    },
+                    "beforeCollections": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Collection/514284880178",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Alpha collection"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": true,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo1MTQyODQ4ODAxNzgsImxhc3RfdmFsdWUiOjUxNDI4NDg4MDE3OH0=",
+                        "endCursor": "eyJsYXN0X2lkIjo1MTQyODQ4ODAxNzgsImxhc3RfdmFsdWUiOjUxNDI4NDg4MDE3OH0="
+                      }
+                    },
+                    "reverseCollections": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Collection/514284912946",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Bravo collection"
+                        },
+                        {
+                          "id": "gid://shopify/Collection/514284880178",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Alpha collection"
+                        }
+                      ],
+                      "edges": [
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo1MTQyODQ5MTI5NDYsImxhc3RfdmFsdWUiOjUxNDI4NDkxMjk0Nn0=",
+                          "node": {
+                            "id": "gid://shopify/Collection/514284912946",
+                            "title": "zzzzzz SDP entitlement 1783702550706 Bravo collection"
+                          }
+                        },
+                        {
+                          "cursor": "eyJsYXN0X2lkIjo1MTQyODQ4ODAxNzgsImxhc3RfdmFsdWUiOjUxNDI4NDg4MDE3OH0=",
+                          "node": {
+                            "id": "gid://shopify/Collection/514284880178",
+                            "title": "zzzzzz SDP entitlement 1783702550706 Alpha collection"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo1MTQyODQ5MTI5NDYsImxhc3RfdmFsdWUiOjUxNDI4NDkxMjk0Nn0=",
+                        "endCursor": "eyJsYXN0X2lkIjo1MTQyODQ4ODAxNzgsImxhc3RfdmFsdWUiOjUxNDI4NDg4MDE3OH0="
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 72,
+              "actualQueryCost": 72,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1889,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "resourceUpdate": {
+      "document": "mutation DiscountEntitlementConnectionsResourceUpdate(\n  $product: ProductUpdateInput!\n  $variantProductId: ID!\n  $variants: [ProductVariantsBulkInput!]!\n  $collection: CollectionInput!\n) {\n  productUpdate(product: $product) {\n    product {\n      id\n      title\n      handle\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  productVariantsBulkUpdate(productId: $variantProductId, variants: $variants) {\n    productVariants {\n      id\n      title\n      sku\n      product {\n        id\n        title\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  collectionUpdate(input: $collection) {\n    collection {\n      id\n      title\n      handle\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "product": {
+          "id": "gid://shopify/Product/10236065022258",
+          "title": "zzzzzz SDP entitlement 1783702550706 Alpha product updated"
+        },
+        "variantProductId": "gid://shopify/Product/10236065087794",
+        "variants": [
+          {
+            "id": "gid://shopify/ProductVariant/51459660939570",
+            "inventoryItem": {
+              "sku": "SDPENTALPHAUP1783702550706"
+            }
+          }
+        ],
+        "collection": {
+          "id": "gid://shopify/Collection/514284880178",
+          "title": "zzzzzz SDP entitlement 1783702550706 Alpha collection updated"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productUpdate": {
+              "product": {
+                "id": "gid://shopify/Product/10236065022258",
+                "title": "zzzzzz SDP entitlement 1783702550706 Alpha product updated",
+                "handle": "zzzzzz-sdp-entitlement-1783702550706-alpha-product"
+              },
+              "userErrors": []
+            },
+            "productVariantsBulkUpdate": {
+              "productVariants": [
+                {
+                  "id": "gid://shopify/ProductVariant/51459660939570",
+                  "title": "Alpha entitlement",
+                  "sku": "SDPENTALPHAUP1783702550706",
+                  "product": {
+                    "id": "gid://shopify/Product/10236065087794",
+                    "title": "zzzzzz SDP entitlement 1783702550706 Alpha variant product"
+                  }
+                }
+              ],
+              "userErrors": []
+            },
+            "collectionUpdate": {
+              "collection": {
+                "id": "gid://shopify/Collection/514284880178",
+                "title": "zzzzzz SDP entitlement 1783702550706 Alpha collection updated",
+                "handle": "zzzzzz-sdp-entitlement-1783702550706-alpha-collection"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 31,
+              "actualQueryCost": 31,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1873,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "readUpdated": {
+      "document": "query DiscountEntitlementConnectionsReadCurrent(\n  $productDiscountId: ID!\n  $collectionDiscountId: ID!\n  $catalogQuery: String!\n  $catalogFirst: Int!\n) {\n  productDiscount: discountNode(id: $productDiscountId) {\n    discount {\n      __typename\n      ... on DiscountCodeBxgy {\n        title\n        customerBuys {\n          items {\n            __typename\n            ... on DiscountProducts {\n              products(first: 5) {\n                nodes {\n                  id\n                  title\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n              productVariants(first: 5) {\n                nodes {\n                  id\n                  sku\n                  product {\n                    id\n                    title\n                  }\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n            }\n          }\n        }\n        customerGets {\n          items {\n            __typename\n            ... on DiscountProducts {\n              products(first: 5) {\n                nodes {\n                  id\n                  title\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n              productVariants(first: 5) {\n                nodes {\n                  id\n                  sku\n                  product {\n                    id\n                    title\n                  }\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n  collectionDiscount: discountNode(id: $collectionDiscountId) {\n    discount {\n      __typename\n      ... on DiscountCodeBxgy {\n        title\n        customerBuys {\n          items {\n            __typename\n            ... on DiscountCollections {\n              collections(first: 5) {\n                nodes {\n                  id\n                  title\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n            }\n          }\n        }\n        customerGets {\n          items {\n            __typename\n            ... on DiscountCollections {\n              collections(first: 5) {\n                nodes {\n                  id\n                  title\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n  catalog: discountNodes(first: $catalogFirst, sortKey: TITLE, reverse: true, query: $catalogQuery) {\n    nodes {\n      id\n      discount {\n        __typename\n        ... on DiscountCodeBxgy {\n          title\n          customerBuys {\n            items {\n              __typename\n              ... on DiscountProducts {\n                products(first: 5) {\n                  nodes {\n                    id\n                    title\n                  }\n                }\n                productVariants(first: 5) {\n                  nodes {\n                    id\n                    sku\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 5) {\n                  nodes {\n                    id\n                    title\n                  }\n                }\n              }\n            }\n          }\n          customerGets {\n            items {\n              __typename\n              ... on DiscountProducts {\n                products(first: 5) {\n                  nodes {\n                    id\n                    title\n                  }\n                }\n                productVariants(first: 5) {\n                  nodes {\n                    id\n                    sku\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 5) {\n                  nodes {\n                    id\n                    title\n                  }\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "productDiscountId": "gid://shopify/DiscountCodeNode/1659411562802",
+        "collectionDiscountId": "gid://shopify/DiscountCodeNode/1659411595570",
+        "catalogQuery": "status:scheduled",
+        "catalogFirst": 2
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productDiscount": {
+              "discount": {
+                "__typename": "DiscountCodeBxgy",
+                "title": "zzzzzz SDP entitlement 1783702550706 Product discount",
+                "customerBuys": {
+                  "items": {
+                    "__typename": "DiscountProducts",
+                    "products": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Product/10236065022258",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Alpha product updated"
+                        },
+                        {
+                          "id": "gid://shopify/Product/10236065055026",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Bravo product"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjoxMDIzNjA2NTAyMjI1OCwibGFzdF92YWx1ZSI6MTAyMzYwNjUwMjIyNTh9",
+                        "endCursor": "eyJsYXN0X2lkIjoxMDIzNjA2NTA1NTAyNiwibGFzdF92YWx1ZSI6MTAyMzYwNjUwNTUwMjZ9"
+                      }
+                    },
+                    "productVariants": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/ProductVariant/51459660939570",
+                          "sku": "SDPENTALPHAUP1783702550706",
+                          "product": {
+                            "id": "gid://shopify/Product/10236065087794",
+                            "title": "zzzzzz SDP entitlement 1783702550706 Alpha variant product"
+                          }
+                        },
+                        {
+                          "id": "gid://shopify/ProductVariant/51459660972338",
+                          "sku": "SDPENTBRAVO1783702550706",
+                          "product": {
+                            "id": "gid://shopify/Product/10236065120562",
+                            "title": "zzzzzz SDP entitlement 1783702550706 Bravo variant product"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo1MTQ1OTY2MDkzOTU3MCwibGFzdF92YWx1ZSI6NTE0NTk2NjA5Mzk1NzB9",
+                        "endCursor": "eyJsYXN0X2lkIjo1MTQ1OTY2MDk3MjMzOCwibGFzdF92YWx1ZSI6NTE0NTk2NjA5NzIzMzh9"
+                      }
+                    }
+                  }
+                },
+                "customerGets": {
+                  "items": {
+                    "__typename": "DiscountProducts",
+                    "products": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Product/10236065022258",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Alpha product updated"
+                        },
+                        {
+                          "id": "gid://shopify/Product/10236065055026",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Bravo product"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjoxMDIzNjA2NTAyMjI1OCwibGFzdF92YWx1ZSI6MTAyMzYwNjUwMjIyNTh9",
+                        "endCursor": "eyJsYXN0X2lkIjoxMDIzNjA2NTA1NTAyNiwibGFzdF92YWx1ZSI6MTAyMzYwNjUwNTUwMjZ9"
+                      }
+                    },
+                    "productVariants": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/ProductVariant/51459660939570",
+                          "sku": "SDPENTALPHAUP1783702550706",
+                          "product": {
+                            "id": "gid://shopify/Product/10236065087794",
+                            "title": "zzzzzz SDP entitlement 1783702550706 Alpha variant product"
+                          }
+                        },
+                        {
+                          "id": "gid://shopify/ProductVariant/51459660972338",
+                          "sku": "SDPENTBRAVO1783702550706",
+                          "product": {
+                            "id": "gid://shopify/Product/10236065120562",
+                            "title": "zzzzzz SDP entitlement 1783702550706 Bravo variant product"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo1MTQ1OTY2MDkzOTU3MCwibGFzdF92YWx1ZSI6NTE0NTk2NjA5Mzk1NzB9",
+                        "endCursor": "eyJsYXN0X2lkIjo1MTQ1OTY2MDk3MjMzOCwibGFzdF92YWx1ZSI6NTE0NTk2NjA5NzIzMzh9"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "collectionDiscount": {
+              "discount": {
+                "__typename": "DiscountCodeBxgy",
+                "title": "zzzzzz SDP entitlement 1783702550706 Collection discount",
+                "customerBuys": {
+                  "items": {
+                    "__typename": "DiscountCollections",
+                    "collections": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Collection/514284880178",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Alpha collection updated"
+                        },
+                        {
+                          "id": "gid://shopify/Collection/514284912946",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Bravo collection"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo1MTQyODQ4ODAxNzgsImxhc3RfdmFsdWUiOjUxNDI4NDg4MDE3OH0=",
+                        "endCursor": "eyJsYXN0X2lkIjo1MTQyODQ5MTI5NDYsImxhc3RfdmFsdWUiOjUxNDI4NDkxMjk0Nn0="
+                      }
+                    }
+                  }
+                },
+                "customerGets": {
+                  "items": {
+                    "__typename": "DiscountCollections",
+                    "collections": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Collection/514284880178",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Alpha collection updated"
+                        },
+                        {
+                          "id": "gid://shopify/Collection/514284912946",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Bravo collection"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo1MTQyODQ4ODAxNzgsImxhc3RfdmFsdWUiOjUxNDI4NDg4MDE3OH0=",
+                        "endCursor": "eyJsYXN0X2lkIjo1MTQyODQ5MTI5NDYsImxhc3RfdmFsdWUiOjUxNDI4NDkxMjk0Nn0="
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "catalog": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/DiscountCodeNode/1659411562802",
+                  "discount": {
+                    "__typename": "DiscountCodeBxgy",
+                    "title": "zzzzzz SDP entitlement 1783702550706 Product discount",
+                    "customerBuys": {
+                      "items": {
+                        "__typename": "DiscountProducts",
+                        "products": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/Product/10236065022258",
+                              "title": "zzzzzz SDP entitlement 1783702550706 Alpha product updated"
+                            },
+                            {
+                              "id": "gid://shopify/Product/10236065055026",
+                              "title": "zzzzzz SDP entitlement 1783702550706 Bravo product"
+                            }
+                          ]
+                        },
+                        "productVariants": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/ProductVariant/51459660939570",
+                              "sku": "SDPENTALPHAUP1783702550706"
+                            },
+                            {
+                              "id": "gid://shopify/ProductVariant/51459660972338",
+                              "sku": "SDPENTBRAVO1783702550706"
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    "customerGets": {
+                      "items": {
+                        "__typename": "DiscountProducts",
+                        "products": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/Product/10236065022258",
+                              "title": "zzzzzz SDP entitlement 1783702550706 Alpha product updated"
+                            },
+                            {
+                              "id": "gid://shopify/Product/10236065055026",
+                              "title": "zzzzzz SDP entitlement 1783702550706 Bravo product"
+                            }
+                          ]
+                        },
+                        "productVariants": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/ProductVariant/51459660939570",
+                              "sku": "SDPENTALPHAUP1783702550706"
+                            },
+                            {
+                              "id": "gid://shopify/ProductVariant/51459660972338",
+                              "sku": "SDPENTBRAVO1783702550706"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/DiscountCodeNode/1659411595570",
+                  "discount": {
+                    "__typename": "DiscountCodeBxgy",
+                    "title": "zzzzzz SDP entitlement 1783702550706 Collection discount",
+                    "customerBuys": {
+                      "items": {
+                        "__typename": "DiscountCollections",
+                        "collections": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/Collection/514284880178",
+                              "title": "zzzzzz SDP entitlement 1783702550706 Alpha collection updated"
+                            },
+                            {
+                              "id": "gid://shopify/Collection/514284912946",
+                              "title": "zzzzzz SDP entitlement 1783702550706 Bravo collection"
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    "customerGets": {
+                      "items": {
+                        "__typename": "DiscountCollections",
+                        "collections": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/Collection/514284880178",
+                              "title": "zzzzzz SDP entitlement 1783702550706 Alpha collection updated"
+                            },
+                            {
+                              "id": "gid://shopify/Collection/514284912946",
+                              "title": "zzzzzz SDP entitlement 1783702550706 Bravo collection"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxNjU5NDExNTYyODAyLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBlbnRpdGxlbWVudCAxNzgzNzAyNTUwNzA2IHByb2R1Y3QgZGlzY291bnQifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxNjU5NDExNTk1NTcwLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBlbnRpdGxlbWVudCAxNzgzNzAyNTUwNzA2IGNvbGxlY3Rpb24gZGlzY291bnQifQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 76,
+              "actualQueryCost": 71,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1848,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "variantDelete": {
+      "document": "mutation DiscountEntitlementConnectionsVariantDelete($productId: ID!, $variantsIds: [ID!]!) {\n  productVariantsBulkDelete(productId: $productId, variantsIds: $variantsIds) {\n    product {\n      id\n      title\n      variants(first: 5) {\n        nodes {\n          id\n          sku\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "productId": "gid://shopify/Product/10236065087794",
+        "variantsIds": ["gid://shopify/ProductVariant/51459660939570"]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productVariantsBulkDelete": {
+              "product": {
+                "id": "gid://shopify/Product/10236065087794",
+                "title": "zzzzzz SDP entitlement 1783702550706 Alpha variant product",
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51459660874034",
+                      "sku": null
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1853,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "readAfterVariantDelete": {
+      "document": "query DiscountEntitlementConnectionsReadCurrent(\n  $productDiscountId: ID!\n  $collectionDiscountId: ID!\n  $catalogQuery: String!\n  $catalogFirst: Int!\n) {\n  productDiscount: discountNode(id: $productDiscountId) {\n    discount {\n      __typename\n      ... on DiscountCodeBxgy {\n        title\n        customerBuys {\n          items {\n            __typename\n            ... on DiscountProducts {\n              products(first: 5) {\n                nodes {\n                  id\n                  title\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n              productVariants(first: 5) {\n                nodes {\n                  id\n                  sku\n                  product {\n                    id\n                    title\n                  }\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n            }\n          }\n        }\n        customerGets {\n          items {\n            __typename\n            ... on DiscountProducts {\n              products(first: 5) {\n                nodes {\n                  id\n                  title\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n              productVariants(first: 5) {\n                nodes {\n                  id\n                  sku\n                  product {\n                    id\n                    title\n                  }\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n  collectionDiscount: discountNode(id: $collectionDiscountId) {\n    discount {\n      __typename\n      ... on DiscountCodeBxgy {\n        title\n        customerBuys {\n          items {\n            __typename\n            ... on DiscountCollections {\n              collections(first: 5) {\n                nodes {\n                  id\n                  title\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n            }\n          }\n        }\n        customerGets {\n          items {\n            __typename\n            ... on DiscountCollections {\n              collections(first: 5) {\n                nodes {\n                  id\n                  title\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n  catalog: discountNodes(first: $catalogFirst, sortKey: TITLE, reverse: true, query: $catalogQuery) {\n    nodes {\n      id\n      discount {\n        __typename\n        ... on DiscountCodeBxgy {\n          title\n          customerBuys {\n            items {\n              __typename\n              ... on DiscountProducts {\n                products(first: 5) {\n                  nodes {\n                    id\n                    title\n                  }\n                }\n                productVariants(first: 5) {\n                  nodes {\n                    id\n                    sku\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 5) {\n                  nodes {\n                    id\n                    title\n                  }\n                }\n              }\n            }\n          }\n          customerGets {\n            items {\n              __typename\n              ... on DiscountProducts {\n                products(first: 5) {\n                  nodes {\n                    id\n                    title\n                  }\n                }\n                productVariants(first: 5) {\n                  nodes {\n                    id\n                    sku\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 5) {\n                  nodes {\n                    id\n                    title\n                  }\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "productDiscountId": "gid://shopify/DiscountCodeNode/1659411562802",
+        "collectionDiscountId": "gid://shopify/DiscountCodeNode/1659411595570",
+        "catalogQuery": "status:scheduled",
+        "catalogFirst": 2
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productDiscount": {
+              "discount": {
+                "__typename": "DiscountCodeBxgy",
+                "title": "zzzzzz SDP entitlement 1783702550706 Product discount",
+                "customerBuys": {
+                  "items": {
+                    "__typename": "DiscountProducts",
+                    "products": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Product/10236065022258",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Alpha product updated"
+                        },
+                        {
+                          "id": "gid://shopify/Product/10236065055026",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Bravo product"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjoxMDIzNjA2NTAyMjI1OCwibGFzdF92YWx1ZSI6MTAyMzYwNjUwMjIyNTh9",
+                        "endCursor": "eyJsYXN0X2lkIjoxMDIzNjA2NTA1NTAyNiwibGFzdF92YWx1ZSI6MTAyMzYwNjUwNTUwMjZ9"
+                      }
+                    },
+                    "productVariants": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/ProductVariant/51459660972338",
+                          "sku": "SDPENTBRAVO1783702550706",
+                          "product": {
+                            "id": "gid://shopify/Product/10236065120562",
+                            "title": "zzzzzz SDP entitlement 1783702550706 Bravo variant product"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo1MTQ1OTY2MDk3MjMzOCwibGFzdF92YWx1ZSI6NTE0NTk2NjA5NzIzMzh9",
+                        "endCursor": "eyJsYXN0X2lkIjo1MTQ1OTY2MDk3MjMzOCwibGFzdF92YWx1ZSI6NTE0NTk2NjA5NzIzMzh9"
+                      }
+                    }
+                  }
+                },
+                "customerGets": {
+                  "items": {
+                    "__typename": "DiscountProducts",
+                    "products": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Product/10236065022258",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Alpha product updated"
+                        },
+                        {
+                          "id": "gid://shopify/Product/10236065055026",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Bravo product"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjoxMDIzNjA2NTAyMjI1OCwibGFzdF92YWx1ZSI6MTAyMzYwNjUwMjIyNTh9",
+                        "endCursor": "eyJsYXN0X2lkIjoxMDIzNjA2NTA1NTAyNiwibGFzdF92YWx1ZSI6MTAyMzYwNjUwNTUwMjZ9"
+                      }
+                    },
+                    "productVariants": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/ProductVariant/51459660972338",
+                          "sku": "SDPENTBRAVO1783702550706",
+                          "product": {
+                            "id": "gid://shopify/Product/10236065120562",
+                            "title": "zzzzzz SDP entitlement 1783702550706 Bravo variant product"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo1MTQ1OTY2MDk3MjMzOCwibGFzdF92YWx1ZSI6NTE0NTk2NjA5NzIzMzh9",
+                        "endCursor": "eyJsYXN0X2lkIjo1MTQ1OTY2MDk3MjMzOCwibGFzdF92YWx1ZSI6NTE0NTk2NjA5NzIzMzh9"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "collectionDiscount": {
+              "discount": {
+                "__typename": "DiscountCodeBxgy",
+                "title": "zzzzzz SDP entitlement 1783702550706 Collection discount",
+                "customerBuys": {
+                  "items": {
+                    "__typename": "DiscountCollections",
+                    "collections": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Collection/514284880178",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Alpha collection updated"
+                        },
+                        {
+                          "id": "gid://shopify/Collection/514284912946",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Bravo collection"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo1MTQyODQ4ODAxNzgsImxhc3RfdmFsdWUiOjUxNDI4NDg4MDE3OH0=",
+                        "endCursor": "eyJsYXN0X2lkIjo1MTQyODQ5MTI5NDYsImxhc3RfdmFsdWUiOjUxNDI4NDkxMjk0Nn0="
+                      }
+                    }
+                  }
+                },
+                "customerGets": {
+                  "items": {
+                    "__typename": "DiscountCollections",
+                    "collections": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Collection/514284880178",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Alpha collection updated"
+                        },
+                        {
+                          "id": "gid://shopify/Collection/514284912946",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Bravo collection"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo1MTQyODQ4ODAxNzgsImxhc3RfdmFsdWUiOjUxNDI4NDg4MDE3OH0=",
+                        "endCursor": "eyJsYXN0X2lkIjo1MTQyODQ5MTI5NDYsImxhc3RfdmFsdWUiOjUxNDI4NDkxMjk0Nn0="
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "catalog": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/DiscountCodeNode/1659411562802",
+                  "discount": {
+                    "__typename": "DiscountCodeBxgy",
+                    "title": "zzzzzz SDP entitlement 1783702550706 Product discount",
+                    "customerBuys": {
+                      "items": {
+                        "__typename": "DiscountProducts",
+                        "products": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/Product/10236065022258",
+                              "title": "zzzzzz SDP entitlement 1783702550706 Alpha product updated"
+                            },
+                            {
+                              "id": "gid://shopify/Product/10236065055026",
+                              "title": "zzzzzz SDP entitlement 1783702550706 Bravo product"
+                            }
+                          ]
+                        },
+                        "productVariants": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/ProductVariant/51459660972338",
+                              "sku": "SDPENTBRAVO1783702550706"
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    "customerGets": {
+                      "items": {
+                        "__typename": "DiscountProducts",
+                        "products": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/Product/10236065022258",
+                              "title": "zzzzzz SDP entitlement 1783702550706 Alpha product updated"
+                            },
+                            {
+                              "id": "gid://shopify/Product/10236065055026",
+                              "title": "zzzzzz SDP entitlement 1783702550706 Bravo product"
+                            }
+                          ]
+                        },
+                        "productVariants": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/ProductVariant/51459660972338",
+                              "sku": "SDPENTBRAVO1783702550706"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/DiscountCodeNode/1659411595570",
+                  "discount": {
+                    "__typename": "DiscountCodeBxgy",
+                    "title": "zzzzzz SDP entitlement 1783702550706 Collection discount",
+                    "customerBuys": {
+                      "items": {
+                        "__typename": "DiscountCollections",
+                        "collections": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/Collection/514284880178",
+                              "title": "zzzzzz SDP entitlement 1783702550706 Alpha collection updated"
+                            },
+                            {
+                              "id": "gid://shopify/Collection/514284912946",
+                              "title": "zzzzzz SDP entitlement 1783702550706 Bravo collection"
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    "customerGets": {
+                      "items": {
+                        "__typename": "DiscountCollections",
+                        "collections": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/Collection/514284880178",
+                              "title": "zzzzzz SDP entitlement 1783702550706 Alpha collection updated"
+                            },
+                            {
+                              "id": "gid://shopify/Collection/514284912946",
+                              "title": "zzzzzz SDP entitlement 1783702550706 Bravo collection"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxNjU5NDExNTYyODAyLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBlbnRpdGxlbWVudCAxNzgzNzAyNTUwNzA2IHByb2R1Y3QgZGlzY291bnQifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxNjU5NDExNTk1NTcwLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBlbnRpdGxlbWVudCAxNzgzNzAyNTUwNzA2IGNvbGxlY3Rpb24gZGlzY291bnQifQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 76,
+              "actualQueryCost": 69,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1818,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "resourceDelete": {
+      "document": "mutation DiscountEntitlementConnectionsResourceDelete(\n  $productInput: ProductDeleteInput!\n  $collectionInput: CollectionDeleteInput!\n) {\n  productDelete(input: $productInput) {\n    deletedProductId\n    userErrors {\n      field\n      message\n    }\n  }\n  collectionDelete(input: $collectionInput) {\n    deletedCollectionId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "productInput": {
+          "id": "gid://shopify/Product/10236065022258"
+        },
+        "collectionInput": {
+          "id": "gid://shopify/Collection/514284880178"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productDelete": {
+              "deletedProductId": "gid://shopify/Product/10236065022258",
+              "userErrors": []
+            },
+            "collectionDelete": {
+              "deletedCollectionId": "gid://shopify/Collection/514284880178",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 20,
+              "actualQueryCost": 20,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1815,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "readAfterResourceDelete": {
+      "document": "query DiscountEntitlementConnectionsReadCurrent(\n  $productDiscountId: ID!\n  $collectionDiscountId: ID!\n  $catalogQuery: String!\n  $catalogFirst: Int!\n) {\n  productDiscount: discountNode(id: $productDiscountId) {\n    discount {\n      __typename\n      ... on DiscountCodeBxgy {\n        title\n        customerBuys {\n          items {\n            __typename\n            ... on DiscountProducts {\n              products(first: 5) {\n                nodes {\n                  id\n                  title\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n              productVariants(first: 5) {\n                nodes {\n                  id\n                  sku\n                  product {\n                    id\n                    title\n                  }\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n            }\n          }\n        }\n        customerGets {\n          items {\n            __typename\n            ... on DiscountProducts {\n              products(first: 5) {\n                nodes {\n                  id\n                  title\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n              productVariants(first: 5) {\n                nodes {\n                  id\n                  sku\n                  product {\n                    id\n                    title\n                  }\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n  collectionDiscount: discountNode(id: $collectionDiscountId) {\n    discount {\n      __typename\n      ... on DiscountCodeBxgy {\n        title\n        customerBuys {\n          items {\n            __typename\n            ... on DiscountCollections {\n              collections(first: 5) {\n                nodes {\n                  id\n                  title\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n            }\n          }\n        }\n        customerGets {\n          items {\n            __typename\n            ... on DiscountCollections {\n              collections(first: 5) {\n                nodes {\n                  id\n                  title\n                }\n                pageInfo {\n                  hasNextPage\n                  hasPreviousPage\n                  startCursor\n                  endCursor\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n  catalog: discountNodes(first: $catalogFirst, sortKey: TITLE, reverse: true, query: $catalogQuery) {\n    nodes {\n      id\n      discount {\n        __typename\n        ... on DiscountCodeBxgy {\n          title\n          customerBuys {\n            items {\n              __typename\n              ... on DiscountProducts {\n                products(first: 5) {\n                  nodes {\n                    id\n                    title\n                  }\n                }\n                productVariants(first: 5) {\n                  nodes {\n                    id\n                    sku\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 5) {\n                  nodes {\n                    id\n                    title\n                  }\n                }\n              }\n            }\n          }\n          customerGets {\n            items {\n              __typename\n              ... on DiscountProducts {\n                products(first: 5) {\n                  nodes {\n                    id\n                    title\n                  }\n                }\n                productVariants(first: 5) {\n                  nodes {\n                    id\n                    sku\n                  }\n                }\n              }\n              ... on DiscountCollections {\n                collections(first: 5) {\n                  nodes {\n                    id\n                    title\n                  }\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "productDiscountId": "gid://shopify/DiscountCodeNode/1659411562802",
+        "collectionDiscountId": "gid://shopify/DiscountCodeNode/1659411595570",
+        "catalogQuery": "status:scheduled",
+        "catalogFirst": 2
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productDiscount": {
+              "discount": {
+                "__typename": "DiscountCodeBxgy",
+                "title": "zzzzzz SDP entitlement 1783702550706 Product discount",
+                "customerBuys": {
+                  "items": {
+                    "__typename": "DiscountProducts",
+                    "products": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Product/10236065055026",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Bravo product"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjoxMDIzNjA2NTA1NTAyNiwibGFzdF92YWx1ZSI6MTAyMzYwNjUwNTUwMjZ9",
+                        "endCursor": "eyJsYXN0X2lkIjoxMDIzNjA2NTA1NTAyNiwibGFzdF92YWx1ZSI6MTAyMzYwNjUwNTUwMjZ9"
+                      }
+                    },
+                    "productVariants": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/ProductVariant/51459660972338",
+                          "sku": "SDPENTBRAVO1783702550706",
+                          "product": {
+                            "id": "gid://shopify/Product/10236065120562",
+                            "title": "zzzzzz SDP entitlement 1783702550706 Bravo variant product"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo1MTQ1OTY2MDk3MjMzOCwibGFzdF92YWx1ZSI6NTE0NTk2NjA5NzIzMzh9",
+                        "endCursor": "eyJsYXN0X2lkIjo1MTQ1OTY2MDk3MjMzOCwibGFzdF92YWx1ZSI6NTE0NTk2NjA5NzIzMzh9"
+                      }
+                    }
+                  }
+                },
+                "customerGets": {
+                  "items": {
+                    "__typename": "DiscountProducts",
+                    "products": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Product/10236065055026",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Bravo product"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjoxMDIzNjA2NTA1NTAyNiwibGFzdF92YWx1ZSI6MTAyMzYwNjUwNTUwMjZ9",
+                        "endCursor": "eyJsYXN0X2lkIjoxMDIzNjA2NTA1NTAyNiwibGFzdF92YWx1ZSI6MTAyMzYwNjUwNTUwMjZ9"
+                      }
+                    },
+                    "productVariants": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/ProductVariant/51459660972338",
+                          "sku": "SDPENTBRAVO1783702550706",
+                          "product": {
+                            "id": "gid://shopify/Product/10236065120562",
+                            "title": "zzzzzz SDP entitlement 1783702550706 Bravo variant product"
+                          }
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo1MTQ1OTY2MDk3MjMzOCwibGFzdF92YWx1ZSI6NTE0NTk2NjA5NzIzMzh9",
+                        "endCursor": "eyJsYXN0X2lkIjo1MTQ1OTY2MDk3MjMzOCwibGFzdF92YWx1ZSI6NTE0NTk2NjA5NzIzMzh9"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "collectionDiscount": {
+              "discount": {
+                "__typename": "DiscountCodeBxgy",
+                "title": "zzzzzz SDP entitlement 1783702550706 Collection discount",
+                "customerBuys": {
+                  "items": {
+                    "__typename": "DiscountCollections",
+                    "collections": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Collection/514284912946",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Bravo collection"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo1MTQyODQ5MTI5NDYsImxhc3RfdmFsdWUiOjUxNDI4NDkxMjk0Nn0=",
+                        "endCursor": "eyJsYXN0X2lkIjo1MTQyODQ5MTI5NDYsImxhc3RfdmFsdWUiOjUxNDI4NDkxMjk0Nn0="
+                      }
+                    }
+                  }
+                },
+                "customerGets": {
+                  "items": {
+                    "__typename": "DiscountCollections",
+                    "collections": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Collection/514284912946",
+                          "title": "zzzzzz SDP entitlement 1783702550706 Bravo collection"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo1MTQyODQ5MTI5NDYsImxhc3RfdmFsdWUiOjUxNDI4NDkxMjk0Nn0=",
+                        "endCursor": "eyJsYXN0X2lkIjo1MTQyODQ5MTI5NDYsImxhc3RfdmFsdWUiOjUxNDI4NDkxMjk0Nn0="
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "catalog": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/DiscountCodeNode/1659411562802",
+                  "discount": {
+                    "__typename": "DiscountCodeBxgy",
+                    "title": "zzzzzz SDP entitlement 1783702550706 Product discount",
+                    "customerBuys": {
+                      "items": {
+                        "__typename": "DiscountProducts",
+                        "products": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/Product/10236065055026",
+                              "title": "zzzzzz SDP entitlement 1783702550706 Bravo product"
+                            }
+                          ]
+                        },
+                        "productVariants": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/ProductVariant/51459660972338",
+                              "sku": "SDPENTBRAVO1783702550706"
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    "customerGets": {
+                      "items": {
+                        "__typename": "DiscountProducts",
+                        "products": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/Product/10236065055026",
+                              "title": "zzzzzz SDP entitlement 1783702550706 Bravo product"
+                            }
+                          ]
+                        },
+                        "productVariants": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/ProductVariant/51459660972338",
+                              "sku": "SDPENTBRAVO1783702550706"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/DiscountCodeNode/1659411595570",
+                  "discount": {
+                    "__typename": "DiscountCodeBxgy",
+                    "title": "zzzzzz SDP entitlement 1783702550706 Collection discount",
+                    "customerBuys": {
+                      "items": {
+                        "__typename": "DiscountCollections",
+                        "collections": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/Collection/514284912946",
+                              "title": "zzzzzz SDP entitlement 1783702550706 Bravo collection"
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    "customerGets": {
+                      "items": {
+                        "__typename": "DiscountCollections",
+                        "collections": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/Collection/514284912946",
+                              "title": "zzzzzz SDP entitlement 1783702550706 Bravo collection"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxNjU5NDExNTYyODAyLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBlbnRpdGxlbWVudCAxNzgzNzAyNTUwNzA2IHByb2R1Y3QgZGlzY291bnQifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxNjU5NDExNTk1NTcwLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBlbnRpdGxlbWVudCAxNzgzNzAyNTUwNzA2IGNvbGxlY3Rpb24gZGlzY291bnQifQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 76,
+              "actualQueryCost": 69,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1780,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "cleanup1": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "discountCodeDelete": {
+            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1659411595570",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1787,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "cleanup2": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "discountCodeDelete": {
+            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1659411562802",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1796,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "cleanup3": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "collectionDelete": {
+            "deletedCollectionId": "gid://shopify/Collection/514284912946",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1804,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "cleanup4": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "collectionDelete": {
+            "deletedCollectionId": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Collection does not exist"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1814,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "cleanup5": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10236065120562",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1813,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "cleanup6": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10236065087794",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1835,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "cleanup7": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10236065055026",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1852,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "cleanup8": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Product does not exist"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1869,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  }
+}

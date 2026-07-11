@@ -7143,6 +7143,258 @@ fn fulfillment_service_uniqueness_rejects_name_handle_and_reserved_collisions() 
     }
 }
 
+struct FulfillmentServiceFixture<'a> {
+    id: &'a str,
+    location_id: &'a str,
+    service_name: &'a str,
+    handle: &'a str,
+    callback_url: Option<&'a str>,
+    tracking_support: bool,
+    inventory_management: bool,
+    requires_shipping_method: bool,
+}
+
+fn hydrated_fulfillment_service(fixture: FulfillmentServiceFixture<'_>) -> Value {
+    json!({
+        "id": fixture.id,
+        "handle": fixture.handle,
+        "serviceName": fixture.service_name,
+        "callbackUrl": fixture.callback_url,
+        "trackingSupport": fixture.tracking_support,
+        "inventoryManagement": fixture.inventory_management,
+        "requiresShippingMethod": fixture.requires_shipping_method,
+        "type": "THIRD_PARTY",
+        "location": {
+            "id": fixture.location_id,
+            "name": fixture.service_name,
+            "isFulfillmentService": true,
+            "fulfillsOnlineOrders": true,
+            "shipsInventory": false
+        }
+    })
+}
+
+fn live_hybrid_fulfillment_service_proxy(
+    services: Vec<Value>,
+) -> (DraftProxy, Arc<Mutex<Vec<Value>>>) {
+    let service_by_id: BTreeMap<String, Value> = services
+        .into_iter()
+        .filter_map(|service| {
+            let id = service.get("id")?.as_str()?.to_string();
+            Some((id, service))
+        })
+        .collect();
+    let hydrate_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_hydrate_calls = Arc::clone(&hydrate_calls);
+    let proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            captured_hydrate_calls.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            if query.contains("ShippingFulfillmentServiceHydrate") {
+                let id = body["variables"]["id"].as_str().unwrap_or_default();
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "fulfillmentService": service_by_id.get(id).cloned().unwrap_or(Value::Null)
+                        }
+                    }),
+                }
+            } else if query.contains("ShippingFulfillmentServicesHydrate") {
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "shop": {
+                                "fulfillmentServices": service_by_id.values().cloned().collect::<Vec<_>>()
+                            }
+                        }
+                    }),
+                }
+            } else {
+                panic!("unexpected fulfillment-service upstream call: {}", request.body);
+            }
+        });
+    (proxy, hydrate_calls)
+}
+
+#[test]
+fn fulfillment_service_mutation_first_live_hybrid_hydrates_update_delete_and_duplicate_catalog() {
+    let update_id = "gid://shopify/FulfillmentService/720001?id=true";
+    let delete_id = "gid://shopify/FulfillmentService/720002?id=true";
+    let duplicate_id = "gid://shopify/FulfillmentService/720003?id=true";
+    let update_location_id = "gid://shopify/Location/970001";
+    let delete_location_id = "gid://shopify/Location/970002";
+    let duplicate_location_id = "gid://shopify/Location/970003";
+    let (mut proxy, hydrate_calls) = live_hybrid_fulfillment_service_proxy(vec![
+        hydrated_fulfillment_service(FulfillmentServiceFixture {
+            id: update_id,
+            location_id: update_location_id,
+            service_name: "Hydrated FS Update",
+            handle: "hydrated-fs-update",
+            callback_url: Some("https://mock.shop/fulfillment-service-update"),
+            tracking_support: true,
+            inventory_management: true,
+            requires_shipping_method: true,
+        }),
+        hydrated_fulfillment_service(FulfillmentServiceFixture {
+            id: delete_id,
+            location_id: delete_location_id,
+            service_name: "Hydrated FS Delete",
+            handle: "hydrated-fs-delete",
+            callback_url: None,
+            tracking_support: false,
+            inventory_management: false,
+            requires_shipping_method: true,
+        }),
+        hydrated_fulfillment_service(FulfillmentServiceFixture {
+            id: duplicate_id,
+            location_id: duplicate_location_id,
+            service_name: "Hydrated FS Duplicate",
+            handle: "hydrated-fs-duplicate",
+            callback_url: None,
+            tracking_support: false,
+            inventory_management: false,
+            requires_shipping_method: true,
+        }),
+    ]);
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentServiceHydratedUpdate($id: ID!, $name: String!) {
+          fulfillmentServiceUpdate(
+            id: $id
+            name: $name
+            trackingSupport: false
+            inventoryManagement: false
+            requiresShippingMethod: false
+          ) {
+            fulfillmentService {
+              id handle serviceName callbackUrl trackingSupport inventoryManagement requiresShippingMethod type
+              location { id name isFulfillmentService fulfillsOnlineOrders shipsInventory }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": update_id, "name": "Hydrated FS Updated" }),
+    ));
+    assert_eq!(
+        update.body["data"]["fulfillmentServiceUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["fulfillmentServiceUpdate"]["fulfillmentService"]["serviceName"],
+        json!("Hydrated FS Updated")
+    );
+    assert_eq!(
+        update.body["data"]["fulfillmentServiceUpdate"]["fulfillmentService"]["location"]["id"],
+        json!(update_location_id)
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query FulfillmentServiceHydratedRead($id: ID!, $locationId: ID!) {
+          fulfillmentService(id: $id) {
+            id serviceName trackingSupport inventoryManagement requiresShippingMethod
+            location { id name isFulfillmentService }
+          }
+          location(id: $locationId) { id name isFulfillmentService }
+        }
+        "#,
+        json!({ "id": update_id, "locationId": update_location_id }),
+    ));
+    assert_eq!(
+        downstream.body["data"]["fulfillmentService"]["serviceName"],
+        json!("Hydrated FS Updated")
+    );
+    assert_eq!(
+        downstream.body["data"]["location"]["name"],
+        json!("Hydrated FS Updated")
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentServiceHydratedDelete($id: ID!) {
+          fulfillmentServiceDelete(id: $id, inventoryAction: DELETE) {
+            deletedId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": delete_id }),
+    ));
+    assert_eq!(
+        delete.body["data"]["fulfillmentServiceDelete"],
+        json!({ "deletedId": delete_id.replace("?id=true", ""), "userErrors": [] })
+    );
+    let after_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query FulfillmentServiceHydratedAfterDelete($id: ID!, $locationId: ID!) {
+          fulfillmentService(id: $id) { id }
+          location(id: $locationId) { id }
+        }
+        "#,
+        json!({ "id": delete_id, "locationId": delete_location_id }),
+    ));
+    assert_eq!(after_delete.body["data"]["fulfillmentService"], Value::Null);
+    assert_eq!(after_delete.body["data"]["location"], Value::Null);
+
+    let duplicate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentServiceHydratedDuplicateCreate($name: String!) {
+          fulfillmentServiceCreate(name: $name, trackingSupport: true, inventoryManagement: true, requiresShippingMethod: true) {
+            fulfillmentService { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "name": "Hydrated FS Duplicate" }),
+    ));
+    assert_eq!(
+        duplicate.body["data"]["fulfillmentServiceCreate"],
+        json!({
+            "fulfillmentService": null,
+            "userErrors": [{ "field": ["name"], "message": "Name has already been taken" }]
+        })
+    );
+
+    let calls = hydrate_calls.lock().unwrap();
+    assert_eq!(calls.len(), 3);
+    assert!(calls[0]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("ShippingFulfillmentServiceHydrate")));
+    assert_eq!(calls[0]["variables"]["id"], json!(update_id));
+    assert!(calls[1]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("ShippingFulfillmentServicesHydrate")));
+    assert!(calls[2]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("ShippingFulfillmentServicesHydrate")));
+    assert!(calls.iter().all(|body| body["query"]
+        .as_str()
+        .is_some_and(|query| query.trim_start().starts_with("query "))));
+
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 2);
+    assert_eq!(
+        log["entries"][0]["interpreted"]["primaryRootField"],
+        json!("fulfillmentServiceUpdate")
+    );
+    assert_eq!(
+        log["entries"][1]["interpreted"]["primaryRootField"],
+        json!("fulfillmentServiceDelete")
+    );
+    assert!(log["entries"].as_array().unwrap().iter().all(|entry| {
+        entry["query"]
+            .as_str()
+            .is_some_and(|query| query.contains("FulfillmentServiceHydrated"))
+    }));
+}
+
 #[test]
 fn carrier_service_lifecycle_stages_reads_filters_deletes_and_validates() {
     let mut proxy = snapshot_proxy();
@@ -7381,6 +7633,231 @@ fn carrier_service_create_validates_callback_url_and_projects_error_codes() {
         valid_create.body["data"]["carrierServiceCreate"]["userErrors"],
         json!([])
     );
+}
+
+fn hydrated_carrier_service(
+    id: &str,
+    name: &str,
+    callback_url: &str,
+    active: bool,
+    supports_service_discovery: bool,
+) -> Value {
+    json!({
+        "id": id,
+        "name": name,
+        "formattedName": format!("{name} (Rates provided by app)"),
+        "callbackUrl": callback_url,
+        "active": active,
+        "supportsServiceDiscovery": supports_service_discovery
+    })
+}
+
+fn live_hybrid_carrier_service_proxy(services: Vec<Value>) -> (DraftProxy, Arc<Mutex<Vec<Value>>>) {
+    let service_by_id: BTreeMap<String, Value> = services
+        .into_iter()
+        .filter_map(|service| {
+            let id = service.get("id")?.as_str()?.to_string();
+            Some((id, service))
+        })
+        .collect();
+    let hydrate_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_hydrate_calls = Arc::clone(&hydrate_calls);
+    let proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            captured_hydrate_calls.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            if query.contains("ShippingCarrierServiceHydrate") {
+                let id = body["variables"]["id"].as_str().unwrap_or_default();
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "carrierService": service_by_id.get(id).cloned().unwrap_or(Value::Null)
+                        }
+                    }),
+                }
+            } else if query.contains("ShippingCarrierServicesHydrate") {
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "carrierServices": {
+                                "nodes": service_by_id.values().cloned().collect::<Vec<_>>()
+                            }
+                        }
+                    }),
+                }
+            } else {
+                panic!("unexpected carrier-service upstream call: {}", request.body);
+            }
+        });
+    (proxy, hydrate_calls)
+}
+
+#[test]
+fn carrier_service_mutation_first_live_hybrid_hydrates_update_delete_and_duplicate_catalog() {
+    let update_id = "gid://shopify/DeliveryCarrierService/880001";
+    let delete_id = "gid://shopify/DeliveryCarrierService/880002";
+    let duplicate_id = "gid://shopify/DeliveryCarrierService/880003";
+    let (mut proxy, hydrate_calls) = live_hybrid_carrier_service_proxy(vec![
+        hydrated_carrier_service(
+            update_id,
+            "Hydrated Carrier Update",
+            "https://mock.shop/carrier-update",
+            false,
+            true,
+        ),
+        hydrated_carrier_service(
+            delete_id,
+            "Hydrated Carrier Delete",
+            "https://mock.shop/carrier-delete",
+            true,
+            false,
+        ),
+        hydrated_carrier_service(
+            duplicate_id,
+            "Hydrated Carrier Duplicate",
+            "https://mock.shop/carrier-duplicate",
+            false,
+            false,
+        ),
+    ]);
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CarrierServiceHydratedUpdate($input: DeliveryCarrierServiceUpdateInput!) {
+          carrierServiceUpdate(input: $input) {
+            carrierService { id name formattedName callbackUrl active supportsServiceDiscovery }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "id": update_id,
+            "name": "Hydrated Carrier Updated",
+            "callbackUrl": "https://mock.shop/carrier-updated",
+            "active": true,
+            "supportsServiceDiscovery": false
+        }}),
+    ));
+    assert_eq!(
+        update.body["data"]["carrierServiceUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["carrierServiceUpdate"]["carrierService"]["name"],
+        json!("Hydrated Carrier Updated")
+    );
+    assert_eq!(
+        update.body["data"]["carrierServiceUpdate"]["carrierService"]["active"],
+        json!(true)
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query CarrierServiceHydratedRead($id: ID!) {
+          carrierService(id: $id) { id name callbackUrl active supportsServiceDiscovery }
+        }
+        "#,
+        json!({ "id": update_id }),
+    ));
+    assert_eq!(
+        downstream.body["data"]["carrierService"]["name"],
+        json!("Hydrated Carrier Updated")
+    );
+    assert_eq!(
+        downstream.body["data"]["carrierService"]["callbackUrl"],
+        json!("https://mock.shop/carrier-updated")
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CarrierServiceHydratedDelete($id: ID!) {
+          carrierServiceDelete(id: $id) {
+            deletedId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": delete_id }),
+    ));
+    assert_eq!(
+        delete.body["data"]["carrierServiceDelete"],
+        json!({ "deletedId": delete_id, "userErrors": [] })
+    );
+    let after_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query CarrierServiceHydratedAfterDelete($id: ID!) {
+          carrierService(id: $id) { id }
+        }
+        "#,
+        json!({ "id": delete_id }),
+    ));
+    assert_eq!(after_delete.body["data"]["carrierService"], Value::Null);
+
+    let duplicate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CarrierServiceHydratedDuplicateCreate($input: DeliveryCarrierServiceCreateInput!) {
+          carrierServiceCreate(input: $input) {
+            carrierService { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "name": "Hydrated Carrier Duplicate",
+            "callbackUrl": "https://mock.shop/carrier-new",
+            "active": false,
+            "supportsServiceDiscovery": false
+        }}),
+    ));
+    assert_eq!(
+        duplicate.body["data"]["carrierServiceCreate"],
+        json!({
+            "carrierService": null,
+            "userErrors": [{
+                "field": null,
+                "message": "Hydrated Carrier Duplicate is already configured",
+                "code": "CARRIER_SERVICE_CREATE_FAILED"
+            }]
+        })
+    );
+
+    let calls = hydrate_calls.lock().unwrap();
+    assert_eq!(calls.len(), 3);
+    assert!(calls[0]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("ShippingCarrierServiceHydrate")));
+    assert_eq!(calls[0]["variables"]["id"], json!(update_id));
+    assert!(calls[1]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("ShippingCarrierServiceHydrate")));
+    assert_eq!(calls[1]["variables"]["id"], json!(delete_id));
+    assert!(calls[2]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("ShippingCarrierServicesHydrate")));
+    assert!(calls.iter().all(|body| body["query"]
+        .as_str()
+        .is_some_and(|query| query.trim_start().starts_with("query "))));
+
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 2);
+    assert_eq!(
+        log["entries"][0]["interpreted"]["primaryRootField"],
+        json!("carrierServiceUpdate")
+    );
+    assert_eq!(
+        log["entries"][1]["interpreted"]["primaryRootField"],
+        json!("carrierServiceDelete")
+    );
+    assert!(log["entries"].as_array().unwrap().iter().all(|entry| {
+        entry["query"]
+            .as_str()
+            .is_some_and(|query| query.contains("CarrierServiceHydrated"))
+    }));
 }
 
 #[test]

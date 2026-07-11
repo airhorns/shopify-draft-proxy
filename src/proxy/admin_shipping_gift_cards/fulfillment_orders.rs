@@ -61,6 +61,51 @@ query ShippingFulfillmentOrderHydrate($id: ID!) {
 }
 "#;
 
+const SHIPPING_FULFILLMENT_ORDER_DEADLINE_HYDRATE_BATCH_SIZE: usize = 250;
+
+const SHIPPING_FULFILLMENT_ORDERS_DEADLINE_HYDRATE_QUERY: &str = r#"
+query ShippingFulfillmentOrdersDeadlineHydrate($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    __typename
+    ... on FulfillmentOrder {
+      id
+      status
+      requestStatus
+      fulfillAt
+      fulfillBy
+      updatedAt
+      supportedActions {
+        action
+      }
+      assignedLocation {
+        name
+        location {
+          id
+          name
+        }
+      }
+      fulfillmentHolds {
+        id
+        handle
+        reason
+        reasonNotes
+        displayReason
+        heldByApp {
+          id
+          title
+        }
+        heldByRequestingApp
+      }
+      order {
+        id
+        name
+        displayFulfillmentStatus
+      }
+    }
+  }
+}
+"#;
+
 struct FulfillmentOrderStoreBackedPreamble {
     response_key: String,
     payload_selection: Vec<SelectedField>,
@@ -1059,9 +1104,7 @@ impl DraftProxy {
                 variables,
             );
         let ids = list_string_field(&arguments, "fulfillmentOrderIds");
-        for id in &ids {
-            self.ensure_shipping_fulfillment_order_hydrated(request, id);
-        }
+        self.ensure_shipping_fulfillment_orders_deadline_hydrated(request, &ids);
         let known_ids: Vec<String> = ids
             .iter()
             .filter(|id| self.shipping_fulfillment_order_location(id).is_some())
@@ -1279,6 +1322,33 @@ impl DraftProxy {
         self.shipping_fulfillment_order_location(id).is_some()
     }
 
+    fn ensure_shipping_fulfillment_orders_deadline_hydrated(
+        &mut self,
+        request: &Request,
+        ids: &[String],
+    ) {
+        let mut seen = BTreeSet::new();
+        let missing_ids = ids
+            .iter()
+            .filter(|id| !id.is_empty())
+            .filter(|id| self.shipping_fulfillment_order_location(id).is_none())
+            .filter(|id| seen.insert((*id).clone()))
+            .cloned()
+            .collect::<Vec<_>>();
+        for chunk in missing_ids.chunks(SHIPPING_FULFILLMENT_ORDER_DEADLINE_HYDRATE_BATCH_SIZE) {
+            let response = self.upstream_post(
+                request,
+                json!({
+                    "query": SHIPPING_FULFILLMENT_ORDERS_DEADLINE_HYDRATE_QUERY,
+                    "variables": { "ids": chunk }
+                }),
+            );
+            if response.status < 400 {
+                self.stage_shipping_fulfillment_order_nodes_response(&response.body);
+            }
+        }
+    }
+
     fn shipping_fulfillment_order_needs_hydration(&self, id: &str) -> bool {
         self.shipping_fulfillment_order_by_id(id)
             .map(|order| {
@@ -1321,6 +1391,24 @@ impl DraftProxy {
         }
         order["fulfillmentOrders"] = json!({ "nodes": [node] });
         self.stage_shipping_fulfillment_order_order(order);
+    }
+
+    fn stage_shipping_fulfillment_order_nodes_response(&mut self, body: &Value) {
+        let Some(nodes) = body["data"]["nodes"].as_array() else {
+            return;
+        };
+        for node in nodes {
+            if !node.is_object() {
+                continue;
+            }
+            if node["__typename"]
+                .as_str()
+                .is_some_and(|typename| typename != "FulfillmentOrder")
+            {
+                continue;
+            }
+            self.stage_shipping_fulfillment_order_record(node.clone());
+        }
     }
 
     fn stage_shipping_fulfillment_order_record(&mut self, fulfillment_order: Value) {

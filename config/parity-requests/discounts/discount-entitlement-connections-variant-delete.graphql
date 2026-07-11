@@ -1,0 +1,19 @@
+mutation DiscountEntitlementConnectionsVariantDelete($productId: ID!, $variantsIds: [ID!]!) {
+  productVariantsBulkDelete(productId: $productId, variantsIds: $variantsIds) {
+    product {
+      id
+      title
+      variants(first: 5) {
+        nodes {
+          id
+          sku
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
