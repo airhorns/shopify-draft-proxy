@@ -1752,6 +1752,20 @@ impl DraftProxy {
         self.store.stage_product(product);
     }
 
+    pub(in crate::proxy) fn sync_product_tracks_inventory(&mut self, product_id: &str) {
+        let final_variants = self.store.product_variants_for_product(product_id);
+        let Some(mut product) = self.store.product_by_id(product_id).cloned() else {
+            return;
+        };
+        if final_variants.is_empty() {
+            return;
+        }
+        product.tracks_inventory = final_variants
+            .iter()
+            .any(|variant| variant.inventory_item.tracked);
+        self.store.stage_product(product);
+    }
+
     fn recompute_product_options_from_variants(
         &mut self,
         product_id: &str,
@@ -2174,6 +2188,7 @@ impl DraftProxy {
                 .filter_map(|variant| self.store.product_variant_by_id(&variant.id).cloned())
                 .collect();
         }
+        self.sync_product_tracks_inventory(&product.id);
         let mut staged_ids = vec![product.id.clone()];
         staged_ids.extend(updated_variants.iter().map(|variant| variant.id.clone()));
         let response_variants = if has_blocking_errors {

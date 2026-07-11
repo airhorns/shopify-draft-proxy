@@ -1,0 +1,37 @@
+mutation InventoryNodeTransferCreateReady($input: InventoryTransferCreateAsReadyToShipInput!) {
+  inventoryTransferCreateAsReadyToShip(input: $input) {
+    inventoryTransfer {
+      id
+      name
+      status
+      totalQuantity
+      origin {
+        name
+      }
+      destination {
+        name
+      }
+      lineItems(first: 10) {
+        nodes {
+          id
+          title
+          totalQuantity
+          shippableQuantity
+          shippedQuantity
+          processableQuantity
+          pickedForShipmentQuantity
+          inventoryItem {
+            id
+            sku
+            tracked
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

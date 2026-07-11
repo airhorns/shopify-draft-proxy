@@ -1106,6 +1106,9 @@ impl DraftProxy {
         if let Some(discount) = self.discount_node_value_by_id(id, selection) {
             return Some(discount);
         }
+        if let Some(inventory) = self.inventory_node_value_by_id(id, selection) {
+            return Some(inventory);
+        }
         if let Some(file) = self.store.staged.media_files.get(id) {
             return Some(selected_json(file, selection));
         }
