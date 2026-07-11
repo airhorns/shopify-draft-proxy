@@ -1,0 +1,95 @@
+query DiscountMixedCatalogReadAfterMutations(
+  $query: String!
+  $first: Int!
+  $upstreamCode: String!
+  $upstreamAutomaticId: ID!
+) {
+  reverseCatalog: discountNodes(first: $first, query: $query, sortKey: TITLE, reverse: true) {
+    nodes {
+      id
+      discount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+          status
+          startsAt
+          endsAt
+          codes(first: 2) {
+            nodes {
+              code
+            }
+          }
+        }
+        ... on DiscountAutomaticBasic {
+          title
+          status
+          startsAt
+          endsAt
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  codeCatalog: codeDiscountNodes(first: $first, query: $query, sortKey: TITLE, reverse: true) {
+    nodes {
+      id
+      codeDiscount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+          status
+          startsAt
+          endsAt
+          codes(first: 2) {
+            nodes {
+              code
+            }
+          }
+        }
+      }
+    }
+  }
+  automaticCatalog: automaticDiscountNodes(first: $first, query: $query, sortKey: CREATED_AT, reverse: true) {
+    nodes {
+      id
+      automaticDiscount {
+        __typename
+        ... on DiscountAutomaticBasic {
+          title
+          status
+          startsAt
+          endsAt
+        }
+      }
+    }
+  }
+  tombstonedByCode: codeDiscountNodeByCode(code: $upstreamCode) {
+    id
+    codeDiscount {
+      __typename
+      ... on DiscountCodeBasic {
+        title
+        status
+        startsAt
+        endsAt
+      }
+    }
+  }
+  updatedAutomatic: automaticDiscountNode(id: $upstreamAutomaticId) {
+    id
+    automaticDiscount {
+      __typename
+      ... on DiscountAutomaticBasic {
+        title
+        status
+        startsAt
+        endsAt
+      }
+    }
+  }
+}

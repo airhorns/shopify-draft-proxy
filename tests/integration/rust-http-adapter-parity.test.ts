@@ -168,6 +168,8 @@ describe('Rust HTTP adapter route surface', () => {
             shopPolicyOrder: [],
             deliveryProfiles: {},
             deliveryProfileOrder: [],
+            discounts: {},
+            discountOrder: [],
             shop: null,
             publicationIds: [],
             publicationCount: null,
