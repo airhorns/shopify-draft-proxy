@@ -1,0 +1,6 @@
+
+query CustomerCustomIdLookup($identifier: CustomerIdentifierInput!) {
+  customerByIdentifier(identifier: $identifier) {
+    id
+  }
+}

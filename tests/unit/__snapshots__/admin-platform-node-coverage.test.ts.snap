@@ -31,7 +31,6 @@ exports[`admin platform Node coverage > classifies every Shopify Node implemento
   "CustomerAccountAppExtensionPage",
   "CustomerAccountNativePage",
   "CustomerVisit",
-  "DeliveryCustomization",
   "DeliveryMethod",
   "DeliveryProfileItem",
   "DeliveryPromiseParticipant",
@@ -115,6 +114,7 @@ exports[`admin platform Node coverage > classifies every Shopify Node implemento
 
 exports[`admin platform Node coverage > keeps implemented singular Node roots wired into generic node dispatch 1`] = `
 [
+  "deliveryCustomization:DeliveryCustomization",
   "staffMember:StaffMember",
 ]
 `;

@@ -135,7 +135,19 @@ pub(in crate::proxy) fn country_catalog_record(
 }
 
 pub(in crate::proxy) fn catalog_market_ids(catalog: &Value) -> Vec<String> {
-    string_array_from_json(&catalog["marketIds"])
+    let ids = string_array_from_json(&catalog["marketIds"]);
+    if !ids.is_empty() {
+        return ids;
+    }
+    catalog["markets"]["nodes"]
+        .as_array()
+        .map(|nodes| {
+            nodes
+                .iter()
+                .filter_map(|node| node["id"].as_str().map(ToString::to_string))
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 pub(in crate::proxy) fn catalog_company_location_ids(catalog: &Value) -> Vec<String> {
@@ -1136,6 +1148,13 @@ pub(in crate::proxy) fn delete_fixed_price_nodes(price_list: &mut Value, variant
     rebuild_price_list_prices(price_list, retained);
 }
 
+pub(in crate::proxy) fn clear_fixed_price_nodes(price_list: &mut Value) {
+    if let Some(object) = price_list.as_object_mut() {
+        object.insert("fixedPriceRows".to_string(), json!([]));
+    }
+    rebuild_price_list_prices(price_list, Vec::new());
+}
+
 // ----------------------------------------------------------------------------
 // Fixed-price validation (variant-level).
 // ----------------------------------------------------------------------------
@@ -1264,33 +1283,41 @@ pub(in crate::proxy) fn read_fixed_price_update_inputs(
 }
 
 /// The by-product preflight hydrate variables: a `priceListId`/`priceQuery`
-/// pulled verbatim from the operation variables plus the de-duplicated product
-/// ids referenced by `pricesToAdd` and `pricesToDeleteByProductIds`.
+/// pulled from resolved root arguments plus the de-duplicated product ids
+/// referenced by `pricesToAdd` and `pricesToDeleteByProductIds`.
 pub(in crate::proxy) fn product_fixed_prices_preflight_variables(
-    variables: &BTreeMap<String, ResolvedValue>,
+    fields: &[RootFieldSelection],
 ) -> Value {
-    let string_variable = |name: &str| match variables.get(name) {
-        Some(ResolvedValue::String(value)) => json!(value),
-        _ => Value::Null,
-    };
+    let mut price_list_id: Option<String> = None;
+    let mut price_query = Value::Null;
     let mut product_ids: Vec<String> = Vec::new();
-    if let Some(ResolvedValue::List(items)) = variables.get("pricesToAdd") {
-        for item in items {
-            if let Some(id) = resolved_object_string(item, "productId") {
+
+    for field in fields {
+        if field.name != "priceListFixedPricesByProductUpdate" {
+            continue;
+        }
+        if price_list_id.is_none() {
+            price_list_id = read_price_list_id(&field.arguments);
+        }
+        if price_query.is_null() {
+            if let Some(value) = field.arguments.get("priceQuery") {
+                price_query = resolved_value_json(value);
+            }
+        }
+        for item in resolved_object_list(&field.arguments, "pricesToAdd") {
+            if let Some(id) = resolved_nonempty_string(&item, "productId") {
                 push_unique_string(&mut product_ids, id);
             }
         }
+        extend_unique_strings(
+            &mut product_ids,
+            resolved_string_list_arg(&field.arguments, "pricesToDeleteByProductIds"),
+        );
     }
-    if let Some(ResolvedValue::List(items)) = variables.get("pricesToDeleteByProductIds") {
-        for item in items {
-            if let ResolvedValue::String(id) = item {
-                push_unique_string(&mut product_ids, id);
-            }
-        }
-    }
+
     json!({
-        "priceListId": string_variable("priceListId"),
-        "priceQuery": string_variable("priceQuery"),
+        "priceListId": price_list_id.map(Value::String).unwrap_or(Value::Null),
+        "priceQuery": price_query,
         "productIds": product_ids,
     })
 }
