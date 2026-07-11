@@ -420,6 +420,7 @@ struct StagedState {
     inactive_inventory_levels: BTreeSet<(String, String)>,
     inventory_quantity_updated_at: BTreeMap<(String, String, String), String>,
     next_inventory_quantity_timestamp: u64,
+    inventory_adjustment_groups: BTreeMap<String, Value>,
     inventory_transfers: BTreeMap<String, InventoryTransferRecord>,
     inventory_shipments: BTreeMap<String, InventoryShipmentRecord>,
     metaobject_definitions: StagedRecords<Value>,

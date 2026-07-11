@@ -1,0 +1,40 @@
+query InventoryNodeDedicatedRead($inventoryItemId: ID!) {
+  inventoryItem(id: $inventoryItemId) {
+    id
+    tracked
+    requiresShipping
+    sku
+    variant {
+      id
+      title
+      inventoryQuantity
+      selectedOptions {
+        name
+        value
+      }
+      product {
+        id
+        title
+        handle
+        status
+        totalInventory
+        tracksInventory
+      }
+    }
+    inventoryLevels(first: 10) {
+      nodes {
+        id
+        location {
+          id
+          name
+        }
+        quantities(names: ["available", "on_hand", "reserved", "incoming", "damaged"]) {
+          id
+          name
+          quantity
+          updatedAt
+        }
+      }
+    }
+  }
+}

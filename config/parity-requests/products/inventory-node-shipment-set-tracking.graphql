@@ -1,0 +1,20 @@
+mutation InventoryNodeShipmentSetTracking($id: ID!, $tracking: InventoryShipmentTrackingInput!) {
+  inventoryShipmentSetTracking(id: $id, tracking: $tracking) {
+    inventoryShipment {
+      id
+      name
+      status
+      tracking {
+        trackingNumber
+        company
+        trackingUrl
+        arrivesAt
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

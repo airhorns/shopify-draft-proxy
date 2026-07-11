@@ -294,9 +294,9 @@ describe('operation registry', () => {
   it('audits captured Shopify Node implementors against the explicit Rust resolver inventory', () => {
     expect(nodeResolverCoverageAudit()).toEqual({
       capturedNodeImplementorCount: 203,
-      localNodeResolverTypeCount: 44,
+      localNodeResolverTypeCount: 52,
       localResolverBehaviorCounts: {
-        projectLocalRecord: 41,
+        projectLocalRecord: 49,
         returnKnownNull: 3,
       },
       unsupported: [
@@ -369,15 +369,7 @@ describe('operation registry', () => {
         'FulfillmentOrderMerchantRequest',
         'GiftCardCreditTransaction',
         'GiftCardDebitTransaction',
-        'InventoryAdjustmentGroup',
-        'InventoryItem',
         'InventoryItemMeasurement',
-        'InventoryLevel',
-        'InventoryQuantity',
-        'InventoryShipment',
-        'InventoryShipmentLineItem',
-        'InventoryTransfer',
-        'InventoryTransferLineItem',
         'LineItem',
         'LineItemGroup',
         'MailingAddress',

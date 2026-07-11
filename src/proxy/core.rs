@@ -652,6 +652,10 @@ impl DraftProxy {
             snapshot["stagedState"]["nextInventoryQuantityTimestamp"] =
                 json!(self.store.staged.next_inventory_quantity_timestamp);
         }
+        if !self.store.staged.inventory_adjustment_groups.is_empty() {
+            snapshot["stagedState"]["inventoryAdjustmentGroups"] =
+                json!(self.store.staged.inventory_adjustment_groups);
+        }
         if !self.store.staged.metaobject_definitions.records.is_empty() {
             snapshot["stagedState"]["metaobjectDefinitions"] =
                 json!(self.store.staged.metaobject_definitions.records);
@@ -1578,6 +1582,8 @@ impl DraftProxy {
             "nextInventoryQuantityTimestamp",
             0,
         );
+        self.store.staged.inventory_adjustment_groups =
+            value_map_from_json(state["stagedState"].get("inventoryAdjustmentGroups"));
         self.store.staged.location_limit_reached = state["stagedState"]
             .get("locationLimitReached")
             .and_then(Value::as_bool)
