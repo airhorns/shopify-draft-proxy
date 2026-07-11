@@ -82,9 +82,11 @@ selected handle-normalization branches. Successful translations are staged in
 local translation state so
 subsequent `translatableResource.translations(...)` reads observe the staged or
 removed rows. Staged `Translation` rows include a synthetic DateTime-shaped
-`updatedAt` value in the `translationsRegister` echo and in downstream
-`translatableResource(...).translations` reads; re-registering an existing row
-refreshes that timestamp. `translationsRemove` removes every requested
+`updatedAt` value from the proxy's mutation clock in the `translationsRegister`
+echo and in downstream `translatableResource(...).translations` reads;
+re-registering an existing row refreshes that timestamp. Validation failures
+that do not stage rows leave existing staged timestamps unchanged.
+`translationsRemove` removes every requested
 translation-key/locale/market combination that exists in staged state. An empty
 `translationKeys` list matches no rows and returns Shopify's no-op
 `translations: null, userErrors: []` payload.

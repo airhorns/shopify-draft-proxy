@@ -1,0 +1,6 @@
+{
+  "input": {
+    "id": "gid://shopify/Order/1234567890",
+    "note": "order update multi-page hydration parity"
+  }
+}

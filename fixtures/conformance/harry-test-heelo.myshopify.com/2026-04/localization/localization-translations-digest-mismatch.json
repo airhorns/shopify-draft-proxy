@@ -2,7 +2,7 @@
   "scenarioId": "localization-translations-digest-mismatch",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "capturedAt": "2026-06-24T01:09:59.609Z",
+  "capturedAt": "2026-07-11T16:59:24.018Z",
   "setup": {
     "localeSetup": {
       "variables": {
@@ -11,13 +11,13 @@
       "response": {
         "data": {
           "shopLocaleEnable": {
-            "shopLocale": {
-              "locale": "fr",
-              "name": "French",
-              "primary": false,
-              "published": false
-            },
-            "userErrors": []
+            "shopLocale": null,
+            "userErrors": [
+              {
+                "field": ["locale"],
+                "message": "Locale has already been taken"
+              }
+            ]
           }
         },
         "extensions": {
@@ -36,8 +36,8 @@
     "productCreate": {
       "variables": {
         "product": {
-          "title": "Digest validation 1782263397006",
-          "handle": "digest-validation-1782263397006",
+          "title": "Digest validation 1783789160655",
+          "handle": "digest-validation-1783789160655",
           "status": "DRAFT"
         }
       },
@@ -45,9 +45,9 @@
         "data": {
           "productCreate": {
             "product": {
-              "id": "gid://shopify/Product/10220303286578",
-              "title": "Digest validation 1782263397006",
-              "handle": "digest-validation-1782263397006",
+              "id": "gid://shopify/Product/10236850307378",
+              "title": "Digest validation 1783789160655",
+              "handle": "digest-validation-1783789160655",
               "status": "DRAFT"
             },
             "userErrors": []
@@ -59,7 +59,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
+              "currentlyAvailable": 1989,
               "restoreRate": 100
             }
           }
@@ -69,16 +69,16 @@
     "productUpdate": {
       "variables": {
         "product": {
-          "id": "gid://shopify/Product/10220303286578",
-          "title": "Digest validation updated 1782263397006"
+          "id": "gid://shopify/Product/10236850307378",
+          "title": "Digest validation updated 1783789160655"
         }
       },
       "response": {
         "data": {
           "productUpdate": {
             "product": {
-              "id": "gid://shopify/Product/10220303286578",
-              "title": "Digest validation updated 1782263397006"
+              "id": "gid://shopify/Product/10236850307378",
+              "title": "Digest validation updated 1783789160655"
             },
             "userErrors": []
           }
@@ -89,7 +89,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
+              "currentlyAvailable": 1989,
               "restoreRate": 100
             }
           }
@@ -99,7 +99,7 @@
   },
   "setupRead": {
     "variables": {
-      "resourceId": "gid://shopify/Product/10220303286578"
+      "resourceId": "gid://shopify/Product/10236850307378"
     },
     "response": {
       "data": {
@@ -124,19 +124,19 @@
           }
         ],
         "translatableResource": {
-          "resourceId": "gid://shopify/Product/10220303286578",
+          "resourceId": "gid://shopify/Product/10236850307378",
           "translatableContent": [
             {
               "key": "title",
-              "value": "Digest validation 1782263397006",
-              "digest": "07bfe36ae19339b4c4d1ac7f7615c832b079716c61d487b5aa668913b30e425b",
+              "value": "Digest validation 1783789160655",
+              "digest": "d94f948820fb2fcff7da1925e724d8bf60beac7ee2fc295df0044c62fbe1c720",
               "locale": "en",
               "type": "SINGLE_LINE_TEXT_FIELD"
             },
             {
               "key": "handle",
-              "value": "digest-validation-1782263397006",
-              "digest": "244bd71d452ae7058cac2bdbae12b167697879e5420986ec7e78cd56f74cc349",
+              "value": "digest-validation-1783789160655",
+              "digest": "8ea0da587a6cd76977441d2d21aeb173730612ade54d214be25cf246c572b350",
               "locale": "en",
               "type": "URI"
             },
@@ -166,13 +166,13 @@
   },
   "correctDigestRegister": {
     "variables": {
-      "resourceId": "gid://shopify/Product/10220303286578",
+      "resourceId": "gid://shopify/Product/10236850307378",
       "translations": [
         {
           "locale": "fr",
           "key": "title",
-          "value": "Titre digest 1782263397006",
-          "translatableContentDigest": "07bfe36ae19339b4c4d1ac7f7615c832b079716c61d487b5aa668913b30e425b"
+          "value": "Titre digest 1783789160655",
+          "translatableContentDigest": "d94f948820fb2fcff7da1925e724d8bf60beac7ee2fc295df0044c62fbe1c720"
         }
       ]
     },
@@ -182,7 +182,7 @@
           "translations": [
             {
               "key": "title",
-              "value": "Titre digest 1782263397006",
+              "value": "Titre digest 1783789160655",
               "locale": "fr",
               "outdated": false,
               "market": null
@@ -206,12 +206,12 @@
   },
   "wrongDigestRegister": {
     "variables": {
-      "resourceId": "gid://shopify/Product/10220303286578",
+      "resourceId": "gid://shopify/Product/10236850307378",
       "translations": [
         {
           "locale": "fr",
           "key": "title",
-          "value": "Titre wrong digest 1782263397006",
+          "value": "Titre wrong digest 1783789160655",
           "translatableContentDigest": "deadbeef0000000000000000000000000000000000000000000000000000dead"
         }
       ]
@@ -244,13 +244,13 @@
   },
   "staleDigestRegister": {
     "variables": {
-      "resourceId": "gid://shopify/Product/10220303286578",
+      "resourceId": "gid://shopify/Product/10236850307378",
       "translations": [
         {
           "locale": "fr",
           "key": "title",
-          "value": "Titre stale digest 1782263397006",
-          "translatableContentDigest": "07bfe36ae19339b4c4d1ac7f7615c832b079716c61d487b5aa668913b30e425b"
+          "value": "Titre stale digest 1783789160655",
+          "translatableContentDigest": "d94f948820fb2fcff7da1925e724d8bf60beac7ee2fc295df0044c62fbe1c720"
         }
       ]
     },
@@ -284,26 +284,7 @@
     "productDelete": {
       "data": {
         "productDelete": {
-          "deletedProductId": "gid://shopify/Product/10220303286578",
-          "userErrors": []
-        }
-      },
-      "extensions": {
-        "cost": {
-          "requestedQueryCost": 10,
-          "actualQueryCost": 10,
-          "throttleStatus": {
-            "maximumAvailable": 2000,
-            "currentlyAvailable": 1990,
-            "restoreRate": 100
-          }
-        }
-      }
-    },
-    "shopLocaleDisable": {
-      "data": {
-        "shopLocaleDisable": {
-          "locale": "fr",
+          "deletedProductId": "gid://shopify/Product/10236850307378",
           "userErrors": []
         }
       },

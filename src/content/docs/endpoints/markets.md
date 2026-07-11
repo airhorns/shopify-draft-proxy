@@ -221,6 +221,9 @@ resources for later local reads. The plural `marketLocalizableResources`
 connection forwards until a localizable resource has been observed and is then
 limited to the observed set; unrelated staged market, catalog, price-list, or
 web-presence state does not force a local empty resource connection.
+Successful `marketLocalizationsRegister` rows use the proxy's mutation clock for
+their staged `updatedAt` values, and validation failures that return user errors
+leave any existing staged market-localization timestamps unchanged.
 
 `marketsResolvedValues` and market/catalog/price-list reads have fixture-backed
 empty, fallback, and buyer-country behavior where captured. Resolved value

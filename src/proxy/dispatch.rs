@@ -576,6 +576,7 @@ impl DraftProxy {
             }
             "sellingPlanGroup" | "sellingPlanGroups" => {
                 let fields = try_root_fields!(query, variables);
+                self.hydrate_selling_plan_groups_for_read(request, &fields);
                 if product_root_fields_select_shop_currency_money(&fields) {
                     self.hydrate_shop_pricing_state_if_missing(request, true, false);
                 }
@@ -1106,6 +1107,9 @@ impl DraftProxy {
         if let Some(discount) = self.discount_node_value_by_id(id, selection) {
             return Some(discount);
         }
+        if let Some(inventory) = self.inventory_node_value_by_id(id, selection) {
+            return Some(inventory);
+        }
         if let Some(file) = self.store.staged.media_files.get(id) {
             return Some(selected_json(file, selection));
         }
@@ -1535,12 +1539,7 @@ impl DraftProxy {
                             | "productVariantLeaveSellingPlanGroups"
                     ) =>
             {
-                // Validation scenarios reference live-store products/groups that
-                // were never staged here; serve those from upstream rather than
-                // fabricate an inaccurate userError from empty local state.
-                if !self.selling_plan_mutation_serves_locally(root_field, query, variables) {
-                    return (self.upstream_transport)(request.clone());
-                }
+                self.hydrate_selling_plan_mutation_targets(request, root_field, query, variables);
                 let outcome = self.selling_plan_group_mutation(root_field, query, variables);
                 self.finalize_mutation_outcome(request, query, variables, outcome)
             }
@@ -1854,6 +1853,7 @@ impl DraftProxy {
                             | "fulfillmentCreateV2"
                             | "fulfillmentCancel"
                             | "fulfillmentTrackingInfoUpdate"
+                            | "fulfillmentTrackingInfoUpdateV2"
                             | "fulfillmentEventCreate"
                             | "orderEditAddVariant"
                             | "orderEditSetQuantity"
@@ -2125,6 +2125,7 @@ impl DraftProxy {
                             | "fulfillmentOrderReleaseHold"
                             | "fulfillmentOrderCancel"
                             | "fulfillmentOrderClose"
+                            | "fulfillmentOrderLineItemsPreparedForPickup"
                             | "fulfillmentOrderReschedule"
                             | "fulfillmentOrdersReroute"
                             | "fulfillmentOrderSplit"

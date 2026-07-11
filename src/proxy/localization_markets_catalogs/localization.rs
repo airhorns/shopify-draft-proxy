@@ -603,7 +603,7 @@ impl DraftProxy {
             );
         };
 
-        let mut staged = Vec::new();
+        let mut staged_inputs = Vec::new();
         for (index, input) in localizations.iter().enumerate() {
             let field_index = index.to_string();
             let market_id = resolved_object_string(input, "marketId").unwrap_or_default();
@@ -665,8 +665,25 @@ impl DraftProxy {
                     "Market Localizable content is invalid",
                 );
             }
-            staged.push(self.market_localization_staged_record(&resource_id, &market_id, input));
+            staged_inputs.push((market_id, input));
         }
+
+        let updated_at = if staged_inputs.is_empty() {
+            None
+        } else {
+            Some(self.next_mutation_timestamp())
+        };
+        let staged = staged_inputs
+            .into_iter()
+            .map(|(market_id, input)| {
+                self.market_localization_staged_record(
+                    &resource_id,
+                    &market_id,
+                    input,
+                    updated_at.as_deref().unwrap_or_default(),
+                )
+            })
+            .collect::<Vec<_>>();
 
         for record in &staged {
             let resource_id = record["resourceId"].as_str().unwrap_or_default();
@@ -693,12 +710,13 @@ impl DraftProxy {
     }
 
     /// Build a staged market-localization record with the live market name resolved
-    /// from staged markets and a synthetic `updatedAt` (matched loosely by the specs).
+    /// from staged markets and the successful mutation's clock timestamp.
     fn market_localization_staged_record(
         &self,
         resource_id: &str,
         market_id: &str,
         input: &ResolvedValue,
+        updated_at: &str,
     ) -> Value {
         let value = resolved_object_string(input, "value").unwrap_or_default();
         let key = resolved_object_string(input, "key").unwrap_or_default();
@@ -715,7 +733,7 @@ impl DraftProxy {
             "resourceId": resource_id,
             "key": key,
             "value": value,
-            "updatedAt": SYNTHETIC_MARKET_LOCALIZATION_TIMESTAMP,
+            "updatedAt": updated_at,
             "outdated": false,
             "market": { "id": market_id, "name": market_name }
         })
@@ -900,7 +918,6 @@ impl DraftProxy {
 
             let mut translation = translation_from_input(translation_input);
             translation["resourceId"] = json!(resource_id);
-            translation["updatedAt"] = json!(self.next_localization_translation_timestamp());
             if translation["key"] == json!("handle") {
                 let original_value = translation["value"].as_str().unwrap_or_default();
                 if original_value.chars().count() > 255 {
@@ -910,6 +927,13 @@ impl DraftProxy {
                 translation["value"] = json!(normalize_localized_handle(original_value));
             }
             staged.push(translation);
+        }
+
+        if !staged.is_empty() {
+            let updated_at = self.next_mutation_timestamp();
+            for translation in &mut staged {
+                translation["updatedAt"] = json!(updated_at.clone());
+            }
         }
 
         for translation in &staged {
@@ -983,10 +1007,6 @@ impl DraftProxy {
             &json!({ "translations": removed, "userErrors": [] }),
             &field.selection,
         )
-    }
-
-    fn next_localization_translation_timestamp(&self) -> String {
-        product_mutation_timestamp(self.log_entries.len() as u64)
     }
 
     pub(in crate::proxy) fn localization_translatable_resource_selected(
