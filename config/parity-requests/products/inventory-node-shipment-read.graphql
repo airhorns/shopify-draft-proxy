@@ -1,0 +1,45 @@
+query InventoryNodeShipmentRead($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    __typename
+    id
+    ... on InventoryShipment {
+      name
+      status
+      lineItemTotalQuantity
+      totalAcceptedQuantity
+      totalReceivedQuantity
+      totalRejectedQuantity
+      tracking {
+        trackingNumber
+        company
+        trackingUrl
+        arrivesAt
+      }
+      lineItems(first: 10) {
+        nodes {
+          id
+          quantity
+          acceptedQuantity
+          rejectedQuantity
+          unreceivedQuantity
+          inventoryItem {
+            id
+            sku
+            tracked
+          }
+        }
+      }
+    }
+    ... on InventoryShipmentLineItem {
+      quantity
+      acceptedQuantity
+      rejectedQuantity
+      unreceivedQuantity
+      inventoryItem {
+        id
+        sku
+        tracked
+      }
+    }
+  }
+}

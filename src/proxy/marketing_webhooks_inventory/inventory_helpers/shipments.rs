@@ -838,6 +838,30 @@ impl DraftProxy {
             .unwrap_or(Value::Null)
     }
 
+    pub(super) fn inventory_shipment_line_item_by_id_selected_json(
+        &self,
+        id: &str,
+        selection: &[SelectedField],
+    ) -> Value {
+        self.store
+            .staged
+            .inventory_shipments
+            .values()
+            .find_map(|record| {
+                record
+                    .line_items
+                    .iter()
+                    .find(|line_item| line_item.id == id)
+                    .map(|line_item| {
+                        selected_json(
+                            &self.inventory_shipment_line_item_full_json(line_item),
+                            selection,
+                        )
+                    })
+            })
+            .unwrap_or(Value::Null)
+    }
+
     fn inventory_shipment_full_json(&self, record: &InventoryShipmentRecord) -> Value {
         let line_items = record
             .line_items
@@ -845,6 +869,7 @@ impl DraftProxy {
             .map(|line_item| self.inventory_shipment_line_item_full_json(line_item))
             .collect::<Vec<_>>();
         json!({
+            "__typename": "InventoryShipment",
             "id": record.id,
             "name": record.name,
             "movementId": record.movement_id,
@@ -883,6 +908,7 @@ impl DraftProxy {
             .map(|variant| variant.inventory_item.tracked)
             .unwrap_or(true);
         json!({
+            "__typename": "InventoryShipmentLineItem",
             "id": line_item.id,
             "quantity": line_item.quantity,
             "acceptedQuantity": line_item.accepted_quantity,

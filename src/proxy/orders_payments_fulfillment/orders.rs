@@ -2554,10 +2554,14 @@ impl DraftProxy {
                 self.cancel_staged_fulfillment_payload(request, query, variables, field)?;
             return Some(data_response(&field.response_key, payload));
         }
-        if root_field == "fulfillmentTrackingInfoUpdate" {
+        if matches!(
+            root_field,
+            "fulfillmentTrackingInfoUpdate" | "fulfillmentTrackingInfoUpdateV2"
+        ) {
             let field = field?;
-            let payload =
-                self.update_staged_fulfillment_tracking_payload(request, query, variables, field)?;
+            let payload = self.update_staged_fulfillment_tracking_payload(
+                request, query, variables, field, root_field,
+            )?;
             return Some(data_response(&field.response_key, payload));
         }
         if root_field == "ordersCount" {

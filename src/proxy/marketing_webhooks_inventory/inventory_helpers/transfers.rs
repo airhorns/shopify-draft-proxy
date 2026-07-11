@@ -506,6 +506,30 @@ impl DraftProxy {
             .unwrap_or(Value::Null)
     }
 
+    pub(super) fn inventory_transfer_line_item_by_id_selected_json(
+        &self,
+        id: &str,
+        selection: &[SelectedField],
+    ) -> Value {
+        self.store
+            .staged
+            .inventory_transfers
+            .values()
+            .find_map(|record| {
+                record
+                    .line_items
+                    .iter()
+                    .find(|line_item| line_item.id == id)
+                    .map(|line_item| {
+                        selected_json(
+                            &self.inventory_transfer_line_item_full_json(record, line_item),
+                            selection,
+                        )
+                    })
+            })
+            .unwrap_or(Value::Null)
+    }
+
     pub(super) fn inventory_transfers_connection_selected_json(
         &self,
         transfers: Vec<InventoryTransferRecord>,
@@ -526,41 +550,14 @@ impl DraftProxy {
     }
 
     fn inventory_transfer_full_json(&self, record: &InventoryTransferRecord) -> Value {
-        let has_shipped_line = record.line_items.iter().any(|line_item| {
-            let (shipped, _) = self.transfer_line_shipment_quantities(&record.id, line_item, None);
-            shipped > 0
-        });
-        let status = if record.status == "READY_TO_SHIP" && has_shipped_line {
-            "IN_PROGRESS"
-        } else {
-            record.status.as_str()
-        };
+        let status = self.inventory_transfer_effective_status(record);
         let nodes = record
             .line_items
             .iter()
-            .map(|line_item| {
-                let (shipped, picked) =
-                    self.transfer_line_shipment_quantities(&record.id, line_item, None);
-                let remaining = self
-                    .remaining_transfer_record_line_quantity(&record.id, line_item, None)
-                    .max(0);
-                let shippable = if matches!(status, "READY_TO_SHIP" | "IN_PROGRESS") {
-                    remaining
-                } else {
-                    0
-                };
-                json!({
-                    "id": line_item.id,
-                    "inventoryItem": { "id": line_item.inventory_item_id },
-                    "totalQuantity": line_item.quantity,
-                    "shippableQuantity": shippable,
-                    "shippedQuantity": shipped,
-                    "processableQuantity": remaining,
-                    "pickedForShipmentQuantity": picked
-                })
-            })
+            .map(|line_item| self.inventory_transfer_line_item_full_json(record, line_item))
             .collect::<Vec<_>>();
         json!({
+            "__typename": "InventoryTransfer",
             "id": record.id,
             "name": record.name,
             "dateCreated": record.created_at,
@@ -580,6 +577,62 @@ impl DraftProxy {
                 "nodes": nodes,
                 "pageInfo": empty_page_info()
             }
+        })
+    }
+
+    fn inventory_transfer_effective_status(&self, record: &InventoryTransferRecord) -> String {
+        let has_shipped_line = record.line_items.iter().any(|line_item| {
+            let (shipped, _) = self.transfer_line_shipment_quantities(&record.id, line_item, None);
+            shipped > 0
+        });
+        if record.status == "READY_TO_SHIP" && has_shipped_line {
+            "IN_PROGRESS".to_string()
+        } else {
+            record.status.clone()
+        }
+    }
+
+    fn inventory_transfer_line_item_full_json(
+        &self,
+        record: &InventoryTransferRecord,
+        line_item: &InventoryTransferLineItemRecord,
+    ) -> Value {
+        let status = self.inventory_transfer_effective_status(record);
+        let (shipped, picked) = self.transfer_line_shipment_quantities(&record.id, line_item, None);
+        let remaining = self
+            .remaining_transfer_record_line_quantity(&record.id, line_item, None)
+            .max(0);
+        let shippable = if matches!(status.as_str(), "READY_TO_SHIP" | "IN_PROGRESS") {
+            remaining
+        } else {
+            0
+        };
+        let variant = self
+            .store
+            .product_variant_by_inventory_item_id(&line_item.inventory_item_id);
+        let title = variant
+            .and_then(|variant| self.store.product_by_id(&variant.product_id))
+            .map(|product| product.title.clone());
+        let sku = variant
+            .map(|variant| variant.sku.clone())
+            .filter(|sku| !sku.is_empty());
+        let tracked = variant
+            .map(|variant| variant.inventory_item.tracked)
+            .unwrap_or(true);
+        json!({
+            "__typename": "InventoryTransferLineItem",
+            "id": line_item.id,
+            "title": title,
+            "inventoryItem": {
+                "id": line_item.inventory_item_id,
+                "sku": sku,
+                "tracked": tracked
+            },
+            "totalQuantity": line_item.quantity,
+            "shippableQuantity": shippable,
+            "shippedQuantity": shipped,
+            "processableQuantity": remaining,
+            "pickedForShipmentQuantity": picked
         })
     }
 

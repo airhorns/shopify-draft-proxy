@@ -1,0 +1,971 @@
+{
+  "variables": {
+    "input": {
+      "id": "gid://shopify/Order/8938752442674",
+      "note": "order update multi-page hydration parity"
+    }
+  },
+  "setup": {
+    "orderCreate": {
+      "query": "mutation OrderUpdateMultiPageHydrationCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n        lineItems(first: 20) {\n          nodes {\n            id\n            title\n            quantity\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "order": {
+          "email": "sdp-order-update-multi-page-1783732889848@example.com",
+          "note": "shopify-draft-proxy multi-page hydration capture setup",
+          "tags": ["shopify-draft-proxy", "order-update", "multi-page-hydration"],
+          "test": true,
+          "currency": "USD",
+          "lineItems": [
+            {
+              "title": "SDP multi-page hydration line 1",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "1.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": false,
+              "taxable": false,
+              "sku": "sdp-multi-page-1783732889848-01"
+            },
+            {
+              "title": "SDP multi-page hydration line 2",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "1.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": false,
+              "taxable": false,
+              "sku": "sdp-multi-page-1783732889848-02"
+            },
+            {
+              "title": "SDP multi-page hydration line 3",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "1.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": false,
+              "taxable": false,
+              "sku": "sdp-multi-page-1783732889848-03"
+            },
+            {
+              "title": "SDP multi-page hydration line 4",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "1.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": false,
+              "taxable": false,
+              "sku": "sdp-multi-page-1783732889848-04"
+            },
+            {
+              "title": "SDP multi-page hydration line 5",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "1.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": false,
+              "taxable": false,
+              "sku": "sdp-multi-page-1783732889848-05"
+            },
+            {
+              "title": "SDP multi-page hydration line 6",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "1.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": false,
+              "taxable": false,
+              "sku": "sdp-multi-page-1783732889848-06"
+            },
+            {
+              "title": "SDP multi-page hydration line 7",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "1.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": false,
+              "taxable": false,
+              "sku": "sdp-multi-page-1783732889848-07"
+            },
+            {
+              "title": "SDP multi-page hydration line 8",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "1.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": false,
+              "taxable": false,
+              "sku": "sdp-multi-page-1783732889848-08"
+            },
+            {
+              "title": "SDP multi-page hydration line 9",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "1.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": false,
+              "taxable": false,
+              "sku": "sdp-multi-page-1783732889848-09"
+            },
+            {
+              "title": "SDP multi-page hydration line 10",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "1.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": false,
+              "taxable": false,
+              "sku": "sdp-multi-page-1783732889848-10"
+            },
+            {
+              "title": "SDP multi-page hydration line 11",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "1.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": false,
+              "taxable": false,
+              "sku": "sdp-multi-page-1783732889848-11"
+            },
+            {
+              "title": "SDP multi-page hydration line 12",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "1.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": false,
+              "taxable": false,
+              "sku": "sdp-multi-page-1783732889848-12"
+            }
+          ]
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "data": {
+          "orderCreate": {
+            "order": {
+              "id": "gid://shopify/Order/8938752442674",
+              "name": "#1821",
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19924909883698",
+                    "title": "SDP multi-page hydration line 1",
+                    "quantity": 1
+                  },
+                  {
+                    "id": "gid://shopify/LineItem/19924909916466",
+                    "title": "SDP multi-page hydration line 2",
+                    "quantity": 1
+                  },
+                  {
+                    "id": "gid://shopify/LineItem/19924909949234",
+                    "title": "SDP multi-page hydration line 3",
+                    "quantity": 1
+                  },
+                  {
+                    "id": "gid://shopify/LineItem/19924909982002",
+                    "title": "SDP multi-page hydration line 4",
+                    "quantity": 1
+                  },
+                  {
+                    "id": "gid://shopify/LineItem/19924910014770",
+                    "title": "SDP multi-page hydration line 5",
+                    "quantity": 1
+                  },
+                  {
+                    "id": "gid://shopify/LineItem/19924910047538",
+                    "title": "SDP multi-page hydration line 6",
+                    "quantity": 1
+                  },
+                  {
+                    "id": "gid://shopify/LineItem/19924910080306",
+                    "title": "SDP multi-page hydration line 7",
+                    "quantity": 1
+                  },
+                  {
+                    "id": "gid://shopify/LineItem/19924910113074",
+                    "title": "SDP multi-page hydration line 8",
+                    "quantity": 1
+                  },
+                  {
+                    "id": "gid://shopify/LineItem/19924910145842",
+                    "title": "SDP multi-page hydration line 9",
+                    "quantity": 1
+                  },
+                  {
+                    "id": "gid://shopify/LineItem/19924910178610",
+                    "title": "SDP multi-page hydration line 10",
+                    "quantity": 1
+                  },
+                  {
+                    "id": "gid://shopify/LineItem/19924910211378",
+                    "title": "SDP multi-page hydration line 11",
+                    "quantity": 1
+                  },
+                  {
+                    "id": "gid://shopify/LineItem/19924910244146",
+                    "title": "SDP multi-page hydration line 12",
+                    "quantity": 1
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoxOTkyNDkwOTg4MzY5OCwibGFzdF92YWx1ZSI6MTk5MjQ5MDk4ODM2OTh9",
+                  "endCursor": "eyJsYXN0X2lkIjoxOTkyNDkxMDI0NDE0NiwibGFzdF92YWx1ZSI6MTk5MjQ5MTAyNDQxNDZ9"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 17,
+            "actualQueryCost": 15,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1985,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "mutation": {
+    "response": {
+      "data": {
+        "orderUpdate": {
+          "order": {
+            "id": "gid://shopify/Order/8938752442674",
+            "note": "order update multi-page hydration parity",
+            "lineItems": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/LineItem/19924909883698",
+                  "title": "SDP multi-page hydration line 1",
+                  "quantity": 1
+                },
+                {
+                  "id": "gid://shopify/LineItem/19924909916466",
+                  "title": "SDP multi-page hydration line 2",
+                  "quantity": 1
+                },
+                {
+                  "id": "gid://shopify/LineItem/19924909949234",
+                  "title": "SDP multi-page hydration line 3",
+                  "quantity": 1
+                },
+                {
+                  "id": "gid://shopify/LineItem/19924909982002",
+                  "title": "SDP multi-page hydration line 4",
+                  "quantity": 1
+                },
+                {
+                  "id": "gid://shopify/LineItem/19924910014770",
+                  "title": "SDP multi-page hydration line 5",
+                  "quantity": 1
+                },
+                {
+                  "id": "gid://shopify/LineItem/19924910047538",
+                  "title": "SDP multi-page hydration line 6",
+                  "quantity": 1
+                },
+                {
+                  "id": "gid://shopify/LineItem/19924910080306",
+                  "title": "SDP multi-page hydration line 7",
+                  "quantity": 1
+                },
+                {
+                  "id": "gid://shopify/LineItem/19924910113074",
+                  "title": "SDP multi-page hydration line 8",
+                  "quantity": 1
+                },
+                {
+                  "id": "gid://shopify/LineItem/19924910145842",
+                  "title": "SDP multi-page hydration line 9",
+                  "quantity": 1
+                },
+                {
+                  "id": "gid://shopify/LineItem/19924910178610",
+                  "title": "SDP multi-page hydration line 10",
+                  "quantity": 1
+                },
+                {
+                  "id": "gid://shopify/LineItem/19924910211378",
+                  "title": "SDP multi-page hydration line 11",
+                  "quantity": 1
+                },
+                {
+                  "id": "gid://shopify/LineItem/19924910244146",
+                  "title": "SDP multi-page hydration line 12",
+                  "quantity": 1
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxOTkyNDkwOTg4MzY5OCwibGFzdF92YWx1ZSI6MTk5MjQ5MDk4ODM2OTh9",
+                "endCursor": "eyJsYXN0X2lkIjoxOTkyNDkxMDI0NDE0NiwibGFzdF92YWx1ZSI6MTk5MjQ5MTAyNDQxNDZ9"
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 17,
+          "actualQueryCost": 15,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1977,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "variables": {
+      "id": "gid://shopify/Order/8938752442674"
+    },
+    "response": {
+      "data": {
+        "order": {
+          "id": "gid://shopify/Order/8938752442674",
+          "note": "order update multi-page hydration parity",
+          "lineItems": {
+            "nodes": [
+              {
+                "id": "gid://shopify/LineItem/19924909883698",
+                "title": "SDP multi-page hydration line 1",
+                "quantity": 1
+              },
+              {
+                "id": "gid://shopify/LineItem/19924909916466",
+                "title": "SDP multi-page hydration line 2",
+                "quantity": 1
+              },
+              {
+                "id": "gid://shopify/LineItem/19924909949234",
+                "title": "SDP multi-page hydration line 3",
+                "quantity": 1
+              },
+              {
+                "id": "gid://shopify/LineItem/19924909982002",
+                "title": "SDP multi-page hydration line 4",
+                "quantity": 1
+              },
+              {
+                "id": "gid://shopify/LineItem/19924910014770",
+                "title": "SDP multi-page hydration line 5",
+                "quantity": 1
+              },
+              {
+                "id": "gid://shopify/LineItem/19924910047538",
+                "title": "SDP multi-page hydration line 6",
+                "quantity": 1
+              },
+              {
+                "id": "gid://shopify/LineItem/19924910080306",
+                "title": "SDP multi-page hydration line 7",
+                "quantity": 1
+              },
+              {
+                "id": "gid://shopify/LineItem/19924910113074",
+                "title": "SDP multi-page hydration line 8",
+                "quantity": 1
+              },
+              {
+                "id": "gid://shopify/LineItem/19924910145842",
+                "title": "SDP multi-page hydration line 9",
+                "quantity": 1
+              },
+              {
+                "id": "gid://shopify/LineItem/19924910178610",
+                "title": "SDP multi-page hydration line 10",
+                "quantity": 1
+              },
+              {
+                "id": "gid://shopify/LineItem/19924910211378",
+                "title": "SDP multi-page hydration line 11",
+                "quantity": 1
+              },
+              {
+                "id": "gid://shopify/LineItem/19924910244146",
+                "title": "SDP multi-page hydration line 12",
+                "quantity": 1
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxOTkyNDkwOTg4MzY5OCwibGFzdF92YWx1ZSI6MTk5MjQ5MDk4ODM2OTh9",
+              "endCursor": "eyJsYXN0X2lkIjoxOTkyNDkxMDI0NDE0NiwibGFzdF92YWx1ZSI6MTk5MjQ5MTAyNDQxNDZ9"
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 8,
+          "actualQueryCost": 6,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8938752442674",
+        "lineItemsAfter": null
+      },
+      "query": "query OrdersOrderHydrate($id: ID!, $lineItemsAfter: String) {\n  order(id: $id) {\n    id\n    name\n    email\n    note\n    tags\n    customAttributes { key value }\n    customer { id email displayName }\n    billingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }\n    shippingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }\n    currencyCode\n    presentmentCurrencyCode\n    displayFinancialStatus\n    displayFulfillmentStatus\n    currentTotalPriceSet { shopMoney { amount currencyCode } }\n    totalPriceSet { shopMoney { amount currencyCode } }\n    totalTaxSet { shopMoney { amount currencyCode } }\n    totalDiscountsSet { shopMoney { amount currencyCode } }\n    discountCodes\n    lineItems(first: 10, after: $lineItemsAfter) {\n      nodes {\n        id\n        title\n        name\n        quantity\n        currentQuantity\n        sku\n        variantTitle\n        requiresShipping\n        taxable\n        customAttributes { key value }\n        originalUnitPriceSet { shopMoney { amount currencyCode } }\n        originalTotalSet { shopMoney { amount currencyCode } }\n        variant { id title sku }\n        taxLines { title rate priceSet { shopMoney { amount currencyCode } } }\n      }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8938752442674",
+              "name": "#1821",
+              "email": "sdp-order-update-multi-page-1783732889848@example.com",
+              "note": "shopify-draft-proxy multi-page hydration capture setup",
+              "tags": ["multi-page-hydration", "order-update", "shopify-draft-proxy"],
+              "customAttributes": [],
+              "customer": {
+                "id": "gid://shopify/Customer/10947250880818",
+                "email": "sdp-order-update-multi-page-1783732889848@example.com",
+                "displayName": "sdp-order-update-multi-page-1783732889848@example.com"
+              },
+              "billingAddress": null,
+              "shippingAddress": null,
+              "currencyCode": "USD",
+              "presentmentCurrencyCode": "USD",
+              "displayFinancialStatus": null,
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "12.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "12.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "totalTaxSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "totalDiscountsSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "discountCodes": [],
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19924909883698",
+                    "title": "SDP multi-page hydration line 1",
+                    "name": "SDP multi-page hydration line 1",
+                    "quantity": 1,
+                    "currentQuantity": 1,
+                    "sku": "sdp-multi-page-1783732889848-01",
+                    "variantTitle": null,
+                    "requiresShipping": false,
+                    "taxable": false,
+                    "customAttributes": [],
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "1.0",
+                        "currencyCode": "USD"
+                      }
+                    },
+                    "originalTotalSet": {
+                      "shopMoney": {
+                        "amount": "1.0",
+                        "currencyCode": "USD"
+                      }
+                    },
+                    "variant": null,
+                    "taxLines": []
+                  },
+                  {
+                    "id": "gid://shopify/LineItem/19924909916466",
+                    "title": "SDP multi-page hydration line 2",
+                    "name": "SDP multi-page hydration line 2",
+                    "quantity": 1,
+                    "currentQuantity": 1,
+                    "sku": "sdp-multi-page-1783732889848-02",
+                    "variantTitle": null,
+                    "requiresShipping": false,
+                    "taxable": false,
+                    "customAttributes": [],
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "1.0",
+                        "currencyCode": "USD"
+                      }
+                    },
+                    "originalTotalSet": {
+                      "shopMoney": {
+                        "amount": "1.0",
+                        "currencyCode": "USD"
+                      }
+                    },
+                    "variant": null,
+                    "taxLines": []
+                  },
+                  {
+                    "id": "gid://shopify/LineItem/19924909949234",
+                    "title": "SDP multi-page hydration line 3",
+                    "name": "SDP multi-page hydration line 3",
+                    "quantity": 1,
+                    "currentQuantity": 1,
+                    "sku": "sdp-multi-page-1783732889848-03",
+                    "variantTitle": null,
+                    "requiresShipping": false,
+                    "taxable": false,
+                    "customAttributes": [],
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "1.0",
+                        "currencyCode": "USD"
+                      }
+                    },
+                    "originalTotalSet": {
+                      "shopMoney": {
+                        "amount": "1.0",
+                        "currencyCode": "USD"
+                      }
+                    },
+                    "variant": null,
+                    "taxLines": []
+                  },
+                  {
+                    "id": "gid://shopify/LineItem/19924909982002",
+                    "title": "SDP multi-page hydration line 4",
+                    "name": "SDP multi-page hydration line 4",
+                    "quantity": 1,
+                    "currentQuantity": 1,
+                    "sku": "sdp-multi-page-1783732889848-04",
+                    "variantTitle": null,
+                    "requiresShipping": false,
+                    "taxable": false,
+                    "customAttributes": [],
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "1.0",
+                        "currencyCode": "USD"
+                      }
+                    },
+                    "originalTotalSet": {
+                      "shopMoney": {
+                        "amount": "1.0",
+                        "currencyCode": "USD"
+                      }
+                    },
+                    "variant": null,
+                    "taxLines": []
+                  },
+                  {
+                    "id": "gid://shopify/LineItem/19924910014770",
+                    "title": "SDP multi-page hydration line 5",
+                    "name": "SDP multi-page hydration line 5",
+                    "quantity": 1,
+                    "currentQuantity": 1,
+                    "sku": "sdp-multi-page-1783732889848-05",
+                    "variantTitle": null,
+                    "requiresShipping": false,
+                    "taxable": false,
+                    "customAttributes": [],
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "1.0",
+                        "currencyCode": "USD"
+                      }
+                    },
+                    "originalTotalSet": {
+                      "shopMoney": {
+                        "amount": "1.0",
+                        "currencyCode": "USD"
+                      }
+                    },
+                    "variant": null,
+                    "taxLines": []
+                  },
+                  {
+                    "id": "gid://shopify/LineItem/19924910047538",
+                    "title": "SDP multi-page hydration line 6",
+                    "name": "SDP multi-page hydration line 6",
+                    "quantity": 1,
+                    "currentQuantity": 1,
+                    "sku": "sdp-multi-page-1783732889848-06",
+                    "variantTitle": null,
+                    "requiresShipping": false,
+                    "taxable": false,
+                    "customAttributes": [],
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "1.0",
+                        "currencyCode": "USD"
+                      }
+                    },
+                    "originalTotalSet": {
+                      "shopMoney": {
+                        "amount": "1.0",
+                        "currencyCode": "USD"
+                      }
+                    },
+                    "variant": null,
+                    "taxLines": []
+                  },
+                  {
+                    "id": "gid://shopify/LineItem/19924910080306",
+                    "title": "SDP multi-page hydration line 7",
+                    "name": "SDP multi-page hydration line 7",
+                    "quantity": 1,
+                    "currentQuantity": 1,
+                    "sku": "sdp-multi-page-1783732889848-07",
+                    "variantTitle": null,
+                    "requiresShipping": false,
+                    "taxable": false,
+                    "customAttributes": [],
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "1.0",
+                        "currencyCode": "USD"
+                      }
+                    },
+                    "originalTotalSet": {
+                      "shopMoney": {
+                        "amount": "1.0",
+                        "currencyCode": "USD"
+                      }
+                    },
+                    "variant": null,
+                    "taxLines": []
+                  },
+                  {
+                    "id": "gid://shopify/LineItem/19924910113074",
+                    "title": "SDP multi-page hydration line 8",
+                    "name": "SDP multi-page hydration line 8",
+                    "quantity": 1,
+                    "currentQuantity": 1,
+                    "sku": "sdp-multi-page-1783732889848-08",
+                    "variantTitle": null,
+                    "requiresShipping": false,
+                    "taxable": false,
+                    "customAttributes": [],
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "1.0",
+                        "currencyCode": "USD"
+                      }
+                    },
+                    "originalTotalSet": {
+                      "shopMoney": {
+                        "amount": "1.0",
+                        "currencyCode": "USD"
+                      }
+                    },
+                    "variant": null,
+                    "taxLines": []
+                  },
+                  {
+                    "id": "gid://shopify/LineItem/19924910145842",
+                    "title": "SDP multi-page hydration line 9",
+                    "name": "SDP multi-page hydration line 9",
+                    "quantity": 1,
+                    "currentQuantity": 1,
+                    "sku": "sdp-multi-page-1783732889848-09",
+                    "variantTitle": null,
+                    "requiresShipping": false,
+                    "taxable": false,
+                    "customAttributes": [],
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "1.0",
+                        "currencyCode": "USD"
+                      }
+                    },
+                    "originalTotalSet": {
+                      "shopMoney": {
+                        "amount": "1.0",
+                        "currencyCode": "USD"
+                      }
+                    },
+                    "variant": null,
+                    "taxLines": []
+                  },
+                  {
+                    "id": "gid://shopify/LineItem/19924910178610",
+                    "title": "SDP multi-page hydration line 10",
+                    "name": "SDP multi-page hydration line 10",
+                    "quantity": 1,
+                    "currentQuantity": 1,
+                    "sku": "sdp-multi-page-1783732889848-10",
+                    "variantTitle": null,
+                    "requiresShipping": false,
+                    "taxable": false,
+                    "customAttributes": [],
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "1.0",
+                        "currencyCode": "USD"
+                      }
+                    },
+                    "originalTotalSet": {
+                      "shopMoney": {
+                        "amount": "1.0",
+                        "currencyCode": "USD"
+                      }
+                    },
+                    "variant": null,
+                    "taxLines": []
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": true,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoxOTkyNDkwOTg4MzY5OCwibGFzdF92YWx1ZSI6MTk5MjQ5MDk4ODM2OTh9",
+                  "endCursor": "eyJsYXN0X2lkIjoxOTkyNDkxMDE3ODYxMCwibGFzdF92YWx1ZSI6MTk5MjQ5MTAxNzg2MTB9"
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 23,
+              "actualQueryCost": 23,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1977,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OrdersOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8938752442674",
+        "lineItemsAfter": "eyJsYXN0X2lkIjoxOTkyNDkxMDE3ODYxMCwibGFzdF92YWx1ZSI6MTk5MjQ5MTAxNzg2MTB9"
+      },
+      "query": "query OrdersOrderHydrate($id: ID!, $lineItemsAfter: String) {\n  order(id: $id) {\n    id\n    name\n    email\n    note\n    tags\n    customAttributes { key value }\n    customer { id email displayName }\n    billingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }\n    shippingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }\n    currencyCode\n    presentmentCurrencyCode\n    displayFinancialStatus\n    displayFulfillmentStatus\n    currentTotalPriceSet { shopMoney { amount currencyCode } }\n    totalPriceSet { shopMoney { amount currencyCode } }\n    totalTaxSet { shopMoney { amount currencyCode } }\n    totalDiscountsSet { shopMoney { amount currencyCode } }\n    discountCodes\n    lineItems(first: 10, after: $lineItemsAfter) {\n      nodes {\n        id\n        title\n        name\n        quantity\n        currentQuantity\n        sku\n        variantTitle\n        requiresShipping\n        taxable\n        customAttributes { key value }\n        originalUnitPriceSet { shopMoney { amount currencyCode } }\n        originalTotalSet { shopMoney { amount currencyCode } }\n        variant { id title sku }\n        taxLines { title rate priceSet { shopMoney { amount currencyCode } } }\n      }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8938752442674",
+              "name": "#1821",
+              "email": "sdp-order-update-multi-page-1783732889848@example.com",
+              "note": "shopify-draft-proxy multi-page hydration capture setup",
+              "tags": ["multi-page-hydration", "order-update", "shopify-draft-proxy"],
+              "customAttributes": [],
+              "customer": {
+                "id": "gid://shopify/Customer/10947250880818",
+                "email": "sdp-order-update-multi-page-1783732889848@example.com",
+                "displayName": "sdp-order-update-multi-page-1783732889848@example.com"
+              },
+              "billingAddress": null,
+              "shippingAddress": null,
+              "currencyCode": "USD",
+              "presentmentCurrencyCode": "USD",
+              "displayFinancialStatus": null,
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "12.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "12.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "totalTaxSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "totalDiscountsSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "discountCodes": [],
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19924910211378",
+                    "title": "SDP multi-page hydration line 11",
+                    "name": "SDP multi-page hydration line 11",
+                    "quantity": 1,
+                    "currentQuantity": 1,
+                    "sku": "sdp-multi-page-1783732889848-11",
+                    "variantTitle": null,
+                    "requiresShipping": false,
+                    "taxable": false,
+                    "customAttributes": [],
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "1.0",
+                        "currencyCode": "USD"
+                      }
+                    },
+                    "originalTotalSet": {
+                      "shopMoney": {
+                        "amount": "1.0",
+                        "currencyCode": "USD"
+                      }
+                    },
+                    "variant": null,
+                    "taxLines": []
+                  },
+                  {
+                    "id": "gid://shopify/LineItem/19924910244146",
+                    "title": "SDP multi-page hydration line 12",
+                    "name": "SDP multi-page hydration line 12",
+                    "quantity": 1,
+                    "currentQuantity": 1,
+                    "sku": "sdp-multi-page-1783732889848-12",
+                    "variantTitle": null,
+                    "requiresShipping": false,
+                    "taxable": false,
+                    "customAttributes": [],
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "1.0",
+                        "currencyCode": "USD"
+                      }
+                    },
+                    "originalTotalSet": {
+                      "shopMoney": {
+                        "amount": "1.0",
+                        "currencyCode": "USD"
+                      }
+                    },
+                    "variant": null,
+                    "taxLines": []
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": true,
+                  "startCursor": "eyJsYXN0X2lkIjoxOTkyNDkxMDIxMTM3OCwibGFzdF92YWx1ZSI6MTk5MjQ5MTAyMTEzNzh9",
+                  "endCursor": "eyJsYXN0X2lkIjoxOTkyNDkxMDI0NDE0NiwibGFzdF92YWx1ZSI6MTk5MjQ5MTAyNDQxNDZ9"
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 23,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1980,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": {
+    "query": "mutation OrderUpdateMultiPageHydrationCleanup(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n        done\n      }\n      orderCancelUserErrors {\n        field\n        message\n        code\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+    "variables": {
+      "orderId": "gid://shopify/Order/8938752442674",
+      "reason": "OTHER",
+      "notifyCustomer": false,
+      "restock": false
+    },
+    "response": {
+      "data": {
+        "orderCancel": {
+          "job": {
+            "id": "gid://shopify/Job/ec775386-bbe8-46c0-92c5-c8f997459da2",
+            "done": false
+          },
+          "orderCancelUserErrors": [],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

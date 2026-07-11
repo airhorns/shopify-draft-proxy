@@ -200,7 +200,13 @@ subfolder, default-locale, alternate-locale, root-URL, duplicate-language,
 primary-domain-delete, and relation scenarios. Documents that co-select
 price-list roots with `webPresenceCreate`, `webPresenceUpdate`,
 `webPresenceDelete`, or `quantityRulesDelete` use the same staged stores and
-payload validation as the standalone local paths. Market-localization slices
+payload validation as the standalone local paths. In LiveHybrid mode,
+web-presence mutations preflight both the shop domain context and existing web
+presences before staging. Subfolder root URLs derive from the observed
+`shop.myshopifyDomain`, while `domainId` inputs derive root URLs from the
+selected hydrated custom domain. If no authoritative shop/custom domain context
+is available, the local mutation returns an explicit `UNSUPPORTED_IN_PROXY`
+`MarketUserError` instead of fabricating a merchant hostname. Market-localization slices
 stage and remove localized content for captured localizable resources, including
 unknown-resource, too-many-key, digest, market key, and no-op removal branches.
 `marketLocalizableResource` resolves only resource IDs observed in staged
@@ -215,6 +221,9 @@ resources for later local reads. The plural `marketLocalizableResources`
 connection forwards until a localizable resource has been observed and is then
 limited to the observed set; unrelated staged market, catalog, price-list, or
 web-presence state does not force a local empty resource connection.
+Successful `marketLocalizationsRegister` rows use the proxy's mutation clock for
+their staged `updatedAt` values, and validation failures that return user errors
+leave any existing staged market-localization timestamps unchanged.
 
 `marketsResolvedValues` and market/catalog/price-list reads have fixture-backed
 empty, fallback, and buyer-country behavior where captured. Resolved value
