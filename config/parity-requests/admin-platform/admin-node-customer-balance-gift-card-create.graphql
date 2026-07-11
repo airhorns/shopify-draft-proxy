@@ -1,0 +1,16 @@
+mutation AdminNodeCustomerBalanceGiftCardCreate($input: GiftCardCreateInput!) {
+  giftCardCreate(input: $input) {
+    giftCard {
+      id
+      balance {
+        amount
+        currencyCode
+      }
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}

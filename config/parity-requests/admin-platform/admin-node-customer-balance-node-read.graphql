@@ -1,0 +1,182 @@
+query AdminNodeCustomerBalanceNodeRead($ids: [ID!]!, $missingIds: [ID!]!) {
+  nodes(ids: $ids) {
+    __typename
+    ... on Node {
+      id
+    }
+    ... on Customer {
+      email
+      displayName
+      defaultAddress {
+        id
+        address1
+        city
+        countryCodeV2
+      }
+      addressesV2(first: 5) {
+        nodes {
+          id
+          address1
+          city
+          countryCodeV2
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+        }
+      }
+      storeCreditAccounts(first: 5) {
+        nodes {
+          id
+          balance {
+            amount
+            currencyCode
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+        }
+      }
+    }
+    ... on MailingAddress {
+      address1
+      city
+      countryCodeV2
+    }
+    ... on StoreCreditAccount {
+      balance {
+        amount
+        currencyCode
+      }
+      owner {
+        ... on Customer {
+          id
+          email
+        }
+      }
+      transactions(first: 5) {
+        nodes {
+          __typename
+          amount {
+            amount
+            currencyCode
+          }
+          balanceAfterTransaction {
+            amount
+            currencyCode
+          }
+          event
+          origin
+          ... on StoreCreditAccountCreditTransaction {
+            id
+            remainingAmount {
+              amount
+              currencyCode
+            }
+          }
+          ... on StoreCreditAccountDebitTransaction {
+            id
+            account {
+              id
+            }
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+        }
+      }
+    }
+    ... on StoreCreditAccountCreditTransaction {
+      amount {
+        amount
+        currencyCode
+      }
+      balanceAfterTransaction {
+        amount
+        currencyCode
+      }
+      event
+      origin
+      remainingAmount {
+        amount
+        currencyCode
+      }
+      account {
+        id
+        owner {
+          ... on Customer {
+            id
+            email
+          }
+        }
+      }
+    }
+    ... on StoreCreditAccountDebitTransaction {
+      amount {
+        amount
+        currencyCode
+      }
+      balanceAfterTransaction {
+        amount
+        currencyCode
+      }
+      event
+      origin
+      account {
+        id
+        owner {
+          ... on Customer {
+            id
+            email
+          }
+        }
+      }
+    }
+    ... on GiftCard {
+      balance {
+        amount
+        currencyCode
+      }
+      transactions(first: 5) {
+        nodes {
+          __typename
+          id
+          note
+          processedAt
+          amount {
+            amount
+            currencyCode
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+        }
+      }
+    }
+    ... on GiftCardCreditTransaction {
+      note
+      processedAt
+      amount {
+        amount
+        currencyCode
+      }
+    }
+    ... on GiftCardDebitTransaction {
+      note
+      processedAt
+      amount {
+        amount
+        currencyCode
+      }
+    }
+  }
+  missing: nodes(ids: $missingIds) {
+    __typename
+    ... on Node {
+      id
+    }
+  }
+}

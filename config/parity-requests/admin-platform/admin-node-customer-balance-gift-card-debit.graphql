@@ -1,0 +1,22 @@
+mutation AdminNodeCustomerBalanceGiftCardDebit(
+  $id: ID!
+  $debitInput: GiftCardDebitInput!
+) {
+  giftCardDebit(id: $id, debitInput: $debitInput) {
+    giftCardDebitTransaction {
+      id
+      __typename
+      note
+      processedAt
+      amount {
+        amount
+        currencyCode
+      }
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}
