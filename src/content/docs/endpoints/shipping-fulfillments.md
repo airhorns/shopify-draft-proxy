@@ -215,7 +215,19 @@ selectable on the captured Admin GraphQL 2026-04 `UserError` type. Location
 IDs supplied in delivery-profile location groups must resolve from staged,
 observed, or LiveHybrid-hydrated location state; unknown IDs return the public
 `The Location could not be found for this shop.` userError instead of creating a
-synthetic location. `deliveryProfiles(first/last/after/before/reverse:)` merges
+synthetic location. Delivery-profile `variantsToAssociate` inputs add
+associations only for `ProductVariant` IDs resolved from staged/base product
+state or LiveHybrid `nodes(ids:)` hydration. Nonexistent, inaccessible, or
+wrong-shop variant lookups that hydrate as missing nodes are left unassociated;
+wrong GID types return a top-level `RESOURCE_NOT_FOUND` error and leave profile
+state unchanged. Indeterminate hydration failures, including upstream transport
+failures and malformed hydrate payloads, do not count as existence and do not
+stage associations. Profile item product/variant IDs, titles, and relationships
+derive from the resolved product/variant state instead of placeholder products.
+Captured 2026-04 parity target `delivery-profile-variant-associations` covers a
+valid staged variant, nonexistent association targets, wrong-GID-type failures,
+and downstream reads after invalid update attempts.
+`deliveryProfiles(first/last/after/before/reverse:)` merges
 observed merchant baseline profiles, including the default profile, with staged
 profile creates/updates/removals before computing page windows and `pageInfo`
 boundary cursors instead of returning a canned connection envelope. Captured

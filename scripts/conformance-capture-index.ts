@@ -11985,6 +11985,32 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'shipping-fulfillments',
+    captureId: 'delivery-profile-variant-associations',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-delivery-profile-variant-associations-conformance.ts',
+    purpose:
+      'deliveryProfileCreate and deliveryProfileUpdate variant association behavior for valid ProductVariant, nonexistent ProductVariant, and wrong-GID-type targets.',
+    requiredAuthScopes: [
+      'read_products',
+      'write_products',
+      'read_shipping',
+      'write_shipping',
+      'delivery profile management access',
+    ],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/delivery-profile-variant-associations.json',
+      'config/parity-specs/shipping-fulfillments/delivery-profile-variant-associations.json',
+      'config/parity-requests/shipping-fulfillments/delivery-profile-variant-association-product-create.graphql',
+      'config/parity-requests/shipping-fulfillments/delivery-profile-variant-association-create.graphql',
+      'config/parity-requests/shipping-fulfillments/delivery-profile-variant-association-update.graphql',
+      'config/parity-requests/shipping-fulfillments/delivery-profile-variant-association-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product and delivery profiles for valid/missing association branches, records wrong-type validation, then removes created profiles and deletes the product in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
     captureId: 'delivery-profile-update-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-delivery-profile-update-validation-conformance.ts',

@@ -8327,11 +8327,229 @@ fn seed_delivery_profile_location(proxy: &mut DraftProxy, name: &str) -> String 
         .to_string()
 }
 
+fn seed_delivery_profile_product_variant(
+    proxy: &mut DraftProxy,
+    title: &str,
+) -> (String, String, String, String) {
+    let product = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryProfileVariantSeed($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product {
+              id
+              title
+              variants(first: 1) { nodes { id title } }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "product": { "title": title } }),
+    ));
+    assert_eq!(product.status, 200);
+    assert_eq!(
+        product.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let product = &product.body["data"]["productCreate"]["product"];
+    let product_id = product["id"].as_str().unwrap().to_string();
+    let product_title = product["title"].as_str().unwrap().to_string();
+    let variant = &product["variants"]["nodes"][0];
+    let variant_id = variant["id"].as_str().unwrap().to_string();
+    let variant_title = variant["title"].as_str().unwrap().to_string();
+    (product_id, product_title, variant_id, variant_title)
+}
+
+#[test]
+fn delivery_profile_association_uses_staged_product_variant_without_fallback() {
+    let mut proxy = snapshot_proxy();
+    let (product_id, product_title, variant_id, variant_title) =
+        seed_delivery_profile_product_variant(&mut proxy, "Delivery profile staged product");
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryProfileValidVariant($profile: DeliveryProfileInput!) {
+          deliveryProfileCreate(profile: $profile) {
+            profile {
+              productVariantsCount { count precision }
+              profileItems(first: 5) {
+                nodes {
+                  product { id title }
+                  variants(first: 5) { nodes { id title } }
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "profile": {
+                "name": "Staged product association",
+                "variantsToAssociate": [variant_id.clone()]
+            }
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["deliveryProfileCreate"]["userErrors"],
+        json!([])
+    );
+    let profile = &response.body["data"]["deliveryProfileCreate"]["profile"];
+    assert_eq!(
+        profile["productVariantsCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        profile["profileItems"]["nodes"],
+        json!([{
+            "product": { "id": product_id, "title": product_title },
+            "variants": { "nodes": [{ "id": variant_id, "title": variant_title }] }
+        }])
+    );
+    assert!(!profile["profileItems"]["nodes"][0]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .contains("delivery-profile-"));
+}
+
+#[test]
+fn delivery_profile_association_ignores_nonexistent_variant_without_fabricated_product() {
+    let mut proxy = snapshot_proxy();
+    let missing_variant_id = "gid://shopify/ProductVariant/999999999999";
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryProfileMissingVariant($profile: DeliveryProfileInput!) {
+          deliveryProfileCreate(profile: $profile) {
+            profile {
+              productVariantsCount { count precision }
+              profileItems(first: 5) {
+                nodes {
+                  product { id title }
+                  variants(first: 5) { nodes { id title } }
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "profile": {
+                "name": "Missing variant association",
+                "variantsToAssociate": [missing_variant_id]
+            }
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["deliveryProfileCreate"]["userErrors"],
+        json!([])
+    );
+    let profile = &response.body["data"]["deliveryProfileCreate"]["profile"];
+    assert_eq!(
+        profile["productVariantsCount"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+    assert_eq!(profile["profileItems"]["nodes"], json!([]));
+    assert!(!response.body.to_string().contains("delivery-profile-"));
+}
+
+#[test]
+fn delivery_profile_association_wrong_gid_type_returns_resource_not_found_without_stage() {
+    let mut proxy = snapshot_proxy();
+    let product_id = "gid://shopify/Product/424242424242";
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryProfileWrongVariantType($profile: DeliveryProfileInput!) {
+          deliveryProfileCreate(profile: $profile) {
+            profile { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "profile": {
+                "name": "Wrong type association",
+                "variantsToAssociate": [product_id]
+            }
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body["data"]["deliveryProfileCreate"], Value::Null);
+    assert_eq!(
+        response.body["errors"][0]["message"],
+        json!(format!("Invalid id: {product_id}"))
+    );
+    assert_eq!(
+        response.body["errors"][0]["extensions"]["code"],
+        json!("RESOURCE_NOT_FOUND")
+    );
+    assert_eq!(
+        response.body["errors"][0]["path"],
+        json!(["deliveryProfileCreate"])
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+}
+
+#[test]
+fn delivery_profile_association_failed_hydrate_does_not_stage_or_fabricate_product() {
+    let forwarded = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured = Arc::clone(&forwarded);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
+            captured.lock().unwrap().push(body);
+            Response {
+                status: 500,
+                headers: Default::default(),
+                body: json!({ "errors": [{ "message": "hydrate unavailable" }] }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryProfileVariantHydrateFailure($profile: DeliveryProfileInput!) {
+          deliveryProfileCreate(profile: $profile) {
+            profile {
+              productVariantsCount { count precision }
+              profileItems(first: 5) { nodes { product { id title } variants(first: 5) { nodes { id title } } } }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "profile": {
+                "name": "Failed hydrate association",
+                "variantsToAssociate": ["gid://shopify/ProductVariant/424242424242"]
+            }
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body["data"]["deliveryProfileCreate"], Value::Null);
+    assert_eq!(
+        response.body["errors"][0]["extensions"]["code"],
+        json!("RESOURCE_NOT_FOUND")
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    assert_eq!(forwarded.lock().unwrap().len(), 1);
+    assert!(!response.body.to_string().contains("delivery-profile-"));
+}
+
 #[test]
 fn delivery_profile_lifecycle_stages_nested_state_reads_and_removal_job() {
     let mut proxy = snapshot_proxy();
     let source_location_id = seed_delivery_profile_location(&mut proxy, "Profile source");
     let destination_location_id = seed_delivery_profile_location(&mut proxy, "Profile destination");
+    let (product_id, _product_title, variant_id, _variant_title) =
+        seed_delivery_profile_product_variant(&mut proxy, "Delivery profile lifecycle product");
     let create_query = r#"
         mutation DeliveryProfileLifecycleCreate($profile: DeliveryProfileInput!) {
           deliveryProfileCreate(profile: $profile) {
@@ -8447,7 +8665,7 @@ fn delivery_profile_lifecycle_stages_nested_state_reads_and_removal_job() {
                         }]
                     }]
                 }],
-                "variantsToAssociate": ["gid://shopify/ProductVariant/51098706739506"]
+                "variantsToAssociate": [variant_id.clone()]
             }
         }),
     ));
@@ -8495,7 +8713,11 @@ fn delivery_profile_lifecycle_stages_nested_state_reads_and_removal_job() {
     );
     assert_eq!(
         profile["profileItems"]["nodes"][0]["variants"]["nodes"][0]["id"],
-        json!("gid://shopify/ProductVariant/51098706739506")
+        json!(variant_id)
+    );
+    assert_eq!(
+        profile["profileItems"]["nodes"][0]["product"]["id"],
+        json!(product_id)
     );
     assert_eq!(
         profile["profileLocationGroups"][0]["locationGroup"]["locations"]["nodes"][0]["name"],
@@ -8521,7 +8743,7 @@ fn delivery_profile_lifecycle_stages_nested_state_reads_and_removal_job() {
             "id": profile_id,
             "profile": {
                 "name": "Local heavy goods updated",
-                "variantsToDissociate": ["gid://shopify/ProductVariant/51098706739506"],
+                "variantsToDissociate": [variant_id],
                 "conditionsToDelete": [condition_id],
                 "locationGroupsToUpdate": [{
                     "id": group_id,
@@ -8595,19 +8817,19 @@ fn delivery_profile_lifecycle_stages_nested_state_reads_and_removal_job() {
 
     let log = log_snapshot(&proxy);
     assert_eq!(
-        log["entries"][2]["interpreted"]["primaryRootField"],
+        log["entries"][3]["interpreted"]["primaryRootField"],
         json!("deliveryProfileCreate")
     );
-    assert_eq!(log["entries"][2]["rawBody"].is_string(), true);
+    assert_eq!(log["entries"][3]["rawBody"].is_string(), true);
     assert_eq!(
-        log["entries"][3]["interpreted"]["primaryRootField"],
+        log["entries"][4]["interpreted"]["primaryRootField"],
         json!("deliveryProfileUpdate")
     );
     assert_eq!(
-        log["entries"][4]["interpreted"]["primaryRootField"],
+        log["entries"][5]["interpreted"]["primaryRootField"],
         json!("deliveryProfileRemove")
     );
-    assert_eq!(log["entries"][4]["status"], json!("staged"));
+    assert_eq!(log["entries"][5]["status"], json!("staged"));
 }
 
 #[test]
