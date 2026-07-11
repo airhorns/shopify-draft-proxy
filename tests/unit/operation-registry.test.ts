@@ -164,9 +164,9 @@ describe('operation registry', () => {
     expect(adminMutationCoverageAudit()).toEqual({
       capturedMutationCount: 514,
       registeredMutationCount: 438,
-      implementedMutationCount: 403,
+      implementedMutationCount: 405,
       implementedMutationRuntimeTestEvidence: {
-        withRuntimeTests: 128,
+        withRuntimeTests: 130,
         withoutRuntimeTests: 275,
       },
       declaredUnimplemented: [
@@ -186,13 +186,11 @@ describe('operation registry', () => {
         'menuCreate',
         'menuDelete',
         'menuUpdate',
-        'metaobjectBulkDelete',
         'mobilePlatformApplicationDelete',
         'orderRiskAssessmentCreate',
         'privacyFeaturesDisable',
         'serverPixelDelete',
         'shopifyPaymentsPayoutAlternateCurrencyCreate',
-        'standardMetaobjectDefinitionEnable',
         'storefrontAccessTokenDelete',
         'taxSummaryCreate',
         'urlRedirectBulkDeleteAll',

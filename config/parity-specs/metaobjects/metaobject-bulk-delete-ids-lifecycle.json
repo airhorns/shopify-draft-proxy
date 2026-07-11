@@ -1,0 +1,137 @@
+{
+  "scenarioId": "metaobject-bulk-delete-ids-lifecycle",
+  "operationNames": [
+    "metaobjectDefinitionCreate",
+    "metaobjectCreate",
+    "metaobjectBulkDelete",
+    "metaobject",
+    "metaobjects",
+    "metaobjectDefinitionByType"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject-bulk-delete-ids-lifecycle.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metaobjects/metaobject-bulk-delete-ids-definition-create.graphql",
+    "variablesCapturePath": "$.setup.definitionCreate.request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-definition-user-errors",
+        "capturePath": "$.setup.definitionCreate.response.data.metaobjectDefinitionCreate.userErrors",
+        "proxyPath": "$.data.metaobjectDefinitionCreate.userErrors",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "setup-first-entry-user-errors",
+        "capturePath": "$.setup.firstEntryCreate.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-bulk-delete-ids-entry-create.graphql",
+          "variablesCapturePath": "$.setup.firstEntryCreate.request.variables"
+        }
+      },
+      {
+        "name": "setup-second-entry-user-errors",
+        "capturePath": "$.setup.secondEntryCreate.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-bulk-delete-ids-entry-create.graphql",
+          "variablesCapturePath": "$.setup.secondEntryCreate.request.variables"
+        }
+      },
+      {
+        "name": "setup-survivor-entry-user-errors",
+        "capturePath": "$.setup.survivorEntryCreate.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-bulk-delete-ids-entry-create.graphql",
+          "variablesCapturePath": "$.setup.survivorEntryCreate.request.variables"
+        }
+      },
+      {
+        "name": "bulk-delete-ids-payload",
+        "capturePath": "$.bulkDelete.response.data.metaobjectBulkDelete",
+        "proxyPath": "$.data.metaobjectBulkDelete",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-bulk-delete-ids-delete.graphql",
+          "variables": {
+            "ids": [
+              {
+                "fromProxyResponse": "setup-first-entry-user-errors",
+                "path": "$.data.metaobjectCreate.metaobject.id"
+              }
+            ]
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.job.id",
+            "matcher": "shopify-gid:Job",
+            "reason": "The local proxy creates a synthetic Job ID while Shopify returns a live-store async job ID."
+          }
+        ]
+      },
+      {
+        "name": "downstream-after-bulk-delete-ids-read",
+        "capturePath": "$.downstreamRead.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-bulk-delete-ids-read.graphql",
+          "variables": {
+            "type": {
+              "fromCapturePath": "$.seed.type"
+            },
+            "firstId": {
+              "fromProxyResponse": "setup-first-entry-user-errors",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "secondId": {
+              "fromProxyResponse": "setup-second-entry-user-errors",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "survivorId": {
+              "fromProxyResponse": "setup-survivor-entry-user-errors",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.catalog.nodes[*].id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The proxy survivor rows are locally staged with synthetic IDs while Shopify returns live-store row IDs."
+          },
+          {
+            "path": "$.definition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The proxy definition is locally staged with a synthetic ID while Shopify returns the live-store definition ID."
+          },
+          {
+            "path": "$.second.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The proxy unselected row is locally staged with a synthetic ID while Shopify returns the live-store row ID."
+          },
+          {
+            "path": "$.survivor.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The proxy survivor row is locally staged with a synthetic ID while Shopify returns the live-store row ID."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Captured live 2026-04 evidence for `metaobjectBulkDelete(where: { ids })` deleting one selected row from a disposable definition while leaving two unselected rows visible. The proxy replay earns setup state through public definition and entry create mutations, then compares the id-scoped bulk-delete payload plus immediate ID, connection, and definition readback. Type-scoped bulk-delete parity separately asserts definition-count readback."
+}
