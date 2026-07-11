@@ -60,52 +60,13 @@ const CUSTOMER_DUPLICATE_HYDRATE_QUERY: &str =
 const CUSTOMER_CUSTOM_ID_LOOKUP_QUERY: &str =
     include_str!("../../../config/parity-requests/customers/customer-custom-id-lookup.graphql");
 
-const CUSTOMER_MERGE_HYDRATE_QUERY: &str = r#"
-query CustomerMergeHydrate($ids: [ID!]!) {
-  nodes(ids: $ids) {
-    ... on Customer {
-      id
-      firstName
-      lastName
-      displayName
-      email
-      phone
-      locale
-      note
-      canDelete
-      verifiedEmail
-      dataSaleOptOut
-      taxExempt
-      taxExemptions
-      state
-      tags
-      numberOfOrders
-      createdAt
-      updatedAt
-      defaultEmailAddress { emailAddress }
-      defaultPhoneNumber { phoneNumber }
-      defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }
-      lastOrder { id name email createdAt }
-    }
-  }
-}
-"#;
-const CUSTOMER_MERGE_ATTACHED_HYDRATE_QUERY: &str = r#"
-query CustomerMergeAttachedHydrate($ids: [ID!]!) {
-  nodes(ids: $ids) {
-    ... on Customer {
-      id
-      defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }
-      addressesV2(first: 5) { nodes { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea } }
-      metafields(first: 5) { nodes { id namespace key type value } }
-      orders(first: 5, sortKey: CREATED_AT, reverse: true) {
-        edges { cursor node { id name email createdAt } }
-      }
-      lastOrder { id name email createdAt }
-    }
-  }
-}
-"#;
+// Shared with the parity capture scripts so recorded `customerMerge` hydrate
+// cassettes byte-match the request forwarded by the runtime.
+const CUSTOMER_MERGE_HYDRATE_QUERY: &str =
+    include_str!("../../../config/parity-requests/customers/customer-merge-hydrate.graphql");
+const CUSTOMER_MERGE_ATTACHED_HYDRATE_QUERY: &str = include_str!(
+    "../../../config/parity-requests/customers/customer-merge-attached-hydrate.graphql"
+);
 const CUSTOMER_DELETE_SHOP_HYDRATE_QUERY: &str =
     include_str!("../../../config/parity-requests/customers/customer-delete-shop-hydrate.graphql");
 const STORE_CREDIT_CUSTOMER_HYDRATE_QUERY: &str = include_str!(

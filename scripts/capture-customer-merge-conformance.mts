@@ -27,14 +27,17 @@ function assertNoTopLevelErrors(result, context) {
   }
 }
 
-// The proxy resolves the pre-existing merge customers the real way instead of from seeded state:
-// customerMerge forwards CUSTOMER_MERGE_HYDRATE_QUERY for each referenced id (ensure_customer_hydrated_for_merge),
-// and the downstream customersCount overlay forwards CUSTOMER_COUNT_HYDRATE_QUERY. Record those exact
-// constants (include_str! of the files below) so the cassette entries byte-match what the proxy forwards.
-// The merge hydrate is richer than the general mutation hydrate: it also carries the customer's
-// metafields and orders so the merge can reconcile attached resources into the resulting customer.
+// The proxy resolves the pre-existing merge customers the real way instead of
+// from seeded state: customerMerge forwards one combined scalar hydrate for
+// referenced ids, then a bounded attached-resource hydrate only after success.
+// The downstream customersCount overlay forwards CUSTOMER_COUNT_HYDRATE_QUERY.
+// Record those exact documents so cassette entries byte-match the runtime.
 const customerMergeHydrateDocument = await readFile(
   'config/parity-requests/customers/customer-merge-hydrate.graphql',
+  'utf8',
+);
+const customerMergeAttachedHydrateDocument = await readFile(
+  'config/parity-requests/customers/customer-merge-attached-hydrate.graphql',
   'utf8',
 );
 const customerMergeDraftOrderCreateDocument = await readFile(
@@ -53,10 +56,17 @@ const draftOrderCustomerHydrateDocument =
   'query OrdersDraftOrderCustomerHydrate($id: ID!) {\n  customer(id: $id) { id email displayName firstName lastName }\n}\n';
 const UNKNOWN_CUSTOMER_GID = 'gid://shopify/Customer/999999999999999';
 
-// Forward CUSTOMER_MERGE_HYDRATE_QUERY upstream and capture the live response for the customer at
-// its current state. A null customer (the unknown gid) is a valid hydrate result.
-async function captureMergeHydrate(id, context) {
-  const result = await runGraphql(customerMergeHydrateDocument, { id });
+// Forward CUSTOMER_MERGE_HYDRATE_QUERY upstream and capture the live response for
+// the customers at their current state. Null nodes for unknown gids are valid
+// hydrate results.
+async function captureMergeHydrate(ids, context) {
+  const result = await runGraphql(customerMergeHydrateDocument, { ids });
+  assertNoTopLevelErrors(result, context);
+  return result.payload;
+}
+
+async function captureMergeAttachedHydrate(ids, context) {
+  const result = await runGraphql(customerMergeAttachedHydrateDocument, { ids });
   assertNoTopLevelErrors(result, context);
   return result.payload;
 }
@@ -67,11 +77,20 @@ async function captureGraphqlPayload(document, variables, context) {
   return result.payload;
 }
 
-function hydrateUpstreamCall(id, payload) {
+function hydrateUpstreamCall(ids, payload) {
   return {
     operationName: 'CustomerMergeHydrate',
-    variables: { id },
+    variables: { ids },
     query: customerMergeHydrateDocument,
+    response: { status: 200, body: payload },
+  };
+}
+
+function attachedHydrateUpstreamCall(ids, payload) {
+  return {
+    operationName: 'CustomerMergeAttachedHydrate',
+    variables: { ids },
+    query: customerMergeAttachedHydrateDocument,
     response: { status: 200, body: payload },
   };
 }
@@ -653,12 +672,27 @@ async function main() {
   });
   assertNoTopLevelErrors(duplicatedUnknownMerge, 'customerMerge duplicated unknown validation');
 
-  // Capture the upstream hydrates the proxy forwards at parity time, at the pre-merge state:
-  // customerMerge stages both referenced customers via CUSTOMER_MERGE_HYDRATE_QUERY, and the
-  // unknown-customer validation target forwards a null hydrate for the bogus gid.
-  const hydrateOnePayload = await captureMergeHydrate(customerOneId, 'customerMerge hydrate one');
-  const hydrateTwoPayload = await captureMergeHydrate(customerTwoId, 'customerMerge hydrate two');
-  const unknownHydratePayload = await captureMergeHydrate(UNKNOWN_CUSTOMER_GID, 'customerMerge unknown hydrate');
+  // Capture the upstream hydrates the proxy forwards at parity time, at the
+  // pre-merge state: the success branch stages both referenced customers through
+  // one scalar hydrate, then fetches bounded attached-resource windows. Unknown
+  // customer validation branches only issue scalar hydrates.
+  const mergeHydrateIds = [customerOneId, customerTwoId];
+  const hydratePayload = await captureMergeHydrate(mergeHydrateIds, 'customerMerge hydrate customers');
+  const attachedHydratePayload = await captureMergeAttachedHydrate(
+    mergeHydrateIds,
+    'customerMerge attached hydrate customers',
+  );
+  const hydrateTwoOnlyPayload = capturesAttachedResources
+    ? await captureMergeHydrate([customerTwoId], 'customerMerge hydrate customer two')
+    : null;
+  const attachedHydrateTwoOnlyPayload = capturesAttachedResources
+    ? await captureMergeAttachedHydrate([customerTwoId], 'customerMerge attached hydrate customer two')
+    : null;
+  const unknownHydratePayload = await captureMergeHydrate([UNKNOWN_CUSTOMER_GID], 'customerMerge unknown hydrate');
+  const duplicatedUnknownHydratePayload = await captureMergeHydrate(
+    [UNKNOWN_CUSTOMER_GID, UNKNOWN_CUSTOMER_GID],
+    'customerMerge duplicated unknown hydrate',
+  );
 
   const preview = await runGraphql(previewQuery, mergeVariables);
   assertNoTopLevelErrors(preview, 'customerMergePreview');
@@ -842,10 +876,16 @@ async function main() {
       ...(draftOrderCustomerHydratePayload
         ? [draftOrderCustomerHydrateUpstreamCall(customerOneId, draftOrderCustomerHydratePayload)]
         : []),
-      hydrateUpstreamCall(customerOneId, hydrateOnePayload),
-      hydrateUpstreamCall(customerTwoId, hydrateTwoPayload),
-      hydrateUpstreamCall(UNKNOWN_CUSTOMER_GID, unknownHydratePayload),
-      hydrateUpstreamCall(UNKNOWN_CUSTOMER_GID, unknownHydratePayload),
+      hydrateUpstreamCall(mergeHydrateIds, hydratePayload),
+      attachedHydrateUpstreamCall(mergeHydrateIds, attachedHydratePayload),
+      ...(hydrateTwoOnlyPayload && attachedHydrateTwoOnlyPayload
+        ? [
+            hydrateUpstreamCall([customerTwoId], hydrateTwoOnlyPayload),
+            attachedHydrateUpstreamCall([customerTwoId], attachedHydrateTwoOnlyPayload),
+          ]
+        : []),
+      hydrateUpstreamCall([UNKNOWN_CUSTOMER_GID], unknownHydratePayload),
+      hydrateUpstreamCall([UNKNOWN_CUSTOMER_GID, UNKNOWN_CUSTOMER_GID], duplicatedUnknownHydratePayload),
       countUpstreamCall(countBaseFromAsserted(downstreamRead.payload?.data?.customersCount, 1)),
     ],
   };
