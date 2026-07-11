@@ -79,31 +79,49 @@ fn return_sort_key(return_value: &Value, _sort_key: Option<&str>) -> StagedSortK
     )]
 }
 
-fn selected_return_connection(
-    returns: Vec<Value>,
-    arguments: &BTreeMap<String, ResolvedValue>,
-    selection: &[SelectedField],
-) -> Value {
-    let result = staged_connection_query(
-        returns,
-        arguments,
-        return_search_decision,
-        return_sort_key,
-        value_id_cursor,
-    );
-    selected_json(
-        &connection_json_with_cursor(
-            result.records,
-            |_, node| value_id_cursor(node),
-            result.page_info,
-        ),
-        selection,
-    )
-}
-
 fn return_money_set(amount: &str, currency_code: &str) -> Value {
     let amount = normalize_money_amount(amount);
     money_set_pair(&amount, currency_code, &amount, currency_code)
+}
+
+fn order_return_status(returns: &[Value]) -> &'static str {
+    if returns
+        .iter()
+        .any(|return_value| return_value["status"].as_str() == Some("REQUESTED"))
+    {
+        return "RETURN_REQUESTED";
+    }
+    if returns
+        .iter()
+        .any(|return_value| return_value["status"].as_str() == Some("OPEN"))
+    {
+        return "IN_PROGRESS";
+    }
+    if returns
+        .iter()
+        .any(|return_value| return_value["status"].as_str() == Some("CLOSED"))
+    {
+        return "RETURNED";
+    }
+    "NO_RETURN"
+}
+
+fn selected_order_type_condition_applies(field: &SelectedField) -> bool {
+    matches!(
+        field.type_condition.as_deref(),
+        None | Some("Order" | "Node")
+    )
+}
+
+fn selected_return_type_condition_applies(field: &SelectedField) -> bool {
+    matches!(
+        field.type_condition.as_deref(),
+        None | Some("Return" | "Node")
+    )
+}
+
+fn selection_contains_order_return_fields(selection: &[SelectedField]) -> bool {
+    selection_contains_any(selection, &["returnStatus", "returns"])
 }
 
 const RETURN_NOT_FOUND_MESSAGE: &str = "Return not found.";
@@ -599,16 +617,146 @@ fn return_status_transition_error(
 }
 
 impl DraftProxy {
+    pub(in crate::proxy) fn effective_order_returns(
+        &self,
+        order_id: &str,
+        order: Option<&Value>,
+    ) -> Vec<Value> {
+        let mut returns = Vec::new();
+        let mut positions = BTreeMap::new();
+
+        if let Some(order) = order {
+            for return_value in order_returns_array(order) {
+                let id = return_value
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .map(str::to_string);
+                if let Some(id) = id {
+                    positions.insert(id, returns.len());
+                }
+                returns.push(return_value);
+            }
+        }
+
+        if let Some(ids) = self.store.staged.returns_by_order.get(order_id) {
+            for id in ids {
+                let Some(return_value) = self.store.staged.returns.get(id).cloned() else {
+                    continue;
+                };
+                if let Some(position) = positions.get(id).copied() {
+                    returns[position] = return_value;
+                } else {
+                    positions.insert(id.clone(), returns.len());
+                    returns.push(return_value);
+                }
+            }
+        }
+
+        returns
+    }
+
+    pub(in crate::proxy) fn selected_order_with_return_status(
+        &self,
+        order: &Value,
+        selection: &[SelectedField],
+    ) -> Value {
+        if order.is_null() {
+            return Value::Null;
+        }
+
+        let order_id = order.get("id").and_then(Value::as_str).unwrap_or_default();
+        let returns = self.effective_order_returns(order_id, Some(order));
+        let mut base = order.clone();
+        if base.get("__typename").is_none() {
+            base["__typename"] = json!("Order");
+        }
+
+        selected_payload_json(selection, |field| {
+            if !selected_order_type_condition_applies(field) {
+                return None;
+            }
+            match field.name.as_str() {
+                "returnStatus" => Some(json!(order_return_status(&returns))),
+                "returns" => Some(self.selected_return_connection(
+                    returns.clone(),
+                    &field.arguments,
+                    &field.selection,
+                )),
+                _ => selected_field_json(&base, field),
+            }
+        })
+    }
+
+    fn selected_return_value(&self, return_value: &Value, selection: &[SelectedField]) -> Value {
+        if return_value.is_null() {
+            return Value::Null;
+        }
+
+        let mut base = return_value.clone();
+        if base.get("__typename").is_none() {
+            base["__typename"] = json!("Return");
+        }
+
+        selected_payload_json(selection, |field| {
+            if !selected_return_type_condition_applies(field) {
+                return None;
+            }
+            match field.name.as_str() {
+                "order" => {
+                    let Some(order_id) = return_value["order"]["id"].as_str() else {
+                        return selected_field_json(&base, field);
+                    };
+                    let mut order = self
+                        .staged_order_record_for_id(order_id)
+                        .unwrap_or_else(|| return_value["order"].clone());
+                    if order.get("id").is_none() {
+                        order["id"] = json!(order_id);
+                    }
+                    Some(self.selected_order_with_return_status(&order, &field.selection))
+                }
+                _ => selected_field_json(&base, field),
+            }
+        })
+    }
+
+    fn selected_return_connection(
+        &self,
+        returns: Vec<Value>,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        selection: &[SelectedField],
+    ) -> Value {
+        let result = staged_connection_query(
+            returns,
+            arguments,
+            return_search_decision,
+            return_sort_key,
+            value_id_cursor,
+        );
+        selected_typed_connection_with_page_info(
+            &result.records,
+            selection,
+            |return_value, node_selection| self.selected_return_value(return_value, node_selection),
+            value_id_cursor,
+            result.page_info,
+        )
+    }
+
     fn return_payload(
         &self,
         return_value: Value,
         user_errors: Vec<Value>,
         selection: &[SelectedField],
     ) -> Value {
-        selected_json(
-            &json!({ "return": return_value, "userErrors": user_errors }),
-            selection,
-        )
+        let payload = json!({ "return": return_value, "userErrors": user_errors });
+        selected_payload_json(selection, |field| match field.name.as_str() {
+            "return" => Some(
+                payload
+                    .get("return")
+                    .map(|value| self.selected_return_value(value, &field.selection))
+                    .unwrap_or(Value::Null),
+            ),
+            _ => selected_field_json(&payload, field),
+        })
     }
 
     pub(in crate::proxy) fn order_return_local_runtime_data(
@@ -825,7 +973,7 @@ impl DraftProxy {
                         .staged
                         .returns
                         .get(&id)
-                        .map(|record| selected_json(record, &field.selection))
+                        .map(|record| self.selected_return_value(record, &field.selection))
                         .unwrap_or(Value::Null)
                 }
                 "order" => {
@@ -834,6 +982,30 @@ impl DraftProxy {
                         return None;
                     };
                     self.selected_return_order(&id, &field.selection)
+                }
+                "orders" => self.staged_orders_connection(field),
+                "node" => {
+                    let Some(id) = resolved_string_field(&field.arguments, "id") else {
+                        missing_required = true;
+                        return None;
+                    };
+                    match shopify_gid_resource_type(&id) {
+                        Some("Order") if self.store.staged.orders.is_tombstoned(&id) => Value::Null,
+                        Some("Order") => self
+                            .staged_order_record_for_id(&id)
+                            .map(|order| {
+                                self.selected_order_with_return_status(&order, &field.selection)
+                            })
+                            .unwrap_or(Value::Null),
+                        Some("Return") => self
+                            .store
+                            .staged
+                            .returns
+                            .get(&id)
+                            .map(|record| self.selected_return_value(record, &field.selection))
+                            .unwrap_or(Value::Null),
+                        _ => Value::Null,
+                    }
                 }
                 "reverseDelivery" => {
                     let Some(id) = resolved_string_field(&field.arguments, "id") else {
@@ -873,8 +1045,24 @@ impl DraftProxy {
         fields.iter().any(|field| match field.name.as_str() {
             "return" => resolved_string_field(&field.arguments, "id")
                 .is_some_and(|id| self.store.staged.returns.contains_key(&id)),
-            "order" => resolved_string_field(&field.arguments, "id")
-                .is_some_and(|id| self.store.staged.returns_by_order.contains_key(&id)),
+            "order" => resolved_string_field(&field.arguments, "id").is_some_and(|id| {
+                selection_contains_order_return_fields(&field.selection)
+                    && (self.store.staged.returns_by_order.contains_key(&id)
+                        || self.store.staged.orders.contains_key(&id)
+                        || self.store.staged.orders.is_tombstoned(&id))
+            }),
+            "orders" => {
+                selection_contains_order_return_fields(&field.selection)
+                    && (!self.store.staged.orders.is_empty()
+                        || !self.store.staged.orders.tombstones.is_empty())
+            }
+            "node" => resolved_string_field(&field.arguments, "id").is_some_and(|id| {
+                self.store.staged.returns.contains_key(&id)
+                    || (shopify_gid_resource_type(&id) == Some("Order")
+                        && selection_contains_order_return_fields(&field.selection)
+                        && (self.store.staged.orders.contains_key(&id)
+                            || self.store.staged.orders.is_tombstoned(&id)))
+            }),
             "reverseDelivery" => resolved_string_field(&field.arguments, "id")
                 .is_some_and(|id| self.store.staged.reverse_deliveries.contains_key(&id)),
             "reverseFulfillmentOrder" => {
@@ -1092,17 +1280,11 @@ impl DraftProxy {
     }
 
     fn selected_return_order(&self, order_id: &str, selection: &[SelectedField]) -> Value {
-        let returns = self
-            .store
-            .staged
-            .returns_by_order
-            .get(order_id)
-            .cloned()
-            .unwrap_or_default()
-            .into_iter()
-            .filter_map(|id| self.store.staged.returns.get(&id).cloned())
-            .collect::<Vec<_>>();
         let order = self.staged_order_record_for_id(order_id);
+        if let Some(order) = order.as_ref() {
+            return self.selected_order_with_return_status(order, selection);
+        }
+        let returns = self.effective_order_returns(order_id, order.as_ref());
         let name = order
             .as_ref()
             .and_then(|order| order["name"].as_str())
@@ -1123,14 +1305,7 @@ impl DraftProxy {
             "name": name,
             "updatedAt": updated_at
         });
-        selected_payload_json(selection, |field| match field.name.as_str() {
-            "returns" => Some(selected_return_connection(
-                returns.clone(),
-                &field.arguments,
-                &field.selection,
-            )),
-            _ => selected_field_json(&order, field),
-        })
+        self.selected_order_with_return_status(&order, selection)
     }
 
     /// `returnApproveRequest`: a REQUESTED return transitions to OPEN and
@@ -1267,8 +1442,8 @@ impl DraftProxy {
                 &field.selection,
             );
         };
-        let status = record["status"].as_str().unwrap_or_default();
-        if !matches!(status, "OPEN" | "REQUESTED") {
+        let status = record["status"].as_str().unwrap_or_default().to_string();
+        if !matches!(status.as_str(), "OPEN" | "REQUESTED") {
             return selected_json(
                 &json!({ "return": Value::Null, "userErrors": [user_error(["returnId"], "Return status is invalid.", Some("INVALID_STATE"))] }),
                 &field.selection,
@@ -1333,6 +1508,10 @@ impl DraftProxy {
             .sum();
         record["returnLineItems"] = json!({ "nodes": nodes.clone() });
         record["totalQuantity"] = json!(total_quantity);
+        if total_quantity == 0 && status == "OPEN" {
+            record["status"] = json!("CLOSED");
+            record["closedAt"] = json!(self.next_mutation_timestamp());
+        }
         self.sync_reverse_fulfillment_line_items(&mut record);
         self.store.staged.returns.insert(return_id, record.clone());
         self.return_payload(record, Vec::new(), &field.selection)
@@ -1747,13 +1926,10 @@ impl DraftProxy {
                 }
             }
         }
-        let mut stored_record = record.clone();
-        stored_record["status"] = json!("CLOSED");
-        stored_record["closedAt"] = json!(self.next_mutation_timestamp());
         self.store
             .staged
             .returns
-            .insert(id.to_string(), stored_record.clone());
+            .insert(id.to_string(), record.clone());
         self.return_payload(record, Vec::new(), &field.selection)
     }
 }

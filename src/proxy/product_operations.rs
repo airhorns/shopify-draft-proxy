@@ -18,10 +18,7 @@ impl DraftProxy {
             Some(input) => input,
             None => return MutationOutcome::response(json_error(400, "productSet requires input")),
         };
-        let identifier = match arguments.get("identifier") {
-            Some(ResolvedValue::Object(identifier)) => Some(identifier.clone()),
-            _ => None,
-        };
+        let identifier = resolved_object_field(&arguments, "identifier");
 
         if identifier.is_some() && input.contains_key("id") {
             return MutationOutcome::response(self.product_set_user_error_response(
@@ -89,9 +86,22 @@ impl DraftProxy {
                     .as_ref()
                     .and_then(|identifier| resolved_string_field(identifier, "id"))
             });
-        let existing = existing_id
+        let mut existing = existing_id
             .as_deref()
             .and_then(|id| self.store.product_staged_or_base(id));
+        let live_hybrid = self.config.read_mode == ReadMode::LiveHybrid;
+        let hydrate_existing_id = if live_hybrid && existing.is_none() {
+            existing_id
+                .as_ref()
+                .filter(|id| !self.store.product_is_tombstoned(id))
+                .cloned()
+        } else {
+            None
+        };
+        if let Some(id) = hydrate_existing_id.as_deref() {
+            self.hydrate_product_set_target_by_id_with_request(request, id);
+            existing = self.store.product_staged_or_base(id);
+        }
         if existing_id.is_some() && existing.is_none() {
             return MutationOutcome::response(self.product_set_user_error_response(
                 &response_key,
@@ -106,10 +116,21 @@ impl DraftProxy {
             ));
         }
 
-        let by_handle = identifier.as_ref().and_then(|identifier| {
-            resolved_string_field(identifier, "handle")
-                .and_then(|handle| self.store.product_by_handle(&handle).cloned())
-        });
+        let identifier_handle = identifier
+            .as_ref()
+            .and_then(|identifier| resolved_string_field(identifier, "handle"));
+        let mut by_handle = identifier_handle
+            .as_deref()
+            .and_then(|handle| self.store.product_by_handle(handle).cloned());
+        let hydrate_identifier_handle = if live_hybrid && by_handle.is_none() {
+            identifier_handle.clone()
+        } else {
+            None
+        };
+        if let Some(handle) = hydrate_identifier_handle.as_deref() {
+            self.hydrate_product_set_target_by_handle_with_request(request, handle);
+            by_handle = self.store.product_by_handle(handle).cloned();
+        }
         let base = existing.or(by_handle);
         let product_id = base
             .as_ref()
