@@ -228,6 +228,84 @@ fn upstream_gift_card_fixture(id: &str, currency: &str) -> Value {
     })
 }
 
+fn gift_card_hydrate_query_from_body(body: &str) -> String {
+    let request_body: Value =
+        serde_json::from_str(body).expect("gift-card hydrate request body should parse");
+    request_body["query"]
+        .as_str()
+        .expect("gift-card hydrate should include query")
+        .to_string()
+}
+
+fn assert_gift_card_hydrate_omits_transactions(query: &str, context: &str) {
+    assert!(
+        !query.contains("transactions("),
+        "{context} should not hydrate gift-card transactions, got: {query}"
+    );
+    assert!(
+        !query.contains("first: 250"),
+        "{context} should not fetch a 250-item transaction window, got: {query}"
+    );
+}
+
+fn assert_gift_card_hydrate_includes_transactions(query: &str, context: &str) {
+    assert!(
+        query.contains("transactions(first: 250)"),
+        "{context} should hydrate gift-card transactions, got: {query}"
+    );
+    assert!(
+        query.contains("pageInfo"),
+        "{context} should hydrate transaction pageInfo with transaction nodes, got: {query}"
+    );
+}
+
+fn live_hybrid_gift_card_hydrate_query_for_request(query: &str, variables: Value) -> String {
+    let upstream_id = variables["id"]
+        .as_str()
+        .expect("test variables should include id")
+        .to_string();
+    let captured_bodies = Arc::new(Mutex::new(Vec::new()));
+    let captured_for_proxy = Arc::clone(&captured_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            captured_for_proxy
+                .lock()
+                .unwrap()
+                .push(request.body.clone());
+            let hydrate_query = gift_card_hydrate_query_from_body(&request.body);
+            let mut gift_card = upstream_gift_card_fixture(&upstream_id, "USD");
+            if !hydrate_query.contains("transactions(") {
+                gift_card
+                    .as_object_mut()
+                    .expect("fixture should be an object")
+                    .remove("transactions");
+            }
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "giftCard": gift_card,
+                        "giftCardConfiguration": {
+                            "issueLimit": { "amount": "3000.0", "currencyCode": "USD" },
+                            "purchaseLimit": { "amount": "14000.0", "currencyCode": "USD" }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(query, variables));
+    assert_eq!(response.status, 200);
+    let captured_bodies = captured_bodies.lock().unwrap();
+    assert_eq!(
+        captured_bodies.len(),
+        1,
+        "request should issue exactly one gift-card hydrate"
+    );
+    gift_card_hydrate_query_from_body(&captured_bodies[0])
+}
+
 fn legacy_gift_card_fixture(id: &str) -> Value {
     let mut card = upstream_gift_card_fixture(id, "CAD");
     card["lastCharacters"] = json!("2053");
@@ -9407,6 +9485,209 @@ fn gift_cards_count_honors_limit_precision_after_query_filtering() {
     assert_eq!(
         response.body["data"]["selectedCountOnly"],
         json!({ "count": 2 })
+    );
+}
+
+#[test]
+fn ordinary_gift_card_live_hybrid_mutation_hydrates_omit_transactions_by_default() {
+    let cases = [
+        (
+            "update",
+            r#"mutation GiftCardPlainUpdateHydrateShape($id: ID!) {
+              giftCardUpdate(id: $id, input: { note: "plain update" }) {
+                giftCard { id note customer { id } }
+                userErrors { field message }
+              }
+            }"#,
+        ),
+        (
+            "deactivate",
+            r#"mutation GiftCardPlainDeactivateHydrateShape($id: ID!) {
+              giftCardDeactivate(id: $id) {
+                giftCard { id enabled }
+                userErrors { field message }
+              }
+            }"#,
+        ),
+        (
+            "customer notification",
+            r#"mutation GiftCardPlainCustomerNotificationHydrateShape($id: ID!) {
+              giftCardSendNotificationToCustomer(id: $id) {
+                giftCard { id customer { id } }
+                userErrors { field code message }
+              }
+            }"#,
+        ),
+    ];
+
+    for (context, query) in cases {
+        let hydrate_query = live_hybrid_gift_card_hydrate_query_for_request(
+            query,
+            json!({ "id": format!("gid://shopify/GiftCard/plain-{context}") }),
+        );
+        assert_gift_card_hydrate_omits_transactions(&hydrate_query, context);
+    }
+}
+
+#[test]
+fn gift_card_live_hybrid_mutation_hydrates_transactions_when_payload_selects_them() {
+    let hydrate_query = live_hybrid_gift_card_hydrate_query_for_request(
+        r#"mutation GiftCardUpdateTransactionOutputHydrateShape($id: ID!) {
+          giftCardUpdate(id: $id, input: { note: "transaction output" }) {
+            giftCard {
+              id
+              transactions(first: 2) {
+                nodes { id note }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+            userErrors { field message }
+          }
+        }"#,
+        json!({ "id": "gid://shopify/GiftCard/transaction-output" }),
+    );
+
+    assert_gift_card_hydrate_includes_transactions(
+        &hydrate_query,
+        "transaction-selected mutation output",
+    );
+}
+
+#[test]
+fn gift_card_transaction_mutations_hydrate_transactions_for_history_state() {
+    let hydrate_query = live_hybrid_gift_card_hydrate_query_for_request(
+        r#"mutation GiftCardCreditHydrateShape($id: ID!) {
+          giftCardCredit(id: $id, creditInput: { creditAmount: { amount: "2.00", currencyCode: USD } }) {
+            giftCardCreditTransaction { id amount { amount currencyCode } }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({ "id": "gid://shopify/GiftCard/credit-history" }),
+    );
+
+    assert_gift_card_hydrate_includes_transactions(&hydrate_query, "gift-card credit");
+}
+
+#[test]
+fn gift_card_transaction_read_after_narrow_mutation_hydrate_uses_upstream_window() {
+    let upstream_id = "gid://shopify/GiftCard/read-after-narrow";
+    let captured_queries = Arc::new(Mutex::new(Vec::new()));
+    let captured_for_proxy = Arc::clone(&captured_queries);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let request_body: Value =
+                serde_json::from_str(&request.body).expect("upstream body should parse");
+            let query = request_body["query"]
+                .as_str()
+                .expect("upstream request should include query")
+                .to_string();
+            captured_for_proxy.lock().unwrap().push(query.clone());
+
+            if query.contains("query GiftCardHydrate") {
+                let mut gift_card = upstream_gift_card_fixture(upstream_id, "USD");
+                gift_card
+                    .as_object_mut()
+                    .expect("fixture should be an object")
+                    .remove("transactions");
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "giftCard": gift_card,
+                            "giftCardConfiguration": {
+                                "issueLimit": { "amount": "3000.0", "currencyCode": "USD" },
+                                "purchaseLimit": { "amount": "14000.0", "currencyCode": "USD" }
+                            }
+                        }
+                    }),
+                };
+            }
+
+            assert!(
+                query.contains("transactions(first: 1)"),
+                "transaction read should forward the selected window upstream, got: {query}"
+            );
+            let mut gift_card = upstream_gift_card_fixture(upstream_id, "USD");
+            gift_card["transactions"] = json!({
+                "nodes": [{
+                    "__typename": "GiftCardCreditTransaction",
+                    "id": "gid://shopify/GiftCardCreditTransaction/upstream-1",
+                    "note": "upstream credit",
+                    "processedAt": "2026-06-03T12:00:00Z",
+                    "amount": { "amount": "2.0", "currencyCode": "USD" }
+                }],
+                "pageInfo": {
+                    "hasNextPage": true,
+                    "hasPreviousPage": false,
+                    "startCursor": "cursor-1",
+                    "endCursor": "cursor-1"
+                }
+            });
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "card": gift_card } }),
+            }
+        });
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardNarrowUpdateBeforeTransactionRead($id: ID!) {
+          giftCardUpdate(id: $id, input: { note: "local narrow update" }) {
+            giftCard { id note }
+            userErrors { field message }
+          }
+        }"#,
+        json!({ "id": upstream_id }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["giftCardUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"query GiftCardTransactionReadAfterNarrowHydrate($id: ID!) {
+          card: giftCard(id: $id) {
+            id
+            note
+            transactions(first: 1) {
+              nodes { id note amount { amount currencyCode } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }"#,
+        json!({ "id": upstream_id }),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["card"],
+        json!({
+            "id": upstream_id,
+            "note": "local narrow update",
+            "transactions": {
+                "nodes": [{
+                    "id": "gid://shopify/GiftCardCreditTransaction/upstream-1",
+                    "note": "upstream credit",
+                    "amount": { "amount": "2.0", "currencyCode": "USD" }
+                }],
+                "pageInfo": {
+                    "hasNextPage": true,
+                    "hasPreviousPage": false,
+                    "startCursor": "cursor-1",
+                    "endCursor": "cursor-1"
+                }
+            }
+        })
+    );
+    let captured_queries = captured_queries.lock().unwrap();
+    assert_eq!(captured_queries.len(), 2);
+    assert_gift_card_hydrate_omits_transactions(&captured_queries[0], "initial update");
+    assert!(
+        captured_queries[1].contains("transactions(first: 1)"),
+        "transaction read should preserve caller-selected window, got: {}",
+        captured_queries[1]
     );
 }
 

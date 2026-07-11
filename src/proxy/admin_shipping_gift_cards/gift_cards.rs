@@ -2,6 +2,8 @@ use crate::proxy::*;
 use std::cmp::Ordering;
 
 const GIFT_CARD_SEND_NOTIFICATION_WINDOW_DAYS: i64 = 90;
+const GIFT_CARD_NARROW_HYDRATE_OPERATION_NAME: &str = "GiftCardHydrate";
+const GIFT_CARD_TRANSACTION_HYDRATE_OPERATION_NAME: &str = "GiftCardTransactionHydrate";
 const GIFT_CARD_HYDRATE_QUERY_PREFIX: &str = r#"#graphql
     query GiftCardHydrate($id: ID!) {
       giftCard(id: $id) {
@@ -34,7 +36,8 @@ const GIFT_CARD_HYDRATE_QUERY_PREFIX: &str = r#"#graphql
             defaultPhoneNumber { phoneNumber }
           }
         }
-        transactions(first: 250) {
+"#;
+const GIFT_CARD_HYDRATE_TRANSACTIONS: &str = r#"        transactions(first: 250) {
           nodes {
             __typename
             id
@@ -42,16 +45,55 @@ const GIFT_CARD_HYDRATE_QUERY_PREFIX: &str = r#"#graphql
             processedAt
             amount { amount currencyCode }
           }
-"#;
-const GIFT_CARD_HYDRATE_TRANSACTIONS_PAGE_INFO: &str = r#"          pageInfo {
+          pageInfo {
             hasNextPage
             hasPreviousPage
             startCursor
             endCursor
           }
+        }
 "#;
-const GIFT_CARD_HYDRATE_QUERY_SUFFIX: &str = r#"        }
+const GIFT_CARD_HYDRATE_QUERY_SUFFIX: &str = r#"      }
+      giftCardConfiguration {
+        issueLimit { amount currencyCode }
+        purchaseLimit { amount currencyCode }
       }
+    }
+  "#;
+const GIFT_CARD_TRANSACTION_HYDRATE_QUERY_PREFIX: &str = r#"#graphql
+    query GiftCardTransactionHydrate($id: ID!) {
+      giftCard(id: $id) {
+        id
+        lastCharacters
+        maskedCode
+        enabled
+        deactivatedAt
+        expiresOn
+        note
+        templateSuffix
+        createdAt
+        updatedAt
+        initialValue { amount currencyCode }
+        balance { amount currencyCode }
+        customer {
+          id
+          email
+          defaultEmailAddress { emailAddress }
+          defaultPhoneNumber { phoneNumber }
+        }
+        recipientAttributes {
+          message
+          preferredName
+          sendNotificationAt
+          recipient {
+            id
+            email
+            defaultEmailAddress { emailAddress }
+            defaultPhoneNumber { phoneNumber }
+          }
+        }
+"#;
+const GIFT_CARD_TRANSACTION_HYDRATE_QUERY_SUFFIX: &str = r#"      }
       giftCardConfiguration {
         issueLimit { amount currencyCode }
         purchaseLimit { amount currencyCode }
@@ -67,13 +109,22 @@ const GIFT_CARD_CREATE_CONFIGURATION_QUERY: &str = r#"#graphql
   }
 "#;
 
-fn gift_card_hydrate_query(include_transactions_page_info: bool) -> String {
-    let mut query = String::from(GIFT_CARD_HYDRATE_QUERY_PREFIX);
-    if include_transactions_page_info {
-        query.push_str(GIFT_CARD_HYDRATE_TRANSACTIONS_PAGE_INFO);
+fn gift_card_hydrate_query(include_transactions: bool) -> String {
+    if include_transactions {
+        let mut query = String::from(GIFT_CARD_TRANSACTION_HYDRATE_QUERY_PREFIX);
+        query.push_str(GIFT_CARD_HYDRATE_TRANSACTIONS);
+        query.push_str(GIFT_CARD_TRANSACTION_HYDRATE_QUERY_SUFFIX);
+        return query;
     }
-    query.push_str(GIFT_CARD_HYDRATE_QUERY_SUFFIX);
-    query
+    String::from(GIFT_CARD_HYDRATE_QUERY_PREFIX) + GIFT_CARD_HYDRATE_QUERY_SUFFIX
+}
+
+fn gift_card_hydrate_operation_name(include_transactions: bool) -> &'static str {
+    if include_transactions {
+        GIFT_CARD_TRANSACTION_HYDRATE_OPERATION_NAME
+    } else {
+        GIFT_CARD_NARROW_HYDRATE_OPERATION_NAME
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -183,7 +234,14 @@ impl DraftProxy {
         fields.iter().any(|field| match field.name.as_str() {
             "giftCard" => {
                 let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                !id.is_empty() && !self.store.staged.gift_cards.contains_key(&id)
+                let needs_transaction_window =
+                    gift_card_selection_needs_transactions(&field.selection)
+                        && self
+                            .gift_card_effective_record(&id)
+                            .as_ref()
+                            .is_none_or(|card| !gift_card_record_has_transactions(card));
+                !id.is_empty()
+                    && (!self.store.staged.gift_cards.contains_key(&id) || needs_transaction_window)
             }
             "giftCards" | "giftCardsCount" => true,
             "giftCardConfiguration" => self.store.base.gift_card_configuration.is_none(),
@@ -395,7 +453,13 @@ impl DraftProxy {
                 "giftCard" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     if let Some(card) = self.store.staged.gift_cards.get(&id) {
-                        data[&field.response_key] = selected_json(card, &field.selection);
+                        let mut projected = selected_json(card, &field.selection);
+                        preserve_upstream_selected_gift_card_transactions(
+                            &mut projected,
+                            &data[&field.response_key],
+                            &field.selection,
+                        );
+                        data[&field.response_key] = projected;
                     }
                 }
                 "giftCards" => {
@@ -675,7 +739,11 @@ impl DraftProxy {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let mut user_errors = self.gift_card_plan_errors_for_field(field);
-        let existing = self.gift_card_effective_record_for_mutation(request, &id);
+        let existing = self.gift_card_effective_record_for_mutation(
+            request,
+            &id,
+            gift_card_payload_selection_needs_transactions(&field.selection),
+        );
         if user_errors.is_empty() && existing.is_none() {
             user_errors.push(gift_card_not_found_error(&field.name));
         }
@@ -798,7 +866,7 @@ impl DraftProxy {
             .unwrap_or_else(|| "0".to_string());
         let requested_amount_number = requested_amount.parse::<f64>().unwrap_or(0.0);
         let mut user_errors = self.gift_card_plan_errors_for_field(field);
-        let mut card = self.gift_card_effective_record_for_mutation(request, &id);
+        let mut card = self.gift_card_effective_record_for_mutation(request, &id, true);
 
         if user_errors.is_empty() && requested_amount_number <= 0.0 {
             user_errors.push(gift_card_user_error(
@@ -949,7 +1017,11 @@ impl DraftProxy {
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let mut user_errors = self.gift_card_plan_errors_for_field(field);
-        let mut card = self.gift_card_effective_record_for_mutation(request, &id);
+        let mut card = self.gift_card_effective_record_for_mutation(
+            request,
+            &id,
+            gift_card_payload_selection_needs_transactions(&field.selection),
+        );
         if user_errors.is_empty() && card.is_none() {
             user_errors.push(gift_card_not_found_error(&field.name));
         }
@@ -1000,9 +1072,9 @@ impl DraftProxy {
             ));
         }
         if user_errors.is_empty() && !id.is_empty() {
-            card = self
-                .gift_card_effective_record(&id)
-                .or_else(|| self.hydrate_gift_card_for_notification(request, &id));
+            let include_transactions =
+                gift_card_payload_selection_needs_transactions(&field.selection);
+            card = self.gift_card_effective_record_for_mutation(request, &id, include_transactions);
         }
         if user_errors.is_empty() && card.is_none() {
             user_errors.push(gift_card_not_found_error(&field.name));
@@ -1080,29 +1152,30 @@ impl DraftProxy {
         }
     }
 
-    fn hydrate_gift_card_for_mutation(&mut self, request: &Request, id: &str) -> Option<Value> {
-        self.hydrate_gift_card(request, id, false)
-    }
-
-    fn hydrate_gift_card_for_notification(&mut self, request: &Request, id: &str) -> Option<Value> {
-        self.hydrate_gift_card(request, id, true)
+    fn hydrate_gift_card_for_mutation(
+        &mut self,
+        request: &Request,
+        id: &str,
+        include_transactions: bool,
+    ) -> Option<Value> {
+        self.hydrate_gift_card(request, id, include_transactions)
     }
 
     fn hydrate_gift_card(
         &mut self,
         request: &Request,
         id: &str,
-        include_transactions_page_info: bool,
+        include_transactions: bool,
     ) -> Option<Value> {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return None;
         }
-        let query = gift_card_hydrate_query(include_transactions_page_info);
+        let query = gift_card_hydrate_query(include_transactions);
         let response = self.upstream_post(
             request,
             json!({
                 "query": query,
-                "operationName": "GiftCardHydrate",
+                "operationName": gift_card_hydrate_operation_name(include_transactions),
                 "variables": { "id": id },
             }),
         );
@@ -1154,9 +1227,22 @@ impl DraftProxy {
         &mut self,
         request: &Request,
         id: &str,
+        include_transactions: bool,
     ) -> Option<Value> {
-        self.gift_card_effective_record(id)
-            .or_else(|| self.hydrate_gift_card_for_mutation(request, id))
+        let effective = self.gift_card_effective_record(id);
+        if include_transactions
+            && effective
+                .as_ref()
+                .is_some_and(|card| !gift_card_record_has_transactions(card))
+        {
+            if let Some(hydrated) = self.hydrate_gift_card_for_mutation(request, id, true) {
+                return Some(gift_card_merge_transactions_if_missing(
+                    effective.unwrap_or_else(|| hydrated.clone()),
+                    &hydrated,
+                ));
+            }
+        }
+        effective.or_else(|| self.hydrate_gift_card_for_mutation(request, id, include_transactions))
     }
 
     fn gift_card_notification_is_trial_shop(&self, _id: &str) -> bool {
@@ -1459,6 +1545,56 @@ fn gift_card_update_editable_key(key: &str) -> bool {
             | "recipientId"
             | "recipientAttributes"
     )
+}
+
+fn gift_card_selection_needs_transactions(selection: &[SelectedField]) -> bool {
+    selection_contains_any(selection, &["transactions"])
+}
+
+fn gift_card_payload_selection_needs_transactions(selection: &[SelectedField]) -> bool {
+    selection.iter().any(|field| {
+        field.name == "giftCard" && gift_card_selection_needs_transactions(&field.selection)
+    })
+}
+
+fn gift_card_record_has_transactions(card: &Value) -> bool {
+    card.get("transactions").is_some_and(Value::is_object)
+}
+
+fn gift_card_merge_transactions_if_missing(mut card: Value, hydrated: &Value) -> Value {
+    if !gift_card_record_has_transactions(&card)
+        && hydrated.get("transactions").is_some_and(Value::is_object)
+    {
+        card["transactions"] = hydrated["transactions"].clone();
+    }
+    card
+}
+
+fn preserve_upstream_selected_gift_card_transactions(
+    projected: &mut Value,
+    upstream: &Value,
+    selection: &[SelectedField],
+) {
+    let Some(projected) = projected.as_object_mut() else {
+        return;
+    };
+    let Some(upstream) = upstream.as_object() else {
+        return;
+    };
+    for field in selection
+        .iter()
+        .filter(|field| field.name == "transactions")
+    {
+        if projected.contains_key(&field.response_key) {
+            continue;
+        }
+        if let Some(value) = upstream.get(&field.response_key) {
+            projected.insert(
+                field.response_key.clone(),
+                selected_json(value, &field.selection),
+            );
+        }
+    }
 }
 
 fn gift_card_deactivated_update_error(
