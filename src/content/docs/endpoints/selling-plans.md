@@ -136,6 +136,12 @@ shapes: `sellingPlanGroup(id:)` is `null` and `sellingPlanGroups(...)` is an
 empty connection. In LiveHybrid, registered selling-plan mutation roots do not
 forward the caller mutation document upstream during normal runtime; read-only
 hydration/preflight queries are the upstream boundary before local staging.
+Executable coverage for the cold existing-resource path lives in
+`config/parity-specs/selling-plans/sellingPlanGroup-live-hybrid-existing-resource.json`:
+the proxy starts without local selling-plan state, replays the captured
+`sellingPlanGroupHydrateNodes` read-only cassette, then compares cold
+`sellingPlanGroup(id:)`, `sellingPlanGroupUpdate`, and downstream
+Product/ProductVariant readback against Shopify responses.
 
 ### Boundaries
 

@@ -726,6 +726,71 @@ fn live_hybrid_selling_plan_group_read_hydrates_upstream_groups() {
         json!({ "count": 1, "precision": "EXACT" })
     );
 
+    let product_only_group_id = "gid://shopify/SellingPlanGroup/7104";
+    let mut product_only_group = live_selling_plan_group_node(
+        product_only_group_id,
+        "Product-only live subscriptions",
+        &[product_id],
+        &[],
+    );
+    product_only_group["products"]["nodes"][0]["variants"] = json!({
+        "nodes": [{
+            "__typename": "ProductVariant",
+            "id": variant_id,
+            "title": "Default Title",
+            "sku": "",
+            "price": "10.00",
+            "compareAtPrice": null,
+            "selectedOptions": [{ "name": "Title", "value": "Default Title" }],
+            "inventoryItem": { "id": "gid://shopify/InventoryItem/7301" }
+        }]
+    });
+    let mut product_only_proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_upstream_transport({
+            let product_only_group = product_only_group.clone();
+            move |_| Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "nodes": [product_only_group] } }),
+            }
+        });
+    let product_only_read = product_only_proxy.process_request(json_graphql_request(
+        r#"
+        query LiveProductOnlySellingPlanGroup($id: ID!) {
+          sellingPlanGroup(id: $id) { id name }
+        }
+        "#,
+        json!({ "id": product_only_group_id }),
+    ));
+    assert_eq!(product_only_read.status, 200);
+    let variant_after_product_observation =
+        product_only_proxy.process_request(json_graphql_request(
+            r#"
+            query VariantAfterProductOnlyGroupObservation($variantId: ID!) {
+              productVariant(id: $variantId) {
+                id
+                sellingPlanGroupsCount { count precision }
+                sellingPlanGroups(first: 5) { nodes { id } }
+              }
+            }
+            "#,
+            json!({ "variantId": variant_id }),
+        ));
+    assert_eq!(variant_after_product_observation.status, 200);
+    assert_eq!(
+        variant_after_product_observation.body["data"]["productVariant"]["id"],
+        json!(variant_id)
+    );
+    assert_eq!(
+        variant_after_product_observation.body["data"]["productVariant"]["sellingPlanGroupsCount"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+    assert_eq!(
+        variant_after_product_observation.body["data"]["productVariant"]["sellingPlanGroups"]
+            ["nodes"],
+        json!([{ "id": product_only_group_id }])
+    );
+
     let connection_requests = Arc::new(Mutex::new(Vec::<String>::new()));
     let captured_connection_requests = Arc::clone(&connection_requests);
     let mut connection_proxy = configured_proxy(ReadMode::LiveHybrid, None)

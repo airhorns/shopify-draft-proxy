@@ -264,6 +264,26 @@ impl DraftProxy {
         }
 
         for product in observed_connection_nodes(value.get("products")) {
+            if let Some(product_id) = product.get("id").and_then(Value::as_str) {
+                for variant in product
+                    .get("variants")
+                    .and_then(|connection| connection.get("nodes"))
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                {
+                    let mut variant_value = variant.clone();
+                    if let Some(object) = variant_value.as_object_mut() {
+                        object.insert("productId".to_string(), json!(product_id));
+                    }
+                    if let Some(mut variant) =
+                        product_variant_state_from_observed_json(&variant_value)
+                    {
+                        variant.product_id = product_id.to_string();
+                        self.store.stage_product_variant(variant);
+                    }
+                }
+            }
             self.store.stage_observed_product_json(&product);
         }
         for variant in observed_connection_nodes(value.get("productVariants")) {

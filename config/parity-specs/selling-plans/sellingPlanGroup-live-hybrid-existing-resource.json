@@ -1,0 +1,48 @@
+{
+  "scenarioId": "sellingPlanGroup-live-hybrid-existing-resource",
+  "operationNames": ["sellingPlanGroup", "sellingPlanGroupUpdate", "product", "productVariant"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["cold-live-hydration", "mutation-lifecycle", "read-after-write"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/selling-plans/selling-plan-group-live-hybrid-existing-resource.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/selling_plans.rs"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "cold-existing-group-read-hydrates",
+        "capturePath": "$.scenarios.coldGroupRead.response.data.sellingPlanGroup",
+        "proxyPath": "$.data.sellingPlanGroup",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/selling-plan-group-read.graphql",
+          "variablesCapturePath": "$.scenarios.coldGroupRead.variables"
+        }
+      },
+      {
+        "name": "cold-existing-group-update-stages-locally",
+        "capturePath": "$.scenarios.updateExistingGroup.response.data.sellingPlanGroupUpdate",
+        "proxyPath": "$.data.sellingPlanGroupUpdate",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/selling-plan-group-update.graphql",
+          "variablesCapturePath": "$.scenarios.updateExistingGroup.variables"
+        }
+      },
+      {
+        "name": "downstream-read-after-cold-existing-update",
+        "capturePath": "$.scenarios.downstreamAfterUpdate.response.data",
+        "proxyPath": "$.data",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/selling-plan-group-downstream-read.graphql",
+          "variablesCapturePath": "$.scenarios.downstreamAfterUpdate.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Captured against a disposable Shopify product and selling-plan group. The proxy starts without local selling-plan state; cold reads and existing-resource updates can only pass by using the recorded read-only sellingPlanGroupHydrateNodes upstreamCalls cassette and then rendering/staging locally. Before the LiveHybrid fix, the read target returned null and the update target attempted to forward the caller mutation upstream."
+}

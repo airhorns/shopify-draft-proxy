@@ -3803,6 +3803,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'selling-plans',
+    captureId: 'selling-plan-group-live-hybrid-existing-resource',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-selling-plan-group-live-hybrid-existing-resource-conformance.ts',
+    purpose:
+      'Cold LiveHybrid sellingPlanGroup read hydration and existing-resource sellingPlanGroupUpdate local staging from a real upstream group.',
+    requiredAuthScopes: ['read_products', 'write_products', 'write_purchase_options'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}selling-plan-group-live-hybrid-existing-resource.json`,
+      'config/parity-specs/selling-plans/sellingPlanGroup-live-hybrid-existing-resource.json',
+      'config/parity-requests/products/selling-plan-group-read.graphql',
+      'config/parity-requests/products/selling-plan-group-update.graphql',
+      'config/parity-requests/products/selling-plan-group-downstream-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product and selling-plan group, captures cold read/update/downstream responses plus the read-only hydrate cassette, then deletes both resources.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'products',
     captureId: 'selling-plan-group-update-delete-to-zero',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
