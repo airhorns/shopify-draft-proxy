@@ -1,0 +1,23 @@
+mutation FunctionsLiveHybridOverlayStage($validation: ValidationCreateInput!) {
+  validationCreate(validation: $validation) {
+    validation {
+      id
+      title
+      enabled
+      blockOnFailure
+      shopifyFunction {
+        id
+        handle
+        apiType
+        app {
+          apiKey
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

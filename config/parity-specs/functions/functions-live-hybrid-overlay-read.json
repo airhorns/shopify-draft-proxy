@@ -1,0 +1,78 @@
+{
+  "scenarioId": "functions-live-hybrid-overlay-read",
+  "operationNames": [
+    "validationCreate",
+    "validation",
+    "validations",
+    "cartTransforms",
+    "shopifyFunctions",
+    "shopifyFunction"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "live-capture",
+    "runtime-staging",
+    "downstream-read-parity",
+    "function-overlay",
+    "side-effect-boundary"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-live-hybrid-overlay-read.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/functions/functions-live-hybrid-overlay-stage.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.stagedValidationCreate.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "validation-create-staged-data",
+        "capturePath": "$.stagedValidationCreate.response.payload.data.validationCreate",
+        "proxyPath": "$.data.validationCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.validation.id",
+            "matcher": "shopify-gid:Validation",
+            "reason": "The proxy stages a synthetic Validation id while Shopify returns the live Validation id."
+          }
+        ]
+      },
+      {
+        "name": "overlay-read-keeps-base-and-staged-records",
+        "capturePath": "$.overlayRead.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-live-hybrid-overlay-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "stagedValidationId": {
+              "fromPrimaryProxyPath": "$.data.validationCreate.validation.id"
+            },
+            "baseValidationId": {
+              "fromCapturePath": "$.baseValidationCreate.response.payload.data.validationCreate.validation.id"
+            },
+            "cartFunctionId": {
+              "fromCapturePath": "$.shopifyFunctions.cartTransform.id"
+            },
+            "cartFunctionApiType": {
+              "fromCapturePath": "$.shopifyFunctions.cartTransform.apiType"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.stagedValidation.id",
+            "matcher": "shopify-gid:Validation",
+            "reason": "The proxy reads back its synthetic staged Validation id while Shopify reads the live staged Validation id."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Live Shopify Admin 2026-04 evidence for a LiveHybrid Functions overlay with existing upstream/base validation and cart-transform records plus one locally staged validation lifecycle. The fixture records exact upstreamCalls for the Function handle hydrate, singular validation hydrate, validations catalog hydrate, cartTransforms catalog hydrate, and shopifyFunctions catalog hydrate from the pre-mutation live shop state, matching the production proxy path where supported validationCreate remains local and upstream/base reads still hydrate from Shopify. Expected differences are limited to the locally staged Validation id."
+}
