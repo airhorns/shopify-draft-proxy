@@ -151,6 +151,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'The RELEVANCE enum values remain documented as deterministic local fallbacks because Shopify relevance scoring is opaque and query-score dependent; this capture covers the computable ordering branches required to prevent silent default fallbacks.',
   },
   {
+    domain: 'admin-platform',
+    captureId: 'mixed-admin-platform-payments-read',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-mixed-admin-platform-payments-read-conformance.ts',
+    purpose:
+      'Live Shopify Admin GraphQL evidence that a mixed AdminPlatform job root and Payments paymentTermsTemplates root return both sibling response keys in one query document.',
+    requiredAuthScopes: ['read_payment_terms'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/admin-platform/mixed-admin-platform-payments-read.json',
+      'config/parity-specs/admin-platform/mixed-admin-platform-payments-read.json',
+      'config/parity-requests/admin-platform/mixed-admin-platform-payments-read.graphql',
+    ],
+    cleanupBehavior: 'No setup or cleanup; the capture is a read-only mixed-root query.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'b2b',
     captureId: 'b2b-quantity-rules-extended-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
