@@ -1,31 +1,28 @@
-query CustomerMergeHydrate($id: ID!) {
-  customer(id: $id) {
-    id
-    firstName
-    lastName
-    displayName
-    email
-    phone
-    locale
-    note
-    canDelete
-    verifiedEmail
-    dataSaleOptOut
-    taxExempt
-    taxExemptions
-    state
-    tags
-    numberOfOrders
-    createdAt
-    updatedAt
-    defaultEmailAddress { emailAddress }
-    defaultPhoneNumber { phoneNumber }
-    defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }
-    addressesV2(first: 250) { nodes { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea } }
-    metafields(first: 250) { nodes { id namespace key type value } }
-    orders(first: 250, sortKey: CREATED_AT, reverse: true) {
-      edges { cursor node { id name email createdAt } }
+query CustomerMergeHydrate($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    ... on Customer {
+      id
+      firstName
+      lastName
+      displayName
+      email
+      phone
+      locale
+      note
+      canDelete
+      verifiedEmail
+      dataSaleOptOut
+      taxExempt
+      taxExemptions
+      state
+      tags
+      numberOfOrders
+      createdAt
+      updatedAt
+      defaultEmailAddress { emailAddress }
+      defaultPhoneNumber { phoneNumber }
+      defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }
+      lastOrder { id name email createdAt }
     }
-    lastOrder { id name email createdAt }
   }
 }

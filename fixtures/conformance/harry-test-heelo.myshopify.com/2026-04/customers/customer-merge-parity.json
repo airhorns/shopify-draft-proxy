@@ -283,34 +283,43 @@
     "createOne": {
       "variables": {
         "input": {
-          "email": "hermes-merge-one-1782515298720@example.com",
-          "phone": "+16475558720",
+          "email": "hermes-merge-one-1783797222746@example.com",
+          "phone": "+16475552746",
           "firstName": "Merge",
           "lastName": "One",
           "note": "merge-one-note",
-          "tags": ["har-291-merge", "merge-one", "merge-1782515298720"]
+          "tags": ["har-291-merge", "merge-one", "merge-1783797222746"]
         }
       },
       "response": {
         "data": {
           "customerCreate": {
             "customer": {
-              "id": "gid://shopify/Customer/10857388638514",
+              "id": "gid://shopify/Customer/10948590338354",
               "firstName": "Merge",
               "lastName": "One",
               "displayName": "Merge One",
-              "email": "hermes-merge-one-1782515298720@example.com",
+              "email": "hermes-merge-one-1783797222746@example.com",
               "note": "merge-one-note",
-              "tags": ["har-291-merge", "merge-1782515298720", "merge-one"],
+              "tags": ["har-291-merge", "merge-1783797222746", "merge-one"],
               "numberOfOrders": "0",
               "defaultEmailAddress": {
-                "emailAddress": "hermes-merge-one-1782515298720@example.com"
+                "emailAddress": "hermes-merge-one-1783797222746@example.com"
               },
               "defaultPhoneNumber": {
-                "phoneNumber": "+16475558720"
+                "phoneNumber": "+16475552746"
               },
               "defaultAddress": null,
               "addressesV2": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "addressesV2Reverse": {
                 "nodes": [],
                 "pageInfo": {
                   "hasNextPage": false,
@@ -328,6 +337,15 @@
                   "endCursor": null
                 }
               },
+              "metafieldsReverse": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
               "orders": {
                 "nodes": [],
                 "pageInfo": {
@@ -337,20 +355,29 @@
                   "endCursor": null
                 }
               },
+              "ordersFiltered": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
               "lastOrder": null,
-              "createdAt": "2026-06-26T23:08:18Z",
-              "updatedAt": "2026-06-26T23:08:18Z"
+              "createdAt": "2026-07-11T19:13:42Z",
+              "updatedAt": "2026-07-11T19:13:42Z"
             },
             "userErrors": []
           }
         },
         "extensions": {
           "cost": {
-            "requestedQueryCost": 31,
-            "actualQueryCost": 31,
+            "requestedQueryCost": 40,
+            "actualQueryCost": 40,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1969,
+              "currentlyAvailable": 1960,
               "restoreRate": 100
             }
           }
@@ -360,34 +387,43 @@
     "createTwo": {
       "variables": {
         "input": {
-          "email": "hermes-merge-two-1782515298720@example.com",
-          "phone": "+16476668720",
+          "email": "hermes-merge-two-1783797222746@example.com",
+          "phone": "+16476662746",
           "firstName": "Merge",
           "lastName": "Two",
           "note": "merge-two-note",
-          "tags": ["har-291-merge", "merge-two", "merge-1782515298720"]
+          "tags": ["har-291-merge", "merge-two", "merge-1783797222746"]
         }
       },
       "response": {
         "data": {
           "customerCreate": {
             "customer": {
-              "id": "gid://shopify/Customer/10857388671282",
+              "id": "gid://shopify/Customer/10948590403890",
               "firstName": "Merge",
               "lastName": "Two",
               "displayName": "Merge Two",
-              "email": "hermes-merge-two-1782515298720@example.com",
+              "email": "hermes-merge-two-1783797222746@example.com",
               "note": "merge-two-note",
-              "tags": ["har-291-merge", "merge-1782515298720", "merge-two"],
+              "tags": ["har-291-merge", "merge-1783797222746", "merge-two"],
               "numberOfOrders": "0",
               "defaultEmailAddress": {
-                "emailAddress": "hermes-merge-two-1782515298720@example.com"
+                "emailAddress": "hermes-merge-two-1783797222746@example.com"
               },
               "defaultPhoneNumber": {
-                "phoneNumber": "+16476668720"
+                "phoneNumber": "+16476662746"
               },
               "defaultAddress": null,
               "addressesV2": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "addressesV2Reverse": {
                 "nodes": [],
                 "pageInfo": {
                   "hasNextPage": false,
@@ -405,6 +441,15 @@
                   "endCursor": null
                 }
               },
+              "metafieldsReverse": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
               "orders": {
                 "nodes": [],
                 "pageInfo": {
@@ -414,20 +459,29 @@
                   "endCursor": null
                 }
               },
+              "ordersFiltered": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
               "lastOrder": null,
-              "createdAt": "2026-06-26T23:08:18Z",
-              "updatedAt": "2026-06-26T23:08:18Z"
+              "createdAt": "2026-07-11T19:13:42Z",
+              "updatedAt": "2026-07-11T19:13:43Z"
             },
             "userErrors": []
           }
         },
         "extensions": {
           "cost": {
-            "requestedQueryCost": 31,
-            "actualQueryCost": 31,
+            "requestedQueryCost": 40,
+            "actualQueryCost": 40,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1954,
+              "currentlyAvailable": 1937,
               "restoreRate": 100
             }
           }
@@ -437,42 +491,42 @@
   },
   "preview": {
     "variables": {
-      "one": "gid://shopify/Customer/10857388638514",
-      "two": "gid://shopify/Customer/10857388671282",
+      "one": "gid://shopify/Customer/10948590338354",
+      "two": "gid://shopify/Customer/10948590403890",
       "override": {
-        "customerIdOfEmailToKeep": "gid://shopify/Customer/10857388671282",
-        "customerIdOfPhoneNumberToKeep": "gid://shopify/Customer/10857388638514",
-        "customerIdOfFirstNameToKeep": "gid://shopify/Customer/10857388638514",
-        "customerIdOfLastNameToKeep": "gid://shopify/Customer/10857388671282",
+        "customerIdOfEmailToKeep": "gid://shopify/Customer/10948590403890",
+        "customerIdOfPhoneNumberToKeep": "gid://shopify/Customer/10948590338354",
+        "customerIdOfFirstNameToKeep": "gid://shopify/Customer/10948590338354",
+        "customerIdOfLastNameToKeep": "gid://shopify/Customer/10948590403890",
         "note": "merged note",
-        "tags": ["har-291-merge", "merged", "merge-1782515298720"]
+        "tags": ["har-291-merge", "merged", "merge-1783797222746"]
       }
     },
     "response": {
       "data": {
         "customerMergePreview": {
-          "resultingCustomerId": "gid://shopify/Customer/10857388671282",
+          "resultingCustomerId": "gid://shopify/Customer/10948590403890",
           "defaultFields": {
             "firstName": "Merge",
             "lastName": "Two",
             "displayName": "Merge Two",
             "email": {
-              "emailAddress": "hermes-merge-two-1782515298720@example.com"
+              "emailAddress": "hermes-merge-two-1783797222746@example.com"
             },
             "phoneNumber": {
-              "phoneNumber": "+16475558720"
+              "phoneNumber": "+16475552746"
             },
             "note": "merge-two-note merge-one-note",
-            "tags": ["har-291-merge", "merge-1782515298720", "merge-two", "merge-one"]
+            "tags": ["har-291-merge", "merge-1783797222746", "merge-two", "merge-one"]
           },
           "alternateFields": {
             "firstName": "Merge",
             "lastName": "One",
             "email": {
-              "emailAddress": "hermes-merge-one-1782515298720@example.com"
+              "emailAddress": "hermes-merge-one-1783797222746@example.com"
             },
             "phoneNumber": {
-              "phoneNumber": "+16476668720"
+              "phoneNumber": "+16476662746"
             }
           },
           "blockingFields": null,
@@ -485,7 +539,7 @@
           "actualQueryCost": 9,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1958,
+            "currentlyAvailable": 1991,
             "restoreRate": 100
           }
         }
@@ -494,23 +548,23 @@
   },
   "mutation": {
     "variables": {
-      "one": "gid://shopify/Customer/10857388638514",
-      "two": "gid://shopify/Customer/10857388671282",
+      "one": "gid://shopify/Customer/10948590338354",
+      "two": "gid://shopify/Customer/10948590403890",
       "override": {
-        "customerIdOfEmailToKeep": "gid://shopify/Customer/10857388671282",
-        "customerIdOfPhoneNumberToKeep": "gid://shopify/Customer/10857388638514",
-        "customerIdOfFirstNameToKeep": "gid://shopify/Customer/10857388638514",
-        "customerIdOfLastNameToKeep": "gid://shopify/Customer/10857388671282",
+        "customerIdOfEmailToKeep": "gid://shopify/Customer/10948590403890",
+        "customerIdOfPhoneNumberToKeep": "gid://shopify/Customer/10948590338354",
+        "customerIdOfFirstNameToKeep": "gid://shopify/Customer/10948590338354",
+        "customerIdOfLastNameToKeep": "gid://shopify/Customer/10948590403890",
         "note": "merged note",
-        "tags": ["har-291-merge", "merged", "merge-1782515298720"]
+        "tags": ["har-291-merge", "merged", "merge-1783797222746"]
       }
     },
     "response": {
       "data": {
         "customerMerge": {
-          "resultingCustomerId": "gid://shopify/Customer/10857388671282",
+          "resultingCustomerId": "gid://shopify/Customer/10948590403890",
           "job": {
-            "id": "gid://shopify/Job/3345fd47-aa18-46c4-b0fa-45ca6252c1c8",
+            "id": "gid://shopify/Job/c9bcc0d3-78ca-4085-8967-17cf4ee6805e",
             "done": false
           },
           "userErrors": []
@@ -522,7 +576,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1962,
+            "currentlyAvailable": 1990,
             "restoreRate": 100
           }
         }
@@ -531,13 +585,13 @@
   },
   "status": {
     "variables": {
-      "jobId": "gid://shopify/Job/3345fd47-aa18-46c4-b0fa-45ca6252c1c8"
+      "jobId": "gid://shopify/Job/c9bcc0d3-78ca-4085-8967-17cf4ee6805e"
     },
     "response": {
       "data": {
         "customerMergeJobStatus": {
-          "jobId": "gid://shopify/Job/3345fd47-aa18-46c4-b0fa-45ca6252c1c8",
-          "resultingCustomerId": "gid://shopify/Customer/10857388671282",
+          "jobId": "gid://shopify/Job/c9bcc0d3-78ca-4085-8967-17cf4ee6805e",
+          "resultingCustomerId": "gid://shopify/Customer/10948590403890",
           "status": "COMPLETED",
           "customerMergeErrors": []
         }
@@ -558,14 +612,14 @@
   "statusPolls": [
     {
       "variables": {
-        "jobId": "gid://shopify/Job/3345fd47-aa18-46c4-b0fa-45ca6252c1c8"
+        "jobId": "gid://shopify/Job/c9bcc0d3-78ca-4085-8967-17cf4ee6805e"
       },
       "attempt": 0,
       "response": {
         "data": {
           "customerMergeJobStatus": {
-            "jobId": "gid://shopify/Job/3345fd47-aa18-46c4-b0fa-45ca6252c1c8",
-            "resultingCustomerId": "gid://shopify/Customer/10857388671282",
+            "jobId": "gid://shopify/Job/c9bcc0d3-78ca-4085-8967-17cf4ee6805e",
+            "resultingCustomerId": "gid://shopify/Customer/10948590403890",
             "status": "IN_PROGRESS",
             "customerMergeErrors": []
           }
@@ -576,7 +630,7 @@
             "actualQueryCost": 2,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1996,
+              "currentlyAvailable": 1998,
               "restoreRate": 100
             }
           }
@@ -585,14 +639,14 @@
     },
     {
       "variables": {
-        "jobId": "gid://shopify/Job/3345fd47-aa18-46c4-b0fa-45ca6252c1c8"
+        "jobId": "gid://shopify/Job/c9bcc0d3-78ca-4085-8967-17cf4ee6805e"
       },
       "attempt": 1,
       "response": {
         "data": {
           "customerMergeJobStatus": {
-            "jobId": "gid://shopify/Job/3345fd47-aa18-46c4-b0fa-45ca6252c1c8",
-            "resultingCustomerId": "gid://shopify/Customer/10857388671282",
+            "jobId": "gid://shopify/Job/c9bcc0d3-78ca-4085-8967-17cf4ee6805e",
+            "resultingCustomerId": "gid://shopify/Customer/10948590403890",
             "status": "COMPLETED",
             "customerMergeErrors": []
           }
@@ -613,41 +667,52 @@
   ],
   "downstreamRead": {
     "variables": {
-      "one": "gid://shopify/Customer/10857388638514",
-      "two": "gid://shopify/Customer/10857388671282",
-      "emailOne": "hermes-merge-one-1782515298720@example.com",
-      "emailTwo": "hermes-merge-two-1782515298720@example.com",
-      "jobId": "gid://shopify/Job/3345fd47-aa18-46c4-b0fa-45ca6252c1c8"
+      "one": "gid://shopify/Customer/10948590338354",
+      "two": "gid://shopify/Customer/10948590403890",
+      "emailOne": "hermes-merge-one-1783797222746@example.com",
+      "emailTwo": "hermes-merge-two-1783797222746@example.com",
+      "jobId": "gid://shopify/Job/c9bcc0d3-78ca-4085-8967-17cf4ee6805e",
+      "orderQuery": "email:hermes-merge-one-1783797222746@example.com"
     },
     "proxyVariables": {
-      "one": "gid://shopify/Customer/10857388638514",
-      "two": "gid://shopify/Customer/10857388671282",
-      "emailOne": "hermes-merge-one-1782515298720@example.com",
-      "emailTwo": "hermes-merge-two-1782515298720@example.com",
+      "one": "gid://shopify/Customer/10948590338354",
+      "two": "gid://shopify/Customer/10948590403890",
+      "emailOne": "hermes-merge-one-1783797222746@example.com",
+      "emailTwo": "hermes-merge-two-1783797222746@example.com",
       "jobId": {
         "fromPrimaryProxyPath": "$.data.customerMerge.job.id"
-      }
+      },
+      "orderQuery": "email:hermes-merge-one-1783797222746@example.com"
     },
     "response": {
       "data": {
         "source": null,
         "result": {
-          "id": "gid://shopify/Customer/10857388671282",
+          "id": "gid://shopify/Customer/10948590403890",
           "firstName": "Merge",
           "lastName": "Two",
           "displayName": "Merge Two",
-          "email": "hermes-merge-two-1782515298720@example.com",
+          "email": "hermes-merge-two-1783797222746@example.com",
           "note": "merged note",
-          "tags": ["har-291-merge", "merge-1782515298720", "merged"],
+          "tags": ["har-291-merge", "merge-1783797222746", "merged"],
           "numberOfOrders": "0",
           "defaultEmailAddress": {
-            "emailAddress": "hermes-merge-two-1782515298720@example.com"
+            "emailAddress": "hermes-merge-two-1783797222746@example.com"
           },
           "defaultPhoneNumber": {
-            "phoneNumber": "+16475558720"
+            "phoneNumber": "+16475552746"
           },
           "defaultAddress": null,
           "addressesV2": {
+            "nodes": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          },
+          "addressesV2Reverse": {
             "nodes": [],
             "pageInfo": {
               "hasNextPage": false,
@@ -665,6 +730,15 @@
               "endCursor": null
             }
           },
+          "metafieldsReverse": {
+            "nodes": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          },
           "orders": {
             "nodes": [],
             "pageInfo": {
@@ -674,36 +748,45 @@
               "endCursor": null
             }
           },
+          "ordersFiltered": {
+            "nodes": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          },
           "lastOrder": null,
-          "createdAt": "2026-06-26T23:08:18Z",
-          "updatedAt": "2026-06-26T23:08:20Z"
+          "createdAt": "2026-07-11T19:13:42Z",
+          "updatedAt": "2026-07-11T19:13:44Z"
         },
         "byEmailOne": null,
         "byEmailTwo": {
-          "id": "gid://shopify/Customer/10857388671282",
-          "email": "hermes-merge-two-1782515298720@example.com",
+          "id": "gid://shopify/Customer/10948590403890",
+          "email": "hermes-merge-two-1783797222746@example.com",
           "defaultEmailAddress": {
-            "emailAddress": "hermes-merge-two-1782515298720@example.com"
+            "emailAddress": "hermes-merge-two-1783797222746@example.com"
           }
         },
         "customersCount": {
-          "count": 1122,
+          "count": 1427,
           "precision": "EXACT"
         },
         "mergeStatus": {
-          "jobId": "gid://shopify/Job/3345fd47-aa18-46c4-b0fa-45ca6252c1c8",
-          "resultingCustomerId": "gid://shopify/Customer/10857388671282",
+          "jobId": "gid://shopify/Job/c9bcc0d3-78ca-4085-8967-17cf4ee6805e",
+          "resultingCustomerId": "gid://shopify/Customer/10948590403890",
           "status": "COMPLETED",
           "customerMergeErrors": []
         }
       },
       "extensions": {
         "cost": {
-          "requestedQueryCost": 60,
-          "actualQueryCost": 38,
+          "requestedQueryCost": 78,
+          "actualQueryCost": 47,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1962,
+            "currentlyAvailable": 1953,
             "restoreRate": 100
           }
         }
@@ -713,7 +796,7 @@
   "validation": {
     "missingArgument": {
       "variables": {
-        "one": "gid://shopify/Customer/10857388638514"
+        "one": "gid://shopify/Customer/10948590338354"
       },
       "response": {
         "errors": [
@@ -773,8 +856,8 @@
     },
     "selfPreview": {
       "variables": {
-        "one": "gid://shopify/Customer/10857388671282",
-        "two": "gid://shopify/Customer/10857388671282"
+        "one": "gid://shopify/Customer/10948590403890",
+        "two": "gid://shopify/Customer/10948590403890"
       },
       "response": {
         "errors": [
@@ -799,7 +882,7 @@
             "actualQueryCost": 1,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1987,
+              "currentlyAvailable": 1969,
               "restoreRate": 100
             }
           }
@@ -808,8 +891,8 @@
     },
     "selfMerge": {
       "variables": {
-        "one": "gid://shopify/Customer/10857388671282",
-        "two": "gid://shopify/Customer/10857388671282"
+        "one": "gid://shopify/Customer/10948590403890",
+        "two": "gid://shopify/Customer/10948590403890"
       },
       "response": {
         "data": {
@@ -831,7 +914,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1986,
+              "currentlyAvailable": 1968,
               "restoreRate": 100
             }
           }
@@ -840,7 +923,7 @@
     },
     "unknownCustomer": {
       "variables": {
-        "one": "gid://shopify/Customer/10857388638514",
+        "one": "gid://shopify/Customer/10948590338354",
         "two": "gid://shopify/Customer/999999999999999"
       },
       "response": {
@@ -863,7 +946,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1986,
+              "currentlyAvailable": 1967,
               "restoreRate": 100
             }
           }
@@ -895,7 +978,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1985,
+              "currentlyAvailable": 1966,
               "restoreRate": 100
             }
           }
@@ -907,13 +990,13 @@
     "draftOrderDelete": null,
     "variables": {
       "input": {
-        "id": "gid://shopify/Customer/10857388671282"
+        "id": "gid://shopify/Customer/10948590403890"
       }
     },
     "response": {
       "data": {
         "customerDelete": {
-          "deletedCustomerId": "gid://shopify/Customer/10857388671282",
+          "deletedCustomerId": "gid://shopify/Customer/10948590403890",
           "userErrors": []
         }
       },
@@ -923,7 +1006,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1965,
+            "currentlyAvailable": 1959,
             "restoreRate": 100
           }
         }
@@ -934,58 +1017,134 @@
     {
       "operationName": "CustomerMergeHydrate",
       "variables": {
-        "id": "gid://shopify/Customer/10857388638514"
+        "ids": ["gid://shopify/Customer/10948590338354", "gid://shopify/Customer/10948590403890"]
       },
-      "query": "query CustomerMergeHydrate($id: ID!) {\n  customer(id: $id) {\n    id\n    firstName\n    lastName\n    displayName\n    email\n    phone\n    locale\n    note\n    canDelete\n    verifiedEmail\n    dataSaleOptOut\n    taxExempt\n    taxExemptions\n    state\n    tags\n    numberOfOrders\n    createdAt\n    updatedAt\n    defaultEmailAddress { emailAddress }\n    defaultPhoneNumber { phoneNumber }\n    defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }\n    addressesV2(first: 250) { nodes { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea } }\n    metafields(first: 250) { nodes { id namespace key type value } }\n    orders(first: 250, sortKey: CREATED_AT, reverse: true) {\n      edges { cursor node { id name email createdAt } }\n    }\n    lastOrder { id name email createdAt }\n  }\n}\n",
+      "query": "query CustomerMergeHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    ... on Customer {\n      id\n      firstName\n      lastName\n      displayName\n      email\n      phone\n      locale\n      note\n      canDelete\n      verifiedEmail\n      dataSaleOptOut\n      taxExempt\n      taxExemptions\n      state\n      tags\n      numberOfOrders\n      createdAt\n      updatedAt\n      defaultEmailAddress { emailAddress }\n      defaultPhoneNumber { phoneNumber }\n      defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }\n      lastOrder { id name email createdAt }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
-            "customer": {
-              "id": "gid://shopify/Customer/10857388638514",
-              "firstName": "Merge",
-              "lastName": "One",
-              "displayName": "Merge One",
-              "email": "hermes-merge-one-1782515298720@example.com",
-              "phone": "+16475558720",
-              "locale": "en",
-              "note": "merge-one-note",
-              "canDelete": true,
-              "verifiedEmail": true,
-              "dataSaleOptOut": false,
-              "taxExempt": false,
-              "taxExemptions": [],
-              "state": "DISABLED",
-              "tags": ["har-291-merge", "merge-1782515298720", "merge-one"],
-              "numberOfOrders": "0",
-              "createdAt": "2026-06-26T23:08:18Z",
-              "updatedAt": "2026-06-26T23:08:18Z",
-              "defaultEmailAddress": {
-                "emailAddress": "hermes-merge-one-1782515298720@example.com"
+            "nodes": [
+              {
+                "id": "gid://shopify/Customer/10948590338354",
+                "firstName": "Merge",
+                "lastName": "One",
+                "displayName": "Merge One",
+                "email": "hermes-merge-one-1783797222746@example.com",
+                "phone": "+16475552746",
+                "locale": "en",
+                "note": "merge-one-note",
+                "canDelete": true,
+                "verifiedEmail": true,
+                "dataSaleOptOut": false,
+                "taxExempt": false,
+                "taxExemptions": [],
+                "state": "DISABLED",
+                "tags": ["har-291-merge", "merge-1783797222746", "merge-one"],
+                "numberOfOrders": "0",
+                "createdAt": "2026-07-11T19:13:42Z",
+                "updatedAt": "2026-07-11T19:13:42Z",
+                "defaultEmailAddress": {
+                  "emailAddress": "hermes-merge-one-1783797222746@example.com"
+                },
+                "defaultPhoneNumber": {
+                  "phoneNumber": "+16475552746"
+                },
+                "defaultAddress": null,
+                "lastOrder": null
               },
-              "defaultPhoneNumber": {
-                "phoneNumber": "+16475558720"
-              },
-              "defaultAddress": null,
-              "addressesV2": {
-                "nodes": []
-              },
-              "metafields": {
-                "nodes": []
-              },
-              "orders": {
-                "edges": []
-              },
-              "lastOrder": null
-            }
+              {
+                "id": "gid://shopify/Customer/10948590403890",
+                "firstName": "Merge",
+                "lastName": "Two",
+                "displayName": "Merge Two",
+                "email": "hermes-merge-two-1783797222746@example.com",
+                "phone": "+16476662746",
+                "locale": "en",
+                "note": "merge-two-note",
+                "canDelete": true,
+                "verifiedEmail": true,
+                "dataSaleOptOut": false,
+                "taxExempt": false,
+                "taxExemptions": [],
+                "state": "DISABLED",
+                "tags": ["har-291-merge", "merge-1783797222746", "merge-two"],
+                "numberOfOrders": "0",
+                "createdAt": "2026-07-11T19:13:42Z",
+                "updatedAt": "2026-07-11T19:13:43Z",
+                "defaultEmailAddress": {
+                  "emailAddress": "hermes-merge-two-1783797222746@example.com"
+                },
+                "defaultPhoneNumber": {
+                  "phoneNumber": "+16476662746"
+                },
+                "defaultAddress": null,
+                "lastOrder": null
+              }
+            ]
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 43,
-              "actualQueryCost": 32,
+              "requestedQueryCost": 4,
+              "actualQueryCost": 4,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1963,
+                "currentlyAvailable": 1971,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerMergeAttachedHydrate",
+      "variables": {
+        "ids": ["gid://shopify/Customer/10948590338354", "gid://shopify/Customer/10948590403890"]
+      },
+      "query": "query CustomerMergeAttachedHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    ... on Customer {\n      id\n      defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }\n      addressesV2(first: 5) { nodes { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea } }\n      metafields(first: 5) { nodes { id namespace key type value } }\n      orders(first: 5, sortKey: CREATED_AT, reverse: true) {\n        edges { cursor node { id name email createdAt } }\n      }\n      lastOrder { id name email createdAt }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Customer/10948590338354",
+                "defaultAddress": null,
+                "addressesV2": {
+                  "nodes": []
+                },
+                "metafields": {
+                  "nodes": []
+                },
+                "orders": {
+                  "edges": []
+                },
+                "lastOrder": null
+              },
+              {
+                "id": "gid://shopify/Customer/10948590403890",
+                "defaultAddress": null,
+                "addressesV2": {
+                  "nodes": []
+                },
+                "metafields": {
+                  "nodes": []
+                },
+                "orders": {
+                  "edges": []
+                },
+                "lastOrder": null
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1969,
                 "restoreRate": 100
               }
             }
@@ -996,84 +1155,22 @@
     {
       "operationName": "CustomerMergeHydrate",
       "variables": {
-        "id": "gid://shopify/Customer/10857388671282"
+        "ids": ["gid://shopify/Customer/999999999999999"]
       },
-      "query": "query CustomerMergeHydrate($id: ID!) {\n  customer(id: $id) {\n    id\n    firstName\n    lastName\n    displayName\n    email\n    phone\n    locale\n    note\n    canDelete\n    verifiedEmail\n    dataSaleOptOut\n    taxExempt\n    taxExemptions\n    state\n    tags\n    numberOfOrders\n    createdAt\n    updatedAt\n    defaultEmailAddress { emailAddress }\n    defaultPhoneNumber { phoneNumber }\n    defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }\n    addressesV2(first: 250) { nodes { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea } }\n    metafields(first: 250) { nodes { id namespace key type value } }\n    orders(first: 250, sortKey: CREATED_AT, reverse: true) {\n      edges { cursor node { id name email createdAt } }\n    }\n    lastOrder { id name email createdAt }\n  }\n}\n",
+      "query": "query CustomerMergeHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    ... on Customer {\n      id\n      firstName\n      lastName\n      displayName\n      email\n      phone\n      locale\n      note\n      canDelete\n      verifiedEmail\n      dataSaleOptOut\n      taxExempt\n      taxExemptions\n      state\n      tags\n      numberOfOrders\n      createdAt\n      updatedAt\n      defaultEmailAddress { emailAddress }\n      defaultPhoneNumber { phoneNumber }\n      defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }\n      lastOrder { id name email createdAt }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
-            "customer": {
-              "id": "gid://shopify/Customer/10857388671282",
-              "firstName": "Merge",
-              "lastName": "Two",
-              "displayName": "Merge Two",
-              "email": "hermes-merge-two-1782515298720@example.com",
-              "phone": "+16476668720",
-              "locale": "en",
-              "note": "merge-two-note",
-              "canDelete": true,
-              "verifiedEmail": true,
-              "dataSaleOptOut": false,
-              "taxExempt": false,
-              "taxExemptions": [],
-              "state": "DISABLED",
-              "tags": ["har-291-merge", "merge-1782515298720", "merge-two"],
-              "numberOfOrders": "0",
-              "createdAt": "2026-06-26T23:08:18Z",
-              "updatedAt": "2026-06-26T23:08:18Z",
-              "defaultEmailAddress": {
-                "emailAddress": "hermes-merge-two-1782515298720@example.com"
-              },
-              "defaultPhoneNumber": {
-                "phoneNumber": "+16476668720"
-              },
-              "defaultAddress": null,
-              "addressesV2": {
-                "nodes": []
-              },
-              "metafields": {
-                "nodes": []
-              },
-              "orders": {
-                "edges": []
-              },
-              "lastOrder": null
-            }
+            "nodes": [null]
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 43,
-              "actualQueryCost": 32,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1944,
-                "restoreRate": 100
-              }
-            }
-          }
-        }
-      }
-    },
-    {
-      "operationName": "CustomerMergeHydrate",
-      "variables": {
-        "id": "gid://shopify/Customer/999999999999999"
-      },
-      "query": "query CustomerMergeHydrate($id: ID!) {\n  customer(id: $id) {\n    id\n    firstName\n    lastName\n    displayName\n    email\n    phone\n    locale\n    note\n    canDelete\n    verifiedEmail\n    dataSaleOptOut\n    taxExempt\n    taxExemptions\n    state\n    tags\n    numberOfOrders\n    createdAt\n    updatedAt\n    defaultEmailAddress { emailAddress }\n    defaultPhoneNumber { phoneNumber }\n    defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }\n    addressesV2(first: 250) { nodes { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea } }\n    metafields(first: 250) { nodes { id namespace key type value } }\n    orders(first: 250, sortKey: CREATED_AT, reverse: true) {\n      edges { cursor node { id name email createdAt } }\n    }\n    lastOrder { id name email createdAt }\n  }\n}\n",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "customer": null
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 43,
+              "requestedQueryCost": 4,
               "actualQueryCost": 1,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1956,
+                "currentlyAvailable": 1983,
                 "restoreRate": 100
               }
             }
@@ -1084,22 +1181,22 @@
     {
       "operationName": "CustomerMergeHydrate",
       "variables": {
-        "id": "gid://shopify/Customer/999999999999999"
+        "ids": ["gid://shopify/Customer/999999999999999", "gid://shopify/Customer/999999999999999"]
       },
-      "query": "query CustomerMergeHydrate($id: ID!) {\n  customer(id: $id) {\n    id\n    firstName\n    lastName\n    displayName\n    email\n    phone\n    locale\n    note\n    canDelete\n    verifiedEmail\n    dataSaleOptOut\n    taxExempt\n    taxExemptions\n    state\n    tags\n    numberOfOrders\n    createdAt\n    updatedAt\n    defaultEmailAddress { emailAddress }\n    defaultPhoneNumber { phoneNumber }\n    defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }\n    addressesV2(first: 250) { nodes { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea } }\n    metafields(first: 250) { nodes { id namespace key type value } }\n    orders(first: 250, sortKey: CREATED_AT, reverse: true) {\n      edges { cursor node { id name email createdAt } }\n    }\n    lastOrder { id name email createdAt }\n  }\n}\n",
+      "query": "query CustomerMergeHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    ... on Customer {\n      id\n      firstName\n      lastName\n      displayName\n      email\n      phone\n      locale\n      note\n      canDelete\n      verifiedEmail\n      dataSaleOptOut\n      taxExempt\n      taxExemptions\n      state\n      tags\n      numberOfOrders\n      createdAt\n      updatedAt\n      defaultEmailAddress { emailAddress }\n      defaultPhoneNumber { phoneNumber }\n      defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }\n      lastOrder { id name email createdAt }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
-            "customer": null
+            "nodes": [null, null]
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 43,
+              "requestedQueryCost": 4,
               "actualQueryCost": 1,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1956,
+                "currentlyAvailable": 1991,
                 "restoreRate": 100
               }
             }
@@ -1116,7 +1213,7 @@
         "body": {
           "data": {
             "customersCount": {
-              "count": 1123,
+              "count": 1428,
               "precision": "EXACT"
             }
           }
