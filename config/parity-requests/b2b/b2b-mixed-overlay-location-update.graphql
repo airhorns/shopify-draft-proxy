@@ -1,0 +1,19 @@
+mutation B2BMixedOverlayLocationUpdate($companyLocationId: ID!, $input: CompanyLocationUpdateInput!) {
+  companyLocationUpdate(companyLocationId: $companyLocationId, input: $input) {
+    companyLocation {
+      id
+      name
+      externalId
+      company {
+        id
+        name
+        externalId
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
