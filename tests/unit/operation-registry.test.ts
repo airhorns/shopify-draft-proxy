@@ -164,17 +164,15 @@ describe('operation registry', () => {
     expect(adminMutationCoverageAudit()).toEqual({
       capturedMutationCount: 514,
       registeredMutationCount: 438,
-      implementedMutationCount: 395,
+      implementedMutationCount: 397,
       implementedMutationRuntimeTestEvidence: {
-        withRuntimeTests: 120,
+        withRuntimeTests: 122,
         withoutRuntimeTests: 275,
       },
       declaredUnimplemented: [
         'companyContactSendWelcomeEmail',
         'consentPolicyUpdate',
-        'customerGenerateAccountActivationUrl',
         'customerPaymentMethodSendUpdateEmail',
-        'customerSendAccountInviteEmail',
         'deliveryCustomizationActivation',
         'deliveryCustomizationCreate',
         'deliveryCustomizationDelete',

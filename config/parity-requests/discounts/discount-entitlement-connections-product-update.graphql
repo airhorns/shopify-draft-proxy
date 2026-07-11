@@ -1,0 +1,13 @@
+mutation DiscountEntitlementConnectionsProductUpdate($product: ProductUpdateInput!) {
+  productUpdate(product: $product) {
+    product {
+      id
+      title
+      handle
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

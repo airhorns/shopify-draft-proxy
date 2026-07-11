@@ -1,0 +1,33 @@
+mutation InventoryItemLevelsActivate(
+  $inventoryItemId: ID!
+  $locationId: ID!
+  $available: Int
+  $idempotencyKey: String!
+) {
+  inventoryActivate(
+    inventoryItemId: $inventoryItemId
+    locationId: $locationId
+    available: $available
+  ) @idempotent(key: $idempotencyKey) {
+    inventoryLevel {
+      id
+      isActive
+      location {
+        id
+        name
+      }
+      quantities(names: ["available", "on_hand", "damaged"]) {
+        name
+        quantity
+      }
+      item {
+        id
+        tracked
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

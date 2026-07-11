@@ -1,0 +1,10 @@
+mutation CustomerSetCustomIdDefinitionDelete($id: ID!, $deleteAllAssociatedMetafields: Boolean!) {
+  metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: $deleteAllAssociatedMetafields) {
+    deletedDefinitionId
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -790,6 +790,9 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "giftCardConfiguration": null,
                     "giftCards": {},
                     "localizationProductIds": [],
+                    "metafieldDefinitionNamespaces": [],
+                    "metafieldDefinitionOwnerCatalogs": [],
+                    "metafieldDefinitions": {},
                     "productOrder": [
                         "gid://shopify/Product/base"
                     ],
@@ -878,6 +881,7 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "deletedDeliveryProfileIds": [],
                     "deletedDiscountIds": [],
                     "deletedLocationIds": [],
+                    "deletedMetafieldDefinitions": [],
                     "deletedOrderIds": [],
                     "deletedOwnerMetafields": [],
                     "deletedProductFeedIds": [],

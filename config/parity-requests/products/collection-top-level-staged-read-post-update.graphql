@@ -1,4 +1,31 @@
-query CollectionTopLevelStagedReadPostUpdate($oldHandleQuery: String!, $newHandleQuery: String!) {
+query CollectionTopLevelStagedReadPostUpdate(
+  $updatedCollectionId: ID!
+  $oldHandle: String!
+  $newHandle: String!
+  $oldHandleQuery: String!
+  $newHandleQuery: String!
+) {
+  updatedByIdentifierId: collectionByIdentifier(identifier: { id: $updatedCollectionId }) {
+    id
+    title
+    handle
+  }
+  updatedByIdentifierHandle: collectionByIdentifier(identifier: { handle: $newHandle }) {
+    id
+    title
+    handle
+  }
+  updatedByHandleRoot: collectionByHandle(handle: $newHandle) {
+    id
+    title
+    handle
+  }
+  oldIdentifierHandle: collectionByIdentifier(identifier: { handle: $oldHandle }) {
+    id
+  }
+  oldHandleRoot: collectionByHandle(handle: $oldHandle) {
+    id
+  }
   oldByHandle: collections(first: 10, query: $oldHandleQuery, sortKey: ID) {
     nodes {
       id
