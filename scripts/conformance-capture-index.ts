@@ -279,6 +279,29 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'b2b',
+    captureId: 'b2b-mixed-company-location-overlay',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-mixed-company-location-overlay-conformance.mts',
+    purpose:
+      'B2B LiveHybrid companies, companiesCount, and companyLocations mixed baseline-plus-staged create/update/delete overlay behavior.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-mixed-company-location-overlay.json`,
+      'config/parity-specs/b2b/b2b-mixed-company-location-overlay.json',
+      'config/parity-requests/b2b/b2b-mixed-overlay-company-create.graphql',
+      'config/parity-requests/b2b/b2b-mixed-overlay-location-create.graphql',
+      'config/parity-requests/b2b/b2b-mixed-overlay-company-update.graphql',
+      'config/parity-requests/b2b/b2b-mixed-overlay-location-update.graphql',
+      'config/parity-requests/b2b/b2b-mixed-overlay-location-delete.graphql',
+      'config/parity-requests/b2b/b2b-mixed-overlay-company-delete.graphql',
+      'config/parity-requests/b2b/b2b-mixed-overlay-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable baseline and staged B2B companies/locations, deletes one location and one company during the scenario, then deletes any remaining created companies during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'b2b',
     captureId: 'b2b-update-unknown-id-resource-not-found',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-update-unknown-id-resource-not-found-conformance.mts',

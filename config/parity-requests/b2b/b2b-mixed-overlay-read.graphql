@@ -1,0 +1,56 @@
+query B2BMixedOverlayRead(
+  $companyQuery: String!
+  $locationQuery: String!
+  $companiesFirst: Int!
+  $locationsFirst: Int!
+  $nestedLocationsFirst: Int!
+) {
+  companies(first: $companiesFirst, query: $companyQuery, sortKey: NAME) {
+    nodes {
+      id
+      name
+      externalId
+      locations(first: $nestedLocationsFirst, sortKey: NAME) {
+        nodes {
+          id
+          name
+          externalId
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  companiesCount(limit: 1) {
+    count
+    precision
+  }
+  companyLocations(first: $locationsFirst, query: $locationQuery, sortKey: NAME) {
+    nodes {
+      id
+      name
+      externalId
+      company {
+        id
+        name
+        externalId
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

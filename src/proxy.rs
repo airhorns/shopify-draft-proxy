@@ -284,6 +284,12 @@ struct BaseState {
     metafield_definitions: BTreeMap<MetafieldDefinitionKey, Value>,
     metafield_definition_owner_catalogs: BTreeSet<String>,
     metafield_definition_namespaces: BTreeSet<(String, String)>,
+    b2b_companies: OrderedRecords<Value>,
+    b2b_locations: OrderedRecords<Value>,
+    b2b_contacts: OrderedRecords<Value>,
+    b2b_contact_roles: OrderedRecords<Value>,
+    b2b_role_assignments: OrderedRecords<Value>,
+    b2b_staff_assignments: OrderedRecords<Value>,
 }
 
 type MetafieldDefinitionKey = (String, String, String);
@@ -403,11 +409,13 @@ struct StagedState {
     marketing_delete_all_external_app_ids: BTreeSet<String>,
     webhook_subscriptions: BTreeMap<String, Value>,
     b2b_companies: BTreeMap<String, Value>,
+    deleted_b2b_company_ids: BTreeSet<String>,
     b2b_locations: StagedRecords<Value>,
     b2b_contacts: BTreeMap<String, Value>,
     b2b_contact_roles: BTreeMap<String, Value>,
     b2b_role_assignments: BTreeMap<String, Value>,
     b2b_staff_assignments: BTreeMap<String, Value>,
+    deleted_b2b_staff_assignment_ids: BTreeSet<String>,
     next_b2b_company_id: u64,
     inventory_levels: BTreeMap<(String, String), BTreeMap<String, i64>>,
     inventory_level_order: Vec<(String, String)>,

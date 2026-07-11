@@ -1,0 +1,334 @@
+{
+  "scenarioId": "b2b-mixed-company-location-overlay",
+  "operationNames": [
+    "companies",
+    "companiesCount",
+    "companyCreate",
+    "companyDelete",
+    "companyLocationCreate",
+    "companyLocationDelete",
+    "companyLocations",
+    "companyLocationUpdate",
+    "companyUpdate"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "read-after-write",
+    "upstream-hydration-parity",
+    "local-staging",
+    "search-filter",
+    "sort",
+    "pagination-shape",
+    "count-shape"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-mixed-company-location-overlay.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/b2b.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/b2b/b2b-mixed-overlay-company-create.graphql",
+    "variablesCapturePath": "$.cases[4].variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "staged-company-create-user-errors",
+        "capturePath": "$.cases[4].response.payload.data.companyCreate.userErrors",
+        "proxyPath": "$.data.companyCreate.userErrors"
+      },
+      {
+        "name": "staged-location-create-user-errors",
+        "capturePath": "$.cases[5].response.payload.data.companyLocationCreate.userErrors",
+        "proxyPath": "$.data.companyLocationCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-mixed-overlay-location-create.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            },
+            "input": {
+              "fromCapturePath": "$.cases[5].variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "mixed-read-after-staged-create",
+        "capturePath": "$.cases[6].response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-mixed-overlay-read.graphql",
+          "variablesCapturePath": "$.cases[6].variables",
+          "apiVersion": "2026-04"
+        },
+        "excludedPaths": [
+          "$.companies.pageInfo.startCursor",
+          "$.companies.pageInfo.endCursor",
+          "$.companyLocations.pageInfo.startCursor",
+          "$.companyLocations.pageInfo.endCursor",
+          "$.companies.nodes[0].id",
+          "$.companies.nodes[1].id",
+          "$.companies.nodes[2].id",
+          "$.companies.nodes[3].id",
+          "$.companies.nodes[4].id",
+          "$.companies.nodes[0].locations.pageInfo.startCursor",
+          "$.companies.nodes[0].locations.pageInfo.endCursor",
+          "$.companies.nodes[1].locations.pageInfo.startCursor",
+          "$.companies.nodes[1].locations.pageInfo.endCursor",
+          "$.companies.nodes[2].locations.pageInfo.startCursor",
+          "$.companies.nodes[2].locations.pageInfo.endCursor",
+          "$.companies.nodes[0].locations.nodes[0].id",
+          "$.companies.nodes[0].locations.nodes[1].id",
+          "$.companies.nodes[0].locations.nodes[2].id",
+          "$.companies.nodes[1].locations.nodes[0].id",
+          "$.companies.nodes[1].locations.nodes[1].id",
+          "$.companies.nodes[1].locations.nodes[2].id",
+          "$.companies.nodes[2].locations.nodes[0].id",
+          "$.companies.nodes[2].locations.nodes[1].id",
+          "$.companies.nodes[2].locations.nodes[2].id",
+          "$.companyLocations.nodes[0].id",
+          "$.companyLocations.nodes[0].company.id",
+          "$.companyLocations.nodes[1].id",
+          "$.companyLocations.nodes[1].company.id",
+          "$.companyLocations.nodes[2].id",
+          "$.companyLocations.nodes[2].company.id",
+          "$.companyLocations.nodes[3].id",
+          "$.companyLocations.nodes[3].company.id",
+          "$.companyLocations.nodes[4].id",
+          "$.companyLocations.nodes[4].company.id"
+        ]
+      },
+      {
+        "name": "baseline-company-update-user-errors",
+        "capturePath": "$.cases[7].response.payload.data.companyUpdate.userErrors",
+        "proxyPath": "$.data.companyUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-mixed-overlay-company-update.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases[7].variables"
+        }
+      },
+      {
+        "name": "mixed-read-after-baseline-company-update",
+        "capturePath": "$.cases[8].response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-mixed-overlay-read.graphql",
+          "variablesCapturePath": "$.cases[8].variables",
+          "apiVersion": "2026-04"
+        },
+        "excludedPaths": [
+          "$.companies.pageInfo.startCursor",
+          "$.companies.pageInfo.endCursor",
+          "$.companyLocations.pageInfo.startCursor",
+          "$.companyLocations.pageInfo.endCursor",
+          "$.companies.nodes[0].id",
+          "$.companies.nodes[1].id",
+          "$.companies.nodes[2].id",
+          "$.companies.nodes[3].id",
+          "$.companies.nodes[4].id",
+          "$.companies.nodes[0].locations.pageInfo.startCursor",
+          "$.companies.nodes[0].locations.pageInfo.endCursor",
+          "$.companies.nodes[1].locations.pageInfo.startCursor",
+          "$.companies.nodes[1].locations.pageInfo.endCursor",
+          "$.companies.nodes[2].locations.pageInfo.startCursor",
+          "$.companies.nodes[2].locations.pageInfo.endCursor",
+          "$.companies.nodes[0].locations.nodes[0].id",
+          "$.companies.nodes[0].locations.nodes[1].id",
+          "$.companies.nodes[0].locations.nodes[2].id",
+          "$.companies.nodes[1].locations.nodes[0].id",
+          "$.companies.nodes[1].locations.nodes[1].id",
+          "$.companies.nodes[1].locations.nodes[2].id",
+          "$.companies.nodes[2].locations.nodes[0].id",
+          "$.companies.nodes[2].locations.nodes[1].id",
+          "$.companies.nodes[2].locations.nodes[2].id",
+          "$.companyLocations.nodes[0].id",
+          "$.companyLocations.nodes[0].company.id",
+          "$.companyLocations.nodes[1].id",
+          "$.companyLocations.nodes[1].company.id",
+          "$.companyLocations.nodes[2].id",
+          "$.companyLocations.nodes[2].company.id",
+          "$.companyLocations.nodes[3].id",
+          "$.companyLocations.nodes[3].company.id",
+          "$.companyLocations.nodes[4].id",
+          "$.companyLocations.nodes[4].company.id"
+        ]
+      },
+      {
+        "name": "baseline-location-update-user-errors",
+        "capturePath": "$.cases[9].response.payload.data.companyLocationUpdate.userErrors",
+        "proxyPath": "$.data.companyLocationUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-mixed-overlay-location-update.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases[9].variables"
+        }
+      },
+      {
+        "name": "mixed-read-after-baseline-location-update",
+        "capturePath": "$.cases[10].response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-mixed-overlay-read.graphql",
+          "variablesCapturePath": "$.cases[10].variables",
+          "apiVersion": "2026-04"
+        },
+        "excludedPaths": [
+          "$.companies.pageInfo.startCursor",
+          "$.companies.pageInfo.endCursor",
+          "$.companyLocations.pageInfo.startCursor",
+          "$.companyLocations.pageInfo.endCursor",
+          "$.companies.nodes[0].id",
+          "$.companies.nodes[1].id",
+          "$.companies.nodes[2].id",
+          "$.companies.nodes[3].id",
+          "$.companies.nodes[4].id",
+          "$.companies.nodes[0].locations.pageInfo.startCursor",
+          "$.companies.nodes[0].locations.pageInfo.endCursor",
+          "$.companies.nodes[1].locations.pageInfo.startCursor",
+          "$.companies.nodes[1].locations.pageInfo.endCursor",
+          "$.companies.nodes[2].locations.pageInfo.startCursor",
+          "$.companies.nodes[2].locations.pageInfo.endCursor",
+          "$.companies.nodes[0].locations.nodes[0].id",
+          "$.companies.nodes[0].locations.nodes[1].id",
+          "$.companies.nodes[0].locations.nodes[2].id",
+          "$.companies.nodes[1].locations.nodes[0].id",
+          "$.companies.nodes[1].locations.nodes[1].id",
+          "$.companies.nodes[1].locations.nodes[2].id",
+          "$.companies.nodes[2].locations.nodes[0].id",
+          "$.companies.nodes[2].locations.nodes[1].id",
+          "$.companies.nodes[2].locations.nodes[2].id",
+          "$.companyLocations.nodes[0].id",
+          "$.companyLocations.nodes[0].company.id",
+          "$.companyLocations.nodes[1].id",
+          "$.companyLocations.nodes[1].company.id",
+          "$.companyLocations.nodes[2].id",
+          "$.companyLocations.nodes[2].company.id",
+          "$.companyLocations.nodes[3].id",
+          "$.companyLocations.nodes[3].company.id",
+          "$.companyLocations.nodes[4].id",
+          "$.companyLocations.nodes[4].company.id"
+        ]
+      },
+      {
+        "name": "baseline-location-delete-user-errors",
+        "capturePath": "$.cases[11].response.payload.data.companyLocationDelete.userErrors",
+        "proxyPath": "$.data.companyLocationDelete.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-mixed-overlay-location-delete.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases[11].variables"
+        }
+      },
+      {
+        "name": "mixed-read-after-baseline-location-delete",
+        "capturePath": "$.cases[12].response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-mixed-overlay-read.graphql",
+          "variablesCapturePath": "$.cases[12].variables",
+          "apiVersion": "2026-04"
+        },
+        "excludedPaths": [
+          "$.companies.pageInfo.startCursor",
+          "$.companies.pageInfo.endCursor",
+          "$.companyLocations.pageInfo.startCursor",
+          "$.companyLocations.pageInfo.endCursor",
+          "$.companies.nodes[0].id",
+          "$.companies.nodes[1].id",
+          "$.companies.nodes[2].id",
+          "$.companies.nodes[3].id",
+          "$.companies.nodes[4].id",
+          "$.companies.nodes[0].locations.pageInfo.startCursor",
+          "$.companies.nodes[0].locations.pageInfo.endCursor",
+          "$.companies.nodes[1].locations.pageInfo.startCursor",
+          "$.companies.nodes[1].locations.pageInfo.endCursor",
+          "$.companies.nodes[2].locations.pageInfo.startCursor",
+          "$.companies.nodes[2].locations.pageInfo.endCursor",
+          "$.companies.nodes[0].locations.nodes[0].id",
+          "$.companies.nodes[0].locations.nodes[1].id",
+          "$.companies.nodes[0].locations.nodes[2].id",
+          "$.companies.nodes[1].locations.nodes[0].id",
+          "$.companies.nodes[1].locations.nodes[1].id",
+          "$.companies.nodes[1].locations.nodes[2].id",
+          "$.companies.nodes[2].locations.nodes[0].id",
+          "$.companies.nodes[2].locations.nodes[1].id",
+          "$.companies.nodes[2].locations.nodes[2].id",
+          "$.companyLocations.nodes[0].id",
+          "$.companyLocations.nodes[0].company.id",
+          "$.companyLocations.nodes[1].id",
+          "$.companyLocations.nodes[1].company.id",
+          "$.companyLocations.nodes[2].id",
+          "$.companyLocations.nodes[2].company.id",
+          "$.companyLocations.nodes[3].id",
+          "$.companyLocations.nodes[3].company.id",
+          "$.companyLocations.nodes[4].id",
+          "$.companyLocations.nodes[4].company.id"
+        ]
+      },
+      {
+        "name": "baseline-company-delete-user-errors",
+        "capturePath": "$.cases[13].response.payload.data.companyDelete.userErrors",
+        "proxyPath": "$.data.companyDelete.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-mixed-overlay-company-delete.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases[13].variables"
+        }
+      },
+      {
+        "name": "mixed-read-after-baseline-company-delete",
+        "capturePath": "$.cases[14].response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-mixed-overlay-read.graphql",
+          "variablesCapturePath": "$.cases[14].variables",
+          "apiVersion": "2026-04"
+        },
+        "excludedPaths": [
+          "$.companies.pageInfo.startCursor",
+          "$.companies.pageInfo.endCursor",
+          "$.companyLocations.pageInfo.startCursor",
+          "$.companyLocations.pageInfo.endCursor",
+          "$.companies.nodes[0].id",
+          "$.companies.nodes[1].id",
+          "$.companies.nodes[2].id",
+          "$.companies.nodes[3].id",
+          "$.companies.nodes[4].id",
+          "$.companies.nodes[0].locations.pageInfo.startCursor",
+          "$.companies.nodes[0].locations.pageInfo.endCursor",
+          "$.companies.nodes[1].locations.pageInfo.startCursor",
+          "$.companies.nodes[1].locations.pageInfo.endCursor",
+          "$.companies.nodes[2].locations.pageInfo.startCursor",
+          "$.companies.nodes[2].locations.pageInfo.endCursor",
+          "$.companies.nodes[0].locations.nodes[0].id",
+          "$.companies.nodes[0].locations.nodes[1].id",
+          "$.companies.nodes[0].locations.nodes[2].id",
+          "$.companies.nodes[1].locations.nodes[0].id",
+          "$.companies.nodes[1].locations.nodes[1].id",
+          "$.companies.nodes[1].locations.nodes[2].id",
+          "$.companies.nodes[2].locations.nodes[0].id",
+          "$.companies.nodes[2].locations.nodes[1].id",
+          "$.companies.nodes[2].locations.nodes[2].id",
+          "$.companyLocations.nodes[0].id",
+          "$.companyLocations.nodes[0].company.id",
+          "$.companyLocations.nodes[1].id",
+          "$.companyLocations.nodes[1].company.id",
+          "$.companyLocations.nodes[2].id",
+          "$.companyLocations.nodes[2].company.id",
+          "$.companyLocations.nodes[3].id",
+          "$.companyLocations.nodes[3].company.id",
+          "$.companyLocations.nodes[4].id",
+          "$.companyLocations.nodes[4].company.id"
+        ]
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 capture creates two disposable baseline B2B companies with multiple locations, records a baseline companies/companiesCount/companyLocations read as the upstream cassette, then records live create, update, location delete, and company delete deltas plus readbacks. Local replay stages only the delta mutations through public GraphQL and verifies the mixed B2B read merges the cassette baseline with staged company/location overlays while preserving filters, sorting, count, pageInfo booleans, and nested Company.locations payloads. IDs and cursor strings are excluded as volatile."
+}
