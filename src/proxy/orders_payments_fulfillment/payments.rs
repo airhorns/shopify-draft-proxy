@@ -853,6 +853,92 @@ pub(in crate::proxy) fn normalized_order_payment_amount(value: Option<String>) -
     }
 }
 
+const ORDER_CREATE_MANUAL_PAYMENT_REQUIRED_ACCESS: &str =
+    "`write_orders` access scope. Also: The user must have mark_orders_as_paid permission. The API client must be installed on a Shopify Plus store to use the amount field.";
+const ORDER_CREATE_MANUAL_PAYMENT_ACCESS_DENIED_MESSAGE: &str =
+    "Access denied for orderCreateManualPayment field. Required access: `write_orders` access scope. Also: The user must have mark_orders_as_paid permission. The API client must be installed on a Shopify Plus store to use the amount field.";
+
+fn manual_payment_access_denied_response(field: &RootFieldSelection) -> Value {
+    let mut data = serde_json::Map::new();
+    data.insert(field.response_key.clone(), Value::Null);
+    json!({
+        "data": Value::Object(data),
+        "errors": [top_level_access_denied_error_envelope(
+            ORDER_CREATE_MANUAL_PAYMENT_ACCESS_DENIED_MESSAGE.to_string(),
+            Some(field.location),
+            vec![json!(field.response_key.clone())],
+            Some(ORDER_CREATE_MANUAL_PAYMENT_REQUIRED_ACCESS)
+        )]
+    })
+}
+
+fn manual_payment_payload(
+    field: &RootFieldSelection,
+    order: Value,
+    user_errors: Vec<Value>,
+) -> Value {
+    selected_json(
+        &json!({
+            "order": order,
+            "userErrors": user_errors
+        }),
+        &field.selection,
+    )
+}
+
+fn manual_payment_user_error(field: Value, message: &str) -> Value {
+    user_error_omit_code(field, message, None)
+}
+
+fn manual_payment_amount_set(
+    field: &RootFieldSelection,
+    order: &Value,
+    outstanding_set: &Value,
+    shop_currency_code: &str,
+) -> Value {
+    let Some(amount_input) = resolved_object_field(&field.arguments, "amount") else {
+        return outstanding_set.clone();
+    };
+    let amount = resolved_string_field(&amount_input, "amount")
+        .or_else(|| resolved_number_field(&amount_input, "amount").map(format_money_amount))
+        .map(|amount| normalized_order_payment_amount(Some(amount)))
+        .unwrap_or_else(|| "0.0".to_string());
+    let currency = resolved_string_field(&amount_input, "currencyCode")
+        .or_else(|| money_set_presentment_or_shop_currency(outstanding_set))
+        .or_else(|| order["currencyCode"].as_str().map(str::to_string))
+        .unwrap_or_else(|| shop_currency_code.to_string());
+    let presentment_currency = order["presentmentCurrencyCode"]
+        .as_str()
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(|| currency.clone());
+    money_set_pair(&amount, &currency, &amount, &presentment_currency)
+}
+
+fn order_total_amount_for_payment(
+    order: &Value,
+    outstanding_amount: f64,
+    received_amount: f64,
+) -> f64 {
+    money_set_amount(&order["totalPriceSet"])
+        .or_else(|| money_set_amount(&order["currentTotalPriceSet"]))
+        .unwrap_or(outstanding_amount + received_amount)
+}
+
+fn refresh_order_customer_indexes(
+    customer_orders: &mut BTreeMap<String, Vec<Value>>,
+    order_id: &str,
+    order: &Value,
+) {
+    for orders in customer_orders.values_mut() {
+        for customer_order in orders {
+            if customer_order["id"].as_str() == Some(order_id) {
+                *customer_order = order.clone();
+            }
+        }
+    }
+}
+
 struct MandatePaymentTransactionInput<'a> {
     order_id: &'a str,
     idempotency_key: &'a str,
@@ -1272,6 +1358,36 @@ impl DraftProxy {
                         &json!({ "order": order, "userErrors": user_errors }),
                         &field.selection,
                     ),
+                ))
+            }
+            "orderCreateManualPayment" => {
+                let field = field?;
+                let Some(order_id) = resolved_string_field(&field.arguments, "id") else {
+                    return Some(data_response(
+                        &field.response_key,
+                        manual_payment_payload(
+                            &field,
+                            Value::Null,
+                            vec![manual_payment_user_error(
+                                json!(["id"]),
+                                "Order does not exist",
+                            )],
+                        ),
+                    ));
+                };
+                let Some(order_before) = self.store.staged.orders.get(&order_id).cloned() else {
+                    return Some(manual_payment_access_denied_response(&field));
+                };
+                let (order, user_errors, staged_ids) =
+                    self.stage_order_create_manual_payment(&order_id, &order_before, &field);
+                if !staged_ids.is_empty() {
+                    self.record_mutation_log_entry(
+                        request, query, variables, root_field, staged_ids,
+                    );
+                }
+                Some(data_response(
+                    &field.response_key,
+                    manual_payment_payload(&field, order, user_errors),
                 ))
             }
             "transactionVoid" => {
@@ -1720,6 +1836,135 @@ impl DraftProxy {
                 }
             }
         }
+        (
+            order,
+            Vec::new(),
+            vec![order_id.to_string(), transaction_id],
+        )
+    }
+
+    pub(super) fn stage_order_create_manual_payment(
+        &mut self,
+        order_id: &str,
+        order_before: &Value,
+        field: &RootFieldSelection,
+    ) -> (Value, Vec<Value>, Vec<String>) {
+        let shop_currency_code = self.store.shop_currency_code();
+        let outstanding_set = order_money_set_with_presentment_fallback(
+            &order_before["totalOutstandingSet"],
+            order_before,
+            &shop_currency_code,
+        );
+        let outstanding_amount = order_money_amount_value(&outstanding_set);
+        if order_before["cancelledAt"].is_string()
+            || matches!(
+                order_before["displayFinancialStatus"].as_str(),
+                Some("PAID" | "REFUNDED" | "VOIDED")
+            )
+            || outstanding_amount <= 0.000_001
+        {
+            return (
+                order_before.clone(),
+                vec![manual_payment_user_error(
+                    json!(["id"]),
+                    "Order has no outstanding balance",
+                )],
+                Vec::new(),
+            );
+        }
+
+        let amount_set =
+            manual_payment_amount_set(field, order_before, &outstanding_set, &shop_currency_code);
+        let amount = order_money_amount_value(&amount_set);
+        if amount <= 0.000_001 {
+            return (
+                order_before.clone(),
+                vec![manual_payment_user_error(
+                    json!(["amount"]),
+                    "Amount must be greater than zero",
+                )],
+                Vec::new(),
+            );
+        }
+        if amount > outstanding_amount + 0.000_001 {
+            return (
+                order_before.clone(),
+                vec![manual_payment_user_error(
+                    json!(["amount"]),
+                    "Amount exceeds outstanding balance",
+                )],
+                Vec::new(),
+            );
+        }
+
+        let mut order = order_before.clone();
+        let transaction_id = self.next_order_transaction_id();
+        let gateway = resolved_string_field(&field.arguments, "paymentMethodName")
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or_else(|| "manual".to_string());
+        let processed_at = resolved_string_field(&field.arguments, "processedAt")
+            .unwrap_or_else(|| order_mutation_timestamp(self.log_entries.len() as u64));
+        let mut transaction = payment_transaction_record_from_amount_set(
+            &transaction_id,
+            "SALE",
+            "SUCCESS",
+            &gateway,
+            amount_set,
+            Value::Null,
+            &shop_currency_code,
+        );
+        transaction["processedAt"] = json!(processed_at.clone());
+        if let Some(transactions) = order["transactions"].as_array_mut() {
+            transactions.push(transaction.clone());
+        } else {
+            order["transactions"] = json!([transaction.clone()]);
+        }
+
+        let shop_currency = money_currency(&outstanding_set, "shopMoney")
+            .or_else(|| order["currencyCode"].as_str().map(str::to_string))
+            .unwrap_or_else(|| shop_currency_code.clone());
+        let presentment_currency = money_currency(&outstanding_set, "presentmentMoney")
+            .or_else(|| {
+                order["presentmentCurrencyCode"]
+                    .as_str()
+                    .map(str::to_string)
+            })
+            .unwrap_or_else(|| shop_currency.clone());
+        let received_before = order_money_set_with_presentment_fallback(
+            &order["totalReceivedSet"],
+            &order,
+            &shop_currency_code,
+        );
+        let received_amount = order_money_amount_value(&received_before) + amount;
+        let total = order_total_amount_for_payment(&order, outstanding_amount, received_amount);
+        let remaining = (outstanding_amount - amount).max(0.0);
+        order["displayFinancialStatus"] = if remaining <= 0.000_001 {
+            json!("PAID")
+        } else {
+            json!("PARTIALLY_PAID")
+        };
+        order["capturable"] = json!(false);
+        order["totalCapturable"] = json!("0.0");
+        order["totalCapturableSet"] =
+            money_bag_from_amount(0.0, &shop_currency, &presentment_currency);
+        order["totalOutstandingSet"] =
+            money_bag_from_amount(remaining, &shop_currency, &presentment_currency);
+        order["totalReceivedSet"] = money_bag_from_amount(
+            received_amount.min(total),
+            &shop_currency,
+            &presentment_currency,
+        );
+        order["netPaymentSet"] = order["totalReceivedSet"].clone();
+        order["paymentGatewayNames"] = Value::Array(payment_gateway_names_from_transactions(
+            &order_transactions(&order),
+        ));
+        order["updatedAt"] = json!(processed_at);
+
+        self.store
+            .staged
+            .orders
+            .insert(order_id.to_string(), order.clone());
+        refresh_order_customer_indexes(&mut self.store.staged.customer_orders, order_id, &order);
         (
             order,
             Vec::new(),
