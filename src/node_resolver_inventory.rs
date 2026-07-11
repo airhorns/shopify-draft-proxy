@@ -109,6 +109,16 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
         NodeResolverBehavior::ProjectLocalRecord,
     ),
     entry(
+        "Customer",
+        "DraftProxy::customer_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "CustomerPaymentMethod",
+        "DraftProxy::customer_payment_method_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
         "CustomerSegmentMembersQuery",
         "DraftProxy::local_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
@@ -129,8 +139,38 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
         NodeResolverBehavior::ProjectLocalRecord,
     ),
     entry(
+        "Fulfillment",
+        "DraftProxy::fulfillment_return_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
         "FulfillmentConstraintRule",
         "DraftProxy::local_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "FulfillmentEvent",
+        "DraftProxy::fulfillment_return_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "FulfillmentHold",
+        "DraftProxy::fulfillment_return_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "FulfillmentLineItem",
+        "DraftProxy::fulfillment_return_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "FulfillmentOrder",
+        "DraftProxy::fulfillment_return_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "FulfillmentOrderLineItem",
+        "DraftProxy::fulfillment_return_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
     ),
     entry(
@@ -140,7 +180,17 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
     ),
     entry(
         "GiftCard",
-        "DraftProxy::local_node_value_by_id",
+        "DraftProxy::gift_card_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "GiftCardCreditTransaction",
+        "DraftProxy::gift_card_transaction_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "GiftCardDebitTransaction",
+        "DraftProxy::gift_card_transaction_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
     ),
     entry(
@@ -186,6 +236,11 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
     entry(
         "Location",
         "DraftProxy::local_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "MailingAddress",
+        "DraftProxy::customer_address_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
     ),
     entry(
@@ -249,6 +304,41 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
         NodeResolverBehavior::ProjectLocalRecord,
     ),
     entry(
+        "Return",
+        "DraftProxy::fulfillment_return_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "ReturnLineItem",
+        "DraftProxy::fulfillment_return_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "ReturnableFulfillment",
+        "DraftProxy::fulfillment_return_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "ReverseDelivery",
+        "DraftProxy::fulfillment_return_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "ReverseDeliveryLineItem",
+        "DraftProxy::fulfillment_return_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "ReverseFulfillmentOrder",
+        "DraftProxy::fulfillment_return_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "ReverseFulfillmentOrderLineItem",
+        "DraftProxy::fulfillment_return_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
         "Segment",
         "DraftProxy::local_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
@@ -269,8 +359,38 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
         NodeResolverBehavior::ReturnKnownNull,
     ),
     entry(
+        "StoreCreditAccount",
+        "DraftProxy::store_credit_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "StoreCreditAccountCreditTransaction",
+        "DraftProxy::store_credit_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "StoreCreditAccountDebitRevertTransaction",
+        "DraftProxy::store_credit_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "StoreCreditAccountDebitTransaction",
+        "DraftProxy::store_credit_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "StoreCreditAccountTransaction",
+        "DraftProxy::store_credit_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
         "TaxAppConfiguration",
         "DraftProxy::local_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "UnverifiedReturnLineItem",
+        "DraftProxy::fulfillment_return_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
     ),
     entry(

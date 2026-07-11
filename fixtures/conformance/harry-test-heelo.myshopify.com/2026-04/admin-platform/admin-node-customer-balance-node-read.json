@@ -1,0 +1,742 @@
+{
+  "capturedAt": "2026-07-11T05:48:44.666Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scenarioId": "admin-node-customer-balance-node-read",
+  "notes": "Live Shopify capture for generic Relay Node reads after public customer, store-credit, and gift-card writes. The script creates a disposable customer with an address, credits and debits the customer store-credit account, creates a disposable gift card, credits and debits it, reads all resulting IDs through nodes(ids:), captures never-created null entries, then performs best-effort cleanup.",
+  "setup": {
+    "customerCreate": {
+      "query": "mutation AdminNodeCustomerBalanceCustomerCreate($input: CustomerInput!) {\n  customerCreate(input: $input) {\n    customer {\n      id\n      email\n      displayName\n      defaultAddress {\n        id\n        address1\n        city\n        countryCodeV2\n      }\n      addressesV2(first: 5) {\n        nodes {\n          id\n          address1\n          city\n          countryCodeV2\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "email": "admin-node-20260711054843@example.com",
+          "firstName": "Admin",
+          "lastName": "Node 20260711054843",
+          "addresses": [
+            {
+              "address1": "190 MacLaren Street",
+              "city": "Ottawa",
+              "countryCode": "CA",
+              "provinceCode": "ON",
+              "zip": "K2P 0L6"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "customerCreate": {
+            "customer": {
+              "id": "gid://shopify/Customer/10947537764658",
+              "email": "admin-node-20260711054843@example.com",
+              "displayName": "Admin Node 20260711054843",
+              "defaultAddress": {
+                "id": "gid://shopify/MailingAddress/12295419527474?model_name=CustomerAddress",
+                "address1": "190 MacLaren Street",
+                "city": "Ottawa",
+                "countryCodeV2": "CA"
+              },
+              "addressesV2": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/MailingAddress/12295419527474?model_name=CustomerAddress",
+                    "address1": "190 MacLaren Street",
+                    "city": "Ottawa",
+                    "countryCodeV2": "CA"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 15,
+            "actualQueryCost": 14,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "storeCreditCredit": {
+      "query": "mutation AdminNodeCustomerBalanceStoreCreditCredit(\n  $id: ID!\n  $creditInput: StoreCreditAccountCreditInput!\n) {\n  storeCreditAccountCredit(id: $id, creditInput: $creditInput) {\n    storeCreditAccountTransaction {\n      id\n      __typename\n      amount {\n        amount\n        currencyCode\n      }\n      balanceAfterTransaction {\n        amount\n        currencyCode\n      }\n      event\n      origin\n      remainingAmount {\n        amount\n        currencyCode\n      }\n      account {\n        id\n        balance {\n          amount\n          currencyCode\n        }\n        owner {\n          ... on Customer {\n            id\n            email\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Customer/10947537764658",
+        "creditInput": {
+          "creditAmount": {
+            "amount": "18.00",
+            "currencyCode": "CAD"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "storeCreditAccountCredit": {
+            "storeCreditAccountTransaction": {
+              "id": "gid://shopify/StoreCreditAccountCreditTransaction/2979954994",
+              "__typename": "StoreCreditAccountCreditTransaction",
+              "amount": {
+                "amount": "18.0",
+                "currencyCode": "CAD"
+              },
+              "balanceAfterTransaction": {
+                "amount": "18.0",
+                "currencyCode": "CAD"
+              },
+              "event": "ADJUSTMENT",
+              "origin": null,
+              "remainingAmount": {
+                "amount": "18.0",
+                "currencyCode": "CAD"
+              },
+              "account": {
+                "id": "gid://shopify/StoreCreditAccount/1219035442",
+                "balance": {
+                  "amount": "18.0",
+                  "currencyCode": "CAD"
+                },
+                "owner": {
+                  "id": "gid://shopify/Customer/10947537764658",
+                  "email": "admin-node-20260711054843@example.com"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 18,
+            "actualQueryCost": 18,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1982,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "storeCreditDebit": {
+      "query": "mutation AdminNodeCustomerBalanceStoreCreditDebit(\n  $id: ID!\n  $debitInput: StoreCreditAccountDebitInput!\n) {\n  storeCreditAccountDebit(id: $id, debitInput: $debitInput) {\n    storeCreditAccountTransaction {\n      id\n      __typename\n      amount {\n        amount\n        currencyCode\n      }\n      balanceAfterTransaction {\n        amount\n        currencyCode\n      }\n      event\n      origin\n      account {\n        id\n        balance {\n          amount\n          currencyCode\n        }\n        owner {\n          ... on Customer {\n            id\n            email\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/StoreCreditAccount/1219035442",
+        "debitInput": {
+          "debitAmount": {
+            "amount": "5.00",
+            "currencyCode": "CAD"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "storeCreditAccountDebit": {
+            "storeCreditAccountTransaction": {
+              "id": "gid://shopify/StoreCreditAccountDebitTransaction/2979987762",
+              "__typename": "StoreCreditAccountDebitTransaction",
+              "amount": {
+                "amount": "-5.0",
+                "currencyCode": "CAD"
+              },
+              "balanceAfterTransaction": {
+                "amount": "13.0",
+                "currencyCode": "CAD"
+              },
+              "event": "ADJUSTMENT",
+              "origin": null,
+              "account": {
+                "id": "gid://shopify/StoreCreditAccount/1219035442",
+                "balance": {
+                  "amount": "13.0",
+                  "currencyCode": "CAD"
+                },
+                "owner": {
+                  "id": "gid://shopify/Customer/10947537764658",
+                  "email": "admin-node-20260711054843@example.com"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 18,
+            "actualQueryCost": 18,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "giftCardConfiguration": {
+      "query": "#graphql\n  query GiftCardCreateConfiguration {\n    giftCardConfiguration {\n      issueLimit { amount currencyCode }\n      purchaseLimit { amount currencyCode }\n    }\n  }\n",
+      "variables": {},
+      "response": {
+        "data": {
+          "giftCardConfiguration": {
+            "issueLimit": {
+              "amount": "3000.0",
+              "currencyCode": "CAD"
+            },
+            "purchaseLimit": {
+              "amount": "14000.0",
+              "currencyCode": "CAD"
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1996,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "giftCardCreate": {
+      "query": "mutation AdminNodeCustomerBalanceGiftCardCreate($input: GiftCardCreateInput!) {\n  giftCardCreate(input: $input) {\n    giftCard {\n      id\n      balance {\n        amount\n        currencyCode\n      }\n    }\n    userErrors {\n      field\n      code\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "initialValue": "20.00",
+          "code": "NODE20260711054843",
+          "note": "Admin Node gift card 20260711054843"
+        }
+      },
+      "response": {
+        "data": {
+          "giftCardCreate": {
+            "giftCard": {
+              "id": "gid://shopify/GiftCard/663560356146",
+              "balance": {
+                "amount": "20.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "giftCardCredit": {
+      "query": "mutation AdminNodeCustomerBalanceGiftCardCredit(\n  $id: ID!\n  $creditInput: GiftCardCreditInput!\n) {\n  giftCardCredit(id: $id, creditInput: $creditInput) {\n    giftCardCreditTransaction {\n      id\n      __typename\n      note\n      processedAt\n      amount {\n        amount\n        currencyCode\n      }\n    }\n    userErrors {\n      field\n      code\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/GiftCard/663560356146",
+        "creditInput": {
+          "creditAmount": {
+            "amount": "4.00",
+            "currencyCode": "CAD"
+          },
+          "note": "Admin Node gift card credit 20260711054843"
+        }
+      },
+      "response": {
+        "data": {
+          "giftCardCredit": {
+            "giftCardCreditTransaction": {
+              "id": "gid://shopify/GiftCardCreditTransaction/247025762610",
+              "__typename": "GiftCardCreditTransaction",
+              "note": "Admin Node gift card credit 20260711054843",
+              "processedAt": "2026-07-11T05:48:43Z",
+              "amount": {
+                "amount": "4.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "giftCardDebit": {
+      "query": "mutation AdminNodeCustomerBalanceGiftCardDebit(\n  $id: ID!\n  $debitInput: GiftCardDebitInput!\n) {\n  giftCardDebit(id: $id, debitInput: $debitInput) {\n    giftCardDebitTransaction {\n      id\n      __typename\n      note\n      processedAt\n      amount {\n        amount\n        currencyCode\n      }\n    }\n    userErrors {\n      field\n      code\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/GiftCard/663560356146",
+        "debitInput": {
+          "debitAmount": {
+            "amount": "3.00",
+            "currencyCode": "CAD"
+          },
+          "note": "Admin Node gift card debit 20260711054843"
+        }
+      },
+      "response": {
+        "data": {
+          "giftCardDebit": {
+            "giftCardDebitTransaction": {
+              "id": "gid://shopify/GiftCardDebitTransaction/247025795378",
+              "__typename": "GiftCardDebitTransaction",
+              "note": "Admin Node gift card debit 20260711054843",
+              "processedAt": "2026-07-11T05:48:43Z",
+              "amount": {
+                "amount": "-3.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "nodeReads": {
+    "live": {
+      "query": "query AdminNodeCustomerBalanceNodeRead($ids: [ID!]!, $missingIds: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    ... on Node {\n      id\n    }\n    ... on Customer {\n      email\n      displayName\n      defaultAddress {\n        id\n        address1\n        city\n        countryCodeV2\n      }\n      addressesV2(first: 5) {\n        nodes {\n          id\n          address1\n          city\n          countryCodeV2\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n        }\n      }\n      storeCreditAccounts(first: 5) {\n        nodes {\n          id\n          balance {\n            amount\n            currencyCode\n          }\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n        }\n      }\n    }\n    ... on MailingAddress {\n      address1\n      city\n      countryCodeV2\n    }\n    ... on StoreCreditAccount {\n      balance {\n        amount\n        currencyCode\n      }\n      owner {\n        ... on Customer {\n          id\n          email\n        }\n      }\n      transactions(first: 5) {\n        nodes {\n          __typename\n          amount {\n            amount\n            currencyCode\n          }\n          balanceAfterTransaction {\n            amount\n            currencyCode\n          }\n          event\n          origin\n          ... on StoreCreditAccountCreditTransaction {\n            id\n            remainingAmount {\n              amount\n              currencyCode\n            }\n          }\n          ... on StoreCreditAccountDebitTransaction {\n            id\n            account {\n              id\n            }\n          }\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n        }\n      }\n    }\n    ... on StoreCreditAccountCreditTransaction {\n      amount {\n        amount\n        currencyCode\n      }\n      balanceAfterTransaction {\n        amount\n        currencyCode\n      }\n      event\n      origin\n      remainingAmount {\n        amount\n        currencyCode\n      }\n      account {\n        id\n        owner {\n          ... on Customer {\n            id\n            email\n          }\n        }\n      }\n    }\n    ... on StoreCreditAccountDebitTransaction {\n      amount {\n        amount\n        currencyCode\n      }\n      balanceAfterTransaction {\n        amount\n        currencyCode\n      }\n      event\n      origin\n      account {\n        id\n        owner {\n          ... on Customer {\n            id\n            email\n          }\n        }\n      }\n    }\n    ... on GiftCard {\n      balance {\n        amount\n        currencyCode\n      }\n      transactions(first: 5) {\n        nodes {\n          __typename\n          id\n          note\n          processedAt\n          amount {\n            amount\n            currencyCode\n          }\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n        }\n      }\n    }\n    ... on GiftCardCreditTransaction {\n      note\n      processedAt\n      amount {\n        amount\n        currencyCode\n      }\n    }\n    ... on GiftCardDebitTransaction {\n      note\n      processedAt\n      amount {\n        amount\n        currencyCode\n      }\n    }\n  }\n  missing: nodes(ids: $missingIds) {\n    __typename\n    ... on Node {\n      id\n    }\n  }\n}\n",
+      "variables": {
+        "ids": [
+          "gid://shopify/Customer/10947537764658",
+          "gid://shopify/MailingAddress/12295419527474?model_name=CustomerAddress",
+          "gid://shopify/StoreCreditAccount/1219035442",
+          "gid://shopify/StoreCreditAccountCreditTransaction/2979954994",
+          "gid://shopify/StoreCreditAccountDebitTransaction/2979987762",
+          "gid://shopify/GiftCard/663560356146",
+          "gid://shopify/GiftCardCreditTransaction/247025762610",
+          "gid://shopify/GiftCardDebitTransaction/247025795378"
+        ],
+        "missingIds": [
+          "gid://shopify/Customer/999999999999999",
+          "gid://shopify/MailingAddress/999999999999999",
+          "gid://shopify/StoreCreditAccount/999999999999999",
+          "gid://shopify/StoreCreditAccountCreditTransaction/999999999999999",
+          "gid://shopify/StoreCreditAccountDebitTransaction/999999999999999",
+          "gid://shopify/GiftCard/999999999999999",
+          "gid://shopify/GiftCardCreditTransaction/999999999999999",
+          "gid://shopify/GiftCardDebitTransaction/999999999999999"
+        ]
+      },
+      "response": {
+        "data": {
+          "nodes": [
+            {
+              "__typename": "Customer",
+              "id": "gid://shopify/Customer/10947537764658",
+              "email": "admin-node-20260711054843@example.com",
+              "displayName": "Admin Node 20260711054843",
+              "defaultAddress": {
+                "id": "gid://shopify/MailingAddress/12295419527474?model_name=CustomerAddress",
+                "address1": "190 MacLaren Street",
+                "city": "Ottawa",
+                "countryCodeV2": "CA"
+              },
+              "addressesV2": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/MailingAddress/12295419527474?model_name=CustomerAddress",
+                    "address1": "190 MacLaren Street",
+                    "city": "Ottawa",
+                    "countryCodeV2": "CA"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false
+                }
+              },
+              "storeCreditAccounts": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/StoreCreditAccount/1219035442",
+                    "balance": {
+                      "amount": "13.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false
+                }
+              }
+            },
+            {
+              "__typename": "MailingAddress",
+              "id": "gid://shopify/MailingAddress/12295419527474?model_name=CustomerAddress",
+              "address1": "190 MacLaren Street",
+              "city": "Ottawa",
+              "countryCodeV2": "CA"
+            },
+            {
+              "__typename": "StoreCreditAccount",
+              "id": "gid://shopify/StoreCreditAccount/1219035442",
+              "balance": {
+                "amount": "13.0",
+                "currencyCode": "CAD"
+              },
+              "owner": {
+                "id": "gid://shopify/Customer/10947537764658",
+                "email": "admin-node-20260711054843@example.com"
+              },
+              "transactions": {
+                "nodes": [
+                  {
+                    "__typename": "StoreCreditAccountCreditTransaction",
+                    "amount": {
+                      "amount": "18.0",
+                      "currencyCode": "CAD"
+                    },
+                    "balanceAfterTransaction": {
+                      "amount": "18.0",
+                      "currencyCode": "CAD"
+                    },
+                    "event": "ADJUSTMENT",
+                    "origin": null,
+                    "id": "gid://shopify/StoreCreditAccountCreditTransaction/2979954994",
+                    "remainingAmount": {
+                      "amount": "13.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  {
+                    "__typename": "StoreCreditAccountDebitTransaction",
+                    "amount": {
+                      "amount": "-5.0",
+                      "currencyCode": "CAD"
+                    },
+                    "balanceAfterTransaction": {
+                      "amount": "13.0",
+                      "currencyCode": "CAD"
+                    },
+                    "event": "ADJUSTMENT",
+                    "origin": null,
+                    "id": "gid://shopify/StoreCreditAccountDebitTransaction/2979987762",
+                    "account": {
+                      "id": "gid://shopify/StoreCreditAccount/1219035442"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false
+                }
+              }
+            },
+            {
+              "__typename": "StoreCreditAccountCreditTransaction",
+              "id": "gid://shopify/StoreCreditAccountCreditTransaction/2979954994",
+              "amount": {
+                "amount": "18.0",
+                "currencyCode": "CAD"
+              },
+              "balanceAfterTransaction": {
+                "amount": "18.0",
+                "currencyCode": "CAD"
+              },
+              "event": "ADJUSTMENT",
+              "origin": null,
+              "remainingAmount": {
+                "amount": "13.0",
+                "currencyCode": "CAD"
+              },
+              "account": {
+                "id": "gid://shopify/StoreCreditAccount/1219035442",
+                "owner": {
+                  "id": "gid://shopify/Customer/10947537764658",
+                  "email": "admin-node-20260711054843@example.com"
+                }
+              }
+            },
+            {
+              "__typename": "StoreCreditAccountDebitTransaction",
+              "id": "gid://shopify/StoreCreditAccountDebitTransaction/2979987762",
+              "amount": {
+                "amount": "-5.0",
+                "currencyCode": "CAD"
+              },
+              "balanceAfterTransaction": {
+                "amount": "13.0",
+                "currencyCode": "CAD"
+              },
+              "event": "ADJUSTMENT",
+              "origin": null,
+              "account": {
+                "id": "gid://shopify/StoreCreditAccount/1219035442",
+                "owner": {
+                  "id": "gid://shopify/Customer/10947537764658",
+                  "email": "admin-node-20260711054843@example.com"
+                }
+              }
+            },
+            {
+              "__typename": "GiftCard",
+              "id": "gid://shopify/GiftCard/663560356146",
+              "balance": {
+                "amount": "21.0",
+                "currencyCode": "CAD"
+              },
+              "transactions": {
+                "nodes": [
+                  {
+                    "__typename": "GiftCardCreditTransaction",
+                    "id": "gid://shopify/GiftCardCreditTransaction/247025762610",
+                    "note": "Admin Node gift card credit 20260711054843",
+                    "processedAt": "2026-07-11T05:48:43Z",
+                    "amount": {
+                      "amount": "4.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  {
+                    "__typename": "GiftCardDebitTransaction",
+                    "id": "gid://shopify/GiftCardDebitTransaction/247025795378",
+                    "note": "Admin Node gift card debit 20260711054843",
+                    "processedAt": "2026-07-11T05:48:43Z",
+                    "amount": {
+                      "amount": "-3.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false
+                }
+              }
+            },
+            {
+              "__typename": "GiftCardCreditTransaction",
+              "id": "gid://shopify/GiftCardCreditTransaction/247025762610",
+              "note": "Admin Node gift card credit 20260711054843",
+              "processedAt": "2026-07-11T05:48:43Z",
+              "amount": {
+                "amount": "4.0",
+                "currencyCode": "CAD"
+              }
+            },
+            {
+              "__typename": "GiftCardDebitTransaction",
+              "id": "gid://shopify/GiftCardDebitTransaction/247025795378",
+              "note": "Admin Node gift card debit 20260711054843",
+              "processedAt": "2026-07-11T05:48:43Z",
+              "amount": {
+                "amount": "-3.0",
+                "currencyCode": "CAD"
+              }
+            }
+          ],
+          "missing": [null, null, null, null, null, null, null, null]
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 27,
+            "actualQueryCost": 27,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1973,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "storeCreditBalanceCleanupDebit": {
+      "query": "mutation AdminNodeCustomerBalanceStoreCreditDebit(\n  $id: ID!\n  $debitInput: StoreCreditAccountDebitInput!\n) {\n  storeCreditAccountDebit(id: $id, debitInput: $debitInput) {\n    storeCreditAccountTransaction {\n      id\n      __typename\n      amount {\n        amount\n        currencyCode\n      }\n      balanceAfterTransaction {\n        amount\n        currencyCode\n      }\n      event\n      origin\n      account {\n        id\n        balance {\n          amount\n          currencyCode\n        }\n        owner {\n          ... on Customer {\n            id\n            email\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/StoreCreditAccount/1219035442",
+        "debitInput": {
+          "debitAmount": {
+            "amount": "13.00",
+            "currencyCode": "CAD"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "storeCreditAccountDebit": {
+              "storeCreditAccountTransaction": {
+                "id": "gid://shopify/StoreCreditAccountDebitTransaction/2980020530",
+                "__typename": "StoreCreditAccountDebitTransaction",
+                "amount": {
+                  "amount": "-13.0",
+                  "currencyCode": "CAD"
+                },
+                "balanceAfterTransaction": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                },
+                "event": "ADJUSTMENT",
+                "origin": null,
+                "account": {
+                  "id": "gid://shopify/StoreCreditAccount/1219035442",
+                  "balance": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "owner": {
+                    "id": "gid://shopify/Customer/10947537764658",
+                    "email": "admin-node-20260711054843@example.com"
+                  }
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 18,
+              "actualQueryCost": 18,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1972,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "customerDelete": {
+      "query": "#graphql\n    mutation AdminNodeCustomerBalanceCleanupCustomer($input: CustomerDeleteInput!) {\n      customerDelete(input: $input) {\n        deletedCustomerId\n        userErrors {\n          field\n          message\n        }\n      }\n    }\n  ",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10947537764658"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "customerDelete": {
+              "deletedCustomerId": "gid://shopify/Customer/10947537764658",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1979,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "giftCardDeactivate": {
+      "query": "#graphql\n    mutation AdminNodeCustomerBalanceCleanupGiftCard($id: ID!) {\n      giftCardDeactivate(id: $id) {\n        giftCard {\n          id\n          enabled\n          deactivatedAt\n        }\n        userErrors {\n          field\n          code\n          message\n        }\n      }\n    }\n  ",
+      "variables": {
+        "id": "gid://shopify/GiftCard/663560356146"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardDeactivate": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/663560356146",
+                "enabled": false,
+                "deactivatedAt": "2026-07-11T05:48:44Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "knownBlockedTargets": {
+    "customerPaymentMethod": "The active conformance token still lacks read_customer_payment_methods/write_customer_payment_methods, and disposable vaulted payment material is not available in unattended capture.",
+    "storeCreditAccountDebitRevertTransaction": "The checked-in public Admin mutation schema exposes StoreCreditAccountDebitRevertTransaction as a Node implementor but no disposable public mutation path that creates one."
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "GiftCardCreateConfiguration",
+      "variables": {},
+      "query": "#graphql\n  query GiftCardCreateConfiguration {\n    giftCardConfiguration {\n      issueLimit { amount currencyCode }\n      purchaseLimit { amount currencyCode }\n    }\n  }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "giftCardConfiguration": {
+              "issueLimit": {
+                "amount": "3000.0",
+                "currencyCode": "CAD"
+              },
+              "purchaseLimit": {
+                "amount": "14000.0",
+                "currencyCode": "CAD"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

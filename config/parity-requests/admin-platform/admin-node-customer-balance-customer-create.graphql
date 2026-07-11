@@ -1,0 +1,31 @@
+mutation AdminNodeCustomerBalanceCustomerCreate($input: CustomerInput!) {
+  customerCreate(input: $input) {
+    customer {
+      id
+      email
+      displayName
+      defaultAddress {
+        id
+        address1
+        city
+        countryCodeV2
+      }
+      addressesV2(first: 5) {
+        nodes {
+          id
+          address1
+          city
+          countryCodeV2
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
