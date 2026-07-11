@@ -20,6 +20,7 @@ struct OrdersLocalLogEntry<'a> {
 }
 
 const ORDER_LIFECYCLE_HYDRATE_QUERY: &str = "query OrderManagementDownstreamRead($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    closed\n    closedAt\n    cancelledAt\n    cancelReason\n    displayFinancialStatus\n    paymentGatewayNames\n    totalOutstandingSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    customer {\n      id\n      email\n      displayName\n    }\n    transactions {\n      kind\n      status\n      gateway\n      amountSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n  }\n}";
+const ORDER_INVOICE_SEND_EMAIL_HYDRATE_QUERY: &str = "query OrderInvoiceSendEmailValidationRead($id: ID!) {\n    order(id: $id) {\n      \n  id\n  name\n  email\n  customer {\n    id\n    email\n    displayName\n  }\n\n    }\n  }";
 
 // Canonical customer hydrate issued for order-customer mutations (orderCustomerSet).
 // The selection mirrors the order.customer projection these mutations expose, so a
@@ -68,48 +69,8 @@ const ORDER_EDIT_HYDRATE_QUERY: &str =
 // forward under the strict cassette matcher.
 const RETURN_ORDER_HYDRATE_QUERY: &str =
     include_str!("../../config/parity-requests/orders/return-order-hydrate.graphql");
-const ORDER_HYDRATE_QUERY: &str = r#"
-    query OrdersOrderHydrate($id: ID!) {
-      order(id: $id) {
-        id
-        name
-        email
-        note
-        tags
-        customAttributes { key value }
-        customer { id email displayName }
-        billingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }
-        shippingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }
-        currencyCode
-        presentmentCurrencyCode
-        displayFinancialStatus
-        displayFulfillmentStatus
-        currentTotalPriceSet { shopMoney { amount currencyCode } }
-        totalPriceSet { shopMoney { amount currencyCode } }
-        totalTaxSet { shopMoney { amount currencyCode } }
-        totalDiscountsSet { shopMoney { amount currencyCode } }
-        discountCodes
-        lineItems(first: 10) {
-          nodes {
-            id
-            title
-            name
-            quantity
-            currentQuantity
-            sku
-            variantTitle
-            requiresShipping
-            taxable
-            customAttributes { key value }
-            originalUnitPriceSet { shopMoney { amount currencyCode } }
-            originalTotalSet { shopMoney { amount currencyCode } }
-            variant { id title sku }
-            taxLines { title rate priceSet { shopMoney { amount currencyCode } } }
-          }
-        }
-      }
-    }
-"#;
+const ORDER_HYDRATE_QUERY: &str =
+    include_str!("../../config/parity-requests/orders/order-hydrate-pageable.graphql");
 // These hydrate queries are forwarded verbatim to the backend; their exact text
 // must match the recorded `OrdersDraftOrder*Hydrate` cassette calls (compact
 // two-space layout, customer carries firstName/lastName) so the strict cassette
@@ -119,6 +80,8 @@ const DRAFT_ORDER_CUSTOMER_HYDRATE_QUERY: &str =
     "query OrdersDraftOrderCustomerHydrate($id: ID!) {\n  customer(id: $id) { id email displayName firstName lastName }\n}\n";
 const DRAFT_ORDER_VARIANT_HYDRATE_QUERY: &str =
     "query OrdersDraftOrderVariantHydrate($id: ID!) {\n  productVariant(id: $id) { id title sku taxable price inventoryItem { requiresShipping } product { title } }\n}\n";
+const DRAFT_ORDER_VARIANTS_HYDRATE_QUERY: &str =
+    "query OrdersDraftOrderVariantsHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) { __typename ... on ProductVariant { id title sku taxable price inventoryItem { requiresShipping } product { title } } }\n}\n";
 const ORDERS_FULFILLMENT_ORDER_HYDRATE_QUERY: &str = "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }";
 // Order hydration for `orderMarkAsPaid` operating on an order that was not
 // created locally in this scenario. The proxy forwards this exact query (it is

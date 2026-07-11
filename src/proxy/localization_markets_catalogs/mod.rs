@@ -10,6 +10,7 @@ mod web_presence_helpers;
 
 pub(in crate::proxy) use self::web_presence_helpers::*;
 
+#[allow(dead_code)]
 const BACKUP_REGION_MARKETS_HYDRATE_QUERY: &str = r#"query BackupRegionMarketsHydrate($first: Int!, $regionsFirst: Int!) {
   markets(first: $first) {
     nodes {
@@ -33,6 +34,17 @@ const BACKUP_REGION_MARKETS_HYDRATE_QUERY: &str = r#"query BackupRegionMarketsHy
           }
         }
       }
+    }
+  }
+}"#;
+
+const BACKUP_REGION_AVAILABLE_HYDRATE_QUERY: &str = r#"query BackupRegionAvailableHydrate {
+  availableBackupRegions {
+    __typename
+    id
+    name
+    ... on MarketRegionCountry {
+      code
     }
   }
 }"#;
@@ -96,7 +108,7 @@ const CATALOG_RELATION_PUBLICATION_PREFLIGHT_QUERY: &str = "query CatalogRelatio
 /// shop's baseline web presences from a real Admin GraphQL preflight before
 /// applying the local mutation. The cassette stores the exact request Shopify saw,
 /// so parity cannot hide behind a provenance descriptor string.
-const WEB_PRESENCE_PREFLIGHT_QUERY: &str = "query MarketsMutationPreflightHydrate($first: Int!) { webPresences(first: $first) { nodes { id subfolderSuffix domain { id host url sslEnabled } rootUrls { locale url } defaultLocale { locale name primary published } alternateLocales { locale name primary published } markets(first: 5) { nodes { id name handle status type } } } } }";
+const WEB_PRESENCE_PREFLIGHT_QUERY: &str = "query MarketsMutationPreflightHydrate($first: Int!) { shop { myshopifyDomain primaryDomain { id host url sslEnabled } domains { id host url sslEnabled } } webPresences(first: $first) { nodes { id subfolderSuffix domain { id host url sslEnabled } rootUrls { locale url } defaultLocale { locale name primary published } alternateLocales { locale name primary published } markets(first: 5) { nodes { id name handle status type } } } } }";
 const WEB_PRESENCE_PREFLIGHT_FIRST: i64 = 20;
 
 /// Market-localization mutations (`marketLocalizationsRegister`/`Remove`) hydrate the
@@ -106,6 +118,9 @@ const MARKET_LOCALIZATION_PREFLIGHT_QUERY: &str = "query MarketsMutationPrefligh
 const MARKET_LOCALIZATION_PREFLIGHT_MARKETS_FIRST: i64 = 50;
 const PRIMARY_LOCALE_CHANGE_MESSAGE: &str =
     "The primary locale of your store can't be changed through this endpoint.";
+
+const MARKET_MUTATION_TARGETS_HYDRATE_QUERY: &str =
+    include_str!("../../../config/parity-requests/markets/market-mutation-targets-hydrate.graphql");
 
 fn first_market_localization_market_id(
     variables: &BTreeMap<String, ResolvedValue>,
@@ -230,11 +245,6 @@ const LOCALIZATION_MUTATION_TARGETS_HYDRATE_QUERY: &str = r#"query LocalizationM
     }
   }
 }"#;
-
-/// Synthetic `updatedAt` stamped on locally-staged market localizations. The specs
-/// match this field loosely (`iso-timestamp` / `non-empty-string`), so a fixed
-/// deterministic value keeps state round-tripping reproducible.
-const SYNTHETIC_MARKET_LOCALIZATION_TIMESTAMP: &str = "2026-01-01T00:00:00Z";
 
 pub(in crate::proxy) struct PriceListFieldOutcome {
     value: Value,
@@ -737,11 +747,9 @@ fn web_presence_remove_locale(record: &mut Value, locale: &str) {
     }
 }
 
-/// The shop's myshopify domain, used as the host for synthesized web-presence
-/// root URLs. Falls back to the neutral cold-runtime domain when the shop record
-/// has no `myshopifyDomain` (mirrors the fallback used by region-coverage
-/// lookups).
-fn web_presence_shop_domain(store: &Store) -> String {
+/// The shop's authoritative myshopify domain, used as the host for synthesized
+/// web-presence root URLs when no custom domain is selected.
+fn web_presence_shop_domain(store: &Store) -> Option<String> {
     let shop = store.effective_shop();
     if let Some(domain) = shop
         .get("myshopifyDomain")
@@ -749,10 +757,9 @@ fn web_presence_shop_domain(store: &Store) -> String {
         .filter(|domain| !domain.is_empty())
         .filter(|domain| *domain != "shopify-draft-proxy.local")
     {
-        return domain.to_string();
+        return Some(domain.to_string());
     }
     observed_web_presence_shop_domain(store)
-        .unwrap_or_else(|| "shopify-draft-proxy.local".to_string())
 }
 
 fn observed_web_presence_shop_domain(store: &Store) -> Option<String> {
@@ -879,16 +886,6 @@ fn market_localizable_content_is_money_metafield(content_entry: &Value) -> bool 
     parsed
         .as_object()
         .is_some_and(|object| object.contains_key("amount") && object.contains_key("currency_code"))
-}
-
-fn markets_variables_have_local_id(
-    variables: &BTreeMap<String, ResolvedValue>,
-    records: &BTreeMap<String, Value>,
-) -> bool {
-    variables.values().any(|value| match value {
-        ResolvedValue::String(id) => is_synthetic_gid(id) || records.contains_key(id),
-        _ => false,
-    })
 }
 
 fn markets_collect_records(data: &Value, connection_key: &str, singular_key: &str) -> Vec<Value> {
@@ -1112,7 +1109,10 @@ fn market_record_country_region(market: &Value, country_code: &str) -> Option<Va
         .find_map(|node| market_region_country_from_node(node, country_code))
 }
 
-fn market_region_country_from_node(node: &Value, country_code: &str) -> Option<Value> {
+pub(in crate::proxy) fn market_region_country_from_node(
+    node: &Value,
+    country_code: &str,
+) -> Option<Value> {
     let code = region_code_from_node(node)?;
     if code.to_ascii_uppercase() != country_code {
         return None;

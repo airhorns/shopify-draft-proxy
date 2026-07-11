@@ -134,6 +134,15 @@ function countValue(payload: ConformanceGraphqlPayload<JsonObject>, key: string)
   return typeof value === 'number' ? value : null;
 }
 
+function hasObjectData(payload: ConformanceGraphqlPayload<JsonObject>, key: string): boolean {
+  const value = payload.data?.[key];
+  return typeof value === 'object' && value !== null;
+}
+
+function hasNullData(payload: ConformanceGraphqlPayload<JsonObject>, key: string): boolean {
+  return payload.data?.[key] === null;
+}
+
 function page1Ready(payload: ConformanceGraphqlPayload<JsonObject>): boolean {
   const sharedFirstPage = payload.data?.sharedFirstPage;
   if (typeof sharedFirstPage !== 'object' || sharedFirstPage === null) {
@@ -144,6 +153,9 @@ function page1Ready(payload: ConformanceGraphqlPayload<JsonObject>): boolean {
   const hasNextPage =
     typeof pageInfo === 'object' && pageInfo !== null && (pageInfo as JsonObject).hasNextPage === true;
   return (
+    hasObjectData(payload, 'createdByIdentifierId') &&
+    hasObjectData(payload, 'createdByIdentifierHandle') &&
+    hasObjectData(payload, 'createdByHandleRoot') &&
     connectionNodes(payload, 'firstByHandle').length === 1 &&
     Array.isArray(edges) &&
     edges.length === 1 &&
@@ -153,7 +165,15 @@ function page1Ready(payload: ConformanceGraphqlPayload<JsonObject>): boolean {
 }
 
 function postUpdateReady(payload: ConformanceGraphqlPayload<JsonObject>): boolean {
-  return connectionNodes(payload, 'oldByHandle').length === 0 && connectionNodes(payload, 'newByHandle').length === 1;
+  return (
+    hasObjectData(payload, 'updatedByIdentifierId') &&
+    hasObjectData(payload, 'updatedByIdentifierHandle') &&
+    hasObjectData(payload, 'updatedByHandleRoot') &&
+    hasNullData(payload, 'oldIdentifierHandle') &&
+    hasNullData(payload, 'oldHandleRoot') &&
+    connectionNodes(payload, 'oldByHandle').length === 0 &&
+    connectionNodes(payload, 'newByHandle').length === 1
+  );
 }
 
 function postDeleteReady(payload: ConformanceGraphqlPayload<JsonObject>): boolean {
@@ -161,7 +181,10 @@ function postDeleteReady(payload: ConformanceGraphqlPayload<JsonObject>): boolea
     connectionNodes(payload, 'remainingShared').length === 1 &&
     connectionNodes(payload, 'deletedByHandle').length === 0 &&
     countValue(payload, 'sharedCount') === 1 &&
-    countValue(payload, 'deletedCount') === 0
+    countValue(payload, 'deletedCount') === 0 &&
+    hasNullData(payload, 'deletedIdentifierId') &&
+    hasNullData(payload, 'deletedIdentifierHandle') &&
+    hasNullData(payload, 'deletedHandleRoot')
   );
 }
 
@@ -245,6 +268,8 @@ try {
   const sharedQuery = `title:${titleBase}*`;
   const firstHandleQuery = `handle:${firstHandle}`;
   const initialPage1Variables = {
+    firstCollectionId,
+    firstHandle,
     firstHandleQuery,
     sharedQuery,
     first: 1,
@@ -273,6 +298,9 @@ try {
   collectionIdFromUpdate(update, 'collectionUpdate');
 
   const postUpdateVariables = {
+    updatedCollectionId: firstCollectionId,
+    oldHandle: firstHandle,
+    newHandle: updatedFirstHandle,
     oldHandleQuery: firstHandleQuery,
     newHandleQuery: `handle:${updatedFirstHandle}`,
   };
@@ -293,6 +321,8 @@ try {
 
   const postDeleteVariables = {
     sharedQuery,
+    deletedCollectionId: secondCollectionId,
+    deletedHandle: secondHandle,
     deletedHandleQuery: `handle:${secondHandle}`,
   };
   const postDelete = await pollGraphql<JsonObject>(

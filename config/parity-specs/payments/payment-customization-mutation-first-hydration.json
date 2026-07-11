@@ -1,0 +1,122 @@
+{
+  "scenarioId": "payment-customization-mutation-first-hydration",
+  "operationNames": [
+    "paymentCustomization",
+    "paymentCustomizations",
+    "paymentCustomizationUpdate",
+    "paymentCustomizationActivation",
+    "paymentCustomizationDelete"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "downstream-read-parity",
+    "runtime-staging",
+    "base-state-hydration",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-customization-mutation-first-hydration.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "mutation-first-update-payload",
+        "capturePath": "$.operations.paymentCustomizationUpdateMutationFirst.response.data.paymentCustomizationUpdate",
+        "proxyPath": "$.data.paymentCustomizationUpdate",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-customization-mutation-first-update.graphql",
+          "variablesCapturePath": "$.operations.paymentCustomizationUpdateMutationFirst.variables",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.paymentCustomization.metafields.edges[0].node.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy update the hydrated metafield at independently generated times."
+          }
+        ]
+      },
+      {
+        "name": "read-after-mutation-first-update",
+        "capturePath": "$.reads.afterUpdate.response.data.paymentCustomization",
+        "proxyPath": "$.data.paymentCustomization",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-customization-mutation-first-read.graphql",
+          "variables": {
+            "id": {
+              "fromCapturePath": "$.operations.paymentCustomizationUpdateMutationFirst.variables.id"
+            }
+          },
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metafields.edges[0].node.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy update the hydrated metafield at independently generated times."
+          }
+        ]
+      },
+      {
+        "name": "mutation-first-activation-payload",
+        "capturePath": "$.operations.paymentCustomizationActivationMutationFirst.response.data.paymentCustomizationActivation",
+        "proxyPath": "$.data.paymentCustomizationActivation",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-customization-activation-mixed.graphql",
+          "variablesCapturePath": "$.operations.paymentCustomizationActivationMutationFirst.variables"
+        }
+      },
+      {
+        "name": "read-after-mutation-first-activation",
+        "capturePath": "$.reads.afterActivation.response.data.paymentCustomization",
+        "proxyPath": "$.data.paymentCustomization",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-customization-mutation-first-read.graphql",
+          "variables": {
+            "id": {
+              "fromCapturePath": "$.operations.paymentCustomizationActivationMutationFirst.variables.ids[0]"
+            }
+          }
+        }
+      },
+      {
+        "name": "mutation-first-delete-payload",
+        "capturePath": "$.operations.paymentCustomizationDeleteMutationFirst.response.data.paymentCustomizationDelete",
+        "proxyPath": "$.data.paymentCustomizationDelete",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-customization-mutation-first-delete.graphql",
+          "variablesCapturePath": "$.operations.paymentCustomizationDeleteMutationFirst.variables"
+        }
+      },
+      {
+        "name": "read-after-mutation-first-delete",
+        "capturePath": "$.reads.afterDelete.response.data.paymentCustomization",
+        "proxyPath": "$.data.paymentCustomization",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-customization-mutation-first-read.graphql",
+          "variables": {
+            "id": {
+              "fromCapturePath": "$.operations.paymentCustomizationDeleteMutationFirst.variables.id"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Executable mutation-first parity for real pre-existing PaymentCustomization IDs. The live recorder creates disposable update, activation, and delete targets with a visible payment_customization ShopifyFunction, records the exact upstream by-id/catalog hydrate reads the proxy uses, then replays update/activation/delete as the first proxy operations for those real IDs. Public 2026-04 evidence on this shop does not expose a rejected active-limit branch; the companion create-validation fixture records that a sixth enabled customization was accepted on this shop."
+}

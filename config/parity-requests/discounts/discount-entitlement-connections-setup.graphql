@@ -1,0 +1,103 @@
+mutation DiscountEntitlementConnectionsSetup(
+  $alphaProduct: ProductCreateInput!
+  $bravoProduct: ProductCreateInput!
+  $alphaVariantProduct: ProductCreateInput!
+  $bravoVariantProduct: ProductCreateInput!
+  $alphaCollection: CollectionInput!
+  $bravoCollection: CollectionInput!
+) {
+  alphaProduct: productCreate(product: $alphaProduct) {
+    product {
+      id
+      title
+      handle
+      variants(first: 5) {
+        nodes {
+          id
+          title
+          sku
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  bravoProduct: productCreate(product: $bravoProduct) {
+    product {
+      id
+      title
+      handle
+      variants(first: 5) {
+        nodes {
+          id
+          title
+          sku
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  alphaVariantProduct: productCreate(product: $alphaVariantProduct) {
+    product {
+      id
+      title
+      handle
+      variants(first: 5) {
+        nodes {
+          id
+          title
+          sku
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  bravoVariantProduct: productCreate(product: $bravoVariantProduct) {
+    product {
+      id
+      title
+      handle
+      variants(first: 5) {
+        nodes {
+          id
+          title
+          sku
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  alphaCollection: collectionCreate(input: $alphaCollection) {
+    collection {
+      id
+      title
+      handle
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  bravoCollection: collectionCreate(input: $bravoCollection) {
+    collection {
+      id
+      title
+      handle
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

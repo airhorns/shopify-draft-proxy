@@ -104,7 +104,24 @@ fn restore_italian_eur_shop(proxy: &mut DraftProxy) {
     let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
     assert_eq!(dump.status, 200);
     let mut restored = dump.body;
-    restored["state"]["baseState"]["shop"]["currencyCode"] = json!("EUR");
+    restored["state"]["baseState"]["shop"] = json!({
+        "id": "gid://shopify/Shop/italian-primary",
+        "name": "Italian primary shop",
+        "currencyCode": "EUR",
+        "myshopifyDomain": "italian-primary.myshopify.com",
+        "primaryDomain": {
+            "id": "gid://shopify/Domain/1000",
+            "host": "italian-primary.example",
+            "url": "https://italian-primary.example",
+            "sslEnabled": true
+        },
+        "domains": [{
+            "id": "gid://shopify/Domain/1000",
+            "host": "italian-primary.example",
+            "url": "https://italian-primary.example",
+            "sslEnabled": true
+        }]
+    });
     restored["state"]["baseState"]["shopLocales"] = json!({
         "it": {
             "locale": "it",
@@ -133,8 +150,17 @@ const FIXED_PRICE_VALIDATION_MISSING_VARIANT_ID: &str =
     "gid://shopify/ProductVariant/9999991817001";
 
 fn fixed_price_validation_proxy() -> DraftProxy {
-    configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|request| {
+    fixed_price_validation_proxy_with_capture(None)
+}
+
+fn fixed_price_validation_proxy_with_capture(
+    captured_bodies: Option<Arc<Mutex<Vec<Value>>>>,
+) -> DraftProxy {
+    configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
         let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+        if let Some(captured_bodies) = &captured_bodies {
+            captured_bodies.lock().unwrap().push(body.clone());
+        }
         assert_eq!(
             body["operationName"],
             json!("MarketsMutationPreflightHydrate")
@@ -519,6 +545,91 @@ fn price_list_prices_read_filters_and_windows_staged_fixed_prices() {
 }
 
 #[test]
+fn price_list_fixed_price_preflight_is_keyed_and_reused_for_known_variants() {
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = fixed_price_validation_proxy_with_capture(Some(Arc::clone(&upstream_bodies)));
+
+    let add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FixedPricesAddKeyedPreflight($priceListId: ID!, $prices: [PriceListPriceInput!]!) {
+          priceListFixedPricesAdd(priceListId: $priceListId, prices: $prices) {
+            prices { variant { id } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": FIXED_PRICE_VALIDATION_PRICE_LIST_ID,
+            "prices": [
+                {
+                    "variantId": FIXED_PRICE_VALIDATION_VARIANT_A_ID,
+                    "price": { "amount": "10.00", "currencyCode": "USD" }
+                },
+                {
+                    "variantId": FIXED_PRICE_VALIDATION_VARIANT_B_ID,
+                    "price": { "amount": "20.00", "currencyCode": "USD" }
+                }
+            ]
+        }),
+    ));
+    assert_eq!(
+        add.body["data"]["priceListFixedPricesAdd"]["userErrors"],
+        json!([])
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FixedPricesUpdateReusesPreflight(
+          $priceListId: ID!
+          $pricesToAdd: [PriceListPriceInput!]!
+          $variantIdsToDelete: [ID!]!
+        ) {
+          priceListFixedPricesUpdate(
+            priceListId: $priceListId
+            pricesToAdd: $pricesToAdd
+            variantIdsToDelete: $variantIdsToDelete
+          ) {
+            pricesAdded { variant { id } }
+            deletedFixedPriceVariantIds
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": FIXED_PRICE_VALIDATION_PRICE_LIST_ID,
+            "pricesToAdd": [{
+                "variantId": FIXED_PRICE_VALIDATION_VARIANT_A_ID,
+                "price": { "amount": "12.00", "currencyCode": "USD" }
+            }],
+            "variantIdsToDelete": [FIXED_PRICE_VALIDATION_VARIANT_B_ID]
+        }),
+    ));
+    assert_eq!(
+        update.body["data"]["priceListFixedPricesUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let upstream_bodies = upstream_bodies.lock().unwrap();
+    assert_eq!(
+        upstream_bodies.len(),
+        1,
+        "upstream_bodies={upstream_bodies:#?}"
+    );
+    let preflight = &upstream_bodies[0];
+    assert_eq!(
+        preflight["variables"]["variantIds"],
+        json!([
+            FIXED_PRICE_VALIDATION_VARIANT_A_ID,
+            FIXED_PRICE_VALIDATION_VARIANT_B_ID
+        ])
+    );
+    let query = preflight["query"].as_str().unwrap_or_default();
+    assert!(query.contains("productVariants: nodes(ids: $variantIds)"));
+    assert!(!query.contains("products(first:"));
+    assert!(!query.contains("markets(first:"));
+}
+
+#[test]
 fn price_list_fixed_prices_add_short_circuits_currency_after_missing_variant() {
     let mut proxy = fixed_price_validation_proxy();
 
@@ -767,6 +878,162 @@ fn price_list_fixed_prices_update_validates_compare_at_price_currency_without_st
             && edge["node"]["price"] == matching_price_payload
             && edge["node"]["compareAtPrice"].is_null()
     }));
+}
+
+#[test]
+fn price_list_update_currency_change_clears_staged_fixed_prices() {
+    let mut proxy = fixed_price_validation_proxy();
+
+    let add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedFixedPricesForCurrencyUpdate($priceListId: ID!, $prices: [PriceListPriceInput!]!) {
+          priceListFixedPricesAdd(priceListId: $priceListId, prices: $prices) {
+            prices { variant { id } price { amount currencyCode } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": FIXED_PRICE_VALIDATION_PRICE_LIST_ID,
+            "prices": [
+                {
+                    "variantId": FIXED_PRICE_VALIDATION_VARIANT_A_ID,
+                    "price": { "amount": "10.00", "currencyCode": "USD" }
+                },
+                {
+                    "variantId": FIXED_PRICE_VALIDATION_VARIANT_B_ID,
+                    "price": { "amount": "20.00", "currencyCode": "USD" }
+                }
+            ]
+        }),
+    ));
+    assert_eq!(add.status, 200);
+    assert_eq!(
+        add.body["data"]["priceListFixedPricesAdd"]["userErrors"],
+        json!([])
+    );
+
+    let before_update =
+        fixed_price_validation_read(&mut proxy, FIXED_PRICE_VALIDATION_PRICE_LIST_ID);
+    assert_eq!(before_update["fixedPricesCount"], json!(2));
+    assert_eq!(
+        before_update["prices"]["edges"].as_array().map(Vec::len),
+        Some(2)
+    );
+
+    let update_query = r#"
+        mutation PriceListUpdateCurrencyFixedPrices($id: ID!, $input: PriceListUpdateInput!) {
+          priceListUpdate(id: $id, input: $input) {
+            priceList {
+              id
+              currency
+              fixedPricesCount
+              prices(first: 10, originType: FIXED) {
+                edges { node { variant { id } price { amount currencyCode } } }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+
+    let same_currency = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({
+            "id": FIXED_PRICE_VALIDATION_PRICE_LIST_ID,
+            "input": { "currency": "USD" }
+        }),
+    ));
+    assert_eq!(same_currency.status, 200);
+    assert_eq!(
+        same_currency.body["data"]["priceListUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        same_currency.body["data"]["priceListUpdate"]["priceList"]["fixedPricesCount"],
+        json!(2)
+    );
+    assert_eq!(
+        same_currency.body["data"]["priceListUpdate"]["priceList"]["prices"]["edges"]
+            .as_array()
+            .map(Vec::len),
+        Some(2)
+    );
+
+    let rejected_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({
+            "id": FIXED_PRICE_VALIDATION_PRICE_LIST_ID,
+            "input": {
+                "parent": {
+                    "adjustment": {
+                        "type": "PERCENTAGE_DECREASE",
+                        "value": 250
+                    }
+                }
+            }
+        }),
+    ));
+    assert_eq!(rejected_update.status, 200);
+    assert_eq!(
+        rejected_update.body["data"]["priceListUpdate"]["userErrors"][0]["code"],
+        json!("INVALID_ADJUSTMENT_VALUE")
+    );
+    assert_eq!(
+        rejected_update.body["data"]["priceListUpdate"]["priceList"]["currency"],
+        json!("USD")
+    );
+    assert_eq!(
+        rejected_update.body["data"]["priceListUpdate"]["priceList"]["fixedPricesCount"],
+        json!(2)
+    );
+    assert_eq!(
+        rejected_update.body["data"]["priceListUpdate"]["priceList"]["prices"]["edges"]
+            .as_array()
+            .map(Vec::len),
+        Some(2)
+    );
+
+    let changed_currency = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({
+            "id": FIXED_PRICE_VALIDATION_PRICE_LIST_ID,
+            "input": { "currency": "CAD" }
+        }),
+    ));
+    assert_eq!(changed_currency.status, 200);
+    assert_eq!(
+        changed_currency.body["data"]["priceListUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        changed_currency.body["data"]["priceListUpdate"]["priceList"]["currency"],
+        json!("CAD")
+    );
+    assert_eq!(
+        changed_currency.body["data"]["priceListUpdate"]["priceList"]["fixedPricesCount"],
+        json!(0)
+    );
+    assert_eq!(
+        changed_currency.body["data"]["priceListUpdate"]["priceList"]["prices"]["edges"],
+        json!([])
+    );
+    assert_eq!(
+        changed_currency.body["data"]["priceListUpdate"]["priceList"]["prices"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": null,
+            "endCursor": null
+        })
+    );
+
+    let read_after_change =
+        fixed_price_validation_read(&mut proxy, FIXED_PRICE_VALIDATION_PRICE_LIST_ID);
+    assert_eq!(read_after_change["currency"], json!("CAD"));
+    assert_eq!(read_after_change["fixedPricesCount"], json!(0));
+    assert_eq!(read_after_change["prices"]["edges"], json!([]));
 }
 
 #[test]
@@ -2924,6 +3191,11 @@ fn markets_quantity_pricing_and_web_presence_local_staging_match_captured_shapes
         "gid://shopify/Product/quantity-pricing-captured-shapes",
         "gid://shopify/ProductVariant/49875425296690",
     )]);
+    restore_shop_domain_context(
+        &mut proxy,
+        "captured-shapes.myshopify.com",
+        "captured-shapes.example",
+    );
     let price_list_id = create_test_price_list(&mut proxy, "CAD");
 
     let unknown_price_list = proxy.process_request(json_graphql_request(
@@ -3371,9 +3643,9 @@ fn markets_quantity_pricing_and_web_presence_local_staging_match_captured_shapes
     assert_eq!(
         multi.body["data"]["webPresenceCreate"]["webPresence"]["rootUrls"],
         json!([
-            {"locale": "en", "url": "https://shopify-draft-proxy.local/en-intl/"},
-            {"locale": "de", "url": "https://shopify-draft-proxy.local/de-intl/"},
-            {"locale": "fr", "url": "https://shopify-draft-proxy.local/fr-intl/"}
+            {"locale": "en", "url": "https://captured-shapes.myshopify.com/en-intl/"},
+            {"locale": "de", "url": "https://captured-shapes.myshopify.com/de-intl/"},
+            {"locale": "fr", "url": "https://captured-shapes.myshopify.com/fr-intl/"}
         ])
     );
 }
@@ -3449,6 +3721,221 @@ fn market_web_presence_create_uses_observed_shop_host_from_live_preflight() {
 }
 
 #[test]
+fn market_web_presence_first_create_uses_shop_domain_from_live_preflight() {
+    let preflight_queries = Arc::new(Mutex::new(Vec::<String>::new()));
+    let captured_queries = Arc::clone(&preflight_queries);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            assert_eq!(
+                body["operationName"],
+                json!("MarketsMutationPreflightHydrate")
+            );
+            let query = body["query"].as_str().unwrap_or_default().to_string();
+            captured_queries.lock().unwrap().push(query.clone());
+            assert!(query.contains("shop { myshopifyDomain"));
+            assert!(query.contains("domains { id host url sslEnabled }"));
+            assert!(query.contains("webPresences(first: $first)"));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "shop": {
+                            "myshopifyDomain": "first-presence.myshopify.com",
+                            "primaryDomain": {
+                                "id": "gid://shopify/Domain/1111",
+                                "host": "first-presence.example",
+                                "url": "https://first-presence.example",
+                                "sslEnabled": true
+                            },
+                            "domains": [{
+                                "id": "gid://shopify/Domain/1111",
+                                "host": "first-presence.example",
+                                "url": "https://first-presence.example",
+                                "sslEnabled": true
+                            }]
+                        },
+                        "webPresences": { "nodes": [] }
+                    }
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketWebPresenceFirstShopDomain($input: WebPresenceCreateInput!) {
+          webPresenceCreate(input: $input) {
+            webPresence { domain { id } rootUrls { locale url } }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({"input": {"defaultLocale": "en", "alternateLocales": ["fr"], "subfolderSuffix": "intl"}}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["webPresenceCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["webPresenceCreate"]["webPresence"]["domain"],
+        Value::Null
+    );
+    assert_eq!(
+        response.body["data"]["webPresenceCreate"]["webPresence"]["rootUrls"],
+        json!([
+            {"locale": "en", "url": "https://first-presence.myshopify.com/en-intl/"},
+            {"locale": "fr", "url": "https://first-presence.myshopify.com/fr-intl/"}
+        ])
+    );
+    assert!(!response
+        .body
+        .to_string()
+        .contains("shopify-draft-proxy.local"));
+    assert_eq!(preflight_queries.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn market_web_presence_first_create_uses_selected_custom_domain_from_live_preflight() {
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            assert_eq!(
+                body["operationName"],
+                json!("MarketsMutationPreflightHydrate")
+            );
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "shop": {
+                            "myshopifyDomain": "custom-domain-shop.myshopify.com",
+                            "primaryDomain": {
+                                "id": "gid://shopify/Domain/2001",
+                                "host": "primary-custom.example",
+                                "url": "https://primary-custom.example",
+                                "sslEnabled": true
+                            },
+                            "domains": [{
+                                "id": "gid://shopify/Domain/2002",
+                                "host": "selected-custom.example",
+                                "url": "https://selected-custom.example",
+                                "sslEnabled": true
+                            }]
+                        },
+                        "webPresences": { "nodes": [] }
+                    }
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketWebPresenceFirstCustomDomain($input: WebPresenceCreateInput!) {
+          webPresenceCreate(input: $input) {
+            webPresence {
+              domain { id host url sslEnabled }
+              rootUrls { locale url }
+              subfolderSuffix
+            }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({"input": {"defaultLocale": "en", "alternateLocales": ["fr"], "domainId": "gid://shopify/Domain/2002"}}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["webPresenceCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["webPresenceCreate"]["webPresence"]["domain"],
+        json!({
+            "id": "gid://shopify/Domain/2002",
+            "host": "selected-custom.example",
+            "url": "https://selected-custom.example",
+            "sslEnabled": true
+        })
+    );
+    assert_eq!(
+        response.body["data"]["webPresenceCreate"]["webPresence"]["rootUrls"],
+        json!([
+            {"locale": "en", "url": "https://selected-custom.example/"},
+            {"locale": "fr", "url": "https://selected-custom.example/fr/"}
+        ])
+    );
+    assert_eq!(
+        response.body["data"]["webPresenceCreate"]["webPresence"]["subfolderSuffix"],
+        Value::Null
+    );
+    assert!(!response
+        .body
+        .to_string()
+        .contains("shopify-draft-proxy.local"));
+}
+
+#[test]
+fn market_web_presence_first_create_returns_error_when_domain_hydrate_unavailable() {
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            assert_eq!(
+                body["operationName"],
+                json!("MarketsMutationPreflightHydrate")
+            );
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "webPresences": { "nodes": [] }
+                    }
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketWebPresenceMissingDomainContext($input: WebPresenceCreateInput!) {
+          webPresenceCreate(input: $input) {
+            webPresence { id rootUrls { locale url } }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({"input": {"defaultLocale": "en", "subfolderSuffix": "intl"}}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["webPresenceCreate"]["webPresence"],
+        Value::Null
+    );
+    assert_eq!(
+        response.body["data"]["webPresenceCreate"]["userErrors"],
+        json!([{
+            "__typename": "MarketUserError",
+            "field": ["input", "subfolderSuffix"],
+            "message": "Shop domain context is unavailable for subfolder web presence URL generation.",
+            "code": "UNSUPPORTED_IN_PROXY"
+        }])
+    );
+    assert!(!response
+        .body
+        .to_string()
+        .contains("shopify-draft-proxy.local"));
+    assert_no_staged_web_presences(&proxy);
+}
+
+#[test]
 fn market_web_presence_current_runtime_helpers_stage_and_validate() {
     // Covers web-presence helper behavior:
     // root URL construction for subfolder/domain routing, Shopify locale normalization,
@@ -3497,6 +3984,11 @@ fn market_web_presence_current_runtime_helpers_stage_and_validate() {
     "#;
 
     let mut proxy = snapshot_proxy();
+    let domain_id = restore_shop_domain_context(
+        &mut proxy,
+        "runtime-helper.myshopify.com",
+        "runtime-helper.example",
+    );
     let subfolder = proxy.process_request(json_graphql_request(
         create_query,
         json!({"input": {"defaultLocale": "en", "alternateLocales": ["fr", "de"], "subfolderSuffix": "intl"}}),
@@ -3516,45 +4008,25 @@ fn market_web_presence_current_runtime_helpers_stage_and_validate() {
     assert_eq!(
         subfolder.body["data"]["webPresenceCreate"]["webPresence"]["rootUrls"],
         json!([
-            {"locale": "en", "url": "https://shopify-draft-proxy.local/en-intl/"},
-            {"locale": "de", "url": "https://shopify-draft-proxy.local/de-intl/"},
-            {"locale": "fr", "url": "https://shopify-draft-proxy.local/fr-intl/"}
+            {"locale": "en", "url": "https://runtime-helper.myshopify.com/en-intl/"},
+            {"locale": "de", "url": "https://runtime-helper.myshopify.com/de-intl/"},
+            {"locale": "fr", "url": "https://runtime-helper.myshopify.com/fr-intl/"}
         ])
     );
 
-    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
-    assert_eq!(dump.status, 200);
-    let mut restored_state = dump.body;
-    restored_state["state"]["baseState"]["shop"] = json!({
-        "id": "gid://shopify/Shop/domain-helper",
-        "myshopifyDomain": "shopify-draft-proxy.local",
-        "primaryDomain": {
-            "id": "gid://shopify/Domain/1000",
-            "host": "shopify-draft-proxy.local",
-            "url": "https://shopify-draft-proxy.local",
-            "sslEnabled": true
-        }
-    });
-    let restore = proxy.process_request(request_with_body(
-        "POST",
-        "/__meta/restore",
-        &restored_state.to_string(),
-    ));
-    assert_eq!(restore.status, 200);
-
     let domain = proxy.process_request(json_graphql_request(
         create_query,
-        json!({"input": {"defaultLocale": "en", "alternateLocales": ["fr"], "domainId": "gid://shopify/Domain/1000"}}),
+        json!({"input": {"defaultLocale": "en", "alternateLocales": ["fr"], "domainId": domain_id}}),
     ));
     assert_eq!(
         domain.body["data"]["webPresenceCreate"]["webPresence"]["domain"],
-        json!({"id": "gid://shopify/Domain/1000", "host": "shopify-draft-proxy.local", "url": "https://shopify-draft-proxy.local", "sslEnabled": true})
+        json!({"id": "gid://shopify/Domain/1000", "host": "runtime-helper.example", "url": "https://runtime-helper.example", "sslEnabled": true})
     );
     assert_eq!(
         domain.body["data"]["webPresenceCreate"]["webPresence"]["rootUrls"],
         json!([
-            {"locale": "en", "url": "https://shopify-draft-proxy.local/"},
-            {"locale": "fr", "url": "https://shopify-draft-proxy.local/fr/"}
+            {"locale": "en", "url": "https://runtime-helper.example/"},
+            {"locale": "fr", "url": "https://runtime-helper.example/fr/"}
         ])
     );
     assert_eq!(
@@ -3563,6 +4035,11 @@ fn market_web_presence_current_runtime_helpers_stage_and_validate() {
     );
 
     let mut locale_proxy = snapshot_proxy();
+    restore_shop_domain_context(
+        &mut locale_proxy,
+        "locale-helper.myshopify.com",
+        "locale-helper.example",
+    );
     let normalized = locale_proxy.process_request(json_graphql_request(
         create_query,
         json!({"input": {"defaultLocale": "EN-us", "alternateLocales": ["ZH-hant-tw", "pt-br"], "subfolderSuffix": "us"}}),
@@ -3589,9 +4066,9 @@ fn market_web_presence_current_runtime_helpers_stage_and_validate() {
     assert_eq!(
         normalized.body["data"]["webPresenceCreate"]["webPresence"]["rootUrls"],
         json!([
-            {"locale": "en-US", "url": "https://shopify-draft-proxy.local/en-us/"},
-            {"locale": "pt-BR", "url": "https://shopify-draft-proxy.local/pt-us/"},
-            {"locale": "zh-Hant-TW", "url": "https://shopify-draft-proxy.local/zh-us/"}
+            {"locale": "en-US", "url": "https://locale-helper.myshopify.com/en-us/"},
+            {"locale": "pt-BR", "url": "https://locale-helper.myshopify.com/pt-us/"},
+            {"locale": "zh-Hant-TW", "url": "https://locale-helper.myshopify.com/zh-us/"}
         ])
     );
 
@@ -3660,6 +4137,11 @@ fn market_web_presence_current_runtime_helpers_stage_and_validate() {
     }
 
     let mut duplicate_proxy = snapshot_proxy();
+    restore_shop_domain_context(
+        &mut duplicate_proxy,
+        "duplicate-helper.myshopify.com",
+        "duplicate-helper.example",
+    );
     let deduped = duplicate_proxy.process_request(json_graphql_request(
         create_query,
         json!({"input": {"defaultLocale": "en", "alternateLocales": ["fr", "fr"], "subfolderSuffix": "dup"}}),
@@ -3690,6 +4172,11 @@ fn market_web_presence_current_runtime_helpers_stage_and_validate() {
     );
 
     let mut update_proxy = snapshot_proxy();
+    restore_shop_domain_context(
+        &mut update_proxy,
+        "update-helper.myshopify.com",
+        "update-helper.example",
+    );
     let create = update_proxy.process_request(json_graphql_request(
         create_query,
         json!({"input": {"defaultLocale": "en", "alternateLocales": ["es"], "subfolderSuffix": "intl"}}),
@@ -3780,6 +4267,11 @@ fn market_web_presence_current_runtime_helpers_stage_and_validate() {
     }
 
     let mut taken_update_proxy = snapshot_proxy();
+    restore_shop_domain_context(
+        &mut taken_update_proxy,
+        "taken-update-helper.myshopify.com",
+        "taken-update-helper.example",
+    );
     let first = taken_update_proxy.process_request(json_graphql_request(
         create_query,
         json!({"input": {"defaultLocale": "en", "subfolderSuffix": "fr"}}),
@@ -3982,6 +4474,11 @@ fn market_web_presence_locale_catalog_accepts_supported_languages_beyond_legacy_
     "#;
 
     let mut proxy = snapshot_proxy();
+    restore_shop_domain_context(
+        &mut proxy,
+        "locale-catalog-helper.myshopify.com",
+        "locale-catalog-helper.example",
+    );
     let create = proxy.process_request(json_graphql_request(
         create_query,
         json!({"input": {"defaultLocale": "it", "alternateLocales": ["ja"], "subfolderSuffix": "it"}}),
@@ -4129,7 +4626,7 @@ fn non_english_primary_locale_drives_shop_locale_and_web_presence_rules() {
     );
     assert_eq!(
         web_presence.body["data"]["webPresenceCreate"]["webPresence"]["rootUrls"],
-        json!([{"locale": "it", "url": "https://shopify-draft-proxy.local/it-it/"}])
+        json!([{"locale": "it", "url": "https://italian-primary.myshopify.com/it-it/"}])
     );
     let web_presence_id = web_presence.body["data"]["webPresenceCreate"]["webPresence"]["id"]
         .as_str()
@@ -4195,8 +4692,8 @@ fn non_english_primary_locale_drives_shop_locale_and_web_presence_rules() {
     assert_eq!(
         updated_presence["rootUrls"],
         json!([
-            {"locale": "it", "url": "https://shopify-draft-proxy.local/it-it/"},
-            {"locale": "en", "url": "https://shopify-draft-proxy.local/en-it/"}
+            {"locale": "it", "url": "https://italian-primary.myshopify.com/it-it/"},
+            {"locale": "en", "url": "https://italian-primary.myshopify.com/en-it/"}
         ])
     );
 }
@@ -4818,6 +5315,404 @@ fn market_update_applies_scalar_inputs_and_keeps_partial_fields() {
 }
 
 #[test]
+fn market_update_live_hybrid_hydrates_existing_market_before_local_stage() {
+    let market_id = "gid://shopify/Market/18001001";
+    let catalog_id = "gid://shopify/MarketCatalog/18001002";
+    let web_presence_id = "gid://shopify/MarketWebPresence/18001003";
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            captured_bodies.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(
+                !query.contains("marketUpdate"),
+                "marketUpdate must stage locally without upstream passthrough: {request:?}"
+            );
+            assert_eq!(
+                body["operationName"],
+                json!("MarketsMutationPreflightHydrate")
+            );
+            assert_eq!(body["variables"]["ids"], json!([market_id]));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "nodes": [{
+                            "__typename": "Market",
+                            "id": market_id,
+                            "name": "Existing Market",
+                            "handle": "existing-market",
+                            "status": "ACTIVE",
+                            "enabled": true,
+                            "type": "REGION",
+                            "regionCodes": ["DK"],
+                            "conditions": {
+                                "regionsCondition": {
+                                    "regions": {
+                                        "nodes": [{
+                                            "__typename": "MarketRegionCountry",
+                                            "id": "gid://shopify/Market/Region/18001001001",
+                                            "name": "Denmark",
+                                            "code": "DK"
+                                        }]
+                                    }
+                                }
+                            },
+                            "currencySettings": {
+                                "baseCurrency": {
+                                    "currencyCode": "DKK",
+                                    "currencyName": "Danish Krone"
+                                },
+                                "localCurrencies": true,
+                                "roundingEnabled": false
+                            },
+                            "priceInclusions": null,
+                            "catalogs": {
+                                "nodes": [{
+                                    "__typename": "MarketCatalog",
+                                    "id": catalog_id,
+                                    "title": "Existing Catalog",
+                                    "status": "ACTIVE",
+                                    "contextDriverType": "MARKET",
+                                    "marketIds": [market_id],
+                                    "markets": {
+                                        "nodes": [{
+                                            "id": market_id,
+                                            "name": "Existing Market"
+                                        }]
+                                    },
+                                    "operations": [],
+                                    "priceList": null,
+                                    "publication": null
+                                }]
+                            },
+                            "webPresences": {
+                                "nodes": [{
+                                    "__typename": "MarketWebPresence",
+                                    "id": web_presence_id,
+                                    "subfolderSuffix": "dk",
+                                    "domain": {
+                                        "id": "gid://shopify/Domain/18001004",
+                                        "host": "example.com",
+                                        "url": "https://example.com",
+                                        "sslEnabled": true
+                                    },
+                                    "rootUrls": [],
+                                    "defaultLocale": {
+                                        "locale": "en",
+                                        "name": "English",
+                                        "primary": true,
+                                        "published": true
+                                    },
+                                    "alternateLocales": [],
+                                    "marketIds": [market_id],
+                                    "markets": {
+                                        "nodes": [{
+                                            "id": market_id,
+                                            "name": "Existing Market"
+                                        }]
+                                    }
+                                }]
+                            }
+                        }]
+                    }
+                }),
+            }
+        });
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LiveHybridExistingMarketUpdate($id: ID!, $input: MarketUpdateInput!) {
+          marketUpdate(id: $id, input: $input) {
+            market {
+              id
+              name
+              handle
+              status
+              enabled
+              catalogs(first: 5) { nodes { id title markets(first: 5) { nodes { id name } } } }
+              webPresences(first: 5) { nodes { id markets(first: 5) { nodes { id } } } }
+            }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({"id": market_id, "input": {"name": "Existing Market Updated", "handle": "existing-market-updated"}}),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(update.body["data"]["marketUpdate"]["userErrors"], json!([]));
+    assert_eq!(
+        update.body["data"]["marketUpdate"]["market"]["name"],
+        json!("Existing Market Updated")
+    );
+    assert_eq!(
+        update.body["data"]["marketUpdate"]["market"]["handle"],
+        json!("existing-market-updated")
+    );
+    assert_eq!(
+        update.body["data"]["marketUpdate"]["market"]["catalogs"]["nodes"][0]["markets"]["nodes"]
+            [0]["name"],
+        json!("Existing Market Updated")
+    );
+    assert_eq!(
+        update.body["data"]["marketUpdate"]["market"]["webPresences"]["nodes"][0]["markets"]
+            ["nodes"][0]["id"],
+        json!(market_id)
+    );
+
+    let upstream_calls_after_update = upstream_bodies.lock().unwrap().len();
+    assert_eq!(upstream_calls_after_update, 1);
+
+    let readback = proxy.process_request(json_graphql_request(
+        r#"
+        query LiveHybridExistingMarketUpdateRead($marketId: ID!, $catalogId: ID!) {
+          market(id: $marketId) {
+            id
+            name
+            handle
+            catalogs(first: 5) { nodes { id title } }
+            webPresences(first: 5) { nodes { id } }
+          }
+          catalog(id: $catalogId) {
+            id
+            markets(first: 5) { nodes { id name } }
+          }
+          webPresences(first: 5) {
+            nodes { id markets(first: 5) { nodes { id } } }
+          }
+        }
+        "#,
+        json!({"marketId": market_id, "catalogId": catalog_id}),
+    ));
+    assert_eq!(
+        readback.body["data"]["market"]["name"],
+        json!("Existing Market Updated")
+    );
+    assert_eq!(
+        readback.body["data"]["catalog"]["markets"]["nodes"][0],
+        json!({"id": market_id, "name": "Existing Market Updated"})
+    );
+    assert_eq!(
+        readback.body["data"]["webPresences"]["nodes"][0]["markets"]["nodes"],
+        json!([{"id": market_id}])
+    );
+    assert_eq!(
+        upstream_bodies.lock().unwrap().len(),
+        upstream_calls_after_update,
+        "read-after-write should serve from locally staged hydrated state"
+    );
+    assert!(log_snapshot(&proxy)["entries"][0]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("LiveHybridExistingMarketUpdate"));
+
+    let wrong_resource = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LiveHybridExistingMarketUpdateWrongResource($id: ID!, $input: MarketUpdateInput!) {
+          marketUpdate(id: $id, input: $input) {
+            market { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": "gid://shopify/Product/18001999", "input": {"name": "Wrong"}}),
+    ));
+    assert_eq!(wrong_resource.status, 200);
+    assert_eq!(wrong_resource.body["data"]["marketUpdate"], Value::Null);
+    assert_eq!(
+        wrong_resource.body["errors"],
+        json!([{
+            "message": "Invalid id: gid://shopify/Product/18001999",
+            "locations": [{"line": 3, "column": 11}],
+            "extensions": {"code": "RESOURCE_NOT_FOUND"},
+            "path": ["marketUpdate"]
+        }])
+    );
+    assert_eq!(
+        upstream_bodies.lock().unwrap().len(),
+        upstream_calls_after_update,
+        "wrong-resource validation must not call upstream"
+    );
+}
+
+#[test]
+fn market_delete_live_hybrid_hydrates_existing_market_and_cascades_relations() {
+    let market_id = "gid://shopify/Market/18002001";
+    let catalog_id = "gid://shopify/MarketCatalog/18002002";
+    let web_presence_id = "gid://shopify/MarketWebPresence/18002003";
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            captured_bodies.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(
+                !query.contains("marketDelete"),
+                "marketDelete must stage locally without upstream passthrough: {request:?}"
+            );
+            assert_eq!(
+                body["operationName"],
+                json!("MarketsMutationPreflightHydrate")
+            );
+            assert_eq!(body["variables"]["ids"], json!([market_id]));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "nodes": [{
+                            "__typename": "Market",
+                            "id": market_id,
+                            "name": "Delete Existing Market",
+                            "handle": "delete-existing-market",
+                            "status": "DRAFT",
+                            "enabled": false,
+                            "type": "REGION",
+                            "conditions": {
+                                "regionsCondition": {
+                                    "regions": {
+                                        "nodes": [{
+                                            "__typename": "MarketRegionCountry",
+                                            "id": "gid://shopify/Market/Region/18002001001",
+                                            "name": "Sweden",
+                                            "code": "SE"
+                                        }]
+                                    }
+                                }
+                            },
+                            "currencySettings": null,
+                            "priceInclusions": null,
+                            "catalogs": {
+                                "nodes": [{
+                                    "__typename": "MarketCatalog",
+                                    "id": catalog_id,
+                                    "title": "Delete Existing Catalog",
+                                    "status": "ACTIVE",
+                                    "contextDriverType": "MARKET",
+                                    "markets": {
+                                        "nodes": [{
+                                            "id": market_id,
+                                            "name": "Delete Existing Market"
+                                        }]
+                                    },
+                                    "operations": [],
+                                    "priceList": null,
+                                    "publication": null
+                                }]
+                            },
+                            "webPresences": {
+                                "nodes": [{
+                                    "__typename": "MarketWebPresence",
+                                    "id": web_presence_id,
+                                    "subfolderSuffix": "se",
+                                    "rootUrls": [],
+                                    "defaultLocale": {
+                                        "locale": "en",
+                                        "name": "English",
+                                        "primary": true,
+                                        "published": true
+                                    },
+                                    "alternateLocales": [],
+                                    "markets": {
+                                        "nodes": [{
+                                            "id": market_id,
+                                            "name": "Delete Existing Market"
+                                        }]
+                                    }
+                                }]
+                            }
+                        }]
+                    }
+                }),
+            }
+        });
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LiveHybridExistingMarketDelete($id: ID!) {
+          marketDelete(id: $id) {
+            deletedId
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({"id": market_id}),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["marketDelete"],
+        json!({"deletedId": market_id, "userErrors": []})
+    );
+    let upstream_calls_after_delete = upstream_bodies.lock().unwrap().len();
+    assert_eq!(upstream_calls_after_delete, 1);
+
+    let readback = proxy.process_request(json_graphql_request(
+        r#"
+        query LiveHybridExistingMarketDeleteRead($marketId: ID!, $catalogId: ID!) {
+          market(id: $marketId) { id }
+          catalog(id: $catalogId) {
+            id
+            markets(first: 5) { nodes { id } }
+          }
+          webPresences(first: 5) {
+            nodes { id markets(first: 5) { nodes { id } } }
+          }
+        }
+        "#,
+        json!({"marketId": market_id, "catalogId": catalog_id}),
+    ));
+    assert_eq!(readback.body["data"]["market"], Value::Null);
+    assert_eq!(
+        readback.body["data"]["catalog"]["markets"]["nodes"],
+        json!([])
+    );
+    assert_eq!(readback.body["data"]["webPresences"]["nodes"], json!([]));
+    assert_eq!(
+        upstream_bodies.lock().unwrap().len(),
+        upstream_calls_after_delete,
+        "read-after-delete should serve from locally staged hydrated state"
+    );
+    assert!(log_snapshot(&proxy)["entries"][0]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("LiveHybridExistingMarketDelete"));
+
+    let wrong_resource = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LiveHybridExistingMarketDeleteWrongResource($id: ID!) {
+          marketDelete(id: $id) {
+            deletedId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": "gid://shopify/Product/18002999"}),
+    ));
+    assert_eq!(wrong_resource.status, 200);
+    assert_eq!(wrong_resource.body["data"]["marketDelete"], Value::Null);
+    assert_eq!(
+        wrong_resource.body["errors"],
+        json!([{
+            "message": "Invalid id: gid://shopify/Product/18002999",
+            "locations": [{"line": 3, "column": 11}],
+            "extensions": {"code": "RESOURCE_NOT_FOUND"},
+            "path": ["marketDelete"]
+        }])
+    );
+    assert_eq!(
+        upstream_bodies.lock().unwrap().len(),
+        upstream_calls_after_delete,
+        "wrong-resource validation must not call upstream"
+    );
+}
+
+#[test]
 fn non_usd_shop_currency_drives_market_defaults_and_resolved_price_inclusivity() {
     let mut proxy = snapshot_proxy();
     restore_italian_eur_shop(&mut proxy);
@@ -5091,6 +5986,11 @@ fn catalog_create_unknown_market_returns_market_not_found_without_staging() {
 #[test]
 fn bundled_price_list_web_presence_mutations_stage_through_helper_path() {
     let mut proxy = snapshot_proxy();
+    restore_shop_domain_context(
+        &mut proxy,
+        "bundled-web-presence.myshopify.com",
+        "bundled-web-presence.example",
+    );
 
     let bundled_create = proxy.process_request(json_graphql_request(
         r#"
@@ -6534,6 +7434,11 @@ fn market_catalog_relation_tail_helpers_cover_current_behavior() {
     }
 
     let mut update_proxy = snapshot_proxy();
+    restore_shop_domain_context(
+        &mut update_proxy,
+        "relation-web-presence.myshopify.com",
+        "relation-web-presence.example",
+    );
     let _primary = update_proxy.process_request(json_graphql_request(
         market_create_query,
         json!({"input": {"name": "Primary"}}),
@@ -6632,6 +7537,11 @@ fn market_catalog_relation_tail_helpers_cover_current_behavior() {
 #[test]
 fn markets_connections_honor_shape_filter_sort_reverse_and_windowing() {
     let mut proxy = snapshot_proxy();
+    restore_shop_domain_context(
+        &mut proxy,
+        "connection-web-presence.myshopify.com",
+        "connection-web-presence.example",
+    );
 
     let market_create_query = r#"
         mutation StageMarket($input: MarketCreateInput!) {
@@ -6941,6 +7851,377 @@ fn markets_connections_honor_shape_filter_sort_reverse_and_windowing() {
 }
 
 #[test]
+fn markets_live_hybrid_merges_cold_family_baseline_with_staged_delta() {
+    let live_market_id = "gid://shopify/Market/live-ca";
+    let live_catalog_id = "gid://shopify/MarketCatalog/live-catalog";
+    let live_price_list_id = "gid://shopify/PriceList/live-prices";
+    let live_presence_id = "gid://shopify/MarketWebPresence/live-presence";
+    let upstream_calls = Arc::new(Mutex::new(0usize));
+    let upstream_calls_for_proxy = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let mut calls = upstream_calls_for_proxy.lock().unwrap();
+            *calls += 1;
+            assert_eq!(
+                *calls, 1,
+                "only the mixed markets-family read should hydrate upstream"
+            );
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(
+                query.contains("markets(")
+                    && query.contains("catalogs(")
+                    && query.contains("priceLists(")
+                    && query.contains("webPresences("),
+                "unexpected upstream query: {query}"
+            );
+            let live_market = json!({
+                "__typename": "Market",
+                "id": live_market_id,
+                "name": "Canada Live",
+                "handle": "canada-live",
+                "status": "ACTIVE",
+                "type": "REGION"
+            });
+            let live_catalog = json!({
+                "__typename": "MarketCatalog",
+                "id": live_catalog_id,
+                "title": "Live Market Catalog",
+                "status": "ACTIVE",
+                "contextDriverType": "MARKET",
+                "marketIds": [live_market_id],
+                "markets": {
+                    "nodes": [live_market.clone()],
+                    "edges": [{ "cursor": live_market_id, "node": live_market.clone() }],
+                    "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": live_market_id,
+                        "endCursor": live_market_id
+                    }
+                },
+                "priceList": { "id": live_price_list_id },
+                "publication": null
+            });
+            let live_price_list = json!({
+                "__typename": "PriceList",
+                "id": live_price_list_id,
+                "name": "Live Base Prices",
+                "currency": "CAD",
+                "parent": {
+                    "adjustment": { "type": "PERCENTAGE_DECREASE", "value": 5 },
+                    "settings": { "compareAtMode": "ADJUSTED" }
+                },
+                "catalogId": live_catalog_id,
+                "catalog": {
+                    "id": live_catalog_id,
+                    "title": "Live Market Catalog",
+                    "status": "ACTIVE"
+                },
+                "fixedPricesCount": 0,
+                "prices": {
+                    "nodes": [],
+                    "edges": [],
+                    "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                    }
+                }
+            });
+            let live_presence = json!({
+                "__typename": "MarketWebPresence",
+                "id": live_presence_id,
+                "subfolderSuffix": "ca",
+                "domain": null,
+                "rootUrls": [],
+                "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                },
+                "alternateLocales": [],
+                "markets": {
+                    "nodes": [live_market.clone()],
+                    "edges": [{ "cursor": live_market_id, "node": live_market.clone() }],
+                    "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": live_market_id,
+                        "endCursor": live_market_id
+                    }
+                }
+            });
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "markets": {
+                            "nodes": [live_market],
+                            "edges": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": live_market_id,
+                                "endCursor": live_market_id
+                            }
+                        },
+                        "catalogs": {
+                            "nodes": [live_catalog.clone()],
+                            "edges": [{ "cursor": live_catalog_id, "node": live_catalog.clone() }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": live_catalog_id,
+                                "endCursor": live_catalog_id
+                            }
+                        },
+                        "catalogsWindow": {
+                            "nodes": [live_catalog],
+                            "edges": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": live_catalog_id,
+                                "endCursor": live_catalog_id
+                            }
+                        },
+                        "catalogsCount": { "count": 1, "precision": "EXACT" },
+                        "priceLists": {
+                            "nodes": [live_price_list],
+                            "edges": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": live_price_list_id,
+                                "endCursor": live_price_list_id
+                            }
+                        },
+                        "webPresences": {
+                            "nodes": [live_presence],
+                            "edges": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": live_presence_id,
+                                "endCursor": live_presence_id
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let local_catalog = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageCountryCatalogBeforeColdMarketsRead($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) {
+            catalog { id title status }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Japan Staged Catalog",
+                "status": "ACTIVE",
+                "context": {
+                    "driverType": "COUNTRY",
+                    "countryCodes": ["JP"]
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        local_catalog.body["data"]["catalogCreate"]["userErrors"],
+        json!([])
+    );
+    let local_catalog_id = local_catalog.body["data"]["catalogCreate"]["catalog"]["id"]
+        .as_str()
+        .expect("catalogCreate returns an id")
+        .to_string();
+    let local_price_list = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StagePriceListBeforeColdMarketsRead($input: PriceListCreateInput!) {
+          priceListCreate(input: $input) {
+            priceList { id name currency catalog { id title } }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Staged Delta Prices",
+                "currency": "USD",
+                "parent": {
+                    "adjustment": { "type": "PERCENTAGE_DECREASE", "value": 10 }
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        local_price_list.body["data"]["priceListCreate"]["userErrors"],
+        json!([])
+    );
+    let local_price_list_id = local_price_list.body["data"]["priceListCreate"]["priceList"]["id"]
+        .as_str()
+        .expect("priceListCreate returns an id")
+        .to_string();
+    assert_eq!(
+        *upstream_calls.lock().unwrap(),
+        0,
+        "local staged mutations should not hydrate or passthrough"
+    );
+
+    let mixed_read = proxy.process_request(json_graphql_request(
+        r#"
+        query MixedMarketsFamilyEffectiveGraph(
+          $marketQuery: String!
+          $catalogQuery: String!
+          $marketsFirst: Int!
+          $catalogsFirst: Int!
+          $catalogsWindowFirst: Int!
+          $priceListsFirst: Int!
+          $webPresencesFirst: Int!
+        ) {
+          markets(first: $marketsFirst, query: $marketQuery, sortKey: NAME, reverse: true) {
+            nodes { id name handle status type }
+          }
+          catalogs(first: $catalogsFirst, query: $catalogQuery, sortKey: TITLE, reverse: true) {
+            nodes {
+              id
+              title
+              status
+              ... on MarketCatalog {
+                markets(first: 5) { nodes { id name } }
+              }
+            }
+          }
+          catalogsWindow: catalogs(first: $catalogsWindowFirst, query: $catalogQuery, sortKey: TITLE, reverse: true) {
+            nodes { id title }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          catalogsCount(query: $catalogQuery) { count precision }
+          priceLists(first: $priceListsFirst) {
+            nodes { id name currency catalog { id title } }
+          }
+          webPresences(first: $webPresencesFirst) {
+            nodes {
+              id
+              subfolderSuffix
+              markets(first: 5) { nodes { id name } }
+            }
+          }
+        }
+        "#,
+        json!({
+            "marketQuery": "Live",
+            "catalogQuery": "Catalog",
+            "marketsFirst": 5,
+            "catalogsFirst": 5,
+            "catalogsWindowFirst": 1,
+            "priceListsFirst": 5,
+            "webPresencesFirst": 5,
+        }),
+    ));
+    assert_eq!(mixed_read.status, 200);
+    assert_eq!(
+        *upstream_calls.lock().unwrap(),
+        1,
+        "cold markets-family roots must hydrate upstream even when another family has staged rows"
+    );
+    assert_eq!(
+        mixed_read.body["data"]["markets"]["nodes"],
+        json!([{
+            "id": live_market_id,
+            "name": "Canada Live",
+            "handle": "canada-live",
+            "status": "ACTIVE",
+            "type": "REGION"
+        }])
+    );
+    let catalog_titles = mixed_read.body["data"]["catalogs"]["nodes"]
+        .as_array()
+        .expect("catalog nodes are an array")
+        .iter()
+        .map(|catalog| catalog["title"].clone())
+        .collect::<Vec<_>>();
+    assert_eq!(catalog_titles.len(), 2);
+    assert!(catalog_titles.contains(&json!("Live Market Catalog")));
+    assert!(catalog_titles.contains(&json!("Japan Staged Catalog")));
+    let live_catalog = mixed_read.body["data"]["catalogs"]["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|catalog| catalog["id"] == json!(live_catalog_id))
+        .expect("live catalog should survive staged delta overlay");
+    assert_eq!(
+        live_catalog["markets"]["nodes"],
+        json!([{ "id": live_market_id, "name": "Canada Live" }])
+    );
+    assert_eq!(
+        mixed_read.body["data"]["catalogsWindow"]["pageInfo"]["hasNextPage"],
+        json!(true)
+    );
+    assert_eq!(
+        mixed_read.body["data"]["catalogsCount"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+    let price_list_nodes = mixed_read.body["data"]["priceLists"]["nodes"]
+        .as_array()
+        .expect("price list nodes are an array");
+    assert_eq!(price_list_nodes.len(), 2);
+    assert!(price_list_nodes
+        .iter()
+        .any(|price_list| price_list["id"] == json!(local_price_list_id)
+            && price_list["name"] == json!("Staged Delta Prices")));
+    assert!(price_list_nodes.iter().any(|price_list| price_list["id"]
+        == json!(live_price_list_id)
+        && price_list["catalog"]
+            == json!({
+                "id": live_catalog_id,
+                "title": "Live Market Catalog"
+            })));
+    assert_eq!(
+        mixed_read.body["data"]["webPresences"]["nodes"][0]["markets"]["nodes"],
+        json!([{ "id": live_market_id, "name": "Canada Live" }])
+    );
+
+    let aliased_followup = proxy.process_request(json_graphql_request(
+        r#"
+        query MixedMarketsFamilyAliasedFollowup($after: String!) {
+          secondCatalogPage: catalogs(first: 1, after: $after, query: "Catalog", sortKey: TITLE, reverse: true) {
+            nodes { id title }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          aliasedPriceLists: priceLists(first: 1) {
+            nodes { id name }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "after": local_catalog_id }),
+    ));
+    assert_eq!(aliased_followup.status, 200);
+    assert_eq!(
+        *upstream_calls.lock().unwrap(),
+        1,
+        "hydrated effective graph should satisfy alias/pagination follow-up locally"
+    );
+    assert_eq!(
+        aliased_followup.body["data"]["secondCatalogPage"]["pageInfo"]["hasPreviousPage"],
+        json!(true)
+    );
+    assert!(aliased_followup.body["data"]["aliasedPriceLists"]["nodes"]
+        .as_array()
+        .is_some_and(|nodes| !nodes.is_empty()));
+}
+
+#[test]
 fn market_delete_stages_locally_cascades_relations_and_retains_raw_mutation() {
     let mut proxy = configured_proxy(
         ReadMode::LiveHybrid,
@@ -6958,6 +8239,7 @@ fn market_delete_stages_locally_cascades_relations_and_retains_raw_mutation() {
             "marketDelete must stage locally without upstream passthrough: {request:?}"
         );
         // Legitimate LiveHybrid cold reads that *do* passthrough:
+        //  - the mutation target preflight for an unknown market ID,
         //  - the localizable-resource preflight (observe content/digests), and
         //  - the post-delete read-back of the locally-minted market, which never
         //    existed upstream, so real Shopify reports it as null.
@@ -6971,6 +8253,8 @@ fn market_delete_stages_locally_cascades_relations_and_retains_raw_mutation() {
                     "marketLocalizations": []
                 }
             })
+        } else if query.contains("MarketsMutationPreflightHydrate") {
+            json!({ "nodes": [Value::Null] })
         } else if query.contains("market(id:") {
             json!({ "market": Value::Null })
         } else {
@@ -6982,6 +8266,11 @@ fn market_delete_stages_locally_cascades_relations_and_retains_raw_mutation() {
             body: json!({ "data": data }),
         }
     });
+    restore_shop_domain_context(
+        &mut proxy,
+        "delete-cascade-web-presence.myshopify.com",
+        "delete-cascade-web-presence.example",
+    );
 
     let market_create_query = r#"
         mutation RustMarketCreateLocalRuntimeDeleteCreate($input: MarketCreateInput!) {
@@ -11854,6 +13143,218 @@ fn product_delete_async_operation_tombstones_immediate_product_read() {
         product_id
     );
     assert_eq!(node_read.body["data"]["node"]["status"], "COMPLETE");
+}
+
+fn create_product_delete_source(proxy: &mut DraftProxy, title: &str) -> Value {
+    let source_create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/productDelete-async-source-create.graphql"
+        ),
+        json!({
+            "input": { "title": title, "status": "DRAFT" },
+            "synchronous": true
+        }),
+    ));
+    assert_eq!(source_create.status, 200);
+    assert_eq!(
+        source_create.body["data"]["productSet"]["userErrors"],
+        json!([])
+    );
+    source_create.body["data"]["productSet"]["product"]["id"].clone()
+}
+
+fn assert_product_delete_async_payload(response: &Response, response_key: &str) -> Value {
+    assert_eq!(response.status, 200);
+    let payload = &response.body["data"][response_key];
+    assert_eq!(payload["deletedProductId"], Value::Null);
+    assert_eq!(payload["userErrors"], json!([]));
+    assert_eq!(
+        payload["productDeleteOperation"]["status"],
+        json!("CREATED")
+    );
+    assert_eq!(
+        payload["productDeleteOperation"]["deletedProductId"],
+        Value::Null
+    );
+    assert_eq!(payload["productDeleteOperation"]["userErrors"], json!([]));
+    let operation_id = payload["productDeleteOperation"]["id"].clone();
+    assert!(operation_id
+        .as_str()
+        .unwrap()
+        .contains("/ProductDeleteOperation/"));
+    operation_id
+}
+
+#[test]
+fn product_delete_async_uses_resolved_synchronous_root_argument() {
+    let mut proxy = snapshot_proxy();
+
+    let canonical_product_id =
+        create_product_delete_source(&mut proxy, "Async delete canonical variable");
+    let canonical_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductDeleteCanonicalVariable($input: ProductDeleteInput!, $synchronous: Boolean!) {
+          deleteResult: productDelete(input: $input, synchronous: $synchronous) {
+            deletedProductId
+            productDeleteOperation {
+              id
+              status
+              deletedProductId
+              userErrors { field message }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": { "id": canonical_product_id.clone() },
+            "synchronous": false
+        }),
+    ));
+    let canonical_operation_id =
+        assert_product_delete_async_payload(&canonical_delete, "deleteResult");
+
+    let renamed_product_id =
+        create_product_delete_source(&mut proxy, "Async delete renamed variable");
+    let renamed_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductDeleteRenamedVariable($input: ProductDeleteInput!, $runSynchronously: Boolean!) {
+          deleteResult: productDelete(input: $input, synchronous: $runSynchronously) {
+            deletedProductId
+            productDeleteOperation {
+              id
+              status
+              deletedProductId
+              userErrors { field message }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": { "id": renamed_product_id.clone() },
+            "runSynchronously": false
+        }),
+    ));
+    let renamed_operation_id = assert_product_delete_async_payload(&renamed_delete, "deleteResult");
+
+    let inline_product_id = create_product_delete_source(&mut proxy, "Async delete inline false");
+    let inline_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductDeleteInlineFalse($input: ProductDeleteInput!) {
+          deleteResult: productDelete(input: $input, synchronous: false) {
+            deletedProductId
+            productDeleteOperation {
+              id
+              status
+              deletedProductId
+              userErrors { field message }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": { "id": inline_product_id.clone() }
+        }),
+    ));
+    let inline_operation_id = assert_product_delete_async_payload(&inline_delete, "deleteResult");
+
+    for (product_id, operation_id) in [
+        (canonical_product_id, canonical_operation_id),
+        (renamed_product_id, renamed_operation_id),
+        (inline_product_id, inline_operation_id),
+    ] {
+        let immediate_read = proxy.process_request(json_graphql_request(
+            include_str!(
+                "../../config/parity-requests/products/productDelete-async-product-read.graphql"
+            ),
+            json!({ "id": product_id.clone() }),
+        ));
+        assert_eq!(immediate_read.status, 200);
+        assert_eq!(immediate_read.body["data"]["product"], Value::Null);
+
+        let operation_read = proxy.process_request(json_graphql_request(
+            include_str!(
+                "../../config/parity-requests/products/productDelete-operation-read.graphql"
+            ),
+            json!({ "id": operation_id.clone() }),
+        ));
+        assert_eq!(operation_read.status, 200);
+        assert_eq!(
+            operation_read.body["data"]["productOperation"]["__typename"],
+            "ProductDeleteOperation"
+        );
+        assert_eq!(
+            operation_read.body["data"]["productOperation"]["id"],
+            operation_id
+        );
+        assert_eq!(
+            operation_read.body["data"]["productOperation"]["deletedProductId"],
+            product_id
+        );
+        assert_eq!(
+            operation_read.body["data"]["productOperation"]["userErrors"],
+            json!([])
+        );
+    }
+
+    let omitted_product_id = create_product_delete_source(&mut proxy, "Sync delete omitted");
+    let omitted_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductDeleteOmitted($input: ProductDeleteInput!) {
+          deleteResult: productDelete(input: $input) {
+            deletedProductId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": { "id": omitted_product_id.clone() }
+        }),
+    ));
+    assert_eq!(omitted_delete.status, 200);
+    assert_eq!(
+        omitted_delete.body["data"]["deleteResult"]["deletedProductId"],
+        omitted_product_id
+    );
+    assert_eq!(
+        omitted_delete.body["data"]["deleteResult"]["userErrors"],
+        json!([])
+    );
+
+    let true_product_id = create_product_delete_source(&mut proxy, "Sync delete explicit true");
+    let true_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductDeleteTrue($input: ProductDeleteInput!, $runSynchronously: Boolean!) {
+          deleteResult: productDelete(input: $input, synchronous: $runSynchronously) {
+            deletedProductId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": { "id": true_product_id.clone() },
+            "runSynchronously": true
+        }),
+    ));
+    assert_eq!(true_delete.status, 200);
+    assert_eq!(
+        true_delete.body["data"]["deleteResult"]["deletedProductId"],
+        true_product_id
+    );
+    assert_eq!(
+        true_delete.body["data"]["deleteResult"]["userErrors"],
+        json!([])
+    );
+
+    let product_delete_log_entries = log_snapshot(&proxy)["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|entry| entry["interpreted"]["operationName"] == json!("productDelete"))
+        .count();
+    assert_eq!(product_delete_log_entries, 5);
 }
 
 #[test]

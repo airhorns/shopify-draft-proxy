@@ -7,9 +7,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::graphql::{
-    parse_operation, parsed_document, primary_root_field, root_field_arguments, root_fields,
-    variable_definition_info, OperationType, RawArgumentValue, ResolvedValue, RootFieldSelection,
-    SelectedField, SourceLocation,
+    parse_operation, parse_operation_with_variables, parsed_document, primary_root_field,
+    root_field_arguments, root_fields, variable_definition_info, OperationType, RawArgumentValue,
+    ResolvedValue, RootFieldSelection, SelectedField, SourceLocation,
 };
 use crate::operation_registry::{
     default_registry, operation_capability, CapabilityDomain, CapabilityExecution,
@@ -273,6 +273,9 @@ struct BaseState {
     delivery_profiles: OrderedRecords<Value>,
     orders: OrderedRecords<Value>,
     order_count_baselines: BTreeMap<String, Value>,
+    discounts: OrderedRecords<Value>,
+    marketing_activities: OrderedRecords<Value>,
+    marketing_events: OrderedRecords<Value>,
     gift_cards: BTreeMap<String, Value>,
     gift_card_configuration: Option<Value>,
     shop: Value,
@@ -281,6 +284,15 @@ struct BaseState {
     available_locales: BTreeMap<String, String>,
     shop_locales: BTreeMap<String, Value>,
     localization_product_ids: BTreeSet<String>,
+    metafield_definitions: BTreeMap<MetafieldDefinitionKey, Value>,
+    metafield_definition_owner_catalogs: BTreeSet<String>,
+    metafield_definition_namespaces: BTreeSet<(String, String)>,
+    b2b_companies: OrderedRecords<Value>,
+    b2b_locations: OrderedRecords<Value>,
+    b2b_contacts: OrderedRecords<Value>,
+    b2b_contact_roles: OrderedRecords<Value>,
+    b2b_role_assignments: OrderedRecords<Value>,
+    b2b_staff_assignments: OrderedRecords<Value>,
 }
 
 type MetafieldDefinitionKey = (String, String, String);
@@ -331,6 +343,7 @@ struct StagedState {
     observed_shipping_location_order: Vec<String>,
     locations: StagedRecords<Value>,
     location_limit_reached: bool,
+    delivery_customizations: StagedRecords<Value>,
     segments: BTreeMap<String, Value>,
     // Recorded segment-catalog read baselines, keyed by root field name
     // (`segments` / `segmentsCount` / `segmentFilters` / `segmentFilterSuggestions`
@@ -354,9 +367,13 @@ struct StagedState {
     discount_redeem_code_bulk_creations: BTreeMap<String, Value>,
     gift_cards: BTreeMap<String, Value>,
     markets: BTreeMap<String, Value>,
+    deleted_market_ids: BTreeSet<String>,
     catalogs: BTreeMap<String, Value>,
     price_lists: BTreeMap<String, Value>,
     web_presences: BTreeMap<String, Value>,
+    #[allow(dead_code)]
+    markets_hydrated_scopes: BTreeSet<String>,
+    markets_dirty_families: BTreeSet<String>,
     publication_ids: BTreeSet<String>,
     created_publication_ids: BTreeSet<String>,
     // Full publication records staged this scenario, keyed by publication gid.
@@ -392,13 +409,16 @@ struct StagedState {
     localization_dirty: bool,
     marketing_activities: StagedRecords<Value>,
     marketing_delete_all_external: bool,
+    marketing_delete_all_external_app_ids: BTreeSet<String>,
     webhook_subscriptions: BTreeMap<String, Value>,
     b2b_companies: BTreeMap<String, Value>,
+    deleted_b2b_company_ids: BTreeSet<String>,
     b2b_locations: StagedRecords<Value>,
     b2b_contacts: BTreeMap<String, Value>,
     b2b_contact_roles: BTreeMap<String, Value>,
     b2b_role_assignments: BTreeMap<String, Value>,
     b2b_staff_assignments: BTreeMap<String, Value>,
+    deleted_b2b_staff_assignment_ids: BTreeSet<String>,
     next_b2b_company_id: u64,
     inventory_levels: BTreeMap<(String, String), BTreeMap<String, i64>>,
     inventory_level_order: Vec<(String, String)>,
@@ -411,6 +431,7 @@ struct StagedState {
     inactive_inventory_levels: BTreeSet<(String, String)>,
     inventory_quantity_updated_at: BTreeMap<(String, String, String), String>,
     next_inventory_quantity_timestamp: u64,
+    inventory_adjustment_groups: BTreeMap<String, Value>,
     inventory_transfers: BTreeMap<String, InventoryTransferRecord>,
     inventory_shipments: BTreeMap<String, InventoryShipmentRecord>,
     metaobject_definitions: StagedRecords<Value>,
@@ -422,6 +443,7 @@ struct StagedState {
     owner_metafields: BTreeMap<String, Vec<Value>>,
     deleted_owner_metafields: BTreeSet<(String, String, String)>,
     metafield_definitions: BTreeMap<MetafieldDefinitionKey, Value>,
+    deleted_metafield_definitions: BTreeSet<MetafieldDefinitionKey>,
     metafield_reference_ids: BTreeSet<String>,
     media_files: StagedRecords<Value>,
     media_ready_on_read: BTreeSet<String>,
@@ -447,6 +469,8 @@ struct StagedState {
     payment_terms_owner_index: BTreeMap<String, String>,
     payment_reminder_schedule_ids: BTreeSet<String>,
     payment_customizations: BTreeMap<String, Value>,
+    deleted_payment_customization_ids: BTreeSet<String>,
+    payment_customization_catalog_hydrated: bool,
     customer_payment_methods: BTreeMap<String, Value>,
     customer_payment_method_customer_index: BTreeMap<String, Vec<String>>,
     next_customer_payment_method_id: u64,
@@ -501,6 +525,7 @@ struct StagedState {
     // empty local result) from a cold read with no local backing (forward to
     // the upstream so function ownership metadata reflects real installs).
     functions_dirty: bool,
+    available_backup_regions: BTreeMap<String, Value>,
     backup_region: Value,
     flow_signatures: Vec<Value>,
     flow_trigger_receipts: Vec<Value>,
@@ -909,6 +934,24 @@ fn effective_count<T>(base: &OrderedRecords<T>, staged: &StagedRecords<T>) -> us
             .count()
 }
 
+fn merge_json_values(target: &mut Value, observed: &Value) {
+    match (target, observed) {
+        (Value::Object(target), Value::Object(observed)) => {
+            for (key, value) in observed {
+                match target.get_mut(key) {
+                    Some(existing) => merge_json_values(existing, value),
+                    None => {
+                        target.insert(key.clone(), value.clone());
+                    }
+                }
+            }
+        }
+        (target, observed) => {
+            *target = observed.clone();
+        }
+    }
+}
+
 fn normalized_order<'a, I>(record_ids: I, order: Vec<String>) -> Vec<String>
 where
     I: IntoIterator<Item = &'a String>,
@@ -1064,32 +1107,17 @@ impl Store {
             || self.staged.publications.contains_key(id)
     }
 
-    fn default_publication_id(&self) -> Option<&'static str> {
-        let id = "gid://shopify/Publication/1";
-        self.has_publication_id(id).then_some(id)
-    }
-
     fn current_publication_ids(&self) -> Vec<&str> {
         if self.staged.current_channel_publication_resolved {
             return self
                 .staged
                 .current_channel_publication_id
                 .as_deref()
-                .or_else(|| self.default_publication_id())
                 .into_iter()
                 .collect();
         }
 
-        let mut publication_ids = Vec::new();
-        if !(self.base.publication_count == Some(0) && self.staged.publications.is_empty()) {
-            publication_ids.push(CURRENT_CHANNEL_PUBLICATION_ID);
-        }
-        if let Some(id) = self.default_publication_id() {
-            if !publication_ids.contains(&id) {
-                publication_ids.push(id);
-            }
-        }
-        publication_ids
+        Vec::new()
     }
 
     fn resource_is_published_on_current_publication(&self, resource_id: &str) -> bool {
@@ -1125,23 +1153,14 @@ impl Store {
     }
 
     fn publication_id_for_channel_id(&self, channel_id: &str) -> Option<String> {
-        self.staged
-            .publications
-            .iter()
-            .find_map(|(id, record)| {
-                let matches = record
-                    .get("channel")
-                    .and_then(|channel| channel.get("id"))
-                    .and_then(Value::as_str)
-                    == Some(channel_id);
-                matches.then(|| id.clone())
-            })
-            .or_else(|| {
-                let suffix = resource_id_path_tail(channel_id);
-                let publication_id = shopify_gid("Publication", suffix);
-                self.has_publication_id(&publication_id)
-                    .then_some(publication_id)
-            })
+        self.staged.publications.iter().find_map(|(id, record)| {
+            let matches = record
+                .get("channel")
+                .and_then(|channel| channel.get("id"))
+                .and_then(Value::as_str)
+                == Some(channel_id);
+            matches.then(|| id.clone())
+        })
     }
 
     pub(in crate::proxy) fn effective_shop(&self) -> Value {
@@ -1294,6 +1313,84 @@ impl Store {
         !self.staged.product_feeds.is_empty()
     }
 
+    fn marketing_activity_by_id(&self, id: &str) -> Option<&Value> {
+        effective_get(
+            &self.base.marketing_activities,
+            &self.staged.marketing_activities,
+            id,
+        )
+    }
+
+    fn marketing_activities(&self) -> Vec<Value> {
+        effective_records(
+            &self.base.marketing_activities,
+            &self.staged.marketing_activities,
+        )
+    }
+
+    fn marketing_events(&self) -> Vec<Value> {
+        let mut events = Vec::new();
+        let mut seen_event_ids = BTreeSet::new();
+        let mut hidden_event_ids = BTreeSet::new();
+
+        for (id, activity) in self
+            .base
+            .marketing_activities
+            .records
+            .iter()
+            .chain(self.staged.marketing_activities.records.iter())
+        {
+            if self.staged.marketing_activities.is_tombstoned(id) {
+                if let Some(event_id) = activity["marketingEvent"]["id"].as_str() {
+                    hidden_event_ids.insert(event_id.to_string());
+                }
+            }
+        }
+
+        for activity in self.marketing_activities() {
+            let event = &activity["marketingEvent"];
+            if event.is_null() {
+                continue;
+            }
+            let Some(event_id) = event["id"].as_str() else {
+                continue;
+            };
+            if seen_event_ids.insert(event_id.to_string()) {
+                let mut event = event.clone();
+                if let Some(base_event) = self.base.marketing_events.get(event_id) {
+                    let mut merged = base_event.clone();
+                    merge_json_values(&mut merged, &event);
+                    event = merged;
+                }
+                events.push(event);
+            }
+        }
+
+        for event in self.base.marketing_events.ordered_values() {
+            let Some(event_id) = event["id"].as_str() else {
+                continue;
+            };
+            if hidden_event_ids.contains(event_id) || !seen_event_ids.insert(event_id.to_string()) {
+                continue;
+            }
+            events.push(event.clone());
+        }
+
+        events
+    }
+
+    fn marketing_event_by_id(&self, id: &str) -> Option<Value> {
+        self.marketing_events()
+            .into_iter()
+            .find(|event| event["id"].as_str() == Some(id))
+    }
+
+    fn has_marketing_overlay_state(&self) -> bool {
+        !self.staged.marketing_activities.is_empty()
+            || self.staged.marketing_delete_all_external
+            || !self.staged.marketing_delete_all_external_app_ids.is_empty()
+    }
+
     fn product_feed_is_tombstoned(&self, id: &str) -> bool {
         self.staged.product_feeds.is_tombstoned(id)
     }
@@ -1411,6 +1508,16 @@ impl Store {
 
     fn collection_by_id(&self, id: &str) -> Option<&Value> {
         self.staged.collections.get(id)
+    }
+
+    fn collection_by_handle(&self, handle: &str) -> Option<&Value> {
+        if handle.is_empty() {
+            return None;
+        }
+        self.staged
+            .collections
+            .values()
+            .find(|collection| collection.get("handle").and_then(Value::as_str) == Some(handle))
     }
 
     /// True when the collection id has been locally deleted (tombstoned). Unlike a
@@ -2023,7 +2130,6 @@ pub(in crate::proxy) use self::app_shipping_helpers::*;
 pub(in crate::proxy) use self::b2b_customers::*;
 pub(in crate::proxy) use self::civil_date::*;
 pub(in crate::proxy) use self::connection::*;
-pub(in crate::proxy) use self::discounts::*;
 pub(in crate::proxy) use self::functions::*;
 pub(in crate::proxy) use self::json_helpers::*;
 pub(in crate::proxy) use self::localization_markets_catalogs::*;

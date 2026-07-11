@@ -616,11 +616,7 @@ impl DraftProxy {
             let namespace =
                 resolved_string_field(&linked_metafield, "namespace").unwrap_or_default();
             let key = resolved_string_field(&linked_metafield, "key").unwrap_or_default();
-            let Some(definition) = self
-                .store
-                .staged
-                .metafield_definitions
-                .get(&metafield_definition_store_key("PRODUCT", &namespace, &key))
+            let Some(definition) = self.effective_metafield_definition("PRODUCT", &namespace, &key)
             else {
                 continue;
             };

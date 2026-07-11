@@ -24,7 +24,8 @@ pub(in crate::proxy) fn guarded_upstream_transport(
 
 fn registered_stage_locally_mutation_upstream_root(request: &Request) -> Option<String> {
     let graphql_request = parse_graphql_request_body(&request.body)?;
-    let operation = parse_operation(&graphql_request.query)?;
+    let operation =
+        parse_operation_with_variables(&graphql_request.query, &graphql_request.variables)?;
     if operation.operation_type != OperationType::Mutation {
         return None;
     }
@@ -237,6 +238,43 @@ impl DraftProxy {
                 })
             })
             .collect::<Vec<_>>();
+        let base_metafield_definitions = self
+            .store
+            .base
+            .metafield_definitions
+            .iter()
+            .map(|((owner_type, namespace, key), definition)| {
+                (
+                    format!("{owner_type}\u{1f}{namespace}\u{1f}{key}"),
+                    definition.clone(),
+                )
+            })
+            .collect::<serde_json::Map<_, _>>();
+        let base_metafield_definition_namespaces = self
+            .store
+            .base
+            .metafield_definition_namespaces
+            .iter()
+            .map(|(owner_type, namespace)| {
+                json!({
+                    "ownerType": owner_type,
+                    "namespace": namespace
+                })
+            })
+            .collect::<Vec<_>>();
+        let deleted_metafield_definitions = self
+            .store
+            .staged
+            .deleted_metafield_definitions
+            .iter()
+            .map(|(owner_type, namespace, key)| {
+                json!({
+                    "ownerType": owner_type,
+                    "namespace": namespace,
+                    "key": key
+                })
+            })
+            .collect::<Vec<_>>();
         let mut snapshot = json!({
             "baseState": {
                 "products": product_state_map_json(&self.store.base.products.records),
@@ -252,6 +290,8 @@ impl DraftProxy {
                 "orders": self.store.base.orders.records.clone(),
                 "orderOrder": self.store.base.orders.order,
                 "orderCountBaselines": self.store.base.order_count_baselines.clone(),
+                "discounts": self.store.base.discounts.records.clone(),
+                "discountOrder": self.store.base.discounts.order,
                 "giftCards": self.store.base.gift_cards.clone(),
                 "giftCardConfiguration": self.store.base.gift_card_configuration.clone().unwrap_or(Value::Null),
                 "shop": self.store.base.shop.clone(),
@@ -259,7 +299,10 @@ impl DraftProxy {
                 "publicationCount": self.store.base.publication_count,
                 "availableLocales": available_locales,
                 "shopLocales": self.store.base.shop_locales.clone(),
-                "localizationProductIds": self.store.base.localization_product_ids.iter().cloned().collect::<Vec<_>>()
+                "localizationProductIds": self.store.base.localization_product_ids.iter().cloned().collect::<Vec<_>>(),
+                "metafieldDefinitions": Value::Object(base_metafield_definitions),
+                "metafieldDefinitionOwnerCatalogs": self.store.base.metafield_definition_owner_catalogs.iter().cloned().collect::<Vec<_>>(),
+                "metafieldDefinitionNamespaces": base_metafield_definition_namespaces
             },
             "stagedState": {
                 "products": product_state_map_json(&self.store.staged.products.records),
@@ -324,6 +367,9 @@ impl DraftProxy {
                 "deliveryProfiles": self.store.staged.delivery_profiles.records.clone(),
                 "deliveryProfileOrder": self.store.staged.delivery_profiles.order.clone(),
                 "deletedDeliveryProfileIds": self.store.staged.delivery_profiles.tombstones.iter().cloned().collect::<Vec<_>>(),
+                "deliveryCustomizations": self.store.staged.delivery_customizations.records.clone(),
+                "deliveryCustomizationOrder": self.store.staged.delivery_customizations.order.clone(),
+                "deletedDeliveryCustomizationIds": self.store.staged.delivery_customizations.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "publicationIds": self.store.staged.publication_ids.iter().cloned().collect::<Vec<_>>(),
                 "createdPublicationIds": self.store.staged.created_publication_ids.iter().cloned().collect::<Vec<_>>(),
                 "publications": self.store.staged.publications.clone(),
@@ -338,9 +384,58 @@ impl DraftProxy {
                 "deletedDiscountIds": self.store.staged.discounts.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "discountRedeemCodeBulkCreations": self.store.staged.discount_redeem_code_bulk_creations.clone(),
                 "ownerMetafields": self.store.staged.owner_metafields.clone(),
-                "deletedOwnerMetafields": deleted_owner_metafields
+                "deletedOwnerMetafields": deleted_owner_metafields,
+                "deletedMetafieldDefinitions": deleted_metafield_definitions
             }
         });
+        if !self.store.base.b2b_companies.records.is_empty()
+            || !self.store.base.b2b_companies.order.is_empty()
+        {
+            snapshot["baseState"]["b2bCompanies"] =
+                json!(self.store.base.b2b_companies.records.clone());
+            snapshot["baseState"]["b2bCompanyOrder"] =
+                json!(self.store.base.b2b_companies.order.clone());
+        }
+        if !self.store.base.b2b_locations.records.is_empty()
+            || !self.store.base.b2b_locations.order.is_empty()
+        {
+            snapshot["baseState"]["b2bLocations"] =
+                json!(self.store.base.b2b_locations.records.clone());
+            snapshot["baseState"]["b2bLocationOrder"] =
+                json!(self.store.base.b2b_locations.order.clone());
+        }
+        if !self.store.base.b2b_contacts.records.is_empty()
+            || !self.store.base.b2b_contacts.order.is_empty()
+        {
+            snapshot["baseState"]["b2bContacts"] =
+                json!(self.store.base.b2b_contacts.records.clone());
+            snapshot["baseState"]["b2bContactOrder"] =
+                json!(self.store.base.b2b_contacts.order.clone());
+        }
+        if !self.store.base.b2b_contact_roles.records.is_empty()
+            || !self.store.base.b2b_contact_roles.order.is_empty()
+        {
+            snapshot["baseState"]["b2bContactRoles"] =
+                json!(self.store.base.b2b_contact_roles.records.clone());
+            snapshot["baseState"]["b2bContactRoleOrder"] =
+                json!(self.store.base.b2b_contact_roles.order.clone());
+        }
+        if !self.store.base.b2b_role_assignments.records.is_empty()
+            || !self.store.base.b2b_role_assignments.order.is_empty()
+        {
+            snapshot["baseState"]["b2bRoleAssignments"] =
+                json!(self.store.base.b2b_role_assignments.records.clone());
+            snapshot["baseState"]["b2bRoleAssignmentOrder"] =
+                json!(self.store.base.b2b_role_assignments.order.clone());
+        }
+        if !self.store.base.b2b_staff_assignments.records.is_empty()
+            || !self.store.base.b2b_staff_assignments.order.is_empty()
+        {
+            snapshot["baseState"]["b2bStaffAssignments"] =
+                json!(self.store.base.b2b_staff_assignments.records.clone());
+            snapshot["baseState"]["b2bStaffAssignmentOrder"] =
+                json!(self.store.base.b2b_staff_assignments.order.clone());
+        }
         if !self.store.staged.media_ready_on_read.is_empty() {
             snapshot["stagedState"]["mediaReadyOnReadIds"] = json!(self
                 .store
@@ -467,6 +562,27 @@ impl DraftProxy {
                 .customer_payment_method_customer_index
                 .clone());
         }
+        if !self.store.staged.payment_customizations.is_empty() {
+            snapshot["stagedState"]["paymentCustomizations"] =
+                json!(self.store.staged.payment_customizations.clone());
+        }
+        if !self
+            .store
+            .staged
+            .deleted_payment_customization_ids
+            .is_empty()
+        {
+            snapshot["stagedState"]["deletedPaymentCustomizationIds"] = json!(self
+                .store
+                .staged
+                .deleted_payment_customization_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
+        if self.store.staged.payment_customization_catalog_hydrated {
+            snapshot["stagedState"]["paymentCustomizationCatalogHydrated"] = json!(true);
+        }
         if self.store.staged.next_customer_payment_method_id != 1 {
             snapshot["stagedState"]["nextCustomerPaymentMethodId"] =
                 json!(self.store.staged.next_customer_payment_method_id);
@@ -532,10 +648,39 @@ impl DraftProxy {
                 json!(self.store.staged.b2b_role_assignments.clone());
             snapshot["stagedState"]["b2bStaffAssignments"] =
                 json!(self.store.staged.b2b_staff_assignments.clone());
+            snapshot["stagedState"]["deletedB2bCompanyIds"] = json!(self
+                .store
+                .staged
+                .deleted_b2b_company_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+            snapshot["stagedState"]["deletedB2bLocationIds"] = json!(self
+                .store
+                .staged
+                .b2b_locations
+                .tombstones
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+            snapshot["stagedState"]["deletedB2bContactIds"] = json!(self
+                .store
+                .staged
+                .deleted_b2b_contact_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
             snapshot["stagedState"]["deletedB2bContactRoleAssignmentIds"] = json!(self
                 .store
                 .staged
                 .deleted_b2b_contact_role_assignment_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+            snapshot["stagedState"]["deletedB2bStaffAssignmentIds"] = json!(self
+                .store
+                .staged
+                .deleted_b2b_staff_assignment_ids
                 .iter()
                 .cloned()
                 .collect::<Vec<_>>());
@@ -588,6 +733,10 @@ impl DraftProxy {
         if self.store.staged.next_inventory_quantity_timestamp != 0 {
             snapshot["stagedState"]["nextInventoryQuantityTimestamp"] =
                 json!(self.store.staged.next_inventory_quantity_timestamp);
+        }
+        if !self.store.staged.inventory_adjustment_groups.is_empty() {
+            snapshot["stagedState"]["inventoryAdjustmentGroups"] =
+                json!(self.store.staged.inventory_adjustment_groups);
         }
         if !self.store.staged.metaobject_definitions.records.is_empty() {
             snapshot["stagedState"]["metaobjectDefinitions"] =
@@ -710,6 +859,15 @@ impl DraftProxy {
         if !self.store.staged.markets.is_empty() {
             snapshot["stagedState"]["markets"] = json!(self.store.staged.markets.clone());
         }
+        if !self.store.staged.deleted_market_ids.is_empty() {
+            snapshot["stagedState"]["deletedMarketIds"] = json!(self
+                .store
+                .staged
+                .deleted_market_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
         if !self.store.staged.catalogs.is_empty() {
             snapshot["stagedState"]["catalogs"] = json!(self.store.staged.catalogs.clone());
         }
@@ -719,6 +877,10 @@ impl DraftProxy {
         if !self.store.staged.web_presences.is_empty() {
             snapshot["stagedState"]["webPresences"] =
                 json!(self.store.staged.web_presences.clone());
+        }
+        if !self.store.staged.available_backup_regions.is_empty() {
+            snapshot["stagedState"]["availableBackupRegions"] =
+                json!(self.store.staged.available_backup_regions.clone());
         }
         if !self.store.staged.shop_locales.is_empty() {
             snapshot["stagedState"]["stagedShopLocales"] =
@@ -812,11 +974,23 @@ impl DraftProxy {
 
     fn has_staged_b2b_state(&self) -> bool {
         !self.store.staged.b2b_companies.is_empty()
+            || !self.store.staged.deleted_b2b_company_ids.is_empty()
             || !self.store.staged.b2b_locations.is_empty()
             || !self.store.staged.b2b_contacts.is_empty()
+            || !self.store.staged.deleted_b2b_contact_ids.is_empty()
             || !self.store.staged.b2b_contact_roles.is_empty()
             || !self.store.staged.b2b_role_assignments.is_empty()
+            || !self
+                .store
+                .staged
+                .deleted_b2b_contact_role_assignment_ids
+                .is_empty()
             || !self.store.staged.b2b_staff_assignments.is_empty()
+            || !self
+                .store
+                .staged
+                .deleted_b2b_staff_assignment_ids
+                .is_empty()
     }
 
     pub(in crate::proxy) fn dump_state(&self, request: &Request) -> Response {
@@ -1058,6 +1232,13 @@ impl DraftProxy {
             saved_search_state_map_from_json(&state["baseState"]["savedSearches"]),
             string_array_from_json(&state["baseState"]["savedSearchOrder"]),
         );
+        self.store.base.discounts.replace_with_order(
+            value_map_from_json(state["baseState"].get("discounts")),
+            state["baseState"]
+                .get("discountOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
         self.store.base.gift_cards = value_map_from_json(state["baseState"].get("giftCards"));
         self.store.base.gift_card_configuration = state["baseState"]
             .get("giftCardConfiguration")
@@ -1134,6 +1315,60 @@ impl DraftProxy {
             .unwrap_or_default()
             .into_iter()
             .collect();
+        self.store.base.metafield_definitions =
+            metafield_definition_map_from_json(state["baseState"].get("metafieldDefinitions"));
+        self.store.base.metafield_definition_owner_catalogs = state["baseState"]
+            .get("metafieldDefinitionOwnerCatalogs")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.base.metafield_definition_namespaces =
+            metafield_definition_namespace_set_from_json(
+                state["baseState"].get("metafieldDefinitionNamespaces"),
+            );
+        self.store.base.b2b_companies.replace_with_order(
+            value_map_from_json(state["baseState"].get("b2bCompanies")),
+            state["baseState"]
+                .get("b2bCompanyOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
+        self.store.base.b2b_locations.replace_with_order(
+            value_map_from_json(state["baseState"].get("b2bLocations")),
+            state["baseState"]
+                .get("b2bLocationOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
+        self.store.base.b2b_contacts.replace_with_order(
+            value_map_from_json(state["baseState"].get("b2bContacts")),
+            state["baseState"]
+                .get("b2bContactOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
+        self.store.base.b2b_contact_roles.replace_with_order(
+            value_map_from_json(state["baseState"].get("b2bContactRoles")),
+            state["baseState"]
+                .get("b2bContactRoleOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
+        self.store.base.b2b_role_assignments.replace_with_order(
+            value_map_from_json(state["baseState"].get("b2bRoleAssignments")),
+            state["baseState"]
+                .get("b2bRoleAssignmentOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
+        self.store.base.b2b_staff_assignments.replace_with_order(
+            value_map_from_json(state["baseState"].get("b2bStaffAssignments")),
+            state["baseState"]
+                .get("b2bStaffAssignmentOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
         self.store.staged.publication_ids =
             string_array_from_json(&state["stagedState"]["publicationIds"])
                 .into_iter()
@@ -1315,6 +1550,18 @@ impl DraftProxy {
                     &self.store.staged.customer_payment_methods,
                 )
             });
+        self.store.staged.payment_customizations =
+            value_map_from_json(state["stagedState"].get("paymentCustomizations"));
+        self.store.staged.deleted_payment_customization_ids = state["stagedState"]
+            .get("deletedPaymentCustomizationIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.staged.payment_customization_catalog_hydrated = state["stagedState"]
+            .get("paymentCustomizationCatalogHydrated")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
         self.store.staged.next_customer_payment_method_id =
             counter_from_json_with_floor(&state["stagedState"], "nextCustomerPaymentMethodId", 1);
         self.store.staged.abandonments =
@@ -1452,6 +1699,13 @@ impl DraftProxy {
             Some("deliveryProfileOrder"),
             Some("deletedDeliveryProfileIds"),
         );
+        replace_staged_value_records(
+            &mut self.store.staged.delivery_customizations,
+            &state["stagedState"],
+            "deliveryCustomizations",
+            Some("deliveryCustomizationOrder"),
+            Some("deletedDeliveryCustomizationIds"),
+        );
         self.store.staged.inventory_levels =
             inventory_levels_from_json(&state["stagedState"]["inventoryLevels"]);
         self.store.staged.inventory_level_ids =
@@ -1480,6 +1734,8 @@ impl DraftProxy {
             "nextInventoryQuantityTimestamp",
             0,
         );
+        self.store.staged.inventory_adjustment_groups =
+            value_map_from_json(state["stagedState"].get("inventoryAdjustmentGroups"));
         self.store.staged.location_limit_reached = state["stagedState"]
             .get("locationLimitReached")
             .and_then(Value::as_bool)
@@ -1522,7 +1778,7 @@ impl DraftProxy {
             &state["stagedState"],
             "b2bLocations",
             Some("b2bLocationOrder"),
-            None,
+            Some("deletedB2bLocationIds"),
         );
         self.store.staged.b2b_contacts =
             value_map_from_json(state["stagedState"].get("b2bContacts"));
@@ -1561,35 +1817,11 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
-        self.store.staged.metafield_definitions = state["stagedState"]
-            .get("metafieldDefinitions")
-            .and_then(Value::as_object)
-            .map(|definitions| {
-                definitions
-                    .iter()
-                    .filter_map(|(encoded_key, definition)| {
-                        let parts = encoded_key.split('\u{1f}').collect::<Vec<_>>();
-                        match parts.as_slice() {
-                            [owner_type, namespace, key] => Some((
-                                metafield_definition_store_key(owner_type, namespace, key),
-                                definition.clone(),
-                            )),
-                            [namespace, key] => {
-                                let owner_type = definition
-                                    .get("ownerType")
-                                    .and_then(Value::as_str)
-                                    .unwrap_or("PRODUCT");
-                                Some((
-                                    metafield_definition_store_key(owner_type, namespace, key),
-                                    definition.clone(),
-                                ))
-                            }
-                            _ => None,
-                        }
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
+        self.store.staged.metafield_definitions =
+            metafield_definition_map_from_json(state["stagedState"].get("metafieldDefinitions"));
+        self.store.staged.deleted_metafield_definitions = metafield_definition_key_set_from_json(
+            state["stagedState"].get("deletedMetafieldDefinitions"),
+        );
         self.store.staged.metafield_reference_ids = state["stagedState"]
             .get("metafieldReferenceIds")
             .map(string_array_from_json)
@@ -1673,6 +1905,12 @@ impl DraftProxy {
             .unwrap_or_default()
             .into_iter()
             .collect();
+        self.store.staged.deleted_b2b_company_ids = state["stagedState"]
+            .get("deletedB2bCompanyIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         self.store.staged.b2b_contact_role_assignments = state["stagedState"]
             .get("b2bContactRoleAssignments")
             .and_then(Value::as_object)
@@ -1689,6 +1927,12 @@ impl DraftProxy {
             .unwrap_or_default()
             .into_iter()
             .collect();
+        self.store.staged.deleted_b2b_staff_assignment_ids = state["stagedState"]
+            .get("deletedB2bStaffAssignmentIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         self.store.staged.next_b2b_company_id =
             counter_from_json_with_floor(&state["stagedState"], "nextB2bCompanyId", 1);
         self.store.staged.next_b2b_contact_id =
@@ -1701,10 +1945,18 @@ impl DraftProxy {
         // Markets-domain staged maps — symmetric with the conditional emit in
         // state_snapshot. Missing keys restore to empty (the default).
         self.store.staged.markets = value_map_from_json(state["stagedState"].get("markets"));
+        self.store.staged.deleted_market_ids = state["stagedState"]
+            .get("deletedMarketIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         self.store.staged.catalogs = value_map_from_json(state["stagedState"].get("catalogs"));
         self.store.staged.price_lists = value_map_from_json(state["stagedState"].get("priceLists"));
         self.store.staged.web_presences =
             value_map_from_json(state["stagedState"].get("webPresences"));
+        self.store.staged.available_backup_regions =
+            value_map_from_json(state["stagedState"].get("availableBackupRegions"));
         self.store.staged.shop_locales = state["stagedState"]
             .get("stagedShopLocales")
             .and_then(Value::as_object)
@@ -1840,6 +2092,86 @@ fn value_map_from_json(value: Option<&Value>) -> BTreeMap<String, Value> {
             records
                 .iter()
                 .map(|(id, record)| (id.clone(), record.clone()))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn metafield_definition_map_from_json(
+    value: Option<&Value>,
+) -> BTreeMap<MetafieldDefinitionKey, Value> {
+    value
+        .and_then(Value::as_object)
+        .map(|definitions| {
+            definitions
+                .iter()
+                .filter_map(|(encoded_key, definition)| {
+                    let parts = encoded_key.split('\u{1f}').collect::<Vec<_>>();
+                    match parts.as_slice() {
+                        [owner_type, namespace, key] => Some((
+                            metafield_definition_store_key(owner_type, namespace, key),
+                            definition.clone(),
+                        )),
+                        [namespace, key] => {
+                            let owner_type = definition
+                                .get("ownerType")
+                                .and_then(Value::as_str)
+                                .unwrap_or("PRODUCT");
+                            Some((
+                                metafield_definition_store_key(owner_type, namespace, key),
+                                definition.clone(),
+                            ))
+                        }
+                        _ => None,
+                    }
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn metafield_definition_key_set_from_json(
+    value: Option<&Value>,
+) -> BTreeSet<MetafieldDefinitionKey> {
+    match value {
+        Some(Value::Array(values)) => values
+            .iter()
+            .filter_map(|value| {
+                let owner_type = value.get("ownerType").and_then(Value::as_str)?;
+                let namespace = value.get("namespace").and_then(Value::as_str)?;
+                let key = value.get("key").and_then(Value::as_str)?;
+                Some(metafield_definition_store_key(owner_type, namespace, key))
+            })
+            .collect(),
+        Some(Value::Object(values)) => values
+            .keys()
+            .filter_map(|encoded_key| {
+                let parts = encoded_key.split('\u{1f}').collect::<Vec<_>>();
+                match parts.as_slice() {
+                    [owner_type, namespace, key] => {
+                        Some(metafield_definition_store_key(owner_type, namespace, key))
+                    }
+                    _ => None,
+                }
+            })
+            .collect(),
+        _ => BTreeSet::new(),
+    }
+}
+
+fn metafield_definition_namespace_set_from_json(
+    value: Option<&Value>,
+) -> BTreeSet<(String, String)> {
+    value
+        .and_then(Value::as_array)
+        .map(|values| {
+            values
+                .iter()
+                .filter_map(|value| {
+                    let owner_type = value.get("ownerType").and_then(Value::as_str)?;
+                    let namespace = value.get("namespace").and_then(Value::as_str)?;
+                    Some((owner_type.to_string(), namespace.to_string()))
+                })
                 .collect()
         })
         .unwrap_or_default()
