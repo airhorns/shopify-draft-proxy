@@ -1,0 +1,629 @@
+{
+  "scenarioId": "order-return-status-lifecycle",
+  "operationNames": [
+    "node",
+    "order",
+    "orders",
+    "orderCreate",
+    "returnCreate",
+    "returnRequest",
+    "returnApproveRequest",
+    "returnDeclineRequest",
+    "returnClose",
+    "returnReopen",
+    "returnCancel",
+    "removeFromReturn",
+    "returnProcess"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "lifecycle-transition-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/order-return-status-lifecycle.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/order-return-status-order-create.graphql",
+    "variablesCapturePath": "$.zeroCase.orderCreate.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Shopify 2026-04 evidence for Order.returnStatus aggregation. Targets compare zero returns, requested, open, requested-over-open precedence, declined-only, canceled-only, closed, reopened, processed-open, and removed-all-line states through mutation payload order selections plus order/list/node reads.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.return.id",
+        "matcher": "shopify-gid:Return",
+        "reason": "Shopify and the proxy allocate independent return IDs."
+      },
+      {
+        "path": "$.return.returnLineItems.nodes[*].id",
+        "matcher": "shopify-gid:ReturnLineItem",
+        "reason": "Shopify and the proxy allocate independent return line item IDs."
+      },
+      {
+        "path": "$.return.order.returns.nodes[*].id",
+        "matcher": "shopify-gid:Return",
+        "reason": "Shopify and the proxy allocate independent return IDs."
+      },
+      {
+        "path": "$.return.order.returns.nodes[*].returnLineItems.nodes[*].id",
+        "matcher": "shopify-gid:ReturnLineItem",
+        "reason": "Shopify and the proxy allocate independent return line item IDs."
+      },
+      {
+        "path": "$.detail.returns.nodes[*].id",
+        "matcher": "shopify-gid:Return",
+        "reason": "Shopify and the proxy allocate independent return IDs."
+      },
+      {
+        "path": "$.detail.returns.nodes[*].returnLineItems.nodes[*].id",
+        "matcher": "shopify-gid:ReturnLineItem",
+        "reason": "Shopify and the proxy allocate independent return line item IDs."
+      },
+      {
+        "path": "$.list.nodes[*].returns.nodes[*].id",
+        "matcher": "shopify-gid:Return",
+        "reason": "Shopify and the proxy allocate independent return IDs."
+      },
+      {
+        "path": "$.list.nodes[*].returns.nodes[*].returnLineItems.nodes[*].id",
+        "matcher": "shopify-gid:ReturnLineItem",
+        "reason": "Shopify and the proxy allocate independent return line item IDs."
+      },
+      {
+        "path": "$.node.returns.nodes[*].id",
+        "matcher": "shopify-gid:Return",
+        "reason": "Shopify and the proxy allocate independent return IDs."
+      },
+      {
+        "path": "$.node.returns.nodes[*].returnLineItems.nodes[*].id",
+        "matcher": "shopify-gid:ReturnLineItem",
+        "reason": "Shopify and the proxy allocate independent return line item IDs."
+      }
+    ],
+    "targets": [
+      {
+        "name": "zero-order-create-payload",
+        "capturePath": "$.zeroCase.orderCreate.response.payload.data.orderCreate",
+        "proxyPath": "$.data.orderCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.order.id",
+            "matcher": "shopify-gid:Order",
+            "reason": "Shopify and the proxy allocate independent order IDs for orderCreate."
+          },
+          {
+            "path": "$.order.name",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy allocate independent order names for orderCreate."
+          }
+        ]
+      },
+      {
+        "name": "zero-order-projections-read",
+        "capturePath": "$.zeroCase.readAfterCreate.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-return-status-read.graphql",
+          "variables": {
+            "orderId": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            },
+            "query": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.name",
+              "prefix": "name:"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.detail.id",
+            "matcher": "shopify-gid:Order",
+            "reason": "Shopify and the proxy allocate independent order IDs for orderCreate."
+          },
+          {
+            "path": "$.list.nodes[*].id",
+            "matcher": "shopify-gid:Order",
+            "reason": "Shopify and the proxy allocate independent order IDs for orderCreate."
+          },
+          {
+            "path": "$.node.id",
+            "matcher": "shopify-gid:Order",
+            "reason": "Shopify and the proxy allocate independent order IDs for orderCreate."
+          },
+          {
+            "path": "$.detail.name",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy allocate independent order names for orderCreate."
+          },
+          {
+            "path": "$.list.nodes[*].name",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy allocate independent order names for orderCreate."
+          },
+          {
+            "path": "$.node.name",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy allocate independent order names for orderCreate."
+          }
+        ]
+      },
+      {
+        "name": "mixed-requested-payload",
+        "capturePath": "$.mixedCase.firstReturnRequest.response.payload.data.returnRequest",
+        "proxyPath": "$.data.returnRequest",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-return-status-return-request.graphql",
+          "variables": {
+            "fromCapturePath": "$.mixedCase.firstReturnRequest.variables"
+          }
+        }
+      },
+      {
+        "name": "mixed-requested-projections-read",
+        "capturePath": "$.mixedCase.readAfterFirstRequest.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-return-status-read.graphql",
+          "variables": {
+            "orderId": {
+              "fromProxyResponse": "mixed-requested-payload",
+              "path": "$.data.returnRequest.return.order.id"
+            },
+            "query": {
+              "fromProxyResponse": "mixed-requested-payload",
+              "path": "$.data.returnRequest.return.order.name",
+              "prefix": "name:"
+            }
+          }
+        }
+      },
+      {
+        "name": "mixed-open-approve-payload",
+        "capturePath": "$.mixedCase.approveFirst.response.payload.data.returnApproveRequest",
+        "proxyPath": "$.data.returnApproveRequest",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-return-status-return-approve.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "mixed-requested-payload",
+                "path": "$.data.returnRequest.return.id"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "mixed-open-projections-read",
+        "capturePath": "$.mixedCase.readAfterApprove.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-return-status-read.graphql",
+          "variables": {
+            "orderId": {
+              "fromProxyResponse": "mixed-open-approve-payload",
+              "path": "$.data.returnApproveRequest.return.order.id"
+            },
+            "query": {
+              "fromProxyResponse": "mixed-open-approve-payload",
+              "path": "$.data.returnApproveRequest.return.order.name",
+              "prefix": "name:"
+            }
+          }
+        }
+      },
+      {
+        "name": "mixed-requested-precedence-payload",
+        "capturePath": "$.mixedCase.secondReturnRequest.response.payload.data.returnRequest",
+        "proxyPath": "$.data.returnRequest",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-return-status-return-request.graphql",
+          "variables": {
+            "fromCapturePath": "$.mixedCase.secondReturnRequest.variables"
+          }
+        }
+      },
+      {
+        "name": "mixed-requested-precedence-projections-read",
+        "capturePath": "$.mixedCase.readAfterSecondRequest.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-return-status-read.graphql",
+          "variables": {
+            "orderId": {
+              "fromProxyResponse": "mixed-requested-precedence-payload",
+              "path": "$.data.returnRequest.return.order.id"
+            },
+            "query": {
+              "fromProxyResponse": "mixed-requested-precedence-payload",
+              "path": "$.data.returnRequest.return.order.name",
+              "prefix": "name:"
+            }
+          }
+        }
+      },
+      {
+        "name": "mixed-declined-open-payload",
+        "capturePath": "$.mixedCase.declineSecond.response.payload.data.returnDeclineRequest",
+        "proxyPath": "$.data.returnDeclineRequest",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-return-status-return-decline.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "mixed-requested-precedence-payload",
+                "path": "$.data.returnRequest.return.id"
+              },
+              "declineReason": {
+                "fromCapturePath": "$.declineInput.declineReason"
+              },
+              "declineNote": {
+                "fromCapturePath": "$.declineInput.declineNote"
+              },
+              "notifyCustomer": {
+                "fromCapturePath": "$.declineInput.notifyCustomer"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "mixed-declined-open-projections-read",
+        "capturePath": "$.mixedCase.readAfterDecline.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-return-status-read.graphql",
+          "variables": {
+            "orderId": {
+              "fromProxyResponse": "mixed-declined-open-payload",
+              "path": "$.data.returnDeclineRequest.return.order.id"
+            },
+            "query": {
+              "fromProxyResponse": "mixed-declined-open-payload",
+              "path": "$.data.returnDeclineRequest.return.order.name",
+              "prefix": "name:"
+            }
+          }
+        }
+      },
+      {
+        "name": "mixed-closed-returned-payload",
+        "capturePath": "$.mixedCase.closeFirst.response.payload.data.returnClose",
+        "proxyPath": "$.data.returnClose",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-return-status-return-close.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "mixed-open-approve-payload",
+              "path": "$.data.returnApproveRequest.return.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.return.closedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy stamp independent return close timestamps."
+          },
+          {
+            "path": "$.return.order.returns.nodes[0].closedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy stamp independent return close timestamps."
+          }
+        ]
+      },
+      {
+        "name": "mixed-closed-projections-read",
+        "capturePath": "$.mixedCase.readAfterClose.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-return-status-read.graphql",
+          "variables": {
+            "orderId": {
+              "fromProxyResponse": "mixed-closed-returned-payload",
+              "path": "$.data.returnClose.return.order.id"
+            },
+            "query": {
+              "fromProxyResponse": "mixed-closed-returned-payload",
+              "path": "$.data.returnClose.return.order.name",
+              "prefix": "name:"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.detail.returns.nodes[0].closedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy stamp independent return close timestamps."
+          },
+          {
+            "path": "$.list.nodes[0].returns.nodes[0].closedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy stamp independent return close timestamps."
+          },
+          {
+            "path": "$.node.returns.nodes[0].closedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy stamp independent return close timestamps."
+          }
+        ]
+      },
+      {
+        "name": "mixed-reopened-in-progress-payload",
+        "capturePath": "$.mixedCase.reopenFirst.response.payload.data.returnReopen",
+        "proxyPath": "$.data.returnReopen",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-return-status-return-reopen.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "mixed-closed-returned-payload",
+              "path": "$.data.returnClose.return.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "mixed-reopened-projections-read",
+        "capturePath": "$.mixedCase.readAfterReopen.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-return-status-read.graphql",
+          "variables": {
+            "orderId": {
+              "fromProxyResponse": "mixed-reopened-in-progress-payload",
+              "path": "$.data.returnReopen.return.order.id"
+            },
+            "query": {
+              "fromProxyResponse": "mixed-reopened-in-progress-payload",
+              "path": "$.data.returnReopen.return.order.name",
+              "prefix": "name:"
+            }
+          }
+        }
+      },
+      {
+        "name": "mixed-processed-open-payload",
+        "capturePath": "$.mixedCase.processFirst.response.payload.data.returnProcess",
+        "proxyPath": "$.data.returnProcess",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-return-status-return-process.graphql",
+          "variables": {
+            "input": {
+              "returnId": {
+                "fromProxyResponse": "mixed-reopened-in-progress-payload",
+                "path": "$.data.returnReopen.return.id"
+              },
+              "returnLineItems": [
+                {
+                  "id": {
+                    "fromProxyResponse": "mixed-open-approve-payload",
+                    "path": "$.data.returnApproveRequest.return.returnLineItems.nodes[0].id"
+                  },
+                  "quantity": 1
+                }
+              ],
+              "notifyCustomer": false
+            }
+          }
+        }
+      },
+      {
+        "name": "mixed-processed-projections-read",
+        "capturePath": "$.mixedCase.readAfterProcess.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-return-status-read.graphql",
+          "variables": {
+            "orderId": {
+              "fromProxyResponse": "mixed-processed-open-payload",
+              "path": "$.data.returnProcess.return.order.id"
+            },
+            "query": {
+              "fromProxyResponse": "mixed-processed-open-payload",
+              "path": "$.data.returnProcess.return.order.name",
+              "prefix": "name:"
+            }
+          }
+        }
+      },
+      {
+        "name": "declined-only-requested-payload",
+        "capturePath": "$.declinedCase.returnRequest.response.payload.data.returnRequest",
+        "proxyPath": "$.data.returnRequest",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-return-status-return-request.graphql",
+          "variables": {
+            "fromCapturePath": "$.declinedCase.returnRequest.variables"
+          }
+        }
+      },
+      {
+        "name": "declined-only-declined-payload",
+        "capturePath": "$.declinedCase.declineRequest.response.payload.data.returnDeclineRequest",
+        "proxyPath": "$.data.returnDeclineRequest",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-return-status-return-decline.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "declined-only-requested-payload",
+                "path": "$.data.returnRequest.return.id"
+              },
+              "declineReason": {
+                "fromCapturePath": "$.declineInput.declineReason"
+              },
+              "declineNote": {
+                "fromCapturePath": "$.declineInput.declineNote"
+              },
+              "notifyCustomer": {
+                "fromCapturePath": "$.declineInput.notifyCustomer"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "declined-only-projections-read",
+        "capturePath": "$.declinedCase.readAfterDecline.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-return-status-read.graphql",
+          "variables": {
+            "orderId": {
+              "fromProxyResponse": "declined-only-declined-payload",
+              "path": "$.data.returnDeclineRequest.return.order.id"
+            },
+            "query": {
+              "fromProxyResponse": "declined-only-declined-payload",
+              "path": "$.data.returnDeclineRequest.return.order.name",
+              "prefix": "name:"
+            }
+          }
+        }
+      },
+      {
+        "name": "canceled-only-requested-payload",
+        "capturePath": "$.canceledCase.returnRequest.response.payload.data.returnRequest",
+        "proxyPath": "$.data.returnRequest",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-return-status-return-request.graphql",
+          "variables": {
+            "fromCapturePath": "$.canceledCase.returnRequest.variables"
+          }
+        }
+      },
+      {
+        "name": "canceled-only-open-payload",
+        "capturePath": "$.canceledCase.approveRequest.response.payload.data.returnApproveRequest",
+        "proxyPath": "$.data.returnApproveRequest",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-return-status-return-approve.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "canceled-only-requested-payload",
+                "path": "$.data.returnRequest.return.id"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "canceled-only-canceled-payload",
+        "capturePath": "$.canceledCase.cancel.response.payload.data.returnCancel",
+        "proxyPath": "$.data.returnCancel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-return-status-return-cancel.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "canceled-only-open-payload",
+              "path": "$.data.returnApproveRequest.return.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "canceled-only-projections-read",
+        "capturePath": "$.canceledCase.readAfterCancel.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-return-status-read.graphql",
+          "variables": {
+            "orderId": {
+              "fromProxyResponse": "canceled-only-canceled-payload",
+              "path": "$.data.returnCancel.return.order.id"
+            },
+            "query": {
+              "fromProxyResponse": "canceled-only-canceled-payload",
+              "path": "$.data.returnCancel.return.order.name",
+              "prefix": "name:"
+            }
+          }
+        }
+      },
+      {
+        "name": "removed-open-create-payload",
+        "capturePath": "$.removedCase.returnCreate.response.payload.data.returnCreate",
+        "proxyPath": "$.data.returnCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-return-status-return-create.graphql",
+          "variables": {
+            "fromCapturePath": "$.removedCase.returnCreate.variables"
+          }
+        }
+      },
+      {
+        "name": "removed-all-lines-payload",
+        "capturePath": "$.removedCase.removeFromReturn.response.payload.data.removeFromReturn",
+        "proxyPath": "$.data.removeFromReturn",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-return-status-remove-from-return.graphql",
+          "variables": {
+            "returnId": {
+              "fromProxyResponse": "removed-open-create-payload",
+              "path": "$.data.returnCreate.return.id"
+            },
+            "returnLineItems": [
+              {
+                "returnLineItemId": {
+                  "fromProxyResponse": "removed-open-create-payload",
+                  "path": "$.data.returnCreate.return.returnLineItems.nodes[0].id"
+                },
+                "quantity": 1
+              }
+            ]
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.return.closedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy stamp independent return close timestamps."
+          },
+          {
+            "path": "$.return.order.returns.nodes[0].closedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy stamp independent return close timestamps."
+          }
+        ]
+      },
+      {
+        "name": "removed-projections-read",
+        "capturePath": "$.removedCase.readAfterRemove.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-return-status-read.graphql",
+          "variables": {
+            "orderId": {
+              "fromProxyResponse": "removed-all-lines-payload",
+              "path": "$.data.removeFromReturn.return.order.id"
+            },
+            "query": {
+              "fromProxyResponse": "removed-all-lines-payload",
+              "path": "$.data.removeFromReturn.return.order.name",
+              "prefix": "name:"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.detail.returns.nodes[0].closedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy stamp independent return close timestamps."
+          },
+          {
+            "path": "$.list.nodes[0].returns.nodes[0].closedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy stamp independent return close timestamps."
+          },
+          {
+            "path": "$.node.returns.nodes[0].closedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy stamp independent return close timestamps."
+          }
+        ]
+      }
+    ]
+  }
+}

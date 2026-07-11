@@ -1,0 +1,54 @@
+query InventoryItemLevelsConnectionWindow(
+  $inventoryItemId: ID!
+  $after: String!
+  $before: String!
+) {
+  inventoryItem(id: $inventoryItemId) {
+    afterFirst: inventoryLevels(first: 1, includeInactive: true, after: $after) {
+      nodes {
+        id
+        isActive
+        item {
+          id
+        }
+        location {
+          id
+          name
+        }
+        quantities(names: ["available", "on_hand", "damaged"]) {
+          name
+          quantity
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    beforeSecond: inventoryLevels(last: 1, includeInactive: true, before: $before) {
+      nodes {
+        id
+        isActive
+        item {
+          id
+        }
+        location {
+          id
+          name
+        }
+        quantities(names: ["available", "on_hand", "damaged"]) {
+          name
+          quantity
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+}

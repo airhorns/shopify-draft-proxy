@@ -1963,6 +1963,7 @@ impl DraftProxy {
     ) -> (BTreeMap<String, Value>, BTreeSet<String>) {
         let mut hydrations = BTreeMap::new();
         let mut unavailable_ids = BTreeSet::new();
+        let mut upstream_ids = Vec::new();
         for id in ids {
             if let Some(variant) = self.draft_order_variant_hydration_from_store(&id) {
                 hydrations.insert(id, variant);
@@ -1972,6 +1973,13 @@ impl DraftProxy {
                 unavailable_ids.insert(id);
                 continue;
             }
+            upstream_ids.push(id);
+        }
+        if upstream_ids.is_empty() {
+            return (hydrations, unavailable_ids);
+        }
+        if upstream_ids.len() == 1 {
+            let id = upstream_ids.remove(0);
             let response = self.upstream_post(
                 request,
                 json!({
@@ -1981,13 +1989,40 @@ impl DraftProxy {
                 }),
             );
             if !(200..300).contains(&response.status) {
-                continue;
+                return (hydrations, unavailable_ids);
             }
             let variant = response.body["data"]["productVariant"].clone();
             if variant.is_object() {
                 hydrations.insert(id, variant);
             } else {
                 unavailable_ids.insert(id);
+            }
+            return (hydrations, unavailable_ids);
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": DRAFT_ORDER_VARIANTS_HYDRATE_QUERY,
+                "operationName": "OrdersDraftOrderVariantsHydrate",
+                "variables": { "ids": upstream_ids.clone() }
+            }),
+        );
+        if !(200..300).contains(&response.status) {
+            return (hydrations, unavailable_ids);
+        }
+        let Some(nodes) = response.body["data"]["nodes"].as_array() else {
+            unavailable_ids.extend(upstream_ids);
+            return (hydrations, unavailable_ids);
+        };
+        for (index, id) in upstream_ids.iter().enumerate() {
+            let Some(variant) = nodes.get(index) else {
+                unavailable_ids.insert(id.clone());
+                continue;
+            };
+            if variant["__typename"].as_str() == Some("ProductVariant") && variant.is_object() {
+                hydrations.insert(id.clone(), variant.clone());
+            } else {
+                unavailable_ids.insert(id.clone());
             }
         }
         (hydrations, unavailable_ids)

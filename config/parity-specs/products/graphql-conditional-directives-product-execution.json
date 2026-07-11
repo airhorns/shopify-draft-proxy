@@ -1,0 +1,78 @@
+{
+  "scenarioId": "graphql-conditional-directives-product-execution",
+  "operationNames": ["productCreate", "product"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["graphql-directive-parity", "payload-shape", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/graphql-conditional-directives-product-execution.json"
+  ],
+  "runtimeTestFiles": [
+    "tests/graphql_arguments.rs",
+    "tests/graphql_routes/store_state.rs",
+    "tests/graphql_routes/admin_graphql_webhooks.rs"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/graphql-conditional-directives-product-create.graphql",
+    "apiVersion": "2025-01",
+    "variablesCapturePath": "$.setup.create.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.productCreate.product.id",
+        "matcher": "shopify-gid:Product",
+        "reason": "Shopify and the local staging registry allocate product ids independently."
+      }
+    ],
+    "targets": [
+      {
+        "name": "setup-product-create-data",
+        "capturePath": "$.setup.create.response.payload.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "conditional-product-read-data",
+        "capturePath": "$.conditionalRead.response.payload.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/graphql-conditional-directives-product-read.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "includeTitle": {
+              "fromCapturePath": "$.conditionalRead.variables.includeTitle"
+            },
+            "skipInline": {
+              "fromCapturePath": "$.conditionalRead.variables.skipInline"
+            },
+            "includeSpread": {
+              "fromCapturePath": "$.conditionalRead.variables.includeSpread"
+            }
+          }
+        },
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.includedProduct.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Shopify and the local staging registry allocate product ids independently."
+          }
+        ]
+      },
+      {
+        "name": "skipped-product-create-empty-data",
+        "capturePath": "$.skippedCreate.response.payload.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/graphql-conditional-directives-product-create-skipped.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.skippedCreate.variables"
+        },
+        "proxyPath": "$.data"
+      }
+    ]
+  },
+  "notes": "Captured live Admin GraphQL behavior for standard @skip and @include on product query roots, nested selected fields, inline fragments, named fragment spreads, and a skipped productCreate mutation root. The parity replay earns product state through the public productCreate request and compares response data only because Shopify cost extensions are volatile and not part of the local proxy contract."
+}

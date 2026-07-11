@@ -11,6 +11,11 @@ import { z } from 'zod';
 import { DEFAULT_ADMIN_API_VERSION } from './support/shopify/api-version.js';
 import { runAdminGraphqlRequest } from './conformance-graphql-client.js';
 
+export const SHOPIFY_CONFORMANCE_STOREFRONT_AUTH_PATH = path.join(
+  path.join(homedir(), '.shopify-draft-proxy'),
+  'conformance-storefront-auth.json',
+);
+
 export const SHOPIFY_CONFORMANCE_AUTH_DIR = path.join(homedir(), '.shopify-draft-proxy');
 export const SHOPIFY_CONFORMANCE_AUTH_PATH = path.join(SHOPIFY_CONFORMANCE_AUTH_DIR, 'conformance-admin-auth.json');
 export const SHOPIFY_CONFORMANCE_PKCE_PATH = path.join(
@@ -409,6 +414,167 @@ export async function getValidConformanceAccessToken({
       `Stored Shopify conformance access token is invalid and refresh failed: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
+}
+
+const STOREFRONT_ACCESS_TOKEN_CREATE_MUTATION = `#graphql
+  mutation ConformanceStorefrontAccessTokenCreate($input: StorefrontAccessTokenInput!) {
+    storefrontAccessTokenCreate(input: $input) {
+      storefrontAccessToken {
+        id
+        title
+        accessToken
+        accessScopes {
+          handle
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+type StoredStorefrontAuth = {
+  shop: string;
+  storefront_access_token: string;
+  storefront_token_id: string;
+  storefront_token_title: string;
+  storefront_access_scopes: string[];
+  obtained_at: string;
+};
+
+function buildStorefrontAuthHeaders(storefrontToken: string): Record<string, string> {
+  return {
+    'X-Shopify-Storefront-Access-Token': storefrontToken,
+  };
+}
+
+export function buildStorefrontRequestHeaders(storefrontToken: string): Record<string, string> {
+  return buildStorefrontAuthHeaders(storefrontToken);
+}
+
+/**
+ * Uses the Admin API credential to call storefrontAccessTokenCreate and persists
+ * the returned token to ~/.shopify-draft-proxy/conformance-storefront-auth.json.
+ *
+ * This is idempotent: calling it again replaces the stored token entry.
+ */
+export async function grantStorefrontAccessToken({
+  adminOrigin,
+  apiVersion = DEFAULT_ADMIN_API_VERSION,
+  title = 'hermes-conformance-storefront',
+  credentialPath = SHOPIFY_CONFORMANCE_AUTH_PATH,
+  storefrontCredentialPath = SHOPIFY_CONFORMANCE_STOREFRONT_AUTH_PATH,
+  appEnvPath = resolveDefaultAppEnvPath(),
+  fetchImpl = fetch,
+}: {
+  adminOrigin: string;
+  apiVersion?: string;
+  title?: string;
+  credentialPath?: string;
+  storefrontCredentialPath?: string;
+  appEnvPath?: string;
+  fetchImpl?: FetchImpl;
+}): Promise<StoredStorefrontAuth> {
+  if (typeof adminOrigin !== 'string' || adminOrigin.length === 0) {
+    throw new Error('grantStorefrontAccessToken requires adminOrigin.');
+  }
+
+  const adminToken = await getValidConformanceAccessToken({
+    adminOrigin,
+    apiVersion,
+    credentialPath,
+    appEnvPath,
+    fetchImpl,
+  });
+
+  const { status, payload } = await runAdminGraphqlRequest(
+    {
+      adminOrigin,
+      apiVersion,
+      headers: buildAdminAuthHeaders(adminToken),
+      fetchImpl,
+    },
+    STOREFRONT_ACCESS_TOKEN_CREATE_MUTATION,
+    { input: { title } },
+  );
+
+  if (status < 200 || status >= 300) {
+    throw new Error(`storefrontAccessTokenCreate request failed with status ${status}: ${JSON.stringify(payload)}`);
+  }
+
+  const createPayload = readUnknownProperty(readUnknownProperty(payload, 'data'), 'storefrontAccessTokenCreate');
+  const userErrors = readArrayProperty(createPayload, 'userErrors');
+  if (userErrors.length > 0) {
+    throw new Error(`storefrontAccessTokenCreate returned userErrors: ${JSON.stringify(userErrors)}`);
+  }
+
+  const tokenNode = readUnknownProperty(createPayload, 'storefrontAccessToken');
+  const storefrontToken = readRequiredStringProperty(tokenNode, 'accessToken');
+  const tokenId = readRequiredStringProperty(tokenNode, 'id');
+
+  const rawScopes = readArrayProperty(tokenNode, 'accessScopes');
+  const accessScopes = rawScopes
+    .map((scope) => readStringProperty(scope, 'handle'))
+    .filter((handle): handle is string => typeof handle === 'string' && handle.length > 0);
+
+  const storedAuth: StoredStorefrontAuth = {
+    shop: (adminOrigin.startsWith('https://') ? adminOrigin.slice(8) : adminOrigin).replace(/\/$/u, ''),
+    storefront_access_token: storefrontToken,
+    storefront_token_id: tokenId,
+    storefront_token_title: title,
+    storefront_access_scopes: accessScopes,
+    obtained_at: new Date().toISOString(),
+  };
+
+  await writeJsonAtomically(storefrontCredentialPath, storedAuth);
+  return storedAuth;
+}
+
+/**
+ * Reads the stored Storefront API access token from
+ * ~/.shopify-draft-proxy/conformance-storefront-auth.json.
+ *
+ * Throws a clear error if the file is missing, directing the user to run
+ * `corepack pnpm conformance:grant-storefront-token` first.
+ */
+export async function getStoredStorefrontAccessToken({
+  storefrontCredentialPath = SHOPIFY_CONFORMANCE_STOREFRONT_AUTH_PATH,
+}: {
+  storefrontCredentialPath?: string;
+} = {}): Promise<StoredStorefrontAuth> {
+  if (!(await fileExists(storefrontCredentialPath))) {
+    throw new Error(
+      `Shopify conformance storefront token not found at ${storefrontCredentialPath}. ` +
+        `Run \`corepack pnpm conformance:grant-storefront-token\` to create one via the Admin API.`,
+    );
+  }
+
+  const raw = await readJsonFile(storefrontCredentialPath);
+  const storefrontToken = readStringProperty(raw, 'storefront_access_token');
+  if (typeof storefrontToken !== 'string' || storefrontToken.length === 0) {
+    throw new Error(
+      `Shopify conformance storefront credential at ${storefrontCredentialPath} is missing storefront_access_token.`,
+    );
+  }
+  const tokenId = readStringProperty(raw, 'storefront_token_id') ?? '';
+  const tokenTitle = readStringProperty(raw, 'storefront_token_title') ?? '';
+  const shop = readStringProperty(raw, 'shop') ?? '';
+  const obtainedAt = readStringProperty(raw, 'obtained_at') ?? '';
+  const rawScopes = readArrayProperty(raw, 'storefront_access_scopes');
+  const accessScopes = rawScopes
+    .map((scope) => (typeof scope === 'string' ? scope : null))
+    .filter((scope): scope is string => scope !== null);
+
+  return {
+    shop,
+    storefront_access_token: storefrontToken,
+    storefront_token_id: tokenId,
+    storefront_token_title: tokenTitle,
+    storefront_access_scopes: accessScopes,
+    obtained_at: obtainedAt,
+  };
 }
 
 function encodeBase64Url(buffer: Buffer): string {

@@ -1,0 +1,28 @@
+#graphql
+query PriceListUpdateCurrencyFixedPricesHydrate($variantIds: [ID!]!) {
+  nodes(ids: $variantIds) {
+    __typename
+    ... on ProductVariant {
+      id
+      title
+      sku
+      price
+      compareAtPrice
+      product {
+        id
+        title
+        handle
+        status
+        variants(first: 10) {
+          nodes {
+            id
+            title
+            sku
+            price
+            compareAtPrice
+          }
+        }
+      }
+    }
+  }
+}
