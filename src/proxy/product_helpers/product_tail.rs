@@ -1621,10 +1621,25 @@ fn feedback_generated_at_is_future(generated_at: &str) -> bool {
     generated_at > now.as_secs() as i64
 }
 
+#[allow(dead_code)]
+fn app_granted_access_scopes(request: &Request) -> Vec<String> {
+    request_header(request, ACCESS_SCOPES_HEADER)
+        .map(|header| {
+            header
+                .split(',')
+                .map(str::trim)
+                .filter(|scope| !scope.is_empty())
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 fn resource_feedback_scope_is_explicitly_missing(request: &Request) -> bool {
     request_header(request, ACCESS_SCOPES_HEADER).is_some()
-        && !app_access_scope_handles(&current_app_installation_from_request(request))
-            .contains("write_resource_feedbacks")
+        && !app_granted_access_scopes(request)
+            .iter()
+            .any(|scope| scope == "write_resource_feedbacks")
 }
 
 fn product_tail_resource_feedback_access_denied_error(field: &RootFieldSelection) -> Value {

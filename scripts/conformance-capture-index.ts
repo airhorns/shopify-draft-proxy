@@ -4799,6 +4799,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'metaobject-bulk-delete-ids-survivor',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-bulk-delete-ids-survivor-conformance.ts',
+    purpose: 'Metaobject bulk delete by explicit id plus survivor rows and definition readback.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-bulk-delete-ids-survivor-lifecycle.json`,
+      'config/parity-specs/metaobjects/metaobject-bulk-delete-ids-survivor-lifecycle.json',
+      'config/parity-requests/metaobjects/metaobject-bulk-delete-ids-definition-create.graphql',
+      'config/parity-requests/metaobjects/metaobject-bulk-delete-ids-delete.graphql',
+      'config/parity-requests/metaobjects/metaobject-bulk-delete-ids-entry-create.graphql',
+      'config/parity-requests/metaobjects/metaobject-bulk-delete-ids-survivor-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates a disposable definition and three rows, bulk deletes one row by id, then deletes remaining rows and definition.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'metaobject-bulk-delete-edge-cases',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-bulk-delete-edge-cases-conformance.ts',
@@ -10443,6 +10462,30 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates validation/cart-transform probe resources only after validation branches are captured, then deletes HAR-416 validations and cart transforms for the captured Function; no Shopify Function execution or tax callbacks are invoked.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'functions',
+    captureId: 'functions-live-hybrid-overlay',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-functions-live-hybrid-overlay-conformance.ts',
+    purpose:
+      'LiveHybrid Functions overlay evidence that one locally staged validation lifecycle preserves unrelated upstream/base validations, cart transforms, and ShopifyFunction metadata.',
+    requiredAuthScopes: [
+      'shopifyFunctions read access',
+      'read_validations',
+      'write_validations for disposable validation create/delete lifecycle capture',
+      'read_cart_transforms',
+      'write_cart_transforms for disposable cart transform create/delete lifecycle capture',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}functions-live-hybrid-overlay-read.json`,
+      'config/parity-specs/functions/functions-live-hybrid-overlay-read.json',
+      'config/parity-requests/functions/functions-live-hybrid-overlay-stage.graphql',
+      'config/parity-requests/functions/functions-live-hybrid-overlay-read.graphql',
+    ],
+    cleanupBehavior:
+      'Deletes disposable validations and cart transforms for the released conformance Functions before capture, creates one base validation and one base cart transform, records upstream hydrate cassettes, creates one later validation lifecycle, captures downstream overlay reads, then deletes created resources.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

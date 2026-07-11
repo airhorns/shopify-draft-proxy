@@ -60,6 +60,34 @@ fn create_metaobject_definition_for_test(
         .to_string()
 }
 
+fn create_metaobject_entry_for_test(
+    proxy: &mut DraftProxy,
+    meta_type: &str,
+    handle: &str,
+    title: &str,
+) -> Value {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMetaobjectEntryForTest($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject { id handle type displayName }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"metaobject": {
+            "type": meta_type,
+            "handle": handle,
+            "fields": [{"key": "title", "value": title}]
+        }}),
+    ));
+    assert_eq!(
+        response.body["data"]["metaobjectCreate"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["metaobjectCreate"]["metaobject"].clone()
+}
+
 fn assert_timestamp_second(value: &Value, expected_prefix: &str, context: &str) -> String {
     let timestamp = value
         .as_str()
@@ -18917,5 +18945,409 @@ fn online_store_content_validation_branches_do_not_stage() {
     assert_eq!(
         commentable_read.body["data"]["blog"]["commentPolicy"],
         json!("MODERATED")
+    );
+}
+
+#[test]
+fn standard_metaobject_definition_enable_stages_catalog_definition_and_meta_surfaces() {
+    let mut proxy = snapshot_proxy().with_upstream_transport(|_| {
+        panic!("standard metaobject definition enable should stay local")
+    });
+    let enable_query = r#"
+        mutation EnableStandardDefinition($type: String!) {
+          standardMetaobjectDefinitionEnable(type: $type) {
+            metaobjectDefinition {
+              id
+              type
+              name
+              description
+              displayNameKey
+              access { admin storefront }
+              capabilities {
+                publishable { enabled }
+                translatable { enabled }
+                renderable { enabled }
+                onlineStore { enabled }
+              }
+              fieldDefinitions {
+                key
+                name
+                description
+                required
+                type { name category }
+                validations { name value }
+              }
+              hasThumbnailField
+              metaobjectsCount
+              standardTemplate { type name }
+            }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+
+    let enabled = proxy.process_request(json_graphql_request(
+        enable_query,
+        json!({"type": "shopify--qa-pair"}),
+    ));
+    assert_eq!(enabled.status, 200);
+    let payload = &enabled.body["data"]["standardMetaobjectDefinitionEnable"];
+    assert_eq!(payload["userErrors"], json!([]));
+    let definition = &payload["metaobjectDefinition"];
+    let definition_id = definition["id"].as_str().unwrap().to_string();
+    assert!(definition_id.starts_with("gid://shopify/MetaobjectDefinition/"));
+    assert!(definition_id.contains("shopify-draft-proxy=synthetic"));
+    assert_eq!(definition["type"], json!("shopify--qa-pair"));
+    assert_eq!(definition["name"], json!("Question and Answer Pairs"));
+    assert_eq!(definition["displayNameKey"], json!("question"));
+    assert_eq!(
+        definition["access"],
+        json!({"admin": "PUBLIC_READ_WRITE", "storefront": "NONE"})
+    );
+    assert_eq!(
+        definition["fieldDefinitions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|field| field["key"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec!["question", "answer", "sources"]
+    );
+    assert_eq!(
+        definition["standardTemplate"],
+        json!({"type": "shopify--qa-pair", "name": "Question and Answer Pairs"})
+    );
+
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        log["entries"][0]["stagedResourceIds"],
+        json!([definition_id])
+    );
+    assert!(log["entries"][0]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("standardMetaobjectDefinitionEnable"));
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadEnabledStandardDefinition($id: ID!, $type: String!) {
+          byId: metaobjectDefinition(id: $id) {
+            id
+            type
+            name
+            metaobjectsCount
+            standardTemplate { type name }
+          }
+          byType: metaobjectDefinitionByType(type: $type) {
+            id
+            type
+            name
+            metaobjectsCount
+            standardTemplate { type name }
+          }
+        }
+        "#,
+        json!({"id": definition_id, "type": "shopify--qa-pair"}),
+    ));
+    assert_eq!(read.body["data"]["byId"], read.body["data"]["byType"]);
+    assert_eq!(read.body["data"]["byId"]["metaobjectsCount"], json!(0));
+
+    let node_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadEnabledStandardDefinitionNode($id: ID!) {
+          node(id: $id) {
+            __typename
+            id
+            ... on MetaobjectDefinition {
+              type
+              name
+              standardTemplate { type name }
+            }
+          }
+        }
+        "#,
+        json!({"id": definition_id}),
+    ));
+    assert_eq!(
+        node_read.body["data"]["node"],
+        json!({
+            "__typename": "MetaobjectDefinition",
+            "id": definition_id,
+            "type": "shopify--qa-pair",
+            "name": "Question and Answer Pairs",
+            "standardTemplate": {"type": "shopify--qa-pair", "name": "Question and Answer Pairs"}
+        })
+    );
+
+    let duplicate = proxy.process_request(json_graphql_request(
+        enable_query,
+        json!({"type": "shopify--qa-pair"}),
+    ));
+    assert_eq!(
+        duplicate.body["data"]["standardMetaobjectDefinitionEnable"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        duplicate.body["data"]["standardMetaobjectDefinitionEnable"]["metaobjectDefinition"]["id"],
+        json!(definition_id)
+    );
+    let duplicate_log = log_snapshot(&proxy);
+    assert_eq!(duplicate_log["entries"].as_array().unwrap().len(), 2);
+    assert_eq!(duplicate_log["entries"][1]["stagedResourceIds"], json!([]));
+
+    let unknown = proxy.process_request(json_graphql_request(
+        enable_query,
+        json!({"type": "shopify--unknown-template"}),
+    ));
+    assert_eq!(
+        unknown.body["data"]["standardMetaobjectDefinitionEnable"],
+        json!({
+            "metaobjectDefinition": null,
+            "userErrors": [{
+                "field": ["type"],
+                "message": "Record not found",
+                "code": "RECORD_NOT_FOUND",
+                "elementKey": null,
+                "elementIndex": null
+            }]
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 2);
+    assert!(
+        state_snapshot(&proxy)["stagedState"]["metaobjectDefinitions"]
+            .as_object()
+            .unwrap()
+            .contains_key(&definition_id)
+    );
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    let mut restored = snapshot_proxy();
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    let restored_read = restored.process_request(json_graphql_request(
+        r#"
+        query RestoredStandardDefinition($id: ID!) {
+          metaobjectDefinition(id: $id) { id type name standardTemplate { type name } }
+        }
+        "#,
+        json!({"id": definition_id}),
+    ));
+    assert_eq!(
+        restored_read.body["data"]["metaobjectDefinition"]["type"],
+        json!("shopify--qa-pair")
+    );
+
+    let reset = proxy.process_request(request_with_body("POST", "/__meta/reset", ""));
+    assert_eq!(reset.status, 200);
+    let after_reset = proxy.process_request(json_graphql_request(
+        r#"
+        query ResetStandardDefinition($id: ID!) {
+          metaobjectDefinition(id: $id) { id }
+          node(id: $id) { id }
+        }
+        "#,
+        json!({"id": definition_id}),
+    ));
+    assert_eq!(
+        after_reset.body["data"]["metaobjectDefinition"],
+        Value::Null
+    );
+    assert_eq!(after_reset.body["data"]["node"], Value::Null);
+}
+
+#[test]
+fn metaobject_bulk_delete_stages_tombstones_counts_logs_and_node_reads() {
+    let mut proxy = snapshot_proxy().with_upstream_transport(|_| {
+        panic!("metaobject bulk delete should stay local for staged records")
+    });
+    let meta_type = "bulk_delete_runtime_article";
+    let definition_id = create_metaobject_definition_for_test(
+        &mut proxy,
+        meta_type,
+        vec![json!({
+            "key": "title",
+            "name": "Title",
+            "type": "single_line_text_field",
+            "required": true
+        })],
+    );
+    let first = create_metaobject_entry_for_test(&mut proxy, meta_type, "first-entry", "First");
+    let second = create_metaobject_entry_for_test(&mut proxy, meta_type, "second-entry", "Second");
+    let first_id = first["id"].as_str().unwrap().to_string();
+    let second_id = second["id"].as_str().unwrap().to_string();
+    let setup_log_len = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
+
+    let delete_by_ids = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkDeleteByIds($ids: [ID!]!) {
+          metaobjectBulkDelete(where: { ids: $ids }) {
+            job { id done }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"ids": [first_id]}),
+    ));
+    assert_eq!(delete_by_ids.status, 200);
+    let bulk_payload = &delete_by_ids.body["data"]["metaobjectBulkDelete"];
+    assert!(bulk_payload["job"]["id"]
+        .as_str()
+        .unwrap()
+        .starts_with("gid://shopify/Job/"));
+    assert_eq!(bulk_payload["job"]["done"], json!(false));
+    assert_eq!(bulk_payload["userErrors"], json!([]));
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query BulkDeleteRead($type: String!, $firstId: ID!, $secondId: ID!) {
+          deleted: metaobject(id: $firstId) { id handle }
+          surviving: metaobject(id: $secondId) { id handle type displayName }
+          definition: metaobjectDefinitionByType(type: $type) {
+            id
+            metaobjectsCount
+            metaobjects(first: 10) { nodes { id handle } }
+          }
+          catalog: metaobjects(type: $type, first: 10) { nodes { id handle } }
+        }
+        "#,
+        json!({"type": meta_type, "firstId": first_id, "secondId": second_id}),
+    ));
+    assert_eq!(read.body["data"]["deleted"], Value::Null);
+    assert_eq!(read.body["data"]["surviving"]["id"], json!(second_id));
+    assert_eq!(read.body["data"]["definition"]["id"], json!(definition_id));
+    assert_eq!(
+        read.body["data"]["definition"]["metaobjectsCount"],
+        json!(1)
+    );
+    assert_eq!(
+        read.body["data"]["definition"]["metaobjects"]["nodes"],
+        json!([{"id": second_id, "handle": "second-entry"}])
+    );
+    assert_eq!(
+        read.body["data"]["catalog"]["nodes"],
+        json!([{"id": second_id, "handle": "second-entry"}])
+    );
+
+    let node_read = proxy.process_request(json_graphql_request(
+        r#"
+        query BulkDeleteNodeRead($firstId: ID!, $secondId: ID!) {
+          deletedNode: node(id: $firstId) {
+            __typename
+            id
+            ... on Metaobject { handle type }
+          }
+          survivorNode: node(id: $secondId) {
+            __typename
+            id
+            ... on Metaobject { handle type }
+          }
+        }
+        "#,
+        json!({"firstId": first_id, "secondId": second_id}),
+    ));
+    assert_eq!(node_read.body["data"]["deletedNode"], Value::Null);
+    assert_eq!(
+        node_read.body["data"]["survivorNode"],
+        json!({
+            "__typename": "Metaobject",
+            "id": second_id,
+            "handle": "second-entry",
+            "type": meta_type
+        })
+    );
+
+    let post_delete_log = log_snapshot(&proxy);
+    assert_eq!(
+        post_delete_log["entries"].as_array().unwrap().len(),
+        setup_log_len + 1
+    );
+    assert_eq!(
+        post_delete_log["entries"][setup_log_len]["stagedResourceIds"],
+        json!([first_id])
+    );
+    assert!(
+        state_snapshot(&proxy)["stagedState"]["deletedMetaobjectIds"]
+            .as_array()
+            .unwrap()
+            .contains(&json!(first_id))
+    );
+
+    let empty_ids = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkDeleteEmptyIds {
+          metaobjectBulkDelete(where: { ids: [] }) {
+            job { id done }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        empty_ids.body["data"]["metaobjectBulkDelete"]["userErrors"],
+        json!([])
+    );
+    let empty_ids_log = log_snapshot(&proxy);
+    assert_eq!(
+        empty_ids_log["entries"].as_array().unwrap().len(),
+        setup_log_len + 2
+    );
+    assert_eq!(
+        empty_ids_log["entries"][setup_log_len + 1]["stagedResourceIds"],
+        json!([])
+    );
+
+    let selector_conflict = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkDeleteSelectorConflict {
+          metaobjectBulkDelete(where: { type: "bulk_delete_runtime_article", ids: [] }) {
+            job { id done }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        selector_conflict.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_FIELD_ARGUMENTS")
+    );
+    assert_eq!(
+        selector_conflict.body["data"]["metaobjectBulkDelete"],
+        Value::Null
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        setup_log_len + 2
+    );
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    let mut restored = snapshot_proxy();
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    let restored_read = restored.process_request(json_graphql_request(
+        r#"
+        query RestoredBulkDeleteRead($firstId: ID!, $secondId: ID!) {
+          deleted: metaobject(id: $firstId) { id }
+          surviving: metaobject(id: $secondId) { id handle }
+        }
+        "#,
+        json!({"firstId": first_id, "secondId": second_id}),
+    ));
+    assert_eq!(restored_read.body["data"]["deleted"], Value::Null);
+    assert_eq!(
+        restored_read.body["data"]["surviving"],
+        json!({"id": second_id, "handle": "second-entry"})
     );
 }
