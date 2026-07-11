@@ -88,6 +88,34 @@ pub(super) fn restore_state_with(proxy: &mut DraftProxy, mutate: impl FnOnce(&mu
     assert_eq!(restore.status, 200);
 }
 
+pub(super) fn restore_shop_domain_context(
+    proxy: &mut DraftProxy,
+    myshopify_domain: &str,
+    primary_domain_host: &str,
+) -> String {
+    let domain_id = "gid://shopify/Domain/1000".to_string();
+    restore_state_with(proxy, |state| {
+        state["baseState"]["shop"] = json!({
+            "id": "gid://shopify/Shop/domain-context",
+            "name": "Domain context shop",
+            "myshopifyDomain": myshopify_domain,
+            "primaryDomain": {
+                "id": domain_id,
+                "host": primary_domain_host,
+                "url": format!("https://{primary_domain_host}"),
+                "sslEnabled": true
+            },
+            "domains": [{
+                "id": domain_id,
+                "host": primary_domain_host,
+                "url": format!("https://{primary_domain_host}"),
+                "sslEnabled": true
+            }]
+        });
+    });
+    domain_id
+}
+
 fn meta_snapshot(proxy: &DraftProxy, path: &str) -> Value {
     let mut proxy = proxy.clone();
     let response = proxy.process_request(request_with_body("GET", path, ""));

@@ -151,6 +151,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'The RELEVANCE enum values remain documented as deterministic local fallbacks because Shopify relevance scoring is opaque and query-score dependent; this capture covers the computable ordering branches required to prevent silent default fallbacks.',
   },
   {
+    domain: 'admin-platform',
+    captureId: 'mixed-admin-platform-payments-read',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-mixed-admin-platform-payments-read-conformance.ts',
+    purpose:
+      'Live Shopify Admin GraphQL evidence that a mixed AdminPlatform job root and Payments paymentTermsTemplates root return both sibling response keys in one query document.',
+    requiredAuthScopes: ['read_payment_terms'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/admin-platform/mixed-admin-platform-payments-read.json',
+      'config/parity-specs/admin-platform/mixed-admin-platform-payments-read.json',
+      'config/parity-requests/admin-platform/mixed-admin-platform-payments-read.graphql',
+    ],
+    cleanupBehavior: 'No setup or cleanup; the capture is a read-only mixed-root query.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'b2b',
     captureId: 'b2b-quantity-rules-extended-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
@@ -6169,10 +6185,11 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-market-web-presence-lifecycle-conformance.mts',
     purpose:
-      'Web presence create/update/delete lifecycle, downstream top-level webPresences reads, multi-locale rootUrls, locale catalog breadth/invalid-locale validation, duplicate subfolder-suffix validation, duplicate-language validation, non-letter subfolder-suffix validation, and primary-domain delete guard.',
+      'Web presence create/update/delete lifecycle, first local subfolder create domain hydration, downstream top-level webPresences reads, multi-locale rootUrls, locale catalog breadth/invalid-locale validation, duplicate subfolder-suffix validation, duplicate-language validation, non-letter subfolder-suffix validation, and primary-domain delete guard.',
     requiredAuthScopes: ['read_markets', 'write_markets'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}market-web-presence-lifecycle-parity.json`,
+      'config/parity-specs/markets/web-presence-first-subfolder-create.json',
       'config/parity-specs/markets/web-presence-lifecycle-local-staging.json',
       'config/parity-specs/markets/web-presence-root-urls-multi-locale.json',
       'config/parity-specs/markets/web-presence-partial-update-alternate-locales.json',
@@ -6187,7 +6204,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/markets/web-presence-delete-primary-blocked.json',
     ],
     cleanupBehavior:
-      'Records the primary-domain webPresenceDelete guard without cleanup because it must fail, creates one disposable subfolder web presence, updates it, deletes it, records multi-locale and Italian default-locale disposable web presences, records invalid-locale, duplicate-language, and non-letter subfolder validation branches, deletes all disposable web presences, and verifies the baseline read after cleanup.',
+      'Records the primary-domain webPresenceDelete guard without cleanup because it must fail, creates one disposable subfolder web presence after shop-domain preflight hydration, updates it, deletes it, records multi-locale and Italian default-locale disposable web presences, records invalid-locale, duplicate-language, and non-letter subfolder validation branches, deletes all disposable web presences, and verifies the baseline read after cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
