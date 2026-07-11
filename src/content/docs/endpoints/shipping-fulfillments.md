@@ -240,6 +240,13 @@ cancelled records unless `includeClosed: true` is present and models `id`,
 held records and applies its modeled order-search terms. The catalog roots
 share local `sortKey: ID` / `UPDATED_AT`, `reverse`, and cursor window
 semantics over that effective set.
+Generic `node(id:)` and `nodes(ids:)` now read order-backed fulfillment and
+fulfillment-order resources from the same normalized order graph as
+`fulfillment(id:)`, `fulfillmentOrder(id:)`, and nested `Order` selections:
+`Fulfillment`, `FulfillmentEvent`, `FulfillmentLineItem`, `FulfillmentOrder`,
+`FulfillmentHold`, and `FulfillmentOrderLineItem` resolve locally, reflect
+staged lifecycle changes immediately, preserve duplicate/order semantics for
+`nodes(ids:)`, and return `null` for missing or deleted IDs.
 
 Delivery settings and delivery promise settings are read-only in snapshot mode
 and return the captured empty/no-feature shape there. Live modes forward those
