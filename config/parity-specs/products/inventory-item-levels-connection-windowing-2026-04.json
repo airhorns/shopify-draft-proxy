@@ -1,0 +1,708 @@
+{
+  "scenarioId": "inventory-item-levels-connection-windowing-2026-04",
+  "operationNames": [
+    "locationAdd",
+    "productSet",
+    "inventorySetQuantities",
+    "inventoryActivate",
+    "inventoryAdjustQuantities",
+    "inventoryDeactivate",
+    "inventoryItem"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["read-after-write-parity", "connection-window-parity", "query-filter-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/inventory-item-levels-connection-windowing-2026-04.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/inventory-connection-location-add.graphql",
+    "variablesCapturePath": "$.operations.sourceLocationAdd.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "source-location-add",
+        "capturePath": "$.operations.sourceLocationAdd.response.data.locationAdd",
+        "proxyPath": "$.data.locationAdd",
+        "expectedDifferences": [
+          {
+            "path": "$.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "Live Shopify and the local draft proxy allocate different disposable source location ids."
+          }
+        ]
+      },
+      {
+        "name": "destination-location-add",
+        "capturePath": "$.operations.destinationLocationAdd.response.data.locationAdd",
+        "proxyPath": "$.data.locationAdd",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-connection-location-add.graphql",
+          "variablesCapturePath": "$.operations.destinationLocationAdd.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "Live Shopify and the local draft proxy allocate different disposable destination location ids."
+          }
+        ]
+      },
+      {
+        "name": "product-set",
+        "capturePath": "$.operations.productSet.response.data.productSet",
+        "proxyPath": "$.data.productSet",
+        "preserveProxyState": true,
+        "selectedPaths": [
+          "$.product.title",
+          "$.product.status",
+          "$.product.variants.nodes[*].title",
+          "$.product.variants.nodes[*].sku",
+          "$.product.variants.nodes[*].inventoryQuantity",
+          "$.product.variants.nodes[*].inventoryItem.tracked",
+          "$.product.variants.nodes[*].inventoryItem.requiresShipping",
+          "$.productSetOperation",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-connection-product-set.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "synchronous": true,
+            "input": {
+              "title": {
+                "fromCapturePath": "$.operations.productSet.variables.input.title"
+              },
+              "status": "ACTIVE",
+              "productOptions": [
+                {
+                  "name": "Title",
+                  "position": 1,
+                  "values": [{ "name": "Default Title" }]
+                }
+              ],
+              "variants": [
+                {
+                  "optionValues": [{ "optionName": "Title", "name": "Default Title" }],
+                  "price": "10.00",
+                  "sku": {
+                    "fromCapturePath": "$.setup.sku"
+                  },
+                  "inventoryItem": { "tracked": true, "requiresShipping": true },
+                  "inventoryQuantities": [
+                    {
+                      "locationId": {
+                        "fromPrimaryProxyPath": "$.data.locationAdd.location.id"
+                      },
+                      "name": "available",
+                      "quantity": 0
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "inventory-set-source",
+        "capturePath": "$.operations.inventorySet.response.data.inventorySetQuantities",
+        "proxyPath": "$.data.inventorySetQuantities",
+        "preserveProxyState": true,
+        "selectedPaths": [
+          "$.inventoryAdjustmentGroup.reason",
+          "$.inventoryAdjustmentGroup.changes[*].name",
+          "$.inventoryAdjustmentGroup.changes[*].delta",
+          "$.inventoryAdjustmentGroup.changes[*].location.name",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-quantity-contracts-2026-set.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "name": "available",
+              "reason": "correction",
+              "referenceDocumentUri": "logistics://inventory-item-levels/set/parity",
+              "quantities": [
+                {
+                  "inventoryItemId": {
+                    "fromProxyResponse": "product-set",
+                    "path": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": {
+                    "fromPrimaryProxyPath": "$.data.locationAdd.location.id"
+                  },
+                  "quantity": 4,
+                  "changeFromQuantity": 0
+                }
+              ]
+            },
+            "idempotencyKey": "inventory-item-levels-set-parity"
+          }
+        }
+      },
+      {
+        "name": "inventory-activate-destination",
+        "capturePath": "$.operations.inventoryActivate.response.data.inventoryActivate",
+        "proxyPath": "$.data.inventoryActivate",
+        "preserveProxyState": true,
+        "selectedPaths": [
+          "$.inventoryLevel.isActive",
+          "$.inventoryLevel.location.name",
+          "$.inventoryLevel.quantities",
+          "$.inventoryLevel.item.tracked",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-item-levels-activate.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "inventoryItemId": {
+              "fromProxyResponse": "product-set",
+              "path": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+            },
+            "locationId": {
+              "fromProxyResponse": "destination-location-add",
+              "path": "$.data.locationAdd.location.id"
+            },
+            "available": 9,
+            "idempotencyKey": "inventory-item-levels-activate-parity"
+          }
+        }
+      },
+      {
+        "name": "inventory-adjust-destination",
+        "capturePath": "$.operations.inventoryAdjust.response.data.inventoryAdjustQuantities",
+        "proxyPath": "$.data.inventoryAdjustQuantities",
+        "preserveProxyState": true,
+        "selectedPaths": [
+          "$.inventoryAdjustmentGroup.reason",
+          "$.inventoryAdjustmentGroup.changes[*].name",
+          "$.inventoryAdjustmentGroup.changes[*].delta",
+          "$.inventoryAdjustmentGroup.changes[*].location.name",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-quantity-contracts-2026-adjust.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "name": "available",
+              "reason": "correction",
+              "referenceDocumentUri": "logistics://inventory-item-levels/adjust/parity",
+              "changes": [
+                {
+                  "inventoryItemId": {
+                    "fromProxyResponse": "product-set",
+                    "path": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": {
+                    "fromProxyResponse": "destination-location-add",
+                    "path": "$.data.locationAdd.location.id"
+                  },
+                  "delta": 1,
+                  "changeFromQuantity": 9
+                }
+              ]
+            },
+            "idempotencyKey": "inventory-item-levels-adjust-parity"
+          }
+        }
+      },
+      {
+        "name": "item-connection-active-read",
+        "capturePath": "$.operations.activeRead.response.data.inventoryItem",
+        "proxyPath": "$.data.inventoryItem",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-item-levels-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "inventoryItemId": {
+              "fromProxyResponse": "product-set",
+              "path": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+            },
+            "itemQuery": {
+              "fromProxyResponse": "product-set",
+              "path": "$.data.productSet.product.variants.nodes[0].inventoryItem.id",
+              "resourceIdTail": true,
+              "prefix": "inventory_item_id:"
+            },
+            "missingItemQuery": "inventory_item_id:1",
+            "invalidLocationQuery": {
+              "fromProxyResponse": "destination-location-add",
+              "path": "$.data.locationAdd.location.id",
+              "resourceIdTail": true,
+              "prefix": "location_id:"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:InventoryItem",
+            "reason": "Live Shopify and the local draft proxy allocate different product-backed inventory item ids."
+          },
+          {
+            "path": "$.activeLevels.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay produce different opaque connection cursors; parity asserts membership and pageInfo booleans."
+          },
+          {
+            "path": "$.activeLevels.edges[*].node.id",
+            "matcher": "shopify-gid:InventoryLevel",
+            "reason": "Live Shopify and local replay allocate different inventory level ids."
+          },
+          {
+            "path": "$.activeLevels.edges[*].node.item.id",
+            "matcher": "shopify-gid:InventoryItem",
+            "reason": "Live Shopify and local replay allocate different product-backed inventory item ids."
+          },
+          {
+            "path": "$.activeLevels.edges[*].node.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "Live Shopify and local replay allocate different disposable location ids."
+          },
+          {
+            "path": "$.activeLevels.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Opaque connection cursor values differ while presence and booleans are asserted."
+          },
+          {
+            "path": "$.activeLevels.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Opaque connection cursor values differ while presence and booleans are asserted."
+          },
+          {
+            "path": "$.allLevels.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay produce different opaque connection cursors; parity asserts membership and pageInfo booleans."
+          },
+          {
+            "path": "$.allLevels.edges[*].node.id",
+            "matcher": "shopify-gid:InventoryLevel",
+            "reason": "Live Shopify and local replay allocate different inventory level ids."
+          },
+          {
+            "path": "$.allLevels.edges[*].node.item.id",
+            "matcher": "shopify-gid:InventoryItem",
+            "reason": "Live Shopify and local replay allocate different product-backed inventory item ids."
+          },
+          {
+            "path": "$.allLevels.edges[*].node.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "Live Shopify and local replay allocate different disposable location ids."
+          },
+          {
+            "path": "$.allLevels.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Opaque connection cursor values differ while presence and booleans are asserted."
+          },
+          {
+            "path": "$.allLevels.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Opaque connection cursor values differ while presence and booleans are asserted."
+          },
+          {
+            "path": "$.firstPage.nodes[*].id",
+            "matcher": "shopify-gid:InventoryLevel",
+            "reason": "Live Shopify and local replay allocate different inventory level ids."
+          },
+          {
+            "path": "$.firstPage.nodes[*].item.id",
+            "matcher": "shopify-gid:InventoryItem",
+            "reason": "Live Shopify and local replay allocate different product-backed inventory item ids."
+          },
+          {
+            "path": "$.firstPage.nodes[*].location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "Live Shopify and local replay allocate different disposable location ids."
+          },
+          {
+            "path": "$.firstPage.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Opaque connection cursor values differ while presence and booleans are asserted."
+          },
+          {
+            "path": "$.firstPage.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Opaque connection cursor values differ while presence and booleans are asserted."
+          },
+          {
+            "path": "$.filtered.nodes[*].id",
+            "matcher": "shopify-gid:InventoryLevel",
+            "reason": "Live Shopify and local replay allocate different inventory level ids."
+          },
+          {
+            "path": "$.filtered.nodes[*].item.id",
+            "matcher": "shopify-gid:InventoryItem",
+            "reason": "Live Shopify and local replay allocate different product-backed inventory item ids."
+          },
+          {
+            "path": "$.filtered.nodes[*].location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "Live Shopify and local replay allocate different disposable location ids."
+          },
+          {
+            "path": "$.filtered.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Opaque connection cursor values differ while presence and booleans are asserted."
+          },
+          {
+            "path": "$.filtered.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Opaque connection cursor values differ while presence and booleans are asserted."
+          },
+          {
+            "path": "$.invalidLocationFilter.nodes[*].id",
+            "matcher": "shopify-gid:InventoryLevel",
+            "reason": "Live Shopify and local replay allocate different inventory level ids."
+          },
+          {
+            "path": "$.invalidLocationFilter.nodes[*].item.id",
+            "matcher": "shopify-gid:InventoryItem",
+            "reason": "Live Shopify and local replay allocate different product-backed inventory item ids."
+          },
+          {
+            "path": "$.invalidLocationFilter.nodes[*].location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "Live Shopify and local replay allocate different disposable location ids."
+          },
+          {
+            "path": "$.invalidLocationFilter.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Opaque connection cursor values differ while presence and booleans are asserted."
+          },
+          {
+            "path": "$.invalidLocationFilter.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Opaque connection cursor values differ while presence and booleans are asserted."
+          },
+          {
+            "path": "$.reverseLevels.nodes[*].id",
+            "matcher": "shopify-gid:InventoryLevel",
+            "reason": "Live Shopify and local replay allocate different inventory level ids."
+          },
+          {
+            "path": "$.reverseLevels.nodes[*].item.id",
+            "matcher": "shopify-gid:InventoryItem",
+            "reason": "Live Shopify and local replay allocate different product-backed inventory item ids."
+          },
+          {
+            "path": "$.reverseLevels.nodes[*].location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "Live Shopify and local replay allocate different disposable location ids."
+          },
+          {
+            "path": "$.reverseLevels.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Opaque connection cursor values differ while presence and booleans are asserted."
+          },
+          {
+            "path": "$.reverseLevels.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Opaque connection cursor values differ while presence and booleans are asserted."
+          }
+        ]
+      },
+      {
+        "name": "inventory-deactivate-first-level",
+        "capturePath": "$.operations.inventoryDeactivate.response.data.inventoryDeactivate",
+        "proxyPath": "$.data.inventoryDeactivate",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-inactive-lifecycle-deactivate.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "inventoryLevelId": {
+              "fromProxyResponse": "item-connection-active-read",
+              "path": "$.data.inventoryItem.allLevels.edges[0].node.id"
+            },
+            "idempotencyKey": "inventory-item-levels-deactivate-parity"
+          }
+        }
+      },
+      {
+        "name": "item-connection-inactive-read",
+        "capturePath": "$.operations.inactiveRead.response.data.inventoryItem",
+        "proxyPath": "$.data.inventoryItem",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-item-levels-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "inventoryItemId": {
+              "fromProxyResponse": "product-set",
+              "path": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+            },
+            "itemQuery": {
+              "fromProxyResponse": "product-set",
+              "path": "$.data.productSet.product.variants.nodes[0].inventoryItem.id",
+              "resourceIdTail": true,
+              "prefix": "inventory_item_id:"
+            },
+            "missingItemQuery": "inventory_item_id:1",
+            "invalidLocationQuery": {
+              "fromProxyResponse": "destination-location-add",
+              "path": "$.data.locationAdd.location.id",
+              "resourceIdTail": true,
+              "prefix": "location_id:"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:InventoryItem",
+            "reason": "Live Shopify and the local draft proxy allocate different product-backed inventory item ids."
+          },
+          {
+            "path": "$.activeLevels.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay produce different opaque connection cursors; parity asserts membership and pageInfo booleans."
+          },
+          {
+            "path": "$.activeLevels.edges[*].node.id",
+            "matcher": "shopify-gid:InventoryLevel",
+            "reason": "Live Shopify and local replay allocate different inventory level ids."
+          },
+          {
+            "path": "$.activeLevels.edges[*].node.item.id",
+            "matcher": "shopify-gid:InventoryItem",
+            "reason": "Live Shopify and local replay allocate different product-backed inventory item ids."
+          },
+          {
+            "path": "$.activeLevels.edges[*].node.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "Live Shopify and local replay allocate different disposable location ids."
+          },
+          {
+            "path": "$.activeLevels.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Opaque connection cursor values differ while presence and booleans are asserted."
+          },
+          {
+            "path": "$.activeLevels.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Opaque connection cursor values differ while presence and booleans are asserted."
+          },
+          {
+            "path": "$.allLevels.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay produce different opaque connection cursors; parity asserts membership and pageInfo booleans."
+          },
+          {
+            "path": "$.allLevels.edges[*].node.id",
+            "matcher": "shopify-gid:InventoryLevel",
+            "reason": "Live Shopify and local replay allocate different inventory level ids."
+          },
+          {
+            "path": "$.allLevels.edges[*].node.item.id",
+            "matcher": "shopify-gid:InventoryItem",
+            "reason": "Live Shopify and local replay allocate different product-backed inventory item ids."
+          },
+          {
+            "path": "$.allLevels.edges[*].node.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "Live Shopify and local replay allocate different disposable location ids."
+          },
+          {
+            "path": "$.allLevels.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Opaque connection cursor values differ while presence and booleans are asserted."
+          },
+          {
+            "path": "$.allLevels.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Opaque connection cursor values differ while presence and booleans are asserted."
+          },
+          {
+            "path": "$.firstPage.nodes[*].id",
+            "matcher": "shopify-gid:InventoryLevel",
+            "reason": "Live Shopify and local replay allocate different inventory level ids."
+          },
+          {
+            "path": "$.firstPage.nodes[*].item.id",
+            "matcher": "shopify-gid:InventoryItem",
+            "reason": "Live Shopify and local replay allocate different product-backed inventory item ids."
+          },
+          {
+            "path": "$.firstPage.nodes[*].location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "Live Shopify and local replay allocate different disposable location ids."
+          },
+          {
+            "path": "$.firstPage.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Opaque connection cursor values differ while presence and booleans are asserted."
+          },
+          {
+            "path": "$.firstPage.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Opaque connection cursor values differ while presence and booleans are asserted."
+          },
+          {
+            "path": "$.filtered.nodes[*].id",
+            "matcher": "shopify-gid:InventoryLevel",
+            "reason": "Live Shopify and local replay allocate different inventory level ids."
+          },
+          {
+            "path": "$.filtered.nodes[*].item.id",
+            "matcher": "shopify-gid:InventoryItem",
+            "reason": "Live Shopify and local replay allocate different product-backed inventory item ids."
+          },
+          {
+            "path": "$.filtered.nodes[*].location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "Live Shopify and local replay allocate different disposable location ids."
+          },
+          {
+            "path": "$.filtered.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Opaque connection cursor values differ while presence and booleans are asserted."
+          },
+          {
+            "path": "$.filtered.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Opaque connection cursor values differ while presence and booleans are asserted."
+          },
+          {
+            "path": "$.invalidLocationFilter.nodes[*].id",
+            "matcher": "shopify-gid:InventoryLevel",
+            "reason": "Live Shopify and local replay allocate different inventory level ids."
+          },
+          {
+            "path": "$.invalidLocationFilter.nodes[*].item.id",
+            "matcher": "shopify-gid:InventoryItem",
+            "reason": "Live Shopify and local replay allocate different product-backed inventory item ids."
+          },
+          {
+            "path": "$.invalidLocationFilter.nodes[*].location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "Live Shopify and local replay allocate different disposable location ids."
+          },
+          {
+            "path": "$.invalidLocationFilter.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Opaque connection cursor values differ while presence and booleans are asserted."
+          },
+          {
+            "path": "$.invalidLocationFilter.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Opaque connection cursor values differ while presence and booleans are asserted."
+          },
+          {
+            "path": "$.reverseLevels.nodes[*].id",
+            "matcher": "shopify-gid:InventoryLevel",
+            "reason": "Live Shopify and local replay allocate different inventory level ids."
+          },
+          {
+            "path": "$.reverseLevels.nodes[*].item.id",
+            "matcher": "shopify-gid:InventoryItem",
+            "reason": "Live Shopify and local replay allocate different product-backed inventory item ids."
+          },
+          {
+            "path": "$.reverseLevels.nodes[*].location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "Live Shopify and local replay allocate different disposable location ids."
+          },
+          {
+            "path": "$.reverseLevels.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Opaque connection cursor values differ while presence and booleans are asserted."
+          },
+          {
+            "path": "$.reverseLevels.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Opaque connection cursor values differ while presence and booleans are asserted."
+          }
+        ]
+      },
+      {
+        "name": "item-connection-inactive-window",
+        "capturePath": "$.operations.windowRead.response.data.inventoryItem",
+        "proxyPath": "$.data.inventoryItem",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-item-levels-window.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "inventoryItemId": {
+              "fromProxyResponse": "product-set",
+              "path": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+            },
+            "after": {
+              "fromProxyResponse": "item-connection-active-read",
+              "path": "$.data.inventoryItem.allLevels.edges[0].cursor"
+            },
+            "before": {
+              "fromProxyResponse": "item-connection-active-read",
+              "path": "$.data.inventoryItem.allLevels.edges[1].cursor"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.afterFirst.nodes[*].id",
+            "matcher": "shopify-gid:InventoryLevel",
+            "reason": "Live Shopify and local replay allocate different inventory level ids."
+          },
+          {
+            "path": "$.afterFirst.nodes[*].item.id",
+            "matcher": "shopify-gid:InventoryItem",
+            "reason": "Live Shopify and local replay allocate different product-backed inventory item ids."
+          },
+          {
+            "path": "$.afterFirst.nodes[*].location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "Live Shopify and local replay allocate different disposable location ids."
+          },
+          {
+            "path": "$.afterFirst.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Opaque connection cursor values differ while membership and booleans are asserted."
+          },
+          {
+            "path": "$.afterFirst.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Opaque connection cursor values differ while membership and booleans are asserted."
+          },
+          {
+            "path": "$.beforeSecond.nodes[*].id",
+            "matcher": "shopify-gid:InventoryLevel",
+            "reason": "Live Shopify and local replay allocate different inventory level ids."
+          },
+          {
+            "path": "$.beforeSecond.nodes[*].item.id",
+            "matcher": "shopify-gid:InventoryItem",
+            "reason": "Live Shopify and local replay allocate different product-backed inventory item ids."
+          },
+          {
+            "path": "$.beforeSecond.nodes[*].location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "Live Shopify and local replay allocate different disposable location ids."
+          },
+          {
+            "path": "$.beforeSecond.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Opaque connection cursor values differ while membership and booleans are asserted."
+          },
+          {
+            "path": "$.beforeSecond.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Opaque connection cursor values differ while membership and booleans are asserted."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Captured Admin GraphQL 2026-04 evidence that InventoryItem.inventoryLevels behaves as a full staged-aware Relay connection over a disposable tracked product stocked at two disposable locations. The scenario records source quantity set, destination activation plus adjustment, item-side nodes/edges/pageInfo, valid inventory_item_id query filtering, invalid location_id query no-op behavior with Shopify search warnings in the fixture, reverse ordering, inactive visibility after inventoryDeactivate, and cursor windows whose cursor values are volatile while membership and pageInfo booleans are asserted."
+}

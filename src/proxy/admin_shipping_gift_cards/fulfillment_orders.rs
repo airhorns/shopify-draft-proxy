@@ -61,6 +61,51 @@ query ShippingFulfillmentOrderHydrate($id: ID!) {
 }
 "#;
 
+const SHIPPING_FULFILLMENT_ORDER_DEADLINE_HYDRATE_BATCH_SIZE: usize = 250;
+
+const SHIPPING_FULFILLMENT_ORDERS_DEADLINE_HYDRATE_QUERY: &str = r#"
+query ShippingFulfillmentOrdersDeadlineHydrate($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    __typename
+    ... on FulfillmentOrder {
+      id
+      status
+      requestStatus
+      fulfillAt
+      fulfillBy
+      updatedAt
+      supportedActions {
+        action
+      }
+      assignedLocation {
+        name
+        location {
+          id
+          name
+        }
+      }
+      fulfillmentHolds {
+        id
+        handle
+        reason
+        reasonNotes
+        displayReason
+        heldByApp {
+          id
+          title
+        }
+        heldByRequestingApp
+      }
+      order {
+        id
+        name
+        displayFulfillmentStatus
+      }
+    }
+  }
+}
+"#;
+
 struct FulfillmentOrderStoreBackedPreamble {
     response_key: String,
     payload_selection: Vec<SelectedField>,
@@ -94,6 +139,26 @@ const SHIPPING_FULFILLMENT_ORDER_DIRECT_MULTILINE_HYDRATE_QUERY: &str = r#"query
       fulfillAt
       fulfillBy
       updatedAt
+      supportedActions { action }
+      assignedLocation { name location { id name } }
+      fulfillmentHolds { id handle reason reasonNotes displayReason heldByApp { id title } heldByRequestingApp }
+      merchantRequests(first: 10) { nodes { kind message requestOptions } }
+      lineItems(first: 20) { nodes { id totalQuantity remainingQuantity lineItem { id title quantity fulfillableQuantity } } }
+      order { id name displayFulfillmentStatus }
+    }
+  }"#;
+
+const SHIPPING_FULFILLMENT_ORDER_PICKUP_HYDRATE_QUERY: &str = r#"query ShippingFulfillmentOrderPickupHydrate($id: ID!) {
+    fulfillmentOrder(id: $id) {
+      id
+      status
+      requestStatus
+      fulfillAt
+      fulfillBy
+      updatedAt
+      deliveryMethod {
+        methodType
+      }
       supportedActions { action }
       assignedLocation { name location { id name } }
       fulfillmentHolds { id handle reason reasonNotes displayReason heldByApp { id title } heldByRequestingApp }
@@ -305,6 +370,8 @@ impl DraftProxy {
             "fulfillmentOrdersSetFulfillmentDeadline" => {
                 self.fulfillment_order_set_deadline_store_backed(query, variables, request)
             }
+            "fulfillmentOrderLineItemsPreparedForPickup" => self
+                .fulfillment_order_prepared_for_pickup_store_backed(query, variables, request),
             "fulfillmentOrderClose" => {
                 self.fulfillment_order_close_store_backed(query, variables, request)
             }
@@ -1059,9 +1126,7 @@ impl DraftProxy {
                 variables,
             );
         let ids = list_string_field(&arguments, "fulfillmentOrderIds");
-        for id in &ids {
-            self.ensure_shipping_fulfillment_order_hydrated(request, id);
-        }
+        self.ensure_shipping_fulfillment_orders_deadline_hydrated(request, &ids);
         let known_ids: Vec<String> = ids
             .iter()
             .filter(|id| self.shipping_fulfillment_order_location(id).is_some())
@@ -1177,6 +1242,109 @@ impl DraftProxy {
         )
     }
 
+    fn fulfillment_order_prepared_for_pickup_store_backed(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let (response_key, payload_selection, arguments) =
+            Self::fulfillment_order_store_backed_parts(
+                "fulfillmentOrderLineItemsPreparedForPickup",
+                query,
+                variables,
+            );
+        let Some(input) = resolved_object_field(&arguments, "input") else {
+            return fulfillment_order_data_response(
+                &response_key,
+                fulfillment_order_prepared_for_pickup_payload_json(
+                    &payload_selection,
+                    vec![user_error(["input"], "Input is required.", Some("INVALID"))],
+                ),
+            );
+        };
+        let requested = resolved_object_list_field(&input, "lineItemsByFulfillmentOrder")
+            .into_iter()
+            .enumerate()
+            .filter_map(|(index, item)| {
+                resolved_string_field(&item, "fulfillmentOrderId").map(|id| (index, id))
+            })
+            .collect::<Vec<_>>();
+
+        for (_, id) in &requested {
+            if shopify_gid_resource_type(id) != Some("FulfillmentOrder")
+                || fulfillment_order_id_is_invalid(id)
+            {
+                return ok_json(fulfillment_order_structural_invalid_id_data(
+                    &response_key,
+                    "fulfillmentOrderLineItemsPreparedForPickup",
+                ));
+            }
+        }
+
+        for (_, id) in &requested {
+            self.ensure_shipping_fulfillment_order_pickup_hydrated(request, id);
+        }
+
+        let mut errors = Vec::new();
+        let mut locations = Vec::new();
+        for (input_index, id) in &requested {
+            match self.shipping_fulfillment_order_by_id(id) {
+                Some(fulfillment_order)
+                    if fulfillment_order_is_pickup_preparable(&fulfillment_order) =>
+                {
+                    if let Some(location) = self.shipping_fulfillment_order_location(id) {
+                        locations.push((id.clone(), location));
+                    }
+                }
+                _ => errors.push(fulfillment_order_prepared_for_pickup_invalid_error(
+                    *input_index,
+                    id,
+                )),
+            }
+        }
+
+        if !errors.is_empty() {
+            return fulfillment_order_data_response(
+                &response_key,
+                fulfillment_order_prepared_for_pickup_payload_json(&payload_selection, errors),
+            );
+        }
+
+        let timestamp = self.next_shipping_fulfillment_timestamp();
+        for (_id, (order_id, index)) in &locations {
+            if let Some(order) = self.store.staged.orders.get_mut(order_id) {
+                if let Some(nodes) = fulfillment_order_nodes_mut(order) {
+                    let mut fulfillment_order = nodes[*index].clone();
+                    fulfillment_order["status"] = json!("IN_PROGRESS");
+                    fulfillment_order["updatedAt"] = json!(timestamp);
+                    fulfillment_order["supportedActions"] =
+                        shipping_fulfillment_supported_actions(&[
+                            "CREATE_FULFILLMENT",
+                            "REPORT_PROGRESS",
+                            "HOLD",
+                            "MARK_AS_OPEN",
+                        ]);
+                    mark_fulfillment_order_lines_prepared_for_pickup(&mut fulfillment_order);
+                    nodes[*index] = fulfillment_order;
+                }
+                update_order_display_fulfillment_status(order);
+            }
+        }
+        self.record_mutation_log_entry(
+            request,
+            query,
+            variables,
+            "fulfillmentOrderLineItemsPreparedForPickup",
+            requested.into_iter().map(|(_, id)| id).collect(),
+        );
+
+        fulfillment_order_data_response(
+            &response_key,
+            fulfillment_order_prepared_for_pickup_payload_json(&payload_selection, vec![]),
+        )
+    }
+
     fn fulfillment_order_guardrail_response(
         &self,
         root_field: &str,
@@ -1279,6 +1447,60 @@ impl DraftProxy {
         self.shipping_fulfillment_order_location(id).is_some()
     }
 
+    fn ensure_shipping_fulfillment_order_pickup_hydrated(
+        &mut self,
+        request: &Request,
+        id: &str,
+    ) -> bool {
+        if id.is_empty() {
+            return false;
+        }
+        if self
+            .shipping_fulfillment_order_by_id(id)
+            .is_some_and(|order| !order["deliveryMethod"]["methodType"].is_null())
+        {
+            return true;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": SHIPPING_FULFILLMENT_ORDER_PICKUP_HYDRATE_QUERY,
+                "variables": { "id": id }
+            }),
+        );
+        if response.status < 400 {
+            self.stage_shipping_fulfillment_order_hydrate_response(id, &response.body);
+        }
+        self.shipping_fulfillment_order_location(id).is_some()
+    }
+
+    fn ensure_shipping_fulfillment_orders_deadline_hydrated(
+        &mut self,
+        request: &Request,
+        ids: &[String],
+    ) {
+        let mut seen = BTreeSet::new();
+        let missing_ids = ids
+            .iter()
+            .filter(|id| !id.is_empty())
+            .filter(|id| self.shipping_fulfillment_order_location(id).is_none())
+            .filter(|id| seen.insert((*id).clone()))
+            .cloned()
+            .collect::<Vec<_>>();
+        for chunk in missing_ids.chunks(SHIPPING_FULFILLMENT_ORDER_DEADLINE_HYDRATE_BATCH_SIZE) {
+            let response = self.upstream_post(
+                request,
+                json!({
+                    "query": SHIPPING_FULFILLMENT_ORDERS_DEADLINE_HYDRATE_QUERY,
+                    "variables": { "ids": chunk }
+                }),
+            );
+            if response.status < 400 {
+                self.stage_shipping_fulfillment_order_nodes_response(&response.body);
+            }
+        }
+    }
+
     fn shipping_fulfillment_order_needs_hydration(&self, id: &str) -> bool {
         self.shipping_fulfillment_order_by_id(id)
             .map(|order| {
@@ -1321,6 +1543,24 @@ impl DraftProxy {
         }
         order["fulfillmentOrders"] = json!({ "nodes": [node] });
         self.stage_shipping_fulfillment_order_order(order);
+    }
+
+    fn stage_shipping_fulfillment_order_nodes_response(&mut self, body: &Value) {
+        let Some(nodes) = body["data"]["nodes"].as_array() else {
+            return;
+        };
+        for node in nodes {
+            if !node.is_object() {
+                continue;
+            }
+            if node["__typename"]
+                .as_str()
+                .is_some_and(|typename| typename != "FulfillmentOrder")
+            {
+                continue;
+            }
+            self.stage_shipping_fulfillment_order_record(node.clone());
+        }
     }
 
     fn stage_shipping_fulfillment_order_record(&mut self, fulfillment_order: Value) {
@@ -1618,6 +1858,67 @@ fn fulfillment_order_line_item_quantities(
             Some((id, quantity))
         })
         .collect()
+}
+
+fn fulfillment_order_structural_invalid_id_data(response_key: &str, root_field: &str) -> Value {
+    let mut data = serde_json::Map::new();
+    data.insert(response_key.to_string(), Value::Null);
+    json!({
+        "data": Value::Object(data),
+        "errors": [{
+            "message": "invalid id",
+            "extensions": { "code": "RESOURCE_NOT_FOUND" },
+            "path": [root_field]
+        }]
+    })
+}
+
+fn fulfillment_order_prepared_for_pickup_payload_json(
+    selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    selected_json(&json!({ "userErrors": user_errors }), selection)
+}
+
+fn fulfillment_order_prepared_for_pickup_invalid_error(index: usize, id: &str) -> Value {
+    user_error(
+        [
+            "input",
+            "lineItemsByFulfillmentOrder",
+            &index.to_string(),
+            "fulfillmentOrderId",
+        ],
+        &format!(
+            "Invalid fulfillment_order_id provided {}",
+            resource_id_tail(id)
+        ),
+        Some("FULFILLMENT_ORDER_INVALID"),
+    )
+}
+
+fn fulfillment_order_is_pickup_preparable(order: &Value) -> bool {
+    if order["deliveryMethod"]["methodType"].as_str() != Some("PICK_UP") {
+        return false;
+    }
+    if !matches!(order["status"].as_str(), Some("OPEN")) {
+        return false;
+    }
+    fulfillment_order_line_item_nodes(order)
+        .iter()
+        .any(|line| line["remainingQuantity"].as_i64().unwrap_or(0) > 0)
+}
+
+fn mark_fulfillment_order_lines_prepared_for_pickup(order: &mut Value) {
+    for line in order["lineItems"]["nodes"]
+        .as_array_mut()
+        .into_iter()
+        .flatten()
+    {
+        line["__draftProxyPreparedForPickup"] = json!(true);
+        if let Some(line_item) = line["lineItem"].as_object_mut() {
+            line_item.insert("fulfillableQuantity".to_string(), json!(0));
+        }
+    }
 }
 
 /// True when a fulfillment-order mutation response indicates the local engine

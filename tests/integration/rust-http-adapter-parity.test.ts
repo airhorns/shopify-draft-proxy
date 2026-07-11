@@ -168,6 +168,8 @@ describe('Rust HTTP adapter route surface', () => {
             shopPolicyOrder: [],
             deliveryProfiles: {},
             deliveryProfileOrder: [],
+            discounts: {},
+            discountOrder: [],
             shop: null,
             publicationIds: [],
             publicationCount: null,
@@ -184,6 +186,9 @@ describe('Rust HTTP adapter route surface', () => {
               }),
             }),
             localizationProductIds: [],
+            metafieldDefinitions: {},
+            metafieldDefinitionOwnerCatalogs: [],
+            metafieldDefinitionNamespaces: [],
           },
           // This mirrors the authoritative empty staged-state serialization in
           // src/proxy/core.rs (the `/__meta/state` snapshot, which is also the
@@ -251,6 +256,9 @@ describe('Rust HTTP adapter route surface', () => {
             deliveryProfiles: {},
             deliveryProfileOrder: [],
             deletedDeliveryProfileIds: [],
+            deliveryCustomizations: {},
+            deliveryCustomizationOrder: [],
+            deletedDeliveryCustomizationIds: [],
             publicationIds: [],
             createdPublicationIds: [],
             currentChannelPublicationId: null,
@@ -264,6 +272,7 @@ describe('Rust HTTP adapter route surface', () => {
             discountRedeemCodeBulkCreations: {},
             ownerMetafields: {},
             deletedOwnerMetafields: [],
+            deletedMetafieldDefinitions: [],
           },
         },
       });

@@ -1,0 +1,34 @@
+mutation InventoryNodeProductCreate($product: ProductCreateInput!) {
+  productCreate(product: $product) {
+    product {
+      id
+      title
+      handle
+      status
+      totalInventory
+      tracksInventory
+      variants(first: 1) {
+        nodes {
+          id
+          title
+          sku
+          inventoryQuantity
+          selectedOptions {
+            name
+            value
+          }
+          inventoryItem {
+            id
+            tracked
+            requiresShipping
+            sku
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

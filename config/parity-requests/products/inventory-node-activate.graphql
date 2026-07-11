@@ -1,0 +1,18 @@
+mutation InventoryNodeActivate($inventoryItemId: ID!, $locationId: ID!, $available: Int) {
+  inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId, available: $available) {
+    inventoryLevel {
+      id
+      location {
+        id
+        name
+      }
+      item {
+        id
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

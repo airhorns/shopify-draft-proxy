@@ -998,6 +998,424 @@ fn marketing_activity_source_and_medium_uses_tactic_domain_and_fallback_labels()
 }
 
 #[test]
+fn marketing_live_hybrid_cold_read_forwards_non_empty_upstream_catalog() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let upstream_body = json!({
+        "data": {
+            "upstreamActivities": {
+                "nodes": [{
+                    "id": "gid://shopify/MarketingActivity/9001",
+                    "title": "Upstream acquisition",
+                    "remoteId": "upstream-acquisition",
+                    "marketingEvent": {
+                        "id": "gid://shopify/MarketingEvent/19001",
+                        "type": "AD",
+                        "remoteId": "upstream-acquisition",
+                        "description": "Upstream acquisition event"
+                    }
+                }],
+                "edges": [{
+                    "cursor": "opaque-upstream-activity-cursor",
+                    "node": {
+                        "id": "gid://shopify/MarketingActivity/9001",
+                        "title": "Upstream acquisition"
+                    }
+                }],
+                "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": "opaque-upstream-activity-cursor",
+                    "endCursor": "opaque-upstream-activity-cursor"
+                }
+            },
+            "upstreamActivity": {
+                "id": "gid://shopify/MarketingActivity/9001",
+                "title": "Upstream acquisition",
+                "remoteId": "upstream-acquisition"
+            },
+            "upstreamEvents": {
+                "nodes": [{
+                    "id": "gid://shopify/MarketingEvent/19001",
+                    "type": "AD",
+                    "remoteId": "upstream-acquisition",
+                    "description": "Upstream acquisition event"
+                }],
+                "edges": [{
+                    "cursor": "opaque-upstream-event-cursor",
+                    "node": {
+                        "id": "gid://shopify/MarketingEvent/19001",
+                        "type": "AD"
+                    }
+                }],
+                "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": "opaque-upstream-event-cursor",
+                    "endCursor": "opaque-upstream-event-cursor"
+                }
+            },
+            "upstreamEvent": {
+                "id": "gid://shopify/MarketingEvent/19001",
+                "type": "AD",
+                "remoteId": "upstream-acquisition"
+            }
+        }
+    });
+    let expected_body = upstream_body.clone();
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_requests.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: upstream_body.clone(),
+            }
+        });
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketingColdCatalogRead($activityId: ID!, $eventId: ID!) {
+          upstreamActivities: marketingActivities(first: 2, sortKey: TITLE, query: "upstream") {
+            nodes { id title remoteId marketingEvent { id type remoteId description } }
+            edges { cursor node { id title } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          upstreamActivity: marketingActivity(id: $activityId) { id title remoteId }
+          upstreamEvents: marketingEvents(first: 2, sortKey: ID) {
+            nodes { id type remoteId description }
+            edges { cursor node { id type } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          upstreamEvent: marketingEvent(id: $eventId) { id type remoteId }
+        }
+        "#,
+        json!({
+            "activityId": "gid://shopify/MarketingActivity/9001",
+            "eventId": "gid://shopify/MarketingEvent/19001"
+        }),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(read.body, expected_body);
+    let requests = upstream_requests.lock().unwrap();
+    assert_eq!(
+        requests.len(),
+        1,
+        "cold marketing read should forward once to upstream"
+    );
+    assert!(requests[0]["query"].as_str().is_some_and(|query| query
+        .contains("marketingActivities")
+        && query.contains("marketingEvent")));
+}
+
+#[test]
+fn marketing_live_hybrid_effective_catalog_overlays_staged_lifecycle_on_upstream() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let upstream_activity_id = "gid://shopify/MarketingActivity/9001";
+    let upstream_event_id = "gid://shopify/MarketingEvent/19001";
+    let upstream_body = json!({
+        "data": {
+            "allActivities": {
+                "nodes": [{
+                    "id": upstream_activity_id,
+                    "title": "Upstream acquisition",
+                    "remoteId": "upstream-acquisition",
+                    "isExternal": true,
+                    "marketingEvent": {
+                        "id": upstream_event_id,
+                        "type": "AD",
+                        "remoteId": "upstream-acquisition",
+                        "description": "Upstream acquisition event"
+                    }
+                }],
+                "edges": [{
+                    "cursor": "opaque-upstream-activity-cursor",
+                    "node": {
+                        "id": upstream_activity_id,
+                        "title": "Upstream acquisition"
+                    }
+                }],
+                "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": "opaque-upstream-activity-cursor",
+                    "endCursor": "opaque-upstream-activity-cursor"
+                }
+            },
+            "upstreamActivity": {
+                "id": upstream_activity_id,
+                "title": "Upstream acquisition",
+                "remoteId": "upstream-acquisition",
+                "isExternal": true,
+                "marketingEvent": {
+                    "id": upstream_event_id,
+                    "type": "AD",
+                    "remoteId": "upstream-acquisition"
+                }
+            },
+            "allEvents": {
+                "nodes": [{
+                    "id": upstream_event_id,
+                    "type": "AD",
+                    "remoteId": "upstream-acquisition",
+                    "description": "Upstream acquisition event"
+                }],
+                "edges": [{
+                    "cursor": "opaque-upstream-event-cursor",
+                    "node": {
+                        "id": upstream_event_id,
+                        "type": "AD"
+                    }
+                }],
+                "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": "opaque-upstream-event-cursor",
+                    "endCursor": "opaque-upstream-event-cursor"
+                }
+            },
+            "upstreamEvent": {
+                "id": upstream_event_id,
+                "type": "AD",
+                "remoteId": "upstream-acquisition"
+            }
+        }
+    });
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_requests.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: upstream_body.clone(),
+            }
+        });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateLocalMarketingActivity($input: MarketingActivityCreateExternalInput!) {
+          created: marketingActivityCreateExternal(input: $input) {
+            marketingActivity { id title remoteId marketingEvent { id type remoteId } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+            "title": "Local staged",
+            "remoteId": "local-staged",
+            "status": "ACTIVE",
+            "remoteUrl": "https://example.com/local-staged",
+            "tactic": "NEWSLETTER",
+            "marketingChannelType": "EMAIL",
+            "utm": {"campaign": "local-staged", "source": "email", "medium": "newsletter"}
+        }}),
+    ));
+    assert_eq!(create.body["data"]["created"]["userErrors"], json!([]));
+    assert_eq!(
+        upstream_requests.lock().unwrap().len(),
+        0,
+        "supported marketing create should not passthrough upstream"
+    );
+    let local_id = create.body["data"]["created"]["marketingActivity"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let local_event_id = create.body["data"]["created"]["marketingActivity"]["marketingEvent"]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let local_cursor = format!("cursor:{local_id}");
+    let local_event_cursor = format!("cursor:{local_event_id}");
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketingEffectiveCatalog($localCursor: String!, $upstreamActivityId: ID!, $upstreamEventId: ID!) {
+          allActivities: marketingActivities(first: 5, sortKey: TITLE) {
+            nodes { id title remoteId }
+            edges { cursor node { id title } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          firstActivity: marketingActivities(first: 1, sortKey: TITLE) {
+            nodes { id title }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          afterLocal: marketingActivities(first: 1, after: $localCursor, sortKey: TITLE) {
+            nodes { id title }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          upstreamSearch: marketingActivities(first: 5, query: "remote_id:upstream-acquisition", sortKey: TITLE) {
+            nodes { id title }
+          }
+          upstreamActivity: marketingActivity(id: $upstreamActivityId) { id title remoteId }
+          allEvents: marketingEvents(first: 5, sortKey: ID) {
+            nodes { id type remoteId }
+            edges { cursor node { id type } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          upstreamEvent: marketingEvent(id: $upstreamEventId) { id type remoteId }
+        }
+        "#,
+        json!({
+            "localCursor": local_cursor,
+            "upstreamActivityId": upstream_activity_id,
+            "upstreamEventId": upstream_event_id
+        }),
+    ));
+
+    assert_eq!(
+        read.body["data"]["allActivities"]["nodes"],
+        json!([
+            {"id": local_id, "title": "Local staged", "remoteId": "local-staged"},
+            {"id": upstream_activity_id, "title": "Upstream acquisition", "remoteId": "upstream-acquisition"}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["allActivities"]["edges"],
+        json!([
+            {"cursor": local_cursor, "node": {"id": local_id, "title": "Local staged"}},
+            {"cursor": "opaque-upstream-activity-cursor", "node": {"id": upstream_activity_id, "title": "Upstream acquisition"}}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["firstActivity"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": local_cursor,
+            "endCursor": local_cursor
+        })
+    );
+    assert_eq!(
+        read.body["data"]["afterLocal"]["nodes"],
+        json!([{"id": upstream_activity_id, "title": "Upstream acquisition"}])
+    );
+    assert_eq!(
+        read.body["data"]["afterLocal"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": true,
+            "startCursor": "opaque-upstream-activity-cursor",
+            "endCursor": "opaque-upstream-activity-cursor"
+        })
+    );
+    assert_eq!(
+        read.body["data"]["upstreamSearch"]["nodes"],
+        json!([{"id": upstream_activity_id, "title": "Upstream acquisition"}])
+    );
+    assert_eq!(
+        read.body["data"]["upstreamActivity"],
+        json!({"id": upstream_activity_id, "title": "Upstream acquisition", "remoteId": "upstream-acquisition"})
+    );
+    assert_eq!(
+        read.body["data"]["allEvents"]["nodes"],
+        json!([
+            {"id": upstream_event_id, "type": "AD", "remoteId": "upstream-acquisition"},
+            {"id": local_event_id, "type": "NEWSLETTER", "remoteId": "local-staged"}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["allEvents"]["edges"],
+        json!([
+            {"cursor": "opaque-upstream-event-cursor", "node": {"id": upstream_event_id, "type": "AD"}},
+            {"cursor": local_event_cursor, "node": {"id": local_event_id, "type": "NEWSLETTER"}}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["upstreamEvent"],
+        json!({"id": upstream_event_id, "type": "AD", "remoteId": "upstream-acquisition"})
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateObservedMarketingActivity($id: ID!, $input: MarketingActivityUpdateExternalInput!) {
+          updated: marketingActivityUpdateExternal(marketingActivityId: $id, input: $input) {
+            marketingActivity { id title remoteId }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": upstream_activity_id,
+            "input": {"title": "Updated upstream acquisition"}
+        }),
+    ));
+    assert_eq!(update.body["data"]["updated"]["userErrors"], json!([]));
+    assert_eq!(
+        update.body["data"]["updated"]["marketingActivity"],
+        json!({"id": upstream_activity_id, "title": "Updated upstream acquisition", "remoteId": "upstream-acquisition"})
+    );
+
+    let after_update = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketingReadAfterObservedUpdate($id: ID!) {
+          updatedActivity: marketingActivity(id: $id) { id title remoteId }
+          allActivities: marketingActivities(first: 5, sortKey: TITLE) { nodes { id title } }
+        }
+        "#,
+        json!({"id": upstream_activity_id}),
+    ));
+    assert_eq!(
+        after_update.body["data"]["updatedActivity"],
+        json!({"id": upstream_activity_id, "title": "Updated upstream acquisition", "remoteId": "upstream-acquisition"})
+    );
+    assert_eq!(
+        after_update.body["data"]["allActivities"]["nodes"],
+        json!([
+            {"id": local_id, "title": "Local staged"},
+            {"id": upstream_activity_id, "title": "Updated upstream acquisition"}
+        ])
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteObservedMarketingActivity($id: ID!) {
+          deleted: marketingActivityDeleteExternal(marketingActivityId: $id) {
+            deletedMarketingActivityId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": upstream_activity_id}),
+    ));
+    assert_eq!(
+        delete.body["data"]["deleted"],
+        json!({"deletedMarketingActivityId": upstream_activity_id, "userErrors": []})
+    );
+
+    let after_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketingReadAfterObservedDelete($activityId: ID!, $eventId: ID!) {
+          deletedActivity: marketingActivity(id: $activityId) { id title }
+          allActivities: marketingActivities(first: 5, sortKey: TITLE) { nodes { id title } }
+          deletedEvent: marketingEvent(id: $eventId) { id type }
+          allEvents: marketingEvents(first: 5, sortKey: ID) { nodes { id type } }
+        }
+        "#,
+        json!({"activityId": upstream_activity_id, "eventId": upstream_event_id}),
+    ));
+    assert_eq!(after_delete.body["data"]["deletedActivity"], Value::Null);
+    assert_eq!(
+        after_delete.body["data"]["allActivities"]["nodes"],
+        json!([{"id": local_id, "title": "Local staged"}])
+    );
+    assert_eq!(after_delete.body["data"]["deletedEvent"], Value::Null);
+    assert_eq!(
+        after_delete.body["data"]["allEvents"]["nodes"],
+        json!([{"id": local_event_id, "type": "NEWSLETTER"}])
+    );
+    assert_eq!(
+        upstream_requests.lock().unwrap().len(),
+        3,
+        "only the three read operations should call upstream"
+    );
+}
+
+#[test]
 fn marketing_activity_connections_honor_sort_window_and_query_for_staged_records() {
     let mut proxy = snapshot_proxy();
     let mut create_alpha_request = json_graphql_request(
@@ -3656,6 +4074,233 @@ fn location_inventory_levels_overlay_and_args() {
 }
 
 #[test]
+fn inventory_item_inventory_levels_connection_honors_args() {
+    let mut proxy = inventory_seed_proxy();
+    let (_variant_id, inventory_item_id) =
+        create_inventory_test_item(&mut proxy, "ITEM-LEVEL-CONNECTION");
+    let source_location_id = add_inventory_test_location(&mut proxy, "Item Level Source");
+    let destination_location_id = add_inventory_test_location(&mut proxy, "Item Level Destination");
+    let source_level_id = inventory_level_id_for_test(&inventory_item_id, &source_location_id);
+    let destination_level_id =
+        inventory_level_id_for_test(&inventory_item_id, &destination_location_id);
+
+    let seed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedItemInventoryLevels($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) {
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"name": "available", "reason": "correction", "ignoreCompareQuantity": true, "quantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": source_location_id, "quantity": 4},
+            {"inventoryItemId": inventory_item_id, "locationId": destination_location_id, "quantity": 9}
+        ]}}),
+    ));
+    assert_eq!(
+        seed.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let deactivate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeactivateItemSourceLevel($inventoryLevelId: ID!, $idempotencyKey: String!) {
+          inventoryDeactivate(inventoryLevelId: $inventoryLevelId) @idempotent(key: $idempotencyKey) {
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "inventoryLevelId": source_level_id,
+            "idempotencyKey": "inventory-item-level-connection-deactivate"
+        }),
+    ));
+    assert_eq!(
+        deactivate.body["data"]["inventoryDeactivate"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ItemInventoryLevelsConnection(
+          $inventoryItemId: ID!
+          $after: String!
+          $before: String!
+          $itemQuery: String!
+          $missingItemQuery: String!
+          $invalidLocationQuery: String!
+        ) {
+          inventoryItem(id: $inventoryItemId) {
+            activeLevels: inventoryLevels(first: 10) {
+              nodes { location { id } isActive }
+            }
+            allLevels: inventoryLevels(first: 10, includeInactive: true) {
+              edges {
+                cursor
+                node {
+                  location { id name }
+                  isActive
+                  quantities(names: ["available", "on_hand"]) { name quantity }
+                }
+              }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            firstPage: inventoryLevels(first: 1, includeInactive: true) {
+              nodes { location { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            afterSource: inventoryLevels(first: 1, includeInactive: true, after: $after) {
+              nodes { location { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            beforeDestination: inventoryLevels(last: 1, includeInactive: true, before: $before) {
+              nodes { location { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            filtered: inventoryLevels(first: 5, includeInactive: true, query: $itemQuery) {
+              nodes {
+                location { id }
+                quantities(names: ["available"]) { name quantity }
+              }
+            }
+            emptyFilter: inventoryLevels(first: 5, includeInactive: true, query: $missingItemQuery) {
+              nodes { location { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            invalidLocationFilter: inventoryLevels(first: 5, includeInactive: true, query: $invalidLocationQuery) {
+              nodes { location { id } }
+            }
+            reverseLevels: inventoryLevels(first: 10, includeInactive: true, reverse: true) {
+              nodes { location { id } }
+            }
+          }
+        }
+        "#,
+        json!({
+            "inventoryItemId": inventory_item_id,
+            "after": source_level_id,
+            "before": destination_level_id,
+            "itemQuery": format!("inventory_item_id:{}", inventory_item_id),
+            "missingItemQuery": "inventory_item_id:1",
+            "invalidLocationQuery": format!("location_id:{}", destination_location_id)
+        }),
+    ));
+
+    let item = &read.body["data"]["inventoryItem"];
+    assert_eq!(
+        item["activeLevels"]["nodes"],
+        json!([{ "location": { "id": destination_location_id }, "isActive": true }])
+    );
+    assert_eq!(
+        item["allLevels"],
+        json!({
+            "edges": [
+                {
+                    "cursor": source_level_id,
+                    "node": {
+                        "location": { "id": source_location_id, "name": "Item Level Source" },
+                        "isActive": false,
+                        "quantities": [
+                            { "name": "available", "quantity": 4 },
+                            { "name": "on_hand", "quantity": 4 }
+                        ]
+                    }
+                },
+                {
+                    "cursor": destination_level_id,
+                    "node": {
+                        "location": {
+                            "id": destination_location_id,
+                            "name": "Item Level Destination"
+                        },
+                        "isActive": true,
+                        "quantities": [
+                            { "name": "available", "quantity": 9 },
+                            { "name": "on_hand", "quantity": 9 }
+                        ]
+                    }
+                }
+            ],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": source_level_id,
+                "endCursor": destination_level_id
+            }
+        })
+    );
+    assert_eq!(
+        item["firstPage"],
+        json!({
+            "nodes": [{ "location": { "id": source_location_id } }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": source_level_id,
+                "endCursor": source_level_id
+            }
+        })
+    );
+    assert_eq!(
+        item["afterSource"]["nodes"],
+        json!([{ "location": { "id": destination_location_id } }])
+    );
+    assert_eq!(
+        item["afterSource"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": true,
+            "startCursor": destination_level_id,
+            "endCursor": destination_level_id
+        })
+    );
+    assert_eq!(
+        item["beforeDestination"]["nodes"],
+        json!([{ "location": { "id": source_location_id } }])
+    );
+    assert_eq!(
+        item["filtered"]["nodes"],
+        json!([
+            {
+                "location": { "id": source_location_id },
+                "quantities": [{ "name": "available", "quantity": 4 }]
+            },
+            {
+                "location": { "id": destination_location_id },
+                "quantities": [{ "name": "available", "quantity": 9 }]
+            }
+        ])
+    );
+    assert_eq!(
+        item["emptyFilter"],
+        json!({
+            "nodes": [],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+            }
+        })
+    );
+    assert_eq!(
+        item["invalidLocationFilter"]["nodes"],
+        json!([{
+            "location": { "id": source_location_id }
+        }, {
+            "location": { "id": destination_location_id }
+        }])
+    );
+    assert_eq!(
+        item["reverseLevels"]["nodes"],
+        json!([
+            { "location": { "id": destination_location_id } },
+            { "location": { "id": source_location_id } }
+        ])
+    );
+}
+
+#[test]
 fn location_inventory_levels_preserves_hydrated_untouched_levels() {
     let location_id = "gid://shopify/Location/9001";
     let first_item_id = "gid://shopify/InventoryItem/9002";
@@ -5146,7 +5791,7 @@ fn inventory_adjust_quantities_leaves_product_total_inventory_lazy() {
         read.body["data"]["productVariant"]["inventoryQuantity"],
         json!(0)
     );
-    assert_eq!(read.body["data"]["product"]["totalInventory"], json!(2));
+    assert_eq!(read.body["data"]["product"]["totalInventory"], json!(0));
     assert_eq!(
         read.body["data"]["product"]["hasOutOfStockVariants"],
         json!(true)
@@ -5248,6 +5893,220 @@ fn assert_no_inventory_quantity_logs(proxy: &DraftProxy) {
         }),
         "rejected inventory quantity mutation should not be logged: {logged:?}"
     );
+}
+
+fn parse_inventory_timestamp(timestamp: &str, context: &str) -> time::OffsetDateTime {
+    time::OffsetDateTime::parse(timestamp, &time::format_description::well_known::Rfc3339)
+        .unwrap_or_else(|error| panic!("{context} should parse as RFC3339: {error}"))
+}
+
+fn set_inventory_available_quantity(
+    proxy: &mut DraftProxy,
+    inventory_item_id: &str,
+    location_id: &str,
+    quantity: i64,
+) -> String {
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SetInventoryTimestampProbe($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) {
+            inventoryAdjustmentGroup { createdAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"name": "available", "reason": "correction", "ignoreCompareQuantity": true, "quantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": quantity}
+        ]}}),
+    ));
+    assert_eq!(
+        set.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+    set.body["data"]["inventorySetQuantities"]["inventoryAdjustmentGroup"]["createdAt"]
+        .as_str()
+        .expect("inventory adjustment group should include createdAt")
+        .to_string()
+}
+
+fn read_inventory_available_updated_at(
+    proxy: &mut DraftProxy,
+    inventory_item_id: &str,
+    location_id: &str,
+) -> String {
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryTimestampProbeRead($inventoryItemId: ID!) {
+          inventoryItem(id: $inventoryItemId) {
+            inventoryLevels(first: 10) {
+              nodes {
+                location { id }
+                quantities(names: ["available"]) { name updatedAt }
+              }
+            }
+          }
+        }
+        "#,
+        json!({"inventoryItemId": inventory_item_id}),
+    ));
+    read.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|node| node["location"]["id"] == json!(location_id))
+        .and_then(|node| node["quantities"][0]["updatedAt"].as_str())
+        .expect("inventory level should expose available updatedAt")
+        .to_string()
+}
+
+#[test]
+fn inventory_quantity_timestamps_remain_rfc3339_after_sixty_operations() {
+    let mut proxy = inventory_seed_proxy();
+    let (_variant_id, inventory_item_id) =
+        create_inventory_test_item(&mut proxy, "INV-TIMESTAMP-60");
+    let location_id = add_inventory_test_location(&mut proxy, "Timestamp location");
+    let mut previous = None;
+    let mut timestamps = Vec::new();
+
+    for quantity in 1..=65 {
+        let created_at = set_inventory_available_quantity(
+            &mut proxy,
+            &inventory_item_id,
+            &location_id,
+            quantity,
+        );
+        let updated_at =
+            read_inventory_available_updated_at(&mut proxy, &inventory_item_id, &location_id);
+        assert_eq!(updated_at, created_at);
+
+        let context = format!("inventory timestamp operation {quantity}");
+        let parsed = parse_inventory_timestamp(&created_at, &context);
+        parse_inventory_timestamp(&updated_at, &format!("{context} read-after-write"));
+        if let Some(previous) = previous {
+            assert!(
+                parsed > previous,
+                "{context} should be monotonically newer than the prior timestamp"
+            );
+        }
+        previous = Some(parsed);
+        timestamps.push(created_at);
+    }
+
+    assert_eq!(timestamps[59], "2024-01-01T00:00:59.000Z");
+    assert_eq!(timestamps[60], "2024-01-01T00:01:00.000Z");
+}
+
+#[test]
+fn inventory_quantity_timestamp_counter_restores_and_resets_without_collisions() {
+    let mut proxy = inventory_seed_proxy();
+    let (_variant_id, inventory_item_id) =
+        create_inventory_test_item(&mut proxy, "INV-TIMESTAMP-RESTORE");
+    let location_id = add_inventory_test_location(&mut proxy, "Timestamp restore location");
+    restore_state_with(&mut proxy, |state| {
+        state["stagedState"]["nextInventoryQuantityTimestamp"] = json!(3599);
+    });
+
+    let at_3599 =
+        set_inventory_available_quantity(&mut proxy, &inventory_item_id, &location_id, 100);
+    let at_3600 =
+        set_inventory_available_quantity(&mut proxy, &inventory_item_id, &location_id, 101);
+    let at_3601 =
+        set_inventory_available_quantity(&mut proxy, &inventory_item_id, &location_id, 102);
+    assert_eq!(at_3599, "2024-01-01T00:59:59.000Z");
+    assert_eq!(at_3600, "2024-01-01T01:00:00.000Z");
+    assert_eq!(at_3601, "2024-01-01T01:00:01.000Z");
+    assert!(
+        parse_inventory_timestamp(&at_3601, "counter 3601")
+            > parse_inventory_timestamp(&at_3600, "counter 3600")
+    );
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    assert_eq!(
+        dump.body["state"]["stagedState"]["nextInventoryQuantityTimestamp"],
+        json!(3602)
+    );
+
+    let mut restored = inventory_seed_proxy();
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    let at_3602 =
+        set_inventory_available_quantity(&mut restored, &inventory_item_id, &location_id, 103);
+    assert_eq!(at_3602, "2024-01-01T01:00:02.000Z");
+    assert!(
+        parse_inventory_timestamp(&at_3602, "counter 3602 after restore")
+            > parse_inventory_timestamp(&at_3601, "counter 3601 before restore")
+    );
+
+    let reset = restored.process_request(request_with_body("POST", "/__meta/reset", ""));
+    assert_eq!(reset.status, 200);
+    let (_reset_variant_id, reset_inventory_item_id) =
+        create_inventory_test_item(&mut restored, "INV-TIMESTAMP-RESET");
+    let reset_location_id = add_inventory_test_location(&mut restored, "Timestamp reset location");
+    let reset_at = set_inventory_available_quantity(
+        &mut restored,
+        &reset_inventory_item_id,
+        &reset_location_id,
+        1,
+    );
+    assert_eq!(reset_at, "2024-01-01T00:00:00.000Z");
+    parse_inventory_timestamp(&reset_at, "counter after reset");
+}
+
+#[test]
+fn inventory_transfer_default_timestamps_remain_monotonic_after_sixty_records() {
+    let mut proxy = inventory_seed_proxy();
+    let origin_id = add_active_transfer_location(&mut proxy, "Timestamp Transfer Origin");
+    let destination_id = add_active_transfer_location(&mut proxy, "Timestamp Transfer Destination");
+    let (_variant_id, inventory_item_id) =
+        create_inventory_test_item(&mut proxy, "INV-TIMESTAMP-TRANSFER");
+    stock_transfer_item_at_origin(&mut proxy, &inventory_item_id, &origin_id, 100);
+    let mut previous = None;
+    let mut timestamps = Vec::new();
+
+    for index in 1..=65 {
+        let create = proxy.process_request(json_graphql_request(
+            r#"
+            mutation InventoryTransferTimestampProbe($input: InventoryTransferCreateInput!) {
+              inventoryTransferCreate(input: $input) {
+                inventoryTransfer { id dateCreated }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({"input": {
+                "originLocationId": origin_id,
+                "destinationLocationId": destination_id,
+                "lineItems": [{"inventoryItemId": inventory_item_id, "quantity": 1}]
+            }}),
+        ));
+        assert_eq!(
+            create.body["data"]["inventoryTransferCreate"]["userErrors"],
+            json!([])
+        );
+        let created_at = create.body["data"]["inventoryTransferCreate"]["inventoryTransfer"]
+            ["dateCreated"]
+            .as_str()
+            .expect("inventory transfer should include dateCreated")
+            .to_string();
+        let context = format!("inventory transfer timestamp {index}");
+        let parsed = parse_inventory_timestamp(&created_at, &context);
+        if let Some(previous) = previous {
+            assert!(
+                parsed > previous,
+                "{context} should be monotonically newer than the prior transfer"
+            );
+        }
+        previous = Some(parsed);
+        timestamps.push(created_at);
+    }
+
+    assert_eq!(timestamps[58], "2024-01-01T00:00:59.000Z");
+    assert_eq!(timestamps[59], "2024-01-01T00:01:00.000Z");
 }
 
 #[test]
@@ -7050,6 +7909,872 @@ fn inventory_transfer_read_quantities_reflect_in_transit_shipment_consumption() 
             "processableQuantity": 1,
             "pickedForShipmentQuantity": 0
         })
+    );
+}
+
+#[test]
+fn inventory_node_reads_resolve_staged_inventory_graph_without_upstream_writes() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<String>::new()));
+    let captured_upstream_requests = Arc::clone(&upstream_requests);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![inventory_activation_base_product()])
+        .with_upstream_transport(move |request| {
+            captured_upstream_requests
+                .lock()
+                .unwrap()
+                .push(request.body.clone());
+            Response {
+                status: 599,
+                headers: Default::default(),
+                body: json!({"errors": [{"message": "unexpected upstream request during inventory node test"}]}),
+            }
+        });
+    let origin_id = add_active_transfer_location(&mut proxy, "Node Origin");
+    let destination_id = add_active_transfer_location(&mut proxy, "Node Destination");
+    let (_variant_id, inventory_item_id) = create_inventory_test_item(&mut proxy, "INVENTORY-NODE");
+    stock_transfer_item_at_origin(&mut proxy, &inventory_item_id, &origin_id, 5);
+    let level_id = inventory_level_id_for_test(&inventory_item_id, &origin_id);
+
+    let adjust = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InventoryNodeAdjustmentSetup($input: InventoryAdjustQuantitiesInput!) {
+          inventoryAdjustQuantities(input: $input) {
+            inventoryAdjustmentGroup {
+              id
+              createdAt
+              reason
+              referenceDocumentUri
+              changes { name delta item { id } location { id name } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+            "name": "damaged",
+            "reason": "correction",
+            "referenceDocumentUri": "logistics://inventory/node-adjust",
+            "changes": [{
+                "inventoryItemId": inventory_item_id,
+                "locationId": origin_id,
+                "delta": 1,
+                "changeFromQuantity": 0,
+                "ledgerDocumentUri": "ledger://inventory/node-adjust/damaged"
+            }]
+        }}),
+    ));
+    assert_eq!(
+        adjust.body["data"]["inventoryAdjustQuantities"]["userErrors"],
+        json!([])
+    );
+    let adjustment_group =
+        &adjust.body["data"]["inventoryAdjustQuantities"]["inventoryAdjustmentGroup"];
+    let adjustment_group_id = adjustment_group["id"].as_str().unwrap().to_string();
+
+    let direct_quantity = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryNodeQuantitySetup($levelId: ID!) {
+          inventoryLevel(id: $levelId) {
+            id
+            quantities(names: ["available", "damaged", "on_hand"]) {
+              id
+              name
+              quantity
+              updatedAt
+            }
+          }
+        }
+        "#,
+        json!({"levelId": level_id}),
+    ));
+    let damaged_quantity = direct_quantity.body["data"]["inventoryLevel"]["quantities"][1].clone();
+    let damaged_quantity_id = damaged_quantity["id"].as_str().unwrap().to_string();
+
+    let transfer = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InventoryNodeTransferSetup($input: InventoryTransferCreateAsReadyToShipInput!) {
+          inventoryTransferCreateAsReadyToShip(input: $input) {
+            inventoryTransfer {
+              id
+              status
+              lineItems(first: 10) {
+                nodes {
+                  id
+                  inventoryItem { id }
+                  totalQuantity
+                  shippableQuantity
+                  shippedQuantity
+                  processableQuantity
+                  pickedForShipmentQuantity
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+            "originLocationId": origin_id,
+            "destinationLocationId": destination_id,
+            "lineItems": [{"inventoryItemId": inventory_item_id, "quantity": 2}]
+        }}),
+    ));
+    assert_eq!(
+        transfer.body["data"]["inventoryTransferCreateAsReadyToShip"]["userErrors"],
+        json!([])
+    );
+    let transfer_record =
+        &transfer.body["data"]["inventoryTransferCreateAsReadyToShip"]["inventoryTransfer"];
+    let transfer_id = transfer_record["id"].as_str().unwrap().to_string();
+    let transfer_line = transfer_record["lineItems"]["nodes"][0].clone();
+    let transfer_line_id = transfer_line["id"].as_str().unwrap().to_string();
+
+    let shipment = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InventoryNodeShipmentSetup($input: InventoryShipmentCreateInput!) {
+          inventoryShipmentCreateInTransit(input: $input) {
+            inventoryShipment {
+              id
+              status
+              lineItems(first: 10) {
+                nodes {
+                  id
+                  quantity
+                  acceptedQuantity
+                  rejectedQuantity
+                  unreceivedQuantity
+                  inventoryItem { id sku tracked }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+            "inventoryTransferId": transfer_id,
+            "lineItems": [{
+                "inventoryItemId": inventory_item_id,
+                "inventoryTransferLineItemId": transfer_line_id,
+                "quantity": 1
+            }]
+        }}),
+    ));
+    assert_eq!(
+        shipment.body["data"]["inventoryShipmentCreateInTransit"]["userErrors"],
+        json!([])
+    );
+    let shipment_record =
+        &shipment.body["data"]["inventoryShipmentCreateInTransit"]["inventoryShipment"];
+    let shipment_id = shipment_record["id"].as_str().unwrap().to_string();
+    let shipment_line = shipment_record["lineItems"]["nodes"][0].clone();
+    let shipment_line_id = shipment_line["id"].as_str().unwrap().to_string();
+    let upstream_count_before_node_read = upstream_requests.lock().unwrap().len();
+
+    let node_read = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryNodeRead(
+          $inventoryItemId: ID!
+          $levelId: ID!
+          $quantityId: ID!
+          $adjustmentGroupId: ID!
+          $transferId: ID!
+          $transferLineId: ID!
+          $shipmentId: ID!
+          $shipmentLineId: ID!
+          $orderedIds: [ID!]!
+        ) {
+          itemNode: node(id: $inventoryItemId) {
+            __typename
+            ... on InventoryItem {
+              id
+              tracked
+              requiresShipping
+              inventoryLevels(first: 5) {
+                nodes {
+                  id
+                  item { id }
+                  location { id name }
+                  quantities(names: ["available", "damaged", "on_hand"]) {
+                    id
+                    name
+                    quantity
+                    updatedAt
+                  }
+                }
+              }
+            }
+          }
+          levelNode: node(id: $levelId) {
+            __typename
+            ... on InventoryLevel {
+              id
+              isActive
+              item { id tracked }
+              location { id name }
+              quantities(names: ["available", "damaged", "on_hand"]) {
+                id
+                name
+                quantity
+                updatedAt
+              }
+            }
+          }
+          quantityNode: node(id: $quantityId) {
+            __typename
+            ... on InventoryQuantity {
+              id
+              name
+              quantity
+              updatedAt
+            }
+          }
+          adjustmentGroupNode: node(id: $adjustmentGroupId) {
+            __typename
+            ... on InventoryAdjustmentGroup {
+              id
+              createdAt
+              reason
+              referenceDocumentUri
+              changes { name delta item { id } location { id name } }
+            }
+          }
+          transferNode: node(id: $transferId) {
+            __typename
+            ... on InventoryTransfer {
+              id
+              status
+              lineItems(first: 10) {
+                nodes {
+                  id
+                  inventoryItem { id }
+                  totalQuantity
+                  shippableQuantity
+                  shippedQuantity
+                  processableQuantity
+                  pickedForShipmentQuantity
+                }
+              }
+            }
+          }
+          transferLineNode: node(id: $transferLineId) {
+            __typename
+            ... on InventoryTransferLineItem {
+              id
+              inventoryItem { id }
+              totalQuantity
+              shippableQuantity
+              shippedQuantity
+              processableQuantity
+              pickedForShipmentQuantity
+            }
+          }
+          shipmentNode: node(id: $shipmentId) {
+            __typename
+            ... on InventoryShipment {
+              id
+              status
+              lineItems(first: 10) {
+                nodes {
+                  id
+                  quantity
+                  inventoryItem { id sku tracked }
+                }
+              }
+            }
+          }
+          shipmentLineNode: node(id: $shipmentLineId) {
+            __typename
+            ... on InventoryShipmentLineItem {
+              id
+              quantity
+              acceptedQuantity
+              rejectedQuantity
+              unreceivedQuantity
+              inventoryItem { id sku tracked }
+            }
+          }
+          ordered: nodes(ids: $orderedIds) {
+            __typename
+            ... on InventoryShipmentLineItem { id quantity }
+            ... on InventoryQuantity { id name quantity }
+            ... on InventoryItem { id }
+            ... on InventoryLevel { id }
+          }
+        }
+        "#,
+        json!({
+            "inventoryItemId": inventory_item_id,
+            "levelId": level_id,
+            "quantityId": damaged_quantity_id,
+            "adjustmentGroupId": adjustment_group_id,
+            "transferId": transfer_id,
+            "transferLineId": transfer_line_id,
+            "shipmentId": shipment_id,
+            "shipmentLineId": shipment_line_id,
+            "orderedIds": [
+                "gid://shopify/InventoryTransfer/404",
+                shipment_line_id,
+                damaged_quantity_id,
+                inventory_item_id,
+                level_id
+            ]
+        }),
+    ));
+    assert_eq!(
+        node_read.status, 200,
+        "node read should be handled locally: {}",
+        node_read.body
+    );
+
+    assert_eq!(
+        node_read.body["data"]["itemNode"]["__typename"],
+        json!("InventoryItem")
+    );
+    assert_eq!(
+        node_read.body["data"]["itemNode"]["id"],
+        json!(inventory_item_id)
+    );
+    assert_eq!(
+        node_read.body["data"]["levelNode"]["quantities"][1],
+        damaged_quantity
+    );
+    assert_eq!(
+        node_read.body["data"]["quantityNode"],
+        json!({
+            "__typename": "InventoryQuantity",
+            "id": damaged_quantity_id,
+            "name": "damaged",
+            "quantity": 1,
+            "updatedAt": damaged_quantity["updatedAt"].clone()
+        })
+    );
+    assert_eq!(
+        node_read.body["data"]["adjustmentGroupNode"]["id"],
+        json!(adjustment_group_id)
+    );
+    assert_eq!(
+        node_read.body["data"]["adjustmentGroupNode"]["changes"],
+        adjustment_group["changes"]
+    );
+    assert_eq!(
+        node_read.body["data"]["transferNode"]["id"],
+        json!(transfer_id)
+    );
+    assert_eq!(
+        node_read.body["data"]["transferLineNode"],
+        json!({
+            "__typename": "InventoryTransferLineItem",
+            "id": transfer_line_id,
+            "inventoryItem": { "id": inventory_item_id },
+            "totalQuantity": 2,
+            "shippableQuantity": 1,
+            "shippedQuantity": 1,
+            "processableQuantity": 1,
+            "pickedForShipmentQuantity": 0
+        })
+    );
+    assert_eq!(
+        node_read.body["data"]["shipmentNode"]["id"],
+        json!(shipment_id)
+    );
+    assert_eq!(
+        node_read.body["data"]["shipmentLineNode"],
+        json!({
+            "__typename": "InventoryShipmentLineItem",
+            "id": shipment_line_id,
+            "quantity": 1,
+            "acceptedQuantity": 0,
+            "rejectedQuantity": 0,
+            "unreceivedQuantity": 1,
+            "inventoryItem": {
+                "id": inventory_item_id,
+                "sku": "INVENTORY-NODE",
+                "tracked": true
+            }
+        })
+    );
+    assert_eq!(
+        node_read.body["data"]["ordered"],
+        json!([
+            null,
+            {"__typename": "InventoryShipmentLineItem", "id": shipment_line_id, "quantity": 1},
+            {
+                "__typename": "InventoryQuantity",
+                "id": damaged_quantity_id,
+                "name": "damaged",
+                "quantity": 1
+            },
+            {"__typename": "InventoryItem", "id": inventory_item_id},
+            {"__typename": "InventoryLevel", "id": level_id}
+        ])
+    );
+    assert_eq!(
+        upstream_requests.lock().unwrap().len(),
+        upstream_count_before_node_read,
+        "generic inventory node reads should resolve from staged state without another upstream request"
+    );
+    assert!(
+        upstream_requests
+            .lock()
+            .unwrap()
+            .iter()
+            .all(|body| !body.to_ascii_lowercase().contains("mutation")),
+        "supported inventory setup must not forward mutation documents upstream"
+    );
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    let mut restored = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|request| {
+        Response {
+            status: 599,
+            headers: Default::default(),
+            body: json!({"errors": [{"message": format!("unexpected restored upstream request: {}", request.body)}]}),
+        }
+    });
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    let restored_read = restored.process_request(json_graphql_request(
+        r#"
+        query RestoredInventoryNodeRead($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            __typename
+            ... on InventoryAdjustmentGroup { id reason }
+            ... on InventoryTransfer { id status }
+            ... on InventoryShipment { id status }
+            ... on InventoryQuantity { id name quantity }
+          }
+        }
+        "#,
+        json!({"ids": [adjustment_group_id, transfer_id, shipment_id, damaged_quantity_id]}),
+    ));
+    assert_eq!(
+        restored_read.body["data"]["nodes"][0],
+        json!({"__typename": "InventoryAdjustmentGroup", "id": adjustment_group["id"].clone(), "reason": "correction"})
+    );
+    assert_eq!(
+        restored_read.body["data"]["nodes"][1],
+        json!({"__typename": "InventoryTransfer", "id": transfer_record["id"].clone(), "status": "IN_PROGRESS"})
+    );
+    assert_eq!(
+        restored_read.body["data"]["nodes"][2],
+        json!({"__typename": "InventoryShipment", "id": shipment_record["id"].clone(), "status": "IN_TRANSIT"})
+    );
+    assert_eq!(
+        restored_read.body["data"]["nodes"][3],
+        json!({"__typename": "InventoryQuantity", "id": damaged_quantity["id"].clone(), "name": "damaged", "quantity": 1})
+    );
+
+    let reset = restored.process_request(request_with_body("POST", "/__meta/reset", ""));
+    assert_eq!(reset.status, 200);
+    let after_reset = restored.process_request(json_graphql_request(
+        r#"
+        query ResetInventoryNodeRead($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            __typename
+            ... on InventoryAdjustmentGroup { id }
+            ... on InventoryTransfer { id }
+            ... on InventoryShipment { id }
+            ... on InventoryQuantity { id }
+          }
+        }
+        "#,
+        json!({"ids": [adjustment_group["id"].clone(), transfer_record["id"].clone(), shipment_record["id"].clone(), damaged_quantity["id"].clone()]}),
+    ));
+    assert_eq!(
+        after_reset.body["data"]["nodes"],
+        json!([null, null, null, null])
+    );
+}
+
+#[test]
+fn inventory_node_reads_follow_activation_transfer_and_shipment_lifecycles() {
+    let mut proxy = inventory_seed_proxy();
+    let origin_id = add_active_transfer_location(&mut proxy, "Node Lifecycle Origin");
+    let destination_id = add_active_transfer_location(&mut proxy, "Node Lifecycle Destination");
+    let (_variant_id, inventory_item_id) =
+        create_inventory_test_item(&mut proxy, "INVENTORY-NODE-LIFECYCLE");
+    stock_transfer_item_at_origin(&mut proxy, &inventory_item_id, &origin_id, 4);
+    let origin_level_id = inventory_level_id_for_test(&inventory_item_id, &origin_id);
+
+    let activate_destination = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ActivateDestinationForNodeLifecycle($inventoryItemId: ID!, $locationId: ID!) {
+          inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId) {
+            inventoryLevel { id isActive }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"inventoryItemId": inventory_item_id, "locationId": destination_id}),
+    ));
+    assert_eq!(
+        activate_destination.body["data"]["inventoryActivate"]["userErrors"],
+        json!([])
+    );
+
+    let deactivate_origin = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeactivateOriginForNodeLifecycle($inventoryLevelId: ID!) {
+          inventoryDeactivate(inventoryLevelId: $inventoryLevelId) {
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"inventoryLevelId": origin_level_id}),
+    ));
+    assert_eq!(
+        deactivate_origin.body["data"]["inventoryDeactivate"]["userErrors"],
+        json!([])
+    );
+    let inactive_node = proxy.process_request(json_graphql_request(
+        r#"
+        query InactiveInventoryLevelNode($id: ID!) {
+          node(id: $id) {
+            __typename
+            ... on InventoryLevel { id isActive quantities(names: ["available"]) { name quantity } }
+          }
+        }
+        "#,
+        json!({"id": origin_level_id}),
+    ));
+    assert_eq!(
+        inactive_node.body["data"]["node"],
+        json!({
+            "__typename": "InventoryLevel",
+            "id": origin_level_id,
+            "isActive": false,
+            "quantities": [{"name": "available", "quantity": 4}]
+        })
+    );
+
+    let reactivate_origin = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReactivateOriginForNodeLifecycle($inventoryItemId: ID!, $locationId: ID!) {
+          inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId) {
+            inventoryLevel { id isActive }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"inventoryItemId": inventory_item_id, "locationId": origin_id}),
+    ));
+    assert_eq!(
+        reactivate_origin.body["data"]["inventoryActivate"]["userErrors"],
+        json!([])
+    );
+    let active_node = proxy.process_request(json_graphql_request(
+        r#"
+        query ActiveInventoryLevelNode($id: ID!) {
+          node(id: $id) { ... on InventoryLevel { id isActive } }
+        }
+        "#,
+        json!({"id": origin_level_id}),
+    ));
+    assert_eq!(
+        active_node.body["data"]["node"],
+        json!({"id": origin_level_id, "isActive": true})
+    );
+
+    let ready_transfer = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReadyTransferForNodeLifecycle($input: InventoryTransferCreateAsReadyToShipInput!) {
+          inventoryTransferCreateAsReadyToShip(input: $input) {
+            inventoryTransfer {
+              id
+              lineItems(first: 5) { nodes { id } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+            "originLocationId": origin_id,
+            "destinationLocationId": destination_id,
+            "lineItems": [{"inventoryItemId": inventory_item_id, "quantity": 1}]
+        }}),
+    ));
+    assert_eq!(
+        ready_transfer.body["data"]["inventoryTransferCreateAsReadyToShip"]["userErrors"],
+        json!([])
+    );
+    let ready_transfer_id = ready_transfer.body["data"]["inventoryTransferCreateAsReadyToShip"]
+        ["inventoryTransfer"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let cancel = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CancelReadyTransferForNodeLifecycle($id: ID!) {
+          inventoryTransferCancel(id: $id) {
+            inventoryTransfer { id status }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": ready_transfer_id}),
+    ));
+    assert_eq!(
+        cancel.body["data"]["inventoryTransferCancel"]["userErrors"],
+        json!([])
+    );
+    let canceled_transfer_node = proxy.process_request(json_graphql_request(
+        r#"
+        query CanceledTransferNode($id: ID!) {
+          node(id: $id) { ... on InventoryTransfer { id status } }
+        }
+        "#,
+        json!({"id": ready_transfer_id}),
+    ));
+    assert_eq!(
+        canceled_transfer_node.body["data"]["node"],
+        json!({"id": ready_transfer_id, "status": "CANCELED"})
+    );
+
+    let draft_transfer = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DraftTransferForDeleteNodeLifecycle($input: InventoryTransferCreateInput!) {
+          inventoryTransferCreate(input: $input) {
+            inventoryTransfer {
+              id
+              lineItems(first: 5) { nodes { id } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+            "originLocationId": origin_id,
+            "destinationLocationId": destination_id,
+            "lineItems": [{"inventoryItemId": inventory_item_id, "quantity": 1}]
+        }}),
+    ));
+    assert_eq!(
+        draft_transfer.body["data"]["inventoryTransferCreate"]["userErrors"],
+        json!([])
+    );
+    let draft_transfer_id = draft_transfer.body["data"]["inventoryTransferCreate"]
+        ["inventoryTransfer"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let draft_transfer_line_id = draft_transfer.body["data"]["inventoryTransferCreate"]
+        ["inventoryTransfer"]["lineItems"]["nodes"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let delete_draft = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteDraftTransferForNodeLifecycle($id: ID!) {
+          inventoryTransferDelete(id: $id) {
+            deletedId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"id": draft_transfer_id}),
+    ));
+    assert_eq!(
+        delete_draft.body["data"]["inventoryTransferDelete"]["userErrors"],
+        json!([])
+    );
+    let deleted_transfer_nodes = proxy.process_request(json_graphql_request(
+        r#"
+        query DeletedTransferNodes($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            ... on InventoryTransfer { id }
+            ... on InventoryTransferLineItem { id }
+          }
+        }
+        "#,
+        json!({"ids": [draft_transfer_id, draft_transfer_line_id]}),
+    ));
+    assert_eq!(
+        deleted_transfer_nodes.body["data"]["nodes"],
+        json!([null, null])
+    );
+
+    let shipment_transfer = proxy.process_request(json_graphql_request(
+        r#"
+        mutation TransferForShipmentNodeLifecycle($input: InventoryTransferCreateAsReadyToShipInput!) {
+          inventoryTransferCreateAsReadyToShip(input: $input) {
+            inventoryTransfer {
+              id
+              lineItems(first: 5) { nodes { id } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+            "originLocationId": origin_id,
+            "destinationLocationId": destination_id,
+            "lineItems": [{"inventoryItemId": inventory_item_id, "quantity": 1}]
+        }}),
+    ));
+    assert_eq!(
+        shipment_transfer.body["data"]["inventoryTransferCreateAsReadyToShip"]["userErrors"],
+        json!([])
+    );
+    let shipment_transfer_id = shipment_transfer.body["data"]
+        ["inventoryTransferCreateAsReadyToShip"]["inventoryTransfer"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let shipment_transfer_line_id = shipment_transfer.body["data"]
+        ["inventoryTransferCreateAsReadyToShip"]["inventoryTransfer"]["lineItems"]["nodes"][0]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let shipment = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ShipmentForNodeLifecycle($input: InventoryShipmentCreateInput!) {
+          inventoryShipmentCreateInTransit(input: $input) {
+            inventoryShipment {
+              id
+              status
+              lineItems(first: 5) { nodes { id quantity } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+            "inventoryTransferId": shipment_transfer_id,
+            "lineItems": [{
+                "inventoryItemId": inventory_item_id,
+                "inventoryTransferLineItemId": shipment_transfer_line_id,
+                "quantity": 1
+            }]
+        }}),
+    ));
+    assert_eq!(
+        shipment.body["data"]["inventoryShipmentCreateInTransit"]["userErrors"],
+        json!([])
+    );
+    let shipment_id = shipment.body["data"]["inventoryShipmentCreateInTransit"]
+        ["inventoryShipment"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let shipment_line_id = shipment.body["data"]["inventoryShipmentCreateInTransit"]
+        ["inventoryShipment"]["lineItems"]["nodes"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let tracking = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ShipmentTrackingForNodeLifecycle($id: ID!, $tracking: InventoryShipmentTrackingInput!) {
+          inventoryShipmentSetTracking(id: $id, tracking: $tracking) {
+            inventoryShipment { id tracking { trackingNumber company trackingUrl arrivesAt } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": shipment_id, "tracking": {
+            "trackingNumber": "NODE-TRACK-1",
+            "company": "UPS",
+            "trackingUrl": "https://example.test/node-track-1",
+            "arrivesAt": "2026-07-12T00:00:00Z"
+        }}),
+    ));
+    assert_eq!(
+        tracking.body["data"]["inventoryShipmentSetTracking"]["userErrors"],
+        json!([])
+    );
+    let tracked_shipment_node = proxy.process_request(json_graphql_request(
+        r#"
+        query TrackedShipmentNode($id: ID!) {
+          node(id: $id) {
+            ... on InventoryShipment { id tracking { trackingNumber company trackingUrl arrivesAt } }
+          }
+        }
+        "#,
+        json!({"id": shipment_id}),
+    ));
+    assert_eq!(
+        tracked_shipment_node.body["data"]["node"]["tracking"],
+        json!({
+            "trackingNumber": "NODE-TRACK-1",
+            "company": "UPS",
+            "trackingUrl": "https://example.test/node-track-1",
+            "arrivesAt": "2026-07-12T00:00:00Z"
+        })
+    );
+
+    let receive = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReceiveShipmentForNodeLifecycle($id: ID!, $lineItems: [InventoryShipmentReceiveItemInput!]!) {
+          inventoryShipmentReceive(id: $id, lineItems: $lineItems) {
+            inventoryShipment {
+              id
+              status
+              lineItems(first: 5) { nodes { id acceptedQuantity unreceivedQuantity } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": shipment_id, "lineItems": [{
+            "shipmentLineItemId": shipment_line_id,
+            "quantity": 1,
+            "reason": "ACCEPTED"
+        }]}),
+    ));
+    assert_eq!(
+        receive.body["data"]["inventoryShipmentReceive"]["userErrors"],
+        json!([])
+    );
+    let received_shipment_line_node = proxy.process_request(json_graphql_request(
+        r#"
+        query ReceivedShipmentLineNode($id: ID!) {
+          node(id: $id) {
+            ... on InventoryShipmentLineItem { id acceptedQuantity unreceivedQuantity }
+          }
+        }
+        "#,
+        json!({"id": shipment_line_id}),
+    ));
+    assert_eq!(
+        received_shipment_line_node.body["data"]["node"],
+        json!({"id": shipment_line_id, "acceptedQuantity": 1, "unreceivedQuantity": 0})
+    );
+
+    let delete_shipment = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteShipmentForNodeLifecycle($id: ID!) {
+          inventoryShipmentDelete(id: $id) {
+            id
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": shipment_id}),
+    ));
+    assert_eq!(
+        delete_shipment.body["data"]["inventoryShipmentDelete"]["userErrors"],
+        json!([])
+    );
+    let deleted_shipment_nodes = proxy.process_request(json_graphql_request(
+        r#"
+        query DeletedShipmentNodes($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            ... on InventoryShipment { id }
+            ... on InventoryShipmentLineItem { id }
+          }
+        }
+        "#,
+        json!({"ids": [shipment_id, shipment_line_id]}),
+    ));
+    assert_eq!(
+        deleted_shipment_nodes.body["data"]["nodes"],
+        json!([null, null])
     );
 }
 
@@ -14239,6 +15964,156 @@ fn media_file_update_hydrates_real_file_before_staging_captured_id() {
     assert!(bodies[0]["query"]
         .as_str()
         .is_some_and(|query| query.contains("MediaFileUpdateHydrate")));
+}
+
+#[test]
+fn media_file_update_batches_product_reference_hydration_without_fallback_probes() {
+    let media_id = "gid://shopify/MediaImage/43688017887538";
+    let product_one_id = "gid://shopify/Product/7001";
+    let product_two_id = "gid://shopify/Product/7002";
+    let missing_product_id = "gid://shopify/Product/7999";
+    let expected_product_ids = json!([product_one_id, product_two_id, missing_product_id]);
+    let expected_product_ids_for_transport = expected_product_ids.clone();
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            if query.contains("MediaFileUpdateHydrate") {
+                assert_eq!(body["variables"]["fileIds"], json!([media_id]));
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "nodes": [{
+                                "id": media_id,
+                                "__typename": "MediaImage",
+                                "alt": "Hydrated reference target",
+                                "createdAt": "2026-06-04T00:00:00Z",
+                                "fileStatus": "READY",
+                                "image": {
+                                    "url": "https://cdn.example.com/hydrated-reference-target.jpg",
+                                    "width": 640,
+                                    "height": 480
+                                },
+                                "preview": {
+                                    "image": {
+                                        "url": "https://cdn.example.com/hydrated-reference-target-preview.jpg",
+                                        "width": 320,
+                                        "height": 240
+                                    }
+                                }
+                            }]
+                        }
+                    }),
+                };
+            }
+
+            assert!(
+                query.contains("MediaProductHydrate"),
+                "unexpected upstream request: {body}"
+            );
+            let product_node = |id: &str| {
+                let tail = id.rsplit('/').next().unwrap_or_default();
+                json!({
+                    "id": id,
+                    "title": format!("Hydrated product {tail}"),
+                    "handle": format!("hydrated-product-{tail}"),
+                    "status": "ACTIVE",
+                    "media": { "nodes": [] },
+                    "variants": { "nodes": [] }
+                })
+            };
+            let product_response = if let Some(ids) = body["variables"]["ids"].as_array() {
+                assert_eq!(body["variables"]["ids"], expected_product_ids_for_transport);
+                let nodes = ids
+                    .iter()
+                    .map(|id| match id.as_str() {
+                        Some(id) if id == product_one_id || id == product_two_id => {
+                            product_node(id)
+                        }
+                        _ => Value::Null,
+                    })
+                    .collect::<Vec<_>>();
+                json!({ "nodes": nodes })
+            } else {
+                let id = body["variables"]["id"].as_str().unwrap_or_default();
+                let product = match id {
+                    id if id == product_one_id || id == product_two_id => product_node(id),
+                    _ => Value::Null,
+                };
+                json!({ "product": product })
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": product_response }),
+            }
+        });
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FileUpdateBatchedReferenceHydration($files: [FileUpdateInput!]!) {
+          fileUpdate(files: $files) {
+            files { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [{
+            "id": media_id,
+            "referencesToAdd": [product_one_id, product_two_id, product_one_id],
+            "referencesToRemove": [product_two_id, missing_product_id, product_one_id]
+        }]}),
+    ));
+
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["fileUpdate"],
+        json!({
+            "files": [],
+            "userErrors": [{
+                "field": ["files"],
+                "message": "The reference target does not exist",
+                "code": "REFERENCE_TARGET_DOES_NOT_EXIST"
+            }]
+        })
+    );
+    let bodies = upstream_bodies.lock().unwrap();
+    let product_hydrates = bodies
+        .iter()
+        .filter(|body| {
+            body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("MediaProductHydrate"))
+        })
+        .collect::<Vec<_>>();
+    let file_hydrates = bodies
+        .iter()
+        .filter(|body| {
+            body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("MediaFileUpdateHydrate"))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        product_hydrates.len(),
+        1,
+        "several product references should be hydrated by one bounded request"
+    );
+    assert_eq!(
+        product_hydrates[0]["variables"]["ids"],
+        expected_product_ids
+    );
+    assert_eq!(file_hydrates.len(), 1);
+    assert_eq!(
+        bodies.len(),
+        2,
+        "no per-ID fallback probes should be issued"
+    );
 }
 
 #[test]

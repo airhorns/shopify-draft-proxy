@@ -1,0 +1,24 @@
+mutation CustomerSetCustomIdDefinitionCreate($definition: MetafieldDefinitionInput!) {
+  metafieldDefinitionCreate(definition: $definition) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+      }
+      capabilities {
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

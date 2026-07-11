@@ -35,6 +35,7 @@ Implemented mutation roots:
 
 - `marketCreate`
 - `marketUpdate`
+- `marketDelete`
 - `catalogCreate`
 - `catalogUpdate`
 - `catalogContextUpdate`
@@ -66,12 +67,20 @@ recognized by the Rust dispatcher and should not be treated as broad registry
 support.
 
 Market lifecycle slices cover `marketCreate`, `marketUpdate`, and downstream
-`market(id:)` reads for staged records. The local model stages selected scalar,
-status/enabled, region, price-inclusion, currency-settings, catalog, and web
-presence relations; rejects captured status/enabled mismatches, incompatible
-price inclusions, invalid or unsupported country regions, duplicate region
-codes, invalid names, duplicate names, and generated-handle collisions; and
-retains original raw mutations for commit replay on successful staging.
+`marketDelete` plus downstream `market(id:)` reads for staged records. In
+LiveHybrid mode, `marketUpdate` and `marketDelete` perform a read-only target
+preflight for an existing market ID that has not yet been observed locally, then
+stage the mutation from that hydrated market, catalog, and web-presence state
+without forwarding the mutation upstream. The local model stages selected
+scalar, status/enabled, region, price-inclusion, currency-settings, catalog, and
+web presence relations; rejects captured status/enabled mismatches,
+incompatible price inclusions, invalid or unsupported country regions,
+duplicate region codes, invalid names, duplicate names, generated-handle
+collisions, unknown market IDs, and wrong-resource IDs; and retains original raw
+mutations for commit replay on successful staging. `marketDelete` removes the
+local market row, leaves a tombstone so later `market(id:)` reads return
+Shopify-like `null` instead of rehydrating the deleted record, and detaches
+locally modeled catalog, web-presence, and market-localization relations.
 Generated market handles normalize ASCII letters and digits to lowercase
 dash-separated handles. When a name or explicit handle contains no ASCII
 alphanumerics after normalization, the local fallback is a deterministic
@@ -142,6 +151,15 @@ cursor windows through `first`, `last`, `after`, and `before`, and return
 selected `nodes`, `edges { cursor node }`, and computed `pageInfo`.
 `catalogsCount(limit:)` applies Shopify-style `EXACT` / `AT_LEAST` precision to
 the same filtered list.
+In LiveHybrid, Markets-family plural reads track hydrated completeness by
+resource family and argument scope. A staged market, catalog, price list, or web
+presence no longer makes every Markets-family root authoritative from the
+partial local map: cold scopes hydrate upstream first, then render the effective
+graph with staged creates, updates, and tombstones layered over the observed
+baseline. Captured `markets-family-mixed-overlay-read` parity covers a mixed
+`markets` / `catalogs` / `catalogsCount` / `priceLists` / `webPresences` read
+where a pre-existing upstream market catalog and web presence survive a staged
+catalog plus price-list delta.
 
 Price-list and quantity-pricing slices stage selected price list records,
 fixed-price rows, quantity rules, and quantity price breaks for captured
@@ -163,6 +181,11 @@ validation. When `priceListCreate` has both a catalog relation error and
 another invalid field such as a duplicate name or invalid parent adjustment, the
 catalog error is returned first. `priceListUpdate` returns `priceList: null` for
 those catalog validation failures while leaving the staged price list unchanged.
+Accepted `priceListUpdate` currency changes clear staged fixed-price rows,
+`fixedPricesCount`, and downstream `PriceList.prices(originType: FIXED)` while
+preserving the parent adjustment and catalog relation. Same-currency updates
+preserve fixed prices, and rejected updates leave both currency and fixed
+prices unchanged.
 `quantityPricingByVariantUpdate`, `quantityRulesAdd`, and `quantityRulesDelete`
 validate price-list IDs against staged or hydrated price-list records instead of
 accepting arbitrary IDs. Quantity-pricing add-side currency validation compares
@@ -177,7 +200,13 @@ subfolder, default-locale, alternate-locale, root-URL, duplicate-language,
 primary-domain-delete, and relation scenarios. Documents that co-select
 price-list roots with `webPresenceCreate`, `webPresenceUpdate`,
 `webPresenceDelete`, or `quantityRulesDelete` use the same staged stores and
-payload validation as the standalone local paths. Market-localization slices
+payload validation as the standalone local paths. In LiveHybrid mode,
+web-presence mutations preflight both the shop domain context and existing web
+presences before staging. Subfolder root URLs derive from the observed
+`shop.myshopifyDomain`, while `domainId` inputs derive root URLs from the
+selected hydrated custom domain. If no authoritative shop/custom domain context
+is available, the local mutation returns an explicit `UNSUPPORTED_IN_PROXY`
+`MarketUserError` instead of fabricating a merchant hostname. Market-localization slices
 stage and remove localized content for captured localizable resources, including
 unknown-resource, too-many-key, digest, market key, and no-op removal branches.
 `marketLocalizableResource` resolves only resource IDs observed in staged
@@ -192,6 +221,9 @@ resources for later local reads. The plural `marketLocalizableResources`
 connection forwards until a localizable resource has been observed and is then
 limited to the observed set; unrelated staged market, catalog, price-list, or
 web-presence state does not force a local empty resource connection.
+Successful `marketLocalizationsRegister` rows use the proxy's mutation clock for
+their staged `updatedAt` values, and validation failures that return user errors
+leave any existing staged market-localization timestamps unchanged.
 
 `marketsResolvedValues` and market/catalog/price-list reads have fixture-backed
 empty, fallback, and buyer-country behavior where captured. Resolved value

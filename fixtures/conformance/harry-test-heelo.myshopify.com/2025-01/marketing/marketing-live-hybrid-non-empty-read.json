@@ -1,0 +1,643 @@
+{
+  "scenarioId": "marketing-live-hybrid-non-empty-read",
+  "apiVersion": "2025-01",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "capturedAt": "2026-07-10T19:25:27.769Z",
+  "setup": {
+    "disposableRemoteIds": {
+      "alpha": "marketing-live-hybrid-alpha-1783711525789gkqrsp",
+      "zulu": "marketing-live-hybrid-zulu-1783711525789gkqrsp"
+    },
+    "activityIds": {
+      "alpha": "gid://shopify/MarketingActivity/198350274866",
+      "zulu": "gid://shopify/MarketingActivity/198350307634"
+    },
+    "eventIds": {
+      "alpha": "gid://shopify/MarketingEvent/243706134834",
+      "zulu": "gid://shopify/MarketingEvent/243706167602"
+    },
+    "titles": {
+      "alpha": "Alpha live hybrid 1783711525789gkqrsp",
+      "zulu": "Zulu live hybrid 1783711525789gkqrsp"
+    },
+    "cleanup": "Deletes both disposable external marketing activities by remote ID."
+  },
+  "operations": {
+    "createAlpha": {
+      "request": {
+        "query": "#graphql\n  mutation MarketingLiveHybridReadSetup($input: MarketingActivityCreateExternalInput!) {\n    created: marketingActivityCreateExternal(input: $input) {\n      marketingActivity {\n        id\n        title\n        status\n        isExternal\n        marketingEvent {\n          id\n          type\n          remoteId\n          description\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "title": "Alpha live hybrid 1783711525789gkqrsp",
+            "remoteId": "marketing-live-hybrid-alpha-1783711525789gkqrsp",
+            "status": "ACTIVE",
+            "remoteUrl": "https://example.com/marketing-live-hybrid-alpha-1783711525789gkqrsp",
+            "tactic": "NEWSLETTER",
+            "marketingChannelType": "EMAIL",
+            "utm": {
+              "campaign": "marketing-live-hybrid-alpha-1783711525789gkqrsp",
+              "source": "email",
+              "medium": "newsletter"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "created": {
+              "marketingActivity": {
+                "id": "gid://shopify/MarketingActivity/198350274866",
+                "title": "Alpha live hybrid 1783711525789gkqrsp",
+                "status": "ACTIVE",
+                "isExternal": true,
+                "marketingEvent": {
+                  "id": "gid://shopify/MarketingEvent/243706134834",
+                  "type": "NEWSLETTER",
+                  "remoteId": "marketing-live-hybrid-alpha-1783711525789gkqrsp",
+                  "description": "Alpha live hybrid 1783711525789gkqrsp"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "createZulu": {
+      "request": {
+        "query": "#graphql\n  mutation MarketingLiveHybridReadSetup($input: MarketingActivityCreateExternalInput!) {\n    created: marketingActivityCreateExternal(input: $input) {\n      marketingActivity {\n        id\n        title\n        status\n        isExternal\n        marketingEvent {\n          id\n          type\n          remoteId\n          description\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "title": "Zulu live hybrid 1783711525789gkqrsp",
+            "remoteId": "marketing-live-hybrid-zulu-1783711525789gkqrsp",
+            "status": "ACTIVE",
+            "remoteUrl": "https://example.com/marketing-live-hybrid-zulu-1783711525789gkqrsp",
+            "tactic": "AD",
+            "marketingChannelType": "SEARCH",
+            "utm": {
+              "campaign": "marketing-live-hybrid-zulu-1783711525789gkqrsp",
+              "source": "search",
+              "medium": "ad"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "created": {
+              "marketingActivity": {
+                "id": "gid://shopify/MarketingActivity/198350307634",
+                "title": "Zulu live hybrid 1783711525789gkqrsp",
+                "status": "ACTIVE",
+                "isExternal": true,
+                "marketingEvent": {
+                  "id": "gid://shopify/MarketingEvent/243706167602",
+                  "type": "AD",
+                  "remoteId": "marketing-live-hybrid-zulu-1783711525789gkqrsp",
+                  "description": "Zulu live hybrid 1783711525789gkqrsp"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "read": {
+      "request": {
+        "query": "query MarketingLiveHybridNonEmptyRead(\n  $activityId: ID!\n  $eventId: ID!\n  $first: Int!\n  $remoteIds: [String!]\n  $activityQuery: String!\n) {\n  allActivities: marketingActivities(first: $first, remoteIds: $remoteIds, sortKey: TITLE) {\n    nodes {\n      id\n      title\n      status\n      isExternal\n      marketingEvent {\n        id\n        type\n        remoteId\n        description\n      }\n    }\n    edges {\n      cursor\n      node {\n        id\n        title\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  firstActivity: marketingActivities(first: 1, remoteIds: $remoteIds, sortKey: TITLE) {\n    nodes {\n      id\n      title\n    }\n    edges {\n      cursor\n      node {\n        id\n        title\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  searchedActivities: marketingActivities(first: $first, query: $activityQuery, sortKey: TITLE) {\n    nodes {\n      id\n      title\n    }\n    edges {\n      cursor\n      node {\n        id\n        title\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  selectedActivity: marketingActivity(id: $activityId) {\n    id\n    title\n    status\n    isExternal\n  }\n  latestEvents: marketingEvents(first: $first, sortKey: ID, reverse: true) {\n    nodes {\n      id\n      type\n      remoteId\n      description\n    }\n    edges {\n      cursor\n      node {\n        id\n        type\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  selectedEvent: marketingEvent(id: $eventId) {\n    id\n    type\n    remoteId\n    description\n  }\n}\n",
+        "variables": {
+          "activityId": "gid://shopify/MarketingActivity/198350274866",
+          "eventId": "gid://shopify/MarketingEvent/243706134834",
+          "first": 2,
+          "remoteIds": [
+            "marketing-live-hybrid-alpha-1783711525789gkqrsp",
+            "marketing-live-hybrid-zulu-1783711525789gkqrsp"
+          ],
+          "activityQuery": "title:\"Alpha live hybrid 1783711525789gkqrsp\""
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "allActivities": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MarketingActivity/198350274866",
+                  "title": "Alpha live hybrid 1783711525789gkqrsp",
+                  "status": "ACTIVE",
+                  "isExternal": true,
+                  "marketingEvent": {
+                    "id": "gid://shopify/MarketingEvent/243706134834",
+                    "type": "NEWSLETTER",
+                    "remoteId": "marketing-live-hybrid-alpha-1783711525789gkqrsp",
+                    "description": "Alpha live hybrid 1783711525789gkqrsp"
+                  }
+                },
+                {
+                  "id": "gid://shopify/MarketingActivity/198350307634",
+                  "title": "Zulu live hybrid 1783711525789gkqrsp",
+                  "status": "ACTIVE",
+                  "isExternal": true,
+                  "marketingEvent": {
+                    "id": "gid://shopify/MarketingEvent/243706167602",
+                    "type": "AD",
+                    "remoteId": "marketing-live-hybrid-zulu-1783711525789gkqrsp",
+                    "description": "Zulu live hybrid 1783711525789gkqrsp"
+                  }
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxOTgzNTAyNzQ4NjYsImxhc3RfdmFsdWUiOiJBbHBoYSBsaXZlIGh5YnJpZCAxNzgzNzExNTI1Nzg5Z2txcnNwIn0=",
+                  "node": {
+                    "id": "gid://shopify/MarketingActivity/198350274866",
+                    "title": "Alpha live hybrid 1783711525789gkqrsp"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxOTgzNTAzMDc2MzQsImxhc3RfdmFsdWUiOiJadWx1IGxpdmUgaHlicmlkIDE3ODM3MTE1MjU3ODlna3Fyc3AifQ==",
+                  "node": {
+                    "id": "gid://shopify/MarketingActivity/198350307634",
+                    "title": "Zulu live hybrid 1783711525789gkqrsp"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxOTgzNTAyNzQ4NjYsImxhc3RfdmFsdWUiOiJBbHBoYSBsaXZlIGh5YnJpZCAxNzgzNzExNTI1Nzg5Z2txcnNwIn0=",
+                "endCursor": "eyJsYXN0X2lkIjoxOTgzNTAzMDc2MzQsImxhc3RfdmFsdWUiOiJadWx1IGxpdmUgaHlicmlkIDE3ODM3MTE1MjU3ODlna3Fyc3AifQ=="
+              }
+            },
+            "firstActivity": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MarketingActivity/198350274866",
+                  "title": "Alpha live hybrid 1783711525789gkqrsp"
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxOTgzNTAyNzQ4NjYsImxhc3RfdmFsdWUiOiJBbHBoYSBsaXZlIGh5YnJpZCAxNzgzNzExNTI1Nzg5Z2txcnNwIn0=",
+                  "node": {
+                    "id": "gid://shopify/MarketingActivity/198350274866",
+                    "title": "Alpha live hybrid 1783711525789gkqrsp"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxOTgzNTAyNzQ4NjYsImxhc3RfdmFsdWUiOiJBbHBoYSBsaXZlIGh5YnJpZCAxNzgzNzExNTI1Nzg5Z2txcnNwIn0=",
+                "endCursor": "eyJsYXN0X2lkIjoxOTgzNTAyNzQ4NjYsImxhc3RfdmFsdWUiOiJBbHBoYSBsaXZlIGh5YnJpZCAxNzgzNzExNTI1Nzg5Z2txcnNwIn0="
+              }
+            },
+            "searchedActivities": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MarketingActivity/198350274866",
+                  "title": "Alpha live hybrid 1783711525789gkqrsp"
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxOTgzNTAyNzQ4NjYsImxhc3RfdmFsdWUiOiJBbHBoYSBsaXZlIGh5YnJpZCAxNzgzNzExNTI1Nzg5Z2txcnNwIn0=",
+                  "node": {
+                    "id": "gid://shopify/MarketingActivity/198350274866",
+                    "title": "Alpha live hybrid 1783711525789gkqrsp"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxOTgzNTAyNzQ4NjYsImxhc3RfdmFsdWUiOiJBbHBoYSBsaXZlIGh5YnJpZCAxNzgzNzExNTI1Nzg5Z2txcnNwIn0=",
+                "endCursor": "eyJsYXN0X2lkIjoxOTgzNTAyNzQ4NjYsImxhc3RfdmFsdWUiOiJBbHBoYSBsaXZlIGh5YnJpZCAxNzgzNzExNTI1Nzg5Z2txcnNwIn0="
+              }
+            },
+            "selectedActivity": {
+              "id": "gid://shopify/MarketingActivity/198350274866",
+              "title": "Alpha live hybrid 1783711525789gkqrsp",
+              "status": "ACTIVE",
+              "isExternal": true
+            },
+            "latestEvents": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MarketingEvent/243706167602",
+                  "type": "AD",
+                  "remoteId": "marketing-live-hybrid-zulu-1783711525789gkqrsp",
+                  "description": "Zulu live hybrid 1783711525789gkqrsp"
+                },
+                {
+                  "id": "gid://shopify/MarketingEvent/243706134834",
+                  "type": "NEWSLETTER",
+                  "remoteId": "marketing-live-hybrid-alpha-1783711525789gkqrsp",
+                  "description": "Alpha live hybrid 1783711525789gkqrsp"
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoyNDM3MDYxNjc2MDIsImxhc3RfdmFsdWUiOiIyNDM3MDYxNjc2MDIifQ==",
+                  "node": {
+                    "id": "gid://shopify/MarketingEvent/243706167602",
+                    "type": "AD"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoyNDM3MDYxMzQ4MzQsImxhc3RfdmFsdWUiOiIyNDM3MDYxMzQ4MzQifQ==",
+                  "node": {
+                    "id": "gid://shopify/MarketingEvent/243706134834",
+                    "type": "NEWSLETTER"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoyNDM3MDYxNjc2MDIsImxhc3RfdmFsdWUiOiIyNDM3MDYxNjc2MDIifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoyNDM3MDYxMzQ4MzQsImxhc3RfdmFsdWUiOiIyNDM3MDYxMzQ4MzQifQ=="
+              }
+            },
+            "selectedEvent": {
+              "id": "gid://shopify/MarketingEvent/243706134834",
+              "type": "NEWSLETTER",
+              "remoteId": "marketing-live-hybrid-alpha-1783711525789gkqrsp",
+              "description": "Alpha live hybrid 1783711525789gkqrsp"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 19,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1981,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "readAfter": {
+      "request": {
+        "query": "query MarketingLiveHybridNonEmptyReadAfter($activityCursor: String!, $remoteIds: [String!]) {\n  afterFirstActivity: marketingActivities(first: 1, after: $activityCursor, remoteIds: $remoteIds, sortKey: TITLE) {\n    nodes {\n      id\n      title\n    }\n    edges {\n      cursor\n      node {\n        id\n        title\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+        "variables": {
+          "activityCursor": "eyJsYXN0X2lkIjoxOTgzNTAyNzQ4NjYsImxhc3RfdmFsdWUiOiJBbHBoYSBsaXZlIGh5YnJpZCAxNzgzNzExNTI1Nzg5Z2txcnNwIn0=",
+          "remoteIds": [
+            "marketing-live-hybrid-alpha-1783711525789gkqrsp",
+            "marketing-live-hybrid-zulu-1783711525789gkqrsp"
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "afterFirstActivity": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MarketingActivity/198350307634",
+                  "title": "Zulu live hybrid 1783711525789gkqrsp"
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxOTgzNTAzMDc2MzQsImxhc3RfdmFsdWUiOiJadWx1IGxpdmUgaHlicmlkIDE3ODM3MTE1MjU3ODlna3Fyc3AifQ==",
+                  "node": {
+                    "id": "gid://shopify/MarketingActivity/198350307634",
+                    "title": "Zulu live hybrid 1783711525789gkqrsp"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "eyJsYXN0X2lkIjoxOTgzNTAzMDc2MzQsImxhc3RfdmFsdWUiOiJadWx1IGxpdmUgaHlicmlkIDE3ODM3MTE1MjU3ODlna3Fyc3AifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxOTgzNTAzMDc2MzQsImxhc3RfdmFsdWUiOiJadWx1IGxpdmUgaHlicmlkIDE3ODM3MTE1MjU3ODlna3Fyc3AifQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "alpha": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": "gid://shopify/MarketingActivity/198350274866",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "zulu": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": "gid://shopify/MarketingActivity/198350307634",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "MarketingLiveHybridNonEmptyRead",
+      "variables": {
+        "activityId": "gid://shopify/MarketingActivity/198350274866",
+        "eventId": "gid://shopify/MarketingEvent/243706134834",
+        "first": 2,
+        "remoteIds": [
+          "marketing-live-hybrid-alpha-1783711525789gkqrsp",
+          "marketing-live-hybrid-zulu-1783711525789gkqrsp"
+        ],
+        "activityQuery": "title:\"Alpha live hybrid 1783711525789gkqrsp\""
+      },
+      "query": "query MarketingLiveHybridNonEmptyRead(\n  $activityId: ID!\n  $eventId: ID!\n  $first: Int!\n  $remoteIds: [String!]\n  $activityQuery: String!\n) {\n  allActivities: marketingActivities(first: $first, remoteIds: $remoteIds, sortKey: TITLE) {\n    nodes {\n      id\n      title\n      status\n      isExternal\n      marketingEvent {\n        id\n        type\n        remoteId\n        description\n      }\n    }\n    edges {\n      cursor\n      node {\n        id\n        title\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  firstActivity: marketingActivities(first: 1, remoteIds: $remoteIds, sortKey: TITLE) {\n    nodes {\n      id\n      title\n    }\n    edges {\n      cursor\n      node {\n        id\n        title\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  searchedActivities: marketingActivities(first: $first, query: $activityQuery, sortKey: TITLE) {\n    nodes {\n      id\n      title\n    }\n    edges {\n      cursor\n      node {\n        id\n        title\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  selectedActivity: marketingActivity(id: $activityId) {\n    id\n    title\n    status\n    isExternal\n  }\n  latestEvents: marketingEvents(first: $first, sortKey: ID, reverse: true) {\n    nodes {\n      id\n      type\n      remoteId\n      description\n    }\n    edges {\n      cursor\n      node {\n        id\n        type\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  selectedEvent: marketingEvent(id: $eventId) {\n    id\n    type\n    remoteId\n    description\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "allActivities": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MarketingActivity/198350274866",
+                  "title": "Alpha live hybrid 1783711525789gkqrsp",
+                  "status": "ACTIVE",
+                  "isExternal": true,
+                  "marketingEvent": {
+                    "id": "gid://shopify/MarketingEvent/243706134834",
+                    "type": "NEWSLETTER",
+                    "remoteId": "marketing-live-hybrid-alpha-1783711525789gkqrsp",
+                    "description": "Alpha live hybrid 1783711525789gkqrsp"
+                  }
+                },
+                {
+                  "id": "gid://shopify/MarketingActivity/198350307634",
+                  "title": "Zulu live hybrid 1783711525789gkqrsp",
+                  "status": "ACTIVE",
+                  "isExternal": true,
+                  "marketingEvent": {
+                    "id": "gid://shopify/MarketingEvent/243706167602",
+                    "type": "AD",
+                    "remoteId": "marketing-live-hybrid-zulu-1783711525789gkqrsp",
+                    "description": "Zulu live hybrid 1783711525789gkqrsp"
+                  }
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxOTgzNTAyNzQ4NjYsImxhc3RfdmFsdWUiOiJBbHBoYSBsaXZlIGh5YnJpZCAxNzgzNzExNTI1Nzg5Z2txcnNwIn0=",
+                  "node": {
+                    "id": "gid://shopify/MarketingActivity/198350274866",
+                    "title": "Alpha live hybrid 1783711525789gkqrsp"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxOTgzNTAzMDc2MzQsImxhc3RfdmFsdWUiOiJadWx1IGxpdmUgaHlicmlkIDE3ODM3MTE1MjU3ODlna3Fyc3AifQ==",
+                  "node": {
+                    "id": "gid://shopify/MarketingActivity/198350307634",
+                    "title": "Zulu live hybrid 1783711525789gkqrsp"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxOTgzNTAyNzQ4NjYsImxhc3RfdmFsdWUiOiJBbHBoYSBsaXZlIGh5YnJpZCAxNzgzNzExNTI1Nzg5Z2txcnNwIn0=",
+                "endCursor": "eyJsYXN0X2lkIjoxOTgzNTAzMDc2MzQsImxhc3RfdmFsdWUiOiJadWx1IGxpdmUgaHlicmlkIDE3ODM3MTE1MjU3ODlna3Fyc3AifQ=="
+              }
+            },
+            "firstActivity": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MarketingActivity/198350274866",
+                  "title": "Alpha live hybrid 1783711525789gkqrsp"
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxOTgzNTAyNzQ4NjYsImxhc3RfdmFsdWUiOiJBbHBoYSBsaXZlIGh5YnJpZCAxNzgzNzExNTI1Nzg5Z2txcnNwIn0=",
+                  "node": {
+                    "id": "gid://shopify/MarketingActivity/198350274866",
+                    "title": "Alpha live hybrid 1783711525789gkqrsp"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxOTgzNTAyNzQ4NjYsImxhc3RfdmFsdWUiOiJBbHBoYSBsaXZlIGh5YnJpZCAxNzgzNzExNTI1Nzg5Z2txcnNwIn0=",
+                "endCursor": "eyJsYXN0X2lkIjoxOTgzNTAyNzQ4NjYsImxhc3RfdmFsdWUiOiJBbHBoYSBsaXZlIGh5YnJpZCAxNzgzNzExNTI1Nzg5Z2txcnNwIn0="
+              }
+            },
+            "searchedActivities": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MarketingActivity/198350274866",
+                  "title": "Alpha live hybrid 1783711525789gkqrsp"
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxOTgzNTAyNzQ4NjYsImxhc3RfdmFsdWUiOiJBbHBoYSBsaXZlIGh5YnJpZCAxNzgzNzExNTI1Nzg5Z2txcnNwIn0=",
+                  "node": {
+                    "id": "gid://shopify/MarketingActivity/198350274866",
+                    "title": "Alpha live hybrid 1783711525789gkqrsp"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxOTgzNTAyNzQ4NjYsImxhc3RfdmFsdWUiOiJBbHBoYSBsaXZlIGh5YnJpZCAxNzgzNzExNTI1Nzg5Z2txcnNwIn0=",
+                "endCursor": "eyJsYXN0X2lkIjoxOTgzNTAyNzQ4NjYsImxhc3RfdmFsdWUiOiJBbHBoYSBsaXZlIGh5YnJpZCAxNzgzNzExNTI1Nzg5Z2txcnNwIn0="
+              }
+            },
+            "selectedActivity": {
+              "id": "gid://shopify/MarketingActivity/198350274866",
+              "title": "Alpha live hybrid 1783711525789gkqrsp",
+              "status": "ACTIVE",
+              "isExternal": true
+            },
+            "latestEvents": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MarketingEvent/243706167602",
+                  "type": "AD",
+                  "remoteId": "marketing-live-hybrid-zulu-1783711525789gkqrsp",
+                  "description": "Zulu live hybrid 1783711525789gkqrsp"
+                },
+                {
+                  "id": "gid://shopify/MarketingEvent/243706134834",
+                  "type": "NEWSLETTER",
+                  "remoteId": "marketing-live-hybrid-alpha-1783711525789gkqrsp",
+                  "description": "Alpha live hybrid 1783711525789gkqrsp"
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoyNDM3MDYxNjc2MDIsImxhc3RfdmFsdWUiOiIyNDM3MDYxNjc2MDIifQ==",
+                  "node": {
+                    "id": "gid://shopify/MarketingEvent/243706167602",
+                    "type": "AD"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoyNDM3MDYxMzQ4MzQsImxhc3RfdmFsdWUiOiIyNDM3MDYxMzQ4MzQifQ==",
+                  "node": {
+                    "id": "gid://shopify/MarketingEvent/243706134834",
+                    "type": "NEWSLETTER"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoyNDM3MDYxNjc2MDIsImxhc3RfdmFsdWUiOiIyNDM3MDYxNjc2MDIifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoyNDM3MDYxMzQ4MzQsImxhc3RfdmFsdWUiOiIyNDM3MDYxMzQ4MzQifQ=="
+              }
+            },
+            "selectedEvent": {
+              "id": "gid://shopify/MarketingEvent/243706134834",
+              "type": "NEWSLETTER",
+              "remoteId": "marketing-live-hybrid-alpha-1783711525789gkqrsp",
+              "description": "Alpha live hybrid 1783711525789gkqrsp"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 19,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1981,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MarketingLiveHybridNonEmptyReadAfter",
+      "variables": {
+        "activityCursor": "eyJsYXN0X2lkIjoxOTgzNTAyNzQ4NjYsImxhc3RfdmFsdWUiOiJBbHBoYSBsaXZlIGh5YnJpZCAxNzgzNzExNTI1Nzg5Z2txcnNwIn0=",
+        "remoteIds": [
+          "marketing-live-hybrid-alpha-1783711525789gkqrsp",
+          "marketing-live-hybrid-zulu-1783711525789gkqrsp"
+        ]
+      },
+      "query": "query MarketingLiveHybridNonEmptyReadAfter($activityCursor: String!, $remoteIds: [String!]) {\n  afterFirstActivity: marketingActivities(first: 1, after: $activityCursor, remoteIds: $remoteIds, sortKey: TITLE) {\n    nodes {\n      id\n      title\n    }\n    edges {\n      cursor\n      node {\n        id\n        title\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "afterFirstActivity": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MarketingActivity/198350307634",
+                  "title": "Zulu live hybrid 1783711525789gkqrsp"
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxOTgzNTAzMDc2MzQsImxhc3RfdmFsdWUiOiJadWx1IGxpdmUgaHlicmlkIDE3ODM3MTE1MjU3ODlna3Fyc3AifQ==",
+                  "node": {
+                    "id": "gid://shopify/MarketingActivity/198350307634",
+                    "title": "Zulu live hybrid 1783711525789gkqrsp"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "eyJsYXN0X2lkIjoxOTgzNTAzMDc2MzQsImxhc3RfdmFsdWUiOiJadWx1IGxpdmUgaHlicmlkIDE3ODM3MTE1MjU3ODlna3Fyc3AifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxOTgzNTAzMDc2MzQsImxhc3RfdmFsdWUiOiJadWx1IGxpdmUgaHlicmlkIDE3ODM3MTE1MjU3ODlna3Fyc3AifQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -4,10 +4,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   conformanceScenarioOverridesSchema,
+  nodeResolverInventorySchema,
   operationRegistrySchema,
   parseJsonFileWithSchema,
   paritySpecSchema,
   type ConformanceScenarioOverride,
+  type NodeResolverInventoryEntry,
   type OperationRegistryEntry,
   type ParitySpec,
 } from './support/json-schemas.js';
@@ -17,6 +19,7 @@ export const defaultRepoRoot = path.resolve(path.dirname(fileURLToPath(import.me
 const paritySpecDirectory = path.join('config', 'parity-specs');
 const overrideConfigPath = path.join('config', 'conformance-scenario-overrides.json');
 const registryCache = new Map<string, OperationRegistryEntry[]>();
+const nodeResolverInventoryCache = new Map<string, NodeResolverInventoryEntry[]>();
 
 export type ConformanceScenario = {
   id: string;
@@ -122,18 +125,7 @@ export function loadOperationRegistry(repoRoot = defaultRepoRoot): OperationRegi
 
   let output: string;
   try {
-    const exporterPath = operationRegistryExporterPath(cacheKey);
-    output = existsSync(exporterPath)
-      ? execFileSync(exporterPath, {
-          cwd: cacheKey,
-          encoding: 'utf8',
-          stdio: ['ignore', 'pipe', 'pipe'],
-        })
-      : execFileSync('cargo', ['run', '--quiet', '--bin', 'operation-registry-json'], {
-          cwd: cacheKey,
-          encoding: 'utf8',
-          stdio: ['ignore', 'pipe', 'pipe'],
-        });
+    output = runRustJsonExporter(cacheKey, 'operation-registry-json');
   } catch (error) {
     const stderr = stderrFromExecError(error);
     const message = error instanceof Error ? error.message : String(error);
@@ -153,9 +145,41 @@ export function loadOperationRegistry(repoRoot = defaultRepoRoot): OperationRegi
   return cloneRegistryEntries(registry);
 }
 
-function operationRegistryExporterPath(repoRoot: string): string {
-  const executableName = process.platform === 'win32' ? 'operation-registry-json.exe' : 'operation-registry-json';
-  return path.join(repoRoot, 'target', 'debug', executableName);
+export function loadNodeResolverInventory(repoRoot = defaultRepoRoot): NodeResolverInventoryEntry[] {
+  const cacheKey = path.resolve(repoRoot);
+  const cached = nodeResolverInventoryCache.get(cacheKey);
+  if (cached) {
+    return cloneNodeResolverInventoryEntries(cached);
+  }
+
+  let output: string;
+  try {
+    output = runRustJsonExporter(cacheKey, 'node-resolver-inventory-json');
+  } catch (error) {
+    const stderr = stderrFromExecError(error);
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to export Node resolver inventory from Rust: ${stderr ?? message}`);
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(output) as unknown;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Rust Node resolver inventory export produced invalid JSON: ${message}`);
+  }
+
+  const inventory = nodeResolverInventorySchema.parse(parsed);
+  nodeResolverInventoryCache.set(cacheKey, inventory);
+  return cloneNodeResolverInventoryEntries(inventory);
+}
+
+function runRustJsonExporter(repoRoot: string, binName: string): string {
+  return execFileSync('cargo', ['run', '--quiet', '--bin', binName], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
 }
 
 function cloneRegistryEntries(registryEntries: OperationRegistryEntry[]): OperationRegistryEntry[] {
@@ -164,6 +188,12 @@ function cloneRegistryEntries(registryEntries: OperationRegistryEntry[]): Operat
     matchNames: [...entry.matchNames],
     runtimeTests: [...entry.runtimeTests],
   }));
+}
+
+function cloneNodeResolverInventoryEntries(
+  inventoryEntries: NodeResolverInventoryEntry[],
+): NodeResolverInventoryEntry[] {
+  return inventoryEntries.map((entry) => ({ ...entry }));
 }
 
 function stderrFromExecError(error: unknown): string | null {

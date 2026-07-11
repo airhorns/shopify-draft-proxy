@@ -1,5 +1,7 @@
 use super::*;
 
+const MARKETING_CURSOR_METADATA_FIELD: &str = "__draftProxyCursor";
+
 fn marketing_normalized_sort_string(value: Option<&str>) -> StagedSortValue {
     value
         .map(|value| StagedSortValue::String(value.to_ascii_lowercase()))
@@ -11,7 +13,24 @@ fn marketing_gid_tail_sort_value(id: Option<&str>) -> StagedSortValue {
 }
 
 fn marketing_record_cursor(record: &Value) -> String {
-    format!("cursor:{}", record["id"].as_str().unwrap_or("local"))
+    record[MARKETING_CURSOR_METADATA_FIELD]
+        .as_str()
+        .map(str::to_string)
+        .unwrap_or_else(|| format!("cursor:{}", record["id"].as_str().unwrap_or("local")))
+}
+
+fn marketing_record_with_cursor(mut record: Value, cursor: Option<String>) -> Value {
+    if let (Some(cursor), Some(object)) = (cursor, record.as_object_mut()) {
+        object.insert(MARKETING_CURSOR_METADATA_FIELD.to_string(), json!(cursor));
+    }
+    record
+}
+
+fn is_marketing_query_root(name: &str) -> bool {
+    matches!(
+        name,
+        "marketingActivity" | "marketingActivities" | "marketingEvent" | "marketingEvents"
+    )
 }
 
 fn marketing_activity_staged_sort_key(record: &Value, sort_key: Option<&str>) -> StagedSortKey {
@@ -666,6 +685,78 @@ fn marketing_humanize_enum(value: &str) -> String {
         .join(" ")
 }
 
+fn marketing_record_id(record: &Value) -> Option<String> {
+    record.get("id").and_then(Value::as_str).map(str::to_string)
+}
+
+fn marketing_connection_entries(connection: &Value) -> Vec<(Value, Option<String>)> {
+    let mut cursors_by_id = BTreeMap::<String, String>::new();
+    let mut edge_entries = Vec::<(Value, Option<String>)>::new();
+
+    for edge in connection
+        .get("edges")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+    {
+        let Some(node) = edge.get("node").filter(|node| node.is_object()) else {
+            continue;
+        };
+        let cursor = edge
+            .get("cursor")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        if let (Some(id), Some(cursor)) = (marketing_record_id(node), cursor.clone()) {
+            cursors_by_id.insert(id, cursor);
+        }
+        edge_entries.push((node.clone(), cursor));
+    }
+
+    let mut entries = Vec::new();
+    let mut seen_ids = BTreeSet::new();
+    for node in connection
+        .get("nodes")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter(|node| node.is_object())
+    {
+        let id = marketing_record_id(node);
+        if let Some(id) = &id {
+            seen_ids.insert(id.clone());
+        }
+        let cursor = id.and_then(|id| cursors_by_id.get(&id).cloned());
+        entries.push((node.clone(), cursor));
+    }
+
+    for (node, cursor) in edge_entries {
+        if marketing_record_id(&node).is_some_and(|id| seen_ids.contains(&id)) {
+            continue;
+        }
+        entries.push((node, cursor));
+    }
+
+    entries
+}
+
+fn merge_observed_marketing_value(target: &mut Value, observed: &Value) {
+    match (target, observed) {
+        (Value::Object(target), Value::Object(observed)) => {
+            for (key, value) in observed {
+                match target.get_mut(key) {
+                    Some(existing) => merge_observed_marketing_value(existing, value),
+                    None => {
+                        target.insert(key.clone(), value.clone());
+                    }
+                }
+            }
+        }
+        (target, observed) => {
+            *target = observed.clone();
+        }
+    }
+}
+
 impl DraftProxy {
     fn marketing_app_context_for_request(&self, request: &Request) -> MarketingActivityAppContext {
         let request_installation = current_app_installation_from_request(request);
@@ -691,16 +782,112 @@ impl DraftProxy {
         }
     }
 
-    pub(in crate::proxy) fn marketing_query_data(&self, fields: &[RootFieldSelection]) -> Value {
+    pub(in crate::proxy) fn marketing_query_response(
+        &mut self,
+        request: &Request,
+        fields: &[RootFieldSelection],
+    ) -> Response {
+        if self.config.read_mode == ReadMode::LiveHybrid {
+            let mut response = (self.upstream_transport)(request.clone());
+            if response.status < 400 {
+                self.observe_marketing_upstream_response(fields, &response.body);
+            }
+            if !self.store.has_marketing_overlay_state() || response.body.get("data").is_none() {
+                return response;
+            }
+            let marketing_data = self.marketing_query_data(request, fields);
+            if let (Some(upstream_data), Some(marketing_data)) = (
+                response.body.get_mut("data").and_then(Value::as_object_mut),
+                marketing_data.as_object(),
+            ) {
+                for field in fields {
+                    if !is_marketing_query_root(&field.name) {
+                        continue;
+                    }
+                    if let Some(value) = marketing_data.get(&field.response_key) {
+                        upstream_data.insert(field.response_key.clone(), value.clone());
+                    }
+                }
+            }
+            return response;
+        }
+        ok_json(json!({ "data": self.marketing_query_data(request, fields) }))
+    }
+
+    fn observe_marketing_upstream_response(&mut self, fields: &[RootFieldSelection], body: &Value) {
+        let Some(data) = body.get("data").and_then(Value::as_object) else {
+            return;
+        };
+        for field in fields {
+            let value = data
+                .get(&field.response_key)
+                .or_else(|| data.get(&field.name))
+                .unwrap_or(&Value::Null);
+            match field.name.as_str() {
+                "marketingActivity" => self.observe_base_marketing_activity(value.clone(), None),
+                "marketingActivities" => {
+                    for (activity, cursor) in marketing_connection_entries(value) {
+                        self.observe_base_marketing_activity(activity, cursor);
+                    }
+                }
+                "marketingEvent" => self.observe_base_marketing_event(value.clone(), None),
+                "marketingEvents" => {
+                    for (event, cursor) in marketing_connection_entries(value) {
+                        self.observe_base_marketing_event(event, cursor);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn observe_base_marketing_activity(&mut self, activity: Value, cursor: Option<String>) {
+        let Some(id) = marketing_record_id(&activity) else {
+            return;
+        };
+        let mut activity = marketing_record_with_cursor(activity, cursor);
+        if let Some(existing) = self.store.base.marketing_activities.get(&id) {
+            let mut merged = existing.clone();
+            merge_observed_marketing_value(&mut merged, &activity);
+            activity = merged;
+        }
+        if let Some(event) = activity
+            .get("marketingEvent")
+            .filter(|event| event.is_object())
+            .cloned()
+        {
+            self.observe_base_marketing_event(event, None);
+        }
+        self.store.base.marketing_activities.insert(id, activity);
+    }
+
+    fn observe_base_marketing_event(&mut self, event: Value, cursor: Option<String>) {
+        let Some(id) = marketing_record_id(&event) else {
+            return;
+        };
+        let mut event = marketing_record_with_cursor(event, cursor);
+        if let Some(existing) = self.store.base.marketing_events.get(&id) {
+            let mut merged = existing.clone();
+            merge_observed_marketing_value(&mut merged, &event);
+            event = merged;
+        }
+        self.store.base.marketing_events.insert(id, event);
+    }
+
+    pub(in crate::proxy) fn marketing_query_data(
+        &self,
+        request: &Request,
+        fields: &[RootFieldSelection],
+    ) -> Value {
         root_payload_json(fields, |field| {
             let value = match field.name.as_str() {
                 "marketingActivity" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.store
-                        .staged
-                        .marketing_activities
-                        .get(&id)
-                        .filter(|_| !self.store.staged.marketing_activities.is_tombstoned(&id))
+                        .marketing_activity_by_id(&id)
+                        .filter(|record| {
+                            !self.marketing_activity_hidden_by_delete_all(record, request)
+                        })
                         .cloned()
                         .unwrap_or(Value::Null)
                 }
@@ -709,12 +896,11 @@ impl DraftProxy {
                     let ids = resolved_string_list_arg(&field.arguments, "marketingActivityIds");
                     let records = self
                         .store
-                        .staged
-                        .marketing_activities
-                        .values()
+                        .marketing_activities()
+                        .into_iter()
                         .filter(|record| {
                             let id = record["id"].as_str().unwrap_or_default();
-                            if self.store.staged.marketing_activities.is_tombstoned(id) {
+                            if self.marketing_activity_hidden_by_delete_all(record, request) {
                                 return false;
                             }
                             if !ids.is_empty() && !ids.iter().any(|candidate| candidate == id) {
@@ -731,46 +917,15 @@ impl DraftProxy {
                             }
                             true
                         })
-                        .cloned()
                         .collect::<Vec<_>>();
                     marketing_activity_connection(records, &field.arguments, &field.selection)
                 }
                 "marketingEvent" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    self.store
-                        .staged
-                        .marketing_activities
-                        .values()
-                        .find(|record| record["marketingEvent"]["id"].as_str() == Some(id.as_str()))
-                        .filter(|record| {
-                            let activity_id = record["id"].as_str().unwrap_or_default();
-                            !self
-                                .store
-                                .staged
-                                .marketing_activities
-                                .is_tombstoned(activity_id)
-                        })
-                        .map(|record| record["marketingEvent"].clone())
-                        .unwrap_or(Value::Null)
+                    self.store.marketing_event_by_id(&id).unwrap_or(Value::Null)
                 }
                 "marketingEvents" => {
-                    let records = self
-                        .store
-                        .staged
-                        .marketing_activities
-                        .values()
-                        .filter(|record| {
-                            let id = record["id"].as_str().unwrap_or_default();
-                            !self.store.staged.marketing_activities.is_tombstoned(id)
-                        })
-                        .filter_map(|record| {
-                            if record["marketingEvent"].is_null() {
-                                None
-                            } else {
-                                Some(record["marketingEvent"].clone())
-                            }
-                        })
-                        .collect();
+                    let records = self.store.marketing_events().into_iter().collect();
                     marketing_event_connection(records, &field.arguments, &field.selection)
                 }
                 _ => Value::Null,
@@ -786,6 +941,26 @@ impl DraftProxy {
                 Some(selected_json(&value, &field.selection))
             }
         })
+    }
+
+    fn marketing_activity_hidden_by_delete_all(
+        &self,
+        activity: &Value,
+        _request: &Request,
+    ) -> bool {
+        if !activity["isExternal"].as_bool().unwrap_or(true) {
+            return false;
+        }
+        if self.store.staged.marketing_delete_all_external {
+            return true;
+        }
+        let Some(activity_app_id) = activity["apiClientId"].as_str() else {
+            return false;
+        };
+        self.store
+            .staged
+            .marketing_delete_all_external_app_ids
+            .contains(activity_app_id)
     }
 
     pub(in crate::proxy) fn marketing_mutation(
@@ -846,7 +1021,14 @@ impl DraftProxy {
                 "marketingActivityUpsertExternal" => self.marketing_upsert_external(field, request),
                 "marketingActivityDeleteExternal" => self.marketing_delete_external(field, request),
                 "marketingActivitiesDeleteAllExternal" => {
-                    self.store.staged.marketing_delete_all_external = true;
+                    if let Some(api_client_id) = request.headers.get(API_CLIENT_ID_HEADER) {
+                        self.store
+                            .staged
+                            .marketing_delete_all_external_app_ids
+                            .insert(api_client_id.clone());
+                    } else {
+                        self.store.staged.marketing_delete_all_external = true;
+                    }
                     let job_id = self.next_proxy_synthetic_gid("Job");
                     selected_json(
                         &json!({
@@ -917,7 +1099,7 @@ impl DraftProxy {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let id = resolved_string_field(&input, "id")
             .unwrap_or_else(|| self.next_proxy_synthetic_gid("MarketingActivity"));
-        let existing = self.store.staged.marketing_activities.get(&id).cloned();
+        let existing = self.store.marketing_activity_by_id(&id).cloned();
         let timestamp = self.next_product_timestamp();
         let shop_currency_code = self.store.shop_currency_code();
         let app_context = self.marketing_app_context_for_request(request);
@@ -990,9 +1172,7 @@ impl DraftProxy {
         };
         let existing = self
             .store
-            .staged
-            .marketing_activities
-            .get(&existing_id)
+            .marketing_activity_by_id(&existing_id)
             .cloned()
             .unwrap_or(Value::Null);
         let selector_utm = resolved_object_field(&field.arguments, "utm");
@@ -1032,7 +1212,7 @@ impl DraftProxy {
         let remote = resolved_string_field(&input, "remoteId").unwrap_or_default();
         let existing_id = self.find_marketing_activity_by_remote(&remote, request);
         if let Some(id) = &existing_id {
-            if let Some(existing) = self.store.staged.marketing_activities.get(id) {
+            if let Some(existing) = self.store.marketing_activity_by_id(id) {
                 if let Some(err) =
                     self.marketing_external_immutable_update_error(existing, &input, None, request)
                 {
@@ -1074,7 +1254,7 @@ impl DraftProxy {
         create_if_missing: bool,
         request: &Request,
     ) -> Option<Value> {
-        if self.store.staged.marketing_delete_all_external
+        if self.marketing_delete_all_external_blocks_request(request)
             && existing_id.is_none()
             && field.name == "marketingActivityCreateExternal"
         {
@@ -1116,6 +1296,19 @@ impl DraftProxy {
             return self.marketing_create_duplicate_error(field, input, request);
         }
         None
+    }
+
+    fn marketing_delete_all_external_blocks_request(&self, request: &Request) -> bool {
+        self.store.staged.marketing_delete_all_external
+            || request
+                .headers
+                .get(API_CLIENT_ID_HEADER)
+                .is_some_and(|api_client_id| {
+                    self.store
+                        .staged
+                        .marketing_delete_all_external_app_ids
+                        .contains(api_client_id)
+                })
     }
 
     fn marketing_create_duplicate_error(
@@ -1178,7 +1371,7 @@ impl DraftProxy {
             self.next_synthetic_id += 1;
             id
         });
-        let existing = self.store.staged.marketing_activities.get(&id).cloned();
+        let existing = self.store.marketing_activity_by_id(&id).cloned();
         let timestamp = self.next_product_timestamp();
         let shop_currency_code = self.store.shop_currency_code();
         let app_context = self.marketing_app_context_for_request(request);
@@ -1236,7 +1429,7 @@ impl DraftProxy {
                 &field.selection,
             );
         }
-        if self.marketing_activity_has_child_events(activity) {
+        if self.marketing_activity_has_child_events(&activity) {
             return selected_json(
                 &json!({ "deletedMarketingActivityId": null, "userErrors": [marketing_activity_child_events_error()] }),
                 &field.selection,
@@ -1249,14 +1442,14 @@ impl DraftProxy {
         )
     }
 
-    fn marketing_activity_for_delete(&self, id: &str, request: &Request) -> Option<&Value> {
+    fn marketing_activity_for_delete(&self, id: &str, request: &Request) -> Option<Value> {
         if self.store.staged.marketing_activities.is_tombstoned(id) {
             return None;
         }
-        let activity = self.store.staged.marketing_activities.get(id)?;
+        let activity = self.store.marketing_activity_by_id(id)?;
         let request_app = request.headers.get(API_CLIENT_ID_HEADER);
         if activity["apiClientId"].as_str() == request_app.map(String::as_str) {
-            Some(activity)
+            Some(activity.clone())
         } else {
             None
         }
@@ -1271,13 +1464,9 @@ impl DraftProxy {
         };
         let parent_app = activity["apiClientId"].as_str();
         self.store
-            .staged
-            .marketing_activities
-            .iter()
-            .any(|(id, candidate)| {
-                if self.store.staged.marketing_activities.is_tombstoned(id) {
-                    return false;
-                }
+            .marketing_activities()
+            .into_iter()
+            .any(|candidate| {
                 candidate["id"].as_str() != activity["id"].as_str()
                     && candidate["apiClientId"].as_str() == parent_app
                     && candidate["parentRemoteId"].as_str() == Some(parent_remote)
@@ -1361,19 +1550,7 @@ impl DraftProxy {
                 &field.selection,
             );
         };
-        let Some(activity) = self
-            .store
-            .staged
-            .marketing_activities
-            .get(&activity_id)
-            .filter(|_| {
-                !self
-                    .store
-                    .staged
-                    .marketing_activities
-                    .is_tombstoned(&activity_id)
-            })
-        else {
+        let Some(activity) = self.store.marketing_activity_by_id(&activity_id) else {
             return selected_json(
                 &marketing_engagement_payload(None, vec![marketing_activity_missing_error()]),
                 &field.selection,
@@ -1455,13 +1632,9 @@ impl DraftProxy {
     fn marketing_channel_handles_for_request(&self, request: &Request) -> BTreeSet<String> {
         let request_app = request.headers.get(API_CLIENT_ID_HEADER);
         self.store
-            .staged
-            .marketing_activities
-            .iter()
-            .filter_map(|(id, record)| {
-                if self.store.staged.marketing_activities.is_tombstoned(id) {
-                    return None;
-                }
+            .marketing_activities()
+            .into_iter()
+            .filter_map(|record| {
                 if let Some(app) = request_app {
                     if record["apiClientId"].as_str() != Some(app.as_str()) {
                         return None;
@@ -1513,19 +1686,15 @@ impl DraftProxy {
     ) -> Option<String> {
         let app = request.headers.get(API_CLIENT_ID_HEADER);
         self.store
-            .staged
-            .marketing_activities
-            .iter()
-            .find_map(|(id, record)| {
-                if self.store.staged.marketing_activities.is_tombstoned(id) {
-                    return None;
-                }
-                if !matches_record(record) {
+            .marketing_activities()
+            .into_iter()
+            .find_map(|record| {
+                if !matches_record(&record) {
                     return None;
                 }
                 let record_app = record["apiClientId"].as_str();
                 if app.map(String::as_str) == record_app {
-                    Some(id.clone())
+                    record["id"].as_str().map(str::to_string)
                 } else {
                     None
                 }
@@ -1632,7 +1801,7 @@ impl DraftProxy {
         activity_id: &str,
         engagement: &BTreeMap<String, ResolvedValue>,
     ) -> bool {
-        let Some(activity) = self.store.staged.marketing_activities.get(activity_id) else {
+        let Some(activity) = self.store.marketing_activity_by_id(activity_id) else {
             return false;
         };
         let Some(activity_currency) = activity["budget"]["total"]["currencyCode"].as_str() else {
@@ -1863,7 +2032,10 @@ fn marketing_collect_string_values(value: &Value, values: &mut Vec<String>) {
             }
         }
         Value::Object(map) => {
-            for value in map.values() {
+            for (key, value) in map {
+                if key == MARKETING_CURSOR_METADATA_FIELD {
+                    continue;
+                }
                 marketing_collect_string_values(value, values);
             }
         }

@@ -252,10 +252,29 @@ async function capture(
   };
 }
 
-async function hydrateGiftCard(id: string): Promise<RecordedCall> {
+async function hydrateGiftCard(id: string, includeTransactions: boolean): Promise<RecordedCall> {
   const variables = { id };
+  const operationName = includeTransactions ? 'GiftCardTransactionHydrate' : 'GiftCardHydrate';
+  const transactionSelection = includeTransactions
+    ? `        transactions(first: 250) {
+          nodes {
+            __typename
+            id
+            note
+            processedAt
+            amount { amount currencyCode }
+          }
+          pageInfo {
+            hasNextPage
+            hasPreviousPage
+            startCursor
+            endCursor
+          }
+        }
+`
+    : '';
   const query = `#graphql
-    query GiftCardHydrate($id: ID!) {
+    query ${operationName}($id: ID!) {
       giftCard(id: $id) {
         id
         lastCharacters
@@ -286,16 +305,7 @@ async function hydrateGiftCard(id: string): Promise<RecordedCall> {
             defaultPhoneNumber { phoneNumber }
           }
         }
-        transactions(first: 250) {
-          nodes {
-            __typename
-            id
-            note
-            processedAt
-            amount { amount currencyCode }
-          }
-        }
-      }
+${transactionSelection}      }
       giftCardConfiguration {
         issueLimit { amount currencyCode }
         purchaseLimit { amount currencyCode }
@@ -304,7 +314,7 @@ async function hydrateGiftCard(id: string): Promise<RecordedCall> {
   `;
   const response = await runGraphqlRequest(query, variables);
   return {
-    operationName: 'GiftCardHydrate',
+    operationName,
     variables,
     query,
     response: {
@@ -581,7 +591,8 @@ const lifecycle: CapturedRequest[] = [];
 const connectionMechanics: CapturedRequest[] = [];
 
 if (createdId !== null) {
-  const hydrateAfterCreate = await hydrateGiftCard(createdId);
+  const narrowHydrateAfterCreate = await hydrateGiftCard(createdId, false);
+  const transactionHydrateAfterCreate = await hydrateGiftCard(createdId, true);
   const updateInput = {
     note: 'HAR-310 conformance gift card updated',
     templateSuffix: 'birthday',
@@ -1193,7 +1204,7 @@ if (createdId !== null) {
           'The aliased readEvidence operation byte-matches config/parity-requests/gift-cards/gift-card-read-evidence.graphql for proxy replay.',
           'Credit/debit transaction mutations and transaction-node reads are captured with read_gift_card_transactions and write_gift_card_transactions.',
           'HAR-464 extends the fixture with a disposable customer-backed gift card and populated-data search filters for date/range, customer_id, recipient_id, source, and initial_value behavior.',
-          'The lifecycle proxy replay hydrates the newly created card through the recorded GiftCardHydrate upstream call before staging supported mutations locally.',
+          'The lifecycle proxy replay hydrates the newly created card through a recorded narrow GiftCardHydrate before ordinary update staging, then through GiftCardTransactionHydrate when transaction state is needed for credit/debit handling.',
           'Connection mechanics evidence creates three disposable gift cards with a shared searchable code fragment, captures first/reverse pages, cursor windows, giftCardsCount(limit:) precision, then deactivates two cards to capture DISABLED_AT ordering and cursor windows before deactivating the remaining card.',
           'Notification roots are intentionally not executed by this capture script because they are customer-visible side effects.',
         ],
@@ -1260,7 +1271,7 @@ if (createdId !== null) {
             initialValueQuery: `${giftCardIdQuery} AND initial_value:>=5`,
           },
         },
-        upstreamCalls: [hydrateAfterCreate],
+        upstreamCalls: [narrowHydrateAfterCreate, transactionHydrateAfterCreate],
         operations: {
           schemaAndAccess,
           emptyRead,

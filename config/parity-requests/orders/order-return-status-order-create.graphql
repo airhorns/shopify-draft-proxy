@@ -1,0 +1,30 @@
+mutation OrderReturnStatusOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {
+  orderCreate(order: $order, options: $options) {
+    order {
+      id
+      name
+      returnStatus
+      returns(first: 10) {
+        nodes {
+          id
+          name
+          status
+          closedAt
+          totalQuantity
+          returnLineItems(first: 10) {
+            nodes {
+              id
+              quantity
+              processedQuantity
+              unprocessedQuantity
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

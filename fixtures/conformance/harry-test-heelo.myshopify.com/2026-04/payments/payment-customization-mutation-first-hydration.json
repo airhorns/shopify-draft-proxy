@@ -1,0 +1,1084 @@
+{
+  "scenarioId": "payment-customization-mutation-first-hydration",
+  "capturedAt": "2026-07-10T12:08:17.006Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "functionCatalog": {
+    "data": {
+      "shopifyFunctions": {
+        "nodes": [
+          {
+            "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+            "title": "conformance-payment-customization",
+            "handle": "conformance-payment-customization",
+            "apiType": "payment_customization",
+            "description": "conformance-payment-customization",
+            "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+            "app": {
+              "id": "gid://shopify/App/347082227713",
+              "title": "hermes-conformance-products",
+              "handle": "hermes-conformance-products",
+              "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+            }
+          },
+          {
+            "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+            "title": "conformance-validation",
+            "handle": "conformance-validation",
+            "apiType": "cart_checkout_validation",
+            "description": "conformance-validation",
+            "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+            "app": {
+              "id": "gid://shopify/App/347082227713",
+              "title": "hermes-conformance-products",
+              "handle": "hermes-conformance-products",
+              "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+            }
+          },
+          {
+            "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+            "title": "conformance-cart-transform",
+            "handle": "conformance-cart-transform",
+            "apiType": "cart_transform",
+            "description": "conformance-cart-transform",
+            "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+            "app": {
+              "id": "gid://shopify/App/347082227713",
+              "title": "hermes-conformance-products",
+              "handle": "hermes-conformance-products",
+              "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+            }
+          },
+          {
+            "id": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
+            "title": "conformance-discount",
+            "handle": "conformance-discount",
+            "apiType": "discount",
+            "description": "conformance-discount",
+            "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+            "app": {
+              "id": "gid://shopify/App/347082227713",
+              "title": "hermes-conformance-products",
+              "handle": "hermes-conformance-products",
+              "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+            }
+          }
+        ]
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 16,
+        "actualQueryCost": 3,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1997,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "selectedFunction": {
+    "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+    "title": "conformance-payment-customization",
+    "handle": "conformance-payment-customization",
+    "apiType": "payment_customization",
+    "description": "conformance-payment-customization",
+    "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+    "app": {
+      "id": "gid://shopify/App/347082227713",
+      "title": "hermes-conformance-products",
+      "handle": "hermes-conformance-products",
+      "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+    }
+  },
+  "setup": {
+    "paymentCustomizationCreateUpdateTarget": {
+      "query": "mutation PaymentCustomizationImmutableCreate($input: PaymentCustomizationInput!) {\n  paymentCustomizationCreate(paymentCustomization: $input) {\n    paymentCustomization {\n      id\n      title\n      functionId\n    }\n    userErrors {\n      field\n      code\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Draft proxy payment customization mutation first 1783685294688 update base",
+          "enabled": true,
+          "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
+          "metafields": [
+            {
+              "namespace": "$app:mutation_first",
+              "key": "probe",
+              "type": "single_line_text_field",
+              "value": "base-update"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "paymentCustomizationCreate": {
+            "paymentCustomization": {
+              "id": "gid://shopify/PaymentCustomization/175145266",
+              "title": "Draft proxy payment customization mutation first 1783685294688 update base",
+              "functionId": "019dc65a-306d-784c-a67e-269f27b6613f"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "paymentCustomizationCreateActivationTarget": {
+      "query": "mutation PaymentCustomizationImmutableCreate($input: PaymentCustomizationInput!) {\n  paymentCustomizationCreate(paymentCustomization: $input) {\n    paymentCustomization {\n      id\n      title\n      functionId\n    }\n    userErrors {\n      field\n      code\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Draft proxy payment customization mutation first 1783685294688 activation base",
+          "enabled": false,
+          "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
+          "metafields": [
+            {
+              "namespace": "$app:mutation_first",
+              "key": "probe",
+              "type": "single_line_text_field",
+              "value": "base-activation"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "paymentCustomizationCreate": {
+            "paymentCustomization": {
+              "id": "gid://shopify/PaymentCustomization/175178034",
+              "title": "Draft proxy payment customization mutation first 1783685294688 activation base",
+              "functionId": "019dc65a-306d-784c-a67e-269f27b6613f"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "paymentCustomizationCreateDeleteTarget": {
+      "query": "mutation PaymentCustomizationImmutableCreate($input: PaymentCustomizationInput!) {\n  paymentCustomizationCreate(paymentCustomization: $input) {\n    paymentCustomization {\n      id\n      title\n      functionId\n    }\n    userErrors {\n      field\n      code\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Draft proxy payment customization mutation first 1783685294688 delete base",
+          "enabled": false,
+          "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
+          "metafields": [
+            {
+              "namespace": "$app:mutation_first",
+              "key": "probe",
+              "type": "single_line_text_field",
+              "value": "base-delete"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "paymentCustomizationCreate": {
+            "paymentCustomization": {
+              "id": "gid://shopify/PaymentCustomization/175210802",
+              "title": "Draft proxy payment customization mutation first 1783685294688 delete base",
+              "functionId": "019dc65a-306d-784c-a67e-269f27b6613f"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "operations": {
+    "paymentCustomizationUpdateMutationFirst": {
+      "query": "mutation PaymentCustomizationMutationFirstUpdate($id: ID!, $input: PaymentCustomizationInput!) {\n  paymentCustomizationUpdate(id: $id, paymentCustomization: $input) {\n    paymentCustomization {\n      id\n      title\n      enabled\n      functionId\n      metafields(first: 5) {\n        edges {\n          node {\n            id\n            namespace\n            key\n            type\n            value\n            createdAt\n            updatedAt\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      code\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/PaymentCustomization/175145266",
+        "input": {
+          "title": "Draft proxy payment customization mutation first 1783685294688 updated",
+          "enabled": false,
+          "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
+          "metafields": [
+            {
+              "namespace": "$app:mutation_first",
+              "key": "probe",
+              "type": "single_line_text_field",
+              "value": "updated"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "paymentCustomizationUpdate": {
+            "paymentCustomization": {
+              "id": "gid://shopify/PaymentCustomization/175145266",
+              "title": "Draft proxy payment customization mutation first 1783685294688 updated",
+              "enabled": false,
+              "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
+              "metafields": {
+                "edges": [
+                  {
+                    "node": {
+                      "id": "gid://shopify/Metafield/44948085375282",
+                      "namespace": "app--347082227713--mutation_first",
+                      "key": "probe",
+                      "type": "single_line_text_field",
+                      "value": "updated",
+                      "createdAt": "2026-07-10T12:08:14Z",
+                      "updatedAt": "2026-07-10T12:08:15Z"
+                    }
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 15,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "paymentCustomizationActivationMutationFirst": {
+      "query": "mutation PaymentCustomizationActivationMixed($ids: [ID!]!, $enabled: Boolean!) {\n  paymentCustomizationActivation(ids: $ids, enabled: $enabled) {\n    ids\n    userErrors {\n      field\n      code\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "ids": ["gid://shopify/PaymentCustomization/175178034"],
+        "enabled": true
+      },
+      "response": {
+        "data": {
+          "paymentCustomizationActivation": {
+            "ids": ["gid://shopify/PaymentCustomization/175178034"],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "paymentCustomizationDeleteMutationFirst": {
+      "query": "mutation PaymentCustomizationMutationFirstDelete($id: ID!) {\n  paymentCustomizationDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      code\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/PaymentCustomization/175210802"
+      },
+      "response": {
+        "data": {
+          "paymentCustomizationDelete": {
+            "deletedId": "gid://shopify/PaymentCustomization/175210802",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "reads": {
+    "beforeUpdateHydrate": {
+      "query": "query PaymentCustomizationHydrateById($id: ID!) {\n  paymentCustomization(id: $id) {\n    id\n    title\n    enabled\n    functionId\n    shopifyFunction {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n    errorHistory {\n      firstOccurredAt\n      errorsFirstOccurredAt\n      hasSharedRecentErrors\n      hasBeenSharedSinceLastError\n    }\n    metafields(first: 250) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n        createdAt\n        updatedAt\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/PaymentCustomization/175145266"
+      },
+      "response": {
+        "data": {
+          "paymentCustomization": {
+            "id": "gid://shopify/PaymentCustomization/175145266",
+            "title": "Draft proxy payment customization mutation first 1783685294688 update base",
+            "enabled": true,
+            "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
+            "shopifyFunction": {
+              "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+              "title": "conformance-payment-customization",
+              "handle": "conformance-payment-customization",
+              "apiType": "payment_customization",
+              "description": "conformance-payment-customization",
+              "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+              "app": {
+                "id": "gid://shopify/App/347082227713",
+                "title": "hermes-conformance-products",
+                "handle": "hermes-conformance-products",
+                "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+              }
+            },
+            "errorHistory": null,
+            "metafields": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Metafield/44948085375282",
+                  "namespace": "app--347082227713--mutation_first",
+                  "key": "probe",
+                  "type": "single_line_text_field",
+                  "value": "base-update",
+                  "createdAt": "2026-07-10T12:08:14Z",
+                  "updatedAt": "2026-07-10T12:08:14Z"
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 17,
+            "actualQueryCost": 6,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1994,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "beforeActivationCatalogHydrate": {
+      "query": "query PaymentCustomizationHydrateCatalog {\n  paymentCustomizations(first: 250) {\n    nodes {\n      id\n      title\n      enabled\n      functionId\n      shopifyFunction {\n        id\n        title\n        handle\n        apiType\n        description\n        appKey\n        app {\n          id\n          title\n          handle\n          apiKey\n        }\n      }\n      errorHistory {\n        firstOccurredAt\n        errorsFirstOccurredAt\n        hasSharedRecentErrors\n        hasBeenSharedSinceLastError\n      }\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          createdAt\n          updatedAt\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {},
+      "response": {
+        "data": {
+          "paymentCustomizations": {
+            "nodes": [
+              {
+                "id": "gid://shopify/PaymentCustomization/175145266",
+                "title": "Draft proxy payment customization mutation first 1783685294688 updated",
+                "enabled": false,
+                "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
+                "shopifyFunction": {
+                  "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+                  "title": "conformance-payment-customization",
+                  "handle": "conformance-payment-customization",
+                  "apiType": "payment_customization",
+                  "description": "conformance-payment-customization",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                "errorHistory": null,
+                "metafields": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Metafield/44948085375282",
+                      "namespace": "app--347082227713--mutation_first",
+                      "key": "probe",
+                      "type": "single_line_text_field",
+                      "value": "updated",
+                      "createdAt": "2026-07-10T12:08:14Z",
+                      "updatedAt": "2026-07-10T12:08:15Z"
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "gid://shopify/PaymentCustomization/175178034",
+                "title": "Draft proxy payment customization mutation first 1783685294688 activation base",
+                "enabled": false,
+                "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
+                "shopifyFunction": {
+                  "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+                  "title": "conformance-payment-customization",
+                  "handle": "conformance-payment-customization",
+                  "apiType": "payment_customization",
+                  "description": "conformance-payment-customization",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                "errorHistory": null,
+                "metafields": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Metafield/44948085735730",
+                      "namespace": "app--347082227713--mutation_first",
+                      "key": "probe",
+                      "type": "single_line_text_field",
+                      "value": "base-activation",
+                      "createdAt": "2026-07-10T12:08:15Z",
+                      "updatedAt": "2026-07-10T12:08:15Z"
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "gid://shopify/PaymentCustomization/175210802",
+                "title": "Draft proxy payment customization mutation first 1783685294688 delete base",
+                "enabled": false,
+                "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
+                "shopifyFunction": {
+                  "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+                  "title": "conformance-payment-customization",
+                  "handle": "conformance-payment-customization",
+                  "apiType": "payment_customization",
+                  "description": "conformance-payment-customization",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                "errorHistory": null,
+                "metafields": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Metafield/44948086063410",
+                      "namespace": "app--347082227713--mutation_first",
+                      "key": "probe",
+                      "type": "single_line_text_field",
+                      "value": "base-delete",
+                      "createdAt": "2026-07-10T12:08:15Z",
+                      "updatedAt": "2026-07-10T12:08:15Z"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 189,
+            "actualQueryCost": 3,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1997,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "beforeActivationByIdHydrate": {
+      "query": "query PaymentCustomizationHydrateById($id: ID!) {\n  paymentCustomization(id: $id) {\n    id\n    title\n    enabled\n    functionId\n    shopifyFunction {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n    errorHistory {\n      firstOccurredAt\n      errorsFirstOccurredAt\n      hasSharedRecentErrors\n      hasBeenSharedSinceLastError\n    }\n    metafields(first: 250) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n        createdAt\n        updatedAt\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/PaymentCustomization/175178034"
+      },
+      "response": {
+        "data": {
+          "paymentCustomization": {
+            "id": "gid://shopify/PaymentCustomization/175178034",
+            "title": "Draft proxy payment customization mutation first 1783685294688 activation base",
+            "enabled": false,
+            "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
+            "shopifyFunction": {
+              "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+              "title": "conformance-payment-customization",
+              "handle": "conformance-payment-customization",
+              "apiType": "payment_customization",
+              "description": "conformance-payment-customization",
+              "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+              "app": {
+                "id": "gid://shopify/App/347082227713",
+                "title": "hermes-conformance-products",
+                "handle": "hermes-conformance-products",
+                "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+              }
+            },
+            "errorHistory": null,
+            "metafields": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Metafield/44948085735730",
+                  "namespace": "app--347082227713--mutation_first",
+                  "key": "probe",
+                  "type": "single_line_text_field",
+                  "value": "base-activation",
+                  "createdAt": "2026-07-10T12:08:15Z",
+                  "updatedAt": "2026-07-10T12:08:15Z"
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 17,
+            "actualQueryCost": 6,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1994,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "beforeDeleteHydrate": {
+      "query": "query PaymentCustomizationHydrateById($id: ID!) {\n  paymentCustomization(id: $id) {\n    id\n    title\n    enabled\n    functionId\n    shopifyFunction {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n    errorHistory {\n      firstOccurredAt\n      errorsFirstOccurredAt\n      hasSharedRecentErrors\n      hasBeenSharedSinceLastError\n    }\n    metafields(first: 250) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n        createdAt\n        updatedAt\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/PaymentCustomization/175210802"
+      },
+      "response": {
+        "data": {
+          "paymentCustomization": {
+            "id": "gid://shopify/PaymentCustomization/175210802",
+            "title": "Draft proxy payment customization mutation first 1783685294688 delete base",
+            "enabled": false,
+            "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
+            "shopifyFunction": {
+              "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+              "title": "conformance-payment-customization",
+              "handle": "conformance-payment-customization",
+              "apiType": "payment_customization",
+              "description": "conformance-payment-customization",
+              "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+              "app": {
+                "id": "gid://shopify/App/347082227713",
+                "title": "hermes-conformance-products",
+                "handle": "hermes-conformance-products",
+                "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+              }
+            },
+            "errorHistory": null,
+            "metafields": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Metafield/44948086063410",
+                  "namespace": "app--347082227713--mutation_first",
+                  "key": "probe",
+                  "type": "single_line_text_field",
+                  "value": "base-delete",
+                  "createdAt": "2026-07-10T12:08:15Z",
+                  "updatedAt": "2026-07-10T12:08:15Z"
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 17,
+            "actualQueryCost": 6,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1994,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "afterUpdate": {
+      "query": "query PaymentCustomizationMutationFirstRead($id: ID!) {\n  paymentCustomization(id: $id) {\n    id\n    title\n    enabled\n    functionId\n    metafields(first: 5) {\n      edges {\n        node {\n          id\n          namespace\n          key\n          type\n          value\n          createdAt\n          updatedAt\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/PaymentCustomization/175145266"
+      },
+      "response": {
+        "data": {
+          "paymentCustomization": {
+            "id": "gid://shopify/PaymentCustomization/175145266",
+            "title": "Draft proxy payment customization mutation first 1783685294688 updated",
+            "enabled": false,
+            "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
+            "metafields": {
+              "edges": [
+                {
+                  "node": {
+                    "id": "gid://shopify/Metafield/44948085375282",
+                    "namespace": "app--347082227713--mutation_first",
+                    "key": "probe",
+                    "type": "single_line_text_field",
+                    "value": "updated",
+                    "createdAt": "2026-07-10T12:08:14Z",
+                    "updatedAt": "2026-07-10T12:08:15Z"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 6,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1996,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "afterActivation": {
+      "query": "query PaymentCustomizationMutationFirstRead($id: ID!) {\n  paymentCustomization(id: $id) {\n    id\n    title\n    enabled\n    functionId\n    metafields(first: 5) {\n      edges {\n        node {\n          id\n          namespace\n          key\n          type\n          value\n          createdAt\n          updatedAt\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/PaymentCustomization/175178034"
+      },
+      "response": {
+        "data": {
+          "paymentCustomization": {
+            "id": "gid://shopify/PaymentCustomization/175178034",
+            "title": "Draft proxy payment customization mutation first 1783685294688 activation base",
+            "enabled": true,
+            "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
+            "metafields": {
+              "edges": [
+                {
+                  "node": {
+                    "id": "gid://shopify/Metafield/44948085735730",
+                    "namespace": "app--347082227713--mutation_first",
+                    "key": "probe",
+                    "type": "single_line_text_field",
+                    "value": "base-activation",
+                    "createdAt": "2026-07-10T12:08:15Z",
+                    "updatedAt": "2026-07-10T12:08:15Z"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 6,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1996,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "afterDelete": {
+      "query": "query PaymentCustomizationMutationFirstRead($id: ID!) {\n  paymentCustomization(id: $id) {\n    id\n    title\n    enabled\n    functionId\n    metafields(first: 5) {\n      edges {\n        node {\n          id\n          namespace\n          key\n          type\n          value\n          createdAt\n          updatedAt\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/PaymentCustomization/175210802"
+      },
+      "response": {
+        "data": {
+          "paymentCustomization": null
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 6,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "id": "gid://shopify/PaymentCustomization/175145266",
+      "response": {
+        "data": {
+          "paymentCustomizationDelete": {
+            "deletedId": "gid://shopify/PaymentCustomization/175145266",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "gid://shopify/PaymentCustomization/175178034",
+      "response": {
+        "data": {
+          "paymentCustomizationDelete": {
+            "deletedId": "gid://shopify/PaymentCustomization/175178034",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "PaymentCustomizationHydrateById",
+      "variables": {
+        "id": "gid://shopify/PaymentCustomization/175145266"
+      },
+      "query": "query PaymentCustomizationHydrateById($id: ID!) {\n  paymentCustomization(id: $id) {\n    id\n    title\n    enabled\n    functionId\n    shopifyFunction {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n    errorHistory {\n      firstOccurredAt\n      errorsFirstOccurredAt\n      hasSharedRecentErrors\n      hasBeenSharedSinceLastError\n    }\n    metafields(first: 250) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n        createdAt\n        updatedAt\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "paymentCustomization": {
+              "id": "gid://shopify/PaymentCustomization/175145266",
+              "title": "Draft proxy payment customization mutation first 1783685294688 update base",
+              "enabled": true,
+              "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
+              "shopifyFunction": {
+                "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+                "title": "conformance-payment-customization",
+                "handle": "conformance-payment-customization",
+                "apiType": "payment_customization",
+                "description": "conformance-payment-customization",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              "errorHistory": null,
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/44948085375282",
+                    "namespace": "app--347082227713--mutation_first",
+                    "key": "probe",
+                    "type": "single_line_text_field",
+                    "value": "base-update",
+                    "createdAt": "2026-07-10T12:08:14Z",
+                    "updatedAt": "2026-07-10T12:08:14Z"
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "PaymentCustomizationHydrateCatalog",
+      "variables": {},
+      "query": "query PaymentCustomizationHydrateCatalog {\n  paymentCustomizations(first: 250) {\n    nodes {\n      id\n      title\n      enabled\n      functionId\n      shopifyFunction {\n        id\n        title\n        handle\n        apiType\n        description\n        appKey\n        app {\n          id\n          title\n          handle\n          apiKey\n        }\n      }\n      errorHistory {\n        firstOccurredAt\n        errorsFirstOccurredAt\n        hasSharedRecentErrors\n        hasBeenSharedSinceLastError\n      }\n      metafields(first: 250) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          createdAt\n          updatedAt\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "paymentCustomizations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/PaymentCustomization/175145266",
+                  "title": "Draft proxy payment customization mutation first 1783685294688 updated",
+                  "enabled": false,
+                  "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
+                  "shopifyFunction": {
+                    "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+                    "title": "conformance-payment-customization",
+                    "handle": "conformance-payment-customization",
+                    "apiType": "payment_customization",
+                    "description": "conformance-payment-customization",
+                    "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                    "app": {
+                      "id": "gid://shopify/App/347082227713",
+                      "title": "hermes-conformance-products",
+                      "handle": "hermes-conformance-products",
+                      "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                    }
+                  },
+                  "errorHistory": null,
+                  "metafields": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/Metafield/44948085375282",
+                        "namespace": "app--347082227713--mutation_first",
+                        "key": "probe",
+                        "type": "single_line_text_field",
+                        "value": "updated",
+                        "createdAt": "2026-07-10T12:08:14Z",
+                        "updatedAt": "2026-07-10T12:08:15Z"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/PaymentCustomization/175178034",
+                  "title": "Draft proxy payment customization mutation first 1783685294688 activation base",
+                  "enabled": false,
+                  "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
+                  "shopifyFunction": {
+                    "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+                    "title": "conformance-payment-customization",
+                    "handle": "conformance-payment-customization",
+                    "apiType": "payment_customization",
+                    "description": "conformance-payment-customization",
+                    "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                    "app": {
+                      "id": "gid://shopify/App/347082227713",
+                      "title": "hermes-conformance-products",
+                      "handle": "hermes-conformance-products",
+                      "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                    }
+                  },
+                  "errorHistory": null,
+                  "metafields": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/Metafield/44948085735730",
+                        "namespace": "app--347082227713--mutation_first",
+                        "key": "probe",
+                        "type": "single_line_text_field",
+                        "value": "base-activation",
+                        "createdAt": "2026-07-10T12:08:15Z",
+                        "updatedAt": "2026-07-10T12:08:15Z"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/PaymentCustomization/175210802",
+                  "title": "Draft proxy payment customization mutation first 1783685294688 delete base",
+                  "enabled": false,
+                  "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
+                  "shopifyFunction": {
+                    "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+                    "title": "conformance-payment-customization",
+                    "handle": "conformance-payment-customization",
+                    "apiType": "payment_customization",
+                    "description": "conformance-payment-customization",
+                    "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                    "app": {
+                      "id": "gid://shopify/App/347082227713",
+                      "title": "hermes-conformance-products",
+                      "handle": "hermes-conformance-products",
+                      "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                    }
+                  },
+                  "errorHistory": null,
+                  "metafields": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/Metafield/44948086063410",
+                        "namespace": "app--347082227713--mutation_first",
+                        "key": "probe",
+                        "type": "single_line_text_field",
+                        "value": "base-delete",
+                        "createdAt": "2026-07-10T12:08:15Z",
+                        "updatedAt": "2026-07-10T12:08:15Z"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 189,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "PaymentCustomizationHydrateById",
+      "variables": {
+        "id": "gid://shopify/PaymentCustomization/175178034"
+      },
+      "query": "query PaymentCustomizationHydrateById($id: ID!) {\n  paymentCustomization(id: $id) {\n    id\n    title\n    enabled\n    functionId\n    shopifyFunction {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n    errorHistory {\n      firstOccurredAt\n      errorsFirstOccurredAt\n      hasSharedRecentErrors\n      hasBeenSharedSinceLastError\n    }\n    metafields(first: 250) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n        createdAt\n        updatedAt\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "paymentCustomization": {
+              "id": "gid://shopify/PaymentCustomization/175178034",
+              "title": "Draft proxy payment customization mutation first 1783685294688 activation base",
+              "enabled": false,
+              "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
+              "shopifyFunction": {
+                "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+                "title": "conformance-payment-customization",
+                "handle": "conformance-payment-customization",
+                "apiType": "payment_customization",
+                "description": "conformance-payment-customization",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              "errorHistory": null,
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/44948085735730",
+                    "namespace": "app--347082227713--mutation_first",
+                    "key": "probe",
+                    "type": "single_line_text_field",
+                    "value": "base-activation",
+                    "createdAt": "2026-07-10T12:08:15Z",
+                    "updatedAt": "2026-07-10T12:08:15Z"
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "PaymentCustomizationHydrateById",
+      "variables": {
+        "id": "gid://shopify/PaymentCustomization/175210802"
+      },
+      "query": "query PaymentCustomizationHydrateById($id: ID!) {\n  paymentCustomization(id: $id) {\n    id\n    title\n    enabled\n    functionId\n    shopifyFunction {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n    errorHistory {\n      firstOccurredAt\n      errorsFirstOccurredAt\n      hasSharedRecentErrors\n      hasBeenSharedSinceLastError\n    }\n    metafields(first: 250) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n        createdAt\n        updatedAt\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "paymentCustomization": {
+              "id": "gid://shopify/PaymentCustomization/175210802",
+              "title": "Draft proxy payment customization mutation first 1783685294688 delete base",
+              "enabled": false,
+              "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
+              "shopifyFunction": {
+                "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+                "title": "conformance-payment-customization",
+                "handle": "conformance-payment-customization",
+                "apiType": "payment_customization",
+                "description": "conformance-payment-customization",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              "errorHistory": null,
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/44948086063410",
+                    "namespace": "app--347082227713--mutation_first",
+                    "key": "probe",
+                    "type": "single_line_text_field",
+                    "value": "base-delete",
+                    "createdAt": "2026-07-10T12:08:15Z",
+                    "updatedAt": "2026-07-10T12:08:15Z"
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": "Captured against disposable PaymentCustomization rows and a visible payment_customization ShopifyFunction. The proxy replay uses recorded upstream reads only: by-id hydrate before mutation-first update/delete, catalog hydrate before enabling activation, and by-id activation fallback if the catalog window misses the target. Requires read_payment_customizations/write_payment_customizations scopes and a Shopify Plus-capable test shop/app with a released payment customization function."
+}

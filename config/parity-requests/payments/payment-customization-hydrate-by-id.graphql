@@ -1,0 +1,39 @@
+query PaymentCustomizationHydrateById($id: ID!) {
+  paymentCustomization(id: $id) {
+    id
+    title
+    enabled
+    functionId
+    shopifyFunction {
+      id
+      title
+      handle
+      apiType
+      description
+      appKey
+      app {
+        id
+        title
+        handle
+        apiKey
+      }
+    }
+    errorHistory {
+      firstOccurredAt
+      errorsFirstOccurredAt
+      hasSharedRecentErrors
+      hasBeenSharedSinceLastError
+    }
+    metafields(first: 250) {
+      nodes {
+        id
+        namespace
+        key
+        type
+        value
+        createdAt
+        updatedAt
+      }
+    }
+  }
+}

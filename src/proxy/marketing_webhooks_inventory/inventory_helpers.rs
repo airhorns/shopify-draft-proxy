@@ -34,57 +34,6 @@ fn inventory_level_location_for_view(
         .unwrap_or_else(|| json!({ "id": location_id }))
 }
 
-pub(in crate::proxy) fn inventory_levels_connection_selected_json(
-    inventory_item_id: &str,
-    levels: &[(String, BTreeMap<String, i64>)],
-    view_state: &InventoryLevelViewState<'_>,
-    arguments: &BTreeMap<String, ResolvedValue>,
-    selections: &[SelectedField],
-) -> Value {
-    let include_inactive = matches!(
-        arguments.get("includeInactive"),
-        Some(ResolvedValue::Bool(true))
-    );
-    let visible_levels = levels
-        .iter()
-        .filter(|(location_id, _)| {
-            include_inactive
-                || !view_state
-                    .inactive_levels
-                    .contains(&(inventory_item_id.to_string(), location_id.clone()))
-        })
-        .collect::<Vec<_>>();
-    let first = resolved_int_field(arguments, "first")
-        .and_then(|value| usize::try_from(value).ok())
-        .unwrap_or(visible_levels.len());
-    let mut fields = serde_json::Map::new();
-    for selection in selections {
-        let value = match selection.name.as_str() {
-            "nodes" => Some(Value::Array(
-                visible_levels
-                    .iter()
-                    .take(first)
-                    .map(|(location_id, quantities)| {
-                        inventory_level_selected_json(
-                            inventory_item_id,
-                            location_id,
-                            quantities,
-                            view_state,
-                            &selection.selection,
-                        )
-                    })
-                    .collect(),
-            )),
-            "pageInfo" => Some(selected_json(&empty_page_info(), &selection.selection)),
-            _ => None,
-        };
-        if let Some(value) = value {
-            fields.insert(selection.response_key.clone(), value);
-        }
-    }
-    Value::Object(fields)
-}
-
 pub(in crate::proxy) fn inventory_level_selected_json(
     inventory_item_id: &str,
     location_id: &str,
@@ -106,6 +55,7 @@ pub(in crate::proxy) fn inventory_level_selected_json(
                     inventory_item_id,
                     location_id
                 )))),
+            "__typename" => Some(json!("InventoryLevel")),
             "isActive" => Some(json!(is_active)),
             "item" => Some(selected_json(
                 &json!({ "id": inventory_item_id }),
@@ -129,6 +79,8 @@ pub(in crate::proxy) fn inventory_level_selected_json(
                             .map_or(Value::Null, |value| json!(value));
                         selected_json(
                             &json!({
+                                "__typename": "InventoryQuantity",
+                                "id": inventory_quantity_id(inventory_item_id, location_id, &name),
                                 "name": name,
                                 "quantity": quantities.get(&name).copied().unwrap_or(0),
                                 "updatedAt": updated_at
@@ -177,6 +129,26 @@ pub(in crate::proxy) fn inventory_level_id(inventory_item_id: &str, location_id:
     )
 }
 
+pub(in crate::proxy) fn inventory_quantity_id(
+    inventory_item_id: &str,
+    location_id: &str,
+    name: &str,
+) -> String {
+    let quantity_tail = format!(
+        "{}-{}-{}",
+        resource_id_tail(inventory_item_id),
+        resource_id_tail(location_id),
+        name
+    );
+    format!(
+        "{}?inventory_item_id={}&location_id={}&name={}",
+        shopify_gid("InventoryQuantity", quantity_tail),
+        inventory_item_id,
+        location_id,
+        name
+    )
+}
+
 pub(in crate::proxy) fn inventory_level_id_tail_and_query(id: &str) -> Option<(&str, &str)> {
     let rest = shopify_gid_tail_for_type(id, "InventoryLevel")?;
     rest.split_once("?inventory_item_id=")
@@ -191,6 +163,38 @@ pub(in crate::proxy) fn inventory_level_parts_from_id(id: &str) -> Option<(Strin
         shopify_gid("InventoryItem", item_tail)
     };
     Some((item_id, shopify_gid("Location", location_tail)))
+}
+
+pub(in crate::proxy) fn inventory_quantity_parts_from_id(
+    id: &str,
+) -> Option<(String, String, String)> {
+    let rest = shopify_gid_tail_for_type(id, "InventoryQuantity")?;
+    let (_, query) = rest.split_once('?')?;
+    let mut inventory_item_id = None;
+    let mut location_id = None;
+    let mut name = None;
+    for part in query.split('&') {
+        let (key, value) = part.split_once('=')?;
+        match key {
+            "inventory_item_id" => {
+                inventory_item_id = Some(if is_shopify_gid_of_type(value, "InventoryItem") {
+                    value.to_string()
+                } else {
+                    shopify_gid("InventoryItem", value)
+                });
+            }
+            "location_id" => {
+                location_id = Some(if is_shopify_gid_of_type(value, "Location") {
+                    value.to_string()
+                } else {
+                    shopify_gid("Location", value)
+                });
+            }
+            "name" => name = Some(value.to_string()),
+            _ => {}
+        }
+    }
+    Some((inventory_item_id?, location_id?, name?))
 }
 
 pub(in crate::proxy) fn inventory_properties_json() -> Value {
@@ -1179,11 +1183,28 @@ fn inventory_item_sort_key(inventory_item_id: &str, _sort_key: Option<&str>) -> 
     inventory_gid_sort_key(inventory_item_id)
 }
 
-fn inventory_transfer_default_created_at(existing_count: usize) -> String {
+fn inventory_sequence_timestamp(sequence: u64) -> String {
+    let seconds =
+        i64::try_from(sequence).expect("inventory timestamp sequence should fit in i64 seconds");
+    let timestamp = time::OffsetDateTime::from_unix_timestamp(1_704_067_200)
+        .expect("inventory timestamp epoch should be representable")
+        .checked_add(time::Duration::seconds(seconds))
+        .expect("inventory timestamp should remain representable");
     format!(
-        "2024-01-01T00:00:{:02}.000Z",
-        existing_count.saturating_add(1) % 60
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.000Z",
+        timestamp.year(),
+        u8::from(timestamp.month()),
+        timestamp.day(),
+        timestamp.hour(),
+        timestamp.minute(),
+        timestamp.second()
     )
+}
+
+fn inventory_transfer_default_created_at(existing_count: usize) -> String {
+    let sequence = u64::try_from(existing_count.saturating_add(1))
+        .expect("inventory transfer count should fit in u64");
+    inventory_sequence_timestamp(sequence)
 }
 
 fn inventory_input_path(list_key: &str, index: usize, field_path: &[&str]) -> Vec<String> {

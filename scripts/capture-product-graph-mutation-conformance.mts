@@ -51,6 +51,18 @@ const productSetDownstreamReadQuery = readFileSync(
   path.join(repoRoot, 'config', 'parity-requests', 'products', 'productSet-downstream-read.graphql'),
   'utf8',
 );
+const productSetPreexistingUpdateMutation = readFileSync(
+  path.join(repoRoot, 'config', 'parity-requests', 'products', 'productSet-preexisting-update.graphql'),
+  'utf8',
+);
+const productSetTargetHydrateByIdQuery = readFileSync(
+  path.join(repoRoot, 'config', 'parity-requests', 'products', 'productSet-target-hydrate-by-id.graphql'),
+  'utf8',
+);
+const productSetTargetHydrateByHandleQuery = readFileSync(
+  path.join(repoRoot, 'config', 'parity-requests', 'products', 'productSet-target-hydrate-by-handle.graphql'),
+  'utf8',
+);
 const productDuplicateMutation = readFileSync(
   path.join(repoRoot, 'config', 'parity-requests', 'products', 'productDuplicate-parity-plan.graphql'),
   'utf8',
@@ -414,6 +426,27 @@ function buildProductSetUpdateVariables(runId, productSetResponse, locations) {
   };
 }
 
+function buildProductSetPreexistingIdUpdateVariables(runId, productId) {
+  return {
+    synchronous: true,
+    identifier: { id: productId },
+    input: {
+      title: `Hermes Product Graph Preexisting ID ${runId}`,
+    },
+  };
+}
+
+function buildProductSetPreexistingHandleUpdateVariables(runId, handle) {
+  return {
+    synchronous: true,
+    identifier: { handle },
+    input: {
+      title: `Hermes Product Graph Preexisting Handle ${runId}`,
+      handle,
+    },
+  };
+}
+
 function buildCollectionCreateVariables(runId) {
   return {
     input: {
@@ -597,9 +630,66 @@ try {
   }
 
   const duplicateDownstreamRead = await runGraphql(sourceAugmentQuery, { id: duplicateProductId });
+  const preExistingProductHandle = productSetUpdateResponse.data?.productSet?.product?.handle ?? null;
+  if (!preExistingProductHandle) {
+    throw new Error('productSet pre-existing update capture could not resolve the source product handle.');
+  }
+
+  const productSetPreexistingIdHydrateVariables = { ids: [sourceProductId] };
+  const productSetPreexistingIdHydrateResponse = await runGraphql(
+    productSetTargetHydrateByIdQuery,
+    productSetPreexistingIdHydrateVariables,
+  );
+  const productSetPreexistingIdUpdateVariables = buildProductSetPreexistingIdUpdateVariables(runId, sourceProductId);
+  const productSetPreexistingIdUpdateResponse = await runGraphql(
+    productSetPreexistingUpdateMutation,
+    productSetPreexistingIdUpdateVariables,
+  );
+  expectNoUserErrors(
+    'productSet pre-existing ID update',
+    productSetPreexistingIdUpdateResponse.data?.productSet?.userErrors,
+  );
+
+  const productSetPreexistingHandleHydrateVariables = { handle: preExistingProductHandle };
+  const productSetPreexistingHandleHydrateResponse = await runGraphql(
+    productSetTargetHydrateByHandleQuery,
+    productSetPreexistingHandleHydrateVariables,
+  );
+  const productSetPreexistingHandleUpdateVariables = buildProductSetPreexistingHandleUpdateVariables(
+    runId,
+    preExistingProductHandle,
+  );
+  const productSetPreexistingHandleUpdateResponse = await runGraphql(
+    productSetPreexistingUpdateMutation,
+    productSetPreexistingHandleUpdateVariables,
+  );
+  expectNoUserErrors(
+    'productSet pre-existing handle update',
+    productSetPreexistingHandleUpdateResponse.data?.productSet?.userErrors,
+  );
 
   const captures = {
     'product-set-parity.json': {
+      upstreamCalls: [
+        {
+          operationName: 'ProductSetTargetHydrateById',
+          query: productSetTargetHydrateByIdQuery,
+          variables: productSetPreexistingIdHydrateVariables,
+          response: {
+            status: 200,
+            body: productSetPreexistingIdHydrateResponse,
+          },
+        },
+        {
+          operationName: 'ProductSetTargetHydrateByHandle',
+          query: productSetTargetHydrateByHandleQuery,
+          variables: productSetPreexistingHandleHydrateVariables,
+          response: {
+            status: 200,
+            body: productSetPreexistingHandleHydrateResponse,
+          },
+        },
+      ],
       readOnlyBaselines: {
         locationsCatalog: locationResponse,
       },
@@ -625,6 +715,28 @@ try {
         productSetExplicitNormalization: {
           variables: productSetExplicitNormalizationVariables,
           response: productSetExplicitNormalizationResponse,
+        },
+      },
+      preExistingUpdate: {
+        id: {
+          hydrate: {
+            variables: productSetPreexistingIdHydrateVariables,
+            response: productSetPreexistingIdHydrateResponse,
+          },
+          mutation: {
+            variables: productSetPreexistingIdUpdateVariables,
+            response: productSetPreexistingIdUpdateResponse,
+          },
+        },
+        handle: {
+          hydrate: {
+            variables: productSetPreexistingHandleHydrateVariables,
+            response: productSetPreexistingHandleHydrateResponse,
+          },
+          mutation: {
+            variables: productSetPreexistingHandleUpdateVariables,
+            response: productSetPreexistingHandleUpdateResponse,
+          },
         },
       },
       liveRequirements: {

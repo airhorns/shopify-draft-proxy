@@ -240,7 +240,7 @@ pub(in crate::proxy) fn order_matches_term(order: &Value, key: &str, value: &str
     match key {
         "id" => Some(order_matches_id(order, value)),
         "tag" => {
-            let want = value.to_ascii_lowercase();
+            let want = value.trim_matches('"').trim_matches('\'');
             Some(
                 order
                     .get("tags")
@@ -248,7 +248,7 @@ pub(in crate::proxy) fn order_matches_term(order: &Value, key: &str, value: &str
                     .is_some_and(|tags| {
                         tags.iter()
                             .filter_map(Value::as_str)
-                            .any(|tag| tag.to_ascii_lowercase() == want)
+                            .any(|tag| tag.eq_ignore_ascii_case(want))
                     }),
             )
         }
@@ -1225,6 +1225,93 @@ pub(in crate::proxy) fn data_response(response_key: &str, value: Value) -> Value
     json!({ "data": Value::Object(data) })
 }
 
+fn order_invoice_send_selects_management_fields(field: &RootFieldSelection) -> bool {
+    selected_child_selection(&field.selection, "order").is_some_and(|selection| {
+        selection.iter().any(|field| {
+            matches!(
+                field.name.as_str(),
+                "closed"
+                    | "closedAt"
+                    | "cancelledAt"
+                    | "cancelReason"
+                    | "displayFinancialStatus"
+                    | "paymentGatewayNames"
+                    | "totalOutstandingSet"
+                    | "currentTotalPriceSet"
+                    | "transactions"
+            )
+        })
+    })
+}
+
+fn order_invoice_send_hydrate_query(field: &RootFieldSelection) -> &'static str {
+    if order_invoice_send_selects_management_fields(field) {
+        ORDER_LIFECYCLE_HYDRATE_QUERY
+    } else {
+        ORDER_INVOICE_SEND_EMAIL_HYDRATE_QUERY
+    }
+}
+
+fn order_invoice_send_recipient(
+    args: &BTreeMap<String, ResolvedValue>,
+    order: &Value,
+) -> Option<String> {
+    resolved_object_field(args, "email")
+        .and_then(|email| resolved_string_field(&email, "to"))
+        .or_else(|| order["email"].as_str().map(str::to_string))
+        .or_else(|| order["customer"]["email"].as_str().map(str::to_string))
+        .filter(|recipient| !recipient.trim().is_empty())
+}
+
+fn order_invoice_send_metadata(
+    args: &BTreeMap<String, ResolvedValue>,
+    recipient: &str,
+    staged_at: &str,
+) -> Value {
+    let email_arg = resolved_object_field(args, "email");
+    let mut email = serde_json::Map::new();
+    email.insert("to".to_string(), json!(recipient));
+    if let Some(email_arg) = email_arg {
+        for field in ["from", "subject", "customMessage"] {
+            if let Some(value) = resolved_string_field(&email_arg, field) {
+                email.insert(field.to_string(), json!(value));
+            }
+        }
+        let bcc = list_string_field(&email_arg, "bcc");
+        if !bcc.is_empty() {
+            email.insert("bcc".to_string(), json!(bcc));
+        }
+    }
+    json!({
+        "email": Value::Object(email),
+        "stagedAt": staged_at,
+        "deliveryStatus": "STAGED_NO_DELIVERY",
+        "delivered": false
+    })
+}
+
+fn order_invoice_send_user_error(message: &str) -> Value {
+    user_error_omit_code(
+        Value::Null,
+        message,
+        Some("ORDER_INVOICE_SEND_UNSUCCESSFUL"),
+    )
+}
+
+fn order_invoice_send_payload(
+    field: &RootFieldSelection,
+    order: Value,
+    user_errors: Vec<Value>,
+) -> Value {
+    selected_json(
+        &json!({
+            "order": order,
+            "userErrors": user_errors
+        }),
+        &field.selection,
+    )
+}
+
 pub(in crate::proxy) fn normalize_hydrated_order(order: &mut Value) {
     if order
         .get("fulfillments")
@@ -1256,6 +1343,143 @@ pub(in crate::proxy) fn normalize_hydrated_order(order: &mut Value) {
 }
 
 impl DraftProxy {
+    pub(in crate::proxy) fn order_invoice_send_local_data(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Value> {
+        let fields = root_fields(query, variables)?;
+        if !fields.iter().all(|field| field.name == "orderInvoiceSend") {
+            return None;
+        }
+
+        let data = root_payload_json(&fields, |field| {
+            let (payload, staged_ids) =
+                self.stage_order_invoice_send(request, query, variables, field);
+            if !staged_ids.is_empty() {
+                self.record_staged_orders_log_entry(
+                    request,
+                    query,
+                    variables,
+                    "orderInvoiceSend",
+                    staged_ids,
+                );
+            }
+            Some(payload)
+        });
+        Some(json!({ "data": data }))
+    }
+
+    fn stage_order_invoice_send(
+        &mut self,
+        request: &Request,
+        _query: &str,
+        _variables: &BTreeMap<String, ResolvedValue>,
+        field: &RootFieldSelection,
+    ) -> (Value, Vec<String>) {
+        if let Some(email) = resolved_object_field(&field.arguments, "email") {
+            if resolved_string_field(&email, "to")
+                .is_some_and(|to| !shopify_email_is_valid(&to, EmailValidationMode::Basic))
+            {
+                return (
+                    order_invoice_send_payload(
+                        field,
+                        Value::Null,
+                        vec![order_invoice_send_user_error("To is invalid")],
+                    ),
+                    Vec::new(),
+                );
+            }
+        }
+
+        let Some(order_id) = resolved_string_field(&field.arguments, "id") else {
+            return (
+                order_invoice_send_payload(
+                    field,
+                    Value::Null,
+                    vec![order_invoice_send_user_error("Order does not exist")],
+                ),
+                Vec::new(),
+            );
+        };
+        let Some(mut order) = self
+            .store
+            .staged
+            .orders
+            .get(&order_id)
+            .cloned()
+            .or_else(|| self.hydrate_order_for_invoice_send(request, &order_id, field))
+        else {
+            return (
+                order_invoice_send_payload(
+                    field,
+                    Value::Null,
+                    vec![order_invoice_send_user_error("Order does not exist")],
+                ),
+                Vec::new(),
+            );
+        };
+
+        normalize_order_lifecycle_defaults(&mut order);
+        let Some(recipient) = order_invoice_send_recipient(&field.arguments, &order) else {
+            return (
+                order_invoice_send_payload(
+                    field,
+                    Value::Null,
+                    vec![order_invoice_send_user_error(
+                        "No recipient email address was provided",
+                    )],
+                ),
+                Vec::new(),
+            );
+        };
+
+        let staged_at = order_mutation_timestamp(self.log_entries.len() as u64);
+        order["updatedAt"] = json!(staged_at.clone());
+        order["__draftProxyInvoiceSend"] =
+            order_invoice_send_metadata(&field.arguments, &recipient, &staged_at);
+        self.store
+            .staged
+            .orders
+            .insert(order_id.clone(), order.clone());
+        for orders in self.store.staged.customer_orders.values_mut() {
+            for customer_order in orders {
+                if customer_order["id"].as_str() == Some(order_id.as_str()) {
+                    *customer_order = order.clone();
+                }
+            }
+        }
+        (
+            order_invoice_send_payload(field, order, Vec::new()),
+            vec![order_id],
+        )
+    }
+
+    fn hydrate_order_for_invoice_send(
+        &mut self,
+        request: &Request,
+        order_id: &str,
+        field: &RootFieldSelection,
+    ) -> Option<Value> {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return None;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": order_invoice_send_hydrate_query(field),
+                "operationName": "OrdersOrderHydrate",
+                "variables": { "id": order_id }
+            }),
+        );
+        if !response_is_success(&response) {
+            return None;
+        }
+        let order = response.body["data"]["order"].clone();
+        order.is_object().then_some(order)
+    }
+
     pub(in crate::proxy) fn next_order_name(&mut self) -> String {
         let number = self
             .store
@@ -1367,7 +1591,7 @@ impl DraftProxy {
                         .get(&id)
                         .map(|order| self.payment_terms_owner_record_with_effective_due(order))
                         .unwrap_or(Value::Null);
-                    nullable_selected_json(&order, &field.selection)
+                    self.selected_order_with_return_status(&order, &field.selection)
                 }
                 "orders" => self.staged_orders_connection(field),
                 "ordersCount" => self.staged_orders_count(field),
@@ -1406,23 +1630,23 @@ impl DraftProxy {
         )
     }
 
-    pub(super) fn staged_orders_connection(&self, field: &RootFieldSelection) -> Value {
+    pub(in crate::proxy) fn staged_orders_connection(&self, field: &RootFieldSelection) -> Value {
         let result = self.matching_orders_query(&field.arguments);
         // Window with the order id as the opaque cursor. The next-page request in
         // the catalog scenario feeds this connection's own `endCursor` back as
         // `after`, so the cursor only needs to round-trip with itself — it is not
         // compared against Shopify's recorded opaque cursors.
-        selected_json(
-            &connection_json_with_cursor(
-                result
-                    .records
-                    .into_iter()
-                    .map(|order| self.payment_terms_owner_record_with_effective_due(&order))
-                    .collect::<Vec<_>>(),
-                |_, order| value_id_cursor(order),
-                result.page_info,
-            ),
+        let records = result
+            .records
+            .into_iter()
+            .map(|order| self.payment_terms_owner_record_with_effective_due(&order))
+            .collect::<Vec<_>>();
+        selected_typed_connection_with_page_info(
+            &records,
             &field.selection,
+            |order, selection| self.selected_order_with_return_status(order, selection),
+            value_id_cursor,
+            result.page_info,
         )
     }
 
@@ -1636,10 +1860,15 @@ impl DraftProxy {
             "orderCreate",
             vec![order_id],
         );
-        selected_json(
-            &json!({ "order": order, "userErrors": [] }),
-            &field.selection,
-        )
+        let payload = json!({ "order": order.clone(), "userErrors": [] });
+        selected_payload_json(&field.selection, |selection| {
+            match selection.name.as_str() {
+                "order" => {
+                    Some(self.selected_order_with_return_status(&order, &selection.selection))
+                }
+                _ => selected_field_json(&payload, selection),
+            }
+        })
     }
 
     pub(super) fn stage_order_lifecycle(
@@ -2325,10 +2554,14 @@ impl DraftProxy {
                 self.cancel_staged_fulfillment_payload(request, query, variables, field)?;
             return Some(data_response(&field.response_key, payload));
         }
-        if root_field == "fulfillmentTrackingInfoUpdate" {
+        if matches!(
+            root_field,
+            "fulfillmentTrackingInfoUpdate" | "fulfillmentTrackingInfoUpdateV2"
+        ) {
             let field = field?;
-            let payload =
-                self.update_staged_fulfillment_tracking_payload(request, query, variables, field)?;
+            let payload = self.update_staged_fulfillment_tracking_payload(
+                request, query, variables, field, root_field,
+            )?;
             return Some(data_response(&field.response_key, payload));
         }
         if root_field == "ordersCount" {

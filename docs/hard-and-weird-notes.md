@@ -98,6 +98,21 @@ contract when product requirements call for it, and use
 `return-reverse-logistics-dispose-validation` as the public parity anchor only
 for the branches the live store actually rejected.
 
+## Current: Order.returnStatus ignores declined/canceled-only returns
+
+Admin GraphQL 2026-04 `Order.returnStatus` is an aggregate display state, not a
+direct mirror of the most recent `Order.returns` node. Captured return
+lifecycle evidence showed this precedence on one order: any `REQUESTED` return
+wins as `RETURN_REQUESTED`; otherwise any `OPEN` return wins as `IN_PROGRESS`;
+otherwise any `CLOSED` return yields `RETURNED`. Zero returns, declined-only
+returns, and canceled-only returns all report `NO_RETURN`.
+
+Two traps are worth preserving: `returnProcess` leaves the return `OPEN` in
+mutation payloads and downstream reads after processed quantities change, and
+`removeFromReturn` for the final line closes the return with `totalQuantity: 0`,
+so the aggregate becomes `RETURNED`. The checked-in anchor is
+`config/parity-specs/orders/order-return-status-lifecycle.json`.
+
 ## Current: Variant fixed-price duplicate inputs are last-write-wins
 
 Admin GraphQL 2026-04 `priceListFixedPricesAdd` and `priceListFixedPricesUpdate`
@@ -1514,6 +1529,8 @@ The first staged media-write increment surfaced a few durable modeling constrain
 - product media reads should preserve polymorphic identity when selected; for the current image-backed slice that means returning `__typename: "MediaImage"` and applying `MediaImage` fragments, while broader non-image media subtypes need their own conformance evidence before deeper field modeling
 - newly created image media does **not** immediately expose those image urls in the mutation payload; live Shopify returned `status: UPLOADED` with both `preview.image` and `MediaImage.image` still `null`
 - the immediate downstream `product.media` read can already move that same asset into a null-url `PROCESSING` state before it later becomes `READY`
+- top-level `productCreate(media:)` and `productUpdate(media:)` share that uploaded-then-processing image shape, but validation behaves differently from `productCreateMedia`: an invalid top-level media item rejects the whole product create/update before staging, with create returning `product: null` and update returning the unchanged product payload
+- top-level `productUpdate(media:)` appends valid media to the existing product library rather than replacing it; the captured external-video path returned `originUrl` from the submitted YouTube URL and a normalized YouTube `embedUrl`
 - `productUpdateMedia` is not always immediately writable after create; Shopify returned `mediaUserErrors` (`Non-ready media cannot be updated.`) until the asset reached `READY`
 - once the asset is `READY`, using the staged source URL as the local ready-state stand-in is a practical first-pass approximation for both `preview.image.url` and `MediaImage.image.url`
 - `productDeleteMedia` carries two delete-id lists (`deletedMediaIds` and `deletedProductImageIds`); current live capture returns the deleted `MediaImage` id in `deletedMediaIds` and the paired legacy `ProductImage` id in `deletedProductImageIds`
@@ -2546,13 +2563,13 @@ Live `customerByIdentifier` capture on this host showed the safe read branches t
 
 - `identifier: { id }`, `{ emailAddress }`, and `{ phoneNumber }` all returned the same customer when the captured values matched the live record
 - an unmatched email identifier returned `customerByIdentifier: null` with no top-level error
-- `customId` is not a generic local key/value lookup: without a unique metafield definition of type `id`, Shopify returned `data.customId: null` plus a top-level `NOT_FOUND` error saying that an id-type metafield definition is required
+- `customId` is not a generic local key/value lookup: without a unique metafield definition of type `id`, Shopify returned `data.customId: null` plus a top-level `NOT_FOUND` error saying that an id-type metafield definition is required. With a valid CUSTOMER `id` metafield definition, `customerByIdentifier(identifier: { customId })` resolves by namespace/key/value from the effective customer metafield state.
 - an empty identifier object failed variable validation before returning data: `CustomerIdentifierInput` requires exactly one argument
 
 Practical rule for the proxy:
 
 - resolve id/email/phone identifier reads against effective normalized customer state, so snapshot rows and staged `customerCreate` / `customerUpdate` rows are visible immediately
-- keep custom-id support limited to the captured Shopify-like error until customer metafield definitions and unique metafield values are modeled explicitly
+- resolve custom-id identifier reads only through valid CUSTOMER `id` metafield definitions with unique values enabled; otherwise return Shopify's captured top-level custom-id `NOT_FOUND` shape instead of inventing a key/value lookup
 - classify `customerByIdentifier` by root field, because apps can use arbitrary or misleading GraphQL operation names
 
 ## 47. Store properties roots are deceptively broad for a "properties" category
@@ -2716,6 +2733,8 @@ The safe local branches mirror the existing effective collection graph:
 - locally staged `collectionCreate` and `collectionUpdate` records must be visible through both handle-based roots without sending supported collection writes upstream
 
 `CollectionIdentifierInput.customId` is deliberately not modeled as a generic key/value lookup yet. Until a live collection unique-metafield fixture exists, local `customId` lookups return `null` and the proxy does not claim support for positive custom-id matches.
+
+A 2026-04 live probe on `harry-test-heelo` also showed that arbitrary `identifier.customId` collection lookups can return a top-level `NOT_FOUND` error with `data.<alias>: null` when no metafield definition of type `id` is configured for custom ids. Do not add positive custom-id matching or error-branch parity without a dedicated unique-metafield setup capture.
 
 ## 48. Manual collection ordering is not the default collection write path
 
@@ -3232,7 +3251,9 @@ Captured facts:
 - no-identifier `customerSet` creates a customer when the input has a name, phone, or email
 - `identifier.email` upserts: a missing email identifier creates a customer, and a later call with the same identifier updates that customer
 - live Admin GraphQL 2026-04 evidence says unknown `identifier.id` validates before create/update routing: it returns payload `userErrors` with `field: ["input"]`, `code: "NOT_FOUND"`, and message `Resource matching the identifier was not found.`; it must not fall back to create even when email or phone inputs are also present
-- `identifier.customId` without an id-typed unique metafield definition returns `data.customerSet: null` plus a top-level `NOT_FOUND` error
+- `identifier.customId` is a unique customer metafield identity. A valid CUSTOMER `id` metafield definition auto-enables unique values when the capability is omitted; explicitly setting `capabilities.uniqueValues.enabled: false` on an `id` definition is rejected with `CAPABILITY_REQUIRED_BUT_DISABLED`. Without a valid id-typed unique definition, `customerSet` returns `data.customerSet: null` plus a top-level `NOT_FOUND` error.
+- a matching `identifier.customId` updates the customer that owns the matching metafield and preserves the identifier metafield; a no-match identifier creates a customer with that metafield. Downstream `customerByIdentifier(identifier: { customId })`, `customer(id:)`, `metafield`, and `metafields` reads observe the staged owner-metafield state.
+- Admin GraphQL 2026-04 does not expose `CustomerSetInput.metafields`; input-metafield mismatch/duplicate probes are top-level `INVALID_VARIABLE` errors before resolver execution. Malformed `identifier.customId` values, such as a missing `key`, are also variable-coercion errors before resolver execution.
 - `input.addresses` behaves as a replacement list for an existing customer; an empty list clears the default address and downstream `addressesV2`
 - `identifier.phone` follows the same upsert/update pattern as `identifier.email`; downstream `customerByIdentifier(identifier: { phoneNumber })` observes the staged customer locally
 - no-identifier creates reject duplicate native identifiers: duplicate email returns `field: ["input", "email"]` / `Email has already been taken`, and duplicate phone returns `field: ["input", "phone"]` / `Phone has already been taken`
@@ -3289,21 +3310,34 @@ Practical rule:
   do not apply the ordinary owner-type pin-cap error; use the captured next
   pinned position behavior for `pin: true`
 
-## 65. Discount redeem-code bulk support is narrow by design
+## 65. Discount bulk support is selector-scoped by design
 
-HAR-197 added a safe local model for code-basic redeem-code bulk operations without promoting broad discount bulk lifecycle roots.
+HAR-197 added a safe local model for code-basic redeem-code bulk operations.
+HAR-2278 promoted the broad code bulk activate/deactivate/delete roots and
+automatic bulk delete root to local staging for selectors backed by executable
+evidence.
 
 Useful constraints:
 
 - `discountRedeemCodeBulkAdd` is narrow and locally stageable because an explicit code list can be appended to one known code discount and reflected in `codes`, `codesCount`, `codeDiscountNodeByCode`, and catalog reads.
 - The introspected delete root is `discountCodeRedeemCodeBulkDelete`; the older `discountRedeemCodeBulkDelete` name remains a compatibility match alias, but new tests and docs should use the introspected root.
 - HAR-785 live 2026-04 validation capture for `discountCodeRedeemCodeBulkDelete` shows the base selector errors serialize as `field: null` in Admin GraphQL, despite the internal source helper naming the base field. The same capture shows unknown discounts return `field: ["discountId"]`, message `Code discount does not exist.`, and empty `ids` returns the generic `Something went wrong, please try again.` with `code: null`.
-- The broad code/automatic bulk roots stay unimplemented. Blank search and no-selector destructive inputs are locally refused; other unsupported selector shapes still use the unsupported passthrough escape hatch so the mutation log records the registered unimplemented operation.
+- The broad code/automatic bulk roots are selector-scoped local operations, not
+  upstream job mirrors. `discountCodeBulkActivate`,
+  `discountCodeBulkDeactivate`, `discountCodeBulkDelete`, and
+  `discountAutomaticBulkDelete` resolve `ids`, non-blank `search`, and known
+  `savedSearchId` selectors against the effective local discount catalog and
+  never forward the caller's mutation at runtime. Missing selectors, mutually
+  exclusive selectors, code-root blank search, and captured code-delete search
+  field validation still return local `DiscountUserError` payloads instead of
+  staging.
 - Local job-like payloads are completed immediately because the in-memory state change has already happened. Keep this scoped to selected fields with stable evidence (`id`, `done`, `query`, and bulk creation counts) until live captures justify modeling asynchronous progress or failure details.
 
 Practical rule:
 
-- do not mark broad discount bulk roots implemented until local staging covers the full selected lifecycle and downstream read effects without runtime Shopify writes
+- do not widen broad discount bulk selectors or job-state fields beyond the
+  captured branches until local staging covers the added lifecycle and
+  downstream read effects without runtime Shopify writes
 - preserve raw bulk mutation bodies in the staged log so `__meta/commit` replays the original add/delete order exactly once
 
 ## 66. `productSet` inventory quantities are location rows, but product totals lag
@@ -3592,13 +3626,14 @@ Practical rule:
 ## 75a. Async `productDelete` starts pending but immediate product visibility is timing-sensitive
 
 HAR-932 captured `productDelete(input:, synchronous: false)` on Admin GraphQL 2025-01 against `harry-test-heelo.myshopify.com`.
-A refreshed 2026-04 capture against the same store showed the operation can complete before the immediate downstream product read.
+Refreshed 2026-04 captures against the same store showed the operation can complete before the immediate downstream product read, but can also leave the product visible to that immediate read while the operation is still active.
 
 Captured facts:
 
 - the mutation payload returns `deletedProductId: null`, `productDeleteOperation.status: CREATED`, and empty `userErrors`
 - the 2025-01 capture kept the product visible to an immediate downstream `product(id:)` read after the async delete mutation
-- the refreshed 2026-04 capture returned `product: null` for that immediate downstream read, so local timing should prefer the completed-before-read branch instead of requiring a visible pending product
+- one refreshed 2026-04 capture returned `product: null` for that immediate downstream read, while a later 2026-04 capture covering inline false and renamed-variable false kept all three disposable products visible to the immediate product read
+- local timing should stay deterministic by preferring the completed-before-read branch instead of requiring a visible pending product
 - a second async delete for the same product while the operation is pending returns `productDeleteOperation: null` and a public `UserError` with `field: null` and message `Another operation already in progress. Please wait until current one is finished.`
 - the public 2025-01 `UserError` selected under `productDelete` / `ProductDeleteOperation.userErrors` does not expose a `code` field
 - helper reads can advance quickly: the capture saw `productOperation(id:)` with status `ACTIVE` and `node(id:)` with status `COMPLETE`; the final cleanup poll saw `productOperation(id:)` as `COMPLETE` with `deletedProductId`
@@ -4157,3 +4192,21 @@ Practical rule:
 - when proving the throttle branch, register the staged upload and write a
   non-empty JSONL body through the public staged-upload route before calling
   `bulkOperationRunMutation`
+
+## 99. BXGY DiscountProducts rejects implicit product/variant duplicates
+
+Admin GraphQL 2026-04 live capture for BXGY entitlement connections against
+`harry-test-heelo.myshopify.com` showed that a single `DiscountProducts` input
+cannot target a product and one of that same product's variants together.
+Shopify returned an `IMPLICIT_DUPLICATE` user error, so the successful capture
+uses separate products for product entitlements and product-variant
+entitlements.
+
+Practical rule:
+
+- do not create parity setup that mixes a product ID with one of its variant IDs
+  in the same `DiscountProducts` block unless the scenario is explicitly proving
+  the duplicate validation branch
+- local read-after-write connection parity should use distinct entitlement
+  owners so it can exercise product and product-variant connection projection
+  instead of failing setup validation

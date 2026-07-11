@@ -1,0 +1,84 @@
+query InventoryNodeCoreRead($levelId: ID!, $ids: [ID!]!) {
+  levelAlias: node(id: $levelId) {
+    __typename
+    ...InventoryNodeLevelFields
+  }
+  orderedNodes: nodes(ids: $ids) {
+    __typename
+    id
+    ... on InventoryItem {
+      tracked
+      requiresShipping
+      sku
+      variant {
+        id
+        title
+        inventoryQuantity
+        product {
+          id
+          title
+          handle
+          status
+          totalInventory
+          tracksInventory
+        }
+      }
+      inventoryLevels(first: 10) {
+        nodes {
+          id
+          location {
+            id
+            name
+          }
+          quantities(names: ["available", "on_hand", "reserved", "incoming", "damaged"]) {
+            id
+            name
+            quantity
+            updatedAt
+          }
+        }
+      }
+    }
+    ...InventoryNodeLevelFields
+    ... on InventoryQuantity {
+      name
+      quantity
+      updatedAt
+    }
+    ... on InventoryAdjustmentGroup {
+      reason
+      referenceDocumentUri
+      changes {
+        name
+        delta
+        quantityAfterChange
+        item {
+          id
+        }
+        location {
+          id
+          name
+        }
+      }
+    }
+  }
+}
+
+fragment InventoryNodeLevelFields on InventoryLevel {
+  id
+  location {
+    id
+    name
+  }
+  item {
+    id
+    tracked
+    requiresShipping
+  }
+  quantities(names: ["available", "on_hand", "reserved", "incoming", "damaged"]) {
+    id
+    name
+    quantity
+    updatedAt
+  }
+}
