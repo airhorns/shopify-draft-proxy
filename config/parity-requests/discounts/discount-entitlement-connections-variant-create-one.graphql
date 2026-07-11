@@ -1,0 +1,32 @@
+mutation DiscountEntitlementConnectionsVariantCreateOne(
+  $productId: ID!
+  $variants: [ProductVariantsBulkInput!]!
+) {
+  variants: productVariantsBulkCreate(productId: $productId, variants: $variants) {
+    product {
+      id
+      title
+      variants(first: 5) {
+        nodes {
+          id
+          title
+          sku
+        }
+      }
+    }
+    productVariants {
+      id
+      title
+      sku
+      product {
+        id
+        title
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
