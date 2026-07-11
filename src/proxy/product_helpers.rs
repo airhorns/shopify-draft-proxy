@@ -2043,14 +2043,6 @@ fn product_variant_connection_sort_key(
     }
 }
 
-pub(in crate::proxy) fn product_variant_json(
-    variant: &ProductVariantRecord,
-    product: Option<&ProductRecord>,
-    selections: &[SelectedField],
-) -> Value {
-    product_variant_json_with_publication_context(variant, product, selections, None)
-}
-
 pub(in crate::proxy) fn product_variant_json_with_publication_context(
     variant: &ProductVariantRecord,
     product: Option<&ProductRecord>,

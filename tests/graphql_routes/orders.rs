@@ -4098,6 +4098,162 @@ fn fulfillment_tracking_update_returns_not_found_for_unknown_fulfillment_gid() {
 }
 
 #[test]
+fn fulfillment_tracking_update_v2_stages_tracking_and_notify_intent() {
+    let mut proxy = snapshot_proxy();
+    let (order_id, fulfillment_id) = stage_fulfillment_for_event(&mut proxy);
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentTrackingInfoUpdateV2Runtime($fulfillmentId: ID!, $trackingInfoInput: FulfillmentTrackingInput!, $notifyCustomer: Boolean) {
+          trackingV2: fulfillmentTrackingInfoUpdateV2(
+            fulfillmentId: $fulfillmentId
+            trackingInfoInput: $trackingInfoInput
+            notifyCustomer: $notifyCustomer
+          ) {
+            fulfillment {
+              id
+              status
+              displayStatus
+              trackingInfo { number url company }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "fulfillmentId": fulfillment_id,
+            "trackingInfoInput": {
+                "company": "UPS",
+                "numbers": ["V2-TRACK-1", "V2-TRACK-2"],
+                "urls": [
+                    "https://tracking.example/V2-TRACK-1",
+                    "https://tracking.example/V2-TRACK-2"
+                ]
+            },
+            "notifyCustomer": true
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body["data"]["trackingV2"]["userErrors"], json!([]));
+    assert_eq!(
+        response.body["data"]["trackingV2"]["fulfillment"]["trackingInfo"],
+        json!([
+            {
+                "number": "V2-TRACK-1",
+                "url": "https://tracking.example/V2-TRACK-1",
+                "company": "UPS"
+            },
+            {
+                "number": "V2-TRACK-2",
+                "url": "https://tracking.example/V2-TRACK-2",
+                "company": "UPS"
+            }
+        ])
+    );
+
+    let fulfillment_read = proxy.process_request(json_graphql_request(
+        r#"
+        query FulfillmentTrackingInfoUpdateV2TopLevelRead($fulfillmentId: ID!) {
+          fulfillment(id: $fulfillmentId) {
+            id
+            trackingInfo { number url company }
+          }
+        }
+        "#,
+        json!({ "fulfillmentId": fulfillment_id }),
+    ));
+    assert_eq!(
+        fulfillment_read.body["data"]["fulfillment"]["trackingInfo"],
+        response.body["data"]["trackingV2"]["fulfillment"]["trackingInfo"]
+    );
+
+    let order_read = proxy.process_request(json_graphql_request(
+        r#"
+        query FulfillmentTrackingInfoUpdateV2OrderRead($orderId: ID!) {
+          order(id: $orderId) {
+            fulfillments {
+              id
+              trackingInfo { number url company }
+            }
+          }
+        }
+        "#,
+        json!({ "orderId": order_id }),
+    ));
+    assert_eq!(
+        order_read.body["data"]["order"]["fulfillments"][0]["trackingInfo"],
+        response.body["data"]["trackingV2"]["fulfillment"]["trackingInfo"]
+    );
+
+    let state = state_snapshot(&proxy);
+    let order_id_str = order_id.as_str().unwrap();
+    assert_eq!(
+        state["stagedState"]["orders"][order_id_str]["fulfillments"][0]
+            ["__draftProxyNotifyCustomer"],
+        json!(true)
+    );
+
+    let log = log_snapshot(&proxy);
+    let entries = log["entries"].as_array().unwrap();
+    assert_eq!(
+        entries
+            .iter()
+            .map(|entry| entry["operationName"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec![
+            "orderCreate",
+            "fulfillmentCreate",
+            "fulfillmentTrackingInfoUpdateV2"
+        ]
+    );
+    assert!(entries[2]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("FulfillmentTrackingInfoUpdateV2Runtime"));
+}
+
+#[test]
+fn fulfillment_tracking_update_v2_returns_not_found_for_unknown_fulfillment_gid() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentTrackingInfoUpdateV2Unknown($fulfillmentId: ID!, $trackingInfoInput: FulfillmentTrackingInput!) {
+          trackingV2: fulfillmentTrackingInfoUpdateV2(
+            fulfillmentId: $fulfillmentId
+            trackingInfoInput: $trackingInfoInput
+          ) {
+            fulfillment { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "fulfillmentId": "gid://shopify/Fulfillment/999999999",
+            "trackingInfoInput": {
+                "company": "UPS",
+                "number": "UNKNOWN-V2",
+                "url": "https://tracking.example/UNKNOWN-V2"
+            }
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["trackingV2"],
+        json!({
+            "fulfillment": null,
+            "userErrors": [{
+                "field": ["fulfillmentId"],
+                "message": "Fulfillment does not exist."
+            }]
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+}
+
+#[test]
 fn fulfillment_cancel_and_tracking_accept_cancelled_or_delivered_fulfillments() {
     let mut proxy = snapshot_proxy();
     let (_order_id, fulfillment_id) = stage_fulfillment_for_event(&mut proxy);

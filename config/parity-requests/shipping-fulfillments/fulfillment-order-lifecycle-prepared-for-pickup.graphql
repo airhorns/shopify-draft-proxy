@@ -1,0 +1,11 @@
+mutation FulfillmentOrderLineItemsPreparedForPickupLifecycle(
+  $input: FulfillmentOrderLineItemsPreparedForPickupInput!
+) {
+  fulfillmentOrderLineItemsPreparedForPickup(input: $input) {
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

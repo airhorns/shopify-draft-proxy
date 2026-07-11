@@ -1,0 +1,10 @@
+mutation InventoryNodeTransferDelete($id: ID!) {
+  inventoryTransferDelete(id: $id) {
+    deletedId
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

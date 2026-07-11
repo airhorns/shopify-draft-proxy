@@ -164,9 +164,9 @@ describe('operation registry', () => {
     expect(adminMutationCoverageAudit()).toEqual({
       capturedMutationCount: 514,
       registeredMutationCount: 438,
-      implementedMutationCount: 403,
+      implementedMutationCount: 405,
       implementedMutationRuntimeTestEvidence: {
-        withRuntimeTests: 128,
+        withRuntimeTests: 130,
         withoutRuntimeTests: 275,
       },
       declaredUnimplemented: [
@@ -181,8 +181,6 @@ describe('operation registry', () => {
         'discountCodeBulkDeactivate',
         'discountCodeBulkDelete',
         'disputeEvidenceUpdate',
-        'fulfillmentOrderLineItemsPreparedForPickup',
-        'fulfillmentTrackingInfoUpdateV2',
         'menuCreate',
         'menuDelete',
         'menuUpdate',
@@ -296,9 +294,9 @@ describe('operation registry', () => {
   it('audits captured Shopify Node implementors against the explicit Rust resolver inventory', () => {
     expect(nodeResolverCoverageAudit()).toEqual({
       capturedNodeImplementorCount: 203,
-      localNodeResolverTypeCount: 54,
+      localNodeResolverTypeCount: 62,
       localResolverBehaviorCounts: {
-        projectLocalRecord: 51,
+        projectLocalRecord: 59,
         returnKnownNull: 3,
       },
       unsupported: [
@@ -367,15 +365,7 @@ describe('operation registry', () => {
         'FulfillmentOrderDestination',
         'FulfillmentOrderLineItem',
         'FulfillmentOrderMerchantRequest',
-        'InventoryAdjustmentGroup',
-        'InventoryItem',
         'InventoryItemMeasurement',
-        'InventoryLevel',
-        'InventoryQuantity',
-        'InventoryShipment',
-        'InventoryShipmentLineItem',
-        'InventoryTransfer',
-        'InventoryTransferLineItem',
         'LineItem',
         'LineItemGroup',
         'Market',
