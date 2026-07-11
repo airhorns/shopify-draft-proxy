@@ -9421,6 +9421,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-mixed-catalog',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-mixed-catalog-conformance.ts',
+    purpose:
+      'Discount LiveHybrid mixed catalog reads with upstream baseline code/automatic discounts, a locally staged code discount, an updated upstream automatic discount, and a tombstoned upstream code discount.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-mixed-catalog.json`,
+      'config/parity-specs/discounts/discount-mixed-catalog.json',
+      'config/parity-requests/discounts/discount-mixed-catalog-create.graphql',
+      'config/parity-requests/discounts/discount-mixed-catalog-delete-code.graphql',
+      'config/parity-requests/discounts/discount-mixed-catalog-read-after-mutations.graphql',
+      'config/parity-requests/discounts/discount-mixed-catalog-read.graphql',
+      'config/parity-requests/discounts/discount-mixed-catalog-update-automatic.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable scheduled code discount and one disposable scheduled automatic discount as upstream baseline, creates one local-equivalent scheduled code discount, records baseline hydrate cassettes, deletes the baseline code discount during the scenario, and deletes remaining created discounts during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-add-remove-overlap',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-add-remove-overlap-conformance.ts',

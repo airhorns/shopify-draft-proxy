@@ -287,6 +287,8 @@ impl DraftProxy {
                 "shopPolicyOrder": self.store.base.shop_policies.order,
                 "deliveryProfiles": self.store.base.delivery_profiles.records.clone(),
                 "deliveryProfileOrder": self.store.base.delivery_profiles.order,
+                "discounts": self.store.base.discounts.records.clone(),
+                "discountOrder": self.store.base.discounts.order,
                 "giftCards": self.store.base.gift_cards.clone(),
                 "giftCardConfiguration": self.store.base.gift_card_configuration.clone().unwrap_or(Value::Null),
                 "shop": self.store.base.shop.clone(),
@@ -1217,6 +1219,13 @@ impl DraftProxy {
         self.store.base.saved_searches.replace_with_order(
             saved_search_state_map_from_json(&state["baseState"]["savedSearches"]),
             string_array_from_json(&state["baseState"]["savedSearchOrder"]),
+        );
+        self.store.base.discounts.replace_with_order(
+            value_map_from_json(state["baseState"].get("discounts")),
+            state["baseState"]
+                .get("discountOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
         );
         self.store.base.gift_cards = value_map_from_json(state["baseState"].get("giftCards"));
         self.store.base.gift_card_configuration = state["baseState"]

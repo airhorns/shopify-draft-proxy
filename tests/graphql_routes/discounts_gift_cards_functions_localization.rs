@@ -89,6 +89,44 @@ fn upstream_code_basic_fixed_amount_discount(
     })
 }
 
+fn upstream_automatic_basic_discount(title: &str, status: &str) -> Value {
+    json!({
+        "__typename": "DiscountAutomaticBasic",
+        "title": title,
+        "status": status,
+        "summary": "10% off entire order",
+        "startsAt": "2026-04-21T19:31:14Z",
+        "endsAt": null,
+        "createdAt": "2026-04-21T19:31:14Z",
+        "updatedAt": "2026-05-02T00:00:00Z",
+        "asyncUsageCount": 5,
+        "discountClasses": ["ORDER"],
+        "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+        },
+        "context": {
+            "__typename": "DiscountBuyerSelectionAll",
+            "all": "ALL"
+        },
+        "customerGets": {
+            "value": {
+                "__typename": "DiscountPercentage",
+                "percentage": 0.1
+            },
+            "items": {
+                "__typename": "AllDiscountItems",
+                "allItems": true
+            },
+            "appliesOnOneTimePurchase": true,
+            "appliesOnSubscription": false
+        },
+        "minimumRequirement": null,
+        "appliesOncePerCustomer": false
+    })
+}
+
 fn upstream_discount_metafields(discount_id: &str) -> Value {
     json!({
         "nodes": [{
@@ -103,6 +141,33 @@ fn upstream_discount_metafields(discount_id: &str) -> Value {
             "hasPreviousPage": false,
             "startCursor": null,
             "endCursor": null
+        }
+    })
+}
+
+fn upstream_discount_connection(nodes: Vec<Value>) -> Value {
+    let edges = nodes
+        .iter()
+        .map(|node| json!({ "cursor": node["id"], "node": node }))
+        .collect::<Vec<_>>();
+    let start_cursor = nodes
+        .first()
+        .and_then(|node| node.get("id"))
+        .cloned()
+        .unwrap_or(Value::Null);
+    let end_cursor = nodes
+        .last()
+        .and_then(|node| node.get("id"))
+        .cloned()
+        .unwrap_or(Value::Null);
+    json!({
+        "nodes": nodes,
+        "edges": edges,
+        "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": start_cursor,
+            "endCursor": end_cursor
         }
     })
 }
@@ -3882,6 +3947,346 @@ fn discount_automatic_nodes_read_returns_empty_connection_without_staged_discoun
             "startCursor": null,
             "endCursor": null
         })
+    );
+}
+
+#[test]
+fn discount_live_hybrid_catalog_merges_upstream_and_staged_discounts() {
+    let upstream_code_id = "gid://shopify/DiscountCodeNode/990001";
+    let upstream_redeem_code_id = "gid://shopify/DiscountRedeemCode/990002";
+    let upstream_automatic_id = "gid://shopify/DiscountAutomaticNode/990003";
+    let upstream_code = upstream_code_basic_fixed_amount_discount(
+        upstream_redeem_code_id,
+        "Upstream code mixed",
+        "ACTIVE",
+    );
+    let upstream_automatic =
+        upstream_automatic_basic_discount("Upstream automatic mixed", "ACTIVE");
+    let upstream_code_node = json!({
+        "id": upstream_code_id,
+        "codeDiscount": upstream_code,
+        "metafields": upstream_discount_metafields(upstream_code_id)
+    });
+    let upstream_automatic_node = json!({
+        "id": upstream_automatic_id,
+        "automaticDiscount": upstream_automatic,
+        "metafields": upstream_discount_metafields(upstream_automatic_id)
+    });
+    let upstream_calls = Arc::new(Mutex::new(Vec::<String>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let code_node_for_transport = upstream_code_node.clone();
+    let automatic_node_for_transport = upstream_automatic_node.clone();
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            let query = body["query"].as_str().unwrap_or_default().to_string();
+            captured_calls.lock().unwrap().push(query.clone());
+            if query.contains("DiscountUniquenessCheck") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": { "codeDiscountNodeByCode": null } }),
+                };
+            }
+            if query.contains("DiscountMixedCatalogRead") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "all": upstream_discount_connection(vec![
+                                code_node_for_transport.clone(),
+                                automatic_node_for_transport.clone()
+                            ]),
+                            "codeOnly": upstream_discount_connection(vec![
+                                code_node_for_transport.clone()
+                            ]),
+                            "automaticOnly": upstream_discount_connection(vec![
+                                automatic_node_for_transport.clone()
+                            ]),
+                            "count": { "count": 2, "precision": "EXACT" },
+                            "byCode": code_node_for_transport.clone(),
+                            "byAutomatic": automatic_node_for_transport.clone()
+                        }
+                    }),
+                };
+            }
+            if query.contains("DiscountMixedCatalogSecondPage") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "all": upstream_discount_connection(vec![
+                                code_node_for_transport.clone(),
+                                automatic_node_for_transport.clone()
+                            ])
+                        }
+                    }),
+                };
+            }
+            if query.contains("DiscountMixedCatalogAfterMutations") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "codeOnly": upstream_discount_connection(vec![
+                                code_node_for_transport.clone()
+                            ]),
+                            "automaticOnly": upstream_discount_connection(vec![
+                                automatic_node_for_transport.clone()
+                            ]),
+                            "count": { "count": 2, "precision": "EXACT" },
+                            "byCode": code_node_for_transport.clone()
+                        }
+                    }),
+                };
+            }
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "errors": [{
+                        "message": format!("unexpected mixed discount upstream request: {body}")
+                    }]
+                }),
+            }
+        });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountMixedCatalogLocalCreate {
+          discountCodeBasicCreate(basicCodeDiscount: {
+            title: "Local staged mixed",
+            code: "MIXED-LOCAL",
+            startsAt: "2026-04-22T00:00:00Z",
+            context: { all: "ALL" },
+            customerGets: { value: { percentage: 0.2 }, items: { all: true } }
+          }) {
+            codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeBasic { title status } } }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        create.body["data"]["discountCodeBasicCreate"]["userErrors"],
+        json!([])
+    );
+    let staged_id = json_string(
+        &create.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["id"],
+        "staged mixed discount id",
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query DiscountMixedCatalogRead($active: String!, $upstreamCode: String!, $upstreamAutomaticId: ID!) {
+          all: discountNodes(first: 2, sortKey: TITLE, query: $active) {
+            nodes {
+              id
+              discount {
+                __typename
+                ... on DiscountCodeBasic { title status }
+                ... on DiscountAutomaticBasic { title status }
+              }
+            }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          codeOnly: codeDiscountNodes(first: 5, sortKey: TITLE, query: $active) {
+            nodes {
+              id
+              codeDiscount { __typename ... on DiscountCodeBasic { title status codes(first: 5) { nodes { code } } } }
+            }
+          }
+          automaticOnly: automaticDiscountNodes(first: 5, sortKey: TITLE, query: $active) {
+            nodes {
+              id
+              automaticDiscount { __typename ... on DiscountAutomaticBasic { title status } }
+            }
+          }
+          count: discountNodesCount(query: $active) { count precision }
+          byCode: codeDiscountNodeByCode(code: $upstreamCode) {
+            id
+            codeDiscount { __typename ... on DiscountCodeBasic { title status codes(first: 5) { nodes { code } } } }
+          }
+          byAutomatic: automaticDiscountNode(id: $upstreamAutomaticId) {
+            id
+            automaticDiscount { __typename ... on DiscountAutomaticBasic { title status } }
+          }
+        }
+        "#,
+        json!({
+            "active": "status:active",
+            "upstreamCode": "UPSTREAM-FIXED-5",
+            "upstreamAutomaticId": upstream_automatic_id
+        }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        discount_connection_node_titles(&read.body["data"]["all"], "discountNodes"),
+        vec!["Local staged mixed", "Upstream automatic mixed"]
+    );
+    assert_eq!(
+        read.body["data"]["all"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": staged_id,
+            "endCursor": upstream_automatic_id
+        })
+    );
+    assert_eq!(
+        discount_connection_node_titles(&read.body["data"]["codeOnly"], "codeDiscountNodes"),
+        vec!["Local staged mixed", "Upstream code mixed"]
+    );
+    assert_eq!(
+        discount_connection_node_titles(
+            &read.body["data"]["automaticOnly"],
+            "automaticDiscountNodes"
+        ),
+        vec!["Upstream automatic mixed"]
+    );
+    assert_eq!(
+        read.body["data"]["count"],
+        json!({ "count": 3, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["byCode"]["codeDiscount"]["title"],
+        json!("Upstream code mixed")
+    );
+    assert_eq!(
+        read.body["data"]["byAutomatic"]["automaticDiscount"]["title"],
+        json!("Upstream automatic mixed")
+    );
+
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"
+        query DiscountMixedCatalogSecondPage($active: String!, $after: String!) {
+          all: discountNodes(first: 2, after: $after, sortKey: TITLE, query: $active) {
+            nodes {
+              id
+              discount {
+                __typename
+                ... on DiscountCodeBasic { title status }
+                ... on DiscountAutomaticBasic { title status }
+              }
+            }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "active": "status:active", "after": upstream_automatic_id }),
+    ));
+    assert_eq!(
+        discount_connection_node_titles(&second_page.body["data"]["all"], "discountNodes"),
+        vec!["Upstream code mixed"]
+    );
+    assert_eq!(
+        second_page.body["data"]["all"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": true,
+            "startCursor": upstream_code_id,
+            "endCursor": upstream_code_id
+        })
+    );
+
+    let update_automatic = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountMixedCatalogAutomaticUpdate($id: ID!) {
+          discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: {
+            title: "Updated upstream automatic mixed",
+            startsAt: "2026-04-21T19:31:14Z"
+          }) {
+            automaticDiscountNode {
+              id
+              automaticDiscount { __typename ... on DiscountAutomaticBasic { title status } }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "id": upstream_automatic_id }),
+    ));
+    assert_eq!(
+        update_automatic.body["data"]["discountAutomaticBasicUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update_automatic.body["data"]["discountAutomaticBasicUpdate"]["automaticDiscountNode"]
+            ["automaticDiscount"]["title"],
+        json!("Updated upstream automatic mixed")
+    );
+
+    let delete_code = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountMixedCatalogCodeDelete($id: ID!) {
+          discountCodeDelete(id: $id) {
+            deletedCodeDiscountId
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "id": upstream_code_id }),
+    ));
+    assert_eq!(
+        delete_code.body["data"]["discountCodeDelete"],
+        json!({ "deletedCodeDiscountId": upstream_code_id, "userErrors": [] })
+    );
+
+    let after_mutations = proxy.process_request(json_graphql_request(
+        r#"
+        query DiscountMixedCatalogAfterMutations($active: String!, $upstreamCode: String!) {
+          codeOnly: codeDiscountNodes(first: 5, sortKey: TITLE, query: $active) {
+            nodes {
+              id
+              codeDiscount { __typename ... on DiscountCodeBasic { title status } }
+            }
+          }
+          automaticOnly: automaticDiscountNodes(first: 5, sortKey: TITLE, query: $active) {
+            nodes {
+              id
+              automaticDiscount { __typename ... on DiscountAutomaticBasic { title status } }
+            }
+          }
+          count: discountNodesCount(query: $active) { count precision }
+          byCode: codeDiscountNodeByCode(code: $upstreamCode) {
+            id
+            codeDiscount { __typename ... on DiscountCodeBasic { title status } }
+          }
+        }
+        "#,
+        json!({ "active": "status:active", "upstreamCode": "UPSTREAM-FIXED-5" }),
+    ));
+    assert_eq!(
+        discount_connection_node_titles(
+            &after_mutations.body["data"]["codeOnly"],
+            "codeDiscountNodes"
+        ),
+        vec!["Local staged mixed"]
+    );
+    assert_eq!(
+        discount_connection_node_titles(
+            &after_mutations.body["data"]["automaticOnly"],
+            "automaticDiscountNodes"
+        ),
+        vec!["Updated upstream automatic mixed"]
+    );
+    assert_eq!(
+        after_mutations.body["data"]["count"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+    assert_eq!(after_mutations.body["data"]["byCode"], json!(null));
+
+    let calls = upstream_calls.lock().unwrap();
+    assert!(
+        calls
+            .iter()
+            .any(|query| query.contains("DiscountMixedCatalogRead")),
+        "post-mutation discount catalog read should hydrate the upstream catalog, got {calls:?}"
     );
 }
 
