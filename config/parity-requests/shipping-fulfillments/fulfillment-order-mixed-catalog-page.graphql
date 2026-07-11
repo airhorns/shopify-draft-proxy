@@ -1,0 +1,42 @@
+fragment FulfillmentOrderMixedCatalogPageFields on FulfillmentOrder {
+  id
+  updatedAt
+  status
+  requestStatus
+  assignedLocation {
+    name
+    location {
+      id
+      name
+    }
+  }
+  order {
+    id
+    name
+  }
+}
+
+query FulfillmentOrderMixedCatalogPage($first: Int, $last: Int, $after: String, $before: String, $idQuery: String!) {
+  page: fulfillmentOrders(
+    first: $first
+    last: $last
+    after: $after
+    before: $before
+    includeClosed: true
+    query: $idQuery
+    sortKey: ID
+  ) {
+    edges {
+      cursor
+      node {
+        ...FulfillmentOrderMixedCatalogPageFields
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

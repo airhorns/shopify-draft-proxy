@@ -1,0 +1,49 @@
+fragment FulfillmentOrderMixedCatalogFields on FulfillmentOrder {
+  id
+  updatedAt
+  status
+  requestStatus
+  assignedLocation {
+    name
+    location {
+      id
+      name
+    }
+  }
+  lineItems(first: 5) {
+    nodes {
+      id
+      totalQuantity
+      remainingQuantity
+      lineItem {
+        id
+        title
+      }
+    }
+  }
+  order {
+    id
+    name
+  }
+}
+
+mutation FulfillmentOrderMixedCatalogSplit($fulfillmentOrderSplits: [FulfillmentOrderSplitInput!]!) {
+  fulfillmentOrderSplit(fulfillmentOrderSplits: $fulfillmentOrderSplits) {
+    fulfillmentOrderSplits {
+      fulfillmentOrder {
+        ...FulfillmentOrderMixedCatalogFields
+      }
+      remainingFulfillmentOrder {
+        ...FulfillmentOrderMixedCatalogFields
+      }
+      replacementFulfillmentOrder {
+        ...FulfillmentOrderMixedCatalogFields
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

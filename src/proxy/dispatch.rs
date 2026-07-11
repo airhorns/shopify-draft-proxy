@@ -1,3 +1,4 @@
+use super::discounts::is_discount_bulk_action_root;
 use super::*;
 use crate::graphql::{DirectiveSelection, VariableDefinitionInfo};
 
@@ -163,18 +164,6 @@ fn is_online_store_content_root(root: &str) -> bool {
             | "pagesCount"
             | "comment"
             | "comments"
-    )
-}
-
-fn is_discount_bulk_action_root(root: &str) -> bool {
-    matches!(
-        root,
-        "discountCodeBulkActivate"
-            | "discountCodeBulkDeactivate"
-            | "discountCodeBulkDelete"
-            | "discountAutomaticBulkActivate"
-            | "discountAutomaticBulkDeactivate"
-            | "discountAutomaticBulkDelete"
     )
 }
 
@@ -1084,6 +1073,9 @@ impl DraftProxy {
             if let Some(value) = self.store_credit_node_value_by_id(id, selection) {
                 return Some(value);
             }
+        }
+        if let Some(value) = self.fulfillment_return_node_value_by_id(id, selection) {
+            return Some(value);
         }
         if let Some(value) = self.app_node_value_by_id(id, selection, request) {
             return Some(value);

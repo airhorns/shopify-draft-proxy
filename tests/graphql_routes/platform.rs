@@ -119,6 +119,106 @@ fn fulfillment_order_hydrate_transport(
     }
 }
 
+fn fulfillment_order_catalog_transport(
+    orders: Vec<Value>,
+    observed_queries: Arc<Mutex<Vec<String>>>,
+) -> impl Fn(Request) -> Response + Send + Sync + 'static {
+    let orders = Arc::new(Mutex::new(orders));
+    move |request| {
+        let body: Value = serde_json::from_str(&request.body).unwrap();
+        let query = body["query"].as_str().unwrap_or_default().to_string();
+        observed_queries.lock().unwrap().push(query.clone());
+        let requested_id = body["variables"]["id"].as_str().unwrap_or_default();
+        let hydrated = orders.lock().unwrap().iter().find_map(|order| {
+            order["fulfillmentOrders"]["nodes"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .find(|node| node["id"].as_str() == Some(requested_id))
+                .map(|node| {
+                    let mut node = node.clone();
+                    node["order"] = json!({
+                        "id": order["id"],
+                        "name": order["name"],
+                        "displayFulfillmentStatus": order["displayFulfillmentStatus"]
+                    });
+                    (order.clone(), node)
+                })
+        });
+        let body = if query.contains("node(id: $id)") {
+            let node = hydrated
+                .as_ref()
+                .map(|(_, node)| node.clone())
+                .unwrap_or(Value::Null);
+            json!({ "data": { "node": node } })
+        } else if query.contains("fulfillmentOrder(id: $id)") {
+            let fulfillment_order = hydrated
+                .as_ref()
+                .map(|(_, node)| node.clone())
+                .unwrap_or(Value::Null);
+            json!({ "data": { "fulfillmentOrder": fulfillment_order } })
+        } else if let Some(root_key) = if query.contains("manualHoldsFulfillmentOrders(") {
+            Some("manualHoldsFulfillmentOrders")
+        } else if query.contains("assignedFulfillmentOrders(") {
+            Some("assignedFulfillmentOrders")
+        } else if query.contains("fulfillmentOrders(") {
+            Some("fulfillmentOrders")
+        } else {
+            None
+        } {
+            let nodes = orders
+                .lock()
+                .unwrap()
+                .iter()
+                .flat_map(|order| {
+                    order["fulfillmentOrders"]["nodes"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .map(|node| {
+                            let mut node = node.clone();
+                            node["order"] = json!({
+                                "id": order["id"],
+                                "name": order["name"],
+                                "displayFulfillmentStatus": order["displayFulfillmentStatus"]
+                            });
+                            node
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>();
+            let mut data = serde_json::Map::new();
+            data.insert(
+                root_key.to_string(),
+                json!({
+                    "nodes": nodes,
+                    "edges": [],
+                    "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                    }
+                }),
+            );
+            let mut body = serde_json::Map::new();
+            body.insert("data".to_string(), Value::Object(data));
+            Value::Object(body)
+        } else {
+            let order = hydrated
+                .as_ref()
+                .map(|(order, _)| order.clone())
+                .unwrap_or(Value::Null);
+            json!({ "data": { "order": order } })
+        };
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body,
+        }
+    }
+}
+
 fn resource_id_tail_for_test(id: &str) -> &str {
     id.rsplit('/')
         .next()
@@ -189,6 +289,47 @@ fn fulfillment_order_order_fixture(
             }]
         }
     })
+}
+
+struct FulfillmentOrderCatalogFixture<'a> {
+    order_id: &'a str,
+    name: &'a str,
+    fulfillment_order_id: &'a str,
+    line_item_id: &'a str,
+    status: &'a str,
+    location_id: &'a str,
+    location_name: &'a str,
+    updated_at: &'a str,
+}
+
+fn fulfillment_order_catalog_fixture(input: FulfillmentOrderCatalogFixture<'_>) -> Value {
+    let mut order = fulfillment_order_order_fixture(
+        input.order_id,
+        input.name,
+        input.fulfillment_order_id,
+        input.line_item_id,
+        1,
+        input.status,
+    );
+    let fulfillment_order = &mut order["fulfillmentOrders"]["nodes"][0];
+    fulfillment_order["updatedAt"] = json!(input.updated_at);
+    fulfillment_order["assignedLocation"] = json!({
+        "name": input.location_name,
+        "location": {
+            "id": input.location_id,
+            "name": input.location_name
+        }
+    });
+    order
+}
+
+fn fulfillment_order_ids(response: &Response, root_key: &str) -> Vec<String> {
+    response.body["data"][root_key]["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|node| node["id"].as_str().unwrap().to_string())
+        .collect()
 }
 
 fn required_string(value: &Value, context: &str) -> String {
@@ -1489,7 +1630,7 @@ fn fulfillment_order_split_and_merge_stage_remaining_records_and_read_back() {
     let root_list_after_merge = proxy.process_request(json_graphql_request(
         r#"
         query ReadRootAfterMerge {
-          fulfillmentOrders(first: 5) { nodes { id } }
+          fulfillmentOrders(first: 5, includeClosed: true) { nodes { id } }
         }
         "#,
         json!({}),
@@ -6362,6 +6503,361 @@ fn fulfillment_order_hold_release_stages_real_numeric_ids_and_downstream_reads()
         log_snapshot(&proxy)["entries"][0]["variables"]["fulfillmentHold"]["reason"],
         json!("AWAITING_RETURN_ITEMS")
     );
+}
+
+#[test]
+fn fulfillment_order_top_level_catalog_merges_live_siblings_after_local_hold() {
+    let held_order_id = "gid://shopify/Order/7001101";
+    let held_fulfillment_order_id = "gid://shopify/FulfillmentOrder/70011011";
+    let live_order_id = "gid://shopify/Order/7001102";
+    let live_fulfillment_order_id = "gid://shopify/FulfillmentOrder/70011021";
+    let observed_queries = Arc::new(Mutex::new(Vec::new()));
+    let mut proxy = snapshot_proxy().with_upstream_transport(fulfillment_order_catalog_transport(
+        vec![
+            fulfillment_order_order_fixture(
+                held_order_id,
+                "#70011",
+                held_fulfillment_order_id,
+                "gid://shopify/FulfillmentOrderLineItem/70011012",
+                1,
+                "OPEN",
+            ),
+            fulfillment_order_order_fixture(
+                live_order_id,
+                "#70012",
+                live_fulfillment_order_id,
+                "gid://shopify/FulfillmentOrderLineItem/70011022",
+                1,
+                "OPEN",
+            ),
+        ],
+        observed_queries.clone(),
+    ));
+
+    let hold = proxy.process_request(json_graphql_request(
+        r#"
+        mutation HoldOneCatalogFulfillmentOrder($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) {
+          fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) {
+            fulfillmentOrder { id status }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": held_fulfillment_order_id,
+            "fulfillmentHold": {
+                "reason": "INVENTORY_OUT_OF_STOCK",
+                "handle": "catalog-hold"
+            }
+        }),
+    ));
+    assert_eq!(hold.status, 200);
+    assert_eq!(
+        hold.body["data"]["fulfillmentOrderHold"]["fulfillmentOrder"]["status"],
+        json!("ON_HOLD")
+    );
+
+    let catalog = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadFulfillmentOrderCatalogAfterHold {
+          fulfillmentOrders(first: 10, includeClosed: true, sortKey: ID) {
+            nodes { id status order { id name } }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let nodes = catalog.body["data"]["fulfillmentOrders"]["nodes"]
+        .as_array()
+        .unwrap();
+    let query_snapshot = observed_queries.lock().unwrap().clone();
+    assert!(
+        nodes.iter().any(
+            |node| node["id"].as_str() == Some(held_fulfillment_order_id)
+                && node["status"].as_str() == Some("ON_HOLD")
+        ),
+        "locally held fulfillment order should stay overlaid in the top-level catalog: {nodes:#?}"
+    );
+    assert!(
+        nodes
+            .iter()
+            .any(|node| node["id"].as_str() == Some(live_fulfillment_order_id)),
+        "unrelated upstream fulfillment order disappeared after staging a hold: nodes={nodes:#?}; upstream_queries={query_snapshot:#?}; body={:#?}",
+        catalog.body
+    );
+    let queries = query_snapshot;
+    assert!(queries
+        .iter()
+        .any(|query| query.contains("ShippingFulfillmentOrderHydrate")));
+    assert!(queries
+        .iter()
+        .all(|query| query.trim_start().starts_with("query")));
+}
+
+#[test]
+fn fulfillment_order_top_level_catalog_applies_filters_sort_and_cursor_windows() {
+    let location_a = "gid://shopify/Location/70012044";
+    let location_b = "gid://shopify/Location/70012055";
+    let open_a = "gid://shopify/FulfillmentOrder/70012011";
+    let closed_b = "gid://shopify/FulfillmentOrder/70012021";
+    let open_c = "gid://shopify/FulfillmentOrder/70012031";
+    let held_d = "gid://shopify/FulfillmentOrder/70012041";
+    let observed_queries = Arc::new(Mutex::new(Vec::new()));
+    let mut proxy = snapshot_proxy().with_upstream_transport(fulfillment_order_catalog_transport(
+        vec![
+            fulfillment_order_catalog_fixture(FulfillmentOrderCatalogFixture {
+                order_id: "gid://shopify/Order/7001201",
+                name: "#7001201",
+                fulfillment_order_id: open_a,
+                line_item_id: "gid://shopify/FulfillmentOrderLineItem/70012012",
+                status: "OPEN",
+                location_id: location_a,
+                location_name: "North warehouse",
+                updated_at: "2026-06-15T11:00:10Z",
+            }),
+            fulfillment_order_catalog_fixture(FulfillmentOrderCatalogFixture {
+                order_id: "gid://shopify/Order/7001202",
+                name: "#7001202",
+                fulfillment_order_id: closed_b,
+                line_item_id: "gid://shopify/FulfillmentOrderLineItem/70012022",
+                status: "CLOSED",
+                location_id: location_b,
+                location_name: "South warehouse",
+                updated_at: "2026-06-15T11:00:20Z",
+            }),
+            fulfillment_order_catalog_fixture(FulfillmentOrderCatalogFixture {
+                order_id: "gid://shopify/Order/7001203",
+                name: "#7001203",
+                fulfillment_order_id: open_c,
+                line_item_id: "gid://shopify/FulfillmentOrderLineItem/70012032",
+                status: "OPEN",
+                location_id: location_b,
+                location_name: "South warehouse",
+                updated_at: "2026-06-15T11:00:30Z",
+            }),
+            fulfillment_order_catalog_fixture(FulfillmentOrderCatalogFixture {
+                order_id: "gid://shopify/Order/7001204",
+                name: "#7001204",
+                fulfillment_order_id: held_d,
+                line_item_id: "gid://shopify/FulfillmentOrderLineItem/70012042",
+                status: "ON_HOLD",
+                location_id: location_a,
+                location_name: "North warehouse",
+                updated_at: "2026-06-15T11:00:40Z",
+            }),
+        ],
+        observed_queries.clone(),
+    ));
+
+    let hydrate = proxy.process_request(json_graphql_request(
+        r#"
+        query HydrateOneFulfillmentOrder($id: ID!) {
+          fulfillmentOrder(id: $id) { id status updatedAt }
+        }
+        "#,
+        json!({ "id": open_a }),
+    ));
+    assert_eq!(
+        hydrate.body["data"]["fulfillmentOrder"]["id"],
+        json!(open_a)
+    );
+
+    let default_open = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadOpenFulfillmentOrders {
+          fulfillmentOrders(first: 10, sortKey: ID) {
+            nodes { id status }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let query_snapshot = observed_queries.lock().unwrap().clone();
+    assert_eq!(
+        fulfillment_order_ids(&default_open, "fulfillmentOrders"),
+        vec![open_a, open_c, held_d],
+        "default open catalog body={:#?}; upstream_queries={query_snapshot:#?}",
+        default_open.body
+    );
+
+    let include_closed = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadAllFulfillmentOrders {
+          fulfillmentOrders(first: 10, includeClosed: true, sortKey: ID) {
+            nodes { id status }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        fulfillment_order_ids(&include_closed, "fulfillmentOrders"),
+        vec![open_a, closed_b, open_c, held_d]
+    );
+
+    let status_filtered = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadStatusFilteredFulfillmentOrders($query: String!) {
+          fulfillmentOrders(first: 10, includeClosed: true, query: $query, sortKey: ID) {
+            nodes { id status }
+          }
+        }
+        "#,
+        json!({ "query": "status:OPEN" }),
+    ));
+    assert_eq!(
+        fulfillment_order_ids(&status_filtered, "fulfillmentOrders"),
+        vec![open_a, open_c]
+    );
+
+    let location_filtered = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadLocationFilteredFulfillmentOrders($query: String!) {
+          fulfillmentOrders(first: 10, includeClosed: true, query: $query, sortKey: ID) {
+            nodes { id assignedLocation { location { id } } }
+          }
+        }
+        "#,
+        json!({ "query": "assigned_location_id:70012055" }),
+    ));
+    assert_eq!(
+        fulfillment_order_ids(&location_filtered, "fulfillmentOrders"),
+        vec![closed_b, open_c]
+    );
+
+    let updated_filtered = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadUpdatedFilteredFulfillmentOrders($query: String!) {
+          fulfillmentOrders(first: 10, includeClosed: true, query: $query, sortKey: UPDATED_AT) {
+            nodes { id updatedAt }
+          }
+        }
+        "#,
+        json!({ "query": "updated_at:>=2026-06-15T11:00:20Z" }),
+    ));
+    assert_eq!(
+        fulfillment_order_ids(&updated_filtered, "fulfillmentOrders"),
+        vec![closed_b, open_c, held_d]
+    );
+
+    let reverse_updated = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadReverseUpdatedFulfillmentOrders {
+          fulfillmentOrders(first: 2, includeClosed: true, sortKey: UPDATED_AT, reverse: true) {
+            nodes { id updatedAt }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        fulfillment_order_ids(&reverse_updated, "fulfillmentOrders"),
+        vec![held_d, open_c]
+    );
+    assert_eq!(
+        reverse_updated.body["data"]["fulfillmentOrders"]["pageInfo"]["hasNextPage"],
+        json!(true)
+    );
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadFirstFulfillmentOrderWindow {
+          fulfillmentOrders(first: 2, includeClosed: true, sortKey: ID) {
+            nodes { id }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        fulfillment_order_ids(&first_page, "fulfillmentOrders"),
+        vec![open_a, closed_b]
+    );
+    let after = first_page.body["data"]["fulfillmentOrders"]["pageInfo"]["endCursor"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let next_page = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadNextFulfillmentOrderWindow($after: String!) {
+          fulfillmentOrders(first: 2, after: $after, includeClosed: true, sortKey: ID) {
+            nodes { id }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "after": after }),
+    ));
+    assert_eq!(
+        fulfillment_order_ids(&next_page, "fulfillmentOrders"),
+        vec![open_c, held_d]
+    );
+    assert_eq!(
+        next_page.body["data"]["fulfillmentOrders"]["pageInfo"]["hasPreviousPage"],
+        json!(true)
+    );
+    let before = next_page.body["data"]["fulfillmentOrders"]["pageInfo"]["startCursor"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let previous_page = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadPreviousFulfillmentOrderWindow($before: String!) {
+          fulfillmentOrders(last: 1, before: $before, includeClosed: true, sortKey: ID) {
+            nodes { id }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "before": before }),
+    ));
+    assert_eq!(
+        fulfillment_order_ids(&previous_page, "fulfillmentOrders"),
+        vec![closed_b]
+    );
+    assert_eq!(
+        previous_page.body["data"]["fulfillmentOrders"]["pageInfo"]["hasNextPage"],
+        json!(true)
+    );
+
+    let assigned = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadAssignedFulfillmentOrders($locationIds: [ID!]) {
+          assignedFulfillmentOrders(first: 10, locationIds: $locationIds, sortKey: ID) {
+            nodes { id status assignedLocation { location { id } } }
+          }
+        }
+        "#,
+        json!({ "locationIds": [location_b] }),
+    ));
+    assert_eq!(
+        fulfillment_order_ids(&assigned, "assignedFulfillmentOrders"),
+        vec![open_c]
+    );
+
+    let manual_holds = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadManualHoldsFulfillmentOrders {
+          manualHoldsFulfillmentOrders(first: 1, reverse: true) {
+            nodes { id status }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        fulfillment_order_ids(&manual_holds, "manualHoldsFulfillmentOrders"),
+        vec![held_d]
+    );
+    assert!(observed_queries
+        .lock()
+        .unwrap()
+        .iter()
+        .all(|query| query.trim_start().starts_with("query")));
 }
 
 #[test]

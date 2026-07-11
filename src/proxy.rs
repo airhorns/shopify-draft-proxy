@@ -359,6 +359,7 @@ struct StagedState {
     collections: StagedRecords<Value>,
     collection_jobs: BTreeMap<String, Value>,
     fulfillment_order_deadlines: BTreeMap<String, String>,
+    fulfillment_order_cursors: BTreeMap<String, BTreeMap<String, String>>,
     bulk_operations: BTreeMap<String, Value>,
     bulk_operation_staged_uploads: BTreeMap<String, Option<u64>>,
     bulk_operation_staged_upload_bodies: BTreeMap<String, String>,

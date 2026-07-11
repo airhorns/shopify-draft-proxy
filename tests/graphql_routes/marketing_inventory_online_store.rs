@@ -14205,6 +14205,288 @@ fn metaobject_delete_returns_record_not_found_without_logging_noop_deletes() {
 }
 
 #[test]
+fn metaobject_bulk_delete_ids_hydrates_multiple_cold_ids_with_bounded_upstream_request() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream body should be JSON");
+            captured_requests.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "nodes": [
+                            {
+                                "id": "gid://shopify/Metaobject/1001",
+                                "__typename": "Metaobject",
+                                "handle": "cold-one",
+                                "type": "bulk_delete_ids",
+                                "displayName": "Cold one",
+                                "createdAt": "2024-01-01T00:00:00Z",
+                                "updatedAt": "2024-01-01T00:00:00Z",
+                                "capabilities": {
+                                    "publishable": {"status": "ACTIVE"},
+                                    "onlineStore": {"templateSuffix": null}
+                                },
+                                "fields": []
+                            },
+                            null,
+                            {
+                                "id": "gid://shopify/Metaobject/1003",
+                                "__typename": "Metaobject",
+                                "handle": "cold-three",
+                                "type": "bulk_delete_ids",
+                                "displayName": "Cold three",
+                                "createdAt": "2024-01-01T00:00:00Z",
+                                "updatedAt": "2024-01-01T00:00:00Z",
+                                "capabilities": {
+                                    "publishable": {"status": "ACTIVE"},
+                                    "onlineStore": {"templateSuffix": null}
+                                },
+                                "fields": []
+                            }
+                        ]
+                    }
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkDeleteIds {
+          metaobjectBulkDelete(where: { ids: [
+            "gid://shopify/Metaobject/1001",
+            "gid://shopify/Metaobject/missing",
+            "gid://shopify/Metaobject/1003"
+          ] }) {
+            job { id done }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        response.body["data"]["metaobjectBulkDelete"]["userErrors"],
+        json!([])
+    );
+    let requests = upstream_requests.lock().unwrap();
+    assert_eq!(
+        requests.len(),
+        1,
+        "explicit ID bulk delete should not hydrate each ID with its own upstream request"
+    );
+    assert_eq!(
+        requests[0]["variables"],
+        json!({"ids": [
+            "gid://shopify/Metaobject/1001",
+            "gid://shopify/Metaobject/missing",
+            "gid://shopify/Metaobject/1003"
+        ]})
+    );
+    drop(requests);
+
+    let log = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/log".to_string(),
+        ..Default::default()
+    });
+    assert_eq!(
+        log.body["entries"][0]["stagedResourceIds"],
+        json!([
+            "gid://shopify/Metaobject/1001",
+            "gid://shopify/Metaobject/1003"
+        ])
+    );
+}
+
+#[test]
+fn metaobject_bulk_delete_ids_caps_hydrate_at_shopify_id_limit_without_paging() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream body should be JSON");
+            let requested_ids = body["variables"]["ids"]
+                .as_array()
+                .cloned()
+                .expect("hydrate request should include ids");
+            let nodes = requested_ids
+                .iter()
+                .map(|id| {
+                    json!({
+                        "id": id,
+                        "__typename": "Metaobject",
+                        "handle": format!(
+                            "cap-{}",
+                            id.as_str().unwrap().rsplit('/').next().unwrap()
+                        ),
+                        "type": "bulk_delete_id_cap",
+                        "displayName": "Bulk delete ID cap",
+                        "createdAt": "2024-01-01T00:00:00Z",
+                        "updatedAt": "2024-01-01T00:00:00Z",
+                        "capabilities": {
+                            "publishable": {"status": "ACTIVE"},
+                            "onlineStore": {"templateSuffix": null}
+                        },
+                        "fields": []
+                    })
+                })
+                .collect::<Vec<_>>();
+            captured_requests.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({"data": {"nodes": nodes}}),
+            }
+        });
+    let ids = (0..251)
+        .map(|index| format!("gid://shopify/Metaobject/{}", 20_000 + index))
+        .collect::<Vec<_>>();
+    let ids_literal = ids
+        .iter()
+        .map(|id| format!("\"{id}\""))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let query = format!(
+        r#"
+        mutation BulkDeleteIdsCap {{
+          metaobjectBulkDelete(where: {{ ids: [{ids_literal}] }}) {{
+            job {{ id done }}
+            userErrors {{ field message code elementKey elementIndex }}
+          }}
+        }}
+        "#
+    );
+
+    let response = proxy.process_request(json_graphql_request(&query, json!({})));
+
+    assert_eq!(
+        response.body["data"]["metaobjectBulkDelete"]["userErrors"],
+        json!([])
+    );
+    let requests = upstream_requests.lock().unwrap();
+    assert_eq!(requests.len(), 1);
+    let hydrated_ids = requests[0]["variables"]["ids"].as_array().unwrap();
+    assert_eq!(hydrated_ids.len(), 250);
+    assert_eq!(hydrated_ids[0], json!("gid://shopify/Metaobject/20000"));
+    assert_eq!(hydrated_ids[249], json!("gid://shopify/Metaobject/20249"));
+    assert!(
+        hydrated_ids
+            .iter()
+            .all(|id| id.as_str() != Some("gid://shopify/Metaobject/20250")),
+        "IDs beyond Shopify's 250-ID cap should not be hydrated or paged"
+    );
+}
+
+#[test]
+fn metaobject_bulk_delete_type_uses_local_rows_without_broad_catalog_hydrate() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream body should be JSON");
+            captured_requests.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "metaobjectDefinitionByType": {
+                            "id": "gid://shopify/MetaobjectDefinition/2001",
+                            "type": "bulk_delete_type",
+                            "name": "Bulk delete type",
+                            "description": null,
+                            "displayNameKey": "title",
+                            "access": {"admin": "PUBLIC_READ_WRITE", "storefront": "NONE"},
+                            "capabilities": {
+                                "publishable": {"enabled": false},
+                                "translatable": {"enabled": false},
+                                "renderable": {"enabled": false},
+                                "onlineStore": {"enabled": false}
+                            },
+                            "fieldDefinitions": [
+                                {
+                                    "key": "title",
+                                    "name": "Title",
+                                    "description": null,
+                                    "required": false,
+                                    "type": {"name": "single_line_text_field", "category": "TEXT"},
+                                    "validations": []
+                                }
+                            ],
+                            "hasThumbnailField": false,
+                            "metaobjectsCount": 1,
+                            "standardTemplate": null,
+                            "createdAt": "2024-01-01T00:00:00Z",
+                            "updatedAt": "2024-01-01T00:00:00Z"
+                        }
+                    }
+                }),
+            }
+        });
+
+    let definition_id = create_metaobject_definition_for_test(
+        &mut proxy,
+        "bulk_delete_type",
+        vec![json!({
+            "key": "title",
+            "name": "Title",
+            "type": "single_line_text_field",
+            "required": false
+        })],
+    );
+    let created = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateBulkDeleteTypeRow($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"metaobject": {
+            "type": "bulk_delete_type",
+            "handle": "local-row",
+            "fields": [{"key": "title", "value": "Local row"}]
+        }}),
+    ));
+    assert_eq!(
+        created.body["data"]["metaobjectCreate"]["userErrors"],
+        json!([])
+    );
+    upstream_requests.lock().unwrap().clear();
+
+    let deleted = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkDeleteType {
+          metaobjectBulkDelete(where: { type: "bulk_delete_type" }) {
+            job { id done }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        deleted.body["data"]["metaobjectBulkDelete"]["userErrors"],
+        json!([])
+    );
+    let requests = upstream_requests.lock().unwrap();
+    assert!(
+        requests.is_empty(),
+        "type bulk delete should use known local definition {definition_id} and rows without a broad metaobjects(first: 250) hydrate"
+    );
+}
+
+#[test]
 fn media_file_lifecycle_stages_uploaded_reads_and_empty_product_media_after_delete() {
     // Seed the products the file flow references so their (empty) media
     // connection is COMPUTED from store state rather than replayed from a

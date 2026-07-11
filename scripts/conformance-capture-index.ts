@@ -186,6 +186,31 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'admin-platform',
+    captureId: 'fulfillment-return-node-read-after-write',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-fulfillment-return-node-conformance.mts',
+    purpose:
+      'Generic node/nodes read-after-write evidence for fulfillment, fulfillment-order, return, returnable fulfillment, and reverse-logistics resources created through public Admin GraphQL operations.',
+    requiredAuthScopes: [
+      'read_orders',
+      'write_orders',
+      'read_fulfillments',
+      'write_fulfillments',
+      'read_returns',
+      'write_returns',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-return-node-read-after-write.json`,
+      'config/parity-specs/admin-platform/fulfillment-return-node-read-after-write.json',
+    ],
+    cleanupBehavior:
+      'Creates one disposable fulfilled order, return, and reverse delivery; attempts orderCancel cleanup, but Shopify can reject cancellation once returns exist.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The fixture records UnverifiedReturnLineItem missing-node null behavior. Public Admin GraphQL 2026-04 exposes the Node type but no public Return field or input path for a non-null UnverifiedReturnLineItem in this store/schema.',
+  },
+  {
     domain: 'b2b',
     captureId: 'b2b-quantity-rules-extended-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
@@ -4771,6 +4796,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates a disposable definition and rows, bulk deletes rows by type, then deletes the definition.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
+    captureId: 'metaobject-bulk-delete-ids',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-bulk-delete-ids-conformance.ts',
+    purpose:
+      'Metaobject bulk delete by explicit IDs with a mixed existing/stale selector, exact batched nodes(ids:) hydration cassette, and downstream deleted-row reads.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-bulk-delete-ids-lifecycle.json`,
+      'config/parity-specs/metaobjects/metaobject-bulk-delete-ids-lifecycle.json',
+      'config/parity-requests/metaobjects/metaobject-bulk-delete-ids-delete.graphql',
+      'config/parity-requests/metaobjects/metaobject-bulk-delete-ids-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates a disposable definition and two rows, bulk deletes rows by an IDs selector that includes one stale ID, then deletes any remaining rows and the definition.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -11904,6 +11947,35 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Delegates to the parity cassette recorder for existing captured scenarios; mutation side effects remain local to the proxy and read cassettes are refreshed from Shopify.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
+    captureId: 'fulfillment-order-mixed-catalog-lifecycle',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-fulfillment-order-mixed-catalog-conformance.ts',
+    purpose:
+      'Mixed fulfillment-order top-level catalog evidence after held, moved, split, and cancelled lifecycle changes over a disposable live baseline.',
+    requiredAuthScopes: [
+      'read_orders',
+      'write_orders',
+      'read_fulfillments',
+      'write_fulfillments',
+      'read_shipping',
+      'write_shipping',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-order-mixed-catalog-lifecycle.json`,
+      'config/parity-specs/shipping-fulfillments/fulfillment-order-mixed-catalog-lifecycle.json',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-mixed-catalog-hold.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-mixed-catalog-move.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-mixed-catalog-split.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-mixed-catalog-cancel.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-mixed-catalog-read.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-mixed-catalog-page.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable orders and a temporary fulfillment service, records mixed top-level catalog reads, then cancels the orders and deletes the fulfillment service.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
