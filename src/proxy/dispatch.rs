@@ -1,4 +1,5 @@
 use super::*;
+use crate::graphql::{DirectiveSelection, VariableDefinitionInfo};
 
 macro_rules! try_root_fields {
     ($query:expr, $variables:expr) => {
@@ -18,6 +19,18 @@ fn catalog_search_predicate_requires_full_catalog(predicate: &str) -> bool {
     predicate.contains("inventory_total:")
         || predicate.contains("variants.price:")
         || predicate.contains("metafields.")
+}
+
+fn is_discount_bulk_action_root(root_field: &str) -> bool {
+    matches!(
+        root_field,
+        "discountCodeBulkActivate"
+            | "discountCodeBulkDeactivate"
+            | "discountCodeBulkDelete"
+            | "discountAutomaticBulkActivate"
+            | "discountAutomaticBulkDeactivate"
+            | "discountAutomaticBulkDelete"
+    )
 }
 
 fn no_dispatcher(domain: &str, root_field: &str) -> Response {
@@ -81,7 +94,281 @@ fn changed_draft_order_tag_ids(
         .collect()
 }
 
+fn multi_root_operation_has_grouped_owner_roots(
+    operation_type: OperationType,
+    root_fields: &[String],
+) -> bool {
+    match operation_type {
+        OperationType::Query => {
+            customer_overlay_query_owns_root_group(root_fields)
+                || media_query_owns_saved_search_root_group(root_fields)
+                || online_store_query_owns_node_root_group(root_fields)
+        }
+        OperationType::Mutation | OperationType::Subscription => false,
+    }
+}
+
+fn customer_overlay_query_owns_root_group(root_fields: &[String]) -> bool {
+    root_fields.iter().any(|root| {
+        matches!(
+            root.as_str(),
+            "customer"
+                | "customerByIdentifier"
+                | "customers"
+                | "customersCount"
+                | "customerMergeJobStatus"
+        )
+    }) && root_fields.iter().all(|root| {
+        matches!(
+            root.as_str(),
+            "customer"
+                | "customerByIdentifier"
+                | "customers"
+                | "customersCount"
+                | "customerMergeJobStatus"
+                | "job"
+                | "node"
+        )
+    })
+}
+
+fn media_query_owns_saved_search_root_group(root_fields: &[String]) -> bool {
+    root_fields.iter().any(|root| root == "files")
+        && root_fields
+            .iter()
+            .all(|root| matches!(root.as_str(), "files" | "fileSavedSearches"))
+}
+
+fn online_store_query_owns_node_root_group(root_fields: &[String]) -> bool {
+    root_fields
+        .iter()
+        .any(|root| is_online_store_content_root(root))
+        && root_fields
+            .iter()
+            .all(|root| is_online_store_content_root(root) || root == "node")
+}
+
+fn is_online_store_content_root(root: &str) -> bool {
+    matches!(
+        root,
+        "article"
+            | "articleAuthors"
+            | "articles"
+            | "articleTags"
+            | "blog"
+            | "blogs"
+            | "blogsCount"
+            | "page"
+            | "pages"
+            | "pagesCount"
+            | "comment"
+            | "comments"
+    )
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct MultiRootDispatchKey {
+    domain: CapabilityDomain,
+    execution: CapabilityExecution,
+    branch: &'static str,
+}
+
+fn multi_root_dispatch_branch(
+    operation_type: OperationType,
+    root_field: &str,
+    domain: CapabilityDomain,
+) -> &'static str {
+    match (domain, operation_type) {
+        (CapabilityDomain::AdminPlatform, OperationType::Query) => match root_field {
+            "backupRegion" => "admin-platform.backup-region",
+            "domain" => "admin-platform.domain",
+            "job" => "admin-platform.job",
+            "node" | "nodes" => "admin-platform.node",
+            _ => "admin-platform.query",
+        },
+        (CapabilityDomain::AdminPlatform, OperationType::Mutation) => match root_field {
+            "backupRegionUpdate" => "admin-platform.backup-region-update",
+            "flowGenerateSignature" | "flowTriggerReceive" => "admin-platform.flow",
+            _ => "admin-platform.mutation",
+        },
+        (CapabilityDomain::Products, OperationType::Mutation) => match root_field {
+            "publicationCreate"
+            | "publicationUpdate"
+            | "publicationDelete"
+            | "productFeedCreate"
+            | "productFeedDelete"
+            | "productFullSync"
+            | "combinedListingUpdate"
+            | "productVariantRelationshipBulkUpdate"
+            | "bulkProductResourceFeedbackCreate"
+            | "shopResourceFeedbackCreate" => "products.tail-helper",
+            "productCreate" => "products.product-create",
+            "productUpdate" => "products.product-update",
+            "productDelete" => "products.product-delete",
+            "productSet" => "products.product-set",
+            "productDuplicate" => "products.product-duplicate",
+            "productBundleCreate" | "productBundleUpdate" => "products.product-bundle",
+            "productPublish" | "productUnpublish" => "products.product-publication",
+            "productChangeStatus" => "products.product-change-status",
+            "productCreateMedia"
+            | "productUpdateMedia"
+            | "productDeleteMedia"
+            | "productReorderMedia" => "products.product-media",
+            "productVariantAppendMedia" | "productVariantDetachMedia" => {
+                "products.product-variant-media"
+            }
+            "collectionCreate"
+            | "collectionUpdate"
+            | "collectionDelete"
+            | "collectionAddProducts"
+            | "collectionAddProductsV2"
+            | "collectionRemoveProducts"
+            | "collectionReorderProducts" => "products.collection",
+            "productVariantCreate"
+            | "productVariantUpdate"
+            | "productVariantDelete"
+            | "productVariantsBulkCreate"
+            | "productVariantsBulkUpdate"
+            | "productVariantsBulkDelete"
+            | "productVariantsBulkReorder" => "products.product-variant",
+            "sellingPlanGroupCreate"
+            | "sellingPlanGroupUpdate"
+            | "sellingPlanGroupDelete"
+            | "sellingPlanGroupAddProducts"
+            | "sellingPlanGroupRemoveProducts"
+            | "sellingPlanGroupAddProductVariants"
+            | "sellingPlanGroupRemoveProductVariants"
+            | "productJoinSellingPlanGroups"
+            | "productLeaveSellingPlanGroups"
+            | "productVariantJoinSellingPlanGroups"
+            | "productVariantLeaveSellingPlanGroups" => "products.selling-plan",
+            "productOptionsCreate"
+            | "productOptionUpdate"
+            | "productOptionsDelete"
+            | "productOptionsReorder" => "products.product-options",
+            "tagsAdd" | "tagsRemove" => "products.tags",
+            "metafieldsSet" | "metafieldsDelete" | "metafieldDelete" => "products.metafields",
+            "inventoryAdjustQuantities"
+            | "inventorySetQuantities"
+            | "inventorySetOnHandQuantities"
+            | "inventoryMoveQuantities"
+            | "inventoryActivate"
+            | "inventoryDeactivate"
+            | "inventoryBulkToggleActivation"
+            | "inventoryItemUpdate"
+            | "inventoryTransferCreate"
+            | "inventoryTransferCreateAsReadyToShip"
+            | "inventoryTransferMarkAsReadyToShip"
+            | "inventoryTransferEdit"
+            | "inventoryTransferSetItems"
+            | "inventoryTransferRemoveItems"
+            | "inventoryTransferDuplicate"
+            | "inventoryTransferCancel"
+            | "inventoryTransferDelete"
+            | "inventoryShipmentCreate"
+            | "inventoryShipmentCreateInTransit"
+            | "inventoryShipmentAddItems"
+            | "inventoryShipmentRemoveItems"
+            | "inventoryShipmentUpdateItemQuantities"
+            | "inventoryShipmentSetTracking"
+            | "inventoryShipmentMarkInTransit"
+            | "inventoryShipmentReceive"
+            | "inventoryShipmentDelete" => "products.inventory",
+            _ => "products.mutation",
+        },
+        (CapabilityDomain::Payments, OperationType::Query) => match root_field {
+            "customerPaymentMethod" => "payments.customer-payment-method",
+            "paymentCustomization" | "paymentCustomizations" => "payments.customizations",
+            "paymentTermsTemplates" => "payments.terms-templates",
+            _ => "payments.finance-risk",
+        },
+        (CapabilityDomain::Payments, OperationType::Mutation) => "payments.mutation",
+        (CapabilityDomain::BulkOperations, OperationType::Mutation) => match root_field {
+            "bulkOperationRunQuery" => "bulk-operations.run-query",
+            "bulkOperationRunMutation" => "bulk-operations.run-mutation",
+            "bulkOperationCancel" => "bulk-operations.cancel",
+            _ => "bulk-operations.mutation",
+        },
+        (CapabilityDomain::Discounts, OperationType::Mutation)
+            if is_discount_bulk_action_root(root_field) =>
+        {
+            "discounts.bulk-action"
+        }
+        (CapabilityDomain::StoreProperties, OperationType::Query) => match root_field {
+            "collection" => "store-properties.collection",
+            "shop" => "store-properties.shop",
+            "location" | "locations" | "locationsAvailableForDeliveryProfilesConnection" => {
+                "store-properties.locations"
+            }
+            _ => "store-properties.query",
+        },
+        (CapabilityDomain::StoreProperties, OperationType::Mutation) => match root_field {
+            "publishablePublish"
+            | "publishableUnpublish"
+            | "publishablePublishToCurrentChannel"
+            | "publishableUnpublishToCurrentChannel" => "store-properties.publishable",
+            "shopPolicyUpdate" => "store-properties.shop-policy",
+            "locationAdd" | "locationEdit" | "locationActivate" | "locationDelete" => {
+                "store-properties.location"
+            }
+            "locationDeactivate" => "store-properties.location-deactivate",
+            _ => "store-properties.mutation",
+        },
+        (CapabilityDomain::Segments, OperationType::Query) => match root_field {
+            "customerSegmentMembersQuery" => "segments.customer-segment-members-query",
+            _ => "segments.query",
+        },
+        (CapabilityDomain::Segments, OperationType::Mutation) => match root_field {
+            "customerSegmentMembersQueryCreate" => "segments.customer-segment-members-query-create",
+            _ => "segments.mutation",
+        },
+        (CapabilityDomain::Metafields, OperationType::Mutation) => match root_field {
+            "standardMetafieldDefinitionEnable" => "metafields.standard-definition-enable",
+            _ => "metafields.definition-pinning",
+        },
+        _ => "default",
+    }
+}
+
 impl DraftProxy {
+    fn should_dispatch_multi_root_graphql(
+        &self,
+        operation_type: OperationType,
+        root_fields: &[String],
+    ) -> bool {
+        if root_fields.len() <= 1
+            || !matches!(
+                operation_type,
+                OperationType::Query | OperationType::Mutation
+            )
+            || multi_root_operation_has_grouped_owner_roots(operation_type, root_fields)
+        {
+            return false;
+        }
+
+        let Some(first_root) = root_fields.first() else {
+            return false;
+        };
+        let first_key = self.multi_root_dispatch_key(operation_type, first_root);
+        root_fields
+            .iter()
+            .skip(1)
+            .any(|root| self.multi_root_dispatch_key(operation_type, root) != first_key)
+    }
+
+    fn multi_root_dispatch_key(
+        &self,
+        operation_type: OperationType,
+        root_field: &str,
+    ) -> MultiRootDispatchKey {
+        let capability = operation_capability(&self.registry, operation_type, Some(root_field));
+        MultiRootDispatchKey {
+            domain: capability.domain,
+            execution: capability.execution,
+            branch: multi_root_dispatch_branch(operation_type, root_field, capability.domain),
+        }
+    }
+
     pub(in crate::proxy) fn finalize_mutation_outcome(
         &mut self,
         request: &Request,
@@ -101,6 +388,63 @@ impl DraftProxy {
     ) -> Result<Vec<RootFieldSelection>, Response> {
         root_fields(query, variables)
             .ok_or_else(|| json_error(400, "Could not parse GraphQL operation"))
+    }
+
+    fn dispatch_multi_root_graphql(
+        &mut self,
+        request: &Request,
+        operation_type: OperationType,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        variable_definitions: &BTreeMap<String, VariableDefinitionInfo>,
+        fields: Vec<RootFieldSelection>,
+    ) -> Response {
+        let source_variables = resolved_variables_json(variables);
+        let source_root_fields: Vec<String> =
+            fields.iter().map(|field| field.name.clone()).collect();
+        let mut data = serde_json::Map::new();
+        let mut errors = Vec::new();
+
+        for field in fields {
+            let mut field_request = request.clone();
+            let field_query =
+                single_root_operation_query(operation_type, &field, variable_definitions);
+            field_request.body =
+                json!({ "query": field_query, "variables": source_variables }).to_string();
+            let log_start = self.log_entries.len();
+            let response = self.dispatch_graphql(&field_request);
+            self.annotate_multi_root_log_entries(
+                log_start,
+                request,
+                query,
+                &source_variables,
+                &source_root_fields,
+            );
+            merge_multi_root_field_response(&mut data, &mut errors, &field.response_key, response);
+        }
+
+        let mut body = serde_json::Map::new();
+        body.insert("data".to_string(), Value::Object(data));
+        if !errors.is_empty() {
+            body.insert("errors".to_string(), Value::Array(errors));
+        }
+        ok_json(Value::Object(body))
+    }
+
+    fn annotate_multi_root_log_entries(
+        &mut self,
+        log_start: usize,
+        source_request: &Request,
+        source_query: &str,
+        source_variables: &Value,
+        source_root_fields: &[String],
+    ) {
+        for entry in self.log_entries.iter_mut().skip(log_start) {
+            entry["sourceRawBody"] = json!(source_request.body.clone());
+            entry["sourceQuery"] = json!(source_query);
+            entry["sourceVariables"] = source_variables.clone();
+            entry["sourceRootFields"] = json!(source_root_fields);
+        }
     }
 
     /// A `products`/`productsCount`/`productVariants` root carrying a `query:`
@@ -244,6 +588,7 @@ impl DraftProxy {
             }
             "sellingPlanGroup" | "sellingPlanGroups" => {
                 let fields = try_root_fields!(query, variables);
+                self.hydrate_selling_plan_groups_for_read(request, &fields);
                 if product_root_fields_select_shop_currency_money(&fields) {
                     self.hydrate_shop_pricing_state_if_missing(request, true, false);
                 }
@@ -774,6 +1119,9 @@ impl DraftProxy {
         if let Some(discount) = self.discount_node_value_by_id(id, selection) {
             return Some(discount);
         }
+        if let Some(inventory) = self.inventory_node_value_by_id(id, selection) {
+            return Some(inventory);
+        }
         if let Some(file) = self.store.staged.media_files.get(id) {
             return Some(selected_json(file, selection));
         }
@@ -1203,12 +1551,7 @@ impl DraftProxy {
                             | "productVariantLeaveSellingPlanGroups"
                     ) =>
             {
-                // Validation scenarios reference live-store products/groups that
-                // were never staged here; serve those from upstream rather than
-                // fabricate an inaccurate userError from empty local state.
-                if !self.selling_plan_mutation_serves_locally(root_field, query, variables) {
-                    return (self.upstream_transport)(request.clone());
-                }
+                self.hydrate_selling_plan_mutation_targets(request, root_field, query, variables);
                 let outcome = self.selling_plan_group_mutation(root_field, query, variables);
                 self.finalize_mutation_outcome(request, query, variables, outcome)
             }
@@ -1522,6 +1865,7 @@ impl DraftProxy {
                             | "fulfillmentCreateV2"
                             | "fulfillmentCancel"
                             | "fulfillmentTrackingInfoUpdate"
+                            | "fulfillmentTrackingInfoUpdateV2"
                             | "fulfillmentEventCreate"
                             | "orderEditAddVariant"
                             | "orderEditSetQuantity"
@@ -1793,6 +2137,7 @@ impl DraftProxy {
                             | "fulfillmentOrderReleaseHold"
                             | "fulfillmentOrderCancel"
                             | "fulfillmentOrderClose"
+                            | "fulfillmentOrderLineItemsPreparedForPickup"
                             | "fulfillmentOrderReschedule"
                             | "fulfillmentOrdersReroute"
                             | "fulfillmentOrderSplit"
@@ -2150,6 +2495,28 @@ impl DraftProxy {
             return ok_json(json!({ "errors": schema_input_errors }));
         }
 
+        if operation.root_fields.len() > 1
+            && operation.operation_type == OperationType::Query
+            && self.should_route_owner_metafields_read(&query, &variables)
+        {
+            return self.owner_metafields_read(request, &query, &variables);
+        }
+
+        if self.should_dispatch_multi_root_graphql(operation.operation_type, &operation.root_fields)
+        {
+            let Some(document) = parsed_document(&query, &variables) else {
+                return json_error(400, "Could not parse GraphQL operation");
+            };
+            return self.dispatch_multi_root_graphql(
+                request,
+                operation.operation_type,
+                &query,
+                &variables,
+                &document.variable_definitions,
+                document.root_fields,
+            );
+        }
+
         let capability =
             operation_capability(&self.registry, operation.operation_type, Some(root_field));
         if capability.domain == CapabilityDomain::Products
@@ -2157,22 +2524,6 @@ impl DraftProxy {
             && product_operation_selects_shop_currency_money(&query, &variables)
         {
             self.hydrate_shop_pricing_state_if_missing(request, true, false);
-        }
-        // Discount bulk activate/deactivate/delete jobs run upstream (the async
-        // `job` is the real recorded one), but the proxy must mirror their effect
-        // onto its local overlay so later reads in the same scenario see the
-        // transition. Forward byte-for-byte, then apply the overlay side effect
-        // when the job was accepted. Bulk fields embedded in a locally-dispatched
-        // omnibus mutation do not reach here (their primary root field is the
-        // create), so this only affects standalone bulk requests.
-        if operation.operation_type == OperationType::Mutation
-            && is_discount_bulk_action_root(root_field)
-        {
-            let response = (self.upstream_transport)(request.clone());
-            if response.status == 200 {
-                self.apply_discount_bulk_overlay_effects(&query, &variables, &response.body);
-            }
-            return response;
         }
         match (capability.domain, capability.execution) {
             (CapabilityDomain::Products, execution) => self.dispatch_products_graphql(
@@ -2999,6 +3350,270 @@ impl DraftProxy {
             _ => unreachable!("non-unknown passthrough capabilities are not registered"),
         }
     }
+}
+
+fn single_root_operation_query(
+    operation_type: OperationType,
+    field: &RootFieldSelection,
+    variable_definitions: &BTreeMap<String, VariableDefinitionInfo>,
+) -> String {
+    let variable_definitions = serialize_used_variable_definitions(field, variable_definitions);
+    format!(
+        "{}{} {{ {} }}",
+        operation_type.keyword(),
+        variable_definitions,
+        serialize_root_field(field)
+    )
+}
+
+fn serialize_used_variable_definitions(
+    field: &RootFieldSelection,
+    variable_definitions: &BTreeMap<String, VariableDefinitionInfo>,
+) -> String {
+    let mut used_variables = std::collections::BTreeSet::new();
+    for value in field.raw_arguments.values() {
+        collect_raw_argument_variables(value, &mut used_variables);
+    }
+    for directive in &field.raw_directives {
+        for value in directive.raw_arguments.values() {
+            collect_raw_argument_variables(value, &mut used_variables);
+        }
+    }
+    if used_variables.is_empty() {
+        return String::new();
+    }
+
+    let definitions = used_variables
+        .iter()
+        .filter_map(|name| {
+            variable_definitions
+                .get(name.as_str())
+                .map(|definition| format!("${}: {}", definition.name, definition.type_display))
+        })
+        .collect::<Vec<_>>();
+    if definitions.is_empty() {
+        String::new()
+    } else {
+        format!("({})", definitions.join(", "))
+    }
+}
+
+fn collect_raw_argument_variables(
+    value: &RawArgumentValue,
+    variables: &mut std::collections::BTreeSet<String>,
+) {
+    match value {
+        RawArgumentValue::List(values) => {
+            for value in values {
+                collect_raw_argument_variables(value, variables);
+            }
+        }
+        RawArgumentValue::Object(fields) => {
+            for value in fields.values() {
+                collect_raw_argument_variables(value, variables);
+            }
+        }
+        RawArgumentValue::Variable { name, .. } => {
+            variables.insert(name.clone());
+        }
+        RawArgumentValue::String(_)
+        | RawArgumentValue::Int(_)
+        | RawArgumentValue::Float(_)
+        | RawArgumentValue::Bool(_)
+        | RawArgumentValue::Null
+        | RawArgumentValue::Enum(_) => {}
+    }
+}
+
+fn serialize_root_field(field: &RootFieldSelection) -> String {
+    let mut output = String::new();
+    if field.response_key != field.name {
+        output.push_str(&field.response_key);
+        output.push_str(": ");
+    }
+    output.push_str(&field.name);
+    output.push_str(&serialize_raw_arguments(&field.raw_arguments));
+    if field.raw_directives.is_empty() {
+        for directive in &field.directives {
+            output.push_str(" @");
+            output.push_str(directive);
+        }
+    } else {
+        for directive in &field.raw_directives {
+            output.push_str(&serialize_raw_directive(directive));
+        }
+    }
+    output.push_str(&serialize_selection_set(&field.selection));
+    output
+}
+
+fn serialize_raw_directive(directive: &DirectiveSelection) -> String {
+    format!(
+        " @{}{}",
+        directive.name,
+        serialize_raw_arguments(&directive.raw_arguments)
+    )
+}
+
+fn serialize_selected_field(field: &SelectedField) -> String {
+    let mut output = String::new();
+    if field.response_key != field.name {
+        output.push_str(&field.response_key);
+        output.push_str(": ");
+    }
+    output.push_str(&field.name);
+    output.push_str(&serialize_resolved_arguments(&field.arguments));
+    output.push_str(&serialize_selection_set(&field.selection));
+
+    match field.type_condition.as_deref() {
+        Some(type_condition) => format!("... on {type_condition} {{ {output} }}"),
+        None => output,
+    }
+}
+
+fn serialize_selection_set(selection: &[SelectedField]) -> String {
+    if selection.is_empty() {
+        return String::new();
+    }
+    format!(
+        " {{ {} }}",
+        selection
+            .iter()
+            .map(serialize_selected_field)
+            .collect::<Vec<_>>()
+            .join(" ")
+    )
+}
+
+fn serialize_raw_arguments(arguments: &BTreeMap<String, RawArgumentValue>) -> String {
+    if arguments.is_empty() {
+        return String::new();
+    }
+    format!(
+        "({})",
+        arguments
+            .iter()
+            .map(|(name, value)| format!("{name}: {}", serialize_raw_argument_value(value)))
+            .collect::<Vec<_>>()
+            .join(", ")
+    )
+}
+
+fn serialize_resolved_arguments(arguments: &BTreeMap<String, ResolvedValue>) -> String {
+    if arguments.is_empty() {
+        return String::new();
+    }
+    format!(
+        "({})",
+        arguments
+            .iter()
+            .map(|(name, value)| format!("{name}: {}", serialize_resolved_value(value)))
+            .collect::<Vec<_>>()
+            .join(", ")
+    )
+}
+
+fn serialize_raw_argument_value(value: &RawArgumentValue) -> String {
+    match value {
+        RawArgumentValue::String(value) => quote_graphql_string(value),
+        RawArgumentValue::Int(value) => value.to_string(),
+        RawArgumentValue::Float(value) => value.to_string(),
+        RawArgumentValue::Bool(value) => value.to_string(),
+        RawArgumentValue::Null => "null".to_string(),
+        RawArgumentValue::Enum(value) => value.clone(),
+        RawArgumentValue::List(values) => format!(
+            "[{}]",
+            values
+                .iter()
+                .map(serialize_raw_argument_value)
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        RawArgumentValue::Object(fields) => serialize_raw_object(fields),
+        RawArgumentValue::Variable { name, .. } => format!("${name}"),
+    }
+}
+
+fn serialize_raw_object(fields: &BTreeMap<String, RawArgumentValue>) -> String {
+    format!(
+        "{{ {} }}",
+        fields
+            .iter()
+            .map(|(name, value)| format!("{name}: {}", serialize_raw_argument_value(value)))
+            .collect::<Vec<_>>()
+            .join(", ")
+    )
+}
+
+fn serialize_resolved_value(value: &ResolvedValue) -> String {
+    match value {
+        ResolvedValue::String(value) => quote_graphql_string(value),
+        ResolvedValue::Int(value) => value.to_string(),
+        ResolvedValue::Float(value) => value.to_string(),
+        ResolvedValue::Bool(value) => value.to_string(),
+        ResolvedValue::Null => "null".to_string(),
+        ResolvedValue::List(values) => format!(
+            "[{}]",
+            values
+                .iter()
+                .map(serialize_resolved_value)
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        ResolvedValue::Object(fields) => format!(
+            "{{ {} }}",
+            fields
+                .iter()
+                .map(|(name, value)| format!("{name}: {}", serialize_resolved_value(value)))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+    }
+}
+
+fn quote_graphql_string(value: &str) -> String {
+    serde_json::to_string(value).unwrap_or_else(|_| "\"\"".to_string())
+}
+
+fn merge_multi_root_field_response(
+    data: &mut serde_json::Map<String, Value>,
+    errors: &mut Vec<Value>,
+    response_key: &str,
+    response: Response,
+) {
+    let mut has_data_key = false;
+    if let Some(response_data) = response.body.get("data").and_then(Value::as_object) {
+        if let Some(value) = response_data.get(response_key) {
+            data.insert(response_key.to_string(), value.clone());
+            has_data_key = true;
+        }
+    }
+    if !has_data_key {
+        data.insert(response_key.to_string(), Value::Null);
+    }
+
+    if let Some(response_errors) = response.body.get("errors").and_then(Value::as_array) {
+        errors.extend(
+            response_errors
+                .iter()
+                .cloned()
+                .map(|error| error_with_default_path(error, response_key)),
+        );
+    } else if response.status >= 400 {
+        errors.push(json!({
+            "message": format!("GraphQL root `{response_key}` failed with status {}", response.status),
+            "path": [response_key]
+        }));
+    }
+}
+
+fn error_with_default_path(mut error: Value, response_key: &str) -> Value {
+    if let Some(object) = error.as_object_mut() {
+        object
+            .entry("path".to_string())
+            .or_insert_with(|| json!([response_key]));
+    }
+    error
 }
 
 fn local_node_value(

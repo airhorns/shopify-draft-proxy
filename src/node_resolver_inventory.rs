@@ -1,0 +1,319 @@
+use serde_json::{json, Value};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NodeResolverBehavior {
+    ProjectLocalRecord,
+    ReturnKnownNull,
+}
+
+impl NodeResolverBehavior {
+    fn registry_name(self) -> &'static str {
+        match self {
+            Self::ProjectLocalRecord => "project-local-record",
+            Self::ReturnKnownNull => "return-known-null",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NodeResolverInventoryEntry {
+    pub type_name: &'static str,
+    pub resolver: &'static str,
+    pub behavior: NodeResolverBehavior,
+}
+
+const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
+    entry(
+        "App",
+        "DraftProxy::app_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "AppInstallation",
+        "DraftProxy::app_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "AppPurchaseOneTime",
+        "DraftProxy::app_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "AppSubscription",
+        "DraftProxy::app_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "AppUsageRecord",
+        "DraftProxy::app_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "Article",
+        "DraftProxy::online_store_content_node_value",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "Blog",
+        "DraftProxy::online_store_content_node_value",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "CartTransform",
+        "DraftProxy::local_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "CashTrackingSession",
+        "local_node_value::is_safe_no_data_node_gid",
+        NodeResolverBehavior::ReturnKnownNull,
+    ),
+    entry(
+        "Collection",
+        "DraftProxy::collection_json_with_publication_fields",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "Comment",
+        "DraftProxy::online_store_content_node_value",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "Company",
+        "DraftProxy::b2b_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "CompanyAddress",
+        "DraftProxy::b2b_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "CompanyContact",
+        "DraftProxy::b2b_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "CompanyContactRole",
+        "DraftProxy::b2b_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "CompanyContactRoleAssignment",
+        "DraftProxy::b2b_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "CompanyLocation",
+        "DraftProxy::b2b_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "CustomerSegmentMembersQuery",
+        "DraftProxy::local_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "DiscountAutomaticNode",
+        "DraftProxy::discount_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "DiscountCodeNode",
+        "DraftProxy::discount_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "ExternalVideo",
+        "DraftProxy::local_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "FulfillmentConstraintRule",
+        "DraftProxy::local_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "GenericFile",
+        "DraftProxy::local_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "GiftCard",
+        "DraftProxy::local_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "InventoryAdjustmentGroup",
+        "DraftProxy::inventory_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "InventoryItem",
+        "DraftProxy::inventory_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "InventoryLevel",
+        "DraftProxy::inventory_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "InventoryQuantity",
+        "DraftProxy::inventory_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "InventoryShipment",
+        "DraftProxy::inventory_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "InventoryShipmentLineItem",
+        "DraftProxy::inventory_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "InventoryTransfer",
+        "DraftProxy::inventory_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "InventoryTransferLineItem",
+        "DraftProxy::inventory_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "Location",
+        "DraftProxy::local_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "MarketRegionCountry",
+        "DraftProxy::local_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "MediaImage",
+        "DraftProxy::local_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "Model3d",
+        "DraftProxy::local_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "Page",
+        "DraftProxy::online_store_content_node_value",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "PointOfSaleDevice",
+        "local_node_value::is_safe_no_data_node_gid",
+        NodeResolverBehavior::ReturnKnownNull,
+    ),
+    entry(
+        "Product",
+        "DraftProxy::product_json_with_variants_and_currency_context",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "ProductBundleOperation",
+        "DraftProxy::product_operation_json",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "ProductDeleteOperation",
+        "DraftProxy::product_delete_operation_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "ProductDuplicateOperation",
+        "DraftProxy::product_operation_json",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "ProductFeed",
+        "DraftProxy::product_tail_feed_node_value",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "ProductSetOperation",
+        "DraftProxy::product_operation_json",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "ProductVariant",
+        "DraftProxy::product_variant_by_id_value",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "Segment",
+        "DraftProxy::local_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "ShopAddress",
+        "DraftProxy::shop_property_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "ShopPolicy",
+        "DraftProxy::shop_property_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "ShopifyPaymentsDispute",
+        "local_node_value::is_safe_no_data_node_gid",
+        NodeResolverBehavior::ReturnKnownNull,
+    ),
+    entry(
+        "TaxAppConfiguration",
+        "DraftProxy::local_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "Validation",
+        "DraftProxy::local_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "Video",
+        "DraftProxy::local_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+];
+
+const fn entry(
+    type_name: &'static str,
+    resolver: &'static str,
+    behavior: NodeResolverBehavior,
+) -> NodeResolverInventoryEntry {
+    NodeResolverInventoryEntry {
+        type_name,
+        resolver,
+        behavior,
+    }
+}
+
+pub fn default_node_resolver_inventory() -> &'static [NodeResolverInventoryEntry] {
+    DEFAULT_NODE_RESOLVER_INVENTORY
+}
+
+pub fn default_node_resolver_inventory_json_value() -> Value {
+    Value::Array(
+        default_node_resolver_inventory()
+            .iter()
+            .map(node_resolver_inventory_entry_json_value)
+            .collect(),
+    )
+}
+
+fn node_resolver_inventory_entry_json_value(entry: &NodeResolverInventoryEntry) -> Value {
+    json!({
+        "typeName": entry.type_name,
+        "resolver": entry.resolver,
+        "behavior": entry.behavior.registry_name(),
+    })
+}

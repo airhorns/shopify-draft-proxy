@@ -33,6 +33,7 @@ The implemented mutation roots are:
 - `deliveryCustomizationDelete`
 - `deliveryCustomizationUpdate`
 - `fulfillmentEventCreate`
+- `fulfillmentOrderLineItemsPreparedForPickup`
 - `fulfillmentServiceCreate`
 - `fulfillmentServiceDelete`
 - `fulfillmentServiceUpdate`
@@ -74,7 +75,6 @@ The registry-only mutation roots are:
 - `fulfillmentOrderCancel`
 - `fulfillmentOrderClose`
 - `fulfillmentOrderHold`
-- `fulfillmentOrderLineItemsPreparedForPickup`
 - `fulfillmentOrderMove`
 - `fulfillmentOrderOpen`
 - `fulfillmentOrderReleaseHold`
@@ -192,6 +192,24 @@ fulfillment orders are recomputed from current status and assignment: terminal
 Split fulfillment orders preserve fulfillment-service actions observed on the
 source order, while merge recomputes peer-sensitive actions so `MERGE` is absent
 when no compatible open peer remains.
+`fulfillmentOrderLineItemsPreparedForPickup` stages pickup preparation for
+selected order-backed fulfillment orders that resolve from staged, observed, or
+LiveHybrid-hydrated order state. The local branch validates every requested
+fulfillment order before applying any state change: structurally invalid
+non-fulfillment-order GIDs return Shopify's top-level `invalid id` /
+`RESOURCE_NOT_FOUND` shape, unknown IDs return a payload `userErrors` entry on
+the indexed `fulfillmentOrderId` field with `FULFILLMENT_ORDER_INVALID`, and
+non-pickup, closed, canceled, or zero-remaining fulfillment orders return the
+same payload user-error shape without staging or logging. Successful batches
+move only the requested pickup fulfillment orders to `IN_PROGRESS`, recompute
+their supported actions, mark their line items prepared for pickup, project
+`fulfillableQuantity: 0` while preserving the stored remaining quantities, and
+refresh the parent order's display fulfillment status. The mutation retains the
+original raw request for commit replay, and the staged result is visible through
+`fulfillmentOrder`, `fulfillmentOrders`, `assignedFulfillmentOrders`, and nested
+`Order.fulfillmentOrders` reads. Existing public evidence covers the invalid-ID
+and non-pickup validation branches; successful pickup preparation is covered by
+focused Rust runtime tests until a disposable pickup-order capture is available.
 Locally created order fulfillment orders derive their initial `assignedLocation`
 from the first active observed/staged shop location that fulfills online orders;
 the runtime does not fabricate
