@@ -139,8 +139,38 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
         NodeResolverBehavior::ProjectLocalRecord,
     ),
     entry(
+        "Fulfillment",
+        "DraftProxy::fulfillment_return_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
         "FulfillmentConstraintRule",
         "DraftProxy::local_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "FulfillmentEvent",
+        "DraftProxy::fulfillment_return_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "FulfillmentHold",
+        "DraftProxy::fulfillment_return_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "FulfillmentLineItem",
+        "DraftProxy::fulfillment_return_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "FulfillmentOrder",
+        "DraftProxy::fulfillment_return_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "FulfillmentOrderLineItem",
+        "DraftProxy::fulfillment_return_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
     ),
     entry(
@@ -274,6 +304,41 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
         NodeResolverBehavior::ProjectLocalRecord,
     ),
     entry(
+        "Return",
+        "DraftProxy::fulfillment_return_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "ReturnLineItem",
+        "DraftProxy::fulfillment_return_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "ReturnableFulfillment",
+        "DraftProxy::fulfillment_return_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "ReverseDelivery",
+        "DraftProxy::fulfillment_return_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "ReverseDeliveryLineItem",
+        "DraftProxy::fulfillment_return_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "ReverseFulfillmentOrder",
+        "DraftProxy::fulfillment_return_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "ReverseFulfillmentOrderLineItem",
+        "DraftProxy::fulfillment_return_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
         "Segment",
         "DraftProxy::local_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
@@ -321,6 +386,11 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
     entry(
         "TaxAppConfiguration",
         "DraftProxy::local_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "UnverifiedReturnLineItem",
+        "DraftProxy::fulfillment_return_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
     ),
     entry(
