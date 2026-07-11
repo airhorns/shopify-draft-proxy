@@ -271,6 +271,7 @@ struct BaseState {
     saved_searches: OrderedRecords<SavedSearchRecord>,
     shop_policies: OrderedRecords<ShopPolicyRecord>,
     delivery_profiles: OrderedRecords<Value>,
+    discounts: OrderedRecords<Value>,
     marketing_activities: OrderedRecords<Value>,
     marketing_events: OrderedRecords<Value>,
     gift_cards: BTreeMap<String, Value>,
@@ -296,6 +297,12 @@ struct BaseState {
     metafield_definitions: BTreeMap<MetafieldDefinitionKey, Value>,
     metafield_definition_owner_catalogs: BTreeSet<String>,
     metafield_definition_namespaces: BTreeSet<(String, String)>,
+    b2b_companies: OrderedRecords<Value>,
+    b2b_locations: OrderedRecords<Value>,
+    b2b_contacts: OrderedRecords<Value>,
+    b2b_contact_roles: OrderedRecords<Value>,
+    b2b_role_assignments: OrderedRecords<Value>,
+    b2b_staff_assignments: OrderedRecords<Value>,
 }
 
 type MetafieldDefinitionKey = (String, String, String);
@@ -346,6 +353,7 @@ struct StagedState {
     observed_shipping_location_order: Vec<String>,
     locations: StagedRecords<Value>,
     location_limit_reached: bool,
+    delivery_customizations: StagedRecords<Value>,
     segments: BTreeMap<String, Value>,
     // Recorded segment-catalog read baselines, keyed by root field name
     // (`segments` / `segmentsCount` / `segmentFilters` / `segmentFilterSuggestions`
@@ -360,6 +368,7 @@ struct StagedState {
     collections: StagedRecords<Value>,
     collection_jobs: BTreeMap<String, Value>,
     fulfillment_order_deadlines: BTreeMap<String, String>,
+    fulfillment_order_cursors: BTreeMap<String, BTreeMap<String, String>>,
     bulk_operations: BTreeMap<String, Value>,
     bulk_operation_staged_uploads: BTreeMap<String, Option<u64>>,
     bulk_operation_staged_upload_bodies: BTreeMap<String, String>,
@@ -414,11 +423,13 @@ struct StagedState {
     marketing_delete_all_external_app_ids: BTreeSet<String>,
     webhook_subscriptions: BTreeMap<String, Value>,
     b2b_companies: BTreeMap<String, Value>,
+    deleted_b2b_company_ids: BTreeSet<String>,
     b2b_locations: StagedRecords<Value>,
     b2b_contacts: BTreeMap<String, Value>,
     b2b_contact_roles: BTreeMap<String, Value>,
     b2b_role_assignments: BTreeMap<String, Value>,
     b2b_staff_assignments: BTreeMap<String, Value>,
+    deleted_b2b_staff_assignment_ids: BTreeSet<String>,
     next_b2b_company_id: u64,
     inventory_levels: BTreeMap<(String, String), BTreeMap<String, i64>>,
     inventory_level_order: Vec<(String, String)>,
@@ -431,6 +442,7 @@ struct StagedState {
     inactive_inventory_levels: BTreeSet<(String, String)>,
     inventory_quantity_updated_at: BTreeMap<(String, String, String), String>,
     next_inventory_quantity_timestamp: u64,
+    inventory_adjustment_groups: BTreeMap<String, Value>,
     inventory_transfers: BTreeMap<String, InventoryTransferRecord>,
     inventory_shipments: BTreeMap<String, InventoryShipmentRecord>,
     metaobject_definitions: StagedRecords<Value>,
@@ -2109,7 +2121,6 @@ pub(in crate::proxy) use self::app_shipping_helpers::*;
 pub(in crate::proxy) use self::b2b_customers::*;
 pub(in crate::proxy) use self::civil_date::*;
 pub(in crate::proxy) use self::connection::*;
-pub(in crate::proxy) use self::discounts::*;
 pub(in crate::proxy) use self::functions::*;
 pub(in crate::proxy) use self::json_helpers::*;
 pub(in crate::proxy) use self::localization_markets_catalogs::*;

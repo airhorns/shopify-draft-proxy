@@ -1867,6 +1867,563 @@ fn b2b_companies_cold_live_hybrid_read_forwards_upstream() {
 }
 
 #[test]
+fn b2b_live_hybrid_merges_upstream_catalog_with_staged_company_and_location() {
+    // Regression: once a B2B row is staged, unrelated upstream rows must stay visible.
+    let base_company_id = "gid://shopify/Company/700001";
+    let base_location_id = "gid://shopify/CompanyLocation/800001";
+    let upstream_body = json!({
+        "data": {
+            "companies": {
+                "nodes": [{
+                    "id": base_company_id,
+                    "name": "Baseline Buyer",
+                    "externalId": "BASE-BUYER",
+                    "locations": {
+                        "nodes": [{ "id": base_location_id, "name": "Baseline HQ" }]
+                    }
+                }],
+                "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": base_company_id,
+                    "endCursor": base_company_id
+                }
+            },
+            "companiesCount": {
+                "count": 1,
+                "precision": "EXACT"
+            },
+            "companyLocations": {
+                "nodes": [{
+                    "id": base_location_id,
+                    "name": "Baseline HQ",
+                    "externalId": "BASE-HQ",
+                    "company": {
+                        "id": base_company_id,
+                        "name": "Baseline Buyer"
+                    }
+                }],
+                "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": base_location_id,
+                    "endCursor": base_location_id
+                }
+            }
+        }
+    });
+    let captured = Arc::new(Mutex::new(Vec::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let captured = Arc::clone(&captured);
+        let upstream_body = upstream_body.clone();
+        move |request| {
+            assert!(
+                !request.body.contains("mutation"),
+                "B2B supported mutations must not be forwarded upstream: {}",
+                request.body
+            );
+            captured.lock().expect("captured upstream").push(request);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: upstream_body.clone(),
+            }
+        }
+    });
+
+    let staged_company_id = create_b2b_company(&mut proxy, "Staged Buyer");
+    let staged_default_location_id =
+        read_b2b_company_location_ids(&mut proxy, &staged_company_id)[0].clone();
+    let staged_location_id = create_b2b_location(&mut proxy, &staged_company_id, "Staged HQ");
+    assert!(
+        captured.lock().expect("captured upstream").is_empty(),
+        "B2B writes should stage without upstream calls"
+    );
+
+    let merged = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BMixedCatalog($companyQuery: String!, $locationQuery: String!) {
+          companies(first: 10, query: $companyQuery, sortKey: NAME) {
+            nodes {
+              id
+              name
+              externalId
+              locations(first: 10, sortKey: NAME) { nodes { id name } }
+            }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          companiesCount(query: $companyQuery, limit: 10) { count precision }
+          companyLocations(first: 10, query: $locationQuery, sortKey: NAME) {
+            nodes { id name externalId company { id name } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "companyQuery": "name:Buyer", "locationQuery": "name:HQ" }),
+    ));
+    assert_eq!(merged.status, 200);
+    assert_eq!(
+        merged.body["data"]["companies"]["nodes"],
+        json!([
+            {
+                "id": base_company_id,
+                "name": "Baseline Buyer",
+                "externalId": "BASE-BUYER",
+                "locations": {
+                    "nodes": [{ "id": base_location_id, "name": "Baseline HQ" }]
+                }
+            },
+            {
+                "id": staged_company_id,
+                "name": "Staged Buyer",
+                "externalId": Value::Null,
+                "locations": {
+                    "nodes": [
+                        { "id": staged_default_location_id, "name": "Staged Buyer" },
+                        { "id": staged_location_id, "name": "Staged HQ" }
+                    ]
+                }
+            }
+        ])
+    );
+    assert_eq!(
+        merged.body["data"]["companies"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": base_company_id,
+            "endCursor": staged_company_id
+        })
+    );
+    assert_eq!(
+        merged.body["data"]["companiesCount"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+    assert_eq!(
+        merged.body["data"]["companyLocations"]["nodes"],
+        json!([
+            {
+                "id": base_location_id,
+                "name": "Baseline HQ",
+                "externalId": "BASE-HQ",
+                "company": { "id": base_company_id, "name": "Baseline Buyer" }
+            },
+            {
+                "id": staged_location_id,
+                "name": "Staged HQ",
+                "externalId": Value::Null,
+                "company": { "id": staged_company_id, "name": "Staged Buyer" }
+            }
+        ])
+    );
+    assert_eq!(
+        merged.body["data"]["companyLocations"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": base_location_id,
+            "endCursor": staged_location_id
+        })
+    );
+
+    let calls = captured.lock().expect("captured upstream");
+    assert_eq!(calls.len(), 1);
+    assert!(calls[0].body.contains("query B2BMixedCatalog"));
+    assert!(!calls[0].body.contains("mutation"));
+}
+
+#[test]
+fn b2b_live_hybrid_overlays_updates_and_deletes_on_hydrated_baseline() {
+    let updated_company_id = "gid://shopify/Company/710001";
+    let deleted_company_id = "gid://shopify/Company/710002";
+    let updated_location_id = "gid://shopify/CompanyLocation/810001";
+    let deleted_location_id = "gid://shopify/CompanyLocation/810002";
+    let deleted_company_location_id = "gid://shopify/CompanyLocation/810003";
+    let upstream_body = json!({
+        "data": {
+            "companies": {
+                "nodes": [
+                    {
+                        "id": updated_company_id,
+                        "name": "Baseline Buyer",
+                        "externalId": "BASE-BUYER",
+                        "locations": {
+                            "nodes": [
+                                {
+                                    "id": deleted_location_id,
+                                    "name": "Baseline Annex",
+                                    "externalId": "BASE-ANNEX"
+                                },
+                                {
+                                    "id": updated_location_id,
+                                    "name": "Baseline HQ",
+                                    "externalId": "BASE-HQ"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "id": deleted_company_id,
+                        "name": "Delete Buyer",
+                        "externalId": "DELETE-BUYER",
+                        "locations": {
+                            "nodes": [{
+                                "id": deleted_company_location_id,
+                                "name": "Delete HQ",
+                                "externalId": "DELETE-HQ"
+                            }]
+                        }
+                    }
+                ],
+                "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": updated_company_id,
+                    "endCursor": deleted_company_id
+                }
+            },
+            "companiesCount": {
+                "count": 2,
+                "precision": "EXACT"
+            },
+            "companyLocations": {
+                "nodes": [
+                    {
+                        "id": deleted_location_id,
+                        "name": "Baseline Annex",
+                        "externalId": "BASE-ANNEX",
+                        "company": {
+                            "id": updated_company_id,
+                            "name": "Baseline Buyer"
+                        }
+                    },
+                    {
+                        "id": updated_location_id,
+                        "name": "Baseline HQ",
+                        "externalId": "BASE-HQ",
+                        "company": {
+                            "id": updated_company_id,
+                            "name": "Baseline Buyer"
+                        }
+                    },
+                    {
+                        "id": deleted_company_location_id,
+                        "name": "Delete HQ",
+                        "externalId": "DELETE-HQ",
+                        "company": {
+                            "id": deleted_company_id,
+                            "name": "Delete Buyer"
+                        }
+                    }
+                ],
+                "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": deleted_location_id,
+                    "endCursor": deleted_company_location_id
+                }
+            }
+        }
+    });
+    let captured = Arc::new(Mutex::new(Vec::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let captured = Arc::clone(&captured);
+        let upstream_body = upstream_body.clone();
+        move |request| {
+            assert!(
+                !request.body.contains("mutation"),
+                "B2B supported mutations must not be forwarded upstream: {}",
+                request.body
+            );
+            captured.lock().expect("captured upstream").push(request);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: upstream_body.clone(),
+            }
+        }
+    });
+
+    let marker_company_id = create_b2b_company(&mut proxy, "Local Hydration Marker");
+    let hydrate = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BHydrateBaselineCatalog {
+          companies(first: 10, sortKey: NAME) {
+            nodes {
+              id
+              name
+              externalId
+              locations(first: 10, sortKey: NAME) { nodes { id name externalId } }
+            }
+          }
+          companiesCount(limit: 10) { count precision }
+          companyLocations(first: 10, sortKey: NAME) {
+            nodes { id name externalId company { id name } }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(hydrate.status, 200);
+    assert_eq!(captured.lock().expect("captured upstream").len(), 1);
+
+    let delete_marker = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BDeleteHydrationMarker($id: ID!) {
+          companyDelete(id: $id) {
+            deletedCompanyId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": marker_company_id }),
+    ));
+    assert_eq!(delete_marker.status, 200);
+    assert_eq!(
+        delete_marker.body["data"]["companyDelete"]["userErrors"],
+        json!([])
+    );
+
+    let update_company = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BUpdateHydratedCompany($companyId: ID!) {
+          companyUpdate(
+            companyId: $companyId,
+            input: { name: "Updated Buyer", externalId: "UPDATED-BUYER" }
+          ) {
+            company {
+              id
+              name
+              externalId
+              locations(first: 10, sortKey: NAME) { nodes { id name externalId } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "companyId": updated_company_id }),
+    ));
+    assert_eq!(update_company.status, 200);
+    assert_eq!(
+        update_company.body["data"]["companyUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update_company.body["data"]["companyUpdate"]["company"]["name"],
+        json!("Updated Buyer")
+    );
+
+    let update_location = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BUpdateHydratedLocation($locationId: ID!) {
+          companyLocationUpdate(
+            companyLocationId: $locationId,
+            input: { name: "Updated HQ", externalId: "UPDATED-HQ" }
+          ) {
+            companyLocation { id name externalId company { id name } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "locationId": updated_location_id }),
+    ));
+    assert_eq!(update_location.status, 200);
+    assert_eq!(
+        update_location.body["data"]["companyLocationUpdate"],
+        json!({
+            "companyLocation": {
+                "id": updated_location_id,
+                "name": "Updated HQ",
+                "externalId": "UPDATED-HQ",
+                "company": {
+                    "id": updated_company_id,
+                    "name": "Updated Buyer"
+                }
+            },
+            "userErrors": []
+        })
+    );
+
+    let delete_location = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BDeleteHydratedLocation($locationId: ID!) {
+          companyLocationDelete(companyLocationId: $locationId) {
+            deletedCompanyLocationId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "locationId": deleted_location_id }),
+    ));
+    assert_eq!(delete_location.status, 200);
+    assert_eq!(
+        delete_location.body["data"]["companyLocationDelete"],
+        json!({
+            "deletedCompanyLocationId": deleted_location_id,
+            "userErrors": []
+        })
+    );
+
+    let delete_company = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BDeleteHydratedCompany($companyId: ID!) {
+          companyDelete(id: $companyId) {
+            deletedCompanyId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "companyId": deleted_company_id }),
+    ));
+    assert_eq!(delete_company.status, 200);
+    assert_eq!(
+        delete_company.body["data"]["companyDelete"],
+        json!({
+            "deletedCompanyId": deleted_company_id,
+            "userErrors": []
+        })
+    );
+    assert_eq!(
+        captured.lock().expect("captured upstream").len(),
+        1,
+        "baseline mutations should not call upstream after catalog hydration"
+    );
+
+    let read_after_mutations = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BBaselineOverlayReadAfterMutations(
+          $updatedCompanyId: ID!,
+          $deletedCompanyId: ID!,
+          $updatedLocationId: ID!,
+          $deletedLocationId: ID!,
+          $deletedCompanyLocationId: ID!
+        ) {
+          updatedCompany: company(id: $updatedCompanyId) {
+            id
+            name
+            externalId
+            locations(first: 10, sortKey: NAME) { nodes { id name externalId } }
+          }
+          deletedCompany: company(id: $deletedCompanyId) { id name }
+          updatedLocation: companyLocation(id: $updatedLocationId) {
+            id
+            name
+            externalId
+            company { id name }
+          }
+          deletedLocation: companyLocation(id: $deletedLocationId) { id name }
+          deletedCompanyLocation: companyLocation(id: $deletedCompanyLocationId) { id name }
+          companies(first: 10, sortKey: NAME) {
+            nodes {
+              id
+              name
+              externalId
+              locations(first: 10, sortKey: NAME) { nodes { id name } }
+            }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          companiesCount(limit: 10) { count precision }
+          companyLocations(first: 10, sortKey: NAME) {
+            nodes { id name externalId company { id name } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({
+            "updatedCompanyId": updated_company_id,
+            "deletedCompanyId": deleted_company_id,
+            "updatedLocationId": updated_location_id,
+            "deletedLocationId": deleted_location_id,
+            "deletedCompanyLocationId": deleted_company_location_id
+        }),
+    ));
+    assert_eq!(read_after_mutations.status, 200);
+    assert_eq!(
+        read_after_mutations.body["data"]["updatedCompany"],
+        json!({
+            "id": updated_company_id,
+            "name": "Updated Buyer",
+            "externalId": "UPDATED-BUYER",
+            "locations": {
+                "nodes": [{
+                    "id": updated_location_id,
+                    "name": "Updated HQ",
+                    "externalId": "UPDATED-HQ"
+                }]
+            }
+        })
+    );
+    assert!(read_after_mutations.body["data"]["deletedCompany"].is_null());
+    assert_eq!(
+        read_after_mutations.body["data"]["updatedLocation"],
+        json!({
+            "id": updated_location_id,
+            "name": "Updated HQ",
+            "externalId": "UPDATED-HQ",
+            "company": {
+                "id": updated_company_id,
+                "name": "Updated Buyer"
+            }
+        })
+    );
+    assert!(read_after_mutations.body["data"]["deletedLocation"].is_null());
+    assert!(read_after_mutations.body["data"]["deletedCompanyLocation"].is_null());
+    assert_eq!(
+        read_after_mutations.body["data"]["companies"]["nodes"],
+        json!([{
+            "id": updated_company_id,
+            "name": "Updated Buyer",
+            "externalId": "UPDATED-BUYER",
+            "locations": {
+                "nodes": [{ "id": updated_location_id, "name": "Updated HQ" }]
+            }
+        }])
+    );
+    assert_eq!(
+        read_after_mutations.body["data"]["companies"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": updated_company_id,
+            "endCursor": updated_company_id
+        })
+    );
+    assert_eq!(
+        read_after_mutations.body["data"]["companiesCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read_after_mutations.body["data"]["companyLocations"]["nodes"],
+        json!([{
+            "id": updated_location_id,
+            "name": "Updated HQ",
+            "externalId": "UPDATED-HQ",
+            "company": {
+                "id": updated_company_id,
+                "name": "Updated Buyer"
+            }
+        }])
+    );
+    assert_eq!(
+        read_after_mutations.body["data"]["companyLocations"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": updated_location_id,
+            "endCursor": updated_location_id
+        })
+    );
+
+    let calls = captured.lock().expect("captured upstream");
+    assert_eq!(calls.len(), 2);
+    assert!(calls[0].body.contains("query B2BHydrateBaselineCatalog"));
+    assert!(calls[1]
+        .body
+        .contains("query B2BBaselineOverlayReadAfterMutations"));
+    assert!(calls.iter().all(|call| !call.body.contains("mutation")));
+}
+
+#[test]
 fn b2b_live_hybrid_stage_locally_roots_do_not_forward_mutations() {
     let mut proxy =
         configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|request| {

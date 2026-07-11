@@ -1,0 +1,21 @@
+mutation B2BMixedOverlayCompanyUpdate($companyId: ID!, $input: CompanyInput!) {
+  companyUpdate(companyId: $companyId, input: $input) {
+    company {
+      id
+      name
+      externalId
+      locations(first: 5, sortKey: NAME) {
+        nodes {
+          id
+          name
+          externalId
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

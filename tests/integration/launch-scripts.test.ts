@@ -1,4 +1,4 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { once } from 'node:events';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -75,17 +75,46 @@ async function stopServer(child: ChildProcessWithoutNullStreams): Promise<void> 
 }
 
 function killServerProcess(child: ChildProcessWithoutNullStreams, signal: NodeJS.Signals): void {
-  try {
-    if (child.pid) {
-      process.kill(-child.pid, signal);
-      return;
-    }
+  if (!child.pid) {
     child.kill(signal);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ESRCH') {
-      throw error;
+    return;
+  }
+
+  for (const pid of processTreePids(child.pid)) {
+    try {
+      process.kill(pid, signal);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ESRCH') {
+        throw error;
+      }
     }
   }
+}
+
+function processTreePids(rootPid: number): number[] {
+  const result = spawnSync('ps', ['-eo', 'pid=,ppid='], { encoding: 'utf8' });
+  if (result.status !== 0) {
+    return [rootPid];
+  }
+
+  const childrenByParent = new Map<number, number[]>();
+  for (const line of result.stdout.split('\n')) {
+    const [pidText, ppidText] = line.trim().split(/\s+/);
+    const pid = Number(pidText);
+    const ppid = Number(ppidText);
+    if (!Number.isFinite(pid) || !Number.isFinite(ppid)) {
+      continue;
+    }
+    const children = childrenByParent.get(ppid) ?? [];
+    children.push(pid);
+    childrenByParent.set(ppid, children);
+  }
+
+  const ordered = [rootPid];
+  for (let index = 0; index < ordered.length; index += 1) {
+    ordered.push(...(childrenByParent.get(ordered[index] ?? 0) ?? []));
+  }
+  return ordered.reverse();
 }
 
 async function closeServer(server: Server): Promise<void> {

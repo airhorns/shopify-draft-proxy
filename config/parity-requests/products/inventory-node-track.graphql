@@ -1,0 +1,24 @@
+mutation InventoryNodeTrackInventory($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+  productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+    product {
+      id
+      totalInventory
+      tracksInventory
+    }
+    productVariants {
+      id
+      sku
+      inventoryQuantity
+      inventoryItem {
+        id
+        tracked
+        requiresShipping
+        sku
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

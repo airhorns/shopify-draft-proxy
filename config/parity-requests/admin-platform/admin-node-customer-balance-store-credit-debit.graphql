@@ -1,0 +1,39 @@
+mutation AdminNodeCustomerBalanceStoreCreditDebit(
+  $id: ID!
+  $debitInput: StoreCreditAccountDebitInput!
+) {
+  storeCreditAccountDebit(id: $id, debitInput: $debitInput) {
+    storeCreditAccountTransaction {
+      id
+      __typename
+      amount {
+        amount
+        currencyCode
+      }
+      balanceAfterTransaction {
+        amount
+        currencyCode
+      }
+      event
+      origin
+      account {
+        id
+        balance {
+          amount
+          currencyCode
+        }
+        owner {
+          ... on Customer {
+            id
+            email
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

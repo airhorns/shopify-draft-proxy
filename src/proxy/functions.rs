@@ -4,7 +4,7 @@ use crate::proxy::search::search_string_matches;
 const FUNCTION_CANONICAL_API_TYPE_FIELD: &str = "__draftProxyCanonicalApiType";
 
 const FUNCTION_HYDRATE_BY_ID_QUERY: &str = "query FunctionHydrateById($id: String!) {\n  shopifyFunction(id: $id) {\n    id\n    title\n    apiType\n    description\n    appKey\n    app {\n      __typename\n      id\n      title\n      apiKey\n    }\n  }\n}\n";
-const FUNCTION_HYDRATE_BY_HANDLE_QUERY: &str = "query FunctionHydrateByHandle {\n  shopifyFunctions(first: 100) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n";
+const FUNCTION_HYDRATE_BY_HANDLE_QUERY: &str = "query FunctionHydrateByHandle($handle: String!) {\n  shopifyFunctions(first: 1, handle: $handle) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n";
 const FUNCTION_METADATA_CATALOG_HYDRATE_QUERY: &str = "query FunctionMetadataCatalogHydrate {\n  shopifyFunctions(first: 100) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n";
 const FUNCTION_VALIDATIONS_HYDRATE_QUERY: &str = "query FunctionValidationsHydrate {\n  validations(first: 100) {\n    nodes {\n      id\n      title\n      enabled\n      blockOnFailure\n      shopifyFunction {\n        id\n        title\n        handle\n        apiType\n        description\n        appKey\n        app {\n          __typename\n          id\n          title\n          handle\n          apiKey\n        }\n      }\n      metafields(first: 100) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          updatedAt\n        }\n      }\n    }\n  }\n}\n";
 const FUNCTION_VALIDATION_HYDRATE_BY_ID_QUERY: &str = "query FunctionValidationHydrateById($id: ID!) {\n  validation(id: $id) {\n    id\n    title\n    enabled\n    blockOnFailure\n    shopifyFunction {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n    metafields(first: 100) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n        updatedAt\n      }\n    }\n  }\n}\n";
@@ -592,6 +592,44 @@ impl DraftProxy {
         handle: Option<&str>,
     ) -> Option<Value> {
         self.resolve_function_metadata(request, id, handle, "PAYMENT_CUSTOMIZATION")
+    }
+
+    pub(in crate::proxy) fn resolve_delivery_customization_function(
+        &mut self,
+        request: &Request,
+        id: Option<&str>,
+        handle: Option<&str>,
+    ) -> Option<Value> {
+        self.resolve_function_metadata(request, id, handle, "DELIVERY_CUSTOMIZATION")
+    }
+
+    pub(in crate::proxy) fn delivery_customization_record_matches_function_key(
+        &mut self,
+        request: &Request,
+        record: &Value,
+        candidate_key: &str,
+    ) -> bool {
+        self.delivery_customization_record_function_key(request, record)
+            .as_deref()
+            == Some(candidate_key)
+    }
+
+    fn delivery_customization_record_function_key(
+        &mut self,
+        request: &Request,
+        record: &Value,
+    ) -> Option<String> {
+        if let Some(id) = record["functionId"].as_str() {
+            return Some(delivery_customization_function_key(id));
+        }
+        let handle = record["shopifyFunction"]["handle"].as_str()?;
+        self.resolve_delivery_customization_function(request, None, Some(handle))
+            .and_then(|function| {
+                function["id"]
+                    .as_str()
+                    .map(delivery_customization_function_key)
+            })
+            .or_else(|| Some(delivery_customization_function_key(handle)))
     }
 
     pub(in crate::proxy) fn payment_customization_record_matches_function_key(

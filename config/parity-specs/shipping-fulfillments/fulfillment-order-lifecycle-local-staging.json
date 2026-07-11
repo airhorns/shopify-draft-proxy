@@ -11,6 +11,7 @@
     "fulfillmentOrderCancel",
     "fulfillmentOrderSplit",
     "fulfillmentOrdersSetFulfillmentDeadline",
+    "fulfillmentOrderLineItemsPreparedForPickup",
     "fulfillmentOrderMerge"
   ],
   "scenarioStatus": "captured",
@@ -553,6 +554,39 @@
         ]
       },
       {
+        "name": "residual-prepared-for-pickup-validation",
+        "capturePath": "$.workflows.residualSplitDeadlineMerge.preparedForPickup.response.payload.data.fulfillmentOrderLineItemsPreparedForPickup",
+        "proxyPath": "$.data.fulfillmentOrderLineItemsPreparedForPickup",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-prepared-for-pickup.graphql",
+          "variables": {
+            "input": {
+              "lineItemsByFulfillmentOrder": [
+                {
+                  "fulfillmentOrderId": {
+                    "fromProxyResponse": "residual-split-mutation-data",
+                    "path": "$.data.fulfillmentOrderSplit.fulfillmentOrderSplits[0].fulfillmentOrder.id"
+                  }
+                },
+                {
+                  "fulfillmentOrderId": {
+                    "fromProxyResponse": "residual-split-mutation-data",
+                    "path": "$.data.fulfillmentOrderSplit.fulfillmentOrderSplits[0].remainingFulfillmentOrder.id"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.userErrors[*].message",
+            "matcher": "regex:^Invalid fulfillment_order_id provided [0-9]+$",
+            "reason": "The captured and proxy error messages embed the numeric tail of the fulfillment-order GID; proxy split fulfillment orders use session-local synthetic IDs."
+          }
+        ]
+      },
+      {
         "name": "residual-merge-mutation-data",
         "capturePath": "$.workflows.residualSplitDeadlineMerge.merge.response.payload.data.fulfillmentOrderMerge",
         "proxyPath": "$.data.fulfillmentOrderMerge",
@@ -615,5 +649,5 @@
       }
     ]
   },
-  "notes": "HAR-234/HAR-367 executable parity replay for local fulfillment-order lifecycle staging. The runner seeds the captured Shopify 2026-04 order/fulfillment-order preconditions, replays supported hold/release, move, report-progress/open, cancel, split, deadline, and merge mutations against the local proxy harness, and compares captured Shopify payload slices to proxy payload slices directly. Target-local expected differences are limited to synthetic IDs and timestamps for locally created staged records. Reroute, close, reschedule, and prepared-for-pickup remain documented as captured blocker/guardrail branches rather than full local support."
+  "notes": "Executable parity replay for local fulfillment-order lifecycle staging. The runner seeds the captured Shopify 2026-04 order/fulfillment-order preconditions, replays supported hold/release, move, report-progress/open, cancel, split, deadline, prepared-for-pickup validation, and merge mutations against the local proxy harness, and compares captured Shopify payload slices to proxy payload slices directly. Target-local expected differences are limited to synthetic IDs, timestamps, and ID-tail text in prepared-for-pickup validation messages for locally created staged records. Reroute, close, and reschedule remain documented as captured blocker/guardrail branches rather than full local support."
 }

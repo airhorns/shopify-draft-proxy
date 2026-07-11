@@ -4,6 +4,7 @@ use shopify_draft_proxy::operation_registry::{
     default_registry, execution_for_operation_type, implemented_entries, operation_capability,
     CapabilityDomain, CapabilityExecution, OperationRegistryEntry,
 };
+use std::collections::{BTreeMap, BTreeSet};
 
 fn sample_registry() -> Vec<OperationRegistryEntry> {
     vec![
@@ -209,6 +210,75 @@ fn implemented_entries_classify_through_canonical_registry_names() {
             CapabilityExecution::Passthrough,
             "{} is implemented and must dispatch locally",
             entry.name
+        );
+    }
+}
+
+fn captured_2026_04_admin_mutation_names() -> BTreeSet<String> {
+    let schema: serde_json::Value = serde_json::from_str(include_str!(
+        "../config/admin-graphql/2026-04/mutation-schema.json"
+    ))
+    .expect("captured Admin mutation schema must be valid JSON");
+    schema["mutations"]
+        .as_array()
+        .expect("captured Admin mutation schema must list mutations")
+        .iter()
+        .map(|mutation| {
+            mutation["name"]
+                .as_str()
+                .expect("captured mutation must have a name")
+                .to_string()
+        })
+        .collect()
+}
+
+#[test]
+fn unimplemented_and_unregistered_admin_mutations_are_not_local_capabilities() {
+    let registry = default_registry();
+    let mutation_registry: BTreeMap<&str, &OperationRegistryEntry> = registry
+        .iter()
+        .filter(|entry| entry.operation_type == OperationType::Mutation)
+        .map(|entry| (entry.name.as_str(), entry))
+        .collect();
+
+    for entry in mutation_registry
+        .values()
+        .copied()
+        .filter(|entry| !entry.implemented)
+    {
+        let capability = operation_capability(
+            &registry,
+            OperationType::Mutation,
+            Some(entry.name.as_str()),
+        );
+        assert_eq!(
+            capability.domain,
+            CapabilityDomain::Unknown,
+            "{} is declared unimplemented and must remain outside local mutation routing",
+            entry.name
+        );
+        assert_eq!(
+            capability.execution,
+            CapabilityExecution::Passthrough,
+            "{} is declared unimplemented and must remain passthrough/reject gap inventory",
+            entry.name
+        );
+    }
+
+    for root in captured_2026_04_admin_mutation_names()
+        .iter()
+        .filter(|root| !mutation_registry.contains_key(root.as_str()))
+    {
+        let capability = operation_capability(&registry, OperationType::Mutation, Some(root));
+        assert_eq!(
+            capability.domain,
+            CapabilityDomain::Unknown,
+            "{root} is absent from the mutation registry and must not route locally"
+        );
+        assert_eq!(
+            capability.execution,
+            CapabilityExecution::Passthrough,
+            "{root} is absent from the mutation registry and must remain a passthrough/reject gap"
         );
     }
 }

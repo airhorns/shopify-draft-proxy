@@ -1,0 +1,43 @@
+fragment FulfillmentOrderMixedCatalogFields on FulfillmentOrder {
+  id
+  updatedAt
+  status
+  requestStatus
+  assignedLocation {
+    name
+    location {
+      id
+      name
+    }
+  }
+  lineItems(first: 5) {
+    nodes {
+      id
+      totalQuantity
+      remainingQuantity
+      lineItem {
+        id
+        title
+      }
+    }
+  }
+  order {
+    id
+    name
+  }
+}
+
+mutation FulfillmentOrderMixedCatalogCancel($id: ID!) {
+  fulfillmentOrderCancel(id: $id) {
+    fulfillmentOrder {
+      ...FulfillmentOrderMixedCatalogFields
+    }
+    replacementFulfillmentOrder {
+      ...FulfillmentOrderMixedCatalogFields
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

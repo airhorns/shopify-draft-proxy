@@ -1,0 +1,45 @@
+{
+  "scenarioId": "metaobject-bulk-delete-ids-lifecycle",
+  "operationNames": ["metaobjectBulkDelete", "metaobject"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject-bulk-delete-ids-lifecycle.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metaobjects/metaobject-bulk-delete-ids-delete.graphql",
+    "variablesCapturePath": "$.bulkDelete[0].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "bulk-delete-ids-payload",
+        "capturePath": "$.bulkDelete[0].response.data.metaobjectBulkDelete",
+        "proxyPath": "$.data.metaobjectBulkDelete",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.job.id",
+            "matcher": "shopify-gid:Job",
+            "reason": "The local proxy creates a synthetic Job ID while Shopify returns a live-store async job ID."
+          }
+        ]
+      },
+      {
+        "name": "downstream-after-ids-delete-read",
+        "capturePath": "$.downstreamReads[0].response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-bulk-delete-ids-read.graphql",
+          "variablesCapturePath": "$.downstreamReads[0].request.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Captured live 2026-04 evidence for `metaobjectBulkDelete(where: { ids })` with two real metaobject IDs and one stale ID in the same selector. Shopify accepts the stale ID without per-index userErrors and returns an async Job. The fixture records the exact `MetaobjectBulkDeleteHydrateByIds` `nodes(ids:)` upstream request used by the proxy's cold live-hybrid hydrate path, so replay fails if explicit IDs are hydrated one request at a time. The downstream read target is recorded after polling for the live job to hide both valid selected rows."
+}

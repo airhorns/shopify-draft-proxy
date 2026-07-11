@@ -32,10 +32,18 @@ Mutations:
 ### Local Behavior
 
 The Rust runtime models staged selling-plan group lifecycle behavior for groups
-created inside the current proxy session. Successful `sellingPlanGroupCreate`,
-`sellingPlanGroupUpdate`, and `sellingPlanGroupDelete` calls stage local group
-records and nested `SellingPlan` records without runtime Shopify writes, while
-retaining the original raw mutations for commit replay.
+created or observed inside the current proxy session. Successful
+`sellingPlanGroupCreate`, `sellingPlanGroupUpdate`, and
+`sellingPlanGroupDelete` calls stage local group records and nested
+`SellingPlan` records without runtime Shopify writes, while retaining the
+original raw mutations for commit replay.
+
+In LiveHybrid, cold `sellingPlanGroup(id:)` reads and
+`sellingPlanGroups(...)` connection reads hydrate observed upstream groups with
+read-only Admin GraphQL queries before local projection. The local response is
+then rendered from the observed group plus staged effects, so later local
+updates, deletes, and membership changes are visible on downstream
+selling-plan reads without sending caller mutations to Shopify.
 
 `sellingPlanGroupCreate` persists nullable `input.appId` on the staged group,
 and `sellingPlanGroupUpdate` changes or clears `appId` when the input includes
@@ -87,12 +95,19 @@ Staged `sellingPlanGroupAddProducts`,
 `sellingPlanGroupRemoveProductVariants`, `productJoinSellingPlanGroups`,
 `productLeaveSellingPlanGroups`, `productVariantJoinSellingPlanGroups`, and
 `productVariantLeaveSellingPlanGroups` update membership edges for local
-products, variants, and selling-plan groups. Downstream
+products, variants, and selling-plan groups. In LiveHybrid, existing group,
+product, and variant mutation targets are discovered with read-only preflight
+queries when they are not already known locally; successful mutations then stage
+against the observed records. Missing preflight targets return the same local
+userError shapes used for absent staged targets, such as
+`GROUP_DOES_NOT_EXIST` for missing groups and `NOT_FOUND` for missing
+products or variants. Downstream
 `Product.sellingPlanGroups`, `Product.sellingPlanGroupsCount`,
 `ProductVariant.sellingPlanGroups`, and `ProductVariant.sellingPlanGroupsCount`
-read from the staged membership graph. For `Product`, both the connection and
-count include groups attached directly to the product and groups attached to one
-of the product's variants. Public Admin GraphQL 2026-04 accepted 32 selling-plan
+read from the staged membership graph. For `Product`, the connection includes
+groups attached directly to the product plus groups attached to one of the
+product's variants, while `sellingPlanGroupsCount` counts direct product
+memberships. Public Admin GraphQL 2026-04 accepted 32 selling-plan
 groups joined to one product with empty `userErrors` and count 32 in the same
 `selling-plan-group-cap-validation` capture, so the runtime does not enforce the
 old local-only 31-groups-per-resource guard.
@@ -118,17 +133,24 @@ connection arguments.
 
 Snapshot reads over an empty local selling-plan store return Shopify-like no-data
 shapes: `sellingPlanGroup(id:)` is `null` and `sellingPlanGroups(...)` is an
-empty connection. In LiveHybrid, mutation roots that target live-store groups,
-products, or variants not present in local state are forwarded upstream instead
-of fabricating local not-found errors from empty state.
+empty connection. In LiveHybrid, registered selling-plan mutation roots do not
+forward the caller mutation document upstream during normal runtime; read-only
+hydration/preflight queries are the upstream boundary before local staging.
+Executable coverage for the cold existing-resource path lives in
+`config/parity-specs/selling-plans/sellingPlanGroup-live-hybrid-existing-resource.json`:
+the proxy starts without local selling-plan state, replays the captured
+`sellingPlanGroupHydrateNodes` read-only cassette, then compares cold
+`sellingPlanGroup(id:)`, `sellingPlanGroupUpdate`, and downstream
+Product/ProductVariant readback against Shopify responses.
 
 ### Boundaries
 
-Support is scoped to local staged groups and locally known product/variant
-resources. The proxy does not hydrate arbitrary live-store selling-plan groups
-into local state, does not claim full upstream parity for every
-`SellingPlanGroupInput` field or selling-plan policy variant, and still relies
-on existing product/variant state to expose downstream membership overlays.
+Support is scoped to local staged groups, LiveHybrid-observed groups, and
+locally known or preflight-observed product/variant resources. A
+`sellingPlanGroups(...)` read hydrates the upstream page selected by that read;
+it does not materialize the shop's entire selling-plan catalog unless the
+caller pages through it. The proxy does not claim full upstream parity for every
+`SellingPlanGroupInput` field or selling-plan policy variant.
 
 Generic `node(id:)` / `nodes(ids:)` readback for selling-plan group and nested
 selling-plan IDs is covered by the admin-platform endpoint group. Broader

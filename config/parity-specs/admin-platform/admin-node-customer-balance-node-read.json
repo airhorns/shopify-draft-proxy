@@ -1,0 +1,367 @@
+{
+  "scenarioId": "admin-node-customer-balance-node-read",
+  "operationNames": [
+    "customerCreate",
+    "storeCreditAccountCredit",
+    "storeCreditAccountDebit",
+    "giftCardCreate",
+    "giftCardCredit",
+    "giftCardDebit",
+    "nodes"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "downstream-read-parity", "null-empty-behavior"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform/admin-node-customer-balance-node-read.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/platform.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/admin-platform/admin-node-customer-balance-customer-create.graphql",
+    "variablesCapturePath": "$.setup.customerCreate.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Shopify capture for generic Relay Node read-after-write across customer, mailing address, store-credit account, store-credit credit/debit transactions, gift card, and gift-card credit/debit transactions. CustomerPaymentMethod non-null Node parity is blocked by missing read/write customer-payment-method scopes; StoreCreditAccountDebitRevertTransaction non-null parity is blocked by the lack of a public disposable debit-revert lifecycle in the current conformance workflow.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "customer-create-setup",
+        "capturePath": "$.setup.customerCreate.response.data.customerCreate",
+        "proxyPath": "$.data.customerCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.customer.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The proxy stages customerCreate locally and returns a stable synthetic Customer GID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.customer.defaultAddress.id",
+            "matcher": "shopify-gid:MailingAddress",
+            "reason": "The proxy stages CustomerInput addresses locally and returns stable synthetic MailingAddress IDs instead of Shopify live IDs."
+          },
+          {
+            "path": "$.customer.addressesV2.nodes[0].id",
+            "matcher": "shopify-gid:MailingAddress",
+            "reason": "The proxy stages CustomerInput addresses locally and returns stable synthetic MailingAddress IDs instead of Shopify live IDs."
+          }
+        ]
+      },
+      {
+        "name": "store-credit-credit-setup",
+        "capturePath": "$.setup.storeCreditCredit.response.data.storeCreditAccountCredit",
+        "proxyPath": "$.data.storeCreditAccountCredit",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-node-customer-balance-store-credit-credit.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "creditInput": {
+              "fromCapturePath": "$.setup.storeCreditCredit.variables.creditInput"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.storeCreditAccountTransaction.id",
+            "matcher": "shopify-gid:StoreCreditAccountTransaction",
+            "reason": "The proxy stages store-credit credit transactions locally with the current generic StoreCreditAccountTransaction GID allocator."
+          },
+          {
+            "path": "$.storeCreditAccountTransaction.account.id",
+            "matcher": "shopify-gid:StoreCreditAccount",
+            "reason": "The proxy stages the store credit account locally and returns a stable synthetic StoreCreditAccount GID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.storeCreditAccountTransaction.account.owner.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The account owner references the proxy-created synthetic Customer GID from the local setup mutation."
+          }
+        ]
+      },
+      {
+        "name": "store-credit-debit-setup",
+        "capturePath": "$.setup.storeCreditDebit.response.data.storeCreditAccountDebit",
+        "proxyPath": "$.data.storeCreditAccountDebit",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-node-customer-balance-store-credit-debit.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "store-credit-credit-setup",
+              "path": "$.data.storeCreditAccountCredit.storeCreditAccountTransaction.account.id"
+            },
+            "debitInput": {
+              "fromCapturePath": "$.setup.storeCreditDebit.variables.debitInput"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.storeCreditAccountTransaction.id",
+            "matcher": "shopify-gid:StoreCreditAccountTransaction",
+            "reason": "The proxy stages store-credit debit transactions locally with the current generic StoreCreditAccountTransaction GID allocator."
+          },
+          {
+            "path": "$.storeCreditAccountTransaction.account.id",
+            "matcher": "shopify-gid:StoreCreditAccount",
+            "reason": "The debit transaction account references the proxy-created synthetic StoreCreditAccount GID."
+          },
+          {
+            "path": "$.storeCreditAccountTransaction.account.owner.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The debit transaction owner references the proxy-created synthetic Customer GID from the local setup mutation."
+          }
+        ]
+      },
+      {
+        "name": "gift-card-create-setup",
+        "capturePath": "$.setup.giftCardCreate.response.data.giftCardCreate",
+        "proxyPath": "$.data.giftCardCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-node-customer-balance-gift-card-create.graphql",
+          "variablesCapturePath": "$.setup.giftCardCreate.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.giftCard.id",
+            "matcher": "shopify-gid:GiftCard",
+            "reason": "The proxy stages giftCardCreate locally and returns a synthetic GiftCard GID."
+          }
+        ]
+      },
+      {
+        "name": "gift-card-credit-setup",
+        "capturePath": "$.setup.giftCardCredit.response.data.giftCardCredit",
+        "proxyPath": "$.data.giftCardCredit",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-node-customer-balance-gift-card-credit.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "gift-card-create-setup",
+              "path": "$.data.giftCardCreate.giftCard.id"
+            },
+            "creditInput": {
+              "fromCapturePath": "$.setup.giftCardCredit.variables.creditInput"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.giftCardCreditTransaction.id",
+            "matcher": "shopify-gid:GiftCardCreditTransaction",
+            "reason": "The proxy stages gift-card credit transactions locally and returns a synthetic transaction GID."
+          },
+          {
+            "path": "$.giftCardCreditTransaction.processedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic mutation clock, while Shopify records the live capture execution timestamp."
+          }
+        ]
+      },
+      {
+        "name": "gift-card-debit-setup",
+        "capturePath": "$.setup.giftCardDebit.response.data.giftCardDebit",
+        "proxyPath": "$.data.giftCardDebit",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-node-customer-balance-gift-card-debit.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "gift-card-create-setup",
+              "path": "$.data.giftCardCreate.giftCard.id"
+            },
+            "debitInput": {
+              "fromCapturePath": "$.setup.giftCardDebit.variables.debitInput"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.giftCardDebitTransaction.id",
+            "matcher": "shopify-gid:GiftCardDebitTransaction",
+            "reason": "The proxy stages gift-card debit transactions locally and returns a synthetic transaction GID."
+          },
+          {
+            "path": "$.giftCardDebitTransaction.processedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic mutation clock, while Shopify records the live capture execution timestamp."
+          }
+        ]
+      },
+      {
+        "name": "generic-node-read-after-write",
+        "capturePath": "$.nodeReads.live.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-node-customer-balance-node-read.graphql",
+          "variables": {
+            "ids": [
+              {
+                "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+              },
+              {
+                "fromPrimaryProxyPath": "$.data.customerCreate.customer.defaultAddress.id"
+              },
+              {
+                "fromProxyResponse": "store-credit-credit-setup",
+                "path": "$.data.storeCreditAccountCredit.storeCreditAccountTransaction.account.id"
+              },
+              {
+                "fromProxyResponse": "store-credit-credit-setup",
+                "path": "$.data.storeCreditAccountCredit.storeCreditAccountTransaction.id"
+              },
+              {
+                "fromProxyResponse": "store-credit-debit-setup",
+                "path": "$.data.storeCreditAccountDebit.storeCreditAccountTransaction.id"
+              },
+              {
+                "fromProxyResponse": "gift-card-create-setup",
+                "path": "$.data.giftCardCreate.giftCard.id"
+              },
+              {
+                "fromProxyResponse": "gift-card-credit-setup",
+                "path": "$.data.giftCardCredit.giftCardCreditTransaction.id"
+              },
+              {
+                "fromProxyResponse": "gift-card-debit-setup",
+                "path": "$.data.giftCardDebit.giftCardDebitTransaction.id"
+              }
+            ],
+            "missingIds": {
+              "fromCapturePath": "$.nodeReads.live.variables.missingIds"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.nodes[0].id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The proxy stages customerCreate locally and returns a stable synthetic Customer GID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.nodes[0].defaultAddress.id",
+            "matcher": "shopify-gid:MailingAddress",
+            "reason": "The proxy stages CustomerInput addresses locally and returns stable synthetic MailingAddress IDs instead of Shopify live IDs."
+          },
+          {
+            "path": "$.nodes[0].addressesV2.nodes[0].id",
+            "matcher": "shopify-gid:MailingAddress",
+            "reason": "The proxy stages CustomerInput addresses locally and returns stable synthetic MailingAddress IDs instead of Shopify live IDs."
+          },
+          {
+            "path": "$.nodes[0].storeCreditAccounts.nodes[0].id",
+            "matcher": "shopify-gid:StoreCreditAccount",
+            "reason": "The proxy stages the store credit account locally and returns a stable synthetic StoreCreditAccount GID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.nodes[1].id",
+            "matcher": "shopify-gid:MailingAddress",
+            "reason": "The proxy stages CustomerInput addresses locally and returns stable synthetic MailingAddress IDs instead of Shopify live IDs."
+          },
+          {
+            "path": "$.nodes[2].id",
+            "matcher": "shopify-gid:StoreCreditAccount",
+            "reason": "The proxy stages the store credit account locally and returns a stable synthetic StoreCreditAccount GID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.nodes[2].owner.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The account owner references the proxy-created synthetic Customer GID from the local setup mutation."
+          },
+          {
+            "path": "$.nodes[2].transactions.nodes[0].id",
+            "matcher": "shopify-gid:StoreCreditAccountTransaction",
+            "reason": "The proxy stages store-credit credit transactions locally with the current generic StoreCreditAccountTransaction GID allocator."
+          },
+          {
+            "path": "$.nodes[2].transactions.nodes[1].id",
+            "matcher": "shopify-gid:StoreCreditAccountTransaction",
+            "reason": "The proxy stages store-credit debit transactions locally with the current generic StoreCreditAccountTransaction GID allocator."
+          },
+          {
+            "path": "$.nodes[3].id",
+            "matcher": "shopify-gid:StoreCreditAccountTransaction",
+            "reason": "The proxy stages store-credit credit transactions locally with the current generic StoreCreditAccountTransaction GID allocator."
+          },
+          {
+            "path": "$.nodes[3].account.id",
+            "matcher": "shopify-gid:StoreCreditAccount",
+            "reason": "The credit transaction account references the proxy-created synthetic StoreCreditAccount GID."
+          },
+          {
+            "path": "$.nodes[3].account.owner.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The credit transaction owner references the proxy-created synthetic Customer GID from the local setup mutation."
+          },
+          {
+            "path": "$.nodes[4].id",
+            "matcher": "shopify-gid:StoreCreditAccountTransaction",
+            "reason": "The proxy stages store-credit debit transactions locally with the current generic StoreCreditAccountTransaction GID allocator."
+          },
+          {
+            "path": "$.nodes[4].account.id",
+            "matcher": "shopify-gid:StoreCreditAccount",
+            "reason": "The debit transaction account references the proxy-created synthetic StoreCreditAccount GID."
+          },
+          {
+            "path": "$.nodes[4].account.owner.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The debit transaction owner references the proxy-created synthetic Customer GID from the local setup mutation."
+          },
+          {
+            "path": "$.nodes[5].id",
+            "matcher": "shopify-gid:GiftCard",
+            "reason": "The proxy stages giftCardCreate locally and returns a synthetic GiftCard GID."
+          },
+          {
+            "path": "$.nodes[5].transactions.nodes[0].id",
+            "matcher": "shopify-gid:GiftCardCreditTransaction",
+            "reason": "The proxy stages gift-card credit transactions locally and returns a synthetic transaction GID."
+          },
+          {
+            "path": "$.nodes[5].transactions.nodes[0].processedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic mutation clock, while Shopify records the live capture execution timestamp."
+          },
+          {
+            "path": "$.nodes[5].transactions.nodes[1].id",
+            "matcher": "shopify-gid:GiftCardDebitTransaction",
+            "reason": "The proxy stages gift-card debit transactions locally and returns a synthetic transaction GID."
+          },
+          {
+            "path": "$.nodes[5].transactions.nodes[1].processedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic mutation clock, while Shopify records the live capture execution timestamp."
+          },
+          {
+            "path": "$.nodes[6].id",
+            "matcher": "shopify-gid:GiftCardCreditTransaction",
+            "reason": "The proxy stages gift-card credit transactions locally and returns a synthetic transaction GID."
+          },
+          {
+            "path": "$.nodes[6].processedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic mutation clock, while Shopify records the live capture execution timestamp."
+          },
+          {
+            "path": "$.nodes[7].id",
+            "matcher": "shopify-gid:GiftCardDebitTransaction",
+            "reason": "The proxy stages gift-card debit transactions locally and returns a synthetic transaction GID."
+          },
+          {
+            "path": "$.nodes[7].processedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic mutation clock, while Shopify records the live capture execution timestamp."
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,176 @@
+fragment FulfillmentOrderMixedCatalogFields on FulfillmentOrder {
+  id
+  updatedAt
+  status
+  requestStatus
+  assignedLocation {
+    name
+    location {
+      id
+      name
+    }
+  }
+  lineItems(first: 5) {
+    nodes {
+      id
+      totalQuantity
+      remainingQuantity
+      lineItem {
+        id
+        title
+      }
+    }
+  }
+  order {
+    id
+    name
+  }
+}
+
+query FulfillmentOrderMixedCatalogRead(
+  $first: Int!
+  $idQuery: String!
+  $heldQuery: String!
+  $closedQuery: String!
+  $locationQuery: String!
+  $updatedQuery: String!
+  $locationIds: [ID!]!
+) {
+  openFulfillmentOrders: fulfillmentOrders(first: $first, query: $idQuery, sortKey: ID) {
+    edges {
+      cursor
+      node {
+        ...FulfillmentOrderMixedCatalogFields
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  allFulfillmentOrders: fulfillmentOrders(first: $first, includeClosed: true, query: $idQuery, sortKey: ID) {
+    edges {
+      cursor
+      node {
+        ...FulfillmentOrderMixedCatalogFields
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  reversedFulfillmentOrders: fulfillmentOrders(
+    first: $first
+    includeClosed: true
+    query: $idQuery
+    sortKey: ID
+    reverse: true
+  ) {
+    edges {
+      cursor
+      node {
+        ...FulfillmentOrderMixedCatalogFields
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  heldByStatus: fulfillmentOrders(first: $first, includeClosed: true, query: $heldQuery, sortKey: ID) {
+    edges {
+      cursor
+      node {
+        ...FulfillmentOrderMixedCatalogFields
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  closedByStatus: fulfillmentOrders(first: $first, includeClosed: true, query: $closedQuery, sortKey: ID) {
+    edges {
+      cursor
+      node {
+        ...FulfillmentOrderMixedCatalogFields
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  movedByLocation: fulfillmentOrders(first: $first, includeClosed: true, query: $locationQuery, sortKey: ID) {
+    edges {
+      cursor
+      node {
+        ...FulfillmentOrderMixedCatalogFields
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  updatedWindow: fulfillmentOrders(first: $first, includeClosed: true, query: $updatedQuery, sortKey: UPDATED_AT) {
+    edges {
+      cursor
+      node {
+        ...FulfillmentOrderMixedCatalogFields
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  assignedToService: assignedFulfillmentOrders(
+    first: $first
+    assignmentStatus: FULFILLMENT_UNSUBMITTED
+    locationIds: $locationIds
+    sortKey: ID
+  ) {
+    edges {
+      cursor
+      node {
+        ...FulfillmentOrderMixedCatalogFields
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  manualHoldsFulfillmentOrders(first: $first) {
+    edges {
+      cursor
+      node {
+        ...FulfillmentOrderMixedCatalogFields
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}
