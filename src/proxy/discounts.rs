@@ -4220,6 +4220,10 @@ fn apply_discount_activate_deactivate(
 /// `None` for anything that is not one of the six
 /// `discount{Code,Automatic}Bulk{Activate,Deactivate,Delete}` mutations (notably
 /// the redeem-code bulk add/delete mutations, which are handled separately).
+pub(in crate::proxy) fn is_discount_bulk_action_root(name: &str) -> bool {
+    discount_bulk_root_action(name).is_some()
+}
+
 fn discount_bulk_root_action(name: &str) -> Option<(&'static str, DiscountBulkAction)> {
     match name {
         "discountCodeBulkActivate" => Some(("code", DiscountBulkAction::Activate)),
@@ -4230,10 +4234,6 @@ fn discount_bulk_root_action(name: &str) -> Option<(&'static str, DiscountBulkAc
         "discountAutomaticBulkDelete" => Some(("automatic", DiscountBulkAction::Delete)),
         _ => None,
     }
-}
-
-pub(in crate::proxy) fn is_discount_bulk_action_root(name: &str) -> bool {
-    discount_bulk_root_action(name).is_some()
 }
 
 fn discount_bulk_saved_search_id(field: &RootFieldSelection) -> Option<String> {
