@@ -391,6 +391,46 @@ impl DraftProxy {
         })
     }
 
+    pub(in crate::proxy) fn collection_identifier_read_needs_upstream(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> bool {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return false;
+        }
+        fields.iter().any(|field| match field.name.as_str() {
+            "collectionByIdentifier" => {
+                let Some(identifier) = resolved_object_field(&field.arguments, "identifier") else {
+                    return false;
+                };
+                if let Some(id) = resolved_string_field(&identifier, "id")
+                    .map(|id| id.trim().to_string())
+                    .filter(|id| !id.is_empty())
+                {
+                    return self.store.collection_by_id(&id).is_none()
+                        && !self.store.collection_is_deleted(&id);
+                }
+                if let Some(handle) = resolved_string_field(&identifier, "handle")
+                    .map(|handle| handle.trim().to_string())
+                    .filter(|handle| !handle.is_empty())
+                {
+                    return self.store.collection_by_handle(&handle).is_none()
+                        && !self.store.has_collection_state();
+                }
+                false
+            }
+            "collectionByHandle" => resolved_string_field(&field.arguments, "handle")
+                .map(|handle| handle.trim().to_string())
+                .filter(|handle| !handle.is_empty())
+                .map(|handle| {
+                    self.store.collection_by_handle(&handle).is_none()
+                        && !self.store.has_collection_state()
+                })
+                .unwrap_or(false),
+            _ => false,
+        })
+    }
+
     pub(in crate::proxy) fn collection_membership_downstream_read_data(
         &self,
         fields: &[RootFieldSelection],
@@ -398,6 +438,8 @@ impl DraftProxy {
         root_payload_json(fields, |field| {
             Some(match field.name.as_str() {
                 "collection" => self.collection_membership_value(field),
+                "collectionByIdentifier" => self.collection_by_identifier_value(field),
+                "collectionByHandle" => self.collection_by_handle_value(field),
                 "collections" => self.collections_connection_field(field),
                 "collectionsCount" => self.collections_count_field(field),
                 "product" => self.product_by_id_field(field),
@@ -414,7 +456,7 @@ impl DraftProxy {
         }
     }
 
-    fn observe_collections_read_response(&mut self, response: &Response) {
+    pub(in crate::proxy) fn observe_collections_read_response(&mut self, response: &Response) {
         self.observe_collection_value(&response.body["data"]);
     }
 
@@ -531,24 +573,6 @@ impl DraftProxy {
     /// `publishedProductsCount` roots from upstream passthrough to local replay.
     pub(in crate::proxy) fn publication_engine_active(&self) -> bool {
         !self.store.staged.publications.is_empty()
-    }
-
-    /// Every Shopify store has a default "Online Store" publication
-    /// (`Publication/1` / `Channel/1`) that the proxy already treats as the
-    /// reserved, un-deletable default (`next_publication_id`,
-    /// `is_default_publication`, `publicationDelete` guard). Materialize it into
-    /// local publication state when the engine activates so `channels` /
-    /// `channel` / `publicationsCount` reflect it without a `/__meta/seed`
-    /// precondition — the production proxy was never told the Online Store
-    /// exists; it always does.
-    pub(in crate::proxy) fn ensure_default_publication(&mut self) {
-        let id = "gid://shopify/Publication/1";
-        if !self.store.staged.publications.contains_key(id) {
-            self.store.staged.publications.insert(
-                id.to_string(),
-                publication_record_json(id, "Online Store", false),
-            );
-        }
     }
 
     /// Discover a publishable resource's pre-existing publication membership by
@@ -716,12 +740,7 @@ impl DraftProxy {
         if self.store.staged.current_channel_publication_resolved {
             return self.store.staged.current_channel_publication_id.clone();
         }
-        if self.store.base.publication_count == Some(0) && self.store.staged.publications.is_empty()
-        {
-            None
-        } else {
-            Some(CURRENT_CHANNEL_PUBLICATION_ID.to_string())
-        }
+        None
     }
 
     pub(in crate::proxy) fn resolve_current_channel_publication_id(
@@ -731,13 +750,9 @@ impl DraftProxy {
         if self.store.staged.current_channel_publication_resolved {
             return self.store.staged.current_channel_publication_id.clone();
         }
-        if self.store.base.publication_count == Some(0) && self.store.staged.publications.is_empty()
-        {
+        if self.config.read_mode != ReadMode::LiveHybrid {
             self.store.staged.current_channel_publication_resolved = true;
             self.store.staged.current_channel_publication_id = None;
-            return None;
-        }
-        if self.config.read_mode != ReadMode::LiveHybrid {
             return self.current_channel_publication_id();
         }
 
@@ -1269,6 +1284,44 @@ impl DraftProxy {
         self.observe_nodes_response(&response);
     }
 
+    pub(in crate::proxy) fn hydrate_product_set_target_by_id_with_request(
+        &mut self,
+        request: &Request,
+        id: &str,
+    ) {
+        if id.is_empty() {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": PRODUCT_SET_TARGET_HYDRATE_BY_ID_QUERY,
+                "operationName": "ProductSetTargetHydrateById",
+                "variables": { "ids": [id] }
+            }),
+        );
+        self.observe_nodes_response(&response);
+    }
+
+    pub(in crate::proxy) fn hydrate_product_set_target_by_handle_with_request(
+        &mut self,
+        request: &Request,
+        handle: &str,
+    ) {
+        if handle.is_empty() {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": PRODUCT_SET_TARGET_HYDRATE_BY_HANDLE_QUERY,
+                "operationName": "ProductSetTargetHydrateByHandle",
+                "variables": { "handle": handle }
+            }),
+        );
+        self.observe_nodes_response(&response);
+    }
+
     /// Forward the options-aware product hydrate (selecting the option/optionValue
     /// graph that the generic observation query omits) and observe it, so a cold
     /// productOptionsReorder resolves the real owning product + option graph from
@@ -1310,6 +1363,53 @@ impl DraftProxy {
             .map(|collection| {
                 self.collection_json_with_publication_fields(collection, &field.selection)
             })
+            .unwrap_or(Value::Null)
+    }
+
+    pub(in crate::proxy) fn collection_by_identifier_value(
+        &self,
+        field: &RootFieldSelection,
+    ) -> Value {
+        let Some(identifier) = resolved_object_field(&field.arguments, "identifier") else {
+            return Value::Null;
+        };
+        if let Some(id) = resolved_string_field(&identifier, "id") {
+            return self.collection_by_id_value(&id, &field.selection);
+        }
+        if let Some(handle) = resolved_string_field(&identifier, "handle") {
+            return self.collection_by_handle_selection_value(&handle, &field.selection);
+        }
+        Value::Null
+    }
+
+    pub(in crate::proxy) fn collection_by_handle_value(&self, field: &RootFieldSelection) -> Value {
+        resolved_string_field(&field.arguments, "handle")
+            .map(|handle| self.collection_by_handle_selection_value(&handle, &field.selection))
+            .unwrap_or(Value::Null)
+    }
+
+    fn collection_by_id_value(&self, id: &str, selection: &[SelectedField]) -> Value {
+        if id.trim().is_empty() || self.store.collection_is_deleted(id) {
+            return Value::Null;
+        }
+        self.store
+            .collection_by_id(id)
+            .map(|collection| self.collection_json_with_publication_fields(collection, selection))
+            .unwrap_or(Value::Null)
+    }
+
+    fn collection_by_handle_selection_value(
+        &self,
+        handle: &str,
+        selection: &[SelectedField],
+    ) -> Value {
+        let handle = handle.trim();
+        if handle.is_empty() {
+            return Value::Null;
+        }
+        self.store
+            .collection_by_handle(handle)
+            .map(|collection| self.collection_json_with_publication_fields(collection, selection))
             .unwrap_or(Value::Null)
     }
 

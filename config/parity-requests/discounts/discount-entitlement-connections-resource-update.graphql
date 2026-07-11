@@ -1,0 +1,45 @@
+mutation DiscountEntitlementConnectionsResourceUpdate(
+  $product: ProductUpdateInput!
+  $variantProductId: ID!
+  $variants: [ProductVariantsBulkInput!]!
+  $collection: CollectionInput!
+) {
+  productUpdate(product: $product) {
+    product {
+      id
+      title
+      handle
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  productVariantsBulkUpdate(productId: $variantProductId, variants: $variants) {
+    productVariants {
+      id
+      title
+      sku
+      product {
+        id
+        title
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  collectionUpdate(input: $collection) {
+    collection {
+      id
+      title
+      handle
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

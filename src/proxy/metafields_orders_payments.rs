@@ -1244,20 +1244,15 @@ impl DraftProxy {
             let value = resolved_string_field(input, "value").unwrap_or_default();
             let owner_type = owner_type_from_gid(&owner_id);
             let Some(definition) =
-                self.store
-                    .staged
-                    .metafield_definitions
-                    .get(&metafield_definition_store_key(
-                        &owner_type,
-                        &namespace,
-                        &key,
-                    ))
+                self.effective_metafield_definition(&owner_type, &namespace, &key)
             else {
                 continue;
             };
-            errors.extend(
-                self.metafields_set_definition_validation_errors(definition, index, &value),
-            );
+            errors.extend(self.metafields_set_definition_validation_errors(
+                &definition,
+                index,
+                &value,
+            ));
         }
         errors
     }

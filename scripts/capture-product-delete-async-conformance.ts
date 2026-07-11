@@ -106,6 +106,58 @@ const productDeleteAsyncMutation = `#graphql
   }
 `;
 
+const productDeleteRenamedVariableMutation = `#graphql
+  mutation ProductDeleteAsyncRenamedVariable($input: ProductDeleteInput!, $runSynchronously: Boolean!) {
+    productDelete(input: $input, synchronous: $runSynchronously) {
+      deletedProductId
+      shop {
+        id
+        name
+        myshopifyDomain
+      }
+      productDeleteOperation {
+        id
+        status
+        deletedProductId
+        userErrors {
+          field
+          message
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const productDeleteInlineFalseMutation = `#graphql
+  mutation ProductDeleteAsyncInlineFalse($input: ProductDeleteInput!) {
+    productDelete(input: $input, synchronous: false) {
+      deletedProductId
+      shop {
+        id
+        name
+        myshopifyDomain
+      }
+      productDeleteOperation {
+        id
+        status
+        deletedProductId
+        userErrors {
+          field
+          message
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
 const productDeleteSyncMutation = `#graphql
   mutation ProductDeleteAsyncCleanup($input: ProductDeleteInput!) {
     productDelete(input: $input) {
@@ -243,22 +295,11 @@ async function waitForAsyncDeleteCleanup(productId: string | null, operationId: 
   };
 }
 
-await mkdir(outputDir, { recursive: true });
-
-const runId = `${Date.now()}`;
-let sourceProductId: string | null = null;
-let operationId: string | null = null;
-let cleanup: unknown | null = null;
-
-try {
-  const shopHydrateCalls = [
-    await captureProductPayloadShopHydrateUpstreamCall(),
-    await captureProductPayloadShopHydrateUpstreamCall(),
-  ];
+async function createSourceProduct(title: string) {
   const sourceCreateVariables = {
     synchronous: true,
     input: {
-      title: `Async Delete Source ${runId}`,
+      title,
       status: 'DRAFT',
     },
   };
@@ -267,94 +308,173 @@ try {
     'productSet async delete source create',
     responseData(sourceCreateResponse)['productSet']?.userErrors,
   );
-  sourceProductId = responseData(sourceCreateResponse)['productSet']?.product?.id ?? null;
+  const sourceProductId = responseData(sourceCreateResponse)['productSet']?.product?.id ?? null;
   if (!sourceProductId) {
-    throw new Error('Async productDelete capture could not create a disposable source product.');
+    throw new Error(`Async productDelete capture could not create disposable source product ${title}.`);
   }
 
-  const sourceReadBeforeDelete = await readProduct(sourceProductId);
-  const deleteVariables = {
-    input: { id: sourceProductId },
-    synchronous: false,
+  return {
+    sourceCreateVariables,
+    sourceCreateResponse,
+    sourceProductId,
+    sourceReadBeforeDelete: await readProduct(sourceProductId),
   };
-  const mutationResponse = (await runGraphql(productDeleteAsyncMutation, deleteVariables)) as CapturedGraphqlResponse;
-  expectNoUserErrors('async productDelete mutation', responseData(mutationResponse)['productDelete']?.userErrors);
-  operationId = responseData(mutationResponse)['productDelete']?.productDeleteOperation?.id ?? null;
-  if (!operationId) {
-    throw new Error('Async productDelete capture did not return a ProductDeleteOperation id.');
-  }
+}
 
-  const duplicateMutationResponse = (await runGraphql(
-    productDeleteAsyncMutation,
-    deleteVariables,
-  )) as CapturedGraphqlResponse;
-  expectPendingJobError(
-    'duplicate async productDelete mutation',
-    responseData(duplicateMutationResponse)['productDelete']?.userErrors,
-  );
+async function captureAsyncDeleteCase(options: {
+  label: string;
+  mutation: string;
+  title: string;
+  variablesForProduct: (productId: string) => Record<string, unknown>;
+  captureDuplicate?: boolean;
+}) {
+  let sourceProductId: string | null = null;
+  let operationId: string | null = null;
+  let cleanup: unknown | null = null;
 
-  const downstreamRead = await readProduct(sourceProductId);
-  const operationRead = await readOperation(operationId);
-  const nodeRead = (await runGraphql(nodeReadQuery, { id: operationId })) as CapturedGraphqlResponse;
+  try {
+    const source = await createSourceProduct(options.title);
+    const productId = source.sourceProductId;
+    sourceProductId = productId;
+    const deleteVariables = options.variablesForProduct(productId);
+    const mutationResponse = (await runGraphql(options.mutation, deleteVariables)) as CapturedGraphqlResponse;
+    expectNoUserErrors(
+      `${options.label} async productDelete mutation`,
+      responseData(mutationResponse)['productDelete']?.userErrors,
+    );
+    operationId = responseData(mutationResponse)['productDelete']?.productDeleteOperation?.id ?? null;
+    if (!operationId) {
+      throw new Error(`${options.label} async productDelete capture did not return a ProductDeleteOperation id.`);
+    }
 
-  cleanup = await waitForAsyncDeleteCleanup(sourceProductId, operationId);
+    let duplicateMutation:
+      | {
+          variables: Record<string, unknown>;
+          response: CapturedGraphqlResponse;
+        }
+      | undefined;
+    if (options.captureDuplicate) {
+      const duplicateMutationResponse = (await runGraphql(
+        options.mutation,
+        deleteVariables,
+      )) as CapturedGraphqlResponse;
+      expectPendingJobError(
+        `${options.label} duplicate async productDelete mutation`,
+        responseData(duplicateMutationResponse)['productDelete']?.userErrors,
+      );
+      duplicateMutation = {
+        variables: deleteVariables,
+        response: duplicateMutationResponse,
+      };
+    }
 
-  const capture = {
-    storeDomain,
-    apiVersion,
-    setup: {
-      sourceCreate: {
-        variables: sourceCreateVariables,
-        response: sourceCreateResponse,
-      },
-      sourceProductId,
-      sourceReadBeforeDelete,
-    },
-    mutation: {
-      variables: deleteVariables,
-      response: mutationResponse,
-    },
-    duplicateMutation: {
-      variables: deleteVariables,
-      response: duplicateMutationResponse,
-    },
-    downstreamRead: {
-      variables: { id: sourceProductId },
-      response: downstreamRead,
-    },
-    operationRead: {
-      variables: { id: operationId },
-      response: operationRead,
-    },
-    nodeRead: {
-      variables: { id: operationId },
-      response: nodeRead,
-    },
-    cleanup,
-    upstreamCalls: shopHydrateCalls,
-  };
+    const downstreamRead = await readProduct(productId);
+    const operationRead = await readOperation(operationId);
+    const nodeRead = (await runGraphql(nodeReadQuery, { id: operationId })) as CapturedGraphqlResponse;
+    cleanup = await waitForAsyncDeleteCleanup(productId, operationId);
 
-  await writeFile(
-    path.join(outputDir, 'product-delete-async-operation.json'),
-    `${JSON.stringify(capture, null, 2)}\n`,
-    'utf8',
-  );
-
-  console.log(
-    JSON.stringify(
-      {
-        ok: true,
-        outputDir,
-        files: ['product-delete-async-operation.json'],
+    return {
+      setup: {
+        sourceCreate: {
+          variables: source.sourceCreateVariables,
+          response: source.sourceCreateResponse,
+        },
         sourceProductId,
-        operationId,
+        sourceReadBeforeDelete: source.sourceReadBeforeDelete,
       },
-      null,
-      2,
-    ),
-  );
-} finally {
-  if (!cleanup) {
-    cleanup = await waitForAsyncDeleteCleanup(sourceProductId, operationId);
+      mutation: {
+        variables: deleteVariables,
+        response: mutationResponse,
+      },
+      ...(duplicateMutation ? { duplicateMutation } : {}),
+      downstreamRead: {
+        variables: { id: sourceProductId },
+        response: downstreamRead,
+      },
+      operationRead: {
+        variables: { id: operationId },
+        response: operationRead,
+      },
+      nodeRead: {
+        variables: { id: operationId },
+        response: nodeRead,
+      },
+      cleanup,
+    };
+  } finally {
+    if (!cleanup) {
+      cleanup = await waitForAsyncDeleteCleanup(sourceProductId, operationId);
+    }
   }
 }
+
+await mkdir(outputDir, { recursive: true });
+
+const runId = `${Date.now()}`;
+const shopHydrateCalls = [
+  await captureProductPayloadShopHydrateUpstreamCall(),
+  await captureProductPayloadShopHydrateUpstreamCall(),
+];
+const canonical = await captureAsyncDeleteCase({
+  label: 'canonical-variable',
+  mutation: productDeleteAsyncMutation,
+  title: `Async Delete Source ${runId}`,
+  variablesForProduct: (productId) => ({
+    input: { id: productId },
+    synchronous: false,
+  }),
+  captureDuplicate: true,
+});
+const renamedVariable = await captureAsyncDeleteCase({
+  label: 'renamed-variable',
+  mutation: productDeleteRenamedVariableMutation,
+  title: `Async Delete Renamed Variable ${runId}`,
+  variablesForProduct: (productId) => ({
+    input: { id: productId },
+    runSynchronously: false,
+  }),
+});
+const inlineFalse = await captureAsyncDeleteCase({
+  label: 'inline-false',
+  mutation: productDeleteInlineFalseMutation,
+  title: `Async Delete Inline False ${runId}`,
+  variablesForProduct: (productId) => ({
+    input: { id: productId },
+  }),
+});
+
+const capture = {
+  storeDomain,
+  apiVersion,
+  setup: canonical.setup,
+  mutation: canonical.mutation,
+  duplicateMutation: canonical.duplicateMutation,
+  downstreamRead: canonical.downstreamRead,
+  operationRead: canonical.operationRead,
+  nodeRead: canonical.nodeRead,
+  cleanup: canonical.cleanup,
+  renamedVariable,
+  inlineFalse,
+  upstreamCalls: shopHydrateCalls,
+};
+
+await writeFile(
+  path.join(outputDir, 'product-delete-async-operation.json'),
+  `${JSON.stringify(capture, null, 2)}\n`,
+  'utf8',
+);
+
+console.log(
+  JSON.stringify(
+    {
+      ok: true,
+      outputDir,
+      files: ['product-delete-async-operation.json'],
+      canonicalProductId: canonical.setup.sourceProductId,
+      renamedVariableProductId: renamedVariable.setup.sourceProductId,
+      inlineFalseProductId: inlineFalse.setup.sourceProductId,
+    },
+    null,
+    2,
+  ),
+);

@@ -1,0 +1,1018 @@
+{
+  "capturedAt": "2026-07-10T11:42:42.376Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "suffix": "mrev991d",
+  "notes": [
+    "Live Admin GraphQL capture for mutation-first carrier-service and fulfillment-service hydration.",
+    "Setup creates disposable carrier and fulfillment services through the current conformance app, so mutation targets are app-owned and valid for lifecycle updates/deletes.",
+    "Carrier services use mock.shop callback URLs accepted by the conformance app; fulfillment services are created without callback URLs and therefore create Shopify-managed fulfillment-service locations.",
+    "The upstreamCalls cassette contains only exact GraphQL query documents and variables used by the proxy hydration path; lifecycle mutations remain local during parity replay and are replayable later through commit.",
+    "Cleanup deletes the disposable carrier services and fulfillment services that were not already deleted by the captured lifecycle mutations."
+  ],
+  "setup": {
+    "carrierUpdateSetup": {
+      "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-lifecycle-create.graphql",
+      "query": "mutation CarrierServiceCreateProbe($input: DeliveryCarrierServiceCreateInput!) {\n  carrierServiceCreate(input: $input) {\n    carrierService {\n      id\n      name\n      formattedName\n      callbackUrl\n      active\n      supportsServiceDiscovery\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Hydrate Carrier Update mrev991d",
+          "callbackUrl": "https://mock.shop/carrier-hydrate-update",
+          "supportsServiceDiscovery": true,
+          "active": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "carrierServiceCreate": {
+              "carrierService": {
+                "id": "gid://shopify/DeliveryCarrierService/104632418610",
+                "name": "Hydrate Carrier Update mrev991d",
+                "formattedName": "Hydrate Carrier Update mrev991d (Rates provided by app)",
+                "callbackUrl": "https://mock.shop/carrier-hydrate-update",
+                "active": false,
+                "supportsServiceDiscovery": true
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "carrierDeleteSetup": {
+      "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-lifecycle-create.graphql",
+      "query": "mutation CarrierServiceCreateProbe($input: DeliveryCarrierServiceCreateInput!) {\n  carrierServiceCreate(input: $input) {\n    carrierService {\n      id\n      name\n      formattedName\n      callbackUrl\n      active\n      supportsServiceDiscovery\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Hydrate Carrier Delete mrev991d",
+          "callbackUrl": "https://mock.shop/carrier-hydrate-delete",
+          "supportsServiceDiscovery": false,
+          "active": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "carrierServiceCreate": {
+              "carrierService": {
+                "id": "gid://shopify/DeliveryCarrierService/104632451378",
+                "name": "Hydrate Carrier Delete mrev991d",
+                "formattedName": "Hydrate Carrier Delete mrev991d (Rates provided by app)",
+                "callbackUrl": "https://mock.shop/carrier-hydrate-delete",
+                "active": false,
+                "supportsServiceDiscovery": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "carrierDuplicateSetup": {
+      "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-lifecycle-create.graphql",
+      "query": "mutation CarrierServiceCreateProbe($input: DeliveryCarrierServiceCreateInput!) {\n  carrierServiceCreate(input: $input) {\n    carrierService {\n      id\n      name\n      formattedName\n      callbackUrl\n      active\n      supportsServiceDiscovery\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Hydrate Carrier Duplicate mrev991d",
+          "callbackUrl": "https://mock.shop/carrier-hydrate-duplicate",
+          "supportsServiceDiscovery": false,
+          "active": true
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "carrierServiceCreate": {
+              "carrierService": {
+                "id": "gid://shopify/DeliveryCarrierService/104632484146",
+                "name": "Hydrate Carrier Duplicate mrev991d",
+                "formattedName": "Hydrate Carrier Duplicate mrev991d (Rates provided by app)",
+                "callbackUrl": "https://mock.shop/carrier-hydrate-duplicate",
+                "active": true,
+                "supportsServiceDiscovery": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "fulfillmentUpdateSetup": {
+      "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-lifecycle-create.graphql",
+      "query": "mutation CreateFs($name: String!) {\n  fulfillmentServiceCreate(\n    name: $name\n    trackingSupport: true\n    inventoryManagement: true\n    requiresShippingMethod: true\n  ) {\n    fulfillmentService {\n      id\n      handle\n      serviceName\n      callbackUrl\n      trackingSupport\n      inventoryManagement\n      requiresShippingMethod\n      type\n      location {\n        id\n        name\n        isFulfillmentService\n        fulfillsOnlineOrders\n        shipsInventory\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "name": "Hydrate FS Update mrev991d"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentServiceCreate": {
+              "fulfillmentService": {
+                "id": "gid://shopify/FulfillmentService/72100675890?id=true",
+                "handle": "hydrate-fs-update-mrev991d",
+                "serviceName": "Hydrate FS Update mrev991d",
+                "callbackUrl": null,
+                "trackingSupport": true,
+                "inventoryManagement": true,
+                "requiresShippingMethod": true,
+                "type": "THIRD_PARTY",
+                "location": {
+                  "id": "gid://shopify/Location/113880990002",
+                  "name": "Hydrate FS Update mrev991d",
+                  "isFulfillmentService": true,
+                  "fulfillsOnlineOrders": true,
+                  "shipsInventory": false
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "fulfillmentDeleteSetup": {
+      "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-lifecycle-create.graphql",
+      "query": "mutation CreateFs($name: String!) {\n  fulfillmentServiceCreate(\n    name: $name\n    trackingSupport: true\n    inventoryManagement: true\n    requiresShippingMethod: true\n  ) {\n    fulfillmentService {\n      id\n      handle\n      serviceName\n      callbackUrl\n      trackingSupport\n      inventoryManagement\n      requiresShippingMethod\n      type\n      location {\n        id\n        name\n        isFulfillmentService\n        fulfillsOnlineOrders\n        shipsInventory\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "name": "Hydrate FS Delete mrev991d"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentServiceCreate": {
+              "fulfillmentService": {
+                "id": "gid://shopify/FulfillmentService/72100708658?id=true",
+                "handle": "hydrate-fs-delete-mrev991d",
+                "serviceName": "Hydrate FS Delete mrev991d",
+                "callbackUrl": null,
+                "trackingSupport": true,
+                "inventoryManagement": true,
+                "requiresShippingMethod": true,
+                "type": "THIRD_PARTY",
+                "location": {
+                  "id": "gid://shopify/Location/113881022770",
+                  "name": "Hydrate FS Delete mrev991d",
+                  "isFulfillmentService": true,
+                  "fulfillsOnlineOrders": true,
+                  "shipsInventory": false
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "fulfillmentDuplicateSetup": {
+      "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-lifecycle-create.graphql",
+      "query": "mutation CreateFs($name: String!) {\n  fulfillmentServiceCreate(\n    name: $name\n    trackingSupport: true\n    inventoryManagement: true\n    requiresShippingMethod: true\n  ) {\n    fulfillmentService {\n      id\n      handle\n      serviceName\n      callbackUrl\n      trackingSupport\n      inventoryManagement\n      requiresShippingMethod\n      type\n      location {\n        id\n        name\n        isFulfillmentService\n        fulfillsOnlineOrders\n        shipsInventory\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "name": "Hydrate FS Duplicate mrev991d"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentServiceCreate": {
+              "fulfillmentService": {
+                "id": "gid://shopify/FulfillmentService/72100741426?id=true",
+                "handle": "hydrate-fs-duplicate-mrev991d",
+                "serviceName": "Hydrate FS Duplicate mrev991d",
+                "callbackUrl": null,
+                "trackingSupport": true,
+                "inventoryManagement": true,
+                "requiresShippingMethod": true,
+                "type": "THIRD_PARTY",
+                "location": {
+                  "id": "gid://shopify/Location/113881055538",
+                  "name": "Hydrate FS Duplicate mrev991d",
+                  "isFulfillmentService": true,
+                  "fulfillsOnlineOrders": true,
+                  "shipsInventory": false
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "carrierUpdate": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-lifecycle-update.graphql",
+    "query": "mutation CarrierServiceUpdateProbe($input: DeliveryCarrierServiceUpdateInput!) {\n  carrierServiceUpdate(input: $input) {\n    carrierService {\n      id\n      name\n      formattedName\n      callbackUrl\n      active\n      supportsServiceDiscovery\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/DeliveryCarrierService/104632418610",
+        "name": "Hydrate Carrier Updated mrev991d",
+        "callbackUrl": "https://mock.shop/carrier-hydrate-updated",
+        "supportsServiceDiscovery": false,
+        "active": false
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "carrierServiceUpdate": {
+            "carrierService": {
+              "id": "gid://shopify/DeliveryCarrierService/104632418610",
+              "name": "Hydrate Carrier Updated mrev991d",
+              "formattedName": "Hydrate Carrier Updated mrev991d (Rates provided by app)",
+              "callbackUrl": "https://mock.shop/carrier-hydrate-updated",
+              "active": false,
+              "supportsServiceDiscovery": false
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "carrierDelete": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-lifecycle-delete.graphql",
+    "query": "mutation CarrierServiceDeleteProbe($id: ID!) {\n  carrierServiceDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/DeliveryCarrierService/104632451378"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "carrierServiceDelete": {
+            "deletedId": "gid://shopify/DeliveryCarrierService/104632451378",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "carrierDuplicateCreate": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-create-uniqueness.graphql",
+    "query": "mutation CarrierServiceCreateUniqueness($input: DeliveryCarrierServiceCreateInput!) {\n  carrierServiceCreate(input: $input) {\n    carrierService {\n      id\n      name\n      formattedName\n      callbackUrl\n      active\n      supportsServiceDiscovery\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+    "variables": {
+      "input": {
+        "name": "Hydrate Carrier Duplicate mrev991d",
+        "callbackUrl": "https://mock.shop/carrier-hydrate-duplicate-new",
+        "supportsServiceDiscovery": false,
+        "active": true
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "carrierServiceCreate": {
+            "carrierService": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Hydrate Carrier Duplicate mrev991d is already configured",
+                "code": "CARRIER_SERVICE_CREATE_FAILED"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "fulfillmentDelete": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-lifecycle-delete.graphql",
+    "query": "mutation DeleteFs($id: ID!) {\n  fulfillmentServiceDelete(id: $id, inventoryAction: DELETE) {\n    deletedId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/FulfillmentService/72100708658?id=true"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "fulfillmentServiceDelete": {
+            "deletedId": "gid://shopify/FulfillmentService/72100708658",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "fulfillmentUpdate": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-lifecycle-update.graphql",
+    "query": "mutation UpdateFs($id: ID!, $name: String!) {\n  fulfillmentServiceUpdate(\n    id: $id\n    name: $name\n    trackingSupport: false\n    inventoryManagement: false\n    requiresShippingMethod: false\n  ) {\n    fulfillmentService {\n      id\n      handle\n      serviceName\n      callbackUrl\n      trackingSupport\n      inventoryManagement\n      requiresShippingMethod\n      type\n      location {\n        id\n        name\n        isFulfillmentService\n        fulfillsOnlineOrders\n        shipsInventory\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/FulfillmentService/72100675890?id=true",
+      "name": "Hydrate FS Updated mrev991d"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "fulfillmentServiceUpdate": {
+            "fulfillmentService": {
+              "id": "gid://shopify/FulfillmentService/72100675890?id=true",
+              "handle": "hydrate-fs-update-mrev991d",
+              "serviceName": "Hydrate FS Updated mrev991d",
+              "callbackUrl": null,
+              "trackingSupport": false,
+              "inventoryManagement": false,
+              "requiresShippingMethod": false,
+              "type": "THIRD_PARTY",
+              "location": {
+                "id": "gid://shopify/Location/113880990002",
+                "name": "Hydrate FS Updated mrev991d",
+                "isFulfillmentService": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "fulfillmentDuplicateCreate": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql",
+    "query": "mutation FulfillmentServiceUniquenessCreate($name: String!) {\n  fulfillmentServiceCreate(\n    name: $name\n    trackingSupport: true\n    inventoryManagement: true\n    requiresShippingMethod: true\n  ) {\n    fulfillmentService {\n      id\n      handle\n      serviceName\n      callbackUrl\n      trackingSupport\n      inventoryManagement\n      requiresShippingMethod\n      type\n      location {\n        id\n        name\n        isFulfillmentService\n        fulfillsOnlineOrders\n        shipsInventory\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "name": "Hydrate FS Duplicate mrev991d"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "fulfillmentServiceCreate": {
+            "fulfillmentService": null,
+            "userErrors": [
+              {
+                "field": ["name"],
+                "message": "Name has already been taken"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "carrierServices": [
+      {
+        "id": "gid://shopify/DeliveryCarrierService/104632484146",
+        "result": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "carrierServiceDelete": {
+                "deletedId": "gid://shopify/DeliveryCarrierService/104632484146",
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1989,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/DeliveryCarrierService/104632418610",
+        "result": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "carrierServiceDelete": {
+                "deletedId": "gid://shopify/DeliveryCarrierService/104632418610",
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1989,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    ],
+    "fulfillmentServices": [
+      {
+        "id": "gid://shopify/FulfillmentService/72100741426?id=true",
+        "result": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "fulfillmentServiceDelete": {
+                "deletedId": "gid://shopify/FulfillmentService/72100741426",
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1988,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/FulfillmentService/72100675890?id=true",
+        "result": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "fulfillmentServiceDelete": {
+                "deletedId": "gid://shopify/FulfillmentService/72100675890",
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ShippingCarrierServiceHydrate",
+      "query": "query ShippingCarrierServiceHydrate($id: ID!) {\n  carrierService(id: $id) {\n    id\n    name\n    formattedName\n    callbackUrl\n    active\n    supportsServiceDiscovery\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/DeliveryCarrierService/104632418610"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "carrierService": {
+              "id": "gid://shopify/DeliveryCarrierService/104632418610",
+              "name": "Hydrate Carrier Update mrev991d",
+              "formattedName": "Hydrate Carrier Update mrev991d (Rates provided by app)",
+              "callbackUrl": "https://mock.shop/carrier-hydrate-update",
+              "active": false,
+              "supportsServiceDiscovery": true
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingCarrierServiceHydrate",
+      "query": "query ShippingCarrierServiceHydrate($id: ID!) {\n  carrierService(id: $id) {\n    id\n    name\n    formattedName\n    callbackUrl\n    active\n    supportsServiceDiscovery\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/DeliveryCarrierService/104632451378"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "carrierService": {
+              "id": "gid://shopify/DeliveryCarrierService/104632451378",
+              "name": "Hydrate Carrier Delete mrev991d",
+              "formattedName": "Hydrate Carrier Delete mrev991d (Rates provided by app)",
+              "callbackUrl": "https://mock.shop/carrier-hydrate-delete",
+              "active": false,
+              "supportsServiceDiscovery": false
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingCarrierServicesHydrate",
+      "query": "query ShippingCarrierServicesHydrate {\n  carrierServices(first: 250) {\n    nodes {\n      id\n      name\n      formattedName\n      callbackUrl\n      active\n      supportsServiceDiscovery\n    }\n  }\n}",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "carrierServices": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/DeliveryCarrierService/104632418610",
+                  "name": "Hydrate Carrier Updated mrev991d",
+                  "formattedName": "Hydrate Carrier Updated mrev991d (Rates provided by app)",
+                  "callbackUrl": "https://mock.shop/carrier-hydrate-updated",
+                  "active": false,
+                  "supportsServiceDiscovery": false
+                },
+                {
+                  "id": "gid://shopify/DeliveryCarrierService/104632484146",
+                  "name": "Hydrate Carrier Duplicate mrev991d",
+                  "formattedName": "Hydrate Carrier Duplicate mrev991d (Rates provided by app)",
+                  "callbackUrl": "https://mock.shop/carrier-hydrate-duplicate",
+                  "active": true,
+                  "supportsServiceDiscovery": false
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingFulfillmentServiceHydrate",
+      "query": "query ShippingFulfillmentServiceHydrate($id: ID!) {\n  fulfillmentService(id: $id) {\n    id\n    handle\n    serviceName\n    callbackUrl\n    trackingSupport\n    inventoryManagement\n    requiresShippingMethod\n    type\n    location {\n      id\n      name\n      isFulfillmentService\n      fulfillsOnlineOrders\n      shipsInventory\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/FulfillmentService/72100708658?id=true"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentService": {
+              "id": "gid://shopify/FulfillmentService/72100708658?id=true",
+              "handle": "hydrate-fs-delete-mrev991d",
+              "serviceName": "Hydrate FS Delete mrev991d",
+              "callbackUrl": null,
+              "trackingSupport": true,
+              "inventoryManagement": true,
+              "requiresShippingMethod": true,
+              "type": "THIRD_PARTY",
+              "location": {
+                "id": "gid://shopify/Location/113881022770",
+                "name": "Hydrate FS Delete mrev991d",
+                "isFulfillmentService": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingFulfillmentServiceHydrate",
+      "query": "query ShippingFulfillmentServiceHydrate($id: ID!) {\n  fulfillmentService(id: $id) {\n    id\n    handle\n    serviceName\n    callbackUrl\n    trackingSupport\n    inventoryManagement\n    requiresShippingMethod\n    type\n    location {\n      id\n      name\n      isFulfillmentService\n      fulfillsOnlineOrders\n      shipsInventory\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/FulfillmentService/72100675890?id=true"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentService": {
+              "id": "gid://shopify/FulfillmentService/72100675890?id=true",
+              "handle": "hydrate-fs-update-mrev991d",
+              "serviceName": "Hydrate FS Update mrev991d",
+              "callbackUrl": null,
+              "trackingSupport": true,
+              "inventoryManagement": true,
+              "requiresShippingMethod": true,
+              "type": "THIRD_PARTY",
+              "location": {
+                "id": "gid://shopify/Location/113880990002",
+                "name": "Hydrate FS Update mrev991d",
+                "isFulfillmentService": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingFulfillmentServicesHydrate",
+      "query": "query ShippingFulfillmentServicesHydrate {\n  shop {\n    fulfillmentServices {\n      id\n      handle\n      serviceName\n      callbackUrl\n      trackingSupport\n      inventoryManagement\n      requiresShippingMethod\n      type\n      location {\n        id\n        name\n        isFulfillmentService\n        fulfillsOnlineOrders\n        shipsInventory\n      }\n    }\n  }\n}",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shop": {
+              "fulfillmentServices": [
+                {
+                  "id": "gid://shopify/FulfillmentService/manual",
+                  "handle": "manual",
+                  "serviceName": "Manual",
+                  "callbackUrl": null,
+                  "trackingSupport": false,
+                  "inventoryManagement": false,
+                  "requiresShippingMethod": true,
+                  "type": "MANUAL",
+                  "location": {
+                    "id": "gid://shopify/Location/106318430514",
+                    "name": "Shop location",
+                    "isFulfillmentService": false,
+                    "fulfillsOnlineOrders": true,
+                    "shipsInventory": true
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentService/70752141618?id=true",
+                  "handle": "snow-city-warehouse",
+                  "serviceName": "Snow City Warehouse",
+                  "callbackUrl": "https://mock.shop/",
+                  "trackingSupport": false,
+                  "inventoryManagement": false,
+                  "requiresShippingMethod": false,
+                  "type": "THIRD_PARTY",
+                  "location": {
+                    "id": "gid://shopify/Location/106318496050",
+                    "name": "Snow City Warehouse",
+                    "isFulfillmentService": true,
+                    "fulfillsOnlineOrders": true,
+                    "shipsInventory": false
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentService/71918125362?id=true",
+                  "handle": "har-571-transfer-fs-20260505000731",
+                  "serviceName": "HAR-571 transfer FS 20260505000731",
+                  "callbackUrl": null,
+                  "trackingSupport": true,
+                  "inventoryManagement": true,
+                  "requiresShippingMethod": true,
+                  "type": "THIRD_PARTY",
+                  "location": {
+                    "id": "gid://shopify/Location/112829858098",
+                    "name": "HAR-571 transfer FS 20260505000731",
+                    "isFulfillmentService": true,
+                    "fulfillsOnlineOrders": true,
+                    "shipsInventory": false
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentService/72100675890?id=true",
+                  "handle": "hydrate-fs-update-mrev991d",
+                  "serviceName": "Hydrate FS Update mrev991d",
+                  "callbackUrl": null,
+                  "trackingSupport": true,
+                  "inventoryManagement": true,
+                  "requiresShippingMethod": true,
+                  "type": "THIRD_PARTY",
+                  "location": {
+                    "id": "gid://shopify/Location/113880990002",
+                    "name": "Hydrate FS Update mrev991d",
+                    "isFulfillmentService": true,
+                    "fulfillsOnlineOrders": true,
+                    "shipsInventory": false
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentService/72100741426?id=true",
+                  "handle": "hydrate-fs-duplicate-mrev991d",
+                  "serviceName": "Hydrate FS Duplicate mrev991d",
+                  "callbackUrl": null,
+                  "trackingSupport": true,
+                  "inventoryManagement": true,
+                  "requiresShippingMethod": true,
+                  "type": "THIRD_PARTY",
+                  "location": {
+                    "id": "gid://shopify/Location/113881055538",
+                    "name": "Hydrate FS Duplicate mrev991d",
+                    "isFulfillmentService": true,
+                    "fulfillsOnlineOrders": true,
+                    "shipsInventory": false
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingFulfillmentServicesHydrate",
+      "query": "query ShippingFulfillmentServicesHydrate {\n  shop {\n    fulfillmentServices {\n      id\n      handle\n      serviceName\n      callbackUrl\n      trackingSupport\n      inventoryManagement\n      requiresShippingMethod\n      type\n      location {\n        id\n        name\n        isFulfillmentService\n        fulfillsOnlineOrders\n        shipsInventory\n      }\n    }\n  }\n}",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shop": {
+              "fulfillmentServices": [
+                {
+                  "id": "gid://shopify/FulfillmentService/manual",
+                  "handle": "manual",
+                  "serviceName": "Manual",
+                  "callbackUrl": null,
+                  "trackingSupport": false,
+                  "inventoryManagement": false,
+                  "requiresShippingMethod": true,
+                  "type": "MANUAL",
+                  "location": {
+                    "id": "gid://shopify/Location/106318430514",
+                    "name": "Shop location",
+                    "isFulfillmentService": false,
+                    "fulfillsOnlineOrders": true,
+                    "shipsInventory": true
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentService/70752141618?id=true",
+                  "handle": "snow-city-warehouse",
+                  "serviceName": "Snow City Warehouse",
+                  "callbackUrl": "https://mock.shop/",
+                  "trackingSupport": false,
+                  "inventoryManagement": false,
+                  "requiresShippingMethod": false,
+                  "type": "THIRD_PARTY",
+                  "location": {
+                    "id": "gid://shopify/Location/106318496050",
+                    "name": "Snow City Warehouse",
+                    "isFulfillmentService": true,
+                    "fulfillsOnlineOrders": true,
+                    "shipsInventory": false
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentService/71918125362?id=true",
+                  "handle": "har-571-transfer-fs-20260505000731",
+                  "serviceName": "HAR-571 transfer FS 20260505000731",
+                  "callbackUrl": null,
+                  "trackingSupport": true,
+                  "inventoryManagement": true,
+                  "requiresShippingMethod": true,
+                  "type": "THIRD_PARTY",
+                  "location": {
+                    "id": "gid://shopify/Location/112829858098",
+                    "name": "HAR-571 transfer FS 20260505000731",
+                    "isFulfillmentService": true,
+                    "fulfillsOnlineOrders": true,
+                    "shipsInventory": false
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentService/72100675890?id=true",
+                  "handle": "hydrate-fs-update-mrev991d",
+                  "serviceName": "Hydrate FS Updated mrev991d",
+                  "callbackUrl": null,
+                  "trackingSupport": false,
+                  "inventoryManagement": false,
+                  "requiresShippingMethod": false,
+                  "type": "THIRD_PARTY",
+                  "location": {
+                    "id": "gid://shopify/Location/113880990002",
+                    "name": "Hydrate FS Updated mrev991d",
+                    "isFulfillmentService": true,
+                    "fulfillsOnlineOrders": true,
+                    "shipsInventory": false
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentService/72100741426?id=true",
+                  "handle": "hydrate-fs-duplicate-mrev991d",
+                  "serviceName": "Hydrate FS Duplicate mrev991d",
+                  "callbackUrl": null,
+                  "trackingSupport": true,
+                  "inventoryManagement": true,
+                  "requiresShippingMethod": true,
+                  "type": "THIRD_PARTY",
+                  "location": {
+                    "id": "gid://shopify/Location/113881055538",
+                    "name": "Hydrate FS Duplicate mrev991d",
+                    "isFulfillmentService": true,
+                    "fulfillsOnlineOrders": true,
+                    "shipsInventory": false
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

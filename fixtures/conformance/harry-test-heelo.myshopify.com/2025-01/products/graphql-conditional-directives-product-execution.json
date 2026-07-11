@@ -1,0 +1,136 @@
+{
+  "scenarioId": "graphql-conditional-directives-product-execution",
+  "capturedAt": "2026-07-10T16:48:03.720Z",
+  "source": "live-shopify-admin-graphql",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "liveGatewaySideEffects": true,
+  "notes": "Creates one disposable draft product, records conditional directive response projection, records a skipped productCreate root, and deletes the setup product in best-effort cleanup.",
+  "setup": {
+    "create": {
+      "query": "mutation ConditionalDirectiveProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      handle\n      status\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "product": {
+          "title": "Hermes Conditional Directive Product 20260710164802",
+          "status": "DRAFT"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productCreate": {
+              "product": {
+                "id": "gid://shopify/Product/10236063482162",
+                "title": "Hermes Conditional Directive Product 20260710164802",
+                "handle": "hermes-conditional-directive-product-20260710164802",
+                "status": "DRAFT"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "conditionalRead": {
+    "query": "fragment ConditionalDirectiveProductBits on Product {\n  aliasStatus: status\n  hiddenVendor: vendor @skip(if: true)\n}\n\nquery ConditionalDirectiveProductRead(\n  $id: ID!\n  $includeTitle: Boolean!\n  $skipInline: Boolean!\n  $includeSpread: Boolean!\n) {\n  skippedRoot: product(id: $id) @skip(if: true) {\n    id\n    title\n  }\n  includedProduct: product(id: $id) @include(if: true) {\n    id\n    title @include(if: $includeTitle)\n    hiddenHandle: handle @include(if: false)\n    ... on Product @skip(if: $skipInline) {\n      productType\n    }\n    ...ConditionalDirectiveProductBits @include(if: $includeSpread)\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Product/10236063482162",
+      "includeTitle": false,
+      "skipInline": true,
+      "includeSpread": true
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "includedProduct": {
+            "id": "gid://shopify/Product/10236063482162",
+            "aliasStatus": "DRAFT"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "skippedCreate": {
+    "query": "mutation ConditionalDirectiveSkippedProductCreate($product: ProductCreateInput!, $skipMutation: Boolean!) {\n  skippedCreate: productCreate(product: $product) @include(if: true) @skip(if: $skipMutation) {\n    product {\n      id\n      title\n      handle\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "product": {
+        "title": "Hermes Skipped Conditional Directive Product 20260710164802",
+        "status": "DRAFT"
+      },
+      "skipMutation": true
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {},
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "query": "mutation ConditionalDirectiveProductCleanup($input: ProductDeleteInput!) {\n  productDelete(input: $input) {\n    deletedProductId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/Product/10236063482162"
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10236063482162",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

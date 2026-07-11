@@ -1,0 +1,71 @@
+query ProductSetTargetHydrateByHandle($handle: String!) {
+  productByIdentifier(identifier: { handle: $handle }) {
+    ...ProductSetTargetHydratedProduct
+  }
+}
+
+fragment ProductSetTargetHydratedProduct on Product {
+  id
+  title
+  handle
+  status
+  vendor
+  productType
+  tags
+  totalInventory
+  tracksInventory
+  createdAt
+  updatedAt
+  publishedAt
+  descriptionHtml
+  onlineStorePreviewUrl
+  templateSuffix
+  seo {
+    title
+    description
+  }
+  options {
+    id
+    name
+    position
+    values
+    optionValues {
+      id
+      name
+      hasVariants
+    }
+  }
+  variants(first: 100) {
+    nodes {
+      id
+      title
+      sku
+      barcode
+      price
+      compareAtPrice
+      taxable
+      inventoryPolicy
+      inventoryQuantity
+      selectedOptions {
+        name
+        value
+      }
+      inventoryItem {
+        id
+        tracked
+        requiresShipping
+      }
+    }
+  }
+  collections(first: 10) {
+    nodes {
+      id
+      title
+      handle
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+}

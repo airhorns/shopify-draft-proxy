@@ -1,0 +1,1211 @@
+{
+  "capturedAt": "2026-07-10T18:14:55.552Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scope": "mixed Markets-family LiveHybrid baseline plus staged overlay read",
+  "token": "ZZZMARKETSMIX20260710181441",
+  "cases": [
+    {
+      "name": "marketCreate ZZZMARKETSMIX20260710181441 Pre Market",
+      "query": "#graphql\nmutation CatalogContextUpdateMarketCreate($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      handle\n      status\n      enabled\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "ZZZMARKETSMIX20260710181441 Pre Market",
+          "enabled": true
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketCreate": {
+              "market": {
+                "id": "gid://shopify/Market/98855059762",
+                "name": "ZZZMARKETSMIX20260710181441 Pre Market",
+                "handle": "zzzmarketsmix20260710181441-pre-market",
+                "status": "ACTIVE",
+                "enabled": true
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalogCreate ZZZMARKETSMIX20260710181441 Pre Catalog",
+      "query": "#graphql\nmutation CatalogContextUpdateCatalogCreate($input: CatalogCreateInput!) {\n  catalogCreate(input: $input) {\n    catalog {\n      id\n      title\n      status\n      ... on MarketCatalog {\n        markets(first: 5) {\n          nodes {\n            id\n            name\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "ZZZMARKETSMIX20260710181441 Pre Catalog",
+          "status": "ACTIVE",
+          "context": {
+            "marketIds": ["gid://shopify/Market/98855059762"]
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogCreate": {
+              "catalog": {
+                "id": "gid://shopify/MarketCatalog/154638549298",
+                "title": "ZZZMARKETSMIX20260710181441 Pre Catalog",
+                "status": "ACTIVE",
+                "markets": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Market/98855059762",
+                      "name": "ZZZMARKETSMIX20260710181441 Pre Market"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "priceListCreate ZZZMARKETSMIX20260710181441 Pre Prices",
+      "query": "mutation CatalogUpdateRelationReadPriceListCreate($input: PriceListCreateInput!) {\n  priceListCreate(input: $input) {\n    priceList {\n      id\n      name\n      currency\n      parent {\n        adjustment {\n          type\n          value\n        }\n        settings {\n          compareAtMode\n        }\n      }\n      catalog {\n        id\n        title\n        status\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "ZZZMARKETSMIX20260710181441 Pre Prices",
+          "currency": "USD",
+          "catalogId": "gid://shopify/MarketCatalog/154638549298",
+          "parent": {
+            "adjustment": {
+              "type": "PERCENTAGE_DECREASE",
+              "value": 5
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListCreate": {
+              "priceList": {
+                "id": "gid://shopify/PriceList/32311214386",
+                "name": "ZZZMARKETSMIX20260710181441 Pre Prices",
+                "currency": "USD",
+                "parent": {
+                  "adjustment": {
+                    "type": "PERCENTAGE_DECREASE",
+                    "value": 5
+                  },
+                  "settings": {
+                    "compareAtMode": "ADJUSTED"
+                  }
+                },
+                "catalog": {
+                  "id": "gid://shopify/MarketCatalog/154638549298",
+                  "title": "ZZZMARKETSMIX20260710181441 Pre Catalog",
+                  "status": "ACTIVE"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 14,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "webPresenceCreate harufoycbsccy",
+      "query": "mutation WebPresenceDeleteParityCreate($input: WebPresenceCreateInput!) {\n  webPresenceCreate(input: $input) {\n    webPresence {\n      id\n      subfolderSuffix\n      domain {\n        id\n        host\n        url\n        sslEnabled\n      }\n      rootUrls {\n        locale\n        url\n      }\n      defaultLocale {\n        locale\n        name\n        primary\n        published\n      }\n      alternateLocales {\n        locale\n        name\n        primary\n        published\n      }\n      markets(first: 5) {\n        nodes {\n          id\n          name\n          handle\n          status\n          type\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "defaultLocale": "en",
+          "alternateLocales": [],
+          "subfolderSuffix": "harufoycbsccy"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webPresenceCreate": {
+              "webPresence": {
+                "id": "gid://shopify/MarketWebPresence/70731465010",
+                "subfolderSuffix": "harufoycbsccy",
+                "domain": null,
+                "rootUrls": [
+                  {
+                    "locale": "en",
+                    "url": "https://harry-test-heelo.myshopify.com/en-harufoycbsccy/"
+                  }
+                ],
+                "defaultLocale": {
+                  "locale": "en",
+                  "name": "English",
+                  "primary": true,
+                  "published": true
+                },
+                "alternateLocales": [],
+                "markets": {
+                  "nodes": []
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 19,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1981,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "baseline mixed Markets-family read before staged delta",
+      "query": "query MarketsFamilyMixedOverlayRead(\n  $marketQuery: String!\n  $catalogQuery: String!\n  $marketsFirst: Int!\n  $catalogsFirst: Int!\n  $catalogsWindowFirst: Int!\n  $priceListsFirst: Int!\n  $webPresencesFirst: Int!\n) {\n  markets(first: $marketsFirst, query: $marketQuery, sortKey: NAME, reverse: true) {\n    nodes {\n      id\n      name\n      handle\n      status\n      type\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n  catalogs(first: $catalogsFirst, query: $catalogQuery, sortKey: TITLE, reverse: true) {\n    nodes {\n      id\n      title\n      status\n      ... on MarketCatalog {\n        markets(first: 5) {\n          nodes {\n            id\n            name\n          }\n        }\n      }\n      priceList {\n        id\n        name\n        currency\n      }\n    }\n  }\n  catalogsWindow: catalogs(first: $catalogsWindowFirst, query: $catalogQuery, sortKey: TITLE, reverse: true) {\n    nodes {\n      id\n      title\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n  catalogsCount(query: $catalogQuery) {\n    count\n    precision\n  }\n  priceLists(first: $priceListsFirst) {\n    nodes {\n      id\n      name\n      currency\n      catalog {\n        id\n        title\n        status\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n  webPresences(first: $webPresencesFirst) {\n    nodes {\n      id\n      subfolderSuffix\n      defaultLocale {\n        locale\n        name\n        primary\n        published\n      }\n      markets(first: 5) {\n        nodes {\n          id\n          name\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n}\n",
+      "variables": {
+        "marketQuery": "ZZZMARKETSMIX20260710181441",
+        "catalogQuery": "title:ZZZMARKETSMIX20260710181441",
+        "marketsFirst": 4,
+        "catalogsFirst": 2,
+        "catalogsWindowFirst": 1,
+        "priceListsFirst": 250,
+        "webPresencesFirst": 250
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "markets": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Market/98855059762",
+                  "name": "ZZZMARKETSMIX20260710181441 Pre Market",
+                  "handle": "zzzmarketsmix20260710181441-pre-market",
+                  "status": "ACTIVE",
+                  "type": "NONE"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "catalogs": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MarketCatalog/154638549298",
+                  "title": "ZZZMARKETSMIX20260710181441 Pre Catalog",
+                  "status": "ACTIVE",
+                  "markets": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/Market/98855059762",
+                        "name": "ZZZMARKETSMIX20260710181441 Pre Market"
+                      }
+                    ]
+                  },
+                  "priceList": {
+                    "id": "gid://shopify/PriceList/32311214386",
+                    "name": "ZZZMARKETSMIX20260710181441 Pre Prices",
+                    "currency": "USD"
+                  }
+                }
+              ]
+            },
+            "catalogsWindow": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MarketCatalog/154638549298",
+                  "title": "ZZZMARKETSMIX20260710181441 Pre Catalog"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "catalogsCount": {
+              "count": 1,
+              "precision": "EXACT"
+            },
+            "priceLists": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/PriceList/31575376178",
+                  "name": "Price List example Buyers",
+                  "currency": "CAD",
+                  "catalog": null
+                },
+                {
+                  "id": "gid://shopify/PriceList/31575408946",
+                  "name": "Mexico Buyers",
+                  "currency": "MXN",
+                  "catalog": {
+                    "id": "gid://shopify/MarketCatalog/128893452594",
+                    "title": "Mexico",
+                    "status": "ACTIVE"
+                  }
+                },
+                {
+                  "id": "gid://shopify/PriceList/32128106802",
+                  "name": "Snowdevil - 5ab8ea7a-2a02-46a0-af55-01cdb431d3ca",
+                  "currency": "CAD",
+                  "catalog": {
+                    "id": "gid://shopify/CompanyLocationCatalog/132931223858",
+                    "title": "Snowdevil",
+                    "status": "ACTIVE"
+                  }
+                },
+                {
+                  "id": "gid://shopify/PriceList/32311214386",
+                  "name": "ZZZMARKETSMIX20260710181441 Pre Prices",
+                  "currency": "USD",
+                  "catalog": {
+                    "id": "gid://shopify/MarketCatalog/154638549298",
+                    "title": "ZZZMARKETSMIX20260710181441 Pre Catalog",
+                    "status": "ACTIVE"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "webPresences": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MarketWebPresence/62842765618",
+                  "subfolderSuffix": null,
+                  "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                  },
+                  "markets": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/MarketWebPresence/69720899890",
+                  "subfolderSuffix": "harerhkjdulik",
+                  "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                  },
+                  "markets": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/MarketWebPresence/69720998194",
+                  "subfolderSuffix": "harsipqvpnehc",
+                  "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                  },
+                  "markets": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/MarketWebPresence/70628245810",
+                  "subfolderSuffix": "harprobebb",
+                  "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                  },
+                  "markets": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/MarketWebPresence/70731465010",
+                  "subfolderSuffix": "harufoycbsccy",
+                  "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                  },
+                  "markets": {
+                    "nodes": []
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 129,
+              "actualQueryCost": 28,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1972,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "marketCreate ZZZMARKETSMIX20260710181441 Staged Market",
+      "query": "#graphql\nmutation CatalogContextUpdateMarketCreate($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      handle\n      status\n      enabled\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "ZZZMARKETSMIX20260710181441 Staged Market",
+          "enabled": true
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketCreate": {
+              "market": {
+                "id": "gid://shopify/Market/98855092530",
+                "name": "ZZZMARKETSMIX20260710181441 Staged Market",
+                "handle": "zzzmarketsmix20260710181441-staged-market",
+                "status": "ACTIVE",
+                "enabled": true
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1978,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalogCreate ZZZMARKETSMIX20260710181441 Staged Catalog",
+      "query": "#graphql\nmutation CatalogContextUpdateCatalogCreate($input: CatalogCreateInput!) {\n  catalogCreate(input: $input) {\n    catalog {\n      id\n      title\n      status\n      ... on MarketCatalog {\n        markets(first: 5) {\n          nodes {\n            id\n            name\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "ZZZMARKETSMIX20260710181441 Staged Catalog",
+          "status": "ACTIVE",
+          "context": {
+            "marketIds": ["gid://shopify/Market/98855092530"]
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogCreate": {
+              "catalog": {
+                "id": "gid://shopify/MarketCatalog/154638582066",
+                "title": "ZZZMARKETSMIX20260710181441 Staged Catalog",
+                "status": "ACTIVE",
+                "markets": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Market/98855092530",
+                      "name": "ZZZMARKETSMIX20260710181441 Staged Market"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "priceListCreate ZZZMARKETSMIX20260710181441 Staged Prices",
+      "query": "mutation CatalogUpdateRelationReadPriceListCreate($input: PriceListCreateInput!) {\n  priceListCreate(input: $input) {\n    priceList {\n      id\n      name\n      currency\n      parent {\n        adjustment {\n          type\n          value\n        }\n        settings {\n          compareAtMode\n        }\n      }\n      catalog {\n        id\n        title\n        status\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "ZZZMARKETSMIX20260710181441 Staged Prices",
+          "currency": "USD",
+          "catalogId": "gid://shopify/MarketCatalog/154638582066",
+          "parent": {
+            "adjustment": {
+              "type": "PERCENTAGE_DECREASE",
+              "value": 10
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListCreate": {
+              "priceList": {
+                "id": "gid://shopify/PriceList/32311247154",
+                "name": "ZZZMARKETSMIX20260710181441 Staged Prices",
+                "currency": "USD",
+                "parent": {
+                  "adjustment": {
+                    "type": "PERCENTAGE_DECREASE",
+                    "value": 10
+                  },
+                  "settings": {
+                    "compareAtMode": "ADJUSTED"
+                  }
+                },
+                "catalog": {
+                  "id": "gid://shopify/MarketCatalog/154638582066",
+                  "title": "ZZZMARKETSMIX20260710181441 Staged Catalog",
+                  "status": "ACTIVE"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 14,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "mixed Markets-family read after staged delta",
+      "query": "query MarketsFamilyMixedOverlayRead(\n  $marketQuery: String!\n  $catalogQuery: String!\n  $marketsFirst: Int!\n  $catalogsFirst: Int!\n  $catalogsWindowFirst: Int!\n  $priceListsFirst: Int!\n  $webPresencesFirst: Int!\n) {\n  markets(first: $marketsFirst, query: $marketQuery, sortKey: NAME, reverse: true) {\n    nodes {\n      id\n      name\n      handle\n      status\n      type\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n  catalogs(first: $catalogsFirst, query: $catalogQuery, sortKey: TITLE, reverse: true) {\n    nodes {\n      id\n      title\n      status\n      ... on MarketCatalog {\n        markets(first: 5) {\n          nodes {\n            id\n            name\n          }\n        }\n      }\n      priceList {\n        id\n        name\n        currency\n      }\n    }\n  }\n  catalogsWindow: catalogs(first: $catalogsWindowFirst, query: $catalogQuery, sortKey: TITLE, reverse: true) {\n    nodes {\n      id\n      title\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n  catalogsCount(query: $catalogQuery) {\n    count\n    precision\n  }\n  priceLists(first: $priceListsFirst) {\n    nodes {\n      id\n      name\n      currency\n      catalog {\n        id\n        title\n        status\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n  webPresences(first: $webPresencesFirst) {\n    nodes {\n      id\n      subfolderSuffix\n      defaultLocale {\n        locale\n        name\n        primary\n        published\n      }\n      markets(first: 5) {\n        nodes {\n          id\n          name\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n}\n",
+      "variables": {
+        "marketQuery": "ZZZMARKETSMIX20260710181441",
+        "catalogQuery": "title:ZZZMARKETSMIX20260710181441",
+        "marketsFirst": 4,
+        "catalogsFirst": 2,
+        "catalogsWindowFirst": 1,
+        "priceListsFirst": 250,
+        "webPresencesFirst": 250
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "markets": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Market/98855092530",
+                  "name": "ZZZMARKETSMIX20260710181441 Staged Market",
+                  "handle": "zzzmarketsmix20260710181441-staged-market",
+                  "status": "ACTIVE",
+                  "type": "NONE"
+                },
+                {
+                  "id": "gid://shopify/Market/98855059762",
+                  "name": "ZZZMARKETSMIX20260710181441 Pre Market",
+                  "handle": "zzzmarketsmix20260710181441-pre-market",
+                  "status": "ACTIVE",
+                  "type": "NONE"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "catalogs": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MarketCatalog/154638582066",
+                  "title": "ZZZMARKETSMIX20260710181441 Staged Catalog",
+                  "status": "ACTIVE",
+                  "markets": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/Market/98855092530",
+                        "name": "ZZZMARKETSMIX20260710181441 Staged Market"
+                      }
+                    ]
+                  },
+                  "priceList": {
+                    "id": "gid://shopify/PriceList/32311247154",
+                    "name": "ZZZMARKETSMIX20260710181441 Staged Prices",
+                    "currency": "USD"
+                  }
+                },
+                {
+                  "id": "gid://shopify/MarketCatalog/154638549298",
+                  "title": "ZZZMARKETSMIX20260710181441 Pre Catalog",
+                  "status": "ACTIVE",
+                  "markets": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/Market/98855059762",
+                        "name": "ZZZMARKETSMIX20260710181441 Pre Market"
+                      }
+                    ]
+                  },
+                  "priceList": {
+                    "id": "gid://shopify/PriceList/32311214386",
+                    "name": "ZZZMARKETSMIX20260710181441 Pre Prices",
+                    "currency": "USD"
+                  }
+                }
+              ]
+            },
+            "catalogsWindow": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MarketCatalog/154638582066",
+                  "title": "ZZZMARKETSMIX20260710181441 Staged Catalog"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false
+              }
+            },
+            "catalogsCount": {
+              "count": 2,
+              "precision": "EXACT"
+            },
+            "priceLists": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/PriceList/31575376178",
+                  "name": "Price List example Buyers",
+                  "currency": "CAD",
+                  "catalog": null
+                },
+                {
+                  "id": "gid://shopify/PriceList/31575408946",
+                  "name": "Mexico Buyers",
+                  "currency": "MXN",
+                  "catalog": {
+                    "id": "gid://shopify/MarketCatalog/128893452594",
+                    "title": "Mexico",
+                    "status": "ACTIVE"
+                  }
+                },
+                {
+                  "id": "gid://shopify/PriceList/32128106802",
+                  "name": "Snowdevil - 5ab8ea7a-2a02-46a0-af55-01cdb431d3ca",
+                  "currency": "CAD",
+                  "catalog": {
+                    "id": "gid://shopify/CompanyLocationCatalog/132931223858",
+                    "title": "Snowdevil",
+                    "status": "ACTIVE"
+                  }
+                },
+                {
+                  "id": "gid://shopify/PriceList/32311214386",
+                  "name": "ZZZMARKETSMIX20260710181441 Pre Prices",
+                  "currency": "USD",
+                  "catalog": {
+                    "id": "gid://shopify/MarketCatalog/154638549298",
+                    "title": "ZZZMARKETSMIX20260710181441 Pre Catalog",
+                    "status": "ACTIVE"
+                  }
+                },
+                {
+                  "id": "gid://shopify/PriceList/32311247154",
+                  "name": "ZZZMARKETSMIX20260710181441 Staged Prices",
+                  "currency": "USD",
+                  "catalog": {
+                    "id": "gid://shopify/MarketCatalog/154638582066",
+                    "title": "ZZZMARKETSMIX20260710181441 Staged Catalog",
+                    "status": "ACTIVE"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "webPresences": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MarketWebPresence/62842765618",
+                  "subfolderSuffix": null,
+                  "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                  },
+                  "markets": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/MarketWebPresence/69720899890",
+                  "subfolderSuffix": "harerhkjdulik",
+                  "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                  },
+                  "markets": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/MarketWebPresence/69720998194",
+                  "subfolderSuffix": "harsipqvpnehc",
+                  "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                  },
+                  "markets": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/MarketWebPresence/70628245810",
+                  "subfolderSuffix": "harprobebb",
+                  "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                  },
+                  "markets": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/MarketWebPresence/70731465010",
+                  "subfolderSuffix": "harufoycbsccy",
+                  "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                  },
+                  "markets": {
+                    "nodes": []
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 129,
+              "actualQueryCost": 30,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1970,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "staged price list singular readback",
+      "query": "query MarketsFamilyMixedOverlayPriceListRead($id: ID!) {\n  priceList(id: $id) {\n    id\n    name\n    currency\n    parent {\n      adjustment {\n        type\n        value\n      }\n    }\n    catalog {\n      id\n      title\n      status\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/PriceList/32311247154"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceList": {
+              "id": "gid://shopify/PriceList/32311247154",
+              "name": "ZZZMARKETSMIX20260710181441 Staged Prices",
+              "currency": "USD",
+              "parent": {
+                "adjustment": {
+                  "type": "PERCENTAGE_DECREASE",
+                  "value": 10
+                }
+              },
+              "catalog": {
+                "id": "gid://shopify/MarketCatalog/154638582066",
+                "title": "ZZZMARKETSMIX20260710181441 Staged Catalog",
+                "status": "ACTIVE"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1982,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "type": "priceList",
+      "id": "gid://shopify/PriceList/32311247154",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListDelete": {
+              "deletedId": "gid://shopify/PriceList/32311247154",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1980,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "priceList",
+      "id": "gid://shopify/PriceList/32311214386",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListDelete": {
+              "deletedId": "gid://shopify/PriceList/32311214386",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "catalog",
+      "id": "gid://shopify/MarketCatalog/154638582066",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogDelete": {
+              "deletedId": "gid://shopify/MarketCatalog/154638582066",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "catalog",
+      "id": "gid://shopify/MarketCatalog/154638549298",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogDelete": {
+              "deletedId": "gid://shopify/MarketCatalog/154638549298",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "market",
+      "id": "gid://shopify/Market/98855092530",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketDelete": {
+              "deletedId": "gid://shopify/Market/98855092530",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "market",
+      "id": "gid://shopify/Market/98855059762",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketDelete": {
+              "deletedId": "gid://shopify/Market/98855059762",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "webPresence",
+      "id": "gid://shopify/MarketWebPresence/70731465010",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webPresenceDelete": {
+              "deletedId": "gid://shopify/MarketWebPresence/70731465010",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "MarketsFamilyMixedOverlayRead",
+      "variables": {
+        "marketQuery": "ZZZMARKETSMIX20260710181441",
+        "catalogQuery": "title:ZZZMARKETSMIX20260710181441",
+        "marketsFirst": 4,
+        "catalogsFirst": 2,
+        "catalogsWindowFirst": 1,
+        "priceListsFirst": 250,
+        "webPresencesFirst": 250
+      },
+      "query": "query MarketsFamilyMixedOverlayRead(\n  $marketQuery: String!\n  $catalogQuery: String!\n  $marketsFirst: Int!\n  $catalogsFirst: Int!\n  $catalogsWindowFirst: Int!\n  $priceListsFirst: Int!\n  $webPresencesFirst: Int!\n) {\n  markets(first: $marketsFirst, query: $marketQuery, sortKey: NAME, reverse: true) {\n    nodes {\n      id\n      name\n      handle\n      status\n      type\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n  catalogs(first: $catalogsFirst, query: $catalogQuery, sortKey: TITLE, reverse: true) {\n    nodes {\n      id\n      title\n      status\n      ... on MarketCatalog {\n        markets(first: 5) {\n          nodes {\n            id\n            name\n          }\n        }\n      }\n      priceList {\n        id\n        name\n        currency\n      }\n    }\n  }\n  catalogsWindow: catalogs(first: $catalogsWindowFirst, query: $catalogQuery, sortKey: TITLE, reverse: true) {\n    nodes {\n      id\n      title\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n  catalogsCount(query: $catalogQuery) {\n    count\n    precision\n  }\n  priceLists(first: $priceListsFirst) {\n    nodes {\n      id\n      name\n      currency\n      catalog {\n        id\n        title\n        status\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n  webPresences(first: $webPresencesFirst) {\n    nodes {\n      id\n      subfolderSuffix\n      defaultLocale {\n        locale\n        name\n        primary\n        published\n      }\n      markets(first: 5) {\n        nodes {\n          id\n          name\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "markets": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Market/98855059762",
+                  "name": "ZZZMARKETSMIX20260710181441 Pre Market",
+                  "handle": "zzzmarketsmix20260710181441-pre-market",
+                  "status": "ACTIVE",
+                  "type": "NONE"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "catalogs": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MarketCatalog/154638549298",
+                  "title": "ZZZMARKETSMIX20260710181441 Pre Catalog",
+                  "status": "ACTIVE",
+                  "markets": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/Market/98855059762",
+                        "name": "ZZZMARKETSMIX20260710181441 Pre Market"
+                      }
+                    ]
+                  },
+                  "priceList": {
+                    "id": "gid://shopify/PriceList/32311214386",
+                    "name": "ZZZMARKETSMIX20260710181441 Pre Prices",
+                    "currency": "USD"
+                  }
+                }
+              ]
+            },
+            "catalogsWindow": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MarketCatalog/154638549298",
+                  "title": "ZZZMARKETSMIX20260710181441 Pre Catalog"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "catalogsCount": {
+              "count": 1,
+              "precision": "EXACT"
+            },
+            "priceLists": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/PriceList/31575376178",
+                  "name": "Price List example Buyers",
+                  "currency": "CAD",
+                  "catalog": null
+                },
+                {
+                  "id": "gid://shopify/PriceList/31575408946",
+                  "name": "Mexico Buyers",
+                  "currency": "MXN",
+                  "catalog": {
+                    "id": "gid://shopify/MarketCatalog/128893452594",
+                    "title": "Mexico",
+                    "status": "ACTIVE"
+                  }
+                },
+                {
+                  "id": "gid://shopify/PriceList/32128106802",
+                  "name": "Snowdevil - 5ab8ea7a-2a02-46a0-af55-01cdb431d3ca",
+                  "currency": "CAD",
+                  "catalog": {
+                    "id": "gid://shopify/CompanyLocationCatalog/132931223858",
+                    "title": "Snowdevil",
+                    "status": "ACTIVE"
+                  }
+                },
+                {
+                  "id": "gid://shopify/PriceList/32311214386",
+                  "name": "ZZZMARKETSMIX20260710181441 Pre Prices",
+                  "currency": "USD",
+                  "catalog": {
+                    "id": "gid://shopify/MarketCatalog/154638549298",
+                    "title": "ZZZMARKETSMIX20260710181441 Pre Catalog",
+                    "status": "ACTIVE"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "webPresences": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MarketWebPresence/62842765618",
+                  "subfolderSuffix": null,
+                  "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                  },
+                  "markets": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/MarketWebPresence/69720899890",
+                  "subfolderSuffix": "harerhkjdulik",
+                  "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                  },
+                  "markets": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/MarketWebPresence/69720998194",
+                  "subfolderSuffix": "harsipqvpnehc",
+                  "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                  },
+                  "markets": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/MarketWebPresence/70628245810",
+                  "subfolderSuffix": "harprobebb",
+                  "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                  },
+                  "markets": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/MarketWebPresence/70731465010",
+                  "subfolderSuffix": "harufoycbsccy",
+                  "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                  },
+                  "markets": {
+                    "nodes": []
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 129,
+              "actualQueryCost": 28,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1972,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
