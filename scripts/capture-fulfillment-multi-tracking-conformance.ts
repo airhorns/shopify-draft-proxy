@@ -30,6 +30,12 @@ const updateRequestPath = path.join(
   'orders',
   'fulfillmentTrackingInfoUpdate-multi-tracking.graphql',
 );
+const updateV2RequestPath = path.join(
+  'config',
+  'parity-requests',
+  'orders',
+  'fulfillmentTrackingInfoUpdateV2-multi-tracking.graphql',
+);
 const readRequestPath = path.join('config', 'parity-requests', 'orders', 'fulfillment-multi-tracking-read.graphql');
 const specPath = path.join('config', 'parity-specs', 'orders', 'fulfillment-multi-tracking-info.json');
 
@@ -242,6 +248,31 @@ mutation FulfillmentTrackingInfoUpdateMultiTracking(
 }
 `;
 
+const fulfillmentTrackingInfoUpdateV2Mutation = `#graphql
+mutation FulfillmentTrackingInfoUpdateV2MultiTracking(
+  $fulfillmentId: ID!
+  $trackingInfoInput: FulfillmentTrackingInput!
+  $notifyCustomer: Boolean
+) {
+  fulfillmentTrackingInfoUpdateV2(
+    fulfillmentId: $fulfillmentId
+    trackingInfoInput: $trackingInfoInput
+    notifyCustomer: $notifyCustomer
+  ) {
+    fulfillment {
+      id
+      status
+      trackingInfo(first: 5) {
+        number
+        url
+        company
+      }
+    }
+    userErrors { field message }
+  }
+}
+`;
+
 const downstreamReadQuery = `#graphql
 query FulfillmentMultiTrackingRead($id: ID!) {
   order(id: $id) {
@@ -306,6 +337,8 @@ try {
   const createUrls = createNumbers.map((number) => `https://example.com/track/${number}`);
   const updateNumbers = [`MULTI-UPDATE-${stamp}-1`, `MULTI-UPDATE-${stamp}-2`];
   const updateUrls = updateNumbers.map((number) => `https://example.com/track/${number}`);
+  const updateV2Numbers = [`MULTI-UPDATE-V2-${stamp}-1`, `MULTI-UPDATE-V2-${stamp}-2`];
+  const updateV2Urls = updateV2Numbers.map((number) => `https://example.com/track/${number}`);
 
   const orderCreate = await capture('orderCreate', orderCreateMutation, {
     order: {
@@ -394,6 +427,23 @@ try {
 
   const downstreamRead = await capture('downstreamRead', downstreamReadQuery, { id: orderId });
 
+  const fulfillmentTrackingInfoUpdateV2 = await capture(
+    'fulfillmentTrackingInfoUpdateV2',
+    fulfillmentTrackingInfoUpdateV2Mutation,
+    {
+      fulfillmentId,
+      notifyCustomer: false,
+      trackingInfoInput: {
+        numbers: updateV2Numbers,
+        urls: updateV2Urls,
+        company: 'DHL',
+      },
+    },
+  );
+  requireNoUserErrors(fulfillmentTrackingInfoUpdateV2.response, 'data.fulfillmentTrackingInfoUpdateV2.userErrors');
+
+  const downstreamReadAfterV2 = await capture('downstreamReadAfterV2', downstreamReadQuery, { id: orderId });
+
   cleanup = await cleanupOrder(orderId);
 
   const capturePayload = {
@@ -411,6 +461,8 @@ try {
     fulfillmentCreate,
     fulfillmentTrackingInfoUpdate,
     downstreamRead,
+    fulfillmentTrackingInfoUpdateV2,
+    downstreamReadAfterV2,
     upstreamCalls: [
       {
         operationName: 'ShippingFulfillmentOrderHydrate',
@@ -428,10 +480,11 @@ try {
   await writeJson(fixturePath, capturePayload);
   await writeText(createRequestPath, `${cleanGraphql(fulfillmentCreateMutation)}\n`);
   await writeText(updateRequestPath, `${cleanGraphql(fulfillmentTrackingInfoUpdateMutation)}\n`);
+  await writeText(updateV2RequestPath, `${cleanGraphql(fulfillmentTrackingInfoUpdateV2Mutation)}\n`);
   await writeText(readRequestPath, `${cleanGraphql(downstreamReadQuery)}\n`);
   await writeJson(specPath, {
     scenarioId: 'fulfillment-multi-tracking-info-parity',
-    operationNames: ['fulfillmentCreate', 'fulfillmentTrackingInfoUpdate'],
+    operationNames: ['fulfillmentCreate', 'fulfillmentTrackingInfoUpdate', 'fulfillmentTrackingInfoUpdateV2'],
     scenarioStatus: 'captured',
     assertionKinds: ['payload-shape', 'downstream-read-parity', 'runtime-staging'],
     liveCaptureFiles: [fixturePath],
@@ -489,15 +542,51 @@ try {
             apiVersion,
           },
         },
+        {
+          name: 'fulfillment-tracking-info-update-v2-multi-tracking',
+          capturePath: '$.fulfillmentTrackingInfoUpdateV2.response.data.fulfillmentTrackingInfoUpdateV2',
+          proxyPath: '$.data.fulfillmentTrackingInfoUpdateV2',
+          selectedPaths: ['$.fulfillment.status', '$.fulfillment.trackingInfo', '$.userErrors'],
+          proxyRequest: {
+            documentPath: updateV2RequestPath,
+            variables: {
+              fulfillmentId: { fromPrimaryProxyPath: '$.data.fulfillmentCreate.fulfillment.id' },
+              trackingInfoInput: { fromCapturePath: '$.fulfillmentTrackingInfoUpdateV2.variables.trackingInfoInput' },
+              notifyCustomer: { fromCapturePath: '$.fulfillmentTrackingInfoUpdateV2.variables.notifyCustomer' },
+            },
+            apiVersion,
+          },
+        },
+        {
+          name: 'downstream-fulfillment-v2-multi-tracking',
+          capturePath: '$.downstreamReadAfterV2.response.data.order',
+          proxyPath: '$.data.order',
+          selectedPaths: [
+            '$.displayFulfillmentStatus',
+            '$.fulfillments[0].status',
+            '$.fulfillments[0].displayStatus',
+            '$.fulfillments[0].trackingInfo',
+          ],
+          proxyRequest: {
+            documentPath: readRequestPath,
+            variables: {
+              id: {
+                fromCapturePath: '$.orderId',
+              },
+            },
+            apiVersion,
+          },
+        },
       ],
     },
     notes:
-      'Captured fulfillmentCreate and fulfillmentTrackingInfoUpdate multi-package tracking behavior using the public FulfillmentTrackingInput numbers/urls fields. The live Admin schema for the configured API exposes number/url/company plus numbers/urls, while trackingDetails/trackingCompany are not accepted input fields.',
+      'Captured fulfillmentCreate, fulfillmentTrackingInfoUpdate, and deprecated fulfillmentTrackingInfoUpdateV2 multi-package tracking behavior using the public FulfillmentTrackingInput numbers/urls fields. The live Admin schema for the configured API exposes number/url/company plus numbers/urls, while trackingDetails/trackingCompany are not accepted input fields.',
   });
 
   console.log(`Wrote ${fixturePath}`);
   console.log(`Wrote ${createRequestPath}`);
   console.log(`Wrote ${updateRequestPath}`);
+  console.log(`Wrote ${updateV2RequestPath}`);
   console.log(`Wrote ${readRequestPath}`);
   console.log(`Wrote ${specPath}`);
 } catch (error) {

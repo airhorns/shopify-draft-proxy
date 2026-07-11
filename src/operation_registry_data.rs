@@ -492,8 +492,8 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             "fulfillmentTrackingInfoUpdateV2",
             Mutation,
             Orders,
-            false,
-            []
+            true,
+            ["tests/graphql_routes/orders.rs"]
         ),
         entry!("fulfillmentCancel", Mutation, Orders, true, []),
         entry!("fulfillment", Query, Orders, true, ["tests/graphql_routes/orders.rs"]),
@@ -507,7 +507,13 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
         entry!("fulfillmentOrderCancel", Mutation, ShippingFulfillments, true, []),
         entry!("fulfillmentOrderClose", Mutation, ShippingFulfillments, true, []),
         entry!("fulfillmentOrderHold", Mutation, ShippingFulfillments, true, []),
-        entry!("fulfillmentOrderLineItemsPreparedForPickup", Mutation, ShippingFulfillments, false, []),
+        entry!(
+            "fulfillmentOrderLineItemsPreparedForPickup",
+            Mutation,
+            ShippingFulfillments,
+            true,
+            ["tests/graphql_routes/platform.rs"]
+        ),
         entry!("fulfillmentOrderMerge", Mutation, ShippingFulfillments, true, []),
         entry!("fulfillmentOrderMove", Mutation, ShippingFulfillments, true, []),
         entry!("fulfillmentOrderOpen", Mutation, ShippingFulfillments, true, []),
