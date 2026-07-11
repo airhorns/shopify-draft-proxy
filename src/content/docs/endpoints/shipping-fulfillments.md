@@ -226,6 +226,27 @@ location records; missing or inactive destinations return the local
 `Location not found.` user error, and successful move payloads serialize the
 assigned-location id/name from that stored location rather than from fixture
 constants.
+Top-level fulfillment-order catalogs compute an effective connection from the
+read-only upstream catalog response plus local staged lifecycle records when
+staged fulfillment-order state is present. Matching IDs are overlaid with the
+staged record, unrelated upstream records remain visible, and staged-only
+replacement or split records are appended before local filtering, sorting, and
+cursor windowing. If upstream catalog hydration is unavailable, these roots
+fall back to the staged local set. `fulfillmentOrders` excludes closed or
+cancelled records unless `includeClosed: true` is present and models `id`,
+`status`, `assigned_location_id`, `updated_at`, and free-text query terms.
+`assignedFulfillmentOrders` excludes closed records and applies
+`assignmentStatus` plus `locationIds`; `manualHoldsFulfillmentOrders` narrows to
+held records and applies its modeled order-search terms. The catalog roots
+share local `sortKey: ID` / `UPDATED_AT`, `reverse`, and cursor window
+semantics over that effective set.
+Generic `node(id:)` and `nodes(ids:)` now read order-backed fulfillment and
+fulfillment-order resources from the same normalized order graph as
+`fulfillment(id:)`, `fulfillmentOrder(id:)`, and nested `Order` selections:
+`Fulfillment`, `FulfillmentEvent`, `FulfillmentLineItem`, `FulfillmentOrder`,
+`FulfillmentHold`, and `FulfillmentOrderLineItem` resolve locally, reflect
+staged lifecycle changes immediately, preserve duplicate/order semantics for
+`nodes(ids:)`, and return `null` for missing or deleted IDs.
 
 Delivery settings and delivery promise settings are read-only in snapshot mode
 and return the captured empty/no-feature shape there. Live modes forward those

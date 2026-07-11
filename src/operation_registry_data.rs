@@ -409,7 +409,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
         entry!("metaobjectUpdate", Mutation, Metaobjects, true, []),
         entry!("metaobjectUpsert", Mutation, Metaobjects, true, []),
         entry!("metaobjectDelete", Mutation, Metaobjects, true, []),
-        entry!("metaobjectBulkDelete", Mutation, Metaobjects, false, []),
+        entry!("metaobjectBulkDelete", Mutation, Metaobjects, true, ["tests/graphql_routes.rs"]),
         entry!("metaobjectDefinitionCreate", Mutation, Metaobjects, true, []),
         entry!("metaobjectDefinitionUpdate", Mutation, Metaobjects, true, []),
         entry!("metaobjectDefinitionDelete", Mutation, Metaobjects, true, []),
