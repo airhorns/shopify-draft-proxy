@@ -1,4 +1,40 @@
 use super::*;
+use std::sync::OnceLock;
+
+const STANDARD_METAOBJECT_TEMPLATES_FIXTURE: &str = include_str!(
+    "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/standard-metaobject-templates.json"
+);
+
+static STANDARD_METAOBJECT_TEMPLATE_CATALOG: OnceLock<Value> = OnceLock::new();
+
+fn standard_metaobject_template_catalog() -> &'static Value {
+    STANDARD_METAOBJECT_TEMPLATE_CATALOG.get_or_init(|| {
+        serde_json::from_str(STANDARD_METAOBJECT_TEMPLATES_FIXTURE)
+            .expect("standard metaobject template catalog must be valid JSON")
+    })
+}
+
+fn standard_metaobject_definition_template(meta_type: &str) -> Option<&'static Value> {
+    standard_metaobject_template_catalog()
+        .get("templates")
+        .and_then(Value::as_array)?
+        .iter()
+        .find(|template| template.get("type").and_then(Value::as_str) == Some(meta_type))
+}
+
+fn standard_metaobject_definition_from_template(
+    id: &str,
+    template: &Value,
+    timestamp: &str,
+) -> Value {
+    let mut definition = template.clone();
+    if let Some(object) = definition.as_object_mut() {
+        object.insert("id".to_string(), json!(id));
+        object.insert("createdAt".to_string(), json!(timestamp));
+        object.insert("updatedAt".to_string(), json!(timestamp));
+    }
+    definition
+}
 
 fn source_location_for_token_after(
     query: &str,
@@ -2851,9 +2887,9 @@ fn metaobject_search_decision(record: &Value, query: Option<&str>) -> StagedSear
 }
 
 impl DraftProxy {
-    pub(in crate::proxy) fn has_local_metaobject_entry_state(&self) -> bool {
-        !self.store.staged.metaobjects.is_empty()
-            || !self.store.staged.metaobjects.tombstones.is_empty()
+    pub(in crate::proxy) fn has_local_metaobject_state(&self) -> bool {
+        !self.store.staged.metaobject_definitions.is_empty()
+            || !self.store.staged.metaobjects.is_empty()
     }
 
     /// Decides whether a metaobject mutation request should be staged locally or
@@ -2997,6 +3033,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
         let mut staged_ids = Vec::new();
+        let mut log_successful_noop = false;
         let mut errors = Vec::new();
         let data = root_payload_json(fields, |field| {
             if field.name == "metaobjectBulkDelete" {
@@ -3010,9 +3047,12 @@ impl DraftProxy {
                 "metaobjectUpdate" => self.metaobject_update(field, request, &mut staged_ids),
                 "metaobjectUpsert" => self.metaobject_upsert(field, request, &mut staged_ids),
                 "metaobjectDelete" => self.metaobject_delete(field, request, &mut staged_ids),
-                "metaobjectBulkDelete" => {
-                    self.metaobject_bulk_delete(field, request, &mut staged_ids)
-                }
+                "metaobjectBulkDelete" => self.metaobject_bulk_delete(
+                    field,
+                    request,
+                    &mut staged_ids,
+                    &mut log_successful_noop,
+                ),
                 "metaobjectDefinitionCreate" => {
                     self.metaobject_definition_create(field, request, &mut staged_ids)
                 }
@@ -3022,11 +3062,16 @@ impl DraftProxy {
                 "metaobjectDefinitionDelete" => {
                     self.metaobject_definition_delete(field, &mut staged_ids)
                 }
+                "standardMetaobjectDefinitionEnable" => self.standard_metaobject_definition_enable(
+                    field,
+                    &mut staged_ids,
+                    &mut log_successful_noop,
+                ),
                 _ => Value::Null,
             };
             Some(value)
         });
-        if !staged_ids.is_empty() {
+        if !staged_ids.is_empty() || log_successful_noop {
             // Each successful metaobject mutation reserves one synthetic id for its
             // mutation-log entry after allocating the resources it creates, matching
             // the current synthetic-id bookkeeping (e.g. a definition lands on /1 and
@@ -3048,6 +3093,35 @@ impl DraftProxy {
             body["errors"] = Value::Array(errors);
         }
         ok_json(body)
+    }
+
+    pub(in crate::proxy) fn metaobject_node_value_by_id(
+        &self,
+        id: &str,
+        selection: &[SelectedField],
+    ) -> Option<Value> {
+        match shopify_gid_resource_type(id) {
+            Some("Metaobject") => {
+                if self.store.staged.metaobjects.is_tombstoned(id) {
+                    return Some(Value::Null);
+                }
+                self.metaobject_by_id(id).map(|record| {
+                    let mut record = self.project_metaobject_against_definition(&record);
+                    record["__typename"] = json!("Metaobject");
+                    self.selected_metaobject(&record, selection)
+                })
+            }
+            Some("MetaobjectDefinition") => {
+                if self.store.staged.metaobject_definitions.is_tombstoned(id) {
+                    return Some(Value::Null);
+                }
+                self.metaobject_definition_by_id(id).map(|mut definition| {
+                    definition["__typename"] = json!("MetaobjectDefinition");
+                    self.selected_metaobject_definition(&definition, selection)
+                })
+            }
+            _ => None,
+        }
     }
 
     pub(in crate::proxy) fn metaobject_by_id(&self, id: &str) -> Option<Value> {
@@ -3895,6 +3969,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
         request: &Request,
         staged_ids: &mut Vec<String>,
+        log_successful_noop: &mut bool,
     ) -> Value {
         let where_input = resolved_object_field(&field.arguments, "where");
         let ids = where_input
@@ -3951,10 +4026,7 @@ impl DraftProxy {
             });
             if !has_local_rows_for_type && self.metaobject_definition_by_type(&meta_type).is_none()
             {
-                self.hydrate_metaobject_definition_by_type(request, &meta_type);
-                if self.metaobject_definition_by_type(&meta_type).is_some() {
-                    self.hydrate_metaobjects_by_type(request, &meta_type);
-                }
+                self.hydrate_metaobjects_by_type(request, &meta_type);
             }
             let has_rows_for_type = self.store.staged.metaobjects.values().any(|record| {
                 record.get("type").and_then(Value::as_str) == Some(meta_type.as_str())
@@ -3993,6 +4065,9 @@ impl DraftProxy {
             self.increment_metaobject_definition_count(&meta_type, -(touched_ids.len() as i64));
         }
 
+        if touched_ids.is_empty() && user_errors.is_empty() {
+            *log_successful_noop = true;
+        }
         staged_ids.extend(touched_ids);
         selected_json(
             &json!({
@@ -4070,6 +4145,26 @@ impl DraftProxy {
                     Value::Null
                 } else {
                     self.selected_metaobject(metaobject, &field.selection)
+                })
+            }
+            _ => payload
+                .get(&field.name)
+                .map(|value| self.selected_metaobject_value(value, &field.selection)),
+        })
+    }
+
+    fn selected_metaobject_definition_enable_payload(
+        &self,
+        payload: &Value,
+        selection: &[SelectedField],
+    ) -> Value {
+        selected_payload_json(selection, |field| match field.name.as_str() {
+            "metaobjectDefinition" => {
+                let definition = &payload["metaobjectDefinition"];
+                Some(if definition.is_null() {
+                    Value::Null
+                } else {
+                    self.selected_metaobject_definition(definition, &field.selection)
                 })
             }
             _ => payload
@@ -4432,6 +4527,50 @@ impl DraftProxy {
         staged_ids.push(id.clone());
         selected_json(
             &json!({"deletedId": id, "userErrors": []}),
+            &field.selection,
+        )
+    }
+
+    fn standard_metaobject_definition_enable(
+        &mut self,
+        field: &RootFieldSelection,
+        staged_ids: &mut Vec<String>,
+        log_successful_noop: &mut bool,
+    ) -> Value {
+        let meta_type = resolved_string_field(&field.arguments, "type").unwrap_or_default();
+        if let Some(definition) = self.metaobject_definition_by_type(&meta_type) {
+            *log_successful_noop = true;
+            return self.selected_metaobject_definition_enable_payload(
+                &json!({"metaobjectDefinition": definition, "userErrors": []}),
+                &field.selection,
+            );
+        }
+
+        let Some(template) = standard_metaobject_definition_template(&meta_type) else {
+            return self.selected_metaobject_definition_enable_payload(
+                &json!({
+                    "metaobjectDefinition": null,
+                    "userErrors": [metaobject_field_error(vec!["type"], "Record not found", "RECORD_NOT_FOUND")]
+                }),
+                &field.selection,
+            );
+        };
+
+        let id = self.next_proxy_synthetic_gid("MetaobjectDefinition");
+        let timestamp = self.next_mutation_timestamp();
+        let definition = standard_metaobject_definition_from_template(&id, template, &timestamp);
+        self.store
+            .staged
+            .metaobject_definitions
+            .insert(id.clone(), definition.clone());
+        self.store
+            .staged
+            .metaobject_definitions
+            .tombstones
+            .remove(&id);
+        staged_ids.push(id);
+        self.selected_metaobject_definition_enable_payload(
+            &json!({"metaobjectDefinition": definition, "userErrors": []}),
             &field.selection,
         )
     }
