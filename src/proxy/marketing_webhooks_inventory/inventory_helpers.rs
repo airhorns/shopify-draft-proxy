@@ -55,6 +55,7 @@ pub(in crate::proxy) fn inventory_level_selected_json(
                     inventory_item_id,
                     location_id
                 )))),
+            "__typename" => Some(json!("InventoryLevel")),
             "isActive" => Some(json!(is_active)),
             "item" => Some(selected_json(
                 &json!({ "id": inventory_item_id }),
@@ -78,6 +79,8 @@ pub(in crate::proxy) fn inventory_level_selected_json(
                             .map_or(Value::Null, |value| json!(value));
                         selected_json(
                             &json!({
+                                "__typename": "InventoryQuantity",
+                                "id": inventory_quantity_id(inventory_item_id, location_id, &name),
                                 "name": name,
                                 "quantity": quantities.get(&name).copied().unwrap_or(0),
                                 "updatedAt": updated_at
@@ -126,6 +129,26 @@ pub(in crate::proxy) fn inventory_level_id(inventory_item_id: &str, location_id:
     )
 }
 
+pub(in crate::proxy) fn inventory_quantity_id(
+    inventory_item_id: &str,
+    location_id: &str,
+    name: &str,
+) -> String {
+    let quantity_tail = format!(
+        "{}-{}-{}",
+        resource_id_tail(inventory_item_id),
+        resource_id_tail(location_id),
+        name
+    );
+    format!(
+        "{}?inventory_item_id={}&location_id={}&name={}",
+        shopify_gid("InventoryQuantity", quantity_tail),
+        inventory_item_id,
+        location_id,
+        name
+    )
+}
+
 pub(in crate::proxy) fn inventory_level_id_tail_and_query(id: &str) -> Option<(&str, &str)> {
     let rest = shopify_gid_tail_for_type(id, "InventoryLevel")?;
     rest.split_once("?inventory_item_id=")
@@ -140,6 +163,38 @@ pub(in crate::proxy) fn inventory_level_parts_from_id(id: &str) -> Option<(Strin
         shopify_gid("InventoryItem", item_tail)
     };
     Some((item_id, shopify_gid("Location", location_tail)))
+}
+
+pub(in crate::proxy) fn inventory_quantity_parts_from_id(
+    id: &str,
+) -> Option<(String, String, String)> {
+    let rest = shopify_gid_tail_for_type(id, "InventoryQuantity")?;
+    let (_, query) = rest.split_once('?')?;
+    let mut inventory_item_id = None;
+    let mut location_id = None;
+    let mut name = None;
+    for part in query.split('&') {
+        let (key, value) = part.split_once('=')?;
+        match key {
+            "inventory_item_id" => {
+                inventory_item_id = Some(if is_shopify_gid_of_type(value, "InventoryItem") {
+                    value.to_string()
+                } else {
+                    shopify_gid("InventoryItem", value)
+                });
+            }
+            "location_id" => {
+                location_id = Some(if is_shopify_gid_of_type(value, "Location") {
+                    value.to_string()
+                } else {
+                    shopify_gid("Location", value)
+                });
+            }
+            "name" => name = Some(value.to_string()),
+            _ => {}
+        }
+    }
+    Some((inventory_item_id?, location_id?, name?))
 }
 
 pub(in crate::proxy) fn inventory_properties_json() -> Value {

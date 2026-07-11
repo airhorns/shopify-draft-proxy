@@ -1831,6 +1831,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         field: &RootFieldSelection,
+        root_field: &str,
     ) -> Option<Value> {
         let fulfillment_id = resolved_string_field(&field.arguments, "fulfillmentId")?;
         let Some(order_id) = self
@@ -1852,6 +1853,10 @@ impl DraftProxy {
         let preserve_lifecycle_status = fulfillment_status_is(fulfillment, "CANCELLED")
             || fulfillment_display_status_is(fulfillment, "DELIVERED");
         fulfillment["trackingInfo"] = json!(tracking_info);
+        fulfillment["__draftProxyNotifyCustomer"] =
+            resolved_bool_field(&field.arguments, "notifyCustomer")
+                .map(Value::Bool)
+                .unwrap_or(Value::Null);
         if !preserve_lifecycle_status {
             fulfillment["status"] = json!("SUCCESS");
             fulfillment["displayStatus"] = json!("FULFILLED");
@@ -1866,7 +1871,7 @@ impl DraftProxy {
             request,
             query,
             variables,
-            "fulfillmentTrackingInfoUpdate",
+            root_field,
             vec![order_id, fulfillment_id],
         );
         Some(selected_json(

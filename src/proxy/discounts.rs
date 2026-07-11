@@ -48,7 +48,7 @@ const DISCOUNT_ITEM_REFS_HYDRATE_QUERY: &str =
     include_str!("../../config/parity-requests/discounts/discount-item-refs-hydrate.graphql");
 impl DraftProxy {
     pub(in crate::proxy) fn discounts_query_response(
-        &self,
+        &mut self,
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
@@ -57,7 +57,13 @@ impl DraftProxy {
             return json_error(400, "Could not parse GraphQL operation");
         };
         if self.should_forward_cold_discount_read(&fields) {
-            return (self.upstream_transport)(request.clone());
+            let response = (self.upstream_transport)(request.clone());
+            self.observe_discount_read_response(&fields, &response);
+            return response;
+        }
+        if self.discount_read_needs_live_hydration(&fields) {
+            let response = (self.upstream_transport)(request.clone());
+            self.observe_discount_read_response(&fields, &response);
         }
         ok_json(json!({ "data": self.discounts_query_data(&fields) }))
     }
@@ -114,6 +120,125 @@ impl DraftProxy {
             }
             _ => false,
         }
+    }
+
+    fn discount_read_needs_live_hydration(&self, fields: &[RootFieldSelection]) -> bool {
+        if self.config.read_mode != ReadMode::LiveHybrid || fields.is_empty() {
+            return false;
+        }
+        fields
+            .iter()
+            .any(|field| self.discount_read_field_needs_live_hydration(field))
+    }
+
+    fn discount_read_field_needs_live_hydration(&self, field: &RootFieldSelection) -> bool {
+        match field.name.as_str() {
+            "discountNodes"
+            | "discountNodesCount"
+            | "automaticDiscountNodes"
+            | "codeDiscountNodes" => true,
+            "discountNode" | "codeDiscountNode" | "automaticDiscountNode" => {
+                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                !id.is_empty()
+                    && !self.store.staged.discounts.is_tombstoned(&id)
+                    && self.discount_record(&id).is_none()
+            }
+            "codeDiscountNodeByCode" => {
+                let code = resolved_string_field(&field.arguments, "code").unwrap_or_default();
+                !code.trim().is_empty()
+                    && self.discount_record_by_code(&code).is_none()
+                    && !self.discount_tombstone_matches_code(&code)
+            }
+            _ => false,
+        }
+    }
+
+    fn observe_discount_read_response(
+        &mut self,
+        fields: &[RootFieldSelection],
+        response: &Response,
+    ) {
+        if !(200..300).contains(&response.status) {
+            return;
+        }
+        let Some(data) = response.body.get("data").and_then(Value::as_object) else {
+            return;
+        };
+        for field in fields {
+            let Some(value) = data.get(&field.response_key) else {
+                continue;
+            };
+            self.observe_discount_root_value(&field.name, value);
+        }
+    }
+
+    fn observe_discount_root_value(&mut self, root: &str, value: &Value) {
+        match root {
+            "discountNode" => self.observe_discount_node_value(value, None, "discount"),
+            "codeDiscountNode" | "codeDiscountNodeByCode" => {
+                self.observe_discount_node_value(value, Some("code"), "codeDiscount")
+            }
+            "automaticDiscountNode" => {
+                self.observe_discount_node_value(value, Some("automatic"), "automaticDiscount")
+            }
+            "discountNodes" => self.observe_discount_connection_value(value, None, "discount"),
+            "codeDiscountNodes" => {
+                self.observe_discount_connection_value(value, Some("code"), "codeDiscount")
+            }
+            "automaticDiscountNodes" => self.observe_discount_connection_value(
+                value,
+                Some("automatic"),
+                "automaticDiscount",
+            ),
+            _ => {}
+        }
+    }
+
+    fn observe_discount_connection_value(
+        &mut self,
+        value: &Value,
+        kind: Option<&str>,
+        discount_key: &str,
+    ) {
+        if let Some(nodes) = value.get("nodes").and_then(Value::as_array) {
+            for node in nodes {
+                self.observe_discount_node_value(node, kind, discount_key);
+            }
+        }
+        if let Some(edges) = value.get("edges").and_then(Value::as_array) {
+            for edge in edges {
+                if let Some(node) = edge.get("node") {
+                    self.observe_discount_node_value(node, kind, discount_key);
+                }
+            }
+        }
+    }
+
+    fn observe_discount_node_value(
+        &mut self,
+        node: &Value,
+        kind: Option<&str>,
+        discount_key: &str,
+    ) {
+        let Some(record) = discount_record_from_upstream_node(node, kind, discount_key) else {
+            return;
+        };
+        self.observe_discount_base_record(record);
+    }
+
+    fn observe_discount_base_record(&mut self, record: Value) {
+        let id = discount_id(&record).to_string();
+        if id.is_empty() {
+            return;
+        }
+        let record = self
+            .store
+            .base
+            .discounts
+            .get(&id)
+            .map(|existing| merge_discount_records(existing, &record))
+            .unwrap_or(record);
+        self.store.base.discounts.insert(id, record);
     }
 
     pub(in crate::proxy) fn has_staged_discounts(&self) -> bool {
@@ -642,13 +767,8 @@ impl DraftProxy {
         code: &str,
         exclude_discount_id: Option<&str>,
     ) -> bool {
-        if let Some(discount_id) = self
-            .store
-            .staged
-            .discount_code_index
-            .get(&code.to_ascii_uppercase())
-        {
-            return Some(discount_id.as_str()) != exclude_discount_id;
+        if let Some(record) = self.discount_record_by_code(code) {
+            return Some(discount_id(record)) != exclude_discount_id;
         }
         if self.config.read_mode != ReadMode::LiveHybrid {
             return false;
@@ -1122,67 +1242,7 @@ impl DraftProxy {
         } else {
             return None;
         };
-        let node_id = node.get("id").and_then(Value::as_str)?.to_string();
-        let disc = node.get(disc_key)?;
-        let typename = disc
-            .get("__typename")
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_string();
-        let codes = disc
-            .get("codes")
-            .and_then(|codes| codes.get("nodes"))
-            .and_then(Value::as_array)
-            .map(|nodes| {
-                nodes
-                    .iter()
-                    .map(|code_node| {
-                        json!({
-                            "id": code_node.get("id").cloned().unwrap_or(Value::Null),
-                            "code": code_node.get("code").cloned().unwrap_or(Value::Null),
-                            "asyncUsageCount": code_node.get("asyncUsageCount").cloned().unwrap_or_else(|| json!(0))
-                        })
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
-        let codes_count = codes.len();
-        let metafields = node
-            .get("metafields")
-            .and_then(|metafields| metafields.get("nodes"))
-            .and_then(Value::as_array)
-            .cloned()
-            .unwrap_or_default();
-        Some(json!({
-            "id": node_id,
-            "kind": kind,
-            "typename": typename,
-            "title": disc.get("title").cloned().unwrap_or(Value::Null),
-            "status": disc.get("status").cloned().unwrap_or(Value::Null),
-            "summary": disc.get("summary").cloned().unwrap_or(Value::Null),
-            "startsAt": disc.get("startsAt").cloned().unwrap_or(Value::Null),
-            "endsAt": disc.get("endsAt").cloned().unwrap_or(Value::Null),
-            "createdAt": disc.get("createdAt").cloned().unwrap_or(Value::Null),
-            "updatedAt": disc.get("updatedAt").cloned().unwrap_or(Value::Null),
-            "asyncUsageCount": disc.get("asyncUsageCount").cloned().unwrap_or_else(|| json!(0)),
-            "usageLimit": disc.get("usageLimit").cloned().unwrap_or(Value::Null),
-            "usesPerOrderLimit": disc.get("usesPerOrderLimit").cloned().unwrap_or(Value::Null),
-            "recurringCycleLimit": disc.get("recurringCycleLimit").cloned().unwrap_or(Value::Null),
-            "discountClasses": disc.get("discountClasses").cloned().unwrap_or_else(|| json!([])),
-            "combinesWith": disc.get("combinesWith").cloned().unwrap_or(Value::Null),
-            "context": disc.get("context").cloned().unwrap_or(Value::Null),
-            "customerBuys": disc.get("customerBuys").cloned().unwrap_or(Value::Null),
-            "customerGets": disc.get("customerGets").cloned().unwrap_or(Value::Null),
-            "minimumRequirement": disc.get("minimumRequirement").cloned().unwrap_or(Value::Null),
-            "destinationSelection": disc.get("destinationSelection").cloned().unwrap_or(Value::Null),
-            "maximumShippingPrice": disc.get("maximumShippingPrice").cloned().unwrap_or(Value::Null),
-            "appliesOncePerCustomer": disc.get("appliesOncePerCustomer").cloned().unwrap_or(Value::Null),
-            "appliesOnOneTimePurchase": disc.get("appliesOnOneTimePurchase").cloned().unwrap_or(Value::Null),
-            "appliesOnSubscription": disc.get("appliesOnSubscription").cloned().unwrap_or(Value::Null),
-            "codes": codes,
-            "codesCount": count_object(codes_count),
-            "metafields": metafields
-        }))
+        discount_record_from_upstream_node(node, Some(kind), disc_key)
     }
 
     /// Whether the Function backing an app discount is still available for
@@ -1221,7 +1281,9 @@ impl DraftProxy {
                 vec![discount_unknown_id_user_error(&field.name)],
             ));
         }
-        self.store.staged.discounts.tombstone_staged(&id);
+        if !self.store.staged.discounts.tombstone_staged(&id) {
+            self.store.staged.discounts.tombstone(id.clone());
+        }
         self.store
             .staged
             .discount_code_index
@@ -1232,83 +1294,120 @@ impl DraftProxy {
         )
     }
 
-    /// Resolver-level selector validation shared by the discount bulk activate /
-    /// deactivate / delete mutations (`discount{Code,Automatic}Bulk*`). Shopify
-    /// requires exactly one of `ids`, `search`, or `savedSearchId`; supplying more
-    /// than one is rejected up front with a `job: null` payload and a
-    /// `TOO_MANY_ARGUMENTS` base error. The code and automatic families phrase the
-    /// message differently. Single/zero-selector jobs are not staged locally, so
-    /// those paths keep the not-implemented marker (they only reach this handler as
-    /// a sibling of a locally-dispatched mutation; standalone bulk requests are
-    /// forwarded upstream instead).
-    fn discount_bulk_action(&self, field: &RootFieldSelection) -> MutationFieldOutcome {
-        if discount_bulk_selector_count(field) > 1 {
-            let message = if field.name.starts_with("discountAutomatic") {
+    /// Local staging for broad discount bulk activate / deactivate / delete roots.
+    /// The payload exposes a completed local `Job` because the in-memory state
+    /// transition has already happened; it does not represent upstream job state.
+    fn discount_bulk_action(&mut self, field: &RootFieldSelection) -> MutationFieldOutcome {
+        let Some((kind, action)) = discount_bulk_root_action(&field.name) else {
+            return MutationFieldOutcome::unlogged(json!({
+                "job": Value::Null,
+                "userErrors": [user_error_with_extra_info(Value::Null, "Local staging for this discount mutation is not implemented.", Some("NOT_IMPLEMENTED"), Value::Null)],
+            }));
+        };
+        if let Some(user_errors) = self.discount_bulk_selector_user_errors(field) {
+            return MutationFieldOutcome::unlogged(json!({
+                "job": Value::Null,
+                "userErrors": user_errors,
+            }));
+        }
+
+        let target_ids = self.discount_bulk_selector_ids(field, kind);
+        for id in &target_ids {
+            self.apply_discount_bulk_transition(id, action);
+        }
+        let job_id = self.next_proxy_synthetic_gid("Job");
+        let mut staged_ids = vec![job_id.clone()];
+        staged_ids.extend(target_ids);
+        MutationFieldOutcome::staged(
+            json!({
+                "job": { "id": job_id, "done": true, "query": Value::Null },
+                "userErrors": []
+            }),
+            LogDraft::staged(&field.name, "discounts", staged_ids),
+        )
+    }
+
+    fn discount_bulk_selector_user_errors(&self, field: &RootFieldSelection) -> Option<Vec<Value>> {
+        let selector_count = discount_bulk_selector_count(field);
+        let automatic = field.name.starts_with("discountAutomatic");
+        if selector_count == 0 {
+            let message = if automatic {
+                "One of IDs, search argument or saved search ID is required."
+            } else {
+                "Missing expected argument key: 'ids', 'search' or 'saved_search_id'."
+            };
+            return Some(vec![user_error_with_extra_info(
+                Value::Null,
+                message,
+                Some("MISSING_ARGUMENT"),
+                Value::Null,
+            )]);
+        }
+        if selector_count > 1 {
+            let message = if automatic {
                 "Only one of IDs, search argument or saved search ID is allowed."
             } else {
                 "Only one of 'ids', 'search' or 'saved_search_id' is allowed."
             };
-            return MutationFieldOutcome::unlogged(json!({
-                "job": Value::Null,
-                "userErrors": [user_error_with_extra_info(Value::Null, message, Some("TOO_MANY_ARGUMENTS"), Value::Null)],
-            }));
+            return Some(vec![user_error_with_extra_info(
+                Value::Null,
+                message,
+                Some("TOO_MANY_ARGUMENTS"),
+                Value::Null,
+            )]);
         }
-        MutationFieldOutcome::unlogged(json!({
-            "job": Value::Null,
-            "userErrors": [user_error_with_extra_info(Value::Null, "Local staging for this discount mutation is not implemented.", Some("NOT_IMPLEMENTED"), Value::Null)],
-        }))
-    }
-
-    /// Apply the local-overlay consequences of a discount bulk activate /
-    /// deactivate / delete mutation that was forwarded upstream. The async job
-    /// itself runs server-side (the forwarded response carries the real `job`),
-    /// but the proxy's overlay must reflect the resulting state so later reads in
-    /// the same scenario observe the transition. We only act on staged discounts
-    /// matching the mutation's selector (`ids` or `search`) and its
-    /// code/automatic kind, and only when the upstream accepted the job (a
-    /// non-null `job` with no userErrors) — rejected validation cases leave the
-    /// overlay untouched. `savedSearchId` selectors are not resolved locally; the
-    /// forwarded response still stands for those.
-    pub(in crate::proxy) fn apply_discount_bulk_overlay_effects(
-        &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        response_body: &Value,
-    ) {
-        let Some(fields) = root_fields(query, variables) else {
-            return;
-        };
-        for field in &fields {
-            let Some((kind, action)) = discount_bulk_root_action(&field.name) else {
-                continue;
-            };
-            let payload = &response_body["data"][&field.response_key];
-            if payload.is_null() {
-                continue;
+        if let Some(search) = resolved_string_field(&field.arguments, "search") {
+            if search.trim().is_empty() && !automatic {
+                return Some(vec![user_error_with_extra_info(
+                    vec!["search"],
+                    "'Search' can't be blank.",
+                    Some("BLANK"),
+                    Value::Null,
+                )]);
             }
-            let job_accepted = payload
-                .get("job")
-                .map(|job| !job.is_null())
+            if field.name == "discountCodeBulkDelete" {
+                let invalid_fields = discount_code_bulk_delete_invalid_search_fields(&search);
+                if !invalid_fields.is_empty() {
+                    return Some(vec![user_error_with_extra_info(
+                        vec!["search"],
+                        &format!(
+                            "Invalid search field(s): {}. Check the query syntax.",
+                            invalid_fields.join(", ")
+                        ),
+                        Some("INVALID"),
+                        Value::Null,
+                    )]);
+                }
+            }
+        }
+        if let Some(saved_search_id) = discount_bulk_saved_search_id(field) {
+            let valid = self
+                .store
+                .saved_search_by_id(&saved_search_id)
+                .map(|record| record.resource_type == "DISCOUNT")
                 .unwrap_or(false);
-            let no_user_errors = payload
-                .get("userErrors")
-                .and_then(Value::as_array)
-                .map(|errors| errors.is_empty())
-                .unwrap_or(true);
-            if !job_accepted || !no_user_errors {
-                continue;
-            }
-            for id in self.discount_bulk_selector_ids(field, kind) {
-                self.apply_discount_bulk_transition(&id, action);
+            if !valid {
+                let message = if automatic {
+                    "Invalid savedSearchId."
+                } else {
+                    "Invalid 'saved_search_id'."
+                };
+                return Some(vec![user_error_with_extra_info(
+                    vec!["savedSearchId"],
+                    message,
+                    Some("INVALID"),
+                    Value::Null,
+                )]);
             }
         }
+        None
     }
 
     /// Resolve the staged discount ids a bulk mutation's selector targets,
     /// restricted to the mutation's discount kind (`code` / `automatic`). An
     /// `ids` selector keeps only the supplied ids that resolve to a staged
-    /// discount of the right kind; a `search` selector matches the staged
-    /// overlay with the same query semantics reads use.
+    /// discount of the right kind; `search` and `savedSearchId` selectors match
+    /// the staged overlay with the same query semantics reads use.
     fn discount_bulk_selector_ids(&self, field: &RootFieldSelection, kind: &str) -> Vec<String> {
         if let Some(ResolvedValue::List(values)) = field.arguments.get("ids") {
             return values
@@ -1324,7 +1423,19 @@ impl DraftProxy {
                 })
                 .collect();
         }
-        if let Some(ResolvedValue::String(search)) = field.arguments.get("search") {
+        let search = match field.arguments.get("search") {
+            Some(ResolvedValue::String(search)) => Some(search.clone()),
+            _ => discount_bulk_saved_search_id(field).and_then(|id| {
+                self.store
+                    .saved_search_by_id(&id)
+                    .filter(|record| record.resource_type == "DISCOUNT")
+                    .map(|record| record.query)
+            }),
+        };
+        if let Some(search) = search {
+            if search.trim().is_empty() {
+                return Vec::new();
+            }
             return self
                 .store
                 .staged
@@ -1338,7 +1449,7 @@ impl DraftProxy {
                         .is_tombstoned(discount_id(record))
                 })
                 .filter(|record| discount_kind(record) == kind)
-                .filter(|record| self.discount_matches_query(record, search))
+                .filter(|record| self.discount_matches_query(record, &search))
                 .map(|record| discount_id(record).to_string())
                 .collect();
         }
@@ -1597,11 +1708,7 @@ impl DraftProxy {
                 }
                 "codeDiscountNodeByCode" => {
                     let code = resolved_string_field(&field.arguments, "code").unwrap_or_default();
-                    self.store
-                        .staged
-                        .discount_code_index
-                        .get(&code.to_ascii_uppercase())
-                        .and_then(|id| self.discount_record(id))
+                    self.discount_record_by_code(&code)
                         .map(|record| {
                             self.selected_discount_node_for_record(record, &field.selection)
                         })
@@ -1673,10 +1780,8 @@ impl DraftProxy {
     }
 
     fn discount_connection_records(&self) -> Vec<Value> {
-        self.store
-            .staged
-            .discounts
-            .values()
+        effective_records(&self.store.base.discounts, &self.store.staged.discounts)
+            .iter()
             .filter(|record| {
                 !self
                     .store
@@ -2012,7 +2117,38 @@ impl DraftProxy {
     }
 
     fn discount_record(&self, id: &str) -> Option<&Value> {
-        self.store.staged.discounts.get(id)
+        effective_get(&self.store.base.discounts, &self.store.staged.discounts, id)
+    }
+
+    fn discount_record_by_code(&self, code: &str) -> Option<&Value> {
+        let normalized = code.to_ascii_uppercase();
+        if let Some(id) = self.store.staged.discount_code_index.get(&normalized) {
+            return self.discount_record(id);
+        }
+        effective_find(
+            &self.store.base.discounts,
+            &self.store.staged.discounts,
+            |record| {
+                discount_record_codes(record)
+                    .iter()
+                    .any(|candidate| candidate.eq_ignore_ascii_case(code))
+            },
+        )
+    }
+
+    fn discount_tombstone_matches_code(&self, code: &str) -> bool {
+        self.store
+            .base
+            .discounts
+            .records
+            .iter()
+            .chain(self.store.staged.discounts.records.iter())
+            .any(|(id, record)| {
+                self.store.staged.discounts.is_tombstoned(id)
+                    && discount_record_codes(record)
+                        .iter()
+                        .any(|candidate| candidate.eq_ignore_ascii_case(code))
+            })
     }
 
     fn stage_discount_record(&mut self, record: Value) {
@@ -3559,6 +3695,136 @@ fn app_discount_function_api_type_is_supported(function: &Value) -> bool {
     )
 }
 
+fn discount_record_from_upstream_node(
+    node: &Value,
+    kind: Option<&str>,
+    discount_key: &str,
+) -> Option<Value> {
+    if node.is_null() {
+        return None;
+    }
+    let node_id = node.get("id").and_then(Value::as_str)?.to_string();
+    let disc = node.get(discount_key)?;
+    if disc.is_null() {
+        return None;
+    }
+    let kind = kind
+        .map(str::to_string)
+        .or_else(|| discount_kind_from_upstream_node(node, disc))
+        .unwrap_or_else(|| "code".to_string());
+    let typename = disc
+        .get("__typename")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let codes = disc
+        .get("codes")
+        .and_then(|codes| codes.get("nodes"))
+        .and_then(Value::as_array)
+        .map(|nodes| {
+            nodes
+                .iter()
+                .map(|code_node| {
+                    json!({
+                        "id": code_node.get("id").cloned().unwrap_or(Value::Null),
+                        "code": code_node.get("code").cloned().unwrap_or(Value::Null),
+                        "asyncUsageCount": code_node.get("asyncUsageCount").cloned().unwrap_or_else(|| json!(0))
+                    })
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let codes_count = codes.len();
+    let metafields = node
+        .get("metafields")
+        .and_then(|metafields| metafields.get("nodes"))
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    Some(json!({
+        "id": node_id,
+        "kind": kind,
+        "typename": typename,
+        "title": disc.get("title").cloned().unwrap_or(Value::Null),
+        "status": disc.get("status").cloned().unwrap_or(Value::Null),
+        "summary": disc.get("summary").cloned().unwrap_or(Value::Null),
+        "startsAt": disc.get("startsAt").cloned().unwrap_or(Value::Null),
+        "endsAt": disc.get("endsAt").cloned().unwrap_or(Value::Null),
+        "createdAt": disc.get("createdAt").cloned().unwrap_or(Value::Null),
+        "updatedAt": disc.get("updatedAt").cloned().unwrap_or(Value::Null),
+        "asyncUsageCount": disc.get("asyncUsageCount").cloned().unwrap_or_else(|| json!(0)),
+        "usageLimit": disc.get("usageLimit").cloned().unwrap_or(Value::Null),
+        "usesPerOrderLimit": disc.get("usesPerOrderLimit").cloned().unwrap_or(Value::Null),
+        "recurringCycleLimit": disc.get("recurringCycleLimit").cloned().unwrap_or(Value::Null),
+        "discountClasses": disc.get("discountClasses").cloned().unwrap_or_else(|| json!([])),
+        "combinesWith": disc.get("combinesWith").cloned().unwrap_or(Value::Null),
+        "context": disc.get("context").cloned().unwrap_or(Value::Null),
+        "customerBuys": disc.get("customerBuys").cloned().unwrap_or(Value::Null),
+        "customerGets": disc.get("customerGets").cloned().unwrap_or(Value::Null),
+        "minimumRequirement": disc.get("minimumRequirement").cloned().unwrap_or(Value::Null),
+        "destinationSelection": disc.get("destinationSelection").cloned().unwrap_or(Value::Null),
+        "maximumShippingPrice": disc.get("maximumShippingPrice").cloned().unwrap_or(Value::Null),
+        "appliesOncePerCustomer": disc.get("appliesOncePerCustomer").cloned().unwrap_or(Value::Null),
+        "appliesOnOneTimePurchase": disc.get("appliesOnOneTimePurchase").cloned().unwrap_or(Value::Null),
+        "appliesOnSubscription": disc.get("appliesOnSubscription").cloned().unwrap_or(Value::Null),
+        "codes": codes,
+        "codesCount": count_object(codes_count),
+        "metafields": metafields
+    }))
+}
+
+fn discount_kind_from_upstream_node(node: &Value, discount: &Value) -> Option<String> {
+    node.get("__typename")
+        .and_then(Value::as_str)
+        .and_then(discount_kind_from_node_typename)
+        .or_else(|| {
+            discount
+                .get("__typename")
+                .and_then(Value::as_str)
+                .and_then(discount_kind_from_discount_typename)
+        })
+        .map(str::to_string)
+}
+
+fn discount_kind_from_node_typename(typename: &str) -> Option<&'static str> {
+    match typename {
+        "DiscountAutomaticNode" => Some("automatic"),
+        "DiscountCodeNode" => Some("code"),
+        _ => None,
+    }
+}
+
+fn discount_kind_from_discount_typename(typename: &str) -> Option<&'static str> {
+    if typename.starts_with("DiscountAutomatic") {
+        Some("automatic")
+    } else if typename.starts_with("DiscountCode") {
+        Some("code")
+    } else {
+        None
+    }
+}
+
+fn merge_discount_records(existing: &Value, observed: &Value) -> Value {
+    let (Some(existing), Some(observed)) = (existing.as_object(), observed.as_object()) else {
+        return observed.clone();
+    };
+    let mut merged = existing.clone();
+    for (key, value) in observed {
+        if discount_observed_value_is_empty(key, value) && merged.contains_key(key) {
+            continue;
+        }
+        merged.insert(key.clone(), value.clone());
+    }
+    Value::Object(merged)
+}
+
+fn discount_observed_value_is_empty(key: &str, value: &Value) -> bool {
+    value.is_null()
+        || matches!(key, "codes" | "metafields" | "discountClasses")
+            && value.as_array().map(Vec::is_empty).unwrap_or(false)
+        || key == "codesCount" && value.get("count").and_then(Value::as_u64) == Some(0)
+}
+
 fn discount_node_for_record(record: &Value) -> Value {
     discount_node_for_record_with_selection(record, &[])
 }
@@ -3966,11 +4232,34 @@ fn discount_bulk_root_action(name: &str) -> Option<(&'static str, DiscountBulkAc
     }
 }
 
-/// Whether a mutation root field is a discount bulk activate / deactivate /
-/// delete. These forward upstream for the async `job`, then apply their effect
-/// to the local overlay so later reads stay consistent.
-pub(in crate::proxy) fn is_discount_bulk_action_root(name: &str) -> bool {
-    discount_bulk_root_action(name).is_some()
+fn discount_bulk_saved_search_id(field: &RootFieldSelection) -> Option<String> {
+    resolved_string_field(&field.arguments, "savedSearchId")
+        .or_else(|| resolved_string_field(&field.arguments, "saved_search_id"))
+}
+
+fn discount_code_bulk_delete_invalid_search_fields(search: &str) -> Vec<String> {
+    let mut invalid = Vec::new();
+    for token in saved_search_query_tokens(search) {
+        let trimmed = token.trim_matches(|ch| ch == '(' || ch == ')');
+        let Some((key, _)) = saved_search_filter_from_token(trimmed) else {
+            continue;
+        };
+        let base_key = discount_bulk_search_base_key(&key);
+        let allowed = matches!(
+            base_key,
+            "default" | "status" | "times_used" | "discount_type"
+        );
+        if !allowed && !invalid.iter().any(|existing| existing == base_key) {
+            invalid.push(base_key.to_string());
+        }
+    }
+    invalid
+}
+
+fn discount_bulk_search_base_key(key: &str) -> &str {
+    key.trim_end_matches("_not")
+        .trim_end_matches("_min")
+        .trim_end_matches("_max")
 }
 
 fn discount_matches_query_with_status(record: &Value, query: &str, status: &str) -> bool {

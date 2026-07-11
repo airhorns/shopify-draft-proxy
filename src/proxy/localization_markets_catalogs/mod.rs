@@ -246,11 +246,6 @@ const LOCALIZATION_MUTATION_TARGETS_HYDRATE_QUERY: &str = r#"query LocalizationM
   }
 }"#;
 
-/// Synthetic `updatedAt` stamped on locally-staged market localizations. The specs
-/// match this field loosely (`iso-timestamp` / `non-empty-string`), so a fixed
-/// deterministic value keeps state round-tripping reproducible.
-const SYNTHETIC_MARKET_LOCALIZATION_TIMESTAMP: &str = "2026-01-01T00:00:00Z";
-
 pub(in crate::proxy) struct PriceListFieldOutcome {
     value: Value,
     errors: Vec<Value>,

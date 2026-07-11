@@ -4399,6 +4399,17 @@ fn extend_orders_input_schema(schema: &mut AdminInputSchema) {
             ("notifyCustomer".to_string(), mutation_arg(named("Boolean"))),
         ]),
     );
+    schema.mutation_fields.insert(
+        "fulfillmentTrackingInfoUpdateV2".to_string(),
+        BTreeMap::from([
+            ("fulfillmentId".to_string(), mutation_arg(non_null("ID"))),
+            (
+                "trackingInfoInput".to_string(),
+                mutation_arg(non_null("FulfillmentTrackingInput")),
+            ),
+            ("notifyCustomer".to_string(), mutation_arg(named("Boolean"))),
+        ]),
+    );
     schema.insert_strict_input_object(
         "ReverseFulfillmentOrderDisposeInput".to_string(),
         BTreeMap::from([

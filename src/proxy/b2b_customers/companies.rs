@@ -631,20 +631,20 @@ impl DraftProxy {
         // / companyLocation from their own staged records — the assignment record
         // only stores their ids — so it routes through the assignment-aware
         // serializer rather than the flat selected_json used for the other entities.
-        if let Some(assignment) = staged.b2b_role_assignments.get(id).cloned() {
+        if let Some(assignment) = self.b2b_effective_role_assignment(id) {
             return Some(self.b2b_role_assignment_selected_json(&assignment, selection));
         }
-        if let Some(location) = staged.b2b_locations.get(id) {
-            return Some(self.b2b_company_location_selected_json(location, selection));
+        if let Some(location) = self.b2b_effective_location(id) {
+            return Some(self.b2b_company_location_selected_json(&location, selection));
         }
-        if let Some(company) = staged.b2b_companies.get(id) {
-            return Some(self.b2b_company_selected_json(company, selection));
+        if let Some(company) = self.b2b_effective_company(id) {
+            return Some(self.b2b_company_selected_json(&company, selection));
         }
-        if let Some(contact) = staged.b2b_contacts.get(id) {
-            return Some(self.b2b_company_contact_selected_json(contact, selection));
+        if let Some(contact) = self.b2b_effective_contact(id) {
+            return Some(self.b2b_company_contact_selected_json(&contact, selection));
         }
-        if let Some(role) = staged.b2b_contact_roles.get(id) {
-            return Some(selected_json(role, selection));
+        if let Some(role) = self.b2b_effective_contact_role(id) {
+            return Some(selected_json(&role, selection));
         }
         // CompanyAddress entities are not stored in their own map — they live
         // nested on each staged location's billing/shipping slot — so a node read
@@ -730,6 +730,15 @@ impl DraftProxy {
                 Some(ok_json(json!({ "data": data })))
             }
             OperationType::Query => {
+                if self.config.read_mode == ReadMode::LiveHybrid
+                    && Self::b2b_query_has_catalog_root(&fields)
+                {
+                    let response = (self.upstream_transport)(request.clone());
+                    if !(200..300).contains(&response.status) {
+                        return Some(response);
+                    }
+                    self.hydrate_b2b_base_from_read_data(&fields, &response.body["data"]);
+                }
                 let mut declined = false;
                 let data = root_payload_json(&fields, |field| {
                     if declined {
@@ -739,10 +748,8 @@ impl DraftProxy {
                         "company" => {
                             let id =
                                 resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                            self.store
-                                .staged
-                                .b2b_companies
-                                .get(&id)
+                            self.b2b_effective_company(&id)
+                                .as_ref()
                                 .map(|company| {
                                     self.b2b_company_selected_json(company, &field.selection)
                                 })
@@ -751,10 +758,8 @@ impl DraftProxy {
                         "companyContact" => {
                             let id =
                                 resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                            self.store
-                                .staged
-                                .b2b_contacts
-                                .get(&id)
+                            self.b2b_effective_contact(&id)
+                                .as_ref()
                                 .map(|contact| {
                                     self.b2b_company_contact_selected_json(
                                         contact,
@@ -766,10 +771,8 @@ impl DraftProxy {
                         "companyLocation" => {
                             let id =
                                 resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                            self.store
-                                .staged
-                                .b2b_locations
-                                .get(&id)
+                            self.b2b_effective_location(&id)
+                                .as_ref()
                                 .map(|location| {
                                     self.b2b_company_location_selected_json(
                                         location,
@@ -873,9 +876,7 @@ impl DraftProxy {
             .iter()
             .find(|field| field.name == "companyAssignCustomerAsContact")?;
         let company_id = resolved_string_field(&field.arguments, "companyId")?;
-        if !self.store.staged.b2b_companies.contains_key(&company_id) {
-            return None;
-        }
+        let _ = self.b2b_effective_company(&company_id)?;
         let (payload, status, staged_ids) =
             self.b2b_company_assign_customer_as_contact_payload(field);
         if status == "staged" {
@@ -976,7 +977,7 @@ impl DraftProxy {
             .staged
             .b2b_contacts
             .insert(contact_id.clone(), contact.clone());
-        if let Some(mut company) = self.store.staged.b2b_companies.get(&company_id).cloned() {
+        if let Some(mut company) = self.b2b_effective_company(&company_id) {
             b2b_push_json_id(&mut company, "contactIds", &contact_id);
             self.store.staged.b2b_companies.insert(company_id, company);
         }
@@ -993,9 +994,10 @@ impl DraftProxy {
     ) -> (Value, &'static str, Vec<String>) {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let company_input = resolved_object_field(&input, "company").unwrap_or_default();
+        let effective_companies = self.b2b_effective_company_map();
         let errors = b2b_company_validation_errors(
             &company_input,
-            &self.store.staged.b2b_companies,
+            &effective_companies,
             B2bCompanyValidationMode::Create,
         );
         if !errors.is_empty() {
@@ -1184,7 +1186,7 @@ impl DraftProxy {
     ) -> (Value, &'static str, Vec<String>) {
         let company_id = resolved_string_field(&field.arguments, "companyId").unwrap_or_default();
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        let Some(mut company) = self.store.staged.b2b_companies.get(&company_id).cloned() else {
+        let Some(mut company) = self.b2b_effective_company(&company_id) else {
             return failed_payload_outcome(b2b_company_payload(
                 None,
                 vec![b2b_company_user_error(
@@ -1206,9 +1208,10 @@ impl DraftProxy {
                 )],
             ));
         }
+        let effective_companies = self.b2b_effective_company_map();
         let errors = b2b_company_validation_errors(
             &input,
-            &self.store.staged.b2b_companies,
+            &effective_companies,
             B2bCompanyValidationMode::Update {
                 current_company_id: &company_id,
             },
@@ -1247,7 +1250,7 @@ impl DraftProxy {
     ) -> (Value, &'static str, Vec<String>) {
         let company_id = resolved_string_field(&field.arguments, "companyId").unwrap_or_default();
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        let Some(mut company) = self.store.staged.b2b_companies.get(&company_id).cloned() else {
+        let Some(mut company) = self.b2b_effective_company(&company_id) else {
             return failed_payload_outcome(b2b_company_location_payload(
                 None,
                 vec![b2b_company_user_error(
@@ -1279,10 +1282,11 @@ impl DraftProxy {
         // location, so it lives here (with store access) rather than in the
         // input-only helper.
         if let Some(external_id) = resolved_string_field(&input, "externalId") {
+            let effective_locations = self.b2b_effective_location_map();
             let external_id_errors = b2b_external_id_errors(
                 &external_id,
                 vec!["input", "externalId"],
-                &self.store.staged.b2b_locations.records,
+                &effective_locations,
                 None,
             );
             if !external_id_errors.is_empty() {
@@ -1360,10 +1364,11 @@ impl DraftProxy {
         }
 
         if let Some(external_id) = resolved_string_field(&input, "externalId") {
+            let effective_locations = self.b2b_effective_location_map();
             let errors = b2b_external_id_errors(
                 &external_id,
                 vec!["input", "externalId"],
-                &self.store.staged.b2b_locations.records,
+                &effective_locations,
                 Some(&location_id),
             );
             if !errors.is_empty() {
@@ -1469,7 +1474,7 @@ impl DraftProxy {
         let contact_id =
             resolved_string_field(&field.arguments, "companyContactId").unwrap_or_default();
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        let Some(mut contact) = self.store.staged.b2b_contacts.get(&contact_id).cloned() else {
+        let Some(mut contact) = self.b2b_effective_contact(&contact_id) else {
             return failed_payload_outcome(b2b_company_contact_payload(
                 None,
                 vec![b2b_company_user_error(
@@ -1565,7 +1570,7 @@ impl DraftProxy {
     ) -> (Value, &'static str, Vec<String>) {
         let company_id = resolved_string_field(&field.arguments, "companyId").unwrap_or_default();
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        if !self.store.staged.b2b_companies.contains_key(&company_id) {
+        if self.b2b_effective_company(&company_id).is_none() {
             return failed_payload_outcome(b2b_company_contact_payload(
                 None,
                 vec![b2b_not_found(["companyId"], "Company does not exist.")],
@@ -1622,7 +1627,7 @@ impl DraftProxy {
             .staged
             .b2b_contacts
             .insert(contact_id.clone(), contact.clone());
-        if let Some(mut company) = self.store.staged.b2b_companies.get(&company_id).cloned() {
+        if let Some(mut company) = self.b2b_effective_company(&company_id) {
             b2b_push_json_id(&mut company, "contactIds", &contact_id);
             self.store.staged.b2b_companies.insert(company_id, company);
         }
@@ -1641,7 +1646,7 @@ impl DraftProxy {
     ) -> (Value, &'static str, Vec<String>) {
         let contact_id =
             resolved_string_field(&field.arguments, "companyContactId").unwrap_or_default();
-        if !self.store.staged.b2b_contacts.contains_key(&contact_id) {
+        if self.b2b_effective_contact(&contact_id).is_none() {
             return failed_payload_outcome(json!({
                 "deletedCompanyContactId": Value::Null,
                 "userErrors": [b2b_not_found(["companyContactId"], "The company contact doesn't exist.")]
@@ -1675,7 +1680,7 @@ impl DraftProxy {
         let mut deleted_ids = Vec::new();
         let mut user_errors = Vec::new();
         for (index, contact_id) in contact_ids.iter().enumerate() {
-            if self.store.staged.b2b_contacts.contains_key(contact_id) {
+            if self.b2b_effective_contact(contact_id).is_some() {
                 self.b2b_delete_company_contact(contact_id);
                 deleted_ids.push(contact_id.clone());
             } else {
@@ -1706,7 +1711,7 @@ impl DraftProxy {
     ) -> (Value, &'static str, Vec<String>) {
         let contact_id =
             resolved_string_field(&field.arguments, "companyContactId").unwrap_or_default();
-        if !self.store.staged.b2b_contacts.contains_key(&contact_id) {
+        if self.b2b_effective_contact(&contact_id).is_none() {
             return failed_payload_outcome(json!({
                 "removedCompanyContactId": Value::Null,
                 "userErrors": [b2b_not_found(["companyContactId"], "The company contact doesn't exist.")]
@@ -1732,7 +1737,7 @@ impl DraftProxy {
         let company_id = resolved_string_field(&field.arguments, "companyId").unwrap_or_default();
         let contact_id =
             resolved_string_field(&field.arguments, "companyContactId").unwrap_or_default();
-        let Some(company) = self.store.staged.b2b_companies.get(&company_id).cloned() else {
+        let Some(company) = self.b2b_effective_company(&company_id) else {
             return failed_payload_outcome(b2b_company_payload(
                 None,
                 vec![b2b_resource_not_found(["companyId"])],
@@ -1742,7 +1747,7 @@ impl DraftProxy {
             .iter()
             .any(|id| id == &contact_id)
         {
-            if self.store.staged.b2b_contacts.contains_key(&contact_id) {
+            if self.b2b_effective_contact(&contact_id).is_some() {
                 return failed_payload_outcome(b2b_company_payload(
                     None,
                     vec![user_error(
@@ -1767,11 +1772,12 @@ impl DraftProxy {
             .b2b_companies
             .get(&company_id)
             .cloned()
+            .or_else(|| self.b2b_effective_company(&company_id))
             .unwrap_or(Value::Null);
         (
             b2b_company_payload(Some(&company), Vec::new()),
             "staged",
-            vec![company_id, contact_id],
+            vec![company_id],
         )
     }
 
@@ -1782,7 +1788,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
         let company_id = resolved_string_field(&field.arguments, "companyId").unwrap_or_default();
-        if !self.store.staged.b2b_companies.contains_key(&company_id) {
+        if self.b2b_effective_company(&company_id).is_none() {
             return failed_payload_outcome(b2b_company_payload(
                 None,
                 vec![b2b_resource_not_found(["companyId"])],
@@ -1795,6 +1801,7 @@ impl DraftProxy {
             .b2b_companies
             .get(&company_id)
             .cloned()
+            .or_else(|| self.b2b_effective_company(&company_id))
             .unwrap_or(Value::Null);
         (
             b2b_company_payload(Some(&company), Vec::new()),
@@ -1816,7 +1823,7 @@ impl DraftProxy {
             resolved_string_field(&field.arguments, "companyContactRoleId").unwrap_or_default();
         let location_id =
             resolved_string_field(&field.arguments, "companyLocationId").unwrap_or_default();
-        let Some(contact) = self.store.staged.b2b_contacts.get(&contact_id) else {
+        let Some(contact) = self.b2b_effective_contact(&contact_id) else {
             return failed_payload_outcome(json!({
                 "companyContactRoleAssignment": Value::Null,
                 "userErrors": [b2b_resource_not_found(["companyContactId"])]
@@ -1829,10 +1836,8 @@ impl DraftProxy {
         // are indistinguishable in the response — both "doesn't exist".
         let contact_company_id = contact["companyId"].as_str().map(ToString::to_string);
         let location_in_company = self
-            .store
-            .staged
-            .b2b_locations
-            .get(&location_id)
+            .b2b_effective_location(&location_id)
+            .as_ref()
             .is_some_and(|location| {
                 location["companyId"].as_str() == contact_company_id.as_deref()
             });
@@ -1843,10 +1848,8 @@ impl DraftProxy {
             }));
         }
         let role_in_company = self
-            .store
-            .staged
-            .b2b_contact_roles
-            .get(&role_id)
+            .b2b_effective_contact_role(&role_id)
+            .as_ref()
             .is_some_and(|role| role["companyId"].as_str() == contact_company_id.as_deref());
         if !role_in_company {
             return failed_payload_outcome(json!({
@@ -1892,7 +1895,7 @@ impl DraftProxy {
         ) {
             return payload;
         }
-        if !self.store.staged.b2b_contacts.contains_key(&contact_id) {
+        if self.b2b_effective_contact(&contact_id).is_none() {
             return failed_payload_outcome(json!({
                 "roleAssignments": Value::Null,
                 "userErrors": [b2b_resource_not_found(["companyContactId"])]
@@ -1905,7 +1908,7 @@ impl DraftProxy {
                 .or_else(|| resolved_string_field(input, "companyRoleId"))
                 .unwrap_or_default();
             let location_id = resolved_string_field(input, "companyLocationId").unwrap_or_default();
-            if !self.store.staged.b2b_locations.contains_key(&location_id) {
+            if self.b2b_effective_location(&location_id).is_none() {
                 user_errors.push(b2b_resource_not_found(json!([
                     "rolesToAssign",
                     index.to_string(),
@@ -1913,7 +1916,7 @@ impl DraftProxy {
                 ])));
                 continue;
             }
-            if !self.store.staged.b2b_contact_roles.contains_key(&role_id) {
+            if self.b2b_effective_contact_role(&role_id).is_none() {
                 user_errors.push(b2b_resource_not_found(json!([
                     "rolesToAssign",
                     index.to_string(),
@@ -1952,7 +1955,7 @@ impl DraftProxy {
         let assignment_id =
             resolved_string_field(&field.arguments, "companyContactRoleAssignmentId")
                 .unwrap_or_default();
-        let Some(company_contact) = self.store.staged.b2b_contacts.get(&contact_id).cloned() else {
+        let Some(company_contact) = self.b2b_effective_contact(&contact_id) else {
             return failed_payload_outcome(json!({
                 "revokedCompanyContactRoleAssignmentId": Value::Null,
                 "companyContact": Value::Null,
@@ -1960,10 +1963,8 @@ impl DraftProxy {
             }));
         };
         let assignment_matches_contact = self
-            .store
-            .staged
-            .b2b_role_assignments
-            .get(&assignment_id)
+            .b2b_effective_role_assignment(&assignment_id)
+            .as_ref()
             .and_then(|assignment| assignment["companyContactId"].as_str())
             == Some(contact_id.as_str());
 
@@ -2011,21 +2012,16 @@ impl DraftProxy {
                 "userErrors": [user_error(Value::Null, "Invalid input.", Some("INVALID_INPUT"))]
             }));
         }
-        if !self.store.staged.b2b_contacts.contains_key(&contact_id) {
+        if self.b2b_effective_contact(&contact_id).is_none() {
             return failed_payload_outcome(json!({
                 "revokedRoleAssignmentIds": Value::Null,
                 "userErrors": [b2b_resource_not_found(["companyContactId"])]
             }));
         }
         let ids_to_revoke = if revoke_all {
-            self.store
-                .staged
-                .b2b_role_assignments
-                .iter()
-                .filter(|(_, assignment)| {
-                    assignment["companyContactId"].as_str() == Some(contact_id.as_str())
-                })
-                .map(|(assignment_id, _)| assignment_id.clone())
+            self.b2b_role_assignments_for_contact(&contact_id)
+                .into_iter()
+                .filter_map(|assignment| assignment["id"].as_str().map(str::to_string))
                 .collect::<Vec<String>>()
         } else {
             assignment_ids.clone()
@@ -2034,10 +2030,8 @@ impl DraftProxy {
         let mut user_errors = Vec::new();
         for (index, assignment_id) in ids_to_revoke.iter().enumerate() {
             let assignment_matches_contact = self
-                .store
-                .staged
-                .b2b_role_assignments
-                .get(assignment_id)
+                .b2b_effective_role_assignment(assignment_id)
+                .as_ref()
                 .and_then(|assignment| assignment["companyContactId"].as_str())
                 == Some(contact_id.as_str());
             if assignment_matches_contact {
@@ -2085,7 +2079,7 @@ impl DraftProxy {
             .staged
             .b2b_role_assignments
             .insert(assignment_id.clone(), assignment.clone());
-        if let Some(mut location) = self.store.staged.b2b_locations.get(location_id).cloned() {
+        if let Some(mut location) = self.b2b_effective_location(location_id) {
             b2b_push_json_id(&mut location, "roleAssignmentIds", &assignment_id);
             self.store
                 .staged
@@ -2103,7 +2097,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
         let company_id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        if !self.store.staged.b2b_companies.contains_key(&company_id) {
+        if self.b2b_effective_company(&company_id).is_none() {
             return failed_payload_outcome(json!({
                 "deletedCompanyId": Value::Null,
                 "userErrors": [b2b_not_found(["id"], "Company does not exist.")]
@@ -2141,7 +2135,7 @@ impl DraftProxy {
         let mut deleted_ids = Vec::new();
         let mut user_errors = Vec::new();
         for (index, company_id) in company_ids.iter().enumerate() {
-            if !self.store.staged.b2b_companies.contains_key(company_id) {
+            if self.b2b_effective_company(company_id).is_none() {
                 user_errors.push(b2b_indexed_user_error(
                     "companyIds",
                     index,
@@ -2204,22 +2198,18 @@ impl DraftProxy {
     /// company's `locationIds` or back-referenced from the location's `companyId`.
     fn b2b_company_location_ids(&self, company_id: &str) -> Vec<String> {
         let mut ids = self
-            .store
-            .staged
-            .b2b_companies
-            .get(company_id)
+            .b2b_effective_company(company_id)
+            .as_ref()
             .map(|company| b2b_json_id_list(company, "locationIds"))
             .unwrap_or_default();
         ids.extend(
-            self.store
-                .staged
-                .b2b_locations
-                .iter()
-                .filter(|(_, location)| {
+            self.b2b_effective_locations()
+                .into_iter()
+                .filter(|location| {
                     location.get("companyId").and_then(Value::as_str) == Some(company_id)
                         || location["company"]["id"].as_str() == Some(company_id)
                 })
-                .map(|(id, _)| id.clone()),
+                .filter_map(|location| location["id"].as_str().map(str::to_string)),
         );
         ids.sort();
         ids.dedup();
@@ -2233,8 +2223,12 @@ impl DraftProxy {
     fn b2b_remove_company_graph(&mut self, company_id: &str) {
         let location_ids = self.b2b_company_location_ids(company_id);
         self.store.staged.b2b_companies.remove(company_id);
+        self.store
+            .staged
+            .deleted_b2b_company_ids
+            .insert(company_id.to_string());
         for location_id in location_ids {
-            self.store.staged.b2b_locations.remove(&location_id);
+            self.b2b_delete_company_location(&location_id);
         }
     }
 
@@ -2245,7 +2239,7 @@ impl DraftProxy {
         let location_id = resolved_string_field(&field.arguments, "companyLocationId")
             .or_else(|| resolved_string_field(&field.arguments, "id"))
             .unwrap_or_default();
-        if !self.store.staged.b2b_locations.contains_key(&location_id) {
+        if self.b2b_effective_location(&location_id).is_none() {
             return failed_payload_outcome(json!({
                 "deletedCompanyLocationId": Value::Null,
                 "userErrors": [b2b_resource_not_found(["companyLocationId"])]
@@ -2286,7 +2280,7 @@ impl DraftProxy {
         let mut deleted_ids = Vec::new();
         let mut user_errors = Vec::new();
         for (index, location_id) in location_ids.iter().enumerate() {
-            if !self.store.staged.b2b_locations.contains_key(location_id) {
+            if self.b2b_effective_location(location_id).is_none() {
                 user_errors.push(b2b_indexed_user_error(
                     "companyLocationIds",
                     index,
@@ -2322,8 +2316,8 @@ impl DraftProxy {
         &self,
         location_id: &str,
     ) -> Option<B2bCompanyLocationDeleteBlocker> {
-        let location = self.store.staged.b2b_locations.get(location_id)?;
-        if self.b2b_company_location_is_only_location(location_id, location) {
+        let location = self.b2b_effective_location(location_id)?;
+        if self.b2b_company_location_is_only_location(location_id, &location) {
             return Some(B2bCompanyLocationDeleteBlocker::OnlyLocation);
         }
         if self
@@ -2360,17 +2354,15 @@ impl DraftProxy {
         };
         self.b2b_company_location_ids(company_id)
             .iter()
-            .filter(|id| self.store.staged.b2b_locations.contains_key(id.as_str()))
+            .filter(|id| self.b2b_effective_location(id.as_str()).is_some())
             .count()
             <= 1
-            && self.store.staged.b2b_locations.contains_key(location_id)
+            && self.b2b_effective_location(location_id).is_some()
     }
 
     fn b2b_location_has_store_credit_balance(&self, location_id: &str) -> bool {
-        self.store
-            .staged
-            .b2b_locations
-            .get(location_id)
+        self.b2b_effective_location(location_id)
+            .as_ref()
             .is_some_and(b2b_location_has_embedded_store_credit_balance)
             || self
                 .store
@@ -2398,7 +2390,7 @@ impl DraftProxy {
                 "userErrors": [user_error(Value::Null, "Invalid input.", Some("INVALID_INPUT"))]
             }));
         }
-        let Some(mut location) = self.store.staged.b2b_locations.get(&location_id).cloned() else {
+        let Some(mut location) = self.b2b_effective_location(&location_id) else {
             return failed_payload_outcome(json!({
                 "addresses": Value::Null,
                 "userErrors": [b2b_resource_not_found(["locationId"])]
@@ -2458,10 +2450,13 @@ impl DraftProxy {
     /// shipping, deleting it nulls BOTH sides. Returns the ids of the touched locations.
     pub(in crate::proxy) fn b2b_delete_company_address(&mut self, address_id: &str) -> Vec<String> {
         let mut touched_location_ids = Vec::new();
-        let location_ids = self.store.staged.b2b_locations.order.clone();
+        let location_ids = self
+            .b2b_effective_locations()
+            .into_iter()
+            .filter_map(|location| location["id"].as_str().map(str::to_string))
+            .collect::<Vec<_>>();
         for location_id in location_ids {
-            let Some(mut location) = self.store.staged.b2b_locations.get(&location_id).cloned()
-            else {
+            let Some(mut location) = self.b2b_effective_location(&location_id) else {
                 continue;
             };
             let billing_matches = location["billingAddress"]["id"].as_str() == Some(address_id);
@@ -2535,7 +2530,7 @@ impl DraftProxy {
         ) {
             return payload;
         }
-        let Some(mut location) = self.store.staged.b2b_locations.get(&location_id).cloned() else {
+        let Some(mut location) = self.b2b_effective_location(&location_id) else {
             return failed_payload_outcome(json!({
                 "companyLocationStaffMemberAssignments": Value::Null,
                 "userErrors": [b2b_resource_not_found(["companyLocationId"])]
@@ -2621,12 +2616,15 @@ impl DraftProxy {
         let mut deleted_ids = Vec::new();
         let mut user_errors = Vec::new();
         for (index, assignment_id) in assignment_ids.iter().enumerate() {
-            if let Some(assignment) = self
-                .store
-                .staged
-                .b2b_staff_assignments
-                .remove(assignment_id)
-            {
+            if let Some(assignment) = self.b2b_effective_staff_assignment(assignment_id) {
+                self.store
+                    .staged
+                    .b2b_staff_assignments
+                    .remove(assignment_id);
+                self.store
+                    .staged
+                    .deleted_b2b_staff_assignment_ids
+                    .insert(assignment_id.clone());
                 if let Some(location_id) = assignment["companyLocationId"].as_str() {
                     self.b2b_remove_location_assignment_id(
                         location_id,
@@ -2670,7 +2668,7 @@ impl DraftProxy {
         ) {
             return payload;
         }
-        if !self.store.staged.b2b_locations.contains_key(&location_id) {
+        if self.b2b_effective_location(&location_id).is_none() {
             return failed_payload_outcome(json!({
                 "roleAssignments": Value::Null,
                 "userErrors": [b2b_not_found(["companyLocationId"], "Location does not exist.")]
@@ -2683,7 +2681,7 @@ impl DraftProxy {
             let role_id = resolved_string_field(input, "companyContactRoleId")
                 .or_else(|| resolved_string_field(input, "companyRoleId"))
                 .unwrap_or_default();
-            if !self.store.staged.b2b_contacts.contains_key(&contact_id) {
+            if self.b2b_effective_contact(&contact_id).is_none() {
                 user_errors.push(b2b_indexed_user_error(
                     "rolesToAssign",
                     index,
@@ -2692,7 +2690,7 @@ impl DraftProxy {
                 ));
                 continue;
             }
-            if !self.store.staged.b2b_contact_roles.contains_key(&role_id) {
+            if self.b2b_effective_contact_role(&role_id).is_none() {
                 user_errors.push(b2b_indexed_user_error(
                     "rolesToAssign",
                     index,
@@ -2744,7 +2742,7 @@ impl DraftProxy {
         ) {
             return payload;
         }
-        if !self.store.staged.b2b_locations.contains_key(&location_id) {
+        if self.b2b_effective_location(&location_id).is_none() {
             return failed_payload_outcome(json!({
                 "revokedRoleAssignmentIds": Value::Null,
                 "revokedCompanyContactRoleAssignmentIds": Value::Null,
@@ -2755,10 +2753,8 @@ impl DraftProxy {
         let mut user_errors = Vec::new();
         for (index, assignment_id) in assignment_ids.iter().enumerate() {
             let assignment_matches_location = self
-                .store
-                .staged
-                .b2b_role_assignments
-                .get(assignment_id)
+                .b2b_effective_role_assignment(assignment_id)
+                .as_ref()
                 .and_then(|assignment| assignment["companyLocationId"].as_str())
                 == Some(location_id.as_str());
             if assignment_matches_location {
@@ -2824,20 +2820,698 @@ impl DraftProxy {
 
     fn b2b_query_has_staged_match(&self, fields: &[RootFieldSelection]) -> bool {
         fields.iter().any(|field| match field.name.as_str() {
-            "company" => resolved_string_field(&field.arguments, "id")
-                .is_some_and(|id| self.store.staged.b2b_companies.contains_key(&id)),
+            "company" => resolved_string_field(&field.arguments, "id").is_some_and(|id| {
+                self.store.staged.b2b_companies.contains_key(&id)
+                    || self.store.staged.deleted_b2b_company_ids.contains(&id)
+            }),
             "companyContact" => resolved_string_field(&field.arguments, "id").is_some_and(|id| {
                 self.store.staged.b2b_contacts.contains_key(&id)
                     || self.store.staged.deleted_b2b_contact_ids.contains(&id)
             }),
-            "companyLocation" => resolved_string_field(&field.arguments, "id")
-                .is_some_and(|id| self.store.staged.b2b_locations.contains_key(&id)),
+            "companyLocation" => resolved_string_field(&field.arguments, "id").is_some_and(|id| {
+                self.store.staged.b2b_locations.contains_key(&id)
+                    || self.store.staged.b2b_locations.is_tombstoned(&id)
+            }),
             "companyLocations" => !self.store.staged.b2b_locations.is_empty(),
             // Cold LiveHybrid company connection/count reads must keep forwarding
             // upstream so real store companies are not masked by an empty local graph.
-            "companies" | "companiesCount" => !self.store.staged.b2b_companies.is_empty(),
+            "companies" | "companiesCount" => {
+                !self.store.staged.b2b_companies.is_empty()
+                    || !self.store.staged.deleted_b2b_company_ids.is_empty()
+            }
             _ => false,
         })
+    }
+
+    fn b2b_query_has_catalog_root(fields: &[RootFieldSelection]) -> bool {
+        fields.iter().any(|field| {
+            matches!(
+                field.name.as_str(),
+                "companies" | "companiesCount" | "companyLocations"
+            )
+        })
+    }
+
+    fn hydrate_b2b_base_from_read_data(&mut self, fields: &[RootFieldSelection], data: &Value) {
+        for field in fields {
+            let value = data.get(&field.response_key).unwrap_or(&Value::Null);
+            match field.name.as_str() {
+                "companies" => self.observe_b2b_company_connection(value),
+                "company" => {
+                    self.observe_b2b_company_record(value);
+                }
+                "companyLocations" => self.observe_b2b_location_connection(value, None),
+                "companyLocation" => {
+                    self.observe_b2b_location_record(value, None);
+                }
+                "companyContact" => {
+                    self.observe_b2b_contact_record(value, None);
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn observe_b2b_company_connection(&mut self, connection: &Value) {
+        for company in connection_nodes(connection) {
+            self.observe_b2b_company_record(&company);
+        }
+    }
+
+    fn observe_b2b_location_connection(&mut self, connection: &Value, company_id: Option<&str>) {
+        for location in connection_nodes(connection) {
+            self.observe_b2b_location_record(&location, company_id);
+        }
+    }
+
+    fn observe_b2b_company_record(&mut self, company: &Value) -> Option<String> {
+        if company.is_null() {
+            return None;
+        }
+        let company_id = company.get("id").and_then(Value::as_str)?.to_string();
+        if self
+            .store
+            .staged
+            .deleted_b2b_company_ids
+            .contains(&company_id)
+        {
+            return Some(company_id);
+        }
+        let mut record = self
+            .store
+            .base
+            .b2b_companies
+            .get(&company_id)
+            .cloned()
+            .unwrap_or_else(|| {
+                json!({
+                    "__typename": "Company",
+                    "id": company_id,
+                    "name": "",
+                    "createdAt": Value::Null,
+                    "externalId": Value::Null,
+                    "customerSince": Value::Null,
+                    "note": Value::Null,
+                    "locationIds": [],
+                    "contactIds": [],
+                    "contactRoleIds": [],
+                    "mainContactId": Value::Null
+                })
+            });
+        merge_json_values(&mut record, company);
+        record["__typename"] = json!("Company");
+        for key in ["locationIds", "contactIds", "contactRoleIds"] {
+            if !record.get(key).is_some_and(Value::is_array) {
+                record[key] = json!([]);
+            }
+        }
+        if record.get("mainContactId").is_none() {
+            record["mainContactId"] = Value::Null;
+        }
+
+        for location in connection_nodes(&company["locations"]) {
+            if let Some(location_id) =
+                self.observe_b2b_location_record(&location, Some(&company_id))
+            {
+                b2b_push_json_id(&mut record, "locationIds", &location_id);
+            }
+        }
+        for contact in connection_nodes(&company["contacts"]) {
+            if let Some(contact_id) = self.observe_b2b_contact_record(&contact, Some(&company_id)) {
+                b2b_push_json_id(&mut record, "contactIds", &contact_id);
+            }
+        }
+        if let Some(main_contact_id) =
+            self.observe_b2b_contact_record(&company["mainContact"], Some(&company_id))
+        {
+            record["mainContactId"] = json!(main_contact_id);
+        }
+        for role in connection_nodes(&company["contactRoles"]) {
+            if let Some(role_id) = self.observe_b2b_contact_role_record(&role, Some(&company_id)) {
+                b2b_push_json_id(&mut record, "contactRoleIds", &role_id);
+            }
+        }
+
+        self.store
+            .base
+            .b2b_companies
+            .insert(company_id.clone(), record);
+        Some(company_id)
+    }
+
+    fn observe_b2b_location_record(
+        &mut self,
+        location: &Value,
+        company_id_hint: Option<&str>,
+    ) -> Option<String> {
+        if location.is_null() {
+            return None;
+        }
+        let location_id = location.get("id").and_then(Value::as_str)?.to_string();
+        if self.store.staged.b2b_locations.is_tombstoned(&location_id) {
+            return Some(location_id);
+        }
+        let nested_company_id = location
+            .get("company")
+            .and_then(|company| self.observe_b2b_company_record(company));
+        let company_id = location
+            .get("companyId")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .or(nested_company_id)
+            .or_else(|| company_id_hint.map(str::to_string));
+        let mut record = self
+            .store
+            .base
+            .b2b_locations
+            .get(&location_id)
+            .cloned()
+            .unwrap_or_else(|| {
+                json!({
+                    "__typename": "CompanyLocation",
+                    "id": location_id,
+                    "name": "",
+                    "companyId": company_id.clone().map(Value::String).unwrap_or(Value::Null),
+                    "externalId": Value::Null,
+                    "note": Value::Null,
+                    "locale": Value::Null,
+                    "phone": Value::Null,
+                    "billingAddress": Value::Null,
+                    "shippingAddress": Value::Null,
+                    "billingSameAsShipping": false,
+                    "taxSettings": {
+                        "taxRegistrationId": Value::Null,
+                        "taxExempt": false,
+                        "taxExemptions": []
+                    },
+                    "buyerExperienceConfiguration": b2b_buyer_experience_configuration_json(&BTreeMap::new()),
+                    "roleAssignmentIds": [],
+                    "staffAssignmentIds": []
+                })
+            });
+        merge_json_values(&mut record, location);
+        record["__typename"] = json!("CompanyLocation");
+        if let Some(company_id) = company_id.as_deref() {
+            record["companyId"] = json!(company_id);
+        }
+        for key in ["roleAssignmentIds", "staffAssignmentIds"] {
+            if !record.get(key).is_some_and(Value::is_array) {
+                record[key] = json!([]);
+            }
+        }
+        if record.get("taxSettings").is_none_or(Value::is_null) {
+            record["taxSettings"] = json!({
+                "taxRegistrationId": Value::Null,
+                "taxExempt": false,
+                "taxExemptions": []
+            });
+        }
+        if record
+            .get("buyerExperienceConfiguration")
+            .is_none_or(Value::is_null)
+        {
+            record["buyerExperienceConfiguration"] =
+                b2b_buyer_experience_configuration_json(&BTreeMap::new());
+        }
+        for assignment in connection_nodes(&location["roleAssignments"]) {
+            if let Some(assignment_id) =
+                self.observe_b2b_role_assignment_record(&assignment, None, Some(&location_id))
+            {
+                b2b_push_json_id(&mut record, "roleAssignmentIds", &assignment_id);
+            }
+        }
+        for assignment in connection_nodes(&location["staffMemberAssignments"]) {
+            if let Some(assignment_id) =
+                self.observe_b2b_staff_assignment_record(&assignment, Some(&location_id))
+            {
+                b2b_push_json_id(&mut record, "staffAssignmentIds", &assignment_id);
+            }
+        }
+        if let Some(object) = record.as_object_mut() {
+            object.remove("company");
+            object.remove("roleAssignments");
+            object.remove("staffMemberAssignments");
+        }
+        self.store
+            .base
+            .b2b_locations
+            .insert(location_id.clone(), record);
+        if let Some(company_id) = company_id {
+            self.b2b_add_base_company_location_id(&company_id, &location_id);
+        }
+        Some(location_id)
+    }
+
+    fn observe_b2b_contact_record(
+        &mut self,
+        contact: &Value,
+        company_id_hint: Option<&str>,
+    ) -> Option<String> {
+        if contact.is_null() {
+            return None;
+        }
+        let contact_id = contact.get("id").and_then(Value::as_str)?.to_string();
+        if self
+            .store
+            .staged
+            .deleted_b2b_contact_ids
+            .contains(&contact_id)
+        {
+            return Some(contact_id);
+        }
+        let nested_company_id = contact
+            .get("company")
+            .and_then(|company| self.observe_b2b_company_record(company));
+        let company_id = contact
+            .get("companyId")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .or(nested_company_id)
+            .or_else(|| company_id_hint.map(str::to_string));
+        let mut record = self
+            .store
+            .base
+            .b2b_contacts
+            .get(&contact_id)
+            .cloned()
+            .unwrap_or_else(|| {
+                json!({
+                    "__typename": "CompanyContact",
+                    "id": contact_id,
+                    "companyId": company_id.clone().map(Value::String).unwrap_or(Value::Null),
+                    "customerId": Value::Null,
+                    "firstName": Value::Null,
+                    "lastName": Value::Null,
+                    "title": Value::Null,
+                    "locale": Value::Null,
+                    "isMainContact": false
+                })
+            });
+        merge_json_values(&mut record, contact);
+        record["__typename"] = json!("CompanyContact");
+        if let Some(company_id) = company_id.as_deref() {
+            record["companyId"] = json!(company_id);
+        }
+        if let Some(customer_id) = contact["customer"]["id"].as_str() {
+            record["customerId"] = json!(customer_id);
+            self.store
+                .staged
+                .customers
+                .insert(customer_id.to_string(), contact["customer"].clone());
+        }
+        for assignment in connection_nodes(&contact["roleAssignments"]) {
+            self.observe_b2b_role_assignment_record(&assignment, Some(&contact_id), None);
+        }
+        if let Some(object) = record.as_object_mut() {
+            object.remove("company");
+            object.remove("customer");
+            object.remove("roleAssignments");
+        }
+        self.store
+            .base
+            .b2b_contacts
+            .insert(contact_id.clone(), record);
+        if let Some(company_id) = company_id {
+            self.b2b_add_base_company_contact_id(&company_id, &contact_id);
+        }
+        Some(contact_id)
+    }
+
+    fn observe_b2b_contact_role_record(
+        &mut self,
+        role: &Value,
+        company_id_hint: Option<&str>,
+    ) -> Option<String> {
+        if role.is_null() {
+            return None;
+        }
+        let role_id = role.get("id").and_then(Value::as_str)?.to_string();
+        let company_id = role
+            .get("companyId")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .or_else(|| company_id_hint.map(str::to_string));
+        let mut record = self
+            .store
+            .base
+            .b2b_contact_roles
+            .get(&role_id)
+            .cloned()
+            .unwrap_or_else(|| {
+                json!({
+                    "__typename": "CompanyContactRole",
+                    "id": role_id,
+                    "name": "",
+                    "note": Value::Null,
+                    "companyId": company_id.clone().map(Value::String).unwrap_or(Value::Null)
+                })
+            });
+        merge_json_values(&mut record, role);
+        record["__typename"] = json!("CompanyContactRole");
+        if let Some(company_id) = company_id.as_deref() {
+            record["companyId"] = json!(company_id);
+        }
+        self.store
+            .base
+            .b2b_contact_roles
+            .insert(role_id.clone(), record);
+        if let Some(company_id) = company_id {
+            self.b2b_add_base_company_contact_role_id(&company_id, &role_id);
+        }
+        Some(role_id)
+    }
+
+    fn observe_b2b_role_assignment_record(
+        &mut self,
+        assignment: &Value,
+        contact_id_hint: Option<&str>,
+        location_id_hint: Option<&str>,
+    ) -> Option<String> {
+        if assignment.is_null() {
+            return None;
+        }
+        let assignment_id = assignment.get("id").and_then(Value::as_str)?.to_string();
+        if self
+            .store
+            .staged
+            .deleted_b2b_contact_role_assignment_ids
+            .contains(&assignment_id)
+        {
+            return Some(assignment_id);
+        }
+        let contact_id = assignment
+            .get("companyContactId")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .or_else(|| {
+                assignment
+                    .get("companyContact")
+                    .and_then(|contact| self.observe_b2b_contact_record(contact, None))
+            })
+            .or_else(|| contact_id_hint.map(str::to_string));
+        let role_id = assignment
+            .get("companyContactRoleId")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .or_else(|| {
+                assignment
+                    .get("role")
+                    .and_then(|role| self.observe_b2b_contact_role_record(role, None))
+            });
+        let location_id = assignment
+            .get("companyLocationId")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .or_else(|| {
+                assignment
+                    .get("companyLocation")
+                    .and_then(|location| self.observe_b2b_location_record(location, None))
+            })
+            .or_else(|| location_id_hint.map(str::to_string));
+        let mut record = self
+            .store
+            .base
+            .b2b_role_assignments
+            .get(&assignment_id)
+            .cloned()
+            .unwrap_or_else(|| {
+                json!({
+                    "__typename": "CompanyContactRoleAssignment",
+                    "id": assignment_id,
+                    "companyContactId": contact_id.clone().map(Value::String).unwrap_or(Value::Null),
+                    "companyContactRoleId": role_id.clone().map(Value::String).unwrap_or(Value::Null),
+                    "companyLocationId": location_id.clone().map(Value::String).unwrap_or(Value::Null)
+                })
+            });
+        merge_json_values(&mut record, assignment);
+        record["__typename"] = json!("CompanyContactRoleAssignment");
+        if let Some(contact_id) = contact_id.as_deref() {
+            record["companyContactId"] = json!(contact_id);
+        }
+        if let Some(role_id) = role_id.as_deref() {
+            record["companyContactRoleId"] = json!(role_id);
+        }
+        if let Some(location_id) = location_id.as_deref() {
+            record["companyLocationId"] = json!(location_id);
+        }
+        if let Some(object) = record.as_object_mut() {
+            object.remove("companyContact");
+            object.remove("role");
+            object.remove("companyLocation");
+        }
+        self.store
+            .base
+            .b2b_role_assignments
+            .insert(assignment_id.clone(), record);
+        if let Some(location_id) = location_id {
+            self.b2b_add_base_location_role_assignment_id(&location_id, &assignment_id);
+        }
+        Some(assignment_id)
+    }
+
+    fn observe_b2b_staff_assignment_record(
+        &mut self,
+        assignment: &Value,
+        location_id_hint: Option<&str>,
+    ) -> Option<String> {
+        if assignment.is_null() {
+            return None;
+        }
+        let assignment_id = assignment.get("id").and_then(Value::as_str)?.to_string();
+        let location_id = assignment
+            .get("companyLocationId")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .or_else(|| {
+                assignment
+                    .get("companyLocation")
+                    .and_then(|location| self.observe_b2b_location_record(location, None))
+            })
+            .or_else(|| location_id_hint.map(str::to_string));
+        let mut record = self
+            .store
+            .base
+            .b2b_staff_assignments
+            .get(&assignment_id)
+            .cloned()
+            .unwrap_or_else(|| {
+                json!({
+                    "__typename": "CompanyLocationStaffMemberAssignment",
+                    "id": assignment_id,
+                    "companyLocationId": location_id.clone().map(Value::String).unwrap_or(Value::Null),
+                    "staffMember": Value::Null,
+                    "staffMemberId": Value::Null
+                })
+            });
+        merge_json_values(&mut record, assignment);
+        record["__typename"] = json!("CompanyLocationStaffMemberAssignment");
+        if let Some(location_id) = location_id.as_deref() {
+            record["companyLocationId"] = json!(location_id);
+        }
+        if let Some(staff_id) = record["staffMember"]["id"].as_str().map(str::to_string) {
+            record["staffMemberId"] = json!(staff_id);
+        }
+        if let Some(object) = record.as_object_mut() {
+            object.remove("companyLocation");
+        }
+        self.store
+            .base
+            .b2b_staff_assignments
+            .insert(assignment_id.clone(), record);
+        if let Some(location_id) = location_id {
+            self.b2b_add_base_location_staff_assignment_id(&location_id, &assignment_id);
+        }
+        Some(assignment_id)
+    }
+
+    fn b2b_add_base_company_location_id(&mut self, company_id: &str, location_id: &str) {
+        if let Some(mut company) = self.store.base.b2b_companies.get(company_id).cloned() {
+            b2b_push_json_id(&mut company, "locationIds", location_id);
+            self.store
+                .base
+                .b2b_companies
+                .insert(company_id.to_string(), company);
+        }
+    }
+
+    fn b2b_add_base_company_contact_id(&mut self, company_id: &str, contact_id: &str) {
+        if let Some(mut company) = self.store.base.b2b_companies.get(company_id).cloned() {
+            b2b_push_json_id(&mut company, "contactIds", contact_id);
+            self.store
+                .base
+                .b2b_companies
+                .insert(company_id.to_string(), company);
+        }
+    }
+
+    fn b2b_add_base_company_contact_role_id(&mut self, company_id: &str, role_id: &str) {
+        if let Some(mut company) = self.store.base.b2b_companies.get(company_id).cloned() {
+            b2b_push_json_id(&mut company, "contactRoleIds", role_id);
+            self.store
+                .base
+                .b2b_companies
+                .insert(company_id.to_string(), company);
+        }
+    }
+
+    fn b2b_add_base_location_role_assignment_id(&mut self, location_id: &str, assignment_id: &str) {
+        if let Some(mut location) = self.store.base.b2b_locations.get(location_id).cloned() {
+            b2b_push_json_id(&mut location, "roleAssignmentIds", assignment_id);
+            self.store
+                .base
+                .b2b_locations
+                .insert(location_id.to_string(), location);
+        }
+    }
+
+    fn b2b_add_base_location_staff_assignment_id(
+        &mut self,
+        location_id: &str,
+        assignment_id: &str,
+    ) {
+        if let Some(mut location) = self.store.base.b2b_locations.get(location_id).cloned() {
+            b2b_push_json_id(&mut location, "staffAssignmentIds", assignment_id);
+            self.store
+                .base
+                .b2b_locations
+                .insert(location_id.to_string(), location);
+        }
+    }
+
+    fn b2b_effective_company(&self, id: &str) -> Option<Value> {
+        if self.store.staged.deleted_b2b_company_ids.contains(id) {
+            return None;
+        }
+        self.store
+            .staged
+            .b2b_companies
+            .get(id)
+            .cloned()
+            .or_else(|| self.store.base.b2b_companies.get(id).cloned())
+    }
+
+    fn b2b_effective_location(&self, id: &str) -> Option<Value> {
+        if self.store.staged.b2b_locations.is_tombstoned(id) {
+            return None;
+        }
+        self.store
+            .staged
+            .b2b_locations
+            .get(id)
+            .cloned()
+            .or_else(|| self.store.base.b2b_locations.get(id).cloned())
+    }
+
+    fn b2b_effective_contact(&self, id: &str) -> Option<Value> {
+        if self.store.staged.deleted_b2b_contact_ids.contains(id) {
+            return None;
+        }
+        self.store
+            .staged
+            .b2b_contacts
+            .get(id)
+            .cloned()
+            .or_else(|| self.store.base.b2b_contacts.get(id).cloned())
+    }
+
+    fn b2b_effective_contact_role(&self, id: &str) -> Option<Value> {
+        self.store
+            .staged
+            .b2b_contact_roles
+            .get(id)
+            .cloned()
+            .or_else(|| self.store.base.b2b_contact_roles.get(id).cloned())
+    }
+
+    fn b2b_effective_role_assignment(&self, id: &str) -> Option<Value> {
+        if self
+            .store
+            .staged
+            .deleted_b2b_contact_role_assignment_ids
+            .contains(id)
+        {
+            return None;
+        }
+        self.store
+            .staged
+            .b2b_role_assignments
+            .get(id)
+            .cloned()
+            .or_else(|| self.store.base.b2b_role_assignments.get(id).cloned())
+    }
+
+    fn b2b_effective_staff_assignment(&self, id: &str) -> Option<Value> {
+        if self
+            .store
+            .staged
+            .deleted_b2b_staff_assignment_ids
+            .contains(id)
+        {
+            return None;
+        }
+        self.store
+            .staged
+            .b2b_staff_assignments
+            .get(id)
+            .cloned()
+            .or_else(|| self.store.base.b2b_staff_assignments.get(id).cloned())
+    }
+
+    fn b2b_effective_companies(&self) -> Vec<Value> {
+        let mut companies = Vec::new();
+        let mut seen = BTreeSet::new();
+        for id in &self.store.base.b2b_companies.order {
+            if self.store.staged.deleted_b2b_company_ids.contains(id) {
+                continue;
+            }
+            if let Some(company) = self
+                .store
+                .staged
+                .b2b_companies
+                .get(id)
+                .cloned()
+                .or_else(|| self.store.base.b2b_companies.get(id).cloned())
+            {
+                seen.insert(id.clone());
+                companies.push(company);
+            }
+        }
+        for (id, company) in &self.store.staged.b2b_companies {
+            if seen.contains(id) || self.store.staged.deleted_b2b_company_ids.contains(id) {
+                continue;
+            }
+            companies.push(company.clone());
+        }
+        companies
+    }
+
+    fn b2b_effective_company_map(&self) -> BTreeMap<String, Value> {
+        self.b2b_effective_companies()
+            .into_iter()
+            .filter_map(|company| {
+                company["id"]
+                    .as_str()
+                    .map(|id| (id.to_string(), company.clone()))
+            })
+            .collect()
+    }
+
+    fn b2b_effective_locations(&self) -> Vec<Value> {
+        effective_records(
+            &self.store.base.b2b_locations,
+            &self.store.staged.b2b_locations,
+        )
+    }
+
+    fn b2b_effective_location_map(&self) -> BTreeMap<String, Value> {
+        self.b2b_effective_locations()
+            .into_iter()
+            .filter_map(|location| {
+                location["id"]
+                    .as_str()
+                    .map(|id| (id.to_string(), location.clone()))
+            })
+            .collect()
     }
 
     fn b2b_selected_reference_json<Resolve, Render>(
@@ -2890,15 +3564,8 @@ impl DraftProxy {
     /// companies. Supported field-scoped query terms match the staged company
     /// graph; unsupported terms produce an empty local connection.
     fn b2b_companies_connection(&self, field: &RootFieldSelection) -> Value {
-        let companies = self
-            .store
-            .staged
-            .b2b_companies
-            .values()
-            .cloned()
-            .collect::<Vec<_>>();
         selected_staged_connection_with_args(
-            companies,
+            self.b2b_effective_companies(),
             &field.arguments,
             &field.selection,
             b2b_company_search_decision,
@@ -2909,18 +3576,22 @@ impl DraftProxy {
     }
 
     fn b2b_companies_count(&self, field: &RootFieldSelection) -> Value {
+        let result = staged_connection_query(
+            self.b2b_effective_companies(),
+            &field.arguments,
+            b2b_company_search_decision,
+            b2b_company_resource_sort_key,
+            value_id_cursor,
+        );
         selected_json(
-            &staged_count_with_limit_precision(
-                self.store.staged.b2b_companies.len(),
-                &field.arguments,
-            ),
+            &staged_count_with_limit_precision(result.total_count, &field.arguments),
             &field.selection,
         )
     }
 
     fn b2b_company_locations_connection(&self, field: &RootFieldSelection) -> Value {
         selected_staged_connection_with_args(
-            self.b2b_ordered_locations(),
+            self.b2b_effective_locations(),
             &field.arguments,
             &field.selection,
             b2b_company_location_search_decision,
@@ -2956,10 +3627,8 @@ impl DraftProxy {
 
     fn b2b_company_location_order_aggregate(&self, location_id: &str) -> B2bOrderAggregate {
         let default_currency = self
-            .store
-            .staged
-            .b2b_locations
-            .get(location_id)
+            .b2b_effective_location(location_id)
+            .as_ref()
             .map(|location| {
                 b2b_company_location_currency_code(location, &self.store.shop_currency_code())
             })
@@ -3110,7 +3779,7 @@ impl DraftProxy {
                 company,
                 "locationIds",
                 selection,
-                |proxy, id| proxy.store.staged.b2b_locations.get(id).cloned(),
+                |proxy, id| proxy.b2b_effective_location(id),
                 |proxy, location, fields| {
                     proxy.b2b_company_location_selected_json(location, fields)
                 },
@@ -3119,14 +3788,14 @@ impl DraftProxy {
                 company,
                 "contactIds",
                 selection,
-                |proxy, id| proxy.store.staged.b2b_contacts.get(id).cloned(),
+                |proxy, id| proxy.b2b_effective_contact(id),
                 |proxy, contact, fields| proxy.b2b_company_contact_selected_json(contact, fields),
             )),
             "contactRoles" => Some(self.b2b_selected_id_connection_json(
                 company,
                 "contactRoleIds",
                 selection,
-                |proxy, id| proxy.store.staged.b2b_contact_roles.get(id).cloned(),
+                |proxy, id| proxy.b2b_effective_contact_role(id),
                 |_, role, fields| selected_json(role, fields),
             )),
             "contactsCount" => {
@@ -3163,7 +3832,7 @@ impl DraftProxy {
                 company,
                 "mainContactId",
                 selection,
-                |proxy, id| proxy.store.staged.b2b_contacts.get(id).cloned(),
+                |proxy, id| proxy.b2b_effective_contact(id),
                 |proxy, contact, fields| proxy.b2b_company_contact_selected_json(contact, fields),
             )),
             _ => company
@@ -3208,7 +3877,7 @@ impl DraftProxy {
                 contact,
                 "companyId",
                 selection,
-                |proxy, id| proxy.store.staged.b2b_companies.get(id).cloned(),
+                |proxy, id| proxy.b2b_effective_company(id),
                 |proxy, company, fields| proxy.b2b_company_selected_json(company, fields),
             )),
             "customer" => Some(self.b2b_selected_reference_json(
@@ -3225,14 +3894,30 @@ impl DraftProxy {
     }
 
     fn b2b_role_assignments_for_contact(&self, contact_id: &str) -> Vec<Value> {
-        let mut assignments = self
-            .store
-            .staged
-            .b2b_role_assignments
-            .values()
-            .filter(|assignment| assignment["companyContactId"].as_str() == Some(contact_id))
-            .cloned()
-            .collect::<Vec<_>>();
+        let mut assignments = Vec::new();
+        let mut seen = BTreeSet::new();
+        for id in &self.store.base.b2b_role_assignments.order {
+            if let Some(assignment) = self.b2b_effective_role_assignment(id) {
+                if assignment["companyContactId"].as_str() == Some(contact_id) {
+                    seen.insert(id.clone());
+                    assignments.push(assignment);
+                }
+            }
+        }
+        for (id, assignment) in &self.store.staged.b2b_role_assignments {
+            if seen.contains(id)
+                || self
+                    .store
+                    .staged
+                    .deleted_b2b_contact_role_assignment_ids
+                    .contains(id)
+            {
+                continue;
+            }
+            if assignment["companyContactId"].as_str() == Some(contact_id) {
+                assignments.push(assignment.clone());
+            }
+        }
         // Synthetic ids share one monotonic counter, so numeric order is
         // creation order — the order Shopify returns role assignments in.
         assignments.sort_by_key(|assignment| {
@@ -3255,14 +3940,14 @@ impl DraftProxy {
                 location,
                 "companyId",
                 selection,
-                |proxy, id| proxy.store.staged.b2b_companies.get(id).cloned(),
+                |proxy, id| proxy.b2b_effective_company(id),
                 |proxy, company, fields| proxy.b2b_company_selected_json(company, fields),
             )),
             "roleAssignments" => Some(self.b2b_selected_id_connection_json(
                 location,
                 "roleAssignmentIds",
                 selection,
-                |proxy, id| proxy.store.staged.b2b_role_assignments.get(id).cloned(),
+                |proxy, id| proxy.b2b_effective_role_assignment(id),
                 |proxy, assignment, fields| {
                     proxy.b2b_role_assignment_selected_json(assignment, fields)
                 },
@@ -3271,7 +3956,7 @@ impl DraftProxy {
                 location,
                 "staffAssignmentIds",
                 selection,
-                |proxy, id| proxy.store.staged.b2b_staff_assignments.get(id).cloned(),
+                |proxy, id| proxy.b2b_effective_staff_assignment(id),
                 |proxy, assignment, fields| {
                     proxy.b2b_staff_assignment_selected_json(assignment, fields)
                 },
@@ -3318,21 +4003,21 @@ impl DraftProxy {
                 assignment,
                 "companyContactId",
                 selection,
-                |proxy, id| proxy.store.staged.b2b_contacts.get(id).cloned(),
+                |proxy, id| proxy.b2b_effective_contact(id),
                 |proxy, contact, fields| proxy.b2b_company_contact_selected_json(contact, fields),
             )),
             "role" => Some(self.b2b_selected_reference_json(
                 assignment,
                 "companyContactRoleId",
                 selection,
-                |proxy, id| proxy.store.staged.b2b_contact_roles.get(id).cloned(),
+                |proxy, id| proxy.b2b_effective_contact_role(id),
                 |_, role, fields| selected_json(role, fields),
             )),
             "companyLocation" => Some(self.b2b_selected_reference_json(
                 assignment,
                 "companyLocationId",
                 selection,
-                |proxy, id| proxy.store.staged.b2b_locations.get(id).cloned(),
+                |proxy, id| proxy.b2b_effective_location(id),
                 |proxy, location, fields| {
                     proxy.b2b_company_location_selected_json(location, fields)
                 },
@@ -3353,7 +4038,7 @@ impl DraftProxy {
                 assignment,
                 "companyLocationId",
                 selection,
-                |proxy, id| proxy.store.staged.b2b_locations.get(id).cloned(),
+                |proxy, id| proxy.b2b_effective_location(id),
                 |proxy, location, fields| {
                     proxy.b2b_company_location_selected_json(location, fields)
                 },
@@ -3368,16 +4053,6 @@ impl DraftProxy {
         })
     }
 
-    fn b2b_ordered_locations(&self) -> Vec<Value> {
-        self.store
-            .staged
-            .b2b_locations
-            .order
-            .iter()
-            .filter_map(|id| self.store.staged.b2b_locations.get(id).cloned())
-            .collect()
-    }
-
     pub(in crate::proxy) fn b2b_company_location_for_mutation(
         &mut self,
         request: Option<&Request>,
@@ -3386,11 +4061,15 @@ impl DraftProxy {
         if location_id.is_empty() {
             return None;
         }
+        if self.store.staged.b2b_locations.is_tombstoned(location_id) {
+            return None;
+        }
         self.store
             .staged
             .b2b_locations
             .get(location_id)
             .cloned()
+            .or_else(|| self.store.base.b2b_locations.get(location_id).cloned())
             .or_else(|| {
                 request.and_then(|request| {
                     self.hydrate_b2b_company_location_for_mutation(request, location_id)
@@ -3570,7 +4249,8 @@ impl DraftProxy {
         input: &BTreeMap<String, ResolvedValue>,
     ) -> String {
         b2b_order_input_company_location_id(input)
-            .and_then(|location_id| self.store.staged.b2b_locations.get(&location_id))
+            .and_then(|location_id| self.b2b_effective_location(&location_id))
+            .as_ref()
             .map(|location| {
                 b2b_company_location_currency_code(location, &self.store.shop_currency_code())
             })
@@ -3594,16 +4274,21 @@ impl DraftProxy {
     }
 
     fn b2b_delete_company_location(&mut self, location_id: &str) {
-        let Some(location) = self.store.staged.b2b_locations.remove(location_id) else {
+        let Some(location) = self.b2b_effective_location(location_id) else {
             return;
         };
+        self.store.staged.b2b_locations.remove_staged(location_id);
+        self.store
+            .staged
+            .b2b_locations
+            .tombstone(location_id.to_string());
         self.store
             .staged
             .b2b_locations
             .order
             .retain(|id| id != location_id);
         if let Some(company_id) = location["companyId"].as_str() {
-            if let Some(mut company) = self.store.staged.b2b_companies.get(company_id).cloned() {
+            if let Some(mut company) = self.b2b_effective_company(company_id) {
                 b2b_retain_json_ids(&mut company, "locationIds", |id| id != location_id);
                 self.store
                     .staged
@@ -3612,25 +4297,79 @@ impl DraftProxy {
             }
         }
         for assignment_id in b2b_json_id_list(&location, "roleAssignmentIds") {
-            self.store
-                .staged
-                .b2b_role_assignments
-                .remove(&assignment_id);
+            let _ = self.b2b_remove_role_assignment(&assignment_id);
         }
-        self.store
-            .staged
+        let role_assignment_ids = self
+            .store
+            .base
             .b2b_role_assignments
-            .retain(|_, assignment| assignment["companyLocationId"].as_str() != Some(location_id));
+            .order
+            .iter()
+            .filter_map(|id| {
+                self.b2b_effective_role_assignment(id)
+                    .and_then(|assignment| {
+                        (assignment["companyLocationId"].as_str() == Some(location_id))
+                            .then(|| id.clone())
+                    })
+            })
+            .chain(
+                self.store
+                    .staged
+                    .b2b_role_assignments
+                    .iter()
+                    .filter(|&(_, assignment)| {
+                        assignment["companyLocationId"].as_str() == Some(location_id)
+                    })
+                    .map(|(id, _)| id.clone()),
+            )
+            .collect::<Vec<_>>();
+        for assignment_id in role_assignment_ids {
+            let _ = self.b2b_remove_role_assignment(&assignment_id);
+        }
         for assignment_id in b2b_json_id_list(&location, "staffAssignmentIds") {
             self.store
                 .staged
                 .b2b_staff_assignments
                 .remove(&assignment_id);
+            self.store
+                .staged
+                .deleted_b2b_staff_assignment_ids
+                .insert(assignment_id);
         }
-        self.store
-            .staged
+        let staff_assignment_ids = self
+            .store
+            .base
             .b2b_staff_assignments
-            .retain(|_, assignment| assignment["companyLocationId"].as_str() != Some(location_id));
+            .order
+            .iter()
+            .filter_map(|id| {
+                self.b2b_effective_staff_assignment(id)
+                    .and_then(|assignment| {
+                        (assignment["companyLocationId"].as_str() == Some(location_id))
+                            .then(|| id.clone())
+                    })
+            })
+            .chain(
+                self.store
+                    .staged
+                    .b2b_staff_assignments
+                    .iter()
+                    .filter(|&(_, assignment)| {
+                        assignment["companyLocationId"].as_str() == Some(location_id)
+                    })
+                    .map(|(id, _)| id.clone()),
+            )
+            .collect::<Vec<_>>();
+        for assignment_id in staff_assignment_ids {
+            self.store
+                .staged
+                .b2b_staff_assignments
+                .remove(&assignment_id);
+            self.store
+                .staged
+                .deleted_b2b_staff_assignment_ids
+                .insert(assignment_id);
+        }
     }
 
     /// Cascade-delete a company contact and every artifact that referenced it,
@@ -3638,7 +4377,12 @@ impl DraftProxy {
     /// `companyContactRemoveFromCompany` all clear the contact's location-side
     /// role assignments and detach it from the owning company.
     fn b2b_delete_company_contact(&mut self, contact_id: &str) {
-        let removed = self.store.staged.b2b_contacts.remove(contact_id);
+        let removed = self
+            .store
+            .staged
+            .b2b_contacts
+            .remove(contact_id)
+            .or_else(|| self.b2b_effective_contact(contact_id));
         self.store
             .staged
             .deleted_b2b_contact_ids
@@ -3651,7 +4395,7 @@ impl DraftProxy {
             .and_then(|contact| contact["companyId"].as_str())
             .map(str::to_string)
         {
-            if let Some(mut company) = self.store.staged.b2b_companies.get(&company_id).cloned() {
+            if let Some(mut company) = self.b2b_effective_company(&company_id) {
                 b2b_retain_json_ids(&mut company, "contactIds", |id| id != contact_id);
                 if company["mainContactId"].as_str() == Some(contact_id) {
                     company["mainContactId"] = Value::Null;
@@ -3663,34 +4407,12 @@ impl DraftProxy {
         // Cascade-remove every role assignment that pointed at this contact,
         // dropping the assignment ids from each location's `roleAssignmentIds`.
         let assignment_ids: Vec<String> = self
-            .store
-            .staged
-            .b2b_role_assignments
-            .iter()
-            .filter(|(_, assignment)| assignment["companyContactId"].as_str() == Some(contact_id))
-            .map(|(id, _)| id.clone())
+            .b2b_role_assignments_for_contact(contact_id)
+            .into_iter()
+            .filter_map(|assignment| assignment["id"].as_str().map(str::to_string))
             .collect();
         for assignment_id in assignment_ids {
-            let removed_assignment = self
-                .store
-                .staged
-                .b2b_role_assignments
-                .remove(&assignment_id);
-            if let Some(location_id) = removed_assignment
-                .as_ref()
-                .and_then(|assignment| assignment["companyLocationId"].as_str())
-                .map(str::to_string)
-            {
-                self.b2b_remove_location_assignment_id(
-                    &location_id,
-                    "roleAssignmentIds",
-                    &assignment_id,
-                );
-            }
-            self.store
-                .staged
-                .deleted_b2b_contact_role_assignment_ids
-                .insert(assignment_id);
+            let _ = self.b2b_remove_role_assignment(&assignment_id);
         }
     }
 
@@ -3699,11 +4421,12 @@ impl DraftProxy {
     /// is resolved by filtering the assignment map, so dropping the entry here is
     /// enough to clear it from the contact view too.
     fn b2b_remove_role_assignment(&mut self, assignment_id: &str) -> Option<Value> {
-        let assignment = self
-            .store
+        let assignment = self.b2b_effective_role_assignment(assignment_id)?;
+        self.store.staged.b2b_role_assignments.remove(assignment_id);
+        self.store
             .staged
-            .b2b_role_assignments
-            .remove(assignment_id)?;
+            .deleted_b2b_contact_role_assignment_ids
+            .insert(assignment_id.to_string());
         if let Some(location_id) = assignment["companyLocationId"].as_str() {
             self.b2b_remove_location_assignment_id(location_id, "roleAssignmentIds", assignment_id);
         }
@@ -3713,7 +4436,7 @@ impl DraftProxy {
     /// Points a company's main contact at `main_contact_id` (or clears it when
     /// None), keeping each contact's `isMainContact` flag in sync.
     fn b2b_set_main_contact(&mut self, company_id: &str, main_contact_id: Option<&str>) {
-        let Some(mut company) = self.store.staged.b2b_companies.get(company_id).cloned() else {
+        let Some(mut company) = self.b2b_effective_company(company_id) else {
             return;
         };
         company["mainContactId"] = main_contact_id.map(|id| json!(id)).unwrap_or(Value::Null);
@@ -3723,7 +4446,7 @@ impl DraftProxy {
             .b2b_companies
             .insert(company_id.to_string(), company);
         for contact_id in contact_ids {
-            if let Some(mut contact) = self.store.staged.b2b_contacts.get(&contact_id).cloned() {
+            if let Some(mut contact) = self.b2b_effective_contact(&contact_id) {
                 contact["isMainContact"] = json!(main_contact_id == Some(contact_id.as_str()));
                 self.store.staged.b2b_contacts.insert(contact_id, contact);
             }
@@ -3736,7 +4459,7 @@ impl DraftProxy {
         list_field: &str,
         assignment_id: &str,
     ) {
-        if let Some(mut location) = self.store.staged.b2b_locations.get(location_id).cloned() {
+        if let Some(mut location) = self.b2b_effective_location(location_id) {
             b2b_retain_json_ids(&mut location, list_field, |id| id != assignment_id);
             self.store
                 .staged
@@ -3747,23 +4470,28 @@ impl DraftProxy {
 
     fn b2b_staff_assignment_for(&self, location_id: &str, staff_id: &str) -> Option<Value> {
         self.store
-            .staged
+            .base
             .b2b_staff_assignments
-            .values()
+            .order
+            .iter()
+            .filter_map(|id| self.b2b_effective_staff_assignment(id))
+            .chain(self.store.staged.b2b_staff_assignments.values().cloned())
             .find(|assignment| {
                 assignment["companyLocationId"].as_str() == Some(location_id)
                     && assignment["staffMemberId"].as_str() == Some(staff_id)
             })
-            .cloned()
     }
 
     fn b2b_valid_staff_member_id(&self, id: &str) -> bool {
         shopify_gid_resource_type(id) == Some("StaffMember")
             && self
                 .store
-                .staged
+                .base
                 .b2b_staff_assignments
-                .values()
+                .order
+                .iter()
+                .filter_map(|assignment_id| self.b2b_effective_staff_assignment(assignment_id))
+                .chain(self.store.staged.b2b_staff_assignments.values().cloned())
                 .any(|assignment| {
                     assignment["staffMemberId"].as_str() == Some(id)
                         || assignment["staffMember"]["id"].as_str() == Some(id)
@@ -3777,15 +4505,17 @@ impl DraftProxy {
         role_id: &str,
     ) -> Option<Value> {
         self.store
-            .staged
+            .base
             .b2b_role_assignments
-            .values()
+            .order
+            .iter()
+            .filter_map(|id| self.b2b_effective_role_assignment(id))
+            .chain(self.store.staged.b2b_role_assignments.values().cloned())
             .find(|assignment| {
                 assignment["companyLocationId"].as_str() == Some(location_id)
                     && assignment["companyContactId"].as_str() == Some(contact_id)
                     && assignment["companyContactRoleId"].as_str() == Some(role_id)
             })
-            .cloned()
     }
 
     /// True when the contact already holds *any* role assignment at the location,
@@ -3793,9 +4523,12 @@ impl DraftProxy {
     /// location, so this gates the LIMIT_REACHED rejection on the singular assign.
     fn b2b_contact_has_assignment_at_location(&self, contact_id: &str, location_id: &str) -> bool {
         self.store
-            .staged
+            .base
             .b2b_role_assignments
-            .values()
+            .order
+            .iter()
+            .filter_map(|id| self.b2b_effective_role_assignment(id))
+            .chain(self.store.staged.b2b_role_assignments.values().cloned())
             .any(|assignment| {
                 assignment["companyContactId"].as_str() == Some(contact_id)
                     && assignment["companyLocationId"].as_str() == Some(location_id)

@@ -1,0 +1,211 @@
+{
+  "scenarioId": "discount-mixed-catalog",
+  "operationNames": [
+    "discountCodeBasicCreate",
+    "discountAutomaticBasicUpdate",
+    "discountCodeDelete",
+    "discountNodes",
+    "codeDiscountNodes",
+    "automaticDiscountNodes",
+    "discountNodesCount",
+    "codeDiscountNodeByCode",
+    "automaticDiscountNode"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["downstream-read-parity", "pagination-shape", "search-sort-contract", "mutation-lifecycle"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-mixed-catalog.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-mixed-catalog-create.graphql",
+    "variablesCapturePath": "$.requests.localCreate.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.reverseCatalog.pageInfo.startCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify and local replay produce different opaque connection cursors; parity asserts that startCursor is present."
+      },
+      {
+        "path": "$.reverseCatalog.pageInfo.endCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify and local replay produce different opaque connection cursors; parity asserts that endCursor is present."
+      },
+      {
+        "path": "$.forwardCatalog.pageInfo.startCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify and local replay produce different opaque connection cursors; parity asserts that startCursor is present."
+      },
+      {
+        "path": "$.forwardCatalog.pageInfo.endCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify and local replay produce different opaque connection cursors; parity asserts that endCursor is present."
+      },
+      {
+        "path": "$.codeCatalog.pageInfo.startCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify and local replay produce different opaque connection cursors; parity asserts that startCursor is present."
+      },
+      {
+        "path": "$.codeCatalog.pageInfo.endCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify and local replay produce different opaque connection cursors; parity asserts that endCursor is present."
+      },
+      {
+        "path": "$.automaticCatalog.pageInfo.startCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify and local replay produce different opaque connection cursors; parity asserts that startCursor is present."
+      },
+      {
+        "path": "$.automaticCatalog.pageInfo.endCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify and local replay produce different opaque connection cursors; parity asserts that endCursor is present."
+      }
+    ],
+    "targets": [
+      {
+        "name": "mixed-catalog-local-code-create",
+        "capturePath": "$.localCreate.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": "$.upstreamCalls",
+        "selectedPaths": [
+          "$.discountCodeBasicCreate.codeDiscountNode.codeDiscount.__typename",
+          "$.discountCodeBasicCreate.codeDiscountNode.codeDiscount.title",
+          "$.discountCodeBasicCreate.codeDiscountNode.codeDiscount.status",
+          "$.discountCodeBasicCreate.codeDiscountNode.codeDiscount.codes.nodes[0].code",
+          "$.discountCodeBasicCreate.userErrors"
+        ]
+      },
+      {
+        "name": "mixed-catalog-retains-upstream-after-local-create",
+        "capturePath": "$.readAfterCreate.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": "$.upstreamCalls",
+        "selectedPaths": [
+          "$.reverseCatalog.nodes[0].discount.__typename",
+          "$.reverseCatalog.nodes[0].discount.title",
+          "$.reverseCatalog.nodes[0].discount.status",
+          "$.reverseCatalog.nodes[0].discount.codes.nodes[0].code",
+          "$.reverseCatalog.nodes[1].discount.__typename",
+          "$.reverseCatalog.nodes[1].discount.title",
+          "$.reverseCatalog.nodes[1].discount.status",
+          "$.reverseCatalog.nodes[1].discount.codes.nodes[0].code",
+          "$.reverseCatalog.nodes[2].discount.__typename",
+          "$.reverseCatalog.nodes[2].discount.title",
+          "$.reverseCatalog.nodes[2].discount.status",
+          "$.reverseCatalog.pageInfo.hasNextPage",
+          "$.reverseCatalog.pageInfo.hasPreviousPage",
+          "$.reverseCatalog.pageInfo.startCursor",
+          "$.reverseCatalog.pageInfo.endCursor",
+          "$.forwardCatalog.nodes[0].discount.__typename",
+          "$.forwardCatalog.nodes[0].discount.title",
+          "$.forwardCatalog.nodes[1].discount.__typename",
+          "$.forwardCatalog.nodes[1].discount.title",
+          "$.forwardCatalog.pageInfo.hasNextPage",
+          "$.forwardCatalog.pageInfo.hasPreviousPage",
+          "$.forwardCatalog.pageInfo.startCursor",
+          "$.forwardCatalog.pageInfo.endCursor",
+          "$.codeCatalog.nodes[0].codeDiscount.__typename",
+          "$.codeCatalog.nodes[0].codeDiscount.title",
+          "$.codeCatalog.nodes[0].codeDiscount.codes.nodes[0].code",
+          "$.codeCatalog.nodes[1].codeDiscount.__typename",
+          "$.codeCatalog.nodes[1].codeDiscount.title",
+          "$.codeCatalog.nodes[1].codeDiscount.codes.nodes[0].code",
+          "$.codeCatalog.pageInfo.hasNextPage",
+          "$.codeCatalog.pageInfo.hasPreviousPage",
+          "$.codeCatalog.pageInfo.startCursor",
+          "$.codeCatalog.pageInfo.endCursor",
+          "$.automaticCatalog.nodes[0].automaticDiscount.__typename",
+          "$.automaticCatalog.nodes[0].automaticDiscount.title",
+          "$.automaticCatalog.nodes[0].automaticDiscount.status",
+          "$.automaticCatalog.pageInfo.hasNextPage",
+          "$.automaticCatalog.pageInfo.hasPreviousPage",
+          "$.automaticCatalog.pageInfo.startCursor",
+          "$.automaticCatalog.pageInfo.endCursor",
+          "$.limitedCount.count",
+          "$.limitedCount.precision",
+          "$.upstreamByCode.codeDiscount.__typename",
+          "$.upstreamByCode.codeDiscount.title",
+          "$.upstreamByCode.codeDiscount.status",
+          "$.upstreamByCode.codeDiscount.codes.nodes[0].code",
+          "$.upstreamAutomatic.automaticDiscount.__typename",
+          "$.upstreamAutomatic.automaticDiscount.title",
+          "$.upstreamAutomatic.automaticDiscount.status"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-mixed-catalog-read.graphql",
+          "variablesCapturePath": "$.requests.readAfterCreate.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "mixed-catalog-updates-upstream-automatic",
+        "capturePath": "$.updateAutomatic.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.discountAutomaticBasicUpdate.automaticDiscountNode.automaticDiscount.__typename",
+          "$.discountAutomaticBasicUpdate.automaticDiscountNode.automaticDiscount.title",
+          "$.discountAutomaticBasicUpdate.automaticDiscountNode.automaticDiscount.status",
+          "$.discountAutomaticBasicUpdate.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-mixed-catalog-update-automatic.graphql",
+          "variablesCapturePath": "$.requests.updateAutomatic.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "mixed-catalog-tombstones-upstream-code",
+        "capturePath": "$.deleteCode.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.discountCodeDelete.deletedCodeDiscountId", "$.discountCodeDelete.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-mixed-catalog-delete-code.graphql",
+          "variablesCapturePath": "$.requests.deleteCode.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "mixed-catalog-effective-read-after-update-and-tombstone",
+        "capturePath": "$.readAfterMutations.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": "$.upstreamCalls",
+        "selectedPaths": [
+          "$.reverseCatalog.nodes[0].discount.__typename",
+          "$.reverseCatalog.nodes[0].discount.title",
+          "$.reverseCatalog.nodes[0].discount.status",
+          "$.reverseCatalog.nodes[0].discount.codes.nodes[0].code",
+          "$.reverseCatalog.nodes[1].discount.__typename",
+          "$.reverseCatalog.nodes[1].discount.title",
+          "$.reverseCatalog.nodes[1].discount.status",
+          "$.reverseCatalog.pageInfo.hasNextPage",
+          "$.reverseCatalog.pageInfo.hasPreviousPage",
+          "$.reverseCatalog.pageInfo.startCursor",
+          "$.reverseCatalog.pageInfo.endCursor",
+          "$.codeCatalog.nodes[0].codeDiscount.__typename",
+          "$.codeCatalog.nodes[0].codeDiscount.title",
+          "$.codeCatalog.nodes[0].codeDiscount.status",
+          "$.codeCatalog.nodes[0].codeDiscount.codes.nodes[0].code",
+          "$.automaticCatalog.nodes[0].automaticDiscount.__typename",
+          "$.automaticCatalog.nodes[0].automaticDiscount.title",
+          "$.automaticCatalog.nodes[0].automaticDiscount.status",
+          "$.tombstonedByCode",
+          "$.updatedAutomatic.automaticDiscount.__typename",
+          "$.updatedAutomatic.automaticDiscount.title",
+          "$.updatedAutomatic.automaticDiscount.status"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-mixed-catalog-read-after-mutations.graphql",
+          "variablesCapturePath": "$.requests.readAfterMutations.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify 2026-04 evidence for LiveHybrid discount effective-catalog reads. The recorder creates an upstream scheduled code discount and scheduled automatic discount, records baseline discount list/count/detail reads as upstreamCalls, then creates one local-equivalent code discount, updates the upstream automatic discount, deletes the upstream code discount, and captures downstream reads. Proxy replay stages only through public GraphQL mutation/read roots; the upstreamCalls cassette hydrates the real baseline so the list/count/detail targets prove base records survive a staged create, staged updates override hydrated base records, and local tombstones hide upstream code lookup/catalog records."
+}
