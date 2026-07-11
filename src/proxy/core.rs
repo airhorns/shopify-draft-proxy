@@ -311,7 +311,7 @@ impl DraftProxy {
                 "draftOrderTags": self.store.staged.draft_order_tags.clone(),
                 "returns": self.store.staged.returns.clone(),
                 "returnsByOrder": self.store.staged.returns_by_order.clone(),
-               "reverseDeliveries": self.store.staged.reverse_deliveries.clone(),
+                "reverseDeliveries": self.store.staged.reverse_deliveries.clone(),
                 "reverseFulfillmentOrders": self.store.staged.reverse_fulfillment_orders.clone(),
                 "observedShippingLocations": self.store.staged.observed_shipping_locations.clone(),
                 "observedShippingLocationOrder": self.store.staged.observed_shipping_location_order.clone(),
@@ -558,6 +558,11 @@ impl DraftProxy {
         if !self.store.staged.inventory_level_order.is_empty() {
             snapshot["stagedState"]["inventoryLevelOrder"] =
                 inventory_level_order_json(&self.store.staged.inventory_level_order);
+        }
+        if !self.store.staged.fulfillment_order_cursors.is_empty() {
+            snapshot["stagedState"]["fulfillmentOrderCursors"] =
+                serde_json::to_value(&self.store.staged.fulfillment_order_cursors)
+                    .unwrap_or_default();
         }
         if !self.store.staged.inventory_level_cursors.is_empty() {
             snapshot["stagedState"]["inventoryLevelCursors"] =
@@ -1440,6 +1445,10 @@ impl DraftProxy {
             Some("deliveryProfileOrder"),
             Some("deletedDeliveryProfileIds"),
         );
+        self.store.staged.fulfillment_order_cursors = state["stagedState"]
+            .get("fulfillmentOrderCursors")
+            .and_then(|value| serde_json::from_value(value.clone()).ok())
+            .unwrap_or_default();
         self.store.staged.inventory_levels =
             inventory_levels_from_json(&state["stagedState"]["inventoryLevels"]);
         self.store.staged.inventory_level_ids =

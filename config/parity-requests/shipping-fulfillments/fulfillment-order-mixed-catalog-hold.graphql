@@ -1,0 +1,43 @@
+fragment FulfillmentOrderMixedCatalogFields on FulfillmentOrder {
+  id
+  updatedAt
+  status
+  requestStatus
+  assignedLocation {
+    name
+    location {
+      id
+      name
+    }
+  }
+  lineItems(first: 5) {
+    nodes {
+      id
+      totalQuantity
+      remainingQuantity
+      lineItem {
+        id
+        title
+      }
+    }
+  }
+  order {
+    id
+    name
+  }
+}
+
+mutation FulfillmentOrderMixedCatalogHold($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) {
+  fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) {
+    fulfillmentOrder {
+      ...FulfillmentOrderMixedCatalogFields
+    }
+    remainingFulfillmentOrder {
+      ...FulfillmentOrderMixedCatalogFields
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -1,0 +1,3042 @@
+{
+  "fixtureKind": "fulfillment-order-mixed-catalog-lifecycle",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-07-11T00:04:47.462Z",
+  "startedAt": "2026-07-11T00:03:47.462Z",
+  "service": {
+    "id": "gid://shopify/FulfillmentService/72102084914?id=true",
+    "locationId": "gid://shopify/Location/113888330034"
+  },
+  "createdOrders": {
+    "baseline": {
+      "id": "gid://shopify/Order/8938660069682",
+      "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9877970616626",
+      "fulfillmentOrderLineItemId": "gid://shopify/FulfillmentOrderLineItem/20095654428978"
+    },
+    "held": {
+      "id": "gid://shopify/Order/8938660135218",
+      "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9877970682162",
+      "fulfillmentOrderLineItemId": "gid://shopify/FulfillmentOrderLineItem/20095654494514"
+    },
+    "moved": {
+      "id": "gid://shopify/Order/8938660167986",
+      "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9877970714930",
+      "fulfillmentOrderLineItemId": "gid://shopify/FulfillmentOrderLineItem/20095654527282"
+    },
+    "split": {
+      "id": "gid://shopify/Order/8938660233522",
+      "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9877970747698",
+      "fulfillmentOrderLineItemId": "gid://shopify/FulfillmentOrderLineItem/20095654560050"
+    },
+    "cancelled": {
+      "id": "gid://shopify/Order/8938660266290",
+      "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9877970780466",
+      "fulfillmentOrderLineItemId": "gid://shopify/FulfillmentOrderLineItem/20095654592818"
+    }
+  },
+  "operations": {
+    "hold": {
+      "query": "fragment FulfillmentOrderMixedCatalogFields on FulfillmentOrder {\n  id\n  updatedAt\n  status\n  requestStatus\n  assignedLocation {\n    name\n    location {\n      id\n      name\n    }\n  }\n  lineItems(first: 5) {\n    nodes {\n      id\n      totalQuantity\n      remainingQuantity\n      lineItem {\n        id\n        title\n      }\n    }\n  }\n  order {\n    id\n    name\n  }\n}\n\nmutation FulfillmentOrderMixedCatalogHold($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) {\n  fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) {\n    fulfillmentOrder {\n      ...FulfillmentOrderMixedCatalogFields\n    }\n    remainingFulfillmentOrder {\n      ...FulfillmentOrderMixedCatalogFields\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9877970682162",
+        "fulfillmentHold": {
+          "reason": "OTHER",
+          "reasonNotes": "Hermes mixed catalog hold",
+          "notifyMerchant": false,
+          "externalId": "hermes-mixed-catalog-hold",
+          "handle": "hermes-mixed-catalog-hold"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentOrderHold": {
+              "fulfillmentOrder": {
+                "id": "gid://shopify/FulfillmentOrder/9877970682162",
+                "updatedAt": "2026-07-11T00:04:52Z",
+                "status": "ON_HOLD",
+                "requestStatus": "UNSUBMITTED",
+                "assignedLocation": {
+                  "name": "HAR-654 Main 20260505044352",
+                  "location": {
+                    "id": "gid://shopify/Location/112833036594",
+                    "name": "HAR-654 Main 20260505044352"
+                  }
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrderLineItem/20095654494514",
+                      "totalQuantity": 1,
+                      "remainingQuantity": 1,
+                      "lineItem": {
+                        "id": "gid://shopify/LineItem/19924733493554",
+                        "title": "Hermes mixed catalog held 20260711000448"
+                      }
+                    }
+                  ]
+                },
+                "order": {
+                  "id": "gid://shopify/Order/8938660135218",
+                  "name": "#1817"
+                }
+              },
+              "remainingFulfillmentOrder": null,
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 32,
+              "actualQueryCost": 17,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "move": {
+      "query": "fragment FulfillmentOrderMixedCatalogFields on FulfillmentOrder {\n  id\n  updatedAt\n  status\n  requestStatus\n  assignedLocation {\n    name\n    location {\n      id\n      name\n    }\n  }\n  lineItems(first: 5) {\n    nodes {\n      id\n      totalQuantity\n      remainingQuantity\n      lineItem {\n        id\n        title\n      }\n    }\n  }\n  order {\n    id\n    name\n  }\n}\n\nmutation FulfillmentOrderMixedCatalogMove($id: ID!, $newLocationId: ID!) {\n  fulfillmentOrderMove(id: $id, newLocationId: $newLocationId) {\n    movedFulfillmentOrder {\n      ...FulfillmentOrderMixedCatalogFields\n    }\n    originalFulfillmentOrder {\n      ...FulfillmentOrderMixedCatalogFields\n    }\n    remainingFulfillmentOrder {\n      ...FulfillmentOrderMixedCatalogFields\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9877970714930",
+        "newLocationId": "gid://shopify/Location/113888330034"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentOrderMove": {
+              "movedFulfillmentOrder": {
+                "id": "gid://shopify/FulfillmentOrder/9877970714930",
+                "updatedAt": "2026-07-11T00:04:52Z",
+                "status": "OPEN",
+                "requestStatus": "UNSUBMITTED",
+                "assignedLocation": {
+                  "name": "Hermes Mixed Catalog 1783728287462",
+                  "location": {
+                    "id": "gid://shopify/Location/113888330034",
+                    "name": "Hermes Mixed Catalog 1783728287462"
+                  }
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrderLineItem/20095654527282",
+                      "totalQuantity": 1,
+                      "remainingQuantity": 1,
+                      "lineItem": {
+                        "id": "gid://shopify/LineItem/19924733526322",
+                        "title": "Hermes mixed catalog moved 20260711000449"
+                      }
+                    }
+                  ]
+                },
+                "order": {
+                  "id": "gid://shopify/Order/8938660167986",
+                  "name": "#1818"
+                }
+              },
+              "originalFulfillmentOrder": {
+                "id": "gid://shopify/FulfillmentOrder/9877970714930",
+                "updatedAt": "2026-07-11T00:04:52Z",
+                "status": "OPEN",
+                "requestStatus": "UNSUBMITTED",
+                "assignedLocation": {
+                  "name": "Hermes Mixed Catalog 1783728287462",
+                  "location": {
+                    "id": "gid://shopify/Location/113888330034",
+                    "name": "Hermes Mixed Catalog 1783728287462"
+                  }
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrderLineItem/20095654527282",
+                      "totalQuantity": 1,
+                      "remainingQuantity": 1,
+                      "lineItem": {
+                        "id": "gid://shopify/LineItem/19924733526322",
+                        "title": "Hermes mixed catalog moved 20260711000449"
+                      }
+                    }
+                  ]
+                },
+                "order": {
+                  "id": "gid://shopify/Order/8938660167986",
+                  "name": "#1818"
+                }
+              },
+              "remainingFulfillmentOrder": null,
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 43,
+              "actualQueryCost": 24,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1976,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "split": {
+      "query": "fragment FulfillmentOrderMixedCatalogFields on FulfillmentOrder {\n  id\n  updatedAt\n  status\n  requestStatus\n  assignedLocation {\n    name\n    location {\n      id\n      name\n    }\n  }\n  lineItems(first: 5) {\n    nodes {\n      id\n      totalQuantity\n      remainingQuantity\n      lineItem {\n        id\n        title\n      }\n    }\n  }\n  order {\n    id\n    name\n  }\n}\n\nmutation FulfillmentOrderMixedCatalogSplit($fulfillmentOrderSplits: [FulfillmentOrderSplitInput!]!) {\n  fulfillmentOrderSplit(fulfillmentOrderSplits: $fulfillmentOrderSplits) {\n    fulfillmentOrderSplits {\n      fulfillmentOrder {\n        ...FulfillmentOrderMixedCatalogFields\n      }\n      remainingFulfillmentOrder {\n        ...FulfillmentOrderMixedCatalogFields\n      }\n      replacementFulfillmentOrder {\n        ...FulfillmentOrderMixedCatalogFields\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "fulfillmentOrderSplits": [
+          {
+            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9877970747698",
+            "fulfillmentOrderLineItems": [
+              {
+                "id": "gid://shopify/FulfillmentOrderLineItem/20095654560050",
+                "quantity": 1
+              }
+            ]
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentOrderSplit": {
+              "fulfillmentOrderSplits": [
+                {
+                  "fulfillmentOrder": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970747698",
+                    "updatedAt": "2026-07-11T00:04:53Z",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654560050",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 2,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733559090",
+                            "title": "Hermes mixed catalog split 20260711000450"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660233522",
+                      "name": "#1819"
+                    }
+                  },
+                  "remainingFulfillmentOrder": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970878770",
+                    "updatedAt": "2026-07-11T00:04:53Z",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654756658",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733559090",
+                            "title": "Hermes mixed catalog split 20260711000450"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660233522",
+                      "name": "#1819"
+                    }
+                  },
+                  "replacementFulfillmentOrder": null
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 46,
+              "actualQueryCost": 27,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1973,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "cancel": {
+      "query": "fragment FulfillmentOrderMixedCatalogFields on FulfillmentOrder {\n  id\n  updatedAt\n  status\n  requestStatus\n  assignedLocation {\n    name\n    location {\n      id\n      name\n    }\n  }\n  lineItems(first: 5) {\n    nodes {\n      id\n      totalQuantity\n      remainingQuantity\n      lineItem {\n        id\n        title\n      }\n    }\n  }\n  order {\n    id\n    name\n  }\n}\n\nmutation FulfillmentOrderMixedCatalogCancel($id: ID!) {\n  fulfillmentOrderCancel(id: $id) {\n    fulfillmentOrder {\n      ...FulfillmentOrderMixedCatalogFields\n    }\n    replacementFulfillmentOrder {\n      ...FulfillmentOrderMixedCatalogFields\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9877970780466"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentOrderCancel": {
+              "fulfillmentOrder": {
+                "id": "gid://shopify/FulfillmentOrder/9877970780466",
+                "updatedAt": "2026-07-11T00:04:54Z",
+                "status": "CLOSED",
+                "requestStatus": "UNSUBMITTED",
+                "assignedLocation": {
+                  "name": "HAR-654 Main 20260505044352",
+                  "location": {
+                    "id": "gid://shopify/Location/112833036594",
+                    "name": "HAR-654 Main 20260505044352"
+                  }
+                },
+                "lineItems": {
+                  "nodes": []
+                },
+                "order": {
+                  "id": "gid://shopify/Order/8938660266290",
+                  "name": "#1820"
+                }
+              },
+              "replacementFulfillmentOrder": {
+                "id": "gid://shopify/FulfillmentOrder/9877970911538",
+                "updatedAt": "2026-07-11T00:04:54Z",
+                "status": "OPEN",
+                "requestStatus": "UNSUBMITTED",
+                "assignedLocation": {
+                  "name": "HAR-654 Main 20260505044352",
+                  "location": {
+                    "id": "gid://shopify/Location/112833036594",
+                    "name": "HAR-654 Main 20260505044352"
+                  }
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrderLineItem/20095654592818",
+                      "totalQuantity": 1,
+                      "remainingQuantity": 1,
+                      "lineItem": {
+                        "id": "gid://shopify/LineItem/19924733722930",
+                        "title": "Hermes mixed catalog cancelled 20260711000451"
+                      }
+                    }
+                  ]
+                },
+                "order": {
+                  "id": "gid://shopify/Order/8938660266290",
+                  "name": "#1820"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 32,
+              "actualQueryCost": 25,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1975,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "catalog": {
+      "query": "fragment FulfillmentOrderMixedCatalogFields on FulfillmentOrder {\n  id\n  updatedAt\n  status\n  requestStatus\n  assignedLocation {\n    name\n    location {\n      id\n      name\n    }\n  }\n  lineItems(first: 5) {\n    nodes {\n      id\n      totalQuantity\n      remainingQuantity\n      lineItem {\n        id\n        title\n      }\n    }\n  }\n  order {\n    id\n    name\n  }\n}\n\nquery FulfillmentOrderMixedCatalogRead(\n  $first: Int!\n  $idQuery: String!\n  $heldQuery: String!\n  $closedQuery: String!\n  $locationQuery: String!\n  $updatedQuery: String!\n  $locationIds: [ID!]!\n) {\n  openFulfillmentOrders: fulfillmentOrders(first: $first, query: $idQuery, sortKey: ID) {\n    edges {\n      cursor\n      node {\n        ...FulfillmentOrderMixedCatalogFields\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  allFulfillmentOrders: fulfillmentOrders(first: $first, includeClosed: true, query: $idQuery, sortKey: ID) {\n    edges {\n      cursor\n      node {\n        ...FulfillmentOrderMixedCatalogFields\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  reversedFulfillmentOrders: fulfillmentOrders(\n    first: $first\n    includeClosed: true\n    query: $idQuery\n    sortKey: ID\n    reverse: true\n  ) {\n    edges {\n      cursor\n      node {\n        ...FulfillmentOrderMixedCatalogFields\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  heldByStatus: fulfillmentOrders(first: $first, includeClosed: true, query: $heldQuery, sortKey: ID) {\n    edges {\n      cursor\n      node {\n        ...FulfillmentOrderMixedCatalogFields\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  closedByStatus: fulfillmentOrders(first: $first, includeClosed: true, query: $closedQuery, sortKey: ID) {\n    edges {\n      cursor\n      node {\n        ...FulfillmentOrderMixedCatalogFields\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  movedByLocation: fulfillmentOrders(first: $first, includeClosed: true, query: $locationQuery, sortKey: ID) {\n    edges {\n      cursor\n      node {\n        ...FulfillmentOrderMixedCatalogFields\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  updatedWindow: fulfillmentOrders(first: $first, includeClosed: true, query: $updatedQuery, sortKey: UPDATED_AT) {\n    edges {\n      cursor\n      node {\n        ...FulfillmentOrderMixedCatalogFields\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  assignedToService: assignedFulfillmentOrders(\n    first: $first\n    assignmentStatus: FULFILLMENT_UNSUBMITTED\n    locationIds: $locationIds\n    sortKey: ID\n  ) {\n    edges {\n      cursor\n      node {\n        ...FulfillmentOrderMixedCatalogFields\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  manualHoldsFulfillmentOrders(first: $first) {\n    edges {\n      cursor\n      node {\n        ...FulfillmentOrderMixedCatalogFields\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}",
+      "variables": {
+        "first": 20,
+        "idQuery": "(id:9877970616626 OR id:9877970682162 OR id:9877970714930 OR id:9877970747698 OR id:9877970780466)",
+        "heldQuery": "(id:9877970616626 OR id:9877970682162 OR id:9877970714930 OR id:9877970747698 OR id:9877970780466) AND status:ON_HOLD",
+        "closedQuery": "(id:9877970616626 OR id:9877970682162 OR id:9877970714930 OR id:9877970747698 OR id:9877970780466) AND status:CLOSED",
+        "locationQuery": "(id:9877970616626 OR id:9877970682162 OR id:9877970714930 OR id:9877970747698 OR id:9877970780466) AND assigned_location_id:113888330034",
+        "updatedQuery": "(id:9877970616626 OR id:9877970682162 OR id:9877970714930 OR id:9877970747698 OR id:9877970780466) AND updated_at:>=2026-01-01T00:00:00Z",
+        "locationIds": ["gid://shopify/Location/113888330034"]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "openFulfillmentOrders": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjE2NjI2LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDYxNjYyNiJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970616626",
+                    "updatedAt": "2026-07-11T00:04:48Z",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654428978",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733428018",
+                            "title": "Hermes mixed catalog baseline-open 20260711000447"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660069682",
+                      "name": "#1816"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjgyMTYyLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDY4MjE2MiJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970682162",
+                    "updatedAt": "2026-07-11T00:04:52Z",
+                    "status": "ON_HOLD",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654494514",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733493554",
+                            "title": "Hermes mixed catalog held 20260711000448"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660135218",
+                      "name": "#1817"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzE0OTMwLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDcxNDkzMCJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970714930",
+                    "updatedAt": "2026-07-11T00:04:52Z",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "Hermes Mixed Catalog 1783728287462",
+                      "location": {
+                        "id": "gid://shopify/Location/113888330034",
+                        "name": "Hermes Mixed Catalog 1783728287462"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654527282",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733526322",
+                            "title": "Hermes mixed catalog moved 20260711000449"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660167986",
+                      "name": "#1818"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzQ3Njk4LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDc0NzY5OCJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970747698",
+                    "updatedAt": "2026-07-11T00:04:53Z",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654560050",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 2,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733559090",
+                            "title": "Hermes mixed catalog split 20260711000450"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660233522",
+                      "name": "#1819"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjE2NjI2LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDYxNjYyNiJ9",
+                "endCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzQ3Njk4LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDc0NzY5OCJ9"
+              }
+            },
+            "allFulfillmentOrders": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjE2NjI2LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDYxNjYyNiJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970616626",
+                    "updatedAt": "2026-07-11T00:04:48Z",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654428978",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733428018",
+                            "title": "Hermes mixed catalog baseline-open 20260711000447"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660069682",
+                      "name": "#1816"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjgyMTYyLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDY4MjE2MiJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970682162",
+                    "updatedAt": "2026-07-11T00:04:52Z",
+                    "status": "ON_HOLD",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654494514",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733493554",
+                            "title": "Hermes mixed catalog held 20260711000448"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660135218",
+                      "name": "#1817"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzE0OTMwLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDcxNDkzMCJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970714930",
+                    "updatedAt": "2026-07-11T00:04:52Z",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "Hermes Mixed Catalog 1783728287462",
+                      "location": {
+                        "id": "gid://shopify/Location/113888330034",
+                        "name": "Hermes Mixed Catalog 1783728287462"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654527282",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733526322",
+                            "title": "Hermes mixed catalog moved 20260711000449"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660167986",
+                      "name": "#1818"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzQ3Njk4LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDc0NzY5OCJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970747698",
+                    "updatedAt": "2026-07-11T00:04:53Z",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654560050",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 2,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733559090",
+                            "title": "Hermes mixed catalog split 20260711000450"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660233522",
+                      "name": "#1819"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzgwNDY2LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDc4MDQ2NiJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970780466",
+                    "updatedAt": "2026-07-11T00:04:54Z",
+                    "status": "CLOSED",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": []
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660266290",
+                      "name": "#1820"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjE2NjI2LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDYxNjYyNiJ9",
+                "endCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzgwNDY2LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDc4MDQ2NiJ9"
+              }
+            },
+            "reversedFulfillmentOrders": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzgwNDY2LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDc4MDQ2NiJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970780466",
+                    "updatedAt": "2026-07-11T00:04:54Z",
+                    "status": "CLOSED",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": []
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660266290",
+                      "name": "#1820"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzQ3Njk4LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDc0NzY5OCJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970747698",
+                    "updatedAt": "2026-07-11T00:04:53Z",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654560050",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 2,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733559090",
+                            "title": "Hermes mixed catalog split 20260711000450"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660233522",
+                      "name": "#1819"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzE0OTMwLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDcxNDkzMCJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970714930",
+                    "updatedAt": "2026-07-11T00:04:52Z",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "Hermes Mixed Catalog 1783728287462",
+                      "location": {
+                        "id": "gid://shopify/Location/113888330034",
+                        "name": "Hermes Mixed Catalog 1783728287462"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654527282",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733526322",
+                            "title": "Hermes mixed catalog moved 20260711000449"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660167986",
+                      "name": "#1818"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjgyMTYyLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDY4MjE2MiJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970682162",
+                    "updatedAt": "2026-07-11T00:04:52Z",
+                    "status": "ON_HOLD",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654494514",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733493554",
+                            "title": "Hermes mixed catalog held 20260711000448"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660135218",
+                      "name": "#1817"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjE2NjI2LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDYxNjYyNiJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970616626",
+                    "updatedAt": "2026-07-11T00:04:48Z",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654428978",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733428018",
+                            "title": "Hermes mixed catalog baseline-open 20260711000447"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660069682",
+                      "name": "#1816"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzgwNDY2LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDc4MDQ2NiJ9",
+                "endCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjE2NjI2LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDYxNjYyNiJ9"
+              }
+            },
+            "heldByStatus": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjgyMTYyLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDY4MjE2MiJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970682162",
+                    "updatedAt": "2026-07-11T00:04:52Z",
+                    "status": "ON_HOLD",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654494514",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733493554",
+                            "title": "Hermes mixed catalog held 20260711000448"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660135218",
+                      "name": "#1817"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjgyMTYyLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDY4MjE2MiJ9",
+                "endCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjgyMTYyLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDY4MjE2MiJ9"
+              }
+            },
+            "closedByStatus": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzgwNDY2LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDc4MDQ2NiJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970780466",
+                    "updatedAt": "2026-07-11T00:04:54Z",
+                    "status": "CLOSED",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": []
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660266290",
+                      "name": "#1820"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzgwNDY2LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDc4MDQ2NiJ9",
+                "endCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzgwNDY2LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDc4MDQ2NiJ9"
+              }
+            },
+            "movedByLocation": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzE0OTMwLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDcxNDkzMCJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970714930",
+                    "updatedAt": "2026-07-11T00:04:52Z",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "Hermes Mixed Catalog 1783728287462",
+                      "location": {
+                        "id": "gid://shopify/Location/113888330034",
+                        "name": "Hermes Mixed Catalog 1783728287462"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654527282",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733526322",
+                            "title": "Hermes mixed catalog moved 20260711000449"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660167986",
+                      "name": "#1818"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzE0OTMwLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDcxNDkzMCJ9",
+                "endCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzE0OTMwLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDcxNDkzMCJ9"
+              }
+            },
+            "updatedWindow": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjE2NjI2LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0xMSAwMDowNDo0OC4yOTY0NTgifQ==",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970616626",
+                    "updatedAt": "2026-07-11T00:04:48Z",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654428978",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733428018",
+                            "title": "Hermes mixed catalog baseline-open 20260711000447"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660069682",
+                      "name": "#1816"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjgyMTYyLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0xMSAwMDowNDo1Mi4xNjA1NjUifQ==",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970682162",
+                    "updatedAt": "2026-07-11T00:04:52Z",
+                    "status": "ON_HOLD",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654494514",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733493554",
+                            "title": "Hermes mixed catalog held 20260711000448"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660135218",
+                      "name": "#1817"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzE0OTMwLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0xMSAwMDowNDo1Mi44NDUwMzQifQ==",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970714930",
+                    "updatedAt": "2026-07-11T00:04:52Z",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "Hermes Mixed Catalog 1783728287462",
+                      "location": {
+                        "id": "gid://shopify/Location/113888330034",
+                        "name": "Hermes Mixed Catalog 1783728287462"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654527282",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733526322",
+                            "title": "Hermes mixed catalog moved 20260711000449"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660167986",
+                      "name": "#1818"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzQ3Njk4LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0xMSAwMDowNDo1My42NDYzNjMifQ==",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970747698",
+                    "updatedAt": "2026-07-11T00:04:53Z",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654560050",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 2,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733559090",
+                            "title": "Hermes mixed catalog split 20260711000450"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660233522",
+                      "name": "#1819"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzgwNDY2LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0xMSAwMDowNDo1NC4xNDYzMDMifQ==",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970780466",
+                    "updatedAt": "2026-07-11T00:04:54Z",
+                    "status": "CLOSED",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": []
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660266290",
+                      "name": "#1820"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjE2NjI2LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0xMSAwMDowNDo0OC4yOTY0NTgifQ==",
+                "endCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzgwNDY2LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0xMSAwMDowNDo1NC4xNDYzMDMifQ=="
+              }
+            },
+            "assignedToService": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzE0OTMwLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDcxNDkzMCJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970714930",
+                    "updatedAt": "2026-07-11T00:04:52Z",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "Hermes Mixed Catalog 1783728287462",
+                      "location": {
+                        "id": "gid://shopify/Location/113888330034",
+                        "name": "Hermes Mixed Catalog 1783728287462"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654527282",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733526322",
+                            "title": "Hermes mixed catalog moved 20260711000449"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660167986",
+                      "name": "#1818"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzE0OTMwLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDcxNDkzMCJ9",
+                "endCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzE0OTMwLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDcxNDkzMCJ9"
+              }
+            },
+            "manualHoldsFulfillmentOrders": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjgyMTYyLCJsYXN0X3ZhbHVlIjo5ODc3OTcwNjgyMTYyfQ==",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970682162",
+                    "updatedAt": "2026-07-11T00:04:52Z",
+                    "status": "ON_HOLD",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654494514",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733493554",
+                            "title": "Hermes mixed catalog held 20260711000448"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660135218",
+                      "name": "#1817"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjgyMTYyLCJsYXN0X3ZhbHVlIjo5ODc3OTcwNjgyMTYyfQ==",
+                "endCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjgyMTYyLCJsYXN0X3ZhbHVlIjo5ODc3OTcwNjgyMTYyfQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 558,
+              "actualQueryCost": 64,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1936,
+                "restoreRate": 100
+              }
+            },
+            "search": [
+              {
+                "path": ["updatedWindow"],
+                "query": "(id:9877970616626 OR id:9877970682162 OR id:9877970714930 OR id:9877970747698 OR id:9877970780466) AND updated_at:>=2026-01-01T00:00:00Z",
+                "parsed": {
+                  "and": [
+                    {
+                      "field": "updated_at",
+                      "range_gte": "2026-01-01T00:00:00-05:00"
+                    },
+                    {
+                      "or": [
+                        {
+                          "field": "id",
+                          "match_all": "9877970616626"
+                        },
+                        {
+                          "field": "id",
+                          "match_all": "9877970682162"
+                        },
+                        {
+                          "field": "id",
+                          "match_all": "9877970714930"
+                        },
+                        {
+                          "field": "id",
+                          "match_all": "9877970747698"
+                        },
+                        {
+                          "field": "id",
+                          "match_all": "9877970780466"
+                        }
+                      ]
+                    },
+                    {
+                      "field": "00",
+                      "match_all": "00Z"
+                    }
+                  ]
+                },
+                "warnings": [
+                  {
+                    "field": "00",
+                    "message": "Invalid search field for this query.",
+                    "code": "invalid_field"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    "page1": {
+      "query": "fragment FulfillmentOrderMixedCatalogPageFields on FulfillmentOrder {\n  id\n  updatedAt\n  status\n  requestStatus\n  assignedLocation {\n    name\n    location {\n      id\n      name\n    }\n  }\n  order {\n    id\n    name\n  }\n}\n\nquery FulfillmentOrderMixedCatalogPage($first: Int, $last: Int, $after: String, $before: String, $idQuery: String!) {\n  page: fulfillmentOrders(\n    first: $first\n    last: $last\n    after: $after\n    before: $before\n    includeClosed: true\n    query: $idQuery\n    sortKey: ID\n  ) {\n    edges {\n      cursor\n      node {\n        ...FulfillmentOrderMixedCatalogPageFields\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}",
+      "variables": {
+        "first": 2,
+        "last": null,
+        "after": null,
+        "before": null,
+        "idQuery": "(id:9877970616626 OR id:9877970682162 OR id:9877970714930 OR id:9877970747698 OR id:9877970780466)"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "page": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjE2NjI2LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDYxNjYyNiJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970616626",
+                    "updatedAt": "2026-07-11T00:04:48Z",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660069682",
+                      "name": "#1816"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjgyMTYyLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDY4MjE2MiJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970682162",
+                    "updatedAt": "2026-07-11T00:04:52Z",
+                    "status": "ON_HOLD",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660135218",
+                      "name": "#1817"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjE2NjI2LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDYxNjYyNiJ9",
+                "endCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjgyMTYyLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDY4MjE2MiJ9"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 6,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1961,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "pageAfter": {
+      "query": "fragment FulfillmentOrderMixedCatalogPageFields on FulfillmentOrder {\n  id\n  updatedAt\n  status\n  requestStatus\n  assignedLocation {\n    name\n    location {\n      id\n      name\n    }\n  }\n  order {\n    id\n    name\n  }\n}\n\nquery FulfillmentOrderMixedCatalogPage($first: Int, $last: Int, $after: String, $before: String, $idQuery: String!) {\n  page: fulfillmentOrders(\n    first: $first\n    last: $last\n    after: $after\n    before: $before\n    includeClosed: true\n    query: $idQuery\n    sortKey: ID\n  ) {\n    edges {\n      cursor\n      node {\n        ...FulfillmentOrderMixedCatalogPageFields\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}",
+      "variables": {
+        "first": 2,
+        "last": null,
+        "after": "eyJsYXN0X2lkIjo5ODc3OTcwNjgyMTYyLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDY4MjE2MiJ9",
+        "before": null,
+        "idQuery": "(id:9877970616626 OR id:9877970682162 OR id:9877970714930 OR id:9877970747698 OR id:9877970780466)"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "page": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzE0OTMwLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDcxNDkzMCJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970714930",
+                    "updatedAt": "2026-07-11T00:04:52Z",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "Hermes Mixed Catalog 1783728287462",
+                      "location": {
+                        "id": "gid://shopify/Location/113888330034",
+                        "name": "Hermes Mixed Catalog 1783728287462"
+                      }
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660167986",
+                      "name": "#1818"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzQ3Njk4LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDc0NzY5OCJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970747698",
+                    "updatedAt": "2026-07-11T00:04:53Z",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660233522",
+                      "name": "#1819"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": true,
+                "startCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzE0OTMwLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDcxNDkzMCJ9",
+                "endCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzQ3Njk4LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDc0NzY5OCJ9"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 6,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1968,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "pageBefore": {
+      "query": "fragment FulfillmentOrderMixedCatalogPageFields on FulfillmentOrder {\n  id\n  updatedAt\n  status\n  requestStatus\n  assignedLocation {\n    name\n    location {\n      id\n      name\n    }\n  }\n  order {\n    id\n    name\n  }\n}\n\nquery FulfillmentOrderMixedCatalogPage($first: Int, $last: Int, $after: String, $before: String, $idQuery: String!) {\n  page: fulfillmentOrders(\n    first: $first\n    last: $last\n    after: $after\n    before: $before\n    includeClosed: true\n    query: $idQuery\n    sortKey: ID\n  ) {\n    edges {\n      cursor\n      node {\n        ...FulfillmentOrderMixedCatalogPageFields\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}",
+      "variables": {
+        "first": null,
+        "last": 1,
+        "after": null,
+        "before": "eyJsYXN0X2lkIjo5ODc3OTcwNzE0OTMwLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDcxNDkzMCJ9",
+        "idQuery": "(id:9877970616626 OR id:9877970682162 OR id:9877970714930 OR id:9877970747698 OR id:9877970780466)"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "page": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjgyMTYyLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDY4MjE2MiJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970682162",
+                    "updatedAt": "2026-07-11T00:04:52Z",
+                    "status": "ON_HOLD",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660135218",
+                      "name": "#1817"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": true,
+                "startCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjgyMTYyLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDY4MjE2MiJ9",
+                "endCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjgyMTYyLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDY4MjE2MiJ9"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 6,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1974,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {},
+  "upstreamCalls": [
+    {
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "query": "\nquery ShippingFulfillmentOrderHydrate($id: ID!) {\n  node(id: $id) {\n    __typename\n    ... on FulfillmentOrder {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      lineItems(first: 250) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9877970682162"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "node": {
+              "__typename": "FulfillmentOrder",
+              "id": "gid://shopify/FulfillmentOrder/9877970682162",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-07-11T00:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-07-11T00:04:49Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                }
+              ],
+              "assignedLocation": {
+                "name": "HAR-654 Main 20260505044352",
+                "location": {
+                  "id": "gid://shopify/Location/112833036594",
+                  "name": "HAR-654 Main 20260505044352"
+                }
+              },
+              "fulfillmentHolds": [],
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/20095654494514",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19924733493554",
+                      "title": "Hermes mixed catalog held 20260711000448",
+                      "quantity": 1,
+                      "fulfillableQuantity": 1
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8938660135218",
+                "name": "#1817",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 31,
+              "actualQueryCost": 9,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1991,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "query": "\nquery ShippingFulfillmentOrderHydrate($id: ID!) {\n  node(id: $id) {\n    __typename\n    ... on FulfillmentOrder {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      lineItems(first: 250) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9877970714930"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "node": {
+              "__typename": "FulfillmentOrder",
+              "id": "gid://shopify/FulfillmentOrder/9877970714930",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-07-11T00:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-07-11T00:04:50Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                }
+              ],
+              "assignedLocation": {
+                "name": "HAR-654 Main 20260505044352",
+                "location": {
+                  "id": "gid://shopify/Location/112833036594",
+                  "name": "HAR-654 Main 20260505044352"
+                }
+              },
+              "fulfillmentHolds": [],
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/20095654527282",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19924733526322",
+                      "title": "Hermes mixed catalog moved 20260711000449",
+                      "quantity": 1,
+                      "fulfillableQuantity": 1
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8938660167986",
+                "name": "#1818",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 31,
+              "actualQueryCost": 9,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1991,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "StorePropertiesLocationHydrate",
+      "query": "query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: \"custom\", key: \"hours\") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: [\"available\", \"committed\", \"on_hand\"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }",
+      "variables": {
+        "id": "gid://shopify/Location/113888330034"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/113888330034",
+              "legacyResourceId": "113888330034",
+              "name": "Hermes Mixed Catalog 1783728287462",
+              "activatable": true,
+              "addressVerified": true,
+              "createdAt": "2026-07-11T00:04:47Z",
+              "deactivatable": false,
+              "deactivatedAt": null,
+              "deletable": true,
+              "fulfillsOnlineOrders": true,
+              "hasActiveInventory": false,
+              "hasUnfulfilledOrders": false,
+              "isActive": true,
+              "isFulfillmentService": true,
+              "isPrimary": false,
+              "shipsInventory": false,
+              "updatedAt": "2026-07-11T00:04:47Z",
+              "fulfillmentService": {
+                "id": "gid://shopify/FulfillmentService/72102084914?id=true",
+                "handle": "hermes-mixed-catalog-1783728287462",
+                "serviceName": "Hermes Mixed Catalog 1783728287462"
+              },
+              "address": {
+                "address1": null,
+                "address2": null,
+                "city": null,
+                "country": "Canada",
+                "countryCode": "CA",
+                "formatted": ["Canada"],
+                "latitude": null,
+                "longitude": null,
+                "phone": null,
+                "province": null,
+                "provinceCode": null,
+                "zip": null
+              },
+              "suggestedAddresses": [],
+              "metafield": null,
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "inventoryLevels": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9877970747698"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9877970747698",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-07-11T00:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-07-11T00:04:50Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                },
+                {
+                  "action": "SPLIT"
+                }
+              ],
+              "assignedLocation": {
+                "name": "HAR-654 Main 20260505044352",
+                "location": {
+                  "id": "gid://shopify/Location/112833036594",
+                  "name": "HAR-654 Main 20260505044352"
+                }
+              },
+              "fulfillmentHolds": [],
+              "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/20095654560050",
+                    "totalQuantity": 3,
+                    "remainingQuantity": 3,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19924733559090",
+                      "title": "Hermes mixed catalog split 20260711000450",
+                      "quantity": 3,
+                      "fulfillableQuantity": 3
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8938660233522",
+                "name": "#1819",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "query": "\nquery ShippingFulfillmentOrderHydrate($id: ID!) {\n  node(id: $id) {\n    __typename\n    ... on FulfillmentOrder {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      lineItems(first: 250) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9877970780466"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "node": {
+              "__typename": "FulfillmentOrder",
+              "id": "gid://shopify/FulfillmentOrder/9877970780466",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-07-11T00:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-07-11T00:04:51Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                }
+              ],
+              "assignedLocation": {
+                "name": "HAR-654 Main 20260505044352",
+                "location": {
+                  "id": "gid://shopify/Location/112833036594",
+                  "name": "HAR-654 Main 20260505044352"
+                }
+              },
+              "fulfillmentHolds": [],
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/20095654592818",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19924733722930",
+                      "title": "Hermes mixed catalog cancelled 20260711000451",
+                      "quantity": 1,
+                      "fulfillableQuantity": 1
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8938660266290",
+                "name": "#1820",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 31,
+              "actualQueryCost": 9,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "FulfillmentOrderMixedCatalogRead",
+      "query": "fragment FulfillmentOrderMixedCatalogFields on FulfillmentOrder {\n  id\n  updatedAt\n  status\n  requestStatus\n  assignedLocation {\n    name\n    location {\n      id\n      name\n    }\n  }\n  lineItems(first: 5) {\n    nodes {\n      id\n      totalQuantity\n      remainingQuantity\n      lineItem {\n        id\n        title\n      }\n    }\n  }\n  order {\n    id\n    name\n  }\n}\n\nquery FulfillmentOrderMixedCatalogRead(\n  $first: Int!\n  $idQuery: String!\n  $heldQuery: String!\n  $closedQuery: String!\n  $locationQuery: String!\n  $updatedQuery: String!\n  $locationIds: [ID!]!\n) {\n  openFulfillmentOrders: fulfillmentOrders(first: $first, query: $idQuery, sortKey: ID) {\n    edges {\n      cursor\n      node {\n        ...FulfillmentOrderMixedCatalogFields\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  allFulfillmentOrders: fulfillmentOrders(first: $first, includeClosed: true, query: $idQuery, sortKey: ID) {\n    edges {\n      cursor\n      node {\n        ...FulfillmentOrderMixedCatalogFields\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  reversedFulfillmentOrders: fulfillmentOrders(\n    first: $first\n    includeClosed: true\n    query: $idQuery\n    sortKey: ID\n    reverse: true\n  ) {\n    edges {\n      cursor\n      node {\n        ...FulfillmentOrderMixedCatalogFields\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  heldByStatus: fulfillmentOrders(first: $first, includeClosed: true, query: $heldQuery, sortKey: ID) {\n    edges {\n      cursor\n      node {\n        ...FulfillmentOrderMixedCatalogFields\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  closedByStatus: fulfillmentOrders(first: $first, includeClosed: true, query: $closedQuery, sortKey: ID) {\n    edges {\n      cursor\n      node {\n        ...FulfillmentOrderMixedCatalogFields\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  movedByLocation: fulfillmentOrders(first: $first, includeClosed: true, query: $locationQuery, sortKey: ID) {\n    edges {\n      cursor\n      node {\n        ...FulfillmentOrderMixedCatalogFields\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  updatedWindow: fulfillmentOrders(first: $first, includeClosed: true, query: $updatedQuery, sortKey: UPDATED_AT) {\n    edges {\n      cursor\n      node {\n        ...FulfillmentOrderMixedCatalogFields\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  assignedToService: assignedFulfillmentOrders(\n    first: $first\n    assignmentStatus: FULFILLMENT_UNSUBMITTED\n    locationIds: $locationIds\n    sortKey: ID\n  ) {\n    edges {\n      cursor\n      node {\n        ...FulfillmentOrderMixedCatalogFields\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  manualHoldsFulfillmentOrders(first: $first) {\n    edges {\n      cursor\n      node {\n        ...FulfillmentOrderMixedCatalogFields\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}",
+      "variables": {
+        "first": 20,
+        "idQuery": "(id:9877970616626 OR id:9877970682162 OR id:9877970714930 OR id:9877970747698 OR id:9877970780466)",
+        "heldQuery": "(id:9877970616626 OR id:9877970682162 OR id:9877970714930 OR id:9877970747698 OR id:9877970780466) AND status:ON_HOLD",
+        "closedQuery": "(id:9877970616626 OR id:9877970682162 OR id:9877970714930 OR id:9877970747698 OR id:9877970780466) AND status:CLOSED",
+        "locationQuery": "(id:9877970616626 OR id:9877970682162 OR id:9877970714930 OR id:9877970747698 OR id:9877970780466) AND assigned_location_id:113888330034",
+        "updatedQuery": "(id:9877970616626 OR id:9877970682162 OR id:9877970714930 OR id:9877970747698 OR id:9877970780466) AND updated_at:>=2026-01-01T00:00:00Z",
+        "locationIds": ["gid://shopify/Location/113888330034"]
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "openFulfillmentOrders": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjE2NjI2LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDYxNjYyNiJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970616626",
+                    "updatedAt": "2026-07-11T00:04:48Z",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654428978",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733428018",
+                            "title": "Hermes mixed catalog baseline-open 20260711000447"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660069682",
+                      "name": "#1816"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjgyMTYyLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDY4MjE2MiJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970682162",
+                    "updatedAt": "2026-07-11T00:04:52Z",
+                    "status": "ON_HOLD",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654494514",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733493554",
+                            "title": "Hermes mixed catalog held 20260711000448"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660135218",
+                      "name": "#1817"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzE0OTMwLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDcxNDkzMCJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970714930",
+                    "updatedAt": "2026-07-11T00:04:52Z",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "Hermes Mixed Catalog 1783728287462",
+                      "location": {
+                        "id": "gid://shopify/Location/113888330034",
+                        "name": "Hermes Mixed Catalog 1783728287462"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654527282",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733526322",
+                            "title": "Hermes mixed catalog moved 20260711000449"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660167986",
+                      "name": "#1818"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzQ3Njk4LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDc0NzY5OCJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970747698",
+                    "updatedAt": "2026-07-11T00:04:53Z",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654560050",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 2,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733559090",
+                            "title": "Hermes mixed catalog split 20260711000450"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660233522",
+                      "name": "#1819"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjE2NjI2LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDYxNjYyNiJ9",
+                "endCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzQ3Njk4LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDc0NzY5OCJ9"
+              }
+            },
+            "allFulfillmentOrders": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjE2NjI2LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDYxNjYyNiJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970616626",
+                    "updatedAt": "2026-07-11T00:04:48Z",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654428978",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733428018",
+                            "title": "Hermes mixed catalog baseline-open 20260711000447"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660069682",
+                      "name": "#1816"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjgyMTYyLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDY4MjE2MiJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970682162",
+                    "updatedAt": "2026-07-11T00:04:52Z",
+                    "status": "ON_HOLD",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654494514",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733493554",
+                            "title": "Hermes mixed catalog held 20260711000448"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660135218",
+                      "name": "#1817"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzE0OTMwLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDcxNDkzMCJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970714930",
+                    "updatedAt": "2026-07-11T00:04:52Z",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "Hermes Mixed Catalog 1783728287462",
+                      "location": {
+                        "id": "gid://shopify/Location/113888330034",
+                        "name": "Hermes Mixed Catalog 1783728287462"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654527282",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733526322",
+                            "title": "Hermes mixed catalog moved 20260711000449"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660167986",
+                      "name": "#1818"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzQ3Njk4LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDc0NzY5OCJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970747698",
+                    "updatedAt": "2026-07-11T00:04:53Z",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654560050",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 2,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733559090",
+                            "title": "Hermes mixed catalog split 20260711000450"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660233522",
+                      "name": "#1819"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzgwNDY2LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDc4MDQ2NiJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970780466",
+                    "updatedAt": "2026-07-11T00:04:54Z",
+                    "status": "CLOSED",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": []
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660266290",
+                      "name": "#1820"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjE2NjI2LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDYxNjYyNiJ9",
+                "endCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzgwNDY2LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDc4MDQ2NiJ9"
+              }
+            },
+            "reversedFulfillmentOrders": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzgwNDY2LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDc4MDQ2NiJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970780466",
+                    "updatedAt": "2026-07-11T00:04:54Z",
+                    "status": "CLOSED",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": []
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660266290",
+                      "name": "#1820"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzQ3Njk4LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDc0NzY5OCJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970747698",
+                    "updatedAt": "2026-07-11T00:04:53Z",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654560050",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 2,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733559090",
+                            "title": "Hermes mixed catalog split 20260711000450"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660233522",
+                      "name": "#1819"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzE0OTMwLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDcxNDkzMCJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970714930",
+                    "updatedAt": "2026-07-11T00:04:52Z",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "Hermes Mixed Catalog 1783728287462",
+                      "location": {
+                        "id": "gid://shopify/Location/113888330034",
+                        "name": "Hermes Mixed Catalog 1783728287462"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654527282",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733526322",
+                            "title": "Hermes mixed catalog moved 20260711000449"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660167986",
+                      "name": "#1818"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjgyMTYyLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDY4MjE2MiJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970682162",
+                    "updatedAt": "2026-07-11T00:04:52Z",
+                    "status": "ON_HOLD",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654494514",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733493554",
+                            "title": "Hermes mixed catalog held 20260711000448"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660135218",
+                      "name": "#1817"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjE2NjI2LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDYxNjYyNiJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970616626",
+                    "updatedAt": "2026-07-11T00:04:48Z",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654428978",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733428018",
+                            "title": "Hermes mixed catalog baseline-open 20260711000447"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660069682",
+                      "name": "#1816"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzgwNDY2LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDc4MDQ2NiJ9",
+                "endCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjE2NjI2LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDYxNjYyNiJ9"
+              }
+            },
+            "heldByStatus": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjgyMTYyLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDY4MjE2MiJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970682162",
+                    "updatedAt": "2026-07-11T00:04:52Z",
+                    "status": "ON_HOLD",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654494514",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733493554",
+                            "title": "Hermes mixed catalog held 20260711000448"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660135218",
+                      "name": "#1817"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjgyMTYyLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDY4MjE2MiJ9",
+                "endCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjgyMTYyLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDY4MjE2MiJ9"
+              }
+            },
+            "closedByStatus": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzgwNDY2LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDc4MDQ2NiJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970780466",
+                    "updatedAt": "2026-07-11T00:04:54Z",
+                    "status": "CLOSED",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": []
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660266290",
+                      "name": "#1820"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzgwNDY2LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDc4MDQ2NiJ9",
+                "endCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzgwNDY2LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDc4MDQ2NiJ9"
+              }
+            },
+            "movedByLocation": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzE0OTMwLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDcxNDkzMCJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970714930",
+                    "updatedAt": "2026-07-11T00:04:52Z",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "Hermes Mixed Catalog 1783728287462",
+                      "location": {
+                        "id": "gid://shopify/Location/113888330034",
+                        "name": "Hermes Mixed Catalog 1783728287462"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654527282",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733526322",
+                            "title": "Hermes mixed catalog moved 20260711000449"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660167986",
+                      "name": "#1818"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzE0OTMwLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDcxNDkzMCJ9",
+                "endCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzE0OTMwLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDcxNDkzMCJ9"
+              }
+            },
+            "updatedWindow": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjE2NjI2LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0xMSAwMDowNDo0OC4yOTY0NTgifQ==",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970616626",
+                    "updatedAt": "2026-07-11T00:04:48Z",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654428978",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733428018",
+                            "title": "Hermes mixed catalog baseline-open 20260711000447"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660069682",
+                      "name": "#1816"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjgyMTYyLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0xMSAwMDowNDo1Mi4xNjA1NjUifQ==",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970682162",
+                    "updatedAt": "2026-07-11T00:04:52Z",
+                    "status": "ON_HOLD",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654494514",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733493554",
+                            "title": "Hermes mixed catalog held 20260711000448"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660135218",
+                      "name": "#1817"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzE0OTMwLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0xMSAwMDowNDo1Mi44NDUwMzQifQ==",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970714930",
+                    "updatedAt": "2026-07-11T00:04:52Z",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "Hermes Mixed Catalog 1783728287462",
+                      "location": {
+                        "id": "gid://shopify/Location/113888330034",
+                        "name": "Hermes Mixed Catalog 1783728287462"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654527282",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733526322",
+                            "title": "Hermes mixed catalog moved 20260711000449"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660167986",
+                      "name": "#1818"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzQ3Njk4LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0xMSAwMDowNDo1My42NDYzNjMifQ==",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970747698",
+                    "updatedAt": "2026-07-11T00:04:53Z",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654560050",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 2,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733559090",
+                            "title": "Hermes mixed catalog split 20260711000450"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660233522",
+                      "name": "#1819"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzgwNDY2LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0xMSAwMDowNDo1NC4xNDYzMDMifQ==",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970780466",
+                    "updatedAt": "2026-07-11T00:04:54Z",
+                    "status": "CLOSED",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": []
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660266290",
+                      "name": "#1820"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjE2NjI2LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0xMSAwMDowNDo0OC4yOTY0NTgifQ==",
+                "endCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzgwNDY2LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0xMSAwMDowNDo1NC4xNDYzMDMifQ=="
+              }
+            },
+            "assignedToService": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzE0OTMwLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDcxNDkzMCJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970714930",
+                    "updatedAt": "2026-07-11T00:04:52Z",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "Hermes Mixed Catalog 1783728287462",
+                      "location": {
+                        "id": "gid://shopify/Location/113888330034",
+                        "name": "Hermes Mixed Catalog 1783728287462"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654527282",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733526322",
+                            "title": "Hermes mixed catalog moved 20260711000449"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660167986",
+                      "name": "#1818"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzE0OTMwLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDcxNDkzMCJ9",
+                "endCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzE0OTMwLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDcxNDkzMCJ9"
+              }
+            },
+            "manualHoldsFulfillmentOrders": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjgyMTYyLCJsYXN0X3ZhbHVlIjo5ODc3OTcwNjgyMTYyfQ==",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970682162",
+                    "updatedAt": "2026-07-11T00:04:52Z",
+                    "status": "ON_HOLD",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/20095654494514",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19924733493554",
+                            "title": "Hermes mixed catalog held 20260711000448"
+                          }
+                        }
+                      ]
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660135218",
+                      "name": "#1817"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjgyMTYyLCJsYXN0X3ZhbHVlIjo5ODc3OTcwNjgyMTYyfQ==",
+                "endCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjgyMTYyLCJsYXN0X3ZhbHVlIjo5ODc3OTcwNjgyMTYyfQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 558,
+              "actualQueryCost": 64,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1936,
+                "restoreRate": 100
+              }
+            },
+            "search": [
+              {
+                "path": ["updatedWindow"],
+                "query": "(id:9877970616626 OR id:9877970682162 OR id:9877970714930 OR id:9877970747698 OR id:9877970780466) AND updated_at:>=2026-01-01T00:00:00Z",
+                "parsed": {
+                  "and": [
+                    {
+                      "field": "updated_at",
+                      "range_gte": "2026-01-01T00:00:00-05:00"
+                    },
+                    {
+                      "or": [
+                        {
+                          "field": "id",
+                          "match_all": "9877970616626"
+                        },
+                        {
+                          "field": "id",
+                          "match_all": "9877970682162"
+                        },
+                        {
+                          "field": "id",
+                          "match_all": "9877970714930"
+                        },
+                        {
+                          "field": "id",
+                          "match_all": "9877970747698"
+                        },
+                        {
+                          "field": "id",
+                          "match_all": "9877970780466"
+                        }
+                      ]
+                    },
+                    {
+                      "field": "00",
+                      "match_all": "00Z"
+                    }
+                  ]
+                },
+                "warnings": [
+                  {
+                    "field": "00",
+                    "message": "Invalid search field for this query.",
+                    "code": "invalid_field"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "FulfillmentOrderMixedCatalogPage",
+      "query": "fragment FulfillmentOrderMixedCatalogPageFields on FulfillmentOrder {\n  id\n  updatedAt\n  status\n  requestStatus\n  assignedLocation {\n    name\n    location {\n      id\n      name\n    }\n  }\n  order {\n    id\n    name\n  }\n}\n\nquery FulfillmentOrderMixedCatalogPage($first: Int, $last: Int, $after: String, $before: String, $idQuery: String!) {\n  page: fulfillmentOrders(\n    first: $first\n    last: $last\n    after: $after\n    before: $before\n    includeClosed: true\n    query: $idQuery\n    sortKey: ID\n  ) {\n    edges {\n      cursor\n      node {\n        ...FulfillmentOrderMixedCatalogPageFields\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}",
+      "variables": {
+        "first": 2,
+        "last": null,
+        "after": null,
+        "before": null,
+        "idQuery": "(id:9877970616626 OR id:9877970682162 OR id:9877970714930 OR id:9877970747698 OR id:9877970780466)"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "page": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjE2NjI2LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDYxNjYyNiJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970616626",
+                    "updatedAt": "2026-07-11T00:04:48Z",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660069682",
+                      "name": "#1816"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjgyMTYyLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDY4MjE2MiJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970682162",
+                    "updatedAt": "2026-07-11T00:04:52Z",
+                    "status": "ON_HOLD",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660135218",
+                      "name": "#1817"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjE2NjI2LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDYxNjYyNiJ9",
+                "endCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjgyMTYyLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDY4MjE2MiJ9"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 6,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1961,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "FulfillmentOrderMixedCatalogPageAfter",
+      "query": "fragment FulfillmentOrderMixedCatalogPageFields on FulfillmentOrder {\n  id\n  updatedAt\n  status\n  requestStatus\n  assignedLocation {\n    name\n    location {\n      id\n      name\n    }\n  }\n  order {\n    id\n    name\n  }\n}\n\nquery FulfillmentOrderMixedCatalogPage($first: Int, $last: Int, $after: String, $before: String, $idQuery: String!) {\n  page: fulfillmentOrders(\n    first: $first\n    last: $last\n    after: $after\n    before: $before\n    includeClosed: true\n    query: $idQuery\n    sortKey: ID\n  ) {\n    edges {\n      cursor\n      node {\n        ...FulfillmentOrderMixedCatalogPageFields\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}",
+      "variables": {
+        "first": 2,
+        "last": null,
+        "after": "eyJsYXN0X2lkIjo5ODc3OTcwNjgyMTYyLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDY4MjE2MiJ9",
+        "before": null,
+        "idQuery": "(id:9877970616626 OR id:9877970682162 OR id:9877970714930 OR id:9877970747698 OR id:9877970780466)"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "page": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzE0OTMwLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDcxNDkzMCJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970714930",
+                    "updatedAt": "2026-07-11T00:04:52Z",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "Hermes Mixed Catalog 1783728287462",
+                      "location": {
+                        "id": "gid://shopify/Location/113888330034",
+                        "name": "Hermes Mixed Catalog 1783728287462"
+                      }
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660167986",
+                      "name": "#1818"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzQ3Njk4LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDc0NzY5OCJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970747698",
+                    "updatedAt": "2026-07-11T00:04:53Z",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660233522",
+                      "name": "#1819"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": true,
+                "startCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzE0OTMwLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDcxNDkzMCJ9",
+                "endCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNzQ3Njk4LCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDc0NzY5OCJ9"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 6,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1968,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "FulfillmentOrderMixedCatalogPageBefore",
+      "query": "fragment FulfillmentOrderMixedCatalogPageFields on FulfillmentOrder {\n  id\n  updatedAt\n  status\n  requestStatus\n  assignedLocation {\n    name\n    location {\n      id\n      name\n    }\n  }\n  order {\n    id\n    name\n  }\n}\n\nquery FulfillmentOrderMixedCatalogPage($first: Int, $last: Int, $after: String, $before: String, $idQuery: String!) {\n  page: fulfillmentOrders(\n    first: $first\n    last: $last\n    after: $after\n    before: $before\n    includeClosed: true\n    query: $idQuery\n    sortKey: ID\n  ) {\n    edges {\n      cursor\n      node {\n        ...FulfillmentOrderMixedCatalogPageFields\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}",
+      "variables": {
+        "first": null,
+        "last": 1,
+        "after": null,
+        "before": "eyJsYXN0X2lkIjo5ODc3OTcwNzE0OTMwLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDcxNDkzMCJ9",
+        "idQuery": "(id:9877970616626 OR id:9877970682162 OR id:9877970714930 OR id:9877970747698 OR id:9877970780466)"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "page": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjgyMTYyLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDY4MjE2MiJ9",
+                  "node": {
+                    "id": "gid://shopify/FulfillmentOrder/9877970682162",
+                    "updatedAt": "2026-07-11T00:04:52Z",
+                    "status": "ON_HOLD",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594",
+                        "name": "HAR-654 Main 20260505044352"
+                      }
+                    },
+                    "order": {
+                      "id": "gid://shopify/Order/8938660135218",
+                      "name": "#1817"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": true,
+                "startCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjgyMTYyLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDY4MjE2MiJ9",
+                "endCursor": "eyJsYXN0X2lkIjo5ODc3OTcwNjgyMTYyLCJsYXN0X3ZhbHVlIjoiOTg3Nzk3MDY4MjE2MiJ9"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 6,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1974,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

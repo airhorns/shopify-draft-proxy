@@ -11467,6 +11467,35 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'shipping-fulfillments',
+    captureId: 'fulfillment-order-mixed-catalog-lifecycle',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-fulfillment-order-mixed-catalog-conformance.ts',
+    purpose:
+      'Mixed fulfillment-order top-level catalog evidence after held, moved, split, and cancelled lifecycle changes over a disposable live baseline.',
+    requiredAuthScopes: [
+      'read_orders',
+      'write_orders',
+      'read_fulfillments',
+      'write_fulfillments',
+      'read_shipping',
+      'write_shipping',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-order-mixed-catalog-lifecycle.json`,
+      'config/parity-specs/shipping-fulfillments/fulfillment-order-mixed-catalog-lifecycle.json',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-mixed-catalog-hold.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-mixed-catalog-move.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-mixed-catalog-split.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-mixed-catalog-cancel.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-mixed-catalog-read.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-mixed-catalog-page.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable orders and a temporary fulfillment service, records mixed top-level catalog reads, then cancels the orders and deletes the fulfillment service.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'store-properties',
     captureId: 'orphaned-store-property-fixtures',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
