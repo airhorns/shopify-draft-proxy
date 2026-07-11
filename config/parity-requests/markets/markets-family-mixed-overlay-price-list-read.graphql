@@ -1,0 +1,18 @@
+query MarketsFamilyMixedOverlayPriceListRead($id: ID!) {
+  priceList(id: $id) {
+    id
+    name
+    currency
+    parent {
+      adjustment {
+        type
+        value
+      }
+    }
+    catalog {
+      id
+      title
+      status
+    }
+  }
+}

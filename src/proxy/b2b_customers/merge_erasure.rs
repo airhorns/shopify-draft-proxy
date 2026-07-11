@@ -217,6 +217,7 @@ impl DraftProxy {
         // the source's orders under the resulting customer's identity.
         let result_email = result["email"].as_str().map(str::to_string);
         let result_metafields = result["metafields"].clone();
+        let result_draft_order_customer = customer_merge_draft_order_customer(&result_id, &result);
 
         self.store
             .staged
@@ -244,6 +245,7 @@ impl DraftProxy {
                 .or_default()
                 .extend(source_orders);
         }
+        self.transfer_customer_draft_orders(&source_id, &result_id, &result_draft_order_customer);
 
         let job_id = self.next_proxy_synthetic_gid("Job");
         let merge_request = customer_merge_request_json(&job_id, &result_id, Vec::new());
@@ -343,6 +345,26 @@ impl DraftProxy {
                 || card["customerId"].as_str() == Some(customer_id)
         })
     }
+
+    fn transfer_customer_draft_orders(
+        &mut self,
+        source_id: &str,
+        result_id: &str,
+        result_customer: &Value,
+    ) {
+        for draft_order in self.store.staged.draft_orders.values_mut() {
+            if !draft_order_belongs_to_customer(draft_order, source_id) {
+                continue;
+            }
+            draft_order["customer"] = result_customer.clone();
+            if let Some(email) = result_customer["email"].as_str() {
+                draft_order["email"] = json!(email);
+            }
+            if draft_order["purchasingEntity"]["customerId"].as_str() == Some(source_id) {
+                draft_order["purchasingEntity"]["customerId"] = json!(result_id);
+            }
+        }
+    }
 }
 
 fn customer_merge_payload_json(
@@ -380,6 +402,19 @@ pub(super) fn customer_merge_job_from_request(request: &Value) -> Value {
         "done": true,
         "query": { "__typename": "QueryRoot" }
     })
+}
+
+fn customer_merge_draft_order_customer(result_id: &str, result: &Value) -> Value {
+    json!({
+        "id": result_id,
+        "email": result["email"].clone(),
+        "displayName": result["displayName"].clone()
+    })
+}
+
+fn draft_order_belongs_to_customer(draft_order: &Value, customer_id: &str) -> bool {
+    draft_order["customer"]["id"].as_str() == Some(customer_id)
+        || draft_order["purchasingEntity"]["customerId"].as_str() == Some(customer_id)
 }
 
 fn customer_data_erasure_payload_json(customer_id: Option<&str>, user_errors: Vec<Value>) -> Value {

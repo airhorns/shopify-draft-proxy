@@ -1,0 +1,14 @@
+query MixedAdminPlatformPaymentsRead($type: PaymentTermsType) {
+  poll: job(id: "gid://shopify/Job/0") {
+    id
+    done
+    query {
+      __typename
+    }
+  }
+  terms: paymentTermsTemplates(paymentTermsType: $type) {
+    id
+    name
+    paymentTermsType
+  }
+}

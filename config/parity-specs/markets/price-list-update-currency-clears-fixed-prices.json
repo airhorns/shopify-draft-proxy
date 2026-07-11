@@ -1,0 +1,466 @@
+{
+  "scenarioId": "price-list-update-currency-clears-fixed-prices",
+  "operationNames": [
+    "priceListCreate",
+    "catalogCreate",
+    "priceListFixedPricesAdd",
+    "priceListUpdate",
+    "priceList",
+    "catalog"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/price-list-update-currency-clears-fixed-prices.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/metafields_markets_products_tail.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/catalog-relation-markets-read.graphql",
+    "variablesCapturePath": "$.cases[0].variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "variant-hydrate",
+        "capturePath": "$.cases[1].response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-update-currency-fixed-prices-hydrate.graphql",
+          "variablesCapturePath": "$.cases[1].variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "price-list-setup",
+        "capturePath": "$.cases[2].response.payload.data.priceListCreate",
+        "proxyPath": "$.data.priceListCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-create-catalog-validation.graphql",
+          "variablesCapturePath": "$.cases[2].variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.priceList.id",
+            "matcher": "shopify-gid:PriceList",
+            "reason": "The proxy stages a synthetic local price-list id instead of replaying Shopify's captured id."
+          }
+        ]
+      },
+      {
+        "name": "catalog-setup",
+        "capturePath": "$.cases[3].response.payload.data.catalogCreate",
+        "proxyPath": "$.data.catalogCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-create-relation-validation.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "title": {
+                "fromCapturePath": "$.cases[3].variables.input.title"
+              },
+              "status": {
+                "fromCapturePath": "$.cases[3].variables.input.status"
+              },
+              "context": {
+                "marketIds": [
+                  {
+                    "fromPrimaryProxyPath": "$.data.markets.nodes[0].id"
+                  }
+                ]
+              },
+              "priceListId": {
+                "fromProxyResponse": "price-list-setup",
+                "path": "$.data.priceListCreate.priceList.id"
+              }
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.catalog.id",
+            "matcher": "shopify-gid:MarketCatalog",
+            "reason": "The proxy stages a synthetic local catalog id instead of replaying Shopify's captured id."
+          }
+        ]
+      },
+      {
+        "name": "fixed-prices-add",
+        "capturePath": "$.cases[4].response.payload.data.priceListFixedPricesAdd",
+        "proxyPath": "$.data.priceListFixedPricesAdd",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-fixed-prices-add.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "priceListId": {
+              "fromProxyResponse": "price-list-setup",
+              "path": "$.data.priceListCreate.priceList.id"
+            },
+            "prices": {
+              "fromCapturePath": "$.cases[4].variables.prices"
+            }
+          }
+        }
+      },
+      {
+        "name": "read-after-add",
+        "capturePath": "$.cases[5].response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-update-currency-fixed-prices-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "priceListId": {
+              "fromProxyResponse": "price-list-setup",
+              "path": "$.data.priceListCreate.priceList.id"
+            },
+            "catalogId": {
+              "fromProxyResponse": "catalog-setup",
+              "path": "$.data.catalogCreate.catalog.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.catalog.id",
+            "matcher": "shopify-gid:MarketCatalog",
+            "reason": "The proxy reads back the locally staged catalog id."
+          },
+          {
+            "path": "$.catalog.priceList.id",
+            "matcher": "shopify-gid:PriceList",
+            "reason": "The proxy reads back the locally staged price-list id."
+          },
+          {
+            "path": "$.priceList.id",
+            "matcher": "shopify-gid:PriceList",
+            "reason": "The proxy reads back the locally staged price-list id."
+          },
+          {
+            "path": "$.priceList.catalog.id",
+            "matcher": "shopify-gid:MarketCatalog",
+            "reason": "The proxy reads back the locally staged catalog relation id."
+          },
+          {
+            "path": "$.priceList.prices.edges[0].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors; the local proxy uses deterministic variant-id cursors."
+          },
+          {
+            "path": "$.priceList.prices.edges[1].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors; the local proxy uses deterministic variant-id cursors."
+          },
+          {
+            "path": "$.priceList.prices.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors; the local proxy uses deterministic variant-id cursors."
+          },
+          {
+            "path": "$.priceList.prices.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors; the local proxy uses deterministic variant-id cursors."
+          }
+        ]
+      },
+      {
+        "name": "same-currency-update",
+        "capturePath": "$.cases[6].response.payload.data.priceListUpdate",
+        "proxyPath": "$.data.priceListUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-update-currency-fixed-prices.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "price-list-setup",
+              "path": "$.data.priceListCreate.priceList.id"
+            },
+            "input": {
+              "fromCapturePath": "$.cases[6].variables.input"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.priceList.id",
+            "matcher": "shopify-gid:PriceList",
+            "reason": "The proxy updates the locally staged price list, whose id is synthetic."
+          },
+          {
+            "path": "$.priceList.catalog.id",
+            "matcher": "shopify-gid:MarketCatalog",
+            "reason": "The proxy reads back the locally staged catalog relation id."
+          },
+          {
+            "path": "$.priceList.prices.edges[0].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors; the local proxy uses deterministic variant-id cursors."
+          },
+          {
+            "path": "$.priceList.prices.edges[1].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors; the local proxy uses deterministic variant-id cursors."
+          },
+          {
+            "path": "$.priceList.prices.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors; the local proxy uses deterministic variant-id cursors."
+          },
+          {
+            "path": "$.priceList.prices.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors; the local proxy uses deterministic variant-id cursors."
+          }
+        ]
+      },
+      {
+        "name": "read-after-same-currency-update",
+        "capturePath": "$.cases[7].response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-update-currency-fixed-prices-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "priceListId": {
+              "fromProxyResponse": "price-list-setup",
+              "path": "$.data.priceListCreate.priceList.id"
+            },
+            "catalogId": {
+              "fromProxyResponse": "catalog-setup",
+              "path": "$.data.catalogCreate.catalog.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.catalog.id",
+            "matcher": "shopify-gid:MarketCatalog",
+            "reason": "The proxy reads back the locally staged catalog id."
+          },
+          {
+            "path": "$.catalog.priceList.id",
+            "matcher": "shopify-gid:PriceList",
+            "reason": "The proxy reads back the locally staged price-list id."
+          },
+          {
+            "path": "$.priceList.id",
+            "matcher": "shopify-gid:PriceList",
+            "reason": "The proxy reads back the locally staged price-list id."
+          },
+          {
+            "path": "$.priceList.catalog.id",
+            "matcher": "shopify-gid:MarketCatalog",
+            "reason": "The proxy reads back the locally staged catalog relation id."
+          },
+          {
+            "path": "$.priceList.prices.edges[0].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors; the local proxy uses deterministic variant-id cursors."
+          },
+          {
+            "path": "$.priceList.prices.edges[1].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors; the local proxy uses deterministic variant-id cursors."
+          },
+          {
+            "path": "$.priceList.prices.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors; the local proxy uses deterministic variant-id cursors."
+          },
+          {
+            "path": "$.priceList.prices.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors; the local proxy uses deterministic variant-id cursors."
+          }
+        ]
+      },
+      {
+        "name": "rejected-update-preserves-fixed-prices",
+        "capturePath": "$.cases[8].response.payload.data.priceListUpdate",
+        "proxyPath": "$.data.priceListUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-update-currency-fixed-prices.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "price-list-setup",
+              "path": "$.data.priceListCreate.priceList.id"
+            },
+            "input": {
+              "fromCapturePath": "$.cases[8].variables.input"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.priceList.id",
+            "matcher": "shopify-gid:PriceList",
+            "reason": "The proxy returns the locally staged price list, whose id is synthetic."
+          },
+          {
+            "path": "$.priceList.catalog.id",
+            "matcher": "shopify-gid:MarketCatalog",
+            "reason": "The proxy reads back the locally staged catalog relation id."
+          },
+          {
+            "path": "$.priceList.prices.edges[0].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors; the local proxy uses deterministic variant-id cursors."
+          },
+          {
+            "path": "$.priceList.prices.edges[1].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors; the local proxy uses deterministic variant-id cursors."
+          },
+          {
+            "path": "$.priceList.prices.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors; the local proxy uses deterministic variant-id cursors."
+          },
+          {
+            "path": "$.priceList.prices.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors; the local proxy uses deterministic variant-id cursors."
+          }
+        ]
+      },
+      {
+        "name": "read-after-rejected-update",
+        "capturePath": "$.cases[9].response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-update-currency-fixed-prices-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "priceListId": {
+              "fromProxyResponse": "price-list-setup",
+              "path": "$.data.priceListCreate.priceList.id"
+            },
+            "catalogId": {
+              "fromProxyResponse": "catalog-setup",
+              "path": "$.data.catalogCreate.catalog.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.catalog.id",
+            "matcher": "shopify-gid:MarketCatalog",
+            "reason": "The proxy reads back the locally staged catalog id."
+          },
+          {
+            "path": "$.catalog.priceList.id",
+            "matcher": "shopify-gid:PriceList",
+            "reason": "The proxy reads back the locally staged price-list id."
+          },
+          {
+            "path": "$.priceList.id",
+            "matcher": "shopify-gid:PriceList",
+            "reason": "The proxy reads back the locally staged price-list id."
+          },
+          {
+            "path": "$.priceList.catalog.id",
+            "matcher": "shopify-gid:MarketCatalog",
+            "reason": "The proxy reads back the locally staged catalog relation id."
+          },
+          {
+            "path": "$.priceList.prices.edges[0].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors; the local proxy uses deterministic variant-id cursors."
+          },
+          {
+            "path": "$.priceList.prices.edges[1].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors; the local proxy uses deterministic variant-id cursors."
+          },
+          {
+            "path": "$.priceList.prices.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors; the local proxy uses deterministic variant-id cursors."
+          },
+          {
+            "path": "$.priceList.prices.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors; the local proxy uses deterministic variant-id cursors."
+          }
+        ]
+      },
+      {
+        "name": "changed-currency-update-clears-fixed-prices",
+        "capturePath": "$.cases[10].response.payload.data.priceListUpdate",
+        "proxyPath": "$.data.priceListUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-update-currency-fixed-prices.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "price-list-setup",
+              "path": "$.data.priceListCreate.priceList.id"
+            },
+            "input": {
+              "fromCapturePath": "$.cases[10].variables.input"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.priceList.id",
+            "matcher": "shopify-gid:PriceList",
+            "reason": "The proxy updates the locally staged price list, whose id is synthetic."
+          },
+          {
+            "path": "$.priceList.catalog.id",
+            "matcher": "shopify-gid:MarketCatalog",
+            "reason": "The proxy preserves the locally staged catalog relation id."
+          }
+        ]
+      },
+      {
+        "name": "read-after-changed-currency-update",
+        "capturePath": "$.cases[11].response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-update-currency-fixed-prices-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "priceListId": {
+              "fromProxyResponse": "price-list-setup",
+              "path": "$.data.priceListCreate.priceList.id"
+            },
+            "catalogId": {
+              "fromProxyResponse": "catalog-setup",
+              "path": "$.data.catalogCreate.catalog.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.catalog.id",
+            "matcher": "shopify-gid:MarketCatalog",
+            "reason": "The proxy reads back the locally staged catalog id."
+          },
+          {
+            "path": "$.catalog.priceList.id",
+            "matcher": "shopify-gid:PriceList",
+            "reason": "The proxy reads back the locally staged price-list id."
+          },
+          {
+            "path": "$.priceList.id",
+            "matcher": "shopify-gid:PriceList",
+            "reason": "The proxy reads back the locally staged price-list id."
+          },
+          {
+            "path": "$.priceList.catalog.id",
+            "matcher": "shopify-gid:MarketCatalog",
+            "reason": "The proxy reads back the locally staged catalog relation id."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Captures Admin GraphQL 2026-04 priceListUpdate behavior for a disposable price list attached to a disposable market catalog after adding two variant fixed prices. Shopify preserves fixed prices for same-currency updates, leaves currency and fixed prices intact for rejected parent-adjustment updates, and clears the fixed-price connection/count when the currency changes while preserving parent adjustment and catalog relation. The local proxy replays setup through public reads/mutations; the variant hydrate read warms observed ProductVariant state so fixed-price mutations do not require hidden store setup."
+}

@@ -139,6 +139,500 @@ fn create_app_definition_for_resource_limit(
     proxy.process_request(request).body["data"]["metafieldDefinitionCreate"].clone()
 }
 
+fn upstream_definition(id: &str, namespace: &str, key: &str, name: &str) -> Value {
+    json!({
+        "id": id,
+        "name": name,
+        "namespace": namespace,
+        "key": key,
+        "ownerType": "PRODUCT",
+        "type": { "name": "single_line_text_field", "category": "TEXT" },
+        "description": null,
+        "validations": [],
+        "access": {
+            "admin": "MERCHANT_READ_WRITE",
+            "storefront": "PUBLIC_READ",
+            "customerAccount": "NONE"
+        },
+        "capabilities": {
+            "adminFilterable": { "enabled": false, "eligible": true, "status": "NOT_FILTERABLE" },
+            "smartCollectionCondition": { "enabled": false, "eligible": true },
+            "uniqueValues": { "enabled": false, "eligible": true }
+        },
+        "constraints": null,
+        "pinnedPosition": null,
+        "validationStatus": "VALID",
+        "metafieldsCount": 0
+    })
+}
+
+fn upstream_definition_with_options(
+    id: &str,
+    namespace: &str,
+    key: &str,
+    name: &str,
+    pinned_position: Option<i64>,
+    admin_filterable: bool,
+) -> Value {
+    let mut definition = upstream_definition(id, namespace, key, name);
+    definition["pinnedPosition"] = pinned_position.map_or(Value::Null, |position| json!(position));
+    definition["capabilities"]["adminFilterable"] = if admin_filterable {
+        json!({ "enabled": true, "eligible": true, "status": "FILTERABLE" })
+    } else {
+        json!({ "enabled": false, "eligible": true, "status": "NOT_FILTERABLE" })
+    };
+    definition
+}
+
+fn live_hybrid_proxy_with_upstream_definitions(definitions: Vec<Value>) -> DraftProxy {
+    configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body).unwrap();
+        let query = body["query"].as_str().unwrap_or_default();
+        assert!(
+            query.contains("metafieldDefinitions"),
+            "supported metafield definition mutation should not be forwarded upstream: {}",
+            request.body
+        );
+        let variables = &body["variables"];
+        let owner_type = variables["ownerType"].as_str().unwrap_or("PRODUCT");
+        let namespace_filter = variables["namespace"].as_str();
+        let first = variables["first"].as_u64().unwrap_or(250) as usize;
+        let after = variables["after"].as_str();
+        let filtered = definitions
+            .iter()
+            .filter(|definition| {
+                definition["ownerType"].as_str() == Some(owner_type)
+                    && namespace_filter
+                        .is_none_or(|namespace| definition["namespace"].as_str() == Some(namespace))
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        let start = after
+            .and_then(|cursor| {
+                filtered
+                    .iter()
+                    .position(|definition| definition["id"].as_str() == Some(cursor))
+            })
+            .map_or(0, |index| index + 1);
+        let nodes = filtered
+            .iter()
+            .skip(start)
+            .take(first)
+            .cloned()
+            .collect::<Vec<_>>();
+        let start_cursor = nodes
+            .first()
+            .and_then(|definition| definition["id"].as_str())
+            .map_or(Value::Null, |cursor| json!(cursor));
+        let end_cursor = nodes
+            .last()
+            .and_then(|definition| definition["id"].as_str())
+            .map_or(Value::Null, |cursor| json!(cursor));
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "metafieldDefinitions": {
+                        "nodes": nodes,
+                        "pageInfo": {
+                            "hasNextPage": start + first < filtered.len(),
+                            "hasPreviousPage": start > 0,
+                            "startCursor": start_cursor,
+                            "endCursor": end_cursor
+                        }
+                    }
+                }
+            }),
+        }
+    })
+}
+
+#[test]
+fn live_hybrid_definition_create_and_reads_merge_real_catalog_with_staged_changes() {
+    let namespace = "partial_catalog";
+    let mut real_definition = upstream_definition(
+        "gid://shopify/MetafieldDefinition/900001",
+        namespace,
+        "real",
+        "Real definition",
+    );
+    real_definition["metafieldsCount"] = json!(7);
+    let other_definition = upstream_definition(
+        "gid://shopify/MetafieldDefinition/900002",
+        "unrelated_catalog",
+        "other",
+        "Other definition",
+    );
+    let upstream_requests = Arc::new(Mutex::new(Vec::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let real_definition = real_definition.clone();
+        let other_definition = other_definition.clone();
+        let upstream_requests = Arc::clone(&upstream_requests);
+        move |request| {
+            upstream_requests.lock().unwrap().push(request.body.clone());
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            let query = body["query"].as_str().unwrap_or_default();
+            let variables = &body["variables"];
+
+            if query.contains("metafieldDefinitions") {
+                let owner_type = variables["ownerType"].as_str().unwrap_or("PRODUCT");
+                let namespace_filter = variables["namespace"].as_str();
+                let nodes = if owner_type == "PRODUCT" {
+                    vec![real_definition.clone(), other_definition.clone()]
+                        .into_iter()
+                        .filter(|definition| {
+                            namespace_filter.is_none_or(|filter| {
+                                definition["namespace"].as_str() == Some(filter)
+                            })
+                        })
+                        .collect::<Vec<_>>()
+                } else {
+                    Vec::new()
+                };
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "metafieldDefinitions": {
+                                "nodes": nodes,
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": real_definition["id"],
+                                    "endCursor": real_definition["id"]
+                                }
+                            }
+                        }
+                    }),
+                };
+            }
+
+            if query.contains("metafieldDefinition") {
+                let definition = if variables["id"]
+                    .as_str()
+                    .is_some_and(|id| id == "gid://shopify/MetafieldDefinition/900001")
+                {
+                    real_definition.clone()
+                } else {
+                    Value::Null
+                };
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": { "metafieldDefinition": definition } }),
+                };
+            }
+
+            panic!("unexpected upstream request body: {}", request.body);
+        }
+    });
+    let config = proxy.process_request(request_with_body("GET", "/__meta/config", ""));
+    assert_eq!(config.body["runtime"]["readMode"], json!("live-hybrid"));
+
+    let duplicate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DuplicateRealDefinition($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition { id namespace key }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "definition": {
+                "ownerType": "PRODUCT",
+                "namespace": namespace,
+                "key": "real",
+                "name": "Duplicate real definition",
+                "type": "single_line_text_field"
+            }
+        }),
+    ));
+    assert_eq!(
+        upstream_requests.lock().unwrap().len(),
+        1,
+        "duplicate create should hydrate the real owner catalog before validation"
+    );
+
+    assert_eq!(
+        duplicate.body["data"]["metafieldDefinitionCreate"],
+        json!({
+            "createdDefinition": null,
+            "userErrors": [{
+                "field": ["definition", "key"],
+                "message": "Key is in use for Product metafields on the 'partial_catalog' namespace.",
+                "code": "TAKEN"
+            }]
+        })
+    );
+
+    let staged = create_definition_for_resource_limit(&mut proxy, "PRODUCT", namespace, "local");
+    assert_eq!(staged["userErrors"], json!([]));
+    let local_id = staged["createdDefinition"]["id"].clone();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadMergedDefinitions($namespace: String!) {
+          realDetail: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "real" }) {
+            id
+            namespace
+            key
+            name
+            metafieldsCount
+          }
+          localDetail: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "local" }) {
+            id
+            namespace
+            key
+            name
+            metafieldsCount
+          }
+          catalog: metafieldDefinitions(ownerType: PRODUCT, namespace: $namespace, first: 10, sortKey: NAME) {
+            nodes { id namespace key name metafieldsCount }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          ownerCatalog: metafieldDefinitions(ownerType: PRODUCT, first: 10, sortKey: NAME) {
+            nodes { id namespace key name metafieldsCount }
+          }
+        }
+        "#,
+        json!({ "namespace": namespace }),
+    ));
+
+    assert_eq!(
+        read.body["data"]["realDetail"],
+        json!({
+            "id": "gid://shopify/MetafieldDefinition/900001",
+            "namespace": namespace,
+            "key": "real",
+            "name": "Real definition",
+            "metafieldsCount": 7
+        })
+    );
+    assert_eq!(
+        read.body["data"]["localDetail"],
+        json!({
+            "id": local_id,
+            "namespace": namespace,
+            "key": "local",
+            "name": "Resource limit local",
+            "metafieldsCount": 0
+        })
+    );
+    assert_eq!(
+        read.body["data"]["catalog"]["nodes"],
+        json!([
+            {
+                "id": "gid://shopify/MetafieldDefinition/900001",
+                "namespace": namespace,
+                "key": "real",
+                "name": "Real definition",
+                "metafieldsCount": 7
+            },
+            {
+                "id": local_id,
+                "namespace": namespace,
+                "key": "local",
+                "name": "Resource limit local",
+                "metafieldsCount": 0
+            }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["ownerCatalog"]["nodes"],
+        json!([
+            {
+                "id": "gid://shopify/MetafieldDefinition/900002",
+                "namespace": "unrelated_catalog",
+                "key": "other",
+                "name": "Other definition",
+                "metafieldsCount": 0
+            },
+            {
+                "id": "gid://shopify/MetafieldDefinition/900001",
+                "namespace": namespace,
+                "key": "real",
+                "name": "Real definition",
+                "metafieldsCount": 7
+            },
+            {
+                "id": local_id,
+                "namespace": namespace,
+                "key": "local",
+                "name": "Resource limit local",
+                "metafieldsCount": 0
+            }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["catalog"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "gid://shopify/MetafieldDefinition/900001",
+            "endCursor": local_id
+        })
+    );
+    assert!(
+        upstream_requests
+            .lock()
+            .unwrap()
+            .iter()
+            .all(|body| !body.contains("DuplicateRealDefinition")),
+        "supported mutation should not be forwarded upstream"
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteRealDefinition($id: ID!) {
+          metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {
+            deletedDefinitionId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/MetafieldDefinition/900001" }),
+    ));
+    assert_eq!(
+        delete.body["data"]["metafieldDefinitionDelete"],
+        json!({
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/900001",
+            "userErrors": []
+        })
+    );
+
+    let read_after_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadDefinitionsAfterDelete($namespace: String!) {
+          realDetail: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "real" }) {
+            id
+          }
+          catalog: metafieldDefinitions(ownerType: PRODUCT, namespace: $namespace, first: 10, sortKey: NAME) {
+            nodes { id namespace key name }
+          }
+        }
+        "#,
+        json!({ "namespace": namespace }),
+    ));
+    assert_eq!(read_after_delete.body["data"]["realDetail"], Value::Null);
+    assert_eq!(
+        read_after_delete.body["data"]["catalog"]["nodes"],
+        json!([
+            {
+                "id": local_id,
+                "namespace": namespace,
+                "key": "local",
+                "name": "Resource limit local"
+            }
+        ])
+    );
+}
+
+#[test]
+fn live_hybrid_definition_validations_count_upstream_owner_catalog() {
+    let resource_definitions = (0..256)
+        .map(|index| {
+            upstream_definition(
+                &format!("gid://shopify/MetafieldDefinition/91{index:04}"),
+                "resource_existing",
+                &format!("resource_{index:03}"),
+                &format!("Resource {index:03}"),
+            )
+        })
+        .collect::<Vec<_>>();
+    let mut resource_proxy = live_hybrid_proxy_with_upstream_definitions(resource_definitions);
+    let resource_over_limit = create_definition_for_resource_limit(
+        &mut resource_proxy,
+        "PRODUCT",
+        "resource_new",
+        "resource_over",
+    );
+    assert_eq!(
+        resource_over_limit,
+        json!({
+            "createdDefinition": null,
+            "userErrors": [{
+                "field": ["definition"],
+                "message": "Stores can only have 256 definitions for each store resource.",
+                "code": "RESOURCE_TYPE_LIMIT_EXCEEDED"
+            }]
+        })
+    );
+
+    let admin_definitions = (0..50)
+        .map(|index| {
+            upstream_definition_with_options(
+                &format!("gid://shopify/MetafieldDefinition/92{index:04}"),
+                "admin_filter_existing",
+                &format!("admin_{index:02}"),
+                &format!("Admin {index:02}"),
+                None,
+                true,
+            )
+        })
+        .collect::<Vec<_>>();
+    let mut admin_proxy = live_hybrid_proxy_with_upstream_definitions(admin_definitions);
+    let admin_over_limit = admin_proxy.process_request(json_graphql_request(
+        r#"
+        mutation AdminFilterableLimitFromUpstream($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "definition": {
+                "ownerType": "PRODUCT",
+                "namespace": "admin_filter_new",
+                "key": "admin_over",
+                "name": "Admin over",
+                "type": "single_line_text_field",
+                "capabilities": { "adminFilterable": { "enabled": true } }
+            }
+        }),
+    ));
+    assert_eq!(
+        admin_over_limit.body["data"]["metafieldDefinitionCreate"],
+        json!({
+            "createdDefinition": null,
+            "userErrors": [{
+                "field": ["definition"],
+                "message": "You can only use 50 product metafield definitions to filter the product list. To add a new filter, disable filtering on an existing one.",
+                "code": "OWNER_TYPE_LIMIT_EXCEEDED_FOR_USE_AS_ADMIN_FILTERS"
+            }]
+        })
+    );
+
+    let pinned_definitions = (1..=20)
+        .map(|position| {
+            upstream_definition_with_options(
+                &format!("gid://shopify/MetafieldDefinition/93{position:04}"),
+                "pinned_existing",
+                &format!("pinned_{position:02}"),
+                &format!("Pinned {position:02}"),
+                Some(position),
+                false,
+            )
+        })
+        .collect::<Vec<_>>();
+    let mut pin_proxy = live_hybrid_proxy_with_upstream_definitions(pinned_definitions);
+    let pin_over_limit = create_definition(&mut pin_proxy, "pinned_new", "pinned_over", true);
+    assert_eq!(
+        pin_over_limit,
+        json!({
+            "createdDefinition": null,
+            "userErrors": [{
+                "field": ["definition"],
+                "message": "Limit of 20 pinned definitions.",
+                "code": "PINNED_LIMIT_REACHED"
+            }]
+        })
+    );
+}
+
 #[test]
 fn metafield_definition_create_duplicate_and_cross_owner_keys_are_owner_scoped() {
     let mut proxy = snapshot_proxy();
@@ -1190,9 +1684,15 @@ fn metafield_definition_capability_eligibility_matches_shopify() {
         json!({ "namespace": namespace }),
     ));
     assert_eq!(
-        id_disabled.body["data"]["metafieldDefinitionCreate"]["createdDefinition"]["capabilities"]
-            ["uniqueValues"],
-        json!({ "enabled": false, "eligible": true })
+        id_disabled.body["data"]["metafieldDefinitionCreate"],
+        json!({
+            "createdDefinition": null,
+            "userErrors": [{
+                "field": ["definition"],
+                "message": "Capability unique_values is required for type id but is disabled",
+                "code": "CAPABILITY_REQUIRED_BUT_DISABLED"
+            }]
+        })
     );
 
     let json_base = proxy.process_request(json_graphql_request(

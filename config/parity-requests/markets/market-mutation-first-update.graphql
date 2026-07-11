@@ -1,0 +1,46 @@
+mutation MarketMutationFirstUpdate($id: ID!, $input: MarketUpdateInput!) {
+  marketUpdate(id: $id, input: $input) {
+    market {
+      id
+      name
+      handle
+      status
+      enabled
+      catalogs(first: 10) {
+        nodes {
+          id
+          title
+          markets(first: 10) {
+            nodes {
+              id
+              name
+              handle
+              status
+              type
+            }
+          }
+        }
+      }
+      webPresences(first: 10) {
+        nodes {
+          id
+          subfolderSuffix
+          markets(first: 10) {
+            nodes {
+              id
+              name
+              handle
+              status
+              type
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
