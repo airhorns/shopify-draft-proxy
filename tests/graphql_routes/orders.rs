@@ -4947,6 +4947,139 @@ fn order_update_live_hybrid_hydration_miss_does_not_forward_mutation() {
 }
 
 #[test]
+fn order_update_live_hybrid_hydrates_all_order_line_item_pages() {
+    let line_items = (1..=12)
+        .map(|index| {
+            json!({
+                "id": format!("gid://shopify/LineItem/{index}"),
+                "title": format!("Hydrated line {index}"),
+                "name": format!("Hydrated line {index}"),
+                "quantity": 1,
+                "currentQuantity": 1,
+                "sku": format!("HYD-{index:02}"),
+                "variantTitle": Value::Null,
+                "requiresShipping": true,
+                "taxable": true,
+                "customAttributes": [],
+                "originalUnitPriceSet": { "shopMoney": { "amount": "1.00", "currencyCode": "USD" } },
+                "originalTotalSet": { "shopMoney": { "amount": "1.00", "currencyCode": "USD" } },
+                "variant": Value::Null,
+                "taxLines": []
+            })
+        })
+        .collect::<Vec<_>>();
+    let first_page = line_items[..10].to_vec();
+    let second_page = line_items[10..].to_vec();
+    let upstream_calls = Arc::new(Mutex::new(Vec::new()));
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport({
+        let upstream_calls = Arc::clone(&upstream_calls);
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream GraphQL body");
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(
+                query.trim_start().starts_with("query"),
+                "orderUpdate must hydrate by query only, got upstream body: {}",
+                request.body
+            );
+            let after = body["variables"]["lineItemsAfter"].as_str();
+            let (nodes, has_next_page, end_cursor) = if after == Some("cursor-10") {
+                (second_page.clone(), false, "cursor-12")
+            } else {
+                (first_page.clone(), true, "cursor-10")
+            };
+            upstream_calls.lock().expect("upstream calls").push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "order": {
+                            "id": "gid://shopify/Order/1212121212",
+                            "name": "#1212",
+                            "email": "many-lines@example.test",
+                            "note": "before update",
+                            "tags": [],
+                            "customAttributes": [],
+                            "customer": Value::Null,
+                            "billingAddress": Value::Null,
+                            "shippingAddress": Value::Null,
+                            "currencyCode": "USD",
+                            "presentmentCurrencyCode": "USD",
+                            "displayFinancialStatus": "PAID",
+                            "displayFulfillmentStatus": "UNFULFILLED",
+                            "currentTotalPriceSet": { "shopMoney": { "amount": "12.00", "currencyCode": "USD" } },
+                            "totalPriceSet": { "shopMoney": { "amount": "12.00", "currencyCode": "USD" } },
+                            "totalTaxSet": { "shopMoney": { "amount": "0.00", "currencyCode": "USD" } },
+                            "totalDiscountsSet": { "shopMoney": { "amount": "0.00", "currencyCode": "USD" } },
+                            "discountCodes": [],
+                            "lineItems": {
+                                "nodes": nodes,
+                                "pageInfo": {
+                                    "hasNextPage": has_next_page,
+                                    "endCursor": end_cursor
+                                }
+                            }
+                        }
+                    }
+                }),
+            }
+        }
+    });
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateManyLineOrder($input: OrderInput!) {
+          orderUpdate(input: $input) {
+            order {
+              id
+              note
+              lineItems(first: 20) {
+                nodes { id title quantity }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": "gid://shopify/Order/1212121212",
+                "note": "after unrelated update"
+            }
+        }),
+    ));
+
+    assert_eq!(update.status, 200);
+    assert_eq!(update.body["data"]["orderUpdate"]["userErrors"], json!([]));
+    assert_eq!(
+        update.body["data"]["orderUpdate"]["order"]["note"],
+        json!("after unrelated update")
+    );
+    let hydrated_lines = update.body["data"]["orderUpdate"]["order"]["lineItems"]["nodes"]
+        .as_array()
+        .expect("hydrated line item nodes");
+    assert_eq!(hydrated_lines.len(), 12);
+    assert_eq!(hydrated_lines[11]["title"], json!("Hydrated line 12"));
+
+    let calls = upstream_calls.lock().expect("upstream calls");
+    assert_eq!(calls.len(), 2);
+    assert!(calls.iter().all(|body| body["query"]
+        .as_str()
+        .unwrap_or_default()
+        .trim_start()
+        .starts_with("query")));
+    assert!(calls[0]["query"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("pageInfo"));
+    assert_eq!(calls[1]["variables"]["lineItemsAfter"], json!("cursor-10"));
+}
+
+#[test]
 fn order_create_validation_matrix_returns_typed_user_errors() {
     let mut proxy = snapshot_proxy();
 
