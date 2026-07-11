@@ -1,0 +1,165 @@
+query InventoryItemLevelsConnectionRead(
+  $inventoryItemId: ID!
+  $itemQuery: String!
+  $missingItemQuery: String!
+  $invalidLocationQuery: String!
+) {
+  inventoryItem(id: $inventoryItemId) {
+    id
+    activeLevels: inventoryLevels(first: 10) {
+      edges {
+        cursor
+        node {
+          id
+          isActive
+          item {
+            id
+          }
+          location {
+            id
+            name
+          }
+          quantities(names: ["available", "on_hand", "damaged"]) {
+            name
+            quantity
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    allLevels: inventoryLevels(first: 10, includeInactive: true) {
+      edges {
+        cursor
+        node {
+          id
+          isActive
+          item {
+            id
+          }
+          location {
+            id
+            name
+          }
+          quantities(names: ["available", "on_hand", "damaged"]) {
+            name
+            quantity
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    firstPage: inventoryLevels(first: 1, includeInactive: true) {
+      nodes {
+        id
+        isActive
+        item {
+          id
+        }
+        location {
+          id
+          name
+        }
+        quantities(names: ["available", "on_hand", "damaged"]) {
+          name
+          quantity
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    filtered: inventoryLevels(first: 5, includeInactive: true, query: $itemQuery) {
+      nodes {
+        id
+        isActive
+        item {
+          id
+        }
+        location {
+          id
+          name
+        }
+        quantities(names: ["available", "on_hand", "damaged"]) {
+          name
+          quantity
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    emptyFilter: inventoryLevels(first: 5, includeInactive: true, query: $missingItemQuery) {
+      nodes {
+        id
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    invalidLocationFilter: inventoryLevels(first: 5, includeInactive: true, query: $invalidLocationQuery) {
+      nodes {
+        id
+        isActive
+        item {
+          id
+        }
+        location {
+          id
+          name
+        }
+        quantities(names: ["available", "on_hand", "damaged"]) {
+          name
+          quantity
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    reverseLevels: inventoryLevels(first: 10, includeInactive: true, reverse: true) {
+      nodes {
+        id
+        isActive
+        item {
+          id
+        }
+        location {
+          id
+          name
+        }
+        quantities(names: ["available", "on_hand", "damaged"]) {
+          name
+          quantity
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+}

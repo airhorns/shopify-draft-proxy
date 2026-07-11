@@ -2,8 +2,285 @@ use super::media::media_file_record_from_node;
 use super::*;
 use base64::Engine as _;
 
-const OWNER_METAFIELD_HYDRATE_QUERY: &str = "query OwnerMetafieldsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { __typename id ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Collection { id title handle metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Customer { id displayName email metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Order { id name metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Company { id name metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } } }";
 const METAFIELD_DELETE_HYDRATE_QUERY: &str = "query MetafieldDeleteHydrateNode($id: ID!) { node(id: $id) { __typename ... on Metafield { id namespace key owner { __typename ... on Product { id } ... on ProductVariant { id } ... on Collection { id } ... on Customer { id } ... on Order { id } ... on Company { id } } } } }";
+const OWNER_METAFIELD_OBSERVATION_FIELDS: &str =
+    "id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType";
+const OWNER_METAFIELD_PAGE_INFO_FIELDS: &str =
+    "pageInfo { hasNextPage hasPreviousPage startCursor endCursor }";
+const OWNER_PRODUCT_BASE_FIELDS: &str =
+    "id title handle status totalInventory tracksInventory createdAt updatedAt";
+const OWNER_PRODUCT_VARIANT_BASE_FIELDS: &str = "id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping }";
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+struct OwnerMetafieldHydrationShape {
+    metafields: Vec<OwnerMetafieldHydrateField>,
+    connections: Vec<OwnerMetafieldsHydrateConnection>,
+    product_variants: Option<OwnerMetafieldHydrateConnectionWindow>,
+}
+
+impl OwnerMetafieldHydrationShape {
+    fn extend_from_owner_selections(
+        &mut self,
+        selections: &[SelectedField],
+        api_client_id: Option<&str>,
+    ) {
+        for selection in selections {
+            match selection.name.as_str() {
+                "metafield" => {
+                    let namespace =
+                        owner_metafield_read_namespace(&selection.arguments, api_client_id);
+                    let key =
+                        resolved_string_field(&selection.arguments, "key").unwrap_or_default();
+                    if !namespace.is_empty() && !key.is_empty() {
+                        self.push_metafield(namespace, key);
+                    }
+                }
+                "metafields" => {
+                    self.push_connection(OwnerMetafieldsHydrateConnection {
+                        window: OwnerMetafieldHydrateConnectionWindow::from_args(
+                            &selection.arguments,
+                            10,
+                        ),
+                        namespace: owner_metafields_connection_namespace(
+                            &selection.arguments,
+                            api_client_id,
+                        ),
+                        keys: owner_metafields_connection_keys_with_app_namespace(
+                            &selection.arguments,
+                            api_client_id,
+                        )
+                        .map(|keys| {
+                            keys.into_iter()
+                                .map(|(namespace, key)| format!("{namespace}.{key}"))
+                                .collect()
+                        }),
+                    });
+                }
+                "variants" if Self::selection_selects_metafields(&selection.selection) => {
+                    self.product_variants = Some(OwnerMetafieldHydrateConnectionWindow::from_args(
+                        &selection.arguments,
+                        10,
+                    ));
+                    self.extend_from_owner_selections(&selection.selection, api_client_id);
+                }
+                _ => self.extend_from_owner_selections(&selection.selection, api_client_id),
+            }
+        }
+    }
+
+    fn push_metafield(&mut self, namespace: String, key: String) {
+        let field = OwnerMetafieldHydrateField { namespace, key };
+        if !self.metafields.contains(&field) {
+            self.metafields.push(field);
+        }
+    }
+
+    fn push_connection(&mut self, connection: OwnerMetafieldsHydrateConnection) {
+        if !self.connections.contains(&connection) {
+            self.connections.push(connection);
+        }
+    }
+
+    fn selection_selects_metafields(selections: &[SelectedField]) -> bool {
+        selections.iter().any(|selection| {
+            matches!(selection.name.as_str(), "metafield" | "metafields")
+                || Self::selection_selects_metafields(&selection.selection)
+        })
+    }
+
+    fn is_empty(&self) -> bool {
+        self.metafields.is_empty() && self.connections.is_empty()
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct OwnerMetafieldHydrateField {
+    namespace: String,
+    key: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct OwnerMetafieldsHydrateConnection {
+    window: OwnerMetafieldHydrateConnectionWindow,
+    namespace: Option<String>,
+    keys: Option<Vec<String>>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct OwnerMetafieldHydrateConnectionWindow {
+    first: Option<i64>,
+    after: Option<String>,
+    last: Option<i64>,
+    before: Option<String>,
+    reverse: Option<bool>,
+}
+
+impl OwnerMetafieldHydrateConnectionWindow {
+    fn from_args(arguments: &BTreeMap<String, ResolvedValue>, default_first: i64) -> Self {
+        let first = resolved_int_field(arguments, "first");
+        let last = resolved_int_field(arguments, "last");
+        Self {
+            first: first.or_else(|| last.is_none().then_some(default_first)),
+            after: resolved_string_field(arguments, "after"),
+            last,
+            before: resolved_string_field(arguments, "before"),
+            reverse: resolved_bool_field(arguments, "reverse"),
+        }
+    }
+
+    fn push_graphql_args(
+        &self,
+        variable_prefix: &str,
+        definitions: &mut Vec<String>,
+        variables: &mut serde_json::Map<String, Value>,
+        args: &mut Vec<String>,
+    ) {
+        push_optional_graphql_arg(
+            definitions,
+            variables,
+            args,
+            "first",
+            &format!("{variable_prefix}First"),
+            "Int",
+            self.first.map(Value::from),
+        );
+        push_optional_graphql_arg(
+            definitions,
+            variables,
+            args,
+            "after",
+            &format!("{variable_prefix}After"),
+            "String",
+            self.after.as_ref().map(|value| json!(value)),
+        );
+        push_optional_graphql_arg(
+            definitions,
+            variables,
+            args,
+            "last",
+            &format!("{variable_prefix}Last"),
+            "Int",
+            self.last.map(Value::from),
+        );
+        push_optional_graphql_arg(
+            definitions,
+            variables,
+            args,
+            "before",
+            &format!("{variable_prefix}Before"),
+            "String",
+            self.before.as_ref().map(|value| json!(value)),
+        );
+        push_optional_graphql_arg(
+            definitions,
+            variables,
+            args,
+            "reverse",
+            &format!("{variable_prefix}Reverse"),
+            "Boolean",
+            self.reverse.map(Value::from),
+        );
+    }
+}
+
+fn owner_metafield_hydrate_request(
+    ids: Vec<String>,
+    shape: &OwnerMetafieldHydrationShape,
+) -> Option<(String, Value)> {
+    if shape.is_empty() {
+        return None;
+    }
+
+    let mut variable_definitions = vec!["$ids: [ID!]!".to_string()];
+    let mut variables = serde_json::Map::new();
+    variables.insert("ids".to_string(), json!(ids));
+    let owner_metafields =
+        owner_metafield_hydrate_fields(shape, &mut variable_definitions, &mut variables);
+    let product_variants = shape.product_variants.as_ref().map(|window| {
+        let mut args = Vec::new();
+        window.push_graphql_args(
+            "productVariants",
+            &mut variable_definitions,
+            &mut variables,
+            &mut args,
+        );
+        format!(
+            "variants({}) {{ nodes {{ {OWNER_PRODUCT_VARIANT_BASE_FIELDS} {owner_metafields} }} }}",
+            args.join(", ")
+        )
+    });
+    let product_variants = product_variants.unwrap_or_default();
+    let variable_definition_list = variable_definitions.join(", ");
+    let query = format!(
+        "query OwnerMetafieldsHydrateNodes({variable_definition_list}) {{ nodes(ids: $ids) {{ __typename id ... on Product {{ {OWNER_PRODUCT_BASE_FIELDS} {owner_metafields} {product_variants} }} ... on ProductVariant {{ {OWNER_PRODUCT_VARIANT_BASE_FIELDS} product {{ {OWNER_PRODUCT_BASE_FIELDS} }} {owner_metafields} }} ... on Collection {{ id title handle {owner_metafields} }} ... on Customer {{ id displayName email {owner_metafields} }} ... on Order {{ id name {owner_metafields} }} ... on Company {{ id name {owner_metafields} }} ... on Shop {{ id {owner_metafields} }} }} }}"
+    );
+    Some((query, Value::Object(variables)))
+}
+
+fn owner_metafield_hydrate_fields(
+    shape: &OwnerMetafieldHydrationShape,
+    variable_definitions: &mut Vec<String>,
+    variables: &mut serde_json::Map<String, Value>,
+) -> String {
+    let mut fields = Vec::new();
+    for (index, field) in shape.metafields.iter().enumerate() {
+        let namespace_variable = format!("metafield{index}Namespace");
+        let key_variable = format!("metafield{index}Key");
+        variable_definitions.push(format!("${namespace_variable}: String!"));
+        variable_definitions.push(format!("${key_variable}: String!"));
+        variables.insert(namespace_variable.clone(), json!(field.namespace));
+        variables.insert(key_variable.clone(), json!(field.key));
+        fields.push(format!(
+            "metafield{index}: metafield(namespace: ${namespace_variable}, key: ${key_variable}) {{ {OWNER_METAFIELD_OBSERVATION_FIELDS} }}"
+        ));
+    }
+    for (index, connection) in shape.connections.iter().enumerate() {
+        let prefix = format!("metafields{index}");
+        let mut args = Vec::new();
+        connection
+            .window
+            .push_graphql_args(&prefix, variable_definitions, variables, &mut args);
+        push_optional_graphql_arg(
+            variable_definitions,
+            variables,
+            &mut args,
+            "namespace",
+            &format!("{prefix}Namespace"),
+            "String",
+            connection.namespace.as_ref().map(|value| json!(value)),
+        );
+        push_optional_graphql_arg(
+            variable_definitions,
+            variables,
+            &mut args,
+            "keys",
+            &format!("{prefix}Keys"),
+            "[String!]",
+            connection.keys.as_ref().map(|value| json!(value)),
+        );
+        fields.push(format!(
+            "metafields{index}: metafields({}) {{ nodes {{ {OWNER_METAFIELD_OBSERVATION_FIELDS} }} {OWNER_METAFIELD_PAGE_INFO_FIELDS} }}",
+            args.join(", ")
+        ));
+    }
+    fields.join(" ")
+}
+
+fn push_optional_graphql_arg(
+    variable_definitions: &mut Vec<String>,
+    variables: &mut serde_json::Map<String, Value>,
+    args: &mut Vec<String>,
+    arg_name: &str,
+    variable_name: &str,
+    variable_type: &str,
+    value: Option<Value>,
+) {
+    if let Some(value) = value {
+        variable_definitions.push(format!("${variable_name}: {variable_type}"));
+        variables.insert(variable_name.to_string(), value);
+        args.push(format!("{arg_name}: ${variable_name}"));
+    }
+}
 
 impl DraftProxy {
     // metafieldsSet/metafieldsDelete read their `metafields` list from the
@@ -28,14 +305,7 @@ impl DraftProxy {
             BTreeSet::new()
         };
         if inputs.len() <= METAFIELDS_SET_INPUT_LIMIT {
-            self.hydrate_owner_metafield_ids(
-                request,
-                inputs
-                    .iter()
-                    .filter_map(|input| resolved_string_field(input, "ownerId"))
-                    .filter(|owner_id| shopify_gid_resource_type(owner_id).is_some())
-                    .collect(),
-            );
+            self.hydrate_owner_metafield_inputs(request, &inputs, api_client_id.as_deref());
         }
         let mut user_errors = if inputs.len() <= METAFIELDS_SET_INPUT_LIMIT {
             self.metafields_set_compare_digest_errors(&inputs, api_client_id.as_deref())
@@ -170,13 +440,7 @@ impl DraftProxy {
                 json!({"data": {response_key: selected_json(&payload, &payload_selection)}}),
             ));
         }
-        self.hydrate_owner_metafield_ids(
-            request,
-            inputs
-                .iter()
-                .filter_map(|input| resolved_string_field(input, "ownerId"))
-                .collect(),
-        );
+        self.hydrate_owner_metafield_inputs(request, &inputs, api_client_id.as_deref());
         let mut deleted = Vec::new();
         let mut staged_owner_ids = Vec::new();
         for input in inputs {
@@ -476,12 +740,15 @@ impl DraftProxy {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return;
         }
+        let api_client_id = request_app_namespace_api_client_id(request);
+        let mut shape = OwnerMetafieldHydrationShape::default();
         let ids = fields
             .iter()
             .filter(|field| {
                 Self::owner_field_selects_metafields_at_root(&field.name, &field.selection)
             })
             .flat_map(|field| {
+                shape.extend_from_owner_selections(&field.selection, api_client_id.as_deref());
                 let owner_id = self.owner_field_id(field, variables);
                 let mut ids = Vec::new();
                 if self.owner_needs_metafield_hydration(&field.name, &owner_id) {
@@ -493,10 +760,41 @@ impl DraftProxy {
                 ids
             })
             .collect::<Vec<_>>();
-        self.hydrate_owner_metafield_ids(request, ids);
+        self.hydrate_owner_metafield_ids(request, ids, shape);
     }
 
-    fn hydrate_owner_metafield_ids(&mut self, request: &Request, ids: Vec<String>) {
+    fn hydrate_owner_metafield_inputs(
+        &mut self,
+        request: &Request,
+        inputs: &[BTreeMap<String, ResolvedValue>],
+        api_client_id: Option<&str>,
+    ) {
+        let mut shape = OwnerMetafieldHydrationShape::default();
+        let ids = inputs
+            .iter()
+            .filter_map(|input| {
+                let owner_id = resolved_string_field(input, "ownerId")?;
+                shopify_gid_resource_type(&owner_id)?;
+                let namespace = canonical_app_metafield_namespace(
+                    resolved_string_field(input, "namespace").as_deref(),
+                    api_client_id,
+                );
+                let key = resolved_string_field(input, "key").unwrap_or_default();
+                if !namespace.is_empty() && !key.is_empty() {
+                    shape.push_metafield(namespace, key);
+                }
+                Some(owner_id)
+            })
+            .collect::<Vec<_>>();
+        self.hydrate_owner_metafield_ids(request, ids, shape);
+    }
+
+    fn hydrate_owner_metafield_ids(
+        &mut self,
+        request: &Request,
+        ids: Vec<String>,
+        shape: OwnerMetafieldHydrationShape,
+    ) {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return;
         }
@@ -509,12 +807,15 @@ impl DraftProxy {
         if ids.is_empty() {
             return;
         }
+        let Some((query, variables)) = owner_metafield_hydrate_request(ids, &shape) else {
+            return;
+        };
         let response = self.upstream_post(
             request,
             json!({
-                "query": OWNER_METAFIELD_HYDRATE_QUERY,
+                "query": query,
                 "operationName": "OwnerMetafieldsHydrateNodes",
-                "variables": { "ids": ids },
+                "variables": variables,
             }),
         );
         if response.status >= 400 {
@@ -744,6 +1045,18 @@ impl DraftProxy {
             _ => {}
         }
         self.stage_observed_owner_metafields(&owner_id, node);
+        if shopify_gid_resource_type(&owner_id) == Some("Product") {
+            for variant in node
+                .get("variants")
+                .map(connection_nodes)
+                .unwrap_or_default()
+                .iter()
+            {
+                if let Some(variant_id) = variant.get("id").and_then(Value::as_str) {
+                    self.stage_observed_owner_metafields(variant_id, variant);
+                }
+            }
+        }
     }
 
     fn owner_variant_ids_for_hydration(
@@ -781,6 +1094,19 @@ impl DraftProxy {
             .into_iter()
             .flat_map(|object| object.values())
         {
+            let mut connection_records = value
+                .get("nodes")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default();
+            if let Some(page_info) = value.get("pageInfo") {
+                apply_metafield_connection_cursors(&mut connection_records, page_info);
+            }
+            records.extend(connection_records.into_iter().filter(|value| {
+                value.get("namespace").and_then(Value::as_str).is_some()
+                    && value.get("key").and_then(Value::as_str).is_some()
+                    && value.get("id").and_then(Value::as_str).is_some()
+            }));
             if value.get("namespace").and_then(Value::as_str).is_some()
                 && value.get("key").and_then(Value::as_str).is_some()
                 && value.get("id").and_then(Value::as_str).is_some()
@@ -1438,7 +1764,7 @@ impl DraftProxy {
         }
     }
 
-    pub(super) fn owner_metafields(
+    pub(in crate::proxy) fn owner_metafields(
         &self,
         owner_id: &str,
         namespace: Option<&str>,
@@ -1489,11 +1815,7 @@ impl DraftProxy {
         namespace: &str,
         key: &str,
     ) -> Option<Value> {
-        self.store
-            .staged
-            .metafield_definitions
-            .get(&metafield_definition_store_key(owner_type, namespace, key))
-            .cloned()
+        self.effective_metafield_definition(owner_type, namespace, key)
     }
 
     fn owner_metafield_definition_value(
@@ -1571,6 +1893,50 @@ impl DraftProxy {
                 .or_default()
                 .push(metafield);
         }
+    }
+
+    pub(in crate::proxy) fn stage_owner_metafield_value(
+        &mut self,
+        owner_id: &str,
+        namespace: &str,
+        key: &str,
+        metafield_type: &str,
+        value: &str,
+    ) -> Value {
+        let definition = self.owner_metafield_definition_value(owner_id, namespace, key);
+        let existing = self.owner_metafield(owner_id, namespace, key);
+        let index = self.next_owner_metafield_index(0);
+        let metafield = owner_metafield_record(OwnerMetafieldRecordArgs {
+            owner_id,
+            namespace,
+            key,
+            metafield_type,
+            value,
+            index,
+            existing: existing.as_ref(),
+            include_owner: true,
+            definition,
+        });
+        self.store.staged.deleted_owner_metafields.remove(&(
+            owner_id.to_string(),
+            namespace.to_string(),
+            key.to_string(),
+        ));
+        let owner_metafields = self
+            .store
+            .staged
+            .owner_metafields
+            .entry(owner_id.to_string())
+            .or_default();
+        if let Some(existing) = owner_metafields.iter_mut().find(|existing| {
+            existing.get("namespace").and_then(Value::as_str) == Some(namespace)
+                && existing.get("key").and_then(Value::as_str) == Some(key)
+        }) {
+            *existing = metafield.clone();
+        } else {
+            owner_metafields.push(metafield.clone());
+        }
+        metafield
     }
 
     pub(in crate::proxy) fn selected_reference_value_record_json(
@@ -2081,5 +2447,95 @@ fn owner_typename_from_root(root_field: &str) -> &'static str {
         "company" => "Company",
         "shop" => "Shop",
         _ => "Node",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::{Arc, Mutex};
+
+    fn live_hybrid_proxy(calls: Arc<Mutex<Vec<Value>>>) -> DraftProxy {
+        DraftProxy::new(Config {
+            read_mode: ReadMode::LiveHybrid,
+            unsupported_mutation_mode: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+        })
+        .with_upstream_transport(move |request| {
+            calls
+                .lock()
+                .unwrap()
+                .push(serde_json::from_str(&request.body).unwrap());
+            Response {
+                status: 200,
+                headers: BTreeMap::new(),
+                body: json!({"data": {"nodes": []}}),
+            }
+        })
+    }
+
+    fn graphql_request(query: &str, variables: Value) -> Request {
+        Request {
+            method: "POST".to_string(),
+            path: "/admin/api/2026-04/graphql.json".to_string(),
+            headers: BTreeMap::new(),
+            body: json!({ "query": query, "variables": variables }).to_string(),
+        }
+    }
+
+    #[test]
+    fn owner_metafield_read_hydrates_requested_window_and_deduped_owner_ids() {
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let mut proxy = live_hybrid_proxy(calls.clone());
+        let product_id = "gid://shopify/Product/100";
+        let collection_id = "gid://shopify/Collection/200";
+
+        let response = proxy.process_request(graphql_request(
+            r#"
+            query ReadOwnerMetafields($productId: ID!, $collectionId: ID!) {
+              firstProduct: product(id: $productId) {
+                id
+                metafields(first: 2, namespace: "custom") {
+                  nodes { id namespace key value }
+                }
+              }
+              repeatedProduct: product(id: $productId) {
+                metafield(namespace: "custom", key: "color") { id value }
+              }
+              collection(id: $collectionId) {
+                metafield(namespace: "custom", key: "featured") { id value }
+              }
+            }
+            "#,
+            json!({"productId": product_id, "collectionId": collection_id}),
+        ));
+
+        assert_eq!(response.status, 200);
+        let calls = calls.lock().unwrap();
+        assert_eq!(calls.len(), 1);
+        let body = &calls[0];
+        assert_eq!(body["operationName"], "OwnerMetafieldsHydrateNodes");
+        assert_eq!(
+            body["variables"]["ids"],
+            json!([collection_id, product_id]),
+            "duplicate owner ids should be removed before hydration"
+        );
+        assert_eq!(body["variables"]["metafields0First"], json!(2));
+        assert_eq!(body["variables"]["metafields0Namespace"], json!("custom"));
+        assert_eq!(body["variables"]["metafield0Namespace"], json!("custom"));
+        assert_eq!(body["variables"]["metafield0Key"], json!("color"));
+        assert_eq!(body["variables"]["metafield1Key"], json!("featured"));
+        let query = body["query"].as_str().unwrap();
+        assert!(query.contains(
+            "metafields0: metafields(first: $metafields0First, namespace: $metafields0Namespace)"
+        ));
+        assert!(query.contains(
+            "metafield0: metafield(namespace: $metafield0Namespace, key: $metafield0Key)"
+        ));
+        assert!(!query.contains("first: 250"));
+        assert!(!query.contains("variants("));
     }
 }

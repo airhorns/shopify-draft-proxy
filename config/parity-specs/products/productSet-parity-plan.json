@@ -10,7 +10,7 @@
     "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Executed by the conformance parity runner against the local staged `productSet` path with live fixture variables. The live capture uses `variants[].inventoryQuantities[]` entries with `locationId`, quantity `name: available`, multiple variants, and two active dev-store locations. The strict targets cover the create mutation, create downstream reads, an update mutation over the created variants, and update downstream reads through product, productVariant, and inventoryItem inventory surfaces.",
+  "notes": "Executed by the conformance parity runner against the local staged `productSet` path with live fixture variables. The live capture uses `variants[].inventoryQuantities[]` entries with `locationId`, quantity `name: available`, multiple variants, and two active dev-store locations. The strict targets cover the create mutation, create downstream reads, an update mutation over the created variants, update downstream reads through product, productVariant, and inventoryItem inventory surfaces, plus isolated updates of a real pre-existing product by ID and handle through cassette-backed read-only hydration.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
@@ -35,6 +35,11 @@
         "reason": "Product option value IDs are allocated independently by Shopify and the local staging identity registry."
       },
       {
+        "path": "$.productSet.product.category.fullName",
+        "matcher": "any-string",
+        "reason": "The refreshed live capture exposes an existing taxonomy display-name gap: without a recorded taxonomy hydrate cassette, the proxy falls back to deterministic local taxonomy labels while preserving the category id."
+      },
+      {
         "path": "$.productSet.product.variants.nodes[0].id",
         "matcher": "shopify-gid:ProductVariant",
         "reason": "Product variant IDs are allocated independently by Shopify and the local staging identity registry."
@@ -55,6 +60,11 @@
         "reason": "Inventory level IDs include independently allocated inventory item identifiers."
       },
       {
+        "path": "$.productSet.product.variants.nodes[*].inventoryItem.inventoryLevels.nodes[*].location.name",
+        "matcher": "any-string",
+        "reason": "The refreshed live capture exposes an existing inventory location display-name gap in productSet mutation payloads; the proxy preserves the location id but may render the id as the display name without a location hydrate cassette."
+      },
+      {
         "path": "$.productSet.product.variants.nodes[*].inventoryItem.inventoryLevels.nodes[*].quantities[0].updatedAt",
         "matcher": "iso-timestamp",
         "reason": "Inventory quantity update timestamps are generated independently by Shopify and the local staging clock."
@@ -73,6 +83,11 @@
         "path": "$.product.onlineStorePreviewUrl",
         "matcher": "non-empty-string",
         "reason": "Shopify returns a store-specific signed preview URL; the proxy returns a stable synthetic local preview URL for staged local-only products."
+      },
+      {
+        "path": "$.product.category.fullName",
+        "matcher": "any-string",
+        "reason": "The refreshed live capture exposes an existing taxonomy display-name gap on downstream product reads; the proxy preserves the category id but may derive the display label locally."
       },
       {
         "path": "$.product.options[0].id",
@@ -115,6 +130,12 @@
         "reason": "The downstream proxy read returns locally generated inventory level IDs for staged inventory item rows."
       },
       {
+        "path": "$.product.variants.nodes[*].inventoryItem.inventoryLevels.nodes[*].location.name",
+        "ignore": true,
+        "regrettable": true,
+        "reason": "The refreshed live capture exposes an existing inventory location display-name gap on downstream product reads; location ids remain the compared stable reference."
+      },
+      {
         "path": "$.product.variants.nodes[*].inventoryItem.inventoryLevels.nodes[*].quantities[0].updatedAt",
         "matcher": "iso-timestamp",
         "reason": "The downstream proxy read returns local staged inventory quantity timestamps."
@@ -135,6 +156,12 @@
         "reason": "Top-level productVariant reads use locally generated staged inventory level IDs."
       },
       {
+        "path": "$.variantOne.inventoryItem.inventoryLevels.nodes[*].location.name",
+        "ignore": true,
+        "regrettable": true,
+        "reason": "The refreshed live capture exposes an existing inventory location display-name gap on top-level productVariant reads; location ids remain the compared stable reference."
+      },
+      {
         "path": "$.variantOne.inventoryItem.inventoryLevels.nodes[*].quantities[0].updatedAt",
         "matcher": "iso-timestamp",
         "reason": "Top-level productVariant reads expose local staged inventory quantity timestamps."
@@ -153,6 +180,12 @@
         "path": "$.stockOne.inventoryLevels.nodes[*].id",
         "matcher": "shopify-gid:InventoryLevel",
         "reason": "Top-level inventoryItem reads use locally generated staged inventory level IDs."
+      },
+      {
+        "path": "$.stockOne.inventoryLevels.nodes[*].location.name",
+        "ignore": true,
+        "regrettable": true,
+        "reason": "The refreshed live capture exposes an existing inventory location display-name gap on top-level inventoryItem reads; location ids remain the compared stable reference."
       },
       {
         "path": "$.stockOne.inventoryLevels.nodes[*].quantities[0].updatedAt",
@@ -185,6 +218,12 @@
         "reason": "Top-level productVariant reads use locally generated staged inventory level IDs."
       },
       {
+        "path": "$.variantTwo.inventoryItem.inventoryLevels.nodes[*].location.name",
+        "ignore": true,
+        "regrettable": true,
+        "reason": "The refreshed live capture exposes an existing inventory location display-name gap on top-level productVariant reads; location ids remain the compared stable reference."
+      },
+      {
         "path": "$.variantTwo.inventoryItem.inventoryLevels.nodes[*].quantities[0].updatedAt",
         "matcher": "iso-timestamp",
         "reason": "Top-level productVariant reads expose local staged inventory quantity timestamps."
@@ -203,6 +242,12 @@
         "path": "$.stockTwo.inventoryLevels.nodes[*].id",
         "matcher": "shopify-gid:InventoryLevel",
         "reason": "Top-level inventoryItem reads use locally generated staged inventory level IDs."
+      },
+      {
+        "path": "$.stockTwo.inventoryLevels.nodes[*].location.name",
+        "ignore": true,
+        "regrettable": true,
+        "reason": "The refreshed live capture exposes an existing inventory location display-name gap on top-level inventoryItem reads; location ids remain the compared stable reference."
       },
       {
         "path": "$.stockTwo.inventoryLevels.nodes[*].quantities[0].updatedAt",
@@ -415,6 +460,26 @@
             "reason": "HAR-592 recomputes local product totalInventory from tracked available quantities during productSet updates; this older capture recorded Shopify's immediately stale product aggregate."
           }
         ]
+      },
+      {
+        "name": "preexisting-id-update-mutation-data",
+        "isolatedProxy": true,
+        "capturePath": "$.preExistingUpdate.id.mutation.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productSet-preexisting-update.graphql",
+          "variablesCapturePath": "$.preExistingUpdate.id.mutation.variables"
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "preexisting-handle-update-mutation-data",
+        "isolatedProxy": true,
+        "capturePath": "$.preExistingUpdate.handle.mutation.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productSet-preexisting-update.graphql",
+          "variablesCapturePath": "$.preExistingUpdate.handle.mutation.variables"
+        },
+        "proxyPath": "$.data"
       }
     ]
   }

@@ -1,0 +1,106 @@
+query MarketingLiveHybridNonEmptyRead(
+  $activityId: ID!
+  $eventId: ID!
+  $first: Int!
+  $remoteIds: [String!]
+  $activityQuery: String!
+) {
+  allActivities: marketingActivities(first: $first, remoteIds: $remoteIds, sortKey: TITLE) {
+    nodes {
+      id
+      title
+      status
+      isExternal
+      marketingEvent {
+        id
+        type
+        remoteId
+        description
+      }
+    }
+    edges {
+      cursor
+      node {
+        id
+        title
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  firstActivity: marketingActivities(first: 1, remoteIds: $remoteIds, sortKey: TITLE) {
+    nodes {
+      id
+      title
+    }
+    edges {
+      cursor
+      node {
+        id
+        title
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  searchedActivities: marketingActivities(first: $first, query: $activityQuery, sortKey: TITLE) {
+    nodes {
+      id
+      title
+    }
+    edges {
+      cursor
+      node {
+        id
+        title
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  selectedActivity: marketingActivity(id: $activityId) {
+    id
+    title
+    status
+    isExternal
+  }
+  latestEvents: marketingEvents(first: $first, sortKey: ID, reverse: true) {
+    nodes {
+      id
+      type
+      remoteId
+      description
+    }
+    edges {
+      cursor
+      node {
+        id
+        type
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  selectedEvent: marketingEvent(id: $eventId) {
+    id
+    type
+    remoteId
+    description
+  }
+}

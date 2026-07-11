@@ -1,0 +1,19 @@
+mutation DiscountEntitlementConnectionsResourceDelete(
+  $productInput: ProductDeleteInput!
+  $collectionInput: CollectionDeleteInput!
+) {
+  productDelete(input: $productInput) {
+    deletedProductId
+    userErrors {
+      field
+      message
+    }
+  }
+  collectionDelete(input: $collectionInput) {
+    deletedCollectionId
+    userErrors {
+      field
+      message
+    }
+  }
+}

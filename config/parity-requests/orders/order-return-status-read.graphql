@@ -1,0 +1,73 @@
+query OrderReturnStatusRead($orderId: ID!, $query: String!) {
+  detail: order(id: $orderId) {
+    id
+    name
+    returnStatus
+    returns(first: 10) {
+      nodes {
+        id
+        name
+        status
+        closedAt
+        totalQuantity
+        returnLineItems(first: 10) {
+          nodes {
+            id
+            quantity
+            processedQuantity
+            unprocessedQuantity
+          }
+        }
+      }
+    }
+  }
+  list: orders(first: 5, query: $query, sortKey: CREATED_AT, reverse: true) {
+    nodes {
+      id
+      name
+      returnStatus
+      returns(first: 10) {
+        nodes {
+          id
+          name
+          status
+          closedAt
+          totalQuantity
+          returnLineItems(first: 10) {
+            nodes {
+              id
+              quantity
+              processedQuantity
+              unprocessedQuantity
+            }
+          }
+        }
+      }
+    }
+  }
+  node(id: $orderId) {
+    __typename
+    ... on Order {
+      id
+      name
+      returnStatus
+      returns(first: 10) {
+        nodes {
+          id
+          name
+          status
+          closedAt
+          totalQuantity
+          returnLineItems(first: 10) {
+            nodes {
+              id
+              quantity
+              processedQuantity
+              unprocessedQuantity
+            }
+          }
+        }
+      }
+    }
+  }
+}

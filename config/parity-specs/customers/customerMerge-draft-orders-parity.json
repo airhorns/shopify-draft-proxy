@@ -1,0 +1,61 @@
+{
+  "scenarioId": "customer-merge-draft-orders-live-parity",
+  "operationNames": ["draftOrderCreate", "customerMerge", "draftOrders", "draftOrdersCount"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-merge-attached-resources-parity.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/customers.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customer-merge-draft-order-create.graphql",
+    "variablesCapturePath": "$.precondition.draftOrderCreate.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict parity for customerMerge transferring a non-empty source-owned draft order. The proxy earns the setup draft through public draftOrderCreate, records the exact draft-order customer hydrate cassette used by that setup request, then runs customerMerge and verifies downstream draftOrders/customer_id reads move the draft from the source customer to the resulting customer while preserving draft fields.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.customerMerge.job.id",
+        "matcher": "shopify-gid:Job",
+        "reason": "Customer merge jobs are allocated independently by Shopify and the local staging identity registry."
+      },
+      {
+        "path": "$.resultDraftOrders.nodes[0].id",
+        "matcher": "shopify-gid:DraftOrder",
+        "reason": "The proxy setup draft order is created locally with a deterministic DraftOrder GID."
+      }
+    ],
+    "targets": [
+      {
+        "name": "draft-order-setup-user-errors",
+        "capturePath": "$.precondition.draftOrderCreate.response.data.draftOrderCreate.userErrors",
+        "proxyPath": "$.data.draftOrderCreate.userErrors"
+      },
+      {
+        "name": "merge-mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerMerge-attached-resources-parity.graphql",
+          "variablesCapturePath": "$.mutation.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "draft-order-transfer-read-data",
+        "capturePath": "$.draftOrdersAfterMerge.response.data",
+        "proxyPath": "$.data",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-merge-draft-orders-read.graphql",
+          "variablesCapturePath": "$.draftOrdersAfterMerge.variables",
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  }
+}
