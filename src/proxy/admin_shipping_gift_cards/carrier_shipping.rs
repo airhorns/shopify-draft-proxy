@@ -16,6 +16,68 @@ const SHIPPING_PACKAGE_HYDRATE_QUERY: &str = r#"query ShippingPackageHydrate($id
     }
   }
 }"#;
+const CARRIER_SERVICE_HYDRATE_QUERY: &str = r#"query ShippingCarrierServiceHydrate($id: ID!) {
+  carrierService(id: $id) {
+    id
+    name
+    formattedName
+    callbackUrl
+    active
+    supportsServiceDiscovery
+  }
+}"#;
+const CARRIER_SERVICES_HYDRATE_QUERY: &str = r#"query ShippingCarrierServicesHydrate {
+  carrierServices(first: 250) {
+    nodes {
+      id
+      name
+      formattedName
+      callbackUrl
+      active
+      supportsServiceDiscovery
+    }
+  }
+}"#;
+const FULFILLMENT_SERVICE_HYDRATE_QUERY: &str = r#"query ShippingFulfillmentServiceHydrate($id: ID!) {
+  fulfillmentService(id: $id) {
+    id
+    handle
+    serviceName
+    callbackUrl
+    trackingSupport
+    inventoryManagement
+    requiresShippingMethod
+    type
+    location {
+      id
+      name
+      isFulfillmentService
+      fulfillsOnlineOrders
+      shipsInventory
+    }
+  }
+}"#;
+const FULFILLMENT_SERVICES_HYDRATE_QUERY: &str = r#"query ShippingFulfillmentServicesHydrate {
+  shop {
+    fulfillmentServices {
+      id
+      handle
+      serviceName
+      callbackUrl
+      trackingSupport
+      inventoryManagement
+      requiresShippingMethod
+      type
+      location {
+        id
+        name
+        isFulfillmentService
+        fulfillsOnlineOrders
+        shipsInventory
+      }
+    }
+  }
+}"#;
 
 fn merge_shipping_package_input(package: &mut Value, input: &BTreeMap<String, ResolvedValue>) {
     for (key, value) in input {
@@ -85,14 +147,171 @@ impl DraftProxy {
     }
 
     fn stage_observed_carrier_service(&mut self, carrier: Value) {
-        let Some(id) = carrier
-            .get("id")
-            .and_then(Value::as_str)
-            .map(str::to_string)
-        else {
+        self.stage_hydrated_carrier_service(carrier);
+    }
+
+    fn carrier_service_for_mutation(&mut self, id: &str, request: &Request) -> Option<Value> {
+        if shopify_gid_resource_type(id) != Some("DeliveryCarrierService") {
+            return None;
+        }
+        if self.store.staged.carrier_services.is_tombstoned(id) {
+            return None;
+        }
+        if let Some(carrier) = self.store.staged.carrier_services.get(id).cloned() {
+            return Some(carrier);
+        }
+        if self.config.read_mode == ReadMode::Snapshot {
+            return None;
+        }
+        self.hydrate_carrier_service(request, id)
+    }
+
+    fn hydrate_carrier_service(&mut self, request: &Request, id: &str) -> Option<Value> {
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": CARRIER_SERVICE_HYDRATE_QUERY,
+                "variables": { "id": id }
+            }),
+        );
+        if response.status != 200 {
+            return None;
+        }
+        let carrier =
+            normalize_hydrated_carrier_service(&response.body["data"]["carrierService"], id)?;
+        self.stage_hydrated_carrier_service(carrier)
+    }
+
+    fn hydrate_carrier_service_catalog_for_mutation(&mut self, request: &Request) {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": CARRIER_SERVICES_HYDRATE_QUERY,
+                "variables": {}
+            }),
+        );
+        if response.status != 200 {
+            return;
+        }
+        let Some(services) = response.body["data"]["carrierServices"]["nodes"].as_array() else {
             return;
         };
-        self.store.staged.carrier_services.insert(id, carrier);
+        for carrier in services {
+            if let Some(carrier) = normalize_hydrated_carrier_service_without_expected_id(carrier) {
+                self.stage_hydrated_carrier_service(carrier);
+            }
+        }
+    }
+
+    fn stage_hydrated_carrier_service(&mut self, carrier: Value) -> Option<Value> {
+        let id = carrier.get("id").and_then(Value::as_str)?.to_string();
+        if self.store.staged.carrier_services.is_tombstoned(&id) {
+            return None;
+        }
+        if let Some(existing) = self.store.staged.carrier_services.get(&id).cloned() {
+            return Some(existing);
+        }
+        self.store
+            .staged
+            .carrier_services
+            .insert(id, carrier.clone());
+        Some(carrier)
+    }
+
+    fn fulfillment_service_for_mutation(&mut self, id: &str, request: &Request) -> Option<Value> {
+        if shopify_gid_resource_type(id) != Some("FulfillmentService") {
+            return None;
+        }
+        if self.store.staged.fulfillment_services.is_tombstoned(id) {
+            return None;
+        }
+        if let Some(service) = self.store.staged.fulfillment_services.get(id).cloned() {
+            return Some(service);
+        }
+        if self.config.read_mode == ReadMode::Snapshot {
+            return None;
+        }
+        self.hydrate_fulfillment_service(request, id)
+    }
+
+    fn hydrate_fulfillment_service(&mut self, request: &Request, id: &str) -> Option<Value> {
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": FULFILLMENT_SERVICE_HYDRATE_QUERY,
+                "variables": { "id": id }
+            }),
+        );
+        if response.status != 200 {
+            return None;
+        }
+        let service = normalize_hydrated_fulfillment_service(
+            &response.body["data"]["fulfillmentService"],
+            id,
+        )?;
+        self.stage_hydrated_fulfillment_service(service)
+    }
+
+    fn hydrate_fulfillment_service_catalog_for_mutation(&mut self, request: &Request) {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": FULFILLMENT_SERVICES_HYDRATE_QUERY,
+                "variables": {}
+            }),
+        );
+        if response.status != 200 {
+            return;
+        }
+        let Some(services) = response.body["data"]["shop"]["fulfillmentServices"].as_array() else {
+            return;
+        };
+        for service in services {
+            if let Some(service) =
+                normalize_hydrated_fulfillment_service_without_expected_id(service)
+            {
+                self.stage_hydrated_fulfillment_service(service);
+            }
+        }
+    }
+
+    fn stage_hydrated_fulfillment_service(&mut self, service: Value) -> Option<Value> {
+        let id = service.get("id").and_then(Value::as_str)?.to_string();
+        if self.store.staged.fulfillment_services.is_tombstoned(&id) {
+            return None;
+        }
+        if let Some(existing) = self.store.staged.fulfillment_services.get(&id).cloned() {
+            return Some(existing);
+        }
+        if let Some(location_id) = service["location"].get("id").and_then(Value::as_str) {
+            if !self
+                .store
+                .staged
+                .fulfillment_service_locations
+                .is_tombstoned(location_id)
+                && !self
+                    .store
+                    .staged
+                    .fulfillment_service_locations
+                    .contains_staged(location_id)
+            {
+                self.store
+                    .staged
+                    .fulfillment_service_locations
+                    .insert(location_id.to_string(), service["location"].clone());
+            }
+        }
+        self.store
+            .staged
+            .fulfillment_services
+            .insert(id, service.clone());
+        Some(service)
     }
 
     pub(in crate::proxy) fn fulfillment_service_read_data(
@@ -213,11 +432,12 @@ impl DraftProxy {
     }
 
     fn fulfillment_service_validation_errors(
-        &self,
+        &mut self,
         name: &str,
         callback_url: Option<&str>,
         except_id: Option<&str>,
         validate_name_shape: bool,
+        uniqueness_request: Option<&Request>,
     ) -> Vec<Value> {
         let mut user_errors = Vec::new();
         if validate_name_shape {
@@ -228,12 +448,17 @@ impl DraftProxy {
         }
         if fulfillment_service_name_is_reserved(name) {
             user_errors.push(user_error_omit_code(["name"], "Name is reserved", None));
-        } else if self.fulfillment_service_name_or_handle_exists(name, except_id) {
-            user_errors.push(user_error_omit_code(
-                ["name"],
-                "Name has already been taken",
-                None,
-            ));
+        } else {
+            if let Some(request) = uniqueness_request {
+                self.hydrate_fulfillment_service_catalog_for_mutation(request);
+            }
+            if self.fulfillment_service_name_or_handle_exists(name, except_id) {
+                user_errors.push(user_error_omit_code(
+                    ["name"],
+                    "Name has already been taken",
+                    None,
+                ));
+            }
         }
         user_errors
     }
@@ -250,9 +475,15 @@ impl DraftProxy {
         };
         let data = root_payload_json(&fields, |field| {
             let (payload, ids) = match field.name.as_str() {
-                "fulfillmentServiceCreate" => self.fulfillment_service_create_payload(field),
-                "fulfillmentServiceUpdate" => self.fulfillment_service_update_payload(field),
-                "fulfillmentServiceDelete" => self.fulfillment_service_delete_payload(field),
+                "fulfillmentServiceCreate" => {
+                    self.fulfillment_service_create_payload(field, request)
+                }
+                "fulfillmentServiceUpdate" => {
+                    self.fulfillment_service_update_payload(field, request)
+                }
+                "fulfillmentServiceDelete" => {
+                    self.fulfillment_service_delete_payload(field, request)
+                }
                 _ => return None,
             };
             if !ids.is_empty() {
@@ -273,6 +504,7 @@ impl DraftProxy {
     pub(in crate::proxy) fn fulfillment_service_create_payload(
         &mut self,
         field: &RootFieldSelection,
+        request: &Request,
     ) -> (Value, Vec<String>) {
         let service_selection =
             selected_child_selection(&field.selection, "fulfillmentService").unwrap_or_default();
@@ -285,8 +517,13 @@ impl DraftProxy {
             .arguments
             .get("callbackUrl")
             .and_then(resolved_value_string);
-        let user_errors =
-            self.fulfillment_service_validation_errors(&name, callback_url.as_deref(), None, true);
+        let user_errors = self.fulfillment_service_validation_errors(
+            &name,
+            callback_url.as_deref(),
+            None,
+            true,
+            Some(request),
+        );
         if !user_errors.is_empty() {
             return (
                 fulfillment_service_payload_json(
@@ -343,6 +580,7 @@ impl DraftProxy {
     pub(in crate::proxy) fn fulfillment_service_update_payload(
         &mut self,
         field: &RootFieldSelection,
+        request: &Request,
     ) -> (Value, Vec<String>) {
         let service_selection =
             selected_child_selection(&field.selection, "fulfillmentService").unwrap_or_default();
@@ -352,7 +590,7 @@ impl DraftProxy {
                 vec![],
             );
         };
-        let Some(existing) = self.store.staged.fulfillment_services.get(&id).cloned() else {
+        let Some(existing) = self.fulfillment_service_for_mutation(&id, request) else {
             return (
                 fulfillment_service_not_found_payload(&field.selection),
                 vec![],
@@ -380,6 +618,7 @@ impl DraftProxy {
             callback_url.as_deref(),
             Some(&id),
             field.arguments.contains_key("name"),
+            field.arguments.contains_key("name").then_some(request),
         );
         if !user_errors.is_empty() {
             return (
@@ -436,6 +675,7 @@ impl DraftProxy {
     pub(in crate::proxy) fn fulfillment_service_delete_payload(
         &mut self,
         field: &RootFieldSelection,
+        request: &Request,
     ) -> (Value, Vec<String>) {
         let id = field
             .arguments
@@ -451,7 +691,10 @@ impl DraftProxy {
             .get("destinationLocationId")
             .and_then(resolved_value_string)
             .filter(|value| !value.trim().is_empty());
-        if !self.store.staged.fulfillment_services.contains_key(&id) {
+        if self
+            .fulfillment_service_for_mutation(&id, request)
+            .is_none()
+        {
             return (
                 fulfillment_service_delete_payload(
                     Value::Null,
@@ -656,6 +899,7 @@ impl DraftProxy {
         // (trimmed) name returns a base CARRIER_SERVICE_CREATE_FAILED userError naming the
         // already-configured service and stages no additional record.
         let trimmed_name = name.trim();
+        self.hydrate_carrier_service_catalog_for_mutation(request);
         if self
             .store
             .staged
@@ -711,7 +955,7 @@ impl DraftProxy {
                 "CARRIER_SERVICE_UPDATE_FAILED",
             );
         };
-        let Some(existing) = self.store.staged.carrier_services.get(&id).cloned() else {
+        let Some(existing) = self.carrier_service_for_mutation(&id, request) else {
             return carrier_service_not_found_payload(
                 &field.selection,
                 "CARRIER_SERVICE_UPDATE_FAILED",
@@ -803,7 +1047,7 @@ impl DraftProxy {
             .get("id")
             .and_then(resolved_value_string)
             .unwrap_or_default();
-        if !self.store.staged.carrier_services.contains_key(&id) {
+        if self.carrier_service_for_mutation(&id, request).is_none() {
             return carrier_service_delete_payload(
                 Value::Null,
                 &field.selection,
@@ -1040,6 +1284,45 @@ fn normalize_hydrated_shipping_package(package: &Value, expected_id: &str) -> Op
     }
     object.remove("__typename");
     Some(package)
+}
+
+fn normalize_hydrated_carrier_service(carrier: &Value, expected_id: &str) -> Option<Value> {
+    let carrier = normalize_hydrated_carrier_service_without_expected_id(carrier)?;
+    (carrier.get("id").and_then(Value::as_str) == Some(expected_id)).then_some(carrier)
+}
+
+fn normalize_hydrated_carrier_service_without_expected_id(carrier: &Value) -> Option<Value> {
+    let mut carrier = carrier.clone();
+    let object = carrier.as_object_mut()?;
+    let id = object.get("id").and_then(Value::as_str)?;
+    if shopify_gid_resource_type(id) != Some("DeliveryCarrierService") {
+        return None;
+    }
+    if object
+        .get("formattedName")
+        .and_then(Value::as_str)
+        .is_none()
+    {
+        if let Some(name) = object.get("name").and_then(Value::as_str) {
+            object.insert(
+                "formattedName".to_string(),
+                json!(format!("{name} (Rates provided by app)")),
+            );
+        }
+    }
+    Some(carrier)
+}
+
+fn normalize_hydrated_fulfillment_service(service: &Value, expected_id: &str) -> Option<Value> {
+    let service = normalize_hydrated_fulfillment_service_without_expected_id(service)?;
+    (service.get("id").and_then(Value::as_str) == Some(expected_id)).then_some(service)
+}
+
+fn normalize_hydrated_fulfillment_service_without_expected_id(service: &Value) -> Option<Value> {
+    let service = service.clone();
+    let object = service.as_object()?;
+    let id = object.get("id").and_then(Value::as_str)?;
+    (shopify_gid_resource_type(id) == Some("FulfillmentService")).then_some(service)
 }
 
 fn carrier_service_search_decision(carrier: &Value, query: Option<&str>) -> StagedSearchDecision {

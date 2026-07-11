@@ -1,0 +1,40 @@
+mutation CustomerSetCustomId(
+  $identifier: CustomerSetIdentifiers
+  $input: CustomerSetInput!
+  $namespace: String!
+  $key: String!
+) {
+  customerSet(identifier: $identifier, input: $input) {
+    customer {
+      id
+      firstName
+      lastName
+      displayName
+      externalId: metafield(namespace: $namespace, key: $key) {
+        id
+        namespace
+        key
+        type
+        value
+      }
+      metafields(first: 5) {
+        nodes {
+          id
+          namespace
+          key
+          type
+          value
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -1,0 +1,36 @@
+#graphql
+mutation ProductTopLevelMediaUpdate($product: ProductUpdateInput!, $media: [CreateMediaInput!]) {
+  productUpdate(product: $product, media: $media) {
+    product {
+      id
+      title
+      media(first: 10) {
+        nodes {
+          __typename
+          id
+          alt
+          mediaContentType
+          status
+          preview {
+            image {
+              url
+            }
+          }
+          ... on MediaImage {
+            image {
+              url
+            }
+          }
+          ... on ExternalVideo {
+            originUrl
+            embedUrl
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

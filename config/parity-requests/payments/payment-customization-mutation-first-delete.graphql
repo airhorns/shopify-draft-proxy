@@ -1,0 +1,10 @@
+mutation PaymentCustomizationMutationFirstDelete($id: ID!) {
+  paymentCustomizationDelete(id: $id) {
+    deletedId
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}

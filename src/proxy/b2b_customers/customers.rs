@@ -5,6 +5,19 @@ enum StoreCreditAccountMutationResolution {
     CreateForOwner(String),
 }
 
+#[derive(Clone)]
+struct CustomerCustomId {
+    namespace: String,
+    key: String,
+    value: String,
+}
+
+#[derive(Default)]
+struct CustomerCustomIdUpstreamLookup {
+    valid_definition: bool,
+    found_id: Option<String>,
+}
+
 // Shared with the parity capture scripts via include_str! so recorded `CustomerHydrate`
 // cassettes byte-match what `hydrate_customer_for_mutation` forwards upstream. The leading
 // newline is significant: the cassette matcher only trims trailing whitespace.
@@ -17,6 +30,8 @@ const CUSTOMER_HYDRATE_QUERY: &str =
 // whitespace.
 const CUSTOMER_DUPLICATE_HYDRATE_QUERY: &str =
     include_str!("../../../config/parity-requests/customers/customer-duplicate-hydrate.graphql");
+const CUSTOMER_CUSTOM_ID_LOOKUP_QUERY: &str =
+    include_str!("../../../config/parity-requests/customers/customer-custom-id-lookup.graphql");
 
 // `customerMerge` resolves both referenced customers the real way (forward + observe) and
 // must reconcile their *attached* resources — metafields, addresses, and orders — into the
@@ -34,6 +49,8 @@ const STORE_CREDIT_CUSTOMER_HYDRATE_QUERY: &str = include_str!(
 const STORE_CREDIT_ACCOUNT_HYDRATE_QUERY: &str = include_str!(
     "../../../config/parity-requests/customers/storeCreditAccountHydrate-parity.graphql"
 );
+const CUSTOMER_ACCOUNT_ACTIVATION_TOKEN_FIELD: &str = "__proxyAccountActivationToken";
+const CUSTOMER_ACCOUNT_INVITE_FIELD: &str = "__proxyAccountInvite";
 
 impl DraftProxy {
     pub(in crate::proxy) fn dispatch_unknown_passthrough_or_legacy_error(
@@ -1156,6 +1173,14 @@ impl DraftProxy {
                     }
                 }
             })
+        } else if let Some(custom_id) = customer_custom_id_from_identifier(&identifier, None) {
+            if self.customer_custom_id_has_local_valid_definition(&custom_id) {
+                self.customer_ids_matching_custom_id(&custom_id)
+                    .first()
+                    .and_then(|id| self.store.staged.customers.get(id))
+            } else {
+                None
+            }
         } else {
             None
         };
@@ -1254,6 +1279,172 @@ impl DraftProxy {
             body["errors"] = Value::Array(errors);
         }
         ok_json(body)
+    }
+
+    pub(in crate::proxy) fn customer_outbound_lifecycle_response(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Response {
+        let Some(fields) = root_fields(query, variables) else {
+            return json_error(400, "Could not parse GraphQL operation");
+        };
+        if !fields.iter().all(|field| {
+            matches!(
+                field.name.as_str(),
+                "customerGenerateAccountActivationUrl"
+                    | "customerSendAccountInviteEmail"
+                    | "customerPaymentMethodSendUpdateEmail"
+            )
+        }) {
+            return json_error(
+                400,
+                "Unsupported mixed customer outbound mutation selection",
+            );
+        }
+
+        let data = root_payload_json(&fields, |field| {
+            let (payload, staged_ids) = match field.name.as_str() {
+                "customerGenerateAccountActivationUrl" => {
+                    self.customer_generate_account_activation_url_payload(request, field)
+                }
+                "customerSendAccountInviteEmail" => {
+                    self.customer_send_account_invite_email_payload(request, field)
+                }
+                // Kept unimplemented as a primary root. This projection lets the
+                // existing mixed outbound-validation parity request continue to
+                // compare its captured not-found branch without staging delivery.
+                "customerPaymentMethodSendUpdateEmail" => (
+                    customer_payment_method_send_update_email_not_found_payload(),
+                    Vec::new(),
+                ),
+                _ => unreachable!("validated customer outbound root"),
+            };
+            if !staged_ids.is_empty() {
+                self.record_mutation_log_entry(request, query, variables, &field.name, staged_ids);
+            }
+            Some(self.selected_customer_outbound_payload(&payload, &field.selection))
+        });
+        ok_json(json!({ "data": data }))
+    }
+
+    fn selected_customer_outbound_payload(
+        &self,
+        payload: &Value,
+        selection: &[SelectedField],
+    ) -> Value {
+        selected_payload_json(selection, |field| match field.name.as_str() {
+            "customer" => {
+                let customer = &payload["customer"];
+                if customer.is_null() {
+                    return Some(Value::Null);
+                }
+                let id = customer
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                Some(self.customer_with_order_connection(id, customer, &field.selection))
+            }
+            _ => selected_json(payload, std::slice::from_ref(field))
+                .as_object()
+                .and_then(|object| object.get(&field.response_key).cloned()),
+        })
+    }
+
+    fn customer_generate_account_activation_url_payload(
+        &mut self,
+        request: &Request,
+        field: &RootFieldSelection,
+    ) -> (Value, Vec<String>) {
+        let customer_id = resolved_string_field(&field.arguments, "customerId").unwrap_or_default();
+        let Some(mut customer) = self.customer_existing_for_update(request, &customer_id) else {
+            return (
+                customer_account_activation_url_payload(
+                    Value::Null,
+                    vec![user_error_omit_code(
+                        ["customerId"],
+                        "The customer can't be found.",
+                        None,
+                    )],
+                ),
+                Vec::new(),
+            );
+        };
+
+        let state = customer_account_state(&customer);
+        if !customer_account_allows_invite_or_activation(state) {
+            return (
+                customer_account_activation_url_payload(
+                    Value::Null,
+                    vec![user_error_omit_code(
+                        ["customerId"],
+                        "account_already_enabled",
+                        None,
+                    )],
+                ),
+                Vec::new(),
+            );
+        }
+
+        let token = customer_account_activation_token(&mut customer, &customer_id);
+        let activation_url = customer_account_activation_url(&token);
+        self.store
+            .staged
+            .customers
+            .stage(customer_id.clone(), customer);
+        (
+            customer_account_activation_url_payload(json!(activation_url), Vec::new()),
+            vec![customer_id],
+        )
+    }
+
+    fn customer_send_account_invite_email_payload(
+        &mut self,
+        request: &Request,
+        field: &RootFieldSelection,
+    ) -> (Value, Vec<String>) {
+        let customer_id = resolved_string_field(&field.arguments, "customerId").unwrap_or_default();
+        let Some(mut customer) = self.customer_existing_for_update(request, &customer_id) else {
+            return (
+                customer_payload(
+                    Value::Null,
+                    vec![user_error(
+                        ["customerId"],
+                        "Customer can't be found",
+                        Some("INVALID"),
+                    )],
+                ),
+                Vec::new(),
+            );
+        };
+
+        if let Some(errors) = customer_invite_email_user_errors(&field.arguments) {
+            return (customer_payload(Value::Null, vec![errors]), Vec::new());
+        }
+
+        let state = customer_account_state(&customer);
+        if !customer_account_allows_invite_or_activation(state) {
+            return (
+                customer_payload(
+                    Value::Null,
+                    vec![user_error(
+                        ["customerId"],
+                        "Customer account is already enabled.",
+                        Some("ACCOUNT_ALREADY_ENABLED"),
+                    )],
+                ),
+                Vec::new(),
+            );
+        }
+
+        customer["state"] = json!("INVITED");
+        customer[CUSTOMER_ACCOUNT_INVITE_FIELD] = customer_account_invite_state(&field.arguments);
+        self.store
+            .staged
+            .customers
+            .stage(customer_id.clone(), customer.clone());
+        (customer_payload(customer, Vec::new()), vec![customer_id])
     }
 
     fn selected_customer_mutation_payload(
@@ -1639,19 +1830,79 @@ impl DraftProxy {
                 );
             }
             if identifier.contains_key("customId") {
-                return (
-                    Value::Null,
-                    Vec::new(),
-                    vec![json!({
-                            "message": "Resource matching the identifier was not found.",
-                            "path": ["customerSet"],
-                            "extensions": { "code": "NOT_FOUND" }
-                    })],
-                );
+                let api_client_id = request_app_namespace_api_client_id(request);
+                let Some(custom_id) =
+                    customer_custom_id_from_identifier(identifier, api_client_id.as_deref())
+                else {
+                    return customer_set_custom_id_not_found_response();
+                };
+                return self.customer_set_custom_id_payload(request, &custom_id, &input);
             }
         }
 
         self.customer_set_create_payload(request, &input)
+    }
+
+    fn customer_set_custom_id_payload(
+        &mut self,
+        request: &Request,
+        custom_id: &CustomerCustomId,
+        input: &BTreeMap<String, ResolvedValue>,
+    ) -> (Value, Vec<String>, Vec<Value>) {
+        if !self.customer_custom_id_has_local_valid_definition(custom_id) {
+            let lookup = self.customer_upstream_custom_id_lookup(custom_id, request);
+            if let Some(id) = lookup.found_id {
+                let Some(existing) = self.customer_existing_for_update(request, &id) else {
+                    return customer_set_custom_id_not_found_response();
+                };
+                return self.customer_update_existing_payload_with_custom_id(
+                    request, &id, existing, input, custom_id,
+                );
+            }
+            if lookup.valid_definition {
+                return self.customer_set_create_payload_with_custom_id(request, input, custom_id);
+            }
+            return customer_set_custom_id_not_found_response();
+        }
+
+        if let Some(error) = customer_custom_id_input_mismatch_error(input, custom_id) {
+            return (
+                customer_payload(Value::Null, vec![error]),
+                Vec::new(),
+                Vec::new(),
+            );
+        }
+
+        let matches = self.customer_ids_matching_custom_id(custom_id);
+        if matches.len() > 1 {
+            return (
+                customer_payload(Value::Null, vec![customer_custom_id_duplicate_user_error()]),
+                Vec::new(),
+                Vec::new(),
+            );
+        }
+        if let Some(id) = matches.first() {
+            let Some(existing) = self.customer_existing_for_update(request, id) else {
+                return (customer_set_not_found_payload(), Vec::new(), Vec::new());
+            };
+            return self.customer_update_existing_payload_with_custom_id(
+                request, id, existing, input, custom_id,
+            );
+        }
+
+        if let Some(id) = self
+            .customer_upstream_custom_id_lookup(custom_id, request)
+            .found_id
+        {
+            let Some(existing) = self.customer_existing_for_update(request, &id) else {
+                return (customer_set_not_found_payload(), Vec::new(), Vec::new());
+            };
+            return self.customer_update_existing_payload_with_custom_id(
+                request, &id, existing, input, custom_id,
+            );
+        }
+
+        self.customer_set_create_payload_with_custom_id(request, input, custom_id)
     }
 
     fn customer_set_contact_identifier_payload(
@@ -1777,6 +2028,143 @@ impl DraftProxy {
             .cloned()
             .unwrap_or(customer);
         (customer_payload(customer, Vec::new()), vec![id], Vec::new())
+    }
+
+    fn customer_set_create_payload_with_custom_id(
+        &mut self,
+        request: &Request,
+        input: &BTreeMap<String, ResolvedValue>,
+        custom_id: &CustomerCustomId,
+    ) -> (Value, Vec<String>, Vec<Value>) {
+        let (mut payload, staged_ids, errors) = self.customer_set_create_payload(request, input);
+        self.apply_customer_custom_id_to_success_payload(&mut payload, custom_id);
+        (payload, staged_ids, errors)
+    }
+
+    fn customer_update_existing_payload_with_custom_id(
+        &mut self,
+        request: &Request,
+        id: &str,
+        existing: Value,
+        input: &BTreeMap<String, ResolvedValue>,
+        custom_id: &CustomerCustomId,
+    ) -> (Value, Vec<String>, Vec<Value>) {
+        let (mut payload, staged_ids, errors) = self.customer_update_existing_payload(
+            request,
+            "customerSet",
+            id,
+            existing,
+            input,
+            true,
+        );
+        self.apply_customer_custom_id_to_success_payload(&mut payload, custom_id);
+        (payload, staged_ids, errors)
+    }
+
+    fn apply_customer_custom_id_to_success_payload(
+        &mut self,
+        payload: &mut Value,
+        custom_id: &CustomerCustomId,
+    ) {
+        let Some(customer_id) = payload["customer"]["id"].as_str().map(str::to_string) else {
+            return;
+        };
+        self.stage_owner_metafield_value(
+            &customer_id,
+            &custom_id.namespace,
+            &custom_id.key,
+            "id",
+            &custom_id.value,
+        );
+        self.sync_customer_metafields_from_owner_store(&customer_id);
+        if let Some(customer) = self.store.staged.customers.get(&customer_id) {
+            payload["customer"] = customer.clone();
+        }
+    }
+
+    fn customer_custom_id_has_local_valid_definition(&self, custom_id: &CustomerCustomId) -> bool {
+        self.owner_metafield_definition("CUSTOMER", &custom_id.namespace, &custom_id.key)
+            .as_ref()
+            .is_some_and(customer_custom_id_definition_is_valid)
+    }
+
+    fn customer_ids_matching_custom_id(&self, custom_id: &CustomerCustomId) -> Vec<String> {
+        self.store
+            .staged
+            .customers
+            .iter()
+            .filter_map(|(id, customer)| {
+                if self.store.staged.customers.is_tombstoned(id) {
+                    return None;
+                }
+                self.customer_matches_custom_id(id, customer, custom_id)
+                    .then(|| id.clone())
+            })
+            .collect()
+    }
+
+    fn customer_matches_custom_id(
+        &self,
+        id: &str,
+        customer: &Value,
+        custom_id: &CustomerCustomId,
+    ) -> bool {
+        let key_filter = [(custom_id.namespace.clone(), custom_id.key.clone())];
+        self.owner_metafields(id, Some(&custom_id.namespace), Some(&key_filter))
+            .iter()
+            .any(|metafield| customer_metafield_matches_custom_id(metafield, custom_id))
+            || connection_nodes(&customer["metafields"])
+                .iter()
+                .any(|metafield| customer_metafield_matches_custom_id(metafield, custom_id))
+    }
+
+    fn customer_upstream_custom_id_lookup(
+        &self,
+        custom_id: &CustomerCustomId,
+        request: &Request,
+    ) -> CustomerCustomIdUpstreamLookup {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return CustomerCustomIdUpstreamLookup::default();
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": CUSTOMER_CUSTOM_ID_LOOKUP_QUERY,
+                "operationName": "CustomerCustomIdLookup",
+                "variables": {
+                    "identifier": {
+                        "customId": {
+                            "namespace": &custom_id.namespace,
+                            "key": &custom_id.key,
+                            "value": &custom_id.value
+                        }
+                    }
+                },
+            }),
+        );
+        if !(200..300).contains(&response.status) {
+            return CustomerCustomIdUpstreamLookup::default();
+        }
+        let valid_definition = !response.body["errors"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .any(|error| {
+                error["extensions"]["code"].as_str() == Some("NOT_FOUND")
+                    && error["message"]
+                        .as_str()
+                        .is_some_and(|message| message.contains("Metafield definition"))
+            });
+        if !valid_definition {
+            return CustomerCustomIdUpstreamLookup::default();
+        }
+        let found_id = response.body["data"]["customerByIdentifier"]["id"]
+            .as_str()
+            .map(str::to_string);
+        CustomerCustomIdUpstreamLookup {
+            valid_definition: true,
+            found_id,
+        }
     }
 
     fn customer_update_existing_payload(
@@ -2417,6 +2805,126 @@ fn customer_payload(customer: Value, user_errors: Vec<Value>) -> Value {
     json!({ "customer": customer, "userErrors": user_errors })
 }
 
+fn customer_account_activation_url_payload(
+    account_activation_url: Value,
+    user_errors: Vec<Value>,
+) -> Value {
+    json!({ "accountActivationUrl": account_activation_url, "userErrors": user_errors })
+}
+
+fn customer_payment_method_send_update_email_not_found_payload() -> Value {
+    customer_payload(
+        Value::Null,
+        vec![user_error_omit_code(
+            ["customerPaymentMethodId"],
+            "Customer payment method does not exist",
+            None,
+        )],
+    )
+}
+
+fn customer_account_state(customer: &Value) -> &str {
+    customer
+        .get("state")
+        .and_then(Value::as_str)
+        .unwrap_or("DISABLED")
+}
+
+fn customer_account_allows_invite_or_activation(state: &str) -> bool {
+    matches!(state, "DISABLED" | "INVITED")
+}
+
+fn customer_account_activation_token(customer: &mut Value, customer_id: &str) -> String {
+    if let Some(token) = customer
+        .get(CUSTOMER_ACCOUNT_ACTIVATION_TOKEN_FIELD)
+        .and_then(Value::as_str)
+    {
+        return token.to_string();
+    }
+    let id_tail = resource_id_tail(customer_id);
+    let stable_tail = id_tail
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric())
+        .collect::<String>();
+    let token = if stable_tail.is_empty() {
+        "sdp-activation-token".to_string()
+    } else {
+        format!("sdp-activation-{stable_tail}")
+    };
+    customer[CUSTOMER_ACCOUNT_ACTIVATION_TOKEN_FIELD] = json!(token);
+    token
+}
+
+fn customer_account_activation_url(token: &str) -> String {
+    format!("https://shopify-draft-proxy.local/customer-account/activate/{token}")
+}
+
+fn customer_account_invite_state(arguments: &BTreeMap<String, ResolvedValue>) -> Value {
+    json!({
+        "status": "staged",
+        "email": arguments
+            .get("email")
+            .map(resolved_value_json)
+            .unwrap_or(Value::Null),
+    })
+}
+
+fn customer_invite_email_user_errors(arguments: &BTreeMap<String, ResolvedValue>) -> Option<Value> {
+    let email = resolved_object_field(arguments, "email")?;
+    if resolved_string_field(&email, "subject").is_some_and(|subject| subject.trim().is_empty()) {
+        return Some(user_error(
+            ["email", "subject"],
+            "Subject can't be blank",
+            Some("INVALID"),
+        ));
+    }
+    if resolved_string_field(&email, "to")
+        .as_deref()
+        .is_some_and(|to| normalize_customer_email(to).is_none())
+    {
+        return Some(user_error(
+            ["email", "to"],
+            "To is invalid",
+            Some("INVALID"),
+        ));
+    }
+    if resolved_string_field(&email, "from")
+        .as_deref()
+        .is_some_and(|from| normalize_customer_email(from).is_none())
+    {
+        return Some(user_error(
+            ["email", "from"],
+            "From Sender is invalid",
+            Some("INVALID"),
+        ));
+    }
+    let bcc = resolved_string_list_field_unsorted(&email, "bcc");
+    if bcc
+        .iter()
+        .any(|address| normalize_customer_email(address).is_none())
+    {
+        let message = bcc
+            .iter()
+            .map(|address| format!("{address} is not a valid bcc address"))
+            .collect::<Vec<_>>()
+            .join(" and ");
+        return Some(user_error(["email", "bcc"], &message, Some("INVALID")));
+    }
+    if resolved_string_field(&email, "subject")
+        .is_some_and(|subject| subject.chars().count() > 1000)
+        || resolved_string_field(&email, "customMessage").is_some_and(|message| {
+            message.chars().count() > 5000 || message.contains('<') || message.contains('>')
+        })
+    {
+        return Some(user_error(
+            ["customerId"],
+            "Error sending account invite to customer.",
+            Some("INVALID"),
+        ));
+    }
+    None
+}
+
 fn customer_identity_user_error(field: Value) -> Value {
     user_error_omit_code(
         field,
@@ -2434,6 +2942,84 @@ fn customer_set_not_found_payload() -> Value {
             Some("NOT_FOUND"),
         )],
     )
+}
+
+fn customer_set_custom_id_not_found_response() -> (Value, Vec<String>, Vec<Value>) {
+    (
+        Value::Null,
+        Vec::new(),
+        vec![customer_custom_id_not_found_error("customerSet")],
+    )
+}
+
+fn customer_custom_id_not_found_error(path: &str) -> Value {
+    json!({
+        "message": "Metafield definition of type 'id' is required when using custom ids.",
+        "path": [path],
+        "extensions": { "code": "NOT_FOUND" }
+    })
+}
+
+fn customer_custom_id_from_identifier(
+    identifier: &BTreeMap<String, ResolvedValue>,
+    api_client_id: Option<&str>,
+) -> Option<CustomerCustomId> {
+    let custom_id = resolved_object_field(identifier, "customId")?;
+    let namespace = canonical_app_metafield_namespace(
+        resolved_string_field(&custom_id, "namespace").as_deref(),
+        api_client_id,
+    );
+    let key = resolved_string_field(&custom_id, "key")?;
+    let value = resolved_string_field(&custom_id, "value")?;
+    (!key.is_empty() && !value.is_empty()).then_some(CustomerCustomId {
+        namespace,
+        key,
+        value,
+    })
+}
+
+fn customer_custom_id_definition_is_valid(definition: &Value) -> bool {
+    definition["ownerType"].as_str() == Some("CUSTOMER")
+        && definition["type"]["name"].as_str() == Some("id")
+        && definition["capabilities"]["uniqueValues"]["enabled"].as_bool() == Some(true)
+}
+
+fn customer_custom_id_input_mismatch_error(
+    input: &BTreeMap<String, ResolvedValue>,
+    custom_id: &CustomerCustomId,
+) -> Option<Value> {
+    resolved_object_list_field(input, "metafields")
+        .into_iter()
+        .filter(|metafield| {
+            let namespace = resolved_string_field(metafield, "namespace").unwrap_or_default();
+            let key = resolved_string_field(metafield, "key").unwrap_or_default();
+            namespace == custom_id.namespace && key == custom_id.key
+        })
+        .find_map(|metafield| {
+            let value = resolved_string_field(&metafield, "value").unwrap_or_default();
+            (value != custom_id.value).then(|| {
+                user_error_omit_code(
+                    json!(["input"]),
+                    "The identifier value does not match the value of the corresponding field in the input.",
+                    None,
+                )
+            })
+        })
+}
+
+fn customer_custom_id_duplicate_user_error() -> Value {
+    user_error(
+        json!(["input"]),
+        "Value is already assigned to another metafield. Choose a different value to ensure it remains unique.",
+        Some("TAKEN"),
+    )
+}
+
+fn customer_metafield_matches_custom_id(metafield: &Value, custom_id: &CustomerCustomId) -> bool {
+    metafield.get("namespace").and_then(Value::as_str) == Some(custom_id.namespace.as_str())
+        && metafield.get("key").and_then(Value::as_str) == Some(custom_id.key.as_str())
+        && metafield.get("type").and_then(Value::as_str) == Some("id")
+        && metafield.get("value").and_then(Value::as_str) == Some(custom_id.value.as_str())
 }
 
 fn customer_field_path(customer_set: bool, field: &str) -> Value {

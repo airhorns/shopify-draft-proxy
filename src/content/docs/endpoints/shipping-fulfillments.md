@@ -117,6 +117,13 @@ The captured 2026-04 public schema does not expose `permitsSkuSharing`,
 `fulfillmentServiceCreate`; those arguments return top-level
 `argumentNotAccepted` GraphQL errors before resolver execution and do not stage
 or log a service mutation.
+In LiveHybrid, `fulfillmentServiceUpdate` and `fulfillmentServiceDelete` can
+hydrate a real app-owned fulfillment service by ID before applying local
+lifecycle validation, and create/update uniqueness validation hydrates the
+effective `shop.fulfillmentServices` catalog before checking service-name or
+generated-handle conflicts. These hydration reads are query-only; supported
+service mutations still stage locally and keep the original raw mutation for
+commit replay.
 
 Reverse-logistics shipping slices stage `reverseDeliveryCreateWithShipping`
 from the return domain's reverse fulfillment order state. Explicit
@@ -143,6 +150,12 @@ tokens are combined with AND semantics. Unsupported filter fields or bare search
 terms return an empty local connection rather than widening the result set.
 `sortKey: ID`, `CREATED_AT`, and `UPDATED_AT` plus `reverse` are applied before
 cursor windowing.
+In LiveHybrid, `carrierServiceUpdate` and `carrierServiceDelete` can hydrate a
+real app-owned carrier service by ID before staging the lifecycle mutation, and
+`carrierServiceCreate` hydrates the effective carrier-service catalog before
+duplicate-name validation. The runtime does not send those supported mutations
+upstream during staging; only the narrow hydrate queries are issued before local
+validation and mutation-log recording.
 
 Fulfillment and fulfillment-order slices cover fixture-backed top-level reads,
 detail/event reads, hold/release, move, open/report-progress, close,

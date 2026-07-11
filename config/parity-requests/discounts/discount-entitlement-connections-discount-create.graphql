@@ -1,0 +1,59 @@
+mutation DiscountEntitlementConnectionsDiscountCreate(
+  $productInput: DiscountCodeBxgyInput!
+  $collectionInput: DiscountCodeBxgyInput!
+) {
+  productDiscount: discountCodeBxgyCreate(bxgyCodeDiscount: $productInput) {
+    codeDiscountNode {
+      id
+      codeDiscount {
+        __typename
+        ... on DiscountCodeBxgy {
+          title
+          customerBuys {
+            items {
+              __typename
+            }
+          }
+          customerGets {
+            items {
+              __typename
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  collectionDiscount: discountCodeBxgyCreate(bxgyCodeDiscount: $collectionInput) {
+    codeDiscountNode {
+      id
+      codeDiscount {
+        __typename
+        ... on DiscountCodeBxgy {
+          title
+          customerBuys {
+            items {
+              __typename
+            }
+          }
+          customerGets {
+            items {
+              __typename
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}
