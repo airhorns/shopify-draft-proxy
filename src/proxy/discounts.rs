@@ -4186,7 +4186,7 @@ fn discount_bulk_root_action(name: &str) -> Option<(&'static str, DiscountBulkAc
 /// Whether a mutation root field is a discount bulk activate / deactivate /
 /// delete. These forward upstream for the async `job`, then apply their effect
 /// to the local overlay so later reads stay consistent.
-pub(in crate::proxy) fn is_discount_bulk_action_root(name: &str) -> bool {
+pub(crate) fn is_discount_bulk_action_root(name: &str) -> bool {
     discount_bulk_root_action(name).is_some()
 }
 
