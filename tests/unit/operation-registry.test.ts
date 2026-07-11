@@ -290,9 +290,9 @@ describe('operation registry', () => {
   it('audits captured Shopify Node implementors against the explicit Rust resolver inventory', () => {
     expect(nodeResolverCoverageAudit()).toEqual({
       capturedNodeImplementorCount: 203,
-      localNodeResolverTypeCount: 52,
+      localNodeResolverTypeCount: 62,
       localResolverBehaviorCounts: {
-        projectLocalRecord: 49,
+        projectLocalRecord: 59,
         returnKnownNull: 3,
       },
       unsupported: [
@@ -325,10 +325,8 @@ describe('operation registry', () => {
         'CompanyLocationStaffMemberAssignment',
         'ConsentPolicy',
         'CurrencyExchangeAdjustment',
-        'Customer',
         'CustomerAccountAppExtensionPage',
         'CustomerAccountNativePage',
-        'CustomerPaymentMethod',
         'CustomerVisit',
         'DeliveryCarrierService',
         'DeliveryCondition',
@@ -363,12 +361,9 @@ describe('operation registry', () => {
         'FulfillmentOrderDestination',
         'FulfillmentOrderLineItem',
         'FulfillmentOrderMerchantRequest',
-        'GiftCardCreditTransaction',
-        'GiftCardDebitTransaction',
         'InventoryItemMeasurement',
         'LineItem',
         'LineItemGroup',
-        'MailingAddress',
         'Market',
         'MarketCatalog',
         'MarketingActivity',
@@ -428,10 +423,6 @@ describe('operation registry', () => {
         'ShopifyPaymentsPayout',
         'StaffMember',
         'StandardMetafieldDefinitionTemplate',
-        'StoreCreditAccount',
-        'StoreCreditAccountCreditTransaction',
-        'StoreCreditAccountDebitRevertTransaction',
-        'StoreCreditAccountDebitTransaction',
         'StorefrontAccessToken',
         'SubscriptionBillingAttempt',
         'SubscriptionContract',
@@ -449,7 +440,7 @@ describe('operation registry', () => {
         'WebhookSubscription',
         'WebPixel',
       ],
-      localInventoryNotInCapturedNodeInterface: ['TaxAppConfiguration'],
+      localInventoryNotInCapturedNodeInterface: ['StoreCreditAccountTransaction', 'TaxAppConfiguration'],
     });
   });
 });

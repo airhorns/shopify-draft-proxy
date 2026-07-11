@@ -352,6 +352,41 @@ impl DraftProxy {
             .unwrap_or(Value::Null)
     }
 
+    pub(in crate::proxy) fn customer_node_value_by_id(
+        &self,
+        id: &str,
+        selection: &[SelectedField],
+    ) -> Option<Value> {
+        if self.store.staged.customers.is_tombstoned(id) {
+            return Some(Value::Null);
+        }
+        self.store
+            .staged
+            .customers
+            .get(id)
+            .map(|customer| self.customer_with_order_connection(id, customer, selection))
+    }
+
+    pub(in crate::proxy) fn customer_address_node_value_by_id(
+        &self,
+        id: &str,
+        selection: &[SelectedField],
+    ) -> Option<Value> {
+        self.store
+            .staged
+            .customers
+            .iter()
+            .filter(|(customer_id, _)| !self.store.staged.customers.is_tombstoned(customer_id))
+            .flat_map(|(_, customer)| customer_address_nodes(customer))
+            .find(|address| address.get("id").and_then(Value::as_str) == Some(id))
+            .map(|mut address| {
+                if let Some(object) = address.as_object_mut() {
+                    object.insert("__typename".to_string(), json!("MailingAddress"));
+                }
+                selected_json(&address, selection)
+            })
+    }
+
     pub(in crate::proxy) fn customer_with_order_connection(
         &self,
         id: &str,
@@ -366,6 +401,7 @@ impl DraftProxy {
         // that recorded page is projected verbatim instead.
         let mapped_orders = self.store.staged.customer_orders.get(id);
         selected_payload_json(selection, |field| match field.name.as_str() {
+            "__typename" => Some(json!("Customer")),
             "canDelete" => Some(json!(self.customer_can_delete_value(id, customer))),
             "amountSpent"
                 if customer.get("amountSpent").is_none_or(Value::is_null)
@@ -684,7 +720,7 @@ impl DraftProxy {
         let transaction_id = self.next_store_credit_transaction_gid();
         let mut account = existing;
         account["balance"] = money_value(&balance_display, &currency);
-        let transaction = json!({
+        let mut transaction = json!({
             "id": transaction_id,
             "__typename": if is_credit { "StoreCreditAccountCreditTransaction" } else { "StoreCreditAccountDebitTransaction" },
             "amount": money_value(&amount_display, &currency),
@@ -695,6 +731,15 @@ impl DraftProxy {
             "notify": resolved_bool_field(&input, "notify").unwrap_or(false),
             "account": account.clone()
         });
+        if is_credit {
+            transaction["remainingAmount"] = money_value(&amount_display, &currency);
+        } else {
+            self.apply_store_credit_debit_to_credit_remaining_amounts(
+                &account_id,
+                amount,
+                &currency,
+            );
+        }
         let transaction_order_id = transaction["id"].as_str().unwrap_or_default().to_string();
         if !self
             .store
@@ -797,6 +842,53 @@ impl DraftProxy {
         account_id
     }
 
+    fn apply_store_credit_debit_to_credit_remaining_amounts(
+        &mut self,
+        account_id: &str,
+        debit_amount: f64,
+        currency: &str,
+    ) {
+        let mut unallocated_debit = debit_amount;
+        let transaction_ids = self.store.staged.store_credit_transaction_order.clone();
+        for transaction_id in transaction_ids {
+            if unallocated_debit <= 0.0 {
+                break;
+            }
+            let Some(transaction) = self
+                .store
+                .staged
+                .store_credit_transactions
+                .get_mut(&transaction_id)
+            else {
+                continue;
+            };
+            if transaction["__typename"].as_str() != Some("StoreCreditAccountCreditTransaction")
+                || transaction["account"]["id"].as_str() != Some(account_id)
+            {
+                continue;
+            }
+            let remaining_currency = transaction["remainingAmount"]["currencyCode"]
+                .as_str()
+                .or_else(|| transaction["amount"]["currencyCode"].as_str())
+                .unwrap_or(currency);
+            if remaining_currency != currency {
+                continue;
+            }
+            let current_remaining = transaction["remainingAmount"]["amount"]
+                .as_str()
+                .or_else(|| transaction["amount"]["amount"].as_str())
+                .and_then(|amount| amount.parse::<f64>().ok())
+                .unwrap_or(0.0);
+            if current_remaining <= 0.0 {
+                continue;
+            }
+            let next_remaining = (current_remaining - unallocated_debit).max(0.0);
+            transaction["remainingAmount"] =
+                money_value(&format_money_amount(next_remaining), currency);
+            unallocated_debit = (unallocated_debit - current_remaining).max(0.0);
+        }
+    }
+
     fn store_credit_payload_for_selection(
         &self,
         selection: &[SelectedField],
@@ -844,6 +936,7 @@ impl DraftProxy {
 
     fn selected_store_credit_account(&self, account: &Value, selection: &[SelectedField]) -> Value {
         selected_payload_json(selection, |field| match field.name.as_str() {
+            "__typename" => Some(json!("StoreCreditAccount")),
             "transactions" => {
                 let account_id = account
                     .get("id")
@@ -869,6 +962,39 @@ impl DraftProxy {
                 .as_object()
                 .and_then(|object| object.get(&field.response_key).cloned()),
         })
+    }
+
+    pub(in crate::proxy) fn store_credit_node_value_by_id(
+        &self,
+        id: &str,
+        selection: &[SelectedField],
+    ) -> Option<Value> {
+        match shopify_gid_resource_type(id) {
+            Some("StoreCreditAccount") => Some(
+                self.store
+                    .staged
+                    .store_credit_accounts
+                    .get(id)
+                    .map(|account| self.selected_store_credit_account(account, selection))
+                    .unwrap_or(Value::Null),
+            ),
+            Some(
+                "StoreCreditAccountCreditTransaction"
+                | "StoreCreditAccountDebitTransaction"
+                | "StoreCreditAccountDebitRevertTransaction"
+                | "StoreCreditAccountTransaction",
+            ) => Some(
+                self.store
+                    .staged
+                    .store_credit_transactions
+                    .get(id)
+                    .map(|transaction| {
+                        self.selected_store_credit_transaction(transaction, selection)
+                    })
+                    .unwrap_or(Value::Null),
+            ),
+            _ => None,
+        }
     }
 
     fn store_credit_accounts_connection_for_owner(
