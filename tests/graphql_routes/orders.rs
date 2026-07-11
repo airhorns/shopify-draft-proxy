@@ -47,6 +47,29 @@ fn assert_draft_order_custom_line(line: &Value, currency_code: &str) {
     assert_eq!(line["variant"], Value::Null);
 }
 
+fn draft_order_test_variant_node(id: &str) -> Value {
+    let tail = id.rsplit('/').next().unwrap_or("unknown");
+    json!({
+        "__typename": "ProductVariant",
+        "id": id,
+        "title": format!("Catalog option {tail}"),
+        "sku": format!("SKU-{tail}"),
+        "taxable": true,
+        "price": format!("{tail}.00"),
+        "inventoryItem": { "requiresShipping": true },
+        "product": { "title": format!("Catalog product {tail}") }
+    })
+}
+
+fn draft_order_test_variant_response(id: &str) -> Value {
+    let mut variant = draft_order_test_variant_node(id);
+    variant
+        .as_object_mut()
+        .expect("variant node should be an object")
+        .remove("__typename");
+    json!({ "data": { "productVariant": variant } })
+}
+
 #[test]
 fn order_create_uses_shop_currency_but_preserves_presentment_currency() {
     let mut proxy = snapshot_proxy();
@@ -908,7 +931,7 @@ fn returnable_fulfillments_and_return_calculate_derive_from_staged_fulfillments(
 }
 
 #[test]
-fn return_process_payload_and_reads_close_processed_return() {
+fn return_process_payload_and_reads_keep_processed_return_open() {
     let mut proxy = snapshot_proxy();
     let setup = stage_open_return_for_removal(&mut proxy);
 
@@ -922,15 +945,15 @@ fn return_process_payload_and_reads_close_processed_return() {
     assert_eq!(processed["return"]["status"], json!("OPEN"));
 
     let read_after = read_return_removal_state(&mut proxy, setup.return_id, setup.order_id);
-    assert_eq!(read_after["return"]["status"], json!("CLOSED"));
+    assert_eq!(read_after["return"]["status"], json!("OPEN"));
     assert_eq!(
         read_after["order"]["returns"]["nodes"][0]["status"],
-        json!("CLOSED")
+        json!("OPEN")
     );
 }
 
 #[test]
-fn return_close_and_process_closed_at_use_request_clock_on_readback() {
+fn return_close_closed_at_uses_request_clock_and_process_keeps_closed_at_null() {
     let clock = Arc::new(Mutex::new(utc_time(1_782_993_600)));
     let mut proxy = snapshot_proxy_with_clock(Arc::clone(&clock));
     let close_setup = stage_open_return_for_removal(&mut proxy);
@@ -989,13 +1012,15 @@ fn return_close_and_process_closed_at_use_request_clock_on_readback() {
 
     let process_read =
         read_return_timestamp_state(&mut proxy, process_setup.return_id, process_setup.order_id);
+    assert_eq!(process_read["return"]["status"], json!("OPEN"));
+    assert_eq!(process_read["return"]["closedAt"], Value::Null);
     assert_eq!(
-        process_read["return"]["closedAt"],
-        json!("2026-07-04T12:00:00Z")
+        process_read["order"]["returns"]["nodes"][0]["status"],
+        json!("OPEN")
     );
     assert_eq!(
         process_read["order"]["returns"]["nodes"][0]["closedAt"],
-        json!("2026-07-04T12:00:00Z")
+        Value::Null
     );
 }
 
@@ -1338,6 +1363,272 @@ fn order_returns_window_and_query_from_staged_returns() {
             "endCursor": requested_return_id
         })
     );
+}
+
+fn return_statuses(connection: &Value) -> Vec<String> {
+    connection["nodes"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|node| node["status"].as_str().map(str::to_string))
+        .collect()
+}
+
+fn read_order_return_status_views(proxy: &mut DraftProxy, order_id: Value) -> Value {
+    let detail = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadOrderReturnStatusDetail($id: ID!) {
+          order(id: $id) {
+            id
+            returnStatus
+            returns(first: 5) { nodes { id status totalQuantity } }
+          }
+        }
+        "#,
+        json!({ "id": order_id.clone() }),
+    ));
+    assert_eq!(detail.status, 200);
+
+    let list = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadOrderReturnStatusList {
+          orders(first: 5) {
+            nodes {
+              id
+              returnStatus
+              returns(first: 5) { nodes { id status totalQuantity } }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(list.status, 200);
+
+    let node = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadOrderReturnStatusNode($id: ID!) {
+          node(id: $id) {
+            __typename
+            ... on Order {
+              id
+              returnStatus
+              returns(first: 5) { nodes { id status totalQuantity } }
+            }
+          }
+        }
+        "#,
+        json!({ "id": order_id }),
+    ));
+    assert_eq!(node.status, 200);
+
+    json!({
+        "detail": detail.body["data"]["order"].clone(),
+        "list": list.body["data"]["orders"]["nodes"][0].clone(),
+        "node": node.body["data"]["node"].clone()
+    })
+}
+
+fn assert_order_return_status_views(
+    proxy: &mut DraftProxy,
+    order_id: Value,
+    expected_status: &str,
+    expected_return_statuses: &[&str],
+) {
+    let views = read_order_return_status_views(proxy, order_id);
+    let expected_return_statuses = expected_return_statuses
+        .iter()
+        .map(|status| status.to_string())
+        .collect::<Vec<_>>();
+    for key in ["detail", "list", "node"] {
+        assert_eq!(views[key]["returnStatus"], json!(expected_status), "{key}");
+        assert_eq!(
+            return_statuses(&views[key]["returns"]),
+            expected_return_statuses,
+            "{key}"
+        );
+    }
+    assert_eq!(views["node"]["__typename"], json!("Order"));
+}
+
+#[test]
+fn order_return_status_tracks_staged_return_lifecycle_across_order_projections() {
+    let mut proxy = snapshot_proxy();
+    let (order_id, fulfillment_line_item_id) = stage_fulfilled_order_for_return(&mut proxy);
+
+    let request = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RequestReturnForOrderStatus($input: ReturnRequestInput!) {
+          returnRequest(input: $input) {
+            return {
+              id
+              status
+              order {
+                id
+                returnStatus
+                returns(first: 5) { nodes { id status } }
+              }
+              returnLineItems(first: 5) {
+                nodes { id quantity processedQuantity unprocessedQuantity }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "orderId": order_id,
+                "returnLineItems": [{
+                    "fulfillmentLineItemId": fulfillment_line_item_id,
+                    "quantity": 1,
+                    "returnReason": "OTHER"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(request.status, 200);
+    assert_eq!(
+        request.body["data"]["returnRequest"]["userErrors"],
+        json!([])
+    );
+    let requested_return = &request.body["data"]["returnRequest"]["return"];
+    let return_id = requested_return["id"].clone();
+    assert_eq!(
+        requested_return["order"]["returnStatus"],
+        json!("RETURN_REQUESTED")
+    );
+    assert_order_return_status_views(
+        &mut proxy,
+        requested_return["order"]["id"].clone(),
+        "RETURN_REQUESTED",
+        &["REQUESTED"],
+    );
+
+    let approve = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ApproveReturnForOrderStatus($input: ReturnApproveRequestInput!) {
+          returnApproveRequest(input: $input) {
+            return {
+              id
+              status
+              order {
+                id
+                returnStatus
+                returns(first: 5) { nodes { id status } }
+              }
+              returnLineItems(first: 5) {
+                nodes { id quantity processedQuantity unprocessedQuantity }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": { "id": return_id.clone() } }),
+    ));
+    assert_eq!(approve.status, 200);
+    assert_eq!(
+        approve.body["data"]["returnApproveRequest"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        approve.body["data"]["returnApproveRequest"]["return"]["order"]["returnStatus"],
+        json!("IN_PROGRESS")
+    );
+    assert_order_return_status_views(&mut proxy, order_id.clone(), "IN_PROGRESS", &["OPEN"]);
+
+    let close = return_lifecycle_transition_for_test(&mut proxy, "returnClose", return_id.clone());
+    assert_eq!(close["userErrors"], json!([]));
+    assert_order_return_status_views(&mut proxy, order_id.clone(), "RETURNED", &["CLOSED"]);
+
+    let reopen =
+        return_lifecycle_transition_for_test(&mut proxy, "returnReopen", return_id.clone());
+    assert_eq!(reopen["userErrors"], json!([]));
+    assert_order_return_status_views(&mut proxy, order_id.clone(), "IN_PROGRESS", &["OPEN"]);
+
+    let return_line_item_id = request.body["data"]["returnRequest"]["return"]["returnLineItems"]
+        ["nodes"][0]["id"]
+        .clone();
+    let processed = return_process_for_test(&mut proxy, return_id, return_line_item_id);
+    assert_eq!(processed["userErrors"], json!([]));
+    assert_order_return_status_views(&mut proxy, order_id, "IN_PROGRESS", &["OPEN"]);
+}
+
+#[test]
+fn order_return_status_handles_declined_canceled_and_removed_only_returns() {
+    let mut declined_proxy = snapshot_proxy();
+    let declined = stage_requested_return_for_removal(&mut declined_proxy);
+    let declined_payload =
+        decline_return_request_for_test(&mut declined_proxy, declined.return_id.clone());
+    assert_eq!(declined_payload["userErrors"], json!([]));
+    assert_order_return_status_views(
+        &mut declined_proxy,
+        declined.order_id,
+        "NO_RETURN",
+        &["DECLINED"],
+    );
+
+    let mut canceled_proxy = snapshot_proxy();
+    let canceled = stage_requested_return_for_removal(&mut canceled_proxy);
+    let approved = approve_return_request_for_test(&mut canceled_proxy, canceled.return_id.clone());
+    assert_eq!(approved["userErrors"], json!([]));
+    let canceled_payload = return_lifecycle_transition_for_test(
+        &mut canceled_proxy,
+        "returnCancel",
+        canceled.return_id,
+    );
+    assert_eq!(canceled_payload["userErrors"], json!([]));
+    assert_order_return_status_views(
+        &mut canceled_proxy,
+        canceled.order_id,
+        "NO_RETURN",
+        &["CANCELED"],
+    );
+
+    let mut removed_proxy = snapshot_proxy();
+    let (order_id, fulfillment_line_item_id) = stage_fulfilled_order_for_return(&mut removed_proxy);
+    let create = removed_proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateOpenReturnForRemovedStatus($returnInput: ReturnInput!) {
+          returnCreate(returnInput: $returnInput) {
+            return {
+              id
+              status
+              totalQuantity
+              returnLineItems(first: 5) {
+                nodes { id quantity processedQuantity unprocessedQuantity }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "returnInput": {
+                "orderId": order_id,
+                "returnLineItems": [{
+                    "fulfillmentLineItemId": fulfillment_line_item_id,
+                    "quantity": 1,
+                    "returnReason": "OTHER",
+                    "returnReasonNote": "removed"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["returnCreate"]["userErrors"], json!([]));
+    let open_return = &create.body["data"]["returnCreate"]["return"];
+    let removed = remove_from_return_for_test(
+        &mut removed_proxy,
+        open_return["id"].clone(),
+        open_return["returnLineItems"]["nodes"][0]["id"].clone(),
+    );
+    assert_eq!(removed["userErrors"], json!([]));
+    assert_eq!(removed["return"]["status"], json!("CLOSED"));
+    assert_eq!(removed["return"]["totalQuantity"], json!(0));
+    assert_eq!(removed["return"]["returnLineItems"]["nodes"], json!([]));
+    assert_order_return_status_views(&mut removed_proxy, order_id, "RETURNED", &["CLOSED"]);
 }
 
 fn remove_from_return_for_test(
@@ -6590,6 +6881,246 @@ fn draft_order_variant_line_items_use_catalog_values_over_custom_only_input() {
 }
 
 #[test]
+fn draft_order_variant_hydration_batches_unique_missing_variants_per_operation() {
+    let variant_a = "gid://shopify/ProductVariant/100001";
+    let variant_b = "gid://shopify/ProductVariant/100002";
+    let variant_c = "gid://shopify/ProductVariant/100003";
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("variant hydrate request parses");
+            captured_calls.lock().unwrap().push(body.clone());
+            match body["operationName"].as_str() {
+                Some("OrdersDraftOrderVariantHydrate") => {
+                    let id = body["variables"]["id"]
+                        .as_str()
+                        .expect("single variant hydrate includes id");
+                    Response {
+                        status: 200,
+                        headers: Default::default(),
+                        body: draft_order_test_variant_response(id),
+                    }
+                }
+                Some("OrdersDraftOrderVariantsHydrate") => {
+                    let nodes = body["variables"]["ids"]
+                        .as_array()
+                        .expect("batched variant hydrate includes ids")
+                        .iter()
+                        .map(|id| {
+                            draft_order_test_variant_node(
+                                id.as_str().expect("variant id should be a string"),
+                            )
+                        })
+                        .collect::<Vec<_>>();
+                    Response {
+                        status: 200,
+                        headers: Default::default(),
+                        body: json!({ "data": { "nodes": nodes } }),
+                    }
+                }
+                other => panic!("unexpected upstream hydrate operation: {other:?}"),
+            }
+        });
+
+    let input = json!({
+        "shippingLine": {
+            "title": "No-op shipping",
+            "priceWithCurrency": { "amount": "0.00", "currencyCode": "USD" }
+        },
+        "lineItems": [
+            { "variantId": variant_a, "quantity": 1 },
+            { "variantId": variant_b, "quantity": 2 },
+            { "variantId": variant_a, "quantity": 3 },
+            { "variantId": variant_c, "quantity": 4 }
+        ]
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDraftWithManyVariants($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder {
+              id
+              lineItems(first: 5) {
+                nodes { sku variant { id sku } originalUnitPriceSet { shopMoney { amount currencyCode } } }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": input.clone() }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["draftOrderCreate"]["draftOrder"]["lineItems"]["nodes"][2]["sku"],
+        json!("SKU-100001")
+    );
+    {
+        let calls = upstream_calls.lock().unwrap();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(
+            calls[0]["operationName"],
+            json!("OrdersDraftOrderVariantsHydrate")
+        );
+        assert_eq!(
+            calls[0]["variables"]["ids"],
+            json!([variant_a, variant_b, variant_c])
+        );
+    }
+
+    let draft_order_id = create.body["data"]["draftOrderCreate"]["draftOrder"]["id"].clone();
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateDraftWithManyVariants($id: ID!, $input: DraftOrderInput!) {
+          draftOrderUpdate(id: $id, input: $input) {
+            draftOrder { lineItems(first: 5) { nodes { sku variant { id sku } } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": draft_order_id,
+            "input": {
+                "shippingLine": {
+                    "title": "No-op shipping",
+                    "priceWithCurrency": { "amount": "0.00", "currencyCode": "USD" }
+                },
+                "lineItems": [
+                    { "variantId": variant_b, "quantity": 1 },
+                    { "variantId": variant_c, "quantity": 1 },
+                    { "variantId": variant_b, "quantity": 1 }
+                ]
+            }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["draftOrderUpdate"]["userErrors"],
+        json!([])
+    );
+    {
+        let calls = upstream_calls.lock().unwrap();
+        assert_eq!(calls.len(), 2);
+        assert_eq!(
+            calls[1]["operationName"],
+            json!("OrdersDraftOrderVariantsHydrate")
+        );
+        assert_eq!(calls[1]["variables"]["ids"], json!([variant_b, variant_c]));
+    }
+
+    let calculate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CalculateDraftWithManyVariants($input: DraftOrderInput!) {
+          draftOrderCalculate(input: $input) {
+            calculatedDraftOrder { lineItems { sku variant { id sku } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": input }),
+    ));
+    assert_eq!(calculate.status, 200);
+    assert_eq!(
+        calculate.body["data"]["draftOrderCalculate"]["userErrors"],
+        json!([])
+    );
+    let calls = upstream_calls.lock().unwrap();
+    assert_eq!(calls.len(), 3);
+    assert_eq!(
+        calls[2]["operationName"],
+        json!("OrdersDraftOrderVariantsHydrate")
+    );
+    assert_eq!(
+        calls[2]["variables"]["ids"],
+        json!([variant_a, variant_b, variant_c])
+    );
+}
+
+#[test]
+fn draft_order_custom_only_line_items_do_not_hydrate_variants() {
+    let upstream_calls = Arc::new(AtomicUsize::new(0));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            captured_calls.fetch_add(1, Ordering::SeqCst);
+            panic!(
+                "custom-only draft order inputs should not call upstream: {}",
+                request.body
+            );
+        });
+    let input = json!({
+        "lineItems": [{
+            "title": "Custom batch guard",
+            "quantity": 2,
+            "originalUnitPriceWithCurrency": { "amount": "8.50", "currencyCode": "USD" },
+            "sku": "CUSTOM-BATCH",
+            "requiresShipping": false,
+            "taxable": false
+        }]
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateCustomOnlyDraft($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder { id lineItems(first: 5) { nodes { title sku custom } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": input.clone() }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    let draft_order_id = create.body["data"]["draftOrderCreate"]["draftOrder"]["id"].clone();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateCustomOnlyDraft($id: ID!, $input: DraftOrderInput!) {
+          draftOrderUpdate(id: $id, input: $input) {
+            draftOrder { lineItems(first: 5) { nodes { title sku custom } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": draft_order_id, "input": input.clone() }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["draftOrderUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let calculate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CalculateCustomOnlyDraft($input: DraftOrderInput!) {
+          draftOrderCalculate(input: $input) {
+            calculatedDraftOrder { lineItems { title sku custom } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": input }),
+    ));
+    assert_eq!(calculate.status, 200);
+    assert_eq!(
+        calculate.body["data"]["draftOrderCalculate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(upstream_calls.load(Ordering::SeqCst), 0);
+}
+
+#[test]
 fn draft_order_scalar_custom_line_prices_use_hydrated_shop_currency() {
     let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
     let captured_calls = Arc::clone(&upstream_calls);
@@ -7615,6 +8146,12 @@ fn payment_customization_function_proxy(
                     .unwrap_or(Value::Null);
                 json!({ "data": { "shopifyFunction": function } })
             }
+            "PaymentCustomizationHydrateById" => {
+                json!({ "data": { "paymentCustomization": Value::Null } })
+            }
+            "PaymentCustomizationHydrateCatalog" => {
+                json!({ "data": { "paymentCustomizations": { "nodes": [] } } })
+            }
             _ => json!({
                 "errors": [{
                     "message": format!("unexpected payment customization upstream request: {body}")
@@ -7627,6 +8164,224 @@ fn payment_customization_function_proxy(
             body: response_body,
         }
     })
+}
+
+fn base_payment_customization_record(id: &str, title: &str, enabled: bool) -> Value {
+    json!({
+        "__typename": "PaymentCustomization",
+        "id": id,
+        "legacyResourceId": id.rsplit('/').next().unwrap_or_default(),
+        "title": title,
+        "enabled": enabled,
+        "functionId": "gid://shopify/ShopifyFunction/payment-a",
+        "functionHandle": Value::Null,
+        "shopifyFunction": Value::Null,
+        "errorHistory": { "nodes": [] },
+        "metafields": {
+            "edges": [{
+                "node": {
+                    "id": "gid://shopify/Metafield/payment-customization-base",
+                    "namespace": "app--347082227713--foo",
+                    "key": "bar",
+                    "type": "single_line_text_field",
+                    "value": "base",
+                    "createdAt": "2026-07-01T00:00:00Z",
+                    "updatedAt": "2026-07-01T00:00:00Z"
+                }
+            }]
+        }
+    })
+}
+
+fn payment_customization_base_hydration_proxy(
+    base_records: Vec<Value>,
+    hits: Arc<Mutex<Vec<Value>>>,
+) -> DraftProxy {
+    let base_records = Arc::new(base_records);
+    configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body)
+            .expect("payment customization hydrate body should parse");
+        hits.lock().unwrap().push(body.clone());
+        let response_body = match body["operationName"].as_str().unwrap_or_default() {
+            "PaymentCustomizationHydrateById" => {
+                let id = body["variables"]["id"].as_str().unwrap_or_default();
+                let record = base_records
+                    .iter()
+                    .find(|record| record["id"].as_str() == Some(id))
+                    .cloned()
+                    .unwrap_or(Value::Null);
+                json!({ "data": { "paymentCustomization": record } })
+            }
+            "PaymentCustomizationHydrateCatalog" => json!({
+                "data": {
+                    "paymentCustomizations": {
+                        "nodes": base_records.as_ref().clone()
+                    }
+                }
+            }),
+            _ => json!({
+                "errors": [{
+                    "message": format!("unexpected payment customization upstream request: {body}")
+                }]
+            }),
+        };
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: response_body,
+        }
+    })
+}
+
+#[test]
+fn payment_customization_mutation_first_hydrates_base_state() {
+    let target_id = "gid://shopify/PaymentCustomization/4242";
+    let other_id = "gid://shopify/PaymentCustomization/4243";
+    let upstream_hits = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = payment_customization_base_hydration_proxy(
+        vec![
+            base_payment_customization_record(target_id, "Hydrated before update", true),
+            base_payment_customization_record(other_id, "Hydrated catalog sibling", true),
+        ],
+        Arc::clone(&upstream_hits),
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PaymentCustomizationMutationFirstUpdate($id: ID!, $input: PaymentCustomizationInput!) {
+          paymentCustomizationUpdate(id: $id, paymentCustomization: $input) {
+            paymentCustomization {
+              id
+              title
+              enabled
+              functionId
+              metafield(namespace: "$app:foo", key: "bar") { namespace key type value updatedAt }
+            }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({
+            "id": target_id,
+            "input": {
+                "title": "Updated without pre-read",
+                "enabled": false,
+                "functionId": "gid://shopify/ShopifyFunction/payment-a",
+                "metafields": [{
+                    "namespace": "$app:foo",
+                    "key": "bar",
+                    "type": "single_line_text_field",
+                    "value": "updated"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["paymentCustomizationUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["paymentCustomizationUpdate"]["paymentCustomization"]["title"],
+        json!("Updated without pre-read")
+    );
+    assert_eq!(
+        update.body["data"]["paymentCustomizationUpdate"]["paymentCustomization"]["metafield"]
+            ["value"],
+        json!("updated")
+    );
+
+    let activation = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PaymentCustomizationMutationFirstActivation($ids: [ID!]!, $enabled: Boolean!) {
+          paymentCustomizationActivation(ids: $ids, enabled: $enabled) {
+            ids
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "ids": [target_id, other_id], "enabled": true }),
+    ));
+    assert_eq!(activation.status, 200);
+    assert_eq!(
+        activation.body["data"]["paymentCustomizationActivation"],
+        json!({ "ids": [target_id, other_id], "userErrors": [] })
+    );
+
+    let catalog = proxy.process_request(json_graphql_request(
+        r#"
+        query PaymentCustomizationMutationFirstCatalog {
+          paymentCustomizations(first: 10) {
+            nodes { id title enabled }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(catalog.status, 200);
+    assert_eq!(
+        catalog.body["data"]["paymentCustomizations"]["nodes"],
+        json!([
+            { "id": target_id, "title": "Updated without pre-read", "enabled": true },
+            { "id": other_id, "title": "Hydrated catalog sibling", "enabled": true }
+        ])
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PaymentCustomizationMutationFirstDelete($id: ID!) {
+          paymentCustomizationDelete(id: $id) {
+            deletedId
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "id": other_id }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["paymentCustomizationDelete"],
+        json!({ "deletedId": other_id, "userErrors": [] })
+    );
+
+    let read_deleted = proxy.process_request(json_graphql_request(
+        r#"
+        query PaymentCustomizationMutationFirstReadDeleted($id: ID!) {
+          paymentCustomization(id: $id) { id title enabled }
+        }
+        "#,
+        json!({ "id": other_id }),
+    ));
+    assert_eq!(read_deleted.status, 200);
+    assert_eq!(
+        read_deleted.body["data"]["paymentCustomization"],
+        Value::Null
+    );
+
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 3);
+    let upstream_operations = upstream_hits
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|body| {
+            body["operationName"]
+                .as_str()
+                .unwrap_or_default()
+                .to_string()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        upstream_operations,
+        vec![
+            "PaymentCustomizationHydrateById",
+            "PaymentCustomizationHydrateCatalog"
+        ]
+    );
 }
 
 #[test]
@@ -8078,7 +8833,26 @@ fn payment_customization_local_runtime_covers_create_activation_update_readback_
             }]
         })
     );
-    assert_eq!(upstream_hits.lock().unwrap().len(), 1);
+    let upstream_operations = upstream_hits
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|body| {
+            body["operationName"]
+                .as_str()
+                .unwrap_or_default()
+                .to_string()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        upstream_operations,
+        vec![
+            "FunctionHydrateByHandle",
+            "PaymentCustomizationHydrateById",
+            "PaymentCustomizationHydrateCatalog",
+            "PaymentCustomizationHydrateById"
+        ]
+    );
 }
 
 #[test]

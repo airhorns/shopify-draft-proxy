@@ -1,0 +1,13 @@
+mutation DiscountEntitlementConnectionsCollectionUpdate($collection: CollectionInput!) {
+  collectionUpdate(input: $collection) {
+    collection {
+      id
+      title
+      handle
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

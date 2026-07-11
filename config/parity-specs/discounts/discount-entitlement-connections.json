@@ -1,0 +1,2266 @@
+{
+  "scenarioId": "discount-entitlement-connections",
+  "operationNames": [
+    "productCreate",
+    "productVariantsBulkCreate",
+    "discountCodeBxgyCreate",
+    "discountNode",
+    "discountNodes",
+    "productUpdate",
+    "productVariantsBulkUpdate",
+    "collectionUpdate",
+    "productVariantsBulkDelete",
+    "productDelete",
+    "collectionDelete"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "pagination-shape", "read-after-write", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-entitlement-connections.json"
+  ],
+  "runtimeTestFiles": ["tests/discount_entitlement_connections.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-entitlement-connections-product-create.graphql",
+    "variables": {
+      "product": {
+        "fromCapturePath": "$.requests.setup.variables.alphaProduct"
+      }
+    }
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "alpha-product-create-user-errors",
+        "capturePath": "$.requests.setup.response.payload.data.alphaProduct",
+        "proxyPath": "$.data.productCreate",
+        "selectedPaths": ["$.userErrors"]
+      },
+      {
+        "name": "bravo-product-create-user-errors",
+        "capturePath": "$.requests.setup.response.payload.data.bravoProduct",
+        "proxyPath": "$.data.productCreate",
+        "selectedPaths": ["$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-entitlement-connections-product-create.graphql",
+          "variables": {
+            "product": {
+              "fromCapturePath": "$.requests.setup.variables.bravoProduct"
+            }
+          }
+        }
+      },
+      {
+        "name": "alpha-variant-product-create-user-errors",
+        "capturePath": "$.requests.setup.response.payload.data.alphaVariantProduct",
+        "proxyPath": "$.data.productCreate",
+        "selectedPaths": ["$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-entitlement-connections-product-create.graphql",
+          "variables": {
+            "product": {
+              "fromCapturePath": "$.requests.setup.variables.alphaVariantProduct"
+            }
+          }
+        }
+      },
+      {
+        "name": "bravo-variant-product-create-user-errors",
+        "capturePath": "$.requests.setup.response.payload.data.bravoVariantProduct",
+        "proxyPath": "$.data.productCreate",
+        "selectedPaths": ["$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-entitlement-connections-product-create.graphql",
+          "variables": {
+            "product": {
+              "fromCapturePath": "$.requests.setup.variables.bravoVariantProduct"
+            }
+          }
+        }
+      },
+      {
+        "name": "alpha-collection-create-user-errors",
+        "capturePath": "$.requests.setup.response.payload.data.alphaCollection",
+        "proxyPath": "$.data.collectionCreate",
+        "selectedPaths": ["$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-entitlement-connections-collection-create.graphql",
+          "variables": {
+            "input": {
+              "fromCapturePath": "$.requests.setup.variables.alphaCollection"
+            }
+          }
+        }
+      },
+      {
+        "name": "bravo-collection-create-user-errors",
+        "capturePath": "$.requests.setup.response.payload.data.bravoCollection",
+        "proxyPath": "$.data.collectionCreate",
+        "selectedPaths": ["$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-entitlement-connections-collection-create.graphql",
+          "variables": {
+            "input": {
+              "fromCapturePath": "$.requests.setup.variables.bravoCollection"
+            }
+          }
+        }
+      },
+      {
+        "name": "alpha-variant-create-user-errors",
+        "capturePath": "$.requests.variantCreate.response.payload.data.alphaVariants",
+        "proxyPath": "$.data.variants",
+        "selectedPaths": ["$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-entitlement-connections-variant-create-one.graphql",
+          "variables": {
+            "productId": {
+              "fromProxyResponse": "alpha-variant-product-create-user-errors",
+              "path": "$.data.productCreate.product.id"
+            },
+            "variants": {
+              "fromCapturePath": "$.requests.variantCreate.variables.alphaVariants"
+            }
+          }
+        }
+      },
+      {
+        "name": "bravo-variant-create-user-errors",
+        "capturePath": "$.requests.variantCreate.response.payload.data.bravoVariants",
+        "proxyPath": "$.data.variants",
+        "selectedPaths": ["$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-entitlement-connections-variant-create-one.graphql",
+          "variables": {
+            "productId": {
+              "fromProxyResponse": "bravo-variant-product-create-user-errors",
+              "path": "$.data.productCreate.product.id"
+            },
+            "variants": {
+              "fromCapturePath": "$.requests.variantCreate.variables.bravoVariants"
+            }
+          }
+        }
+      },
+      {
+        "name": "discount-create-user-errors",
+        "capturePath": "$.requests.discountCreate.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.productDiscount.userErrors", "$.collectionDiscount.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-entitlement-connections-discount-create.graphql",
+          "variables": {
+            "productInput": {
+              "title": {
+                "fromCapturePath": "$.requests.discountCreate.variables.productInput.title"
+              },
+              "code": {
+                "fromCapturePath": "$.requests.discountCreate.variables.productInput.code"
+              },
+              "startsAt": {
+                "fromCapturePath": "$.requests.discountCreate.variables.productInput.startsAt"
+              },
+              "context": {
+                "fromCapturePath": "$.requests.discountCreate.variables.productInput.context"
+              },
+              "combinesWith": {
+                "fromCapturePath": "$.requests.discountCreate.variables.productInput.combinesWith"
+              },
+              "customerBuys": {
+                "value": {
+                  "fromCapturePath": "$.requests.discountCreate.variables.productInput.customerBuys.value"
+                },
+                "items": {
+                  "products": {
+                    "productsToAdd": [
+                      {
+                        "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+                      },
+                      {
+                        "fromProxyResponse": "bravo-product-create-user-errors",
+                        "path": "$.data.productCreate.product.id"
+                      }
+                    ],
+                    "productVariantsToAdd": [
+                      {
+                        "fromProxyResponse": "alpha-variant-create-user-errors",
+                        "path": "$.data.variants.productVariants[0].id"
+                      },
+                      {
+                        "fromProxyResponse": "bravo-variant-create-user-errors",
+                        "path": "$.data.variants.productVariants[0].id"
+                      }
+                    ]
+                  }
+                }
+              },
+              "customerGets": {
+                "value": {
+                  "fromCapturePath": "$.requests.discountCreate.variables.productInput.customerGets.value"
+                },
+                "items": {
+                  "products": {
+                    "productsToAdd": [
+                      {
+                        "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+                      },
+                      {
+                        "fromProxyResponse": "bravo-product-create-user-errors",
+                        "path": "$.data.productCreate.product.id"
+                      }
+                    ],
+                    "productVariantsToAdd": [
+                      {
+                        "fromProxyResponse": "alpha-variant-create-user-errors",
+                        "path": "$.data.variants.productVariants[0].id"
+                      },
+                      {
+                        "fromProxyResponse": "bravo-variant-create-user-errors",
+                        "path": "$.data.variants.productVariants[0].id"
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "collectionInput": {
+              "title": {
+                "fromCapturePath": "$.requests.discountCreate.variables.collectionInput.title"
+              },
+              "code": {
+                "fromCapturePath": "$.requests.discountCreate.variables.collectionInput.code"
+              },
+              "startsAt": {
+                "fromCapturePath": "$.requests.discountCreate.variables.collectionInput.startsAt"
+              },
+              "context": {
+                "fromCapturePath": "$.requests.discountCreate.variables.collectionInput.context"
+              },
+              "combinesWith": {
+                "fromCapturePath": "$.requests.discountCreate.variables.collectionInput.combinesWith"
+              },
+              "customerBuys": {
+                "value": {
+                  "fromCapturePath": "$.requests.discountCreate.variables.collectionInput.customerBuys.value"
+                },
+                "items": {
+                  "collections": {
+                    "add": [
+                      {
+                        "fromProxyResponse": "alpha-collection-create-user-errors",
+                        "path": "$.data.collectionCreate.collection.id"
+                      },
+                      {
+                        "fromProxyResponse": "bravo-collection-create-user-errors",
+                        "path": "$.data.collectionCreate.collection.id"
+                      }
+                    ]
+                  }
+                }
+              },
+              "customerGets": {
+                "value": {
+                  "fromCapturePath": "$.requests.discountCreate.variables.collectionInput.customerGets.value"
+                },
+                "items": {
+                  "collections": {
+                    "add": [
+                      {
+                        "fromProxyResponse": "alpha-collection-create-user-errors",
+                        "path": "$.data.collectionCreate.collection.id"
+                      },
+                      {
+                        "fromProxyResponse": "bravo-collection-create-user-errors",
+                        "path": "$.data.collectionCreate.collection.id"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "initial-product-customer-gets-items",
+        "capturePath": "$.requests.readInitial.response.payload.data.productDiscount.discount.customerGets.items",
+        "proxyPath": "$.data.productDiscount.discount.customerGets.items",
+        "expectedDifferences": [
+          {
+            "path": "$.products.nodes[*].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.products.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.products.edges[*].node.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.products.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.products.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productVariants.nodes[*].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productVariants.nodes[*].product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable variant-owner product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productVariants.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productVariants.edges[*].node.id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productVariants.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productVariants.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-entitlement-connections-read-initial.graphql",
+          "variables": {
+            "productDiscountId": {
+              "fromProxyResponse": "discount-create-user-errors",
+              "path": "$.data.productDiscount.codeDiscountNode.id"
+            },
+            "collectionDiscountId": {
+              "fromProxyResponse": "discount-create-user-errors",
+              "path": "$.data.collectionDiscount.codeDiscountNode.id"
+            },
+            "catalogQuery": {
+              "fromCapturePath": "$.requests.readInitial.variables.catalogQuery"
+            },
+            "catalogFirst": {
+              "fromCapturePath": "$.requests.readInitial.variables.catalogFirst"
+            }
+          }
+        }
+      },
+      {
+        "name": "initial-product-customer-buys-items",
+        "capturePath": "$.requests.readInitial.response.payload.data.productDiscount.discount.customerBuys.items",
+        "proxyPath": "$.data.productDiscount.discount.customerBuys.items",
+        "expectedDifferences": [
+          {
+            "path": "$.products.nodes[*].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.products.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.products.edges[*].node.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.products.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.products.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productVariants.nodes[*].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productVariants.nodes[*].product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable variant-owner product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productVariants.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productVariants.edges[*].node.id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productVariants.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productVariants.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-entitlement-connections-read-initial.graphql",
+          "variables": {
+            "productDiscountId": {
+              "fromProxyResponse": "discount-create-user-errors",
+              "path": "$.data.productDiscount.codeDiscountNode.id"
+            },
+            "collectionDiscountId": {
+              "fromProxyResponse": "discount-create-user-errors",
+              "path": "$.data.collectionDiscount.codeDiscountNode.id"
+            },
+            "catalogQuery": {
+              "fromCapturePath": "$.requests.readInitial.variables.catalogQuery"
+            },
+            "catalogFirst": {
+              "fromCapturePath": "$.requests.readInitial.variables.catalogFirst"
+            }
+          }
+        }
+      },
+      {
+        "name": "initial-collection-customer-gets-items",
+        "capturePath": "$.requests.readInitial.response.payload.data.collectionDiscount.discount.customerGets.items",
+        "proxyPath": "$.data.collectionDiscount.discount.customerGets.items",
+        "expectedDifferences": [
+          {
+            "path": "$.collections.nodes[*].id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.collections.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collections.edges[*].node.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.collections.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collections.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-entitlement-connections-read-initial.graphql",
+          "variables": {
+            "productDiscountId": {
+              "fromProxyResponse": "discount-create-user-errors",
+              "path": "$.data.productDiscount.codeDiscountNode.id"
+            },
+            "collectionDiscountId": {
+              "fromProxyResponse": "discount-create-user-errors",
+              "path": "$.data.collectionDiscount.codeDiscountNode.id"
+            },
+            "catalogQuery": {
+              "fromCapturePath": "$.requests.readInitial.variables.catalogQuery"
+            },
+            "catalogFirst": {
+              "fromCapturePath": "$.requests.readInitial.variables.catalogFirst"
+            }
+          }
+        }
+      },
+      {
+        "name": "initial-collection-customer-buys-items",
+        "capturePath": "$.requests.readInitial.response.payload.data.collectionDiscount.discount.customerBuys.items",
+        "proxyPath": "$.data.collectionDiscount.discount.customerBuys.items",
+        "expectedDifferences": [
+          {
+            "path": "$.collections.nodes[*].id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.collections.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collections.edges[*].node.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.collections.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collections.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-entitlement-connections-read-initial.graphql",
+          "variables": {
+            "productDiscountId": {
+              "fromProxyResponse": "discount-create-user-errors",
+              "path": "$.data.productDiscount.codeDiscountNode.id"
+            },
+            "collectionDiscountId": {
+              "fromProxyResponse": "discount-create-user-errors",
+              "path": "$.data.collectionDiscount.codeDiscountNode.id"
+            },
+            "catalogQuery": {
+              "fromCapturePath": "$.requests.readInitial.variables.catalogQuery"
+            },
+            "catalogFirst": {
+              "fromCapturePath": "$.requests.readInitial.variables.catalogFirst"
+            }
+          }
+        }
+      },
+      {
+        "name": "window-entitlement-connections",
+        "capturePath": "$.requests.readWindow.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.productDiscount.discount.customerBuys.items",
+          "$.productDiscount.discount.customerGets.items",
+          "$.collectionDiscount.discount.customerBuys.items",
+          "$.collectionDiscount.discount.customerGets.items"
+        ],
+        "expectedDifferences": [
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.afterProducts.nodes[*].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.afterProducts.edges[*].node.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.afterProducts.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.afterProducts.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.afterProducts.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.beforeProducts.nodes[*].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.beforeProducts.edges[*].node.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.beforeProducts.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.beforeProducts.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.beforeProducts.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.reverseProducts.nodes[*].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.reverseProducts.edges[*].node.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.reverseProducts.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.reverseProducts.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.reverseProducts.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.afterVariants.nodes[*].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.afterVariants.nodes[*].product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable variant-owner product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.afterVariants.edges[*].node.id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.afterVariants.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.afterVariants.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.afterVariants.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.beforeVariants.nodes[*].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.beforeVariants.nodes[*].product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable variant-owner product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.beforeVariants.edges[*].node.id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.beforeVariants.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.beforeVariants.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.beforeVariants.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.reverseVariants.nodes[*].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.reverseVariants.nodes[*].product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable variant-owner product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.reverseVariants.edges[*].node.id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.reverseVariants.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.reverseVariants.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.reverseVariants.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.afterProducts.nodes[*].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.afterProducts.edges[*].node.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.afterProducts.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.afterProducts.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.afterProducts.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.beforeProducts.nodes[*].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.beforeProducts.edges[*].node.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.beforeProducts.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.beforeProducts.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.beforeProducts.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.reverseProducts.nodes[*].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.reverseProducts.edges[*].node.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.reverseProducts.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.reverseProducts.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.reverseProducts.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.afterVariants.nodes[*].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.afterVariants.nodes[*].product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable variant-owner product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.afterVariants.edges[*].node.id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.afterVariants.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.afterVariants.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.afterVariants.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.beforeVariants.nodes[*].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.beforeVariants.nodes[*].product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable variant-owner product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.beforeVariants.edges[*].node.id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.beforeVariants.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.beforeVariants.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.beforeVariants.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.reverseVariants.nodes[*].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.reverseVariants.nodes[*].product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable variant-owner product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.reverseVariants.edges[*].node.id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.reverseVariants.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.reverseVariants.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.reverseVariants.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerBuys.items.afterCollections.nodes[*].id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerBuys.items.afterCollections.edges[*].node.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerBuys.items.afterCollections.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerBuys.items.afterCollections.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerBuys.items.afterCollections.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerBuys.items.beforeCollections.nodes[*].id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerBuys.items.beforeCollections.edges[*].node.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerBuys.items.beforeCollections.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerBuys.items.beforeCollections.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerBuys.items.beforeCollections.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerBuys.items.reverseCollections.nodes[*].id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerBuys.items.reverseCollections.edges[*].node.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerBuys.items.reverseCollections.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerBuys.items.reverseCollections.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerBuys.items.reverseCollections.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerGets.items.afterCollections.nodes[*].id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerGets.items.afterCollections.edges[*].node.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerGets.items.afterCollections.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerGets.items.afterCollections.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerGets.items.afterCollections.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerGets.items.beforeCollections.nodes[*].id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerGets.items.beforeCollections.edges[*].node.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerGets.items.beforeCollections.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerGets.items.beforeCollections.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerGets.items.beforeCollections.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerGets.items.reverseCollections.nodes[*].id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerGets.items.reverseCollections.edges[*].node.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerGets.items.reverseCollections.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerGets.items.reverseCollections.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerGets.items.reverseCollections.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-entitlement-connections-read-window.graphql",
+          "variables": {
+            "productDiscountId": {
+              "fromProxyResponse": "discount-create-user-errors",
+              "path": "$.data.productDiscount.codeDiscountNode.id"
+            },
+            "collectionDiscountId": {
+              "fromProxyResponse": "discount-create-user-errors",
+              "path": "$.data.collectionDiscount.codeDiscountNode.id"
+            },
+            "productAfter": {
+              "fromProxyResponse": "initial-product-customer-gets-items",
+              "path": "$.data.productDiscount.discount.customerGets.items.products.edges[0].cursor"
+            },
+            "productBefore": {
+              "fromProxyResponse": "initial-product-customer-gets-items",
+              "path": "$.data.productDiscount.discount.customerGets.items.products.edges[1].cursor"
+            },
+            "variantAfter": {
+              "fromProxyResponse": "initial-product-customer-gets-items",
+              "path": "$.data.productDiscount.discount.customerGets.items.productVariants.edges[0].cursor"
+            },
+            "variantBefore": {
+              "fromProxyResponse": "initial-product-customer-gets-items",
+              "path": "$.data.productDiscount.discount.customerGets.items.productVariants.edges[1].cursor"
+            },
+            "collectionAfter": {
+              "fromProxyResponse": "initial-product-customer-gets-items",
+              "path": "$.data.collectionDiscount.discount.customerGets.items.collections.edges[0].cursor"
+            },
+            "collectionBefore": {
+              "fromProxyResponse": "initial-product-customer-gets-items",
+              "path": "$.data.collectionDiscount.discount.customerGets.items.collections.edges[1].cursor"
+            }
+          }
+        }
+      },
+      {
+        "name": "product-update-user-errors",
+        "capturePath": "$.requests.resourceUpdate.response.payload.data.productUpdate",
+        "proxyPath": "$.data.productUpdate",
+        "selectedPaths": ["$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-entitlement-connections-product-update.graphql",
+          "variables": {
+            "product": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+              },
+              "title": {
+                "fromCapturePath": "$.requests.resourceUpdate.variables.product.title"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "variant-update-user-errors",
+        "capturePath": "$.requests.resourceUpdate.response.payload.data.productVariantsBulkUpdate",
+        "proxyPath": "$.data.productVariantsBulkUpdate",
+        "selectedPaths": ["$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-entitlement-connections-variant-update.graphql",
+          "variables": {
+            "variantProductId": {
+              "fromProxyResponse": "alpha-variant-product-create-user-errors",
+              "path": "$.data.productCreate.product.id"
+            },
+            "variants": [
+              {
+                "id": {
+                  "fromProxyResponse": "alpha-variant-create-user-errors",
+                  "path": "$.data.variants.productVariants[0].id"
+                },
+                "inventoryItem": {
+                  "sku": {
+                    "fromCapturePath": "$.requests.resourceUpdate.variables.variants[0].inventoryItem.sku"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "collection-update-user-errors",
+        "capturePath": "$.requests.resourceUpdate.response.payload.data.collectionUpdate",
+        "proxyPath": "$.data.collectionUpdate",
+        "selectedPaths": ["$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-entitlement-connections-collection-update.graphql",
+          "variables": {
+            "collection": {
+              "id": {
+                "fromProxyResponse": "alpha-collection-create-user-errors",
+                "path": "$.data.collectionCreate.collection.id"
+              },
+              "title": {
+                "fromCapturePath": "$.requests.resourceUpdate.variables.collection.title"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "updated-entitlement-readback",
+        "capturePath": "$.requests.readUpdated.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.productDiscount.discount.customerBuys.items",
+          "$.productDiscount.discount.customerGets.items",
+          "$.collectionDiscount.discount.customerBuys.items",
+          "$.collectionDiscount.discount.customerGets.items",
+          "$.catalog.nodes[*].discount.customerBuys.items",
+          "$.catalog.nodes[*].discount.customerGets.items"
+        ],
+        "expectedDifferences": [
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.products.nodes[*].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.products.edges[*].node.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.products.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.products.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.products.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.productVariants.nodes[*].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.productVariants.nodes[*].product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable variant-owner product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.productVariants.edges[*].node.id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.productVariants.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.productVariants.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.productVariants.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.products.nodes[*].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.products.edges[*].node.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.products.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.products.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.products.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.productVariants.nodes[*].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.productVariants.nodes[*].product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable variant-owner product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.productVariants.edges[*].node.id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.productVariants.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.productVariants.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.productVariants.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerBuys.items.collections.nodes[*].id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerBuys.items.collections.edges[*].node.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerBuys.items.collections.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerBuys.items.collections.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerBuys.items.collections.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerGets.items.collections.nodes[*].id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerGets.items.collections.edges[*].node.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerGets.items.collections.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerGets.items.collections.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerGets.items.collections.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.products.nodes[*].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.products.edges[*].node.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.products.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.products.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.products.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.productVariants.nodes[*].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.productVariants.nodes[*].product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable variant-owner product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.productVariants.edges[*].node.id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.productVariants.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.productVariants.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.productVariants.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.products.nodes[*].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.products.edges[*].node.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.products.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.products.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.products.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.productVariants.nodes[*].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.productVariants.nodes[*].product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable variant-owner product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.productVariants.edges[*].node.id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.productVariants.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.productVariants.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.productVariants.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.collections.nodes[*].id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.collections.edges[*].node.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.collections.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.collections.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.collections.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.collections.nodes[*].id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.collections.edges[*].node.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.collections.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.collections.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.collections.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-entitlement-connections-read-current.graphql",
+          "variables": {
+            "productDiscountId": {
+              "fromProxyResponse": "discount-create-user-errors",
+              "path": "$.data.productDiscount.codeDiscountNode.id"
+            },
+            "collectionDiscountId": {
+              "fromProxyResponse": "discount-create-user-errors",
+              "path": "$.data.collectionDiscount.codeDiscountNode.id"
+            },
+            "catalogQuery": {
+              "fromCapturePath": "$.requests.readUpdated.variables.catalogQuery"
+            },
+            "catalogFirst": {
+              "fromCapturePath": "$.requests.readUpdated.variables.catalogFirst"
+            }
+          }
+        }
+      },
+      {
+        "name": "variant-delete-user-errors",
+        "capturePath": "$.requests.variantDelete.response.payload.data.productVariantsBulkDelete",
+        "proxyPath": "$.data.productVariantsBulkDelete",
+        "selectedPaths": ["$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-entitlement-connections-variant-delete.graphql",
+          "variables": {
+            "productId": {
+              "fromProxyResponse": "alpha-variant-product-create-user-errors",
+              "path": "$.data.productCreate.product.id"
+            },
+            "variantsIds": [
+              {
+                "fromProxyResponse": "alpha-variant-create-user-errors",
+                "path": "$.data.variants.productVariants[0].id"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "after-variant-delete-entitlement-readback",
+        "capturePath": "$.requests.readAfterVariantDelete.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.productDiscount.discount.customerBuys.items",
+          "$.productDiscount.discount.customerGets.items",
+          "$.collectionDiscount.discount.customerBuys.items",
+          "$.collectionDiscount.discount.customerGets.items",
+          "$.catalog.nodes[*].discount.customerBuys.items",
+          "$.catalog.nodes[*].discount.customerGets.items"
+        ],
+        "expectedDifferences": [
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.products.nodes[*].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.products.edges[*].node.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.products.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.products.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.products.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.productVariants.nodes[*].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.productVariants.nodes[*].product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable variant-owner product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.productVariants.edges[*].node.id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.productVariants.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.productVariants.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.productVariants.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.products.nodes[*].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.products.edges[*].node.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.products.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.products.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.products.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.productVariants.nodes[*].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.productVariants.nodes[*].product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable variant-owner product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.productVariants.edges[*].node.id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.productVariants.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.productVariants.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.productVariants.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerBuys.items.collections.nodes[*].id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerBuys.items.collections.edges[*].node.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerBuys.items.collections.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerBuys.items.collections.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerBuys.items.collections.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerGets.items.collections.nodes[*].id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerGets.items.collections.edges[*].node.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerGets.items.collections.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerGets.items.collections.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerGets.items.collections.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.products.nodes[*].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.products.edges[*].node.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.products.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.products.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.products.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.productVariants.nodes[*].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.productVariants.nodes[*].product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable variant-owner product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.productVariants.edges[*].node.id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.productVariants.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.productVariants.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.productVariants.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.products.nodes[*].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.products.edges[*].node.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.products.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.products.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.products.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.productVariants.nodes[*].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.productVariants.nodes[*].product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable variant-owner product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.productVariants.edges[*].node.id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.productVariants.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.productVariants.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.productVariants.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.collections.nodes[*].id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.collections.edges[*].node.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.collections.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.collections.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.collections.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.collections.nodes[*].id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.collections.edges[*].node.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.collections.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.collections.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.collections.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-entitlement-connections-read-current.graphql",
+          "variables": {
+            "productDiscountId": {
+              "fromProxyResponse": "discount-create-user-errors",
+              "path": "$.data.productDiscount.codeDiscountNode.id"
+            },
+            "collectionDiscountId": {
+              "fromProxyResponse": "discount-create-user-errors",
+              "path": "$.data.collectionDiscount.codeDiscountNode.id"
+            },
+            "catalogQuery": {
+              "fromCapturePath": "$.requests.readAfterVariantDelete.variables.catalogQuery"
+            },
+            "catalogFirst": {
+              "fromCapturePath": "$.requests.readAfterVariantDelete.variables.catalogFirst"
+            }
+          }
+        }
+      },
+      {
+        "name": "product-delete-user-errors",
+        "capturePath": "$.requests.resourceDelete.response.payload.data.productDelete",
+        "proxyPath": "$.data.productDelete",
+        "selectedPaths": ["$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-entitlement-connections-product-delete.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "collection-delete-user-errors",
+        "capturePath": "$.requests.resourceDelete.response.payload.data.collectionDelete",
+        "proxyPath": "$.data.collectionDelete",
+        "selectedPaths": ["$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-entitlement-connections-collection-delete.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "alpha-collection-create-user-errors",
+                "path": "$.data.collectionCreate.collection.id"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "after-resource-delete-entitlement-readback",
+        "capturePath": "$.requests.readAfterResourceDelete.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.productDiscount.discount.customerBuys.items",
+          "$.productDiscount.discount.customerGets.items",
+          "$.collectionDiscount.discount.customerBuys.items",
+          "$.collectionDiscount.discount.customerGets.items",
+          "$.catalog.nodes[*].discount.customerBuys.items",
+          "$.catalog.nodes[*].discount.customerGets.items"
+        ],
+        "expectedDifferences": [
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.products.nodes[*].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.products.edges[*].node.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.products.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.products.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.products.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.productVariants.nodes[*].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.productVariants.nodes[*].product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable variant-owner product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.productVariants.edges[*].node.id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.productVariants.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.productVariants.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerBuys.items.productVariants.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.products.nodes[*].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.products.edges[*].node.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.products.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.products.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.products.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.productVariants.nodes[*].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.productVariants.nodes[*].product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable variant-owner product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.productVariants.edges[*].node.id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.productVariants.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.productVariants.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.productDiscount.discount.customerGets.items.productVariants.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerBuys.items.collections.nodes[*].id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerBuys.items.collections.edges[*].node.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerBuys.items.collections.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerBuys.items.collections.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerBuys.items.collections.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerGets.items.collections.nodes[*].id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerGets.items.collections.edges[*].node.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerGets.items.collections.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerGets.items.collections.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.collectionDiscount.discount.customerGets.items.collections.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.products.nodes[*].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.products.edges[*].node.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.products.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.products.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.products.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.productVariants.nodes[*].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.productVariants.nodes[*].product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable variant-owner product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.productVariants.edges[*].node.id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.productVariants.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.productVariants.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.productVariants.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.products.nodes[*].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.products.edges[*].node.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.products.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.products.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.products.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.productVariants.nodes[*].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.productVariants.nodes[*].product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "Disposable variant-owner product IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.productVariants.edges[*].node.id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Disposable variant IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.productVariants.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.productVariants.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.productVariants.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.collections.nodes[*].id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.collections.edges[*].node.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.collections.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.collections.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerBuys.items.collections.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.collections.nodes[*].id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.collections.edges[*].node.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Disposable collection IDs differ between live capture and proxy replay."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.collections.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.collections.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          },
+          {
+            "path": "$.catalog.nodes[*].discount.customerGets.items.collections.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and local replay use different opaque cursors."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-entitlement-connections-read-current.graphql",
+          "variables": {
+            "productDiscountId": {
+              "fromProxyResponse": "discount-create-user-errors",
+              "path": "$.data.productDiscount.codeDiscountNode.id"
+            },
+            "collectionDiscountId": {
+              "fromProxyResponse": "discount-create-user-errors",
+              "path": "$.data.collectionDiscount.codeDiscountNode.id"
+            },
+            "catalogQuery": {
+              "fromCapturePath": "$.requests.readAfterResourceDelete.variables.catalogQuery"
+            },
+            "catalogFirst": {
+              "fromCapturePath": "$.requests.readAfterResourceDelete.variables.catalogFirst"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify 2026-04 capture for BXGY entitlement connection reads. The setup creates separate product records for product entitlements and variant entitlements because Shopify rejects product+variant duplicate entitlement within the same DiscountProducts block. Strict targets compare complete selected customerBuys/customerGets item connection payloads for initial singular reads, cursor window membership/order, staged resource update readback, staged variant deletion, staged product/collection deletion, and discount catalog readback; generated GIDs and opaque cursors are treated as volatile while titles, handles, status, SKUs, connection order, nodes/edges/pageInfo shape, and pageInfo booleans remain strict."
+}

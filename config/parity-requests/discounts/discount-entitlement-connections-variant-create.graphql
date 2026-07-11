@@ -1,0 +1,61 @@
+mutation DiscountEntitlementConnectionsVariantCreate(
+  $alphaProductId: ID!
+  $bravoProductId: ID!
+  $alphaVariants: [ProductVariantsBulkInput!]!
+  $bravoVariants: [ProductVariantsBulkInput!]!
+) {
+  alphaVariants: productVariantsBulkCreate(productId: $alphaProductId, variants: $alphaVariants) {
+    product {
+      id
+      title
+      variants(first: 5) {
+        nodes {
+          id
+          title
+          sku
+        }
+      }
+    }
+    productVariants {
+      id
+      title
+      sku
+      product {
+        id
+        title
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  bravoVariants: productVariantsBulkCreate(productId: $bravoProductId, variants: $bravoVariants) {
+    product {
+      id
+      title
+      variants(first: 5) {
+        nodes {
+          id
+          title
+          sku
+        }
+      }
+    }
+    productVariants {
+      id
+      title
+      sku
+      product {
+        id
+        title
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

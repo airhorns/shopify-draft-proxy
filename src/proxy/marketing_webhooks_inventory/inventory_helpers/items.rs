@@ -231,10 +231,8 @@ impl DraftProxy {
                         )
                     }))
                 }
-                "inventoryLevels" => Some(inventory_levels_connection_selected_json(
+                "inventoryLevels" => Some(self.inventory_item_levels_connection_selected_json(
                     inventory_item_id,
-                    &item_levels,
-                    &self.inventory_level_view_state(),
                     &selection.arguments,
                     &selection.selection,
                 )),
@@ -635,6 +633,80 @@ impl DraftProxy {
         levels
     }
 
+    fn inventory_level_records_for_item(
+        &self,
+        inventory_item_id: &str,
+        include_inactive: bool,
+    ) -> Vec<InventoryLocationLevelRecord> {
+        self.inventory_levels_for_item(inventory_item_id)
+            .into_iter()
+            .filter_map(|(location_id, quantities)| {
+                let key = (inventory_item_id.to_string(), location_id.clone());
+                if !include_inactive && self.store.staged.inactive_inventory_levels.contains(&key) {
+                    return None;
+                }
+                Some(InventoryLocationLevelRecord {
+                    inventory_item_id: inventory_item_id.to_string(),
+                    level_id: self.store.staged.inventory_level_ids.get(&key).cloned(),
+                    location_id,
+                    quantities,
+                })
+            })
+            .collect()
+    }
+
+    fn inventory_item_levels_connection_selected_json(
+        &self,
+        inventory_item_id: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        selections: &[SelectedField],
+    ) -> Value {
+        let include_inactive = resolved_bool_field(arguments, "includeInactive").unwrap_or(false);
+        let levels = self.inventory_level_records_for_item(inventory_item_id, include_inactive);
+        selected_staged_connection_with_args(
+            levels,
+            arguments,
+            selections,
+            |level, query| self.inventory_item_level_search_decision(level, query),
+            inventory_location_level_sort_key,
+            |level, node_selection| {
+                self.inventory_level_json_with_item(
+                    &level.inventory_item_id,
+                    &level.location_id,
+                    &level.quantities,
+                    node_selection,
+                )
+            },
+            |level| self.inventory_location_level_cursor(level),
+        )
+    }
+
+    fn inventory_item_level_search_decision(
+        &self,
+        level: &InventoryLocationLevelRecord,
+        query: Option<&str>,
+    ) -> StagedSearchDecision {
+        let Some(query) = query.map(str::trim).filter(|query| !query.is_empty()) else {
+            return StagedSearchDecision::Match;
+        };
+        for term in inventory_search_terms(query) {
+            let term = term.trim();
+            let Some((field, raw_value)) = term.split_once(':') else {
+                continue;
+            };
+            match field.trim().to_ascii_lowercase().as_str() {
+                "inventory_item_id" => {
+                    if !inventory_id_matches_query(&level.inventory_item_id, raw_value) {
+                        return StagedSearchDecision::NoMatch;
+                    }
+                }
+                "id" => return StagedSearchDecision::NoMatch,
+                _ => {}
+            }
+        }
+        StagedSearchDecision::Match
+    }
+
     pub(in crate::proxy) fn location_inventory_levels_connection_selected_json(
         &self,
         location_id: &str,
@@ -1029,7 +1101,7 @@ impl DraftProxy {
     pub(in crate::proxy) fn next_inventory_quantity_timestamp(&mut self) -> String {
         let sequence = self.store.staged.next_inventory_quantity_timestamp;
         self.store.staged.next_inventory_quantity_timestamp += 1;
-        format!("2024-01-01T00:00:{sequence:02}.000Z")
+        inventory_sequence_timestamp(sequence)
     }
 
     pub(super) fn stamp_inventory_quantity(

@@ -1,0 +1,55 @@
+query MarketMutationFirstUpdateRead($marketId: ID!, $catalogId: ID!) {
+  market(id: $marketId) {
+    id
+    name
+    handle
+    status
+    enabled
+    catalogs(first: 10) {
+      nodes {
+        id
+        title
+        markets(first: 10) {
+          nodes {
+            id
+            name
+            handle
+            status
+            type
+          }
+        }
+      }
+    }
+    webPresences(first: 10) {
+      nodes {
+        id
+        subfolderSuffix
+        markets(first: 10) {
+          nodes {
+            id
+            name
+            handle
+            status
+            type
+          }
+        }
+      }
+    }
+  }
+  catalog(id: $catalogId) {
+    id
+    title
+    status
+    ... on MarketCatalog {
+      markets(first: 10) {
+        nodes {
+          id
+          name
+          handle
+          status
+          type
+        }
+      }
+    }
+  }
+}

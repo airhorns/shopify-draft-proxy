@@ -1,0 +1,157 @@
+{
+  "scenarioId": "markets-family-mixed-overlay-read",
+  "operationNames": [
+    "marketCreate",
+    "catalogCreate",
+    "priceListCreate",
+    "markets",
+    "catalogs",
+    "catalogsCount",
+    "priceLists",
+    "webPresences",
+    "priceList"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "downstream-read-parity",
+    "local-staging",
+    "query-filter",
+    "sort",
+    "pagination-shape",
+    "count-shape"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/markets-family-mixed-overlay-read.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/metafields_markets_products_tail.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/catalog-context-update-market-create.graphql",
+    "variablesCapturePath": "$.cases[5].variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "staged-market-setup",
+        "capturePath": "$.cases[5].response.payload.data.marketCreate.userErrors",
+        "proxyPath": "$.data.marketCreate.userErrors"
+      },
+      {
+        "name": "staged-catalog-setup",
+        "capturePath": "$.cases[6].response.payload.data.catalogCreate.userErrors",
+        "proxyPath": "$.data.catalogCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-context-update-catalog-create.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "title": {
+                "fromCapturePath": "$.cases[6].variables.input.title"
+              },
+              "status": {
+                "fromCapturePath": "$.cases[6].variables.input.status"
+              },
+              "context": {
+                "marketIds": [
+                  {
+                    "fromPrimaryProxyPath": "$.data.marketCreate.market.id"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "staged-price-list-setup",
+        "capturePath": "$.cases[7].response.payload.data.priceListCreate.userErrors",
+        "proxyPath": "$.data.priceListCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-update-relation-read-price-list-create.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "name": {
+                "fromCapturePath": "$.cases[7].variables.input.name"
+              },
+              "currency": {
+                "fromCapturePath": "$.cases[7].variables.input.currency"
+              },
+              "parent": {
+                "fromCapturePath": "$.cases[7].variables.input.parent"
+              },
+              "catalogId": {
+                "fromProxyResponse": "staged-catalog-setup",
+                "path": "$.data.catalogCreate.catalog.id"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "mixed-overlay-read-merges-baseline-and-staged-families",
+        "capturePath": "$.cases[8].response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/markets-family-mixed-overlay-read.graphql",
+          "variablesCapturePath": "$.cases[8].variables",
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": [
+          "$.markets.nodes[0].name",
+          "$.markets.nodes[0].status",
+          "$.markets.nodes[1].name",
+          "$.markets.nodes[1].status",
+          "$.catalogs.nodes[0].title",
+          "$.catalogs.nodes[0].status",
+          "$.catalogs.nodes[0].markets.nodes[0].name",
+          "$.catalogs.nodes[0].priceList.name",
+          "$.catalogs.nodes[1].title",
+          "$.catalogs.nodes[1].status",
+          "$.catalogs.nodes[1].markets.nodes[0].name",
+          "$.catalogs.nodes[1].priceList.name",
+          "$.catalogsWindow.nodes[0].title",
+          "$.catalogsWindow.pageInfo.hasNextPage",
+          "$.catalogsWindow.pageInfo.hasPreviousPage",
+          "$.catalogsCount.count",
+          "$.catalogsCount.precision",
+          "$.webPresences.nodes[0].subfolderSuffix",
+          "$.webPresences.nodes[4].subfolderSuffix",
+          "$.webPresences.pageInfo.hasPreviousPage"
+        ]
+      },
+      {
+        "name": "staged-price-list-singular-readback",
+        "capturePath": "$.cases[9].response.payload.data.priceList",
+        "proxyPath": "$.data.priceList",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/markets-family-mixed-overlay-price-list-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "staged-price-list-setup",
+              "path": "$.data.priceListCreate.priceList.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:PriceList",
+            "reason": "The proxy stages a synthetic local price-list id while the capture stores Shopify's disposable live id."
+          },
+          {
+            "path": "$.catalog.id",
+            "matcher": "shopify-gid:MarketCatalog",
+            "reason": "The staged price list points at the proxy's synthetic local catalog id."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 capture creates deterministic pre-existing Market, MarketCatalog, PriceList, and MarketWebPresence rows, records a mixed Markets-family read as the upstream baseline cassette, then creates a staged MarketCatalog plus attached PriceList for the Shopify reference response. Local replay stages only the second phase through public GraphQL and verifies the mixed read merges the cassette baseline with staged deltas across markets, catalogs, price lists, and web presences while preserving filters, reverse-title ordering, alias pagination, counts, and relation projections."
+}

@@ -2,7 +2,8 @@ use std::collections::BTreeMap;
 
 use pretty_assertions::assert_eq;
 use shopify_draft_proxy::graphql::{
-    parsed_document, root_field_arguments, root_fields, RawArgumentValue, ResolvedValue,
+    parse_operation_with_variables, parsed_document, root_field_arguments, root_fields,
+    RawArgumentValue, ResolvedValue,
 };
 
 #[test]
@@ -126,6 +127,107 @@ fn parsed_document_preserves_operation_metadata_aliases_fragments_and_locations(
     assert_eq!(product.selection[1].response_key, "titleAlias");
     assert_eq!(product.selection[2].name, "handle");
     assert_eq!(product.selection[2].response_key, "handleAlias");
+}
+
+#[test]
+fn parsed_document_applies_conditional_directives_to_roots_fields_and_fragments() {
+    let variables = BTreeMap::from([
+        ("includeProduct".to_string(), ResolvedValue::Bool(true)),
+        ("includeTitle".to_string(), ResolvedValue::Bool(true)),
+        ("includeInline".to_string(), ResolvedValue::Bool(false)),
+        ("includeSpread".to_string(), ResolvedValue::Bool(true)),
+    ]);
+    let document = parsed_document(
+        r#"
+        fragment ProductFields on Product {
+          aliasTitle: title @include(if: $includeTitle)
+          skippedVendor: vendor @skip(if: true)
+        }
+
+        query ConditionalDirectives(
+          $includeProduct: Boolean!,
+          $includeTitle: Boolean!,
+          $includeInline: Boolean!,
+          $includeSpread: Boolean!
+        ) {
+          skippedProducts: products(first: 1) @skip(if: true) {
+            nodes { id }
+          }
+          skippedProduct: product(id: "gid://shopify/Product/2") @include(if: false) {
+            id
+          }
+          product(id: "gid://shopify/Product/1") @include(if: $includeProduct) {
+            id
+            hiddenHandle: handle @include(if: false)
+            ... on Product @include(if: $includeInline) {
+              seo { title }
+            }
+            ...ProductFields @include(if: $includeSpread)
+          }
+        }
+        "#,
+        &variables,
+    )
+    .expect("document should parse");
+
+    assert_eq!(document.root_fields.len(), 1);
+    let product = &document.root_fields[0];
+    assert_eq!(product.name, "product");
+    assert_eq!(
+        product
+            .selection
+            .iter()
+            .map(|field| field.response_key.as_str())
+            .collect::<Vec<_>>(),
+        vec!["id", "aliasTitle"]
+    );
+}
+
+#[test]
+fn parsed_document_applies_conditional_directives_from_parity_documents() {
+    let read_variables = BTreeMap::from([
+        (
+            "id".to_string(),
+            ResolvedValue::String("gid://shopify/Product/1".to_string()),
+        ),
+        ("includeTitle".to_string(), ResolvedValue::Bool(false)),
+        ("skipInline".to_string(), ResolvedValue::Bool(true)),
+        ("includeSpread".to_string(), ResolvedValue::Bool(true)),
+    ]);
+    let document = parsed_document(
+        include_str!("../config/parity-requests/products/graphql-conditional-directives-product-read.graphql"),
+        &read_variables,
+    )
+    .expect("document should parse");
+
+    assert_eq!(document.root_fields.len(), 1);
+    let product = &document.root_fields[0];
+    assert_eq!(product.response_key, "includedProduct");
+    assert_eq!(
+        product
+            .selection
+            .iter()
+            .map(|field| field.response_key.as_str())
+            .collect::<Vec<_>>(),
+        vec!["id", "aliasStatus"]
+    );
+
+    let skipped_mutation_variables = BTreeMap::from([
+        (
+            "product".to_string(),
+            ResolvedValue::Object(BTreeMap::from([(
+                "title".to_string(),
+                ResolvedValue::String("Skipped".to_string()),
+            )])),
+        ),
+        ("skipMutation".to_string(), ResolvedValue::Bool(true)),
+    ]);
+    let operation = parse_operation_with_variables(
+        include_str!("../config/parity-requests/products/graphql-conditional-directives-product-create-skipped.graphql"),
+        &skipped_mutation_variables,
+    )
+    .expect("mutation should parse");
+    assert!(operation.root_fields.is_empty());
 }
 
 #[test]
