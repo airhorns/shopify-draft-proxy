@@ -1,0 +1,15 @@
+mutation OrderLiveHybridMixedCatalogUpdate($input: OrderInput!) {
+    orderUpdate(input: $input) {
+      order {
+        id
+        email
+        note
+        tags
+        processedAt
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }

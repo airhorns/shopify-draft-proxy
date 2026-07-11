@@ -1892,7 +1892,10 @@ impl DraftProxy {
     }
 
     pub(super) fn ensure_order_hydrated(&mut self, request: &Request, id: &str) {
-        if self.config.read_mode == ReadMode::Snapshot || id.is_empty() {
+        if self.config.read_mode == ReadMode::Snapshot
+            || id.is_empty()
+            || self.store.staged.orders.is_tombstoned(id)
+        {
             return;
         }
         // Always attempt a fresh upstream read so the order reflects its live
@@ -1913,10 +1916,11 @@ impl DraftProxy {
         if !(200..300).contains(&response.status) {
             return;
         }
-        let order = response.body["data"]["order"].clone();
+        let mut order = response.body["data"]["order"].clone();
         if !order.is_object() {
             return;
         }
+        normalize_hydrated_order(&mut order);
         self.store.staged.orders.insert(id.to_string(), order);
     }
 

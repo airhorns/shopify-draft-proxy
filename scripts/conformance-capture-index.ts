@@ -8042,6 +8042,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'order-live-hybrid-mixed-catalog',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-order-live-hybrid-mixed-catalog-conformance.ts',
+    purpose:
+      'LiveHybrid orders/order/ordersCount mixed catalog evidence: a real upstream order plus a staged candidate order, update-wins-by-id behavior, and delete tombstone suppression over upstream list/count reads.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/order-live-hybrid-mixed-catalog.json',
+      'config/parity-specs/orders/order-live-hybrid-mixed-catalog.json',
+      'config/parity-requests/orders/order-live-hybrid-mixed-catalog-create.graphql',
+      'config/parity-requests/orders/order-live-hybrid-mixed-catalog-update.graphql',
+      'config/parity-requests/orders/order-live-hybrid-mixed-catalog-delete.graphql',
+      'config/parity-requests/orders/order-live-hybrid-mixed-catalog-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable test orders, updates and deletes the upstream-baseline order, then deletes the candidate order after recording expected reads.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'abandoned-checkout-empty-read',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-abandoned-checkout-conformance.ts',

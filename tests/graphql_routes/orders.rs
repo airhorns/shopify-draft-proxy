@@ -2963,6 +2963,421 @@ fn orders_search_common_predicates_share_connection_and_count_semantics() {
 }
 
 #[test]
+fn live_hybrid_orders_merge_upstream_catalog_with_staged_create_update_delete() {
+    let upstream_order_id = "gid://shopify/Order/9001";
+    let upstream_order = json!({
+        "id": upstream_order_id,
+        "name": "#9001",
+        "email": "existing-live-order@example.test",
+        "note": "upstream baseline",
+        "tags": ["hybrid"],
+        "createdAt": "2024-01-02T00:00:00.000Z",
+        "updatedAt": "2024-01-02T00:00:00.000Z",
+        "processedAt": "2024-01-02T00:00:00.000Z",
+        "closed": false,
+        "closedAt": Value::Null,
+        "cancelledAt": Value::Null,
+        "cancelReason": Value::Null,
+        "displayFinancialStatus": "PAID",
+        "displayFulfillmentStatus": "UNFULFILLED",
+        "totalPriceSet": { "shopMoney": { "amount": "25.0", "currencyCode": "USD" } },
+        "currentTotalPriceSet": { "shopMoney": { "amount": "25.0", "currencyCode": "USD" } },
+        "lineItems": { "nodes": [] }
+    });
+    let upstream_calls = Arc::new(AtomicUsize::new(0));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_order = upstream_order.clone();
+        let upstream_calls = Arc::clone(&upstream_calls);
+        move |_request| {
+            upstream_calls.fetch_add(1, Ordering::SeqCst);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "order": upstream_order,
+                        "existing": upstream_order,
+                        "orders": {
+                            "nodes": [upstream_order],
+                            "edges": [{ "cursor": upstream_order_id, "node": upstream_order }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": upstream_order_id,
+                                "endCursor": upstream_order_id
+                            }
+                        },
+                        "visible": {
+                            "nodes": [upstream_order],
+                            "edges": [{ "cursor": upstream_order_id, "node": upstream_order }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": upstream_order_id,
+                                "endCursor": upstream_order_id
+                            }
+                        },
+                        "ordersCount": { "count": 1, "precision": "EXACT" },
+                        "total": { "count": 1, "precision": "EXACT" }
+                    }
+                }),
+            }
+        }
+    });
+
+    let catalog_query = r#"
+        query LiveHybridMixedOrders($existingId: ID!, $query: String!, $first: Int!) {
+          existing: order(id: $existingId) {
+            id
+            email
+            note
+            tags
+          }
+          visible: orders(first: $first, query: $query, sortKey: CREATED_AT, reverse: true) {
+            nodes {
+              id
+              email
+              note
+              tags
+              createdAt
+            }
+            edges {
+              cursor
+              node { id email }
+            }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+              startCursor
+              endCursor
+            }
+          }
+          total: ordersCount(query: $query, limit: null) {
+            count
+            precision
+          }
+        }
+    "#;
+    let catalog_variables =
+        json!({ "existingId": upstream_order_id, "query": "tag:hybrid", "first": 5 });
+
+    let cold = proxy.process_request(json_graphql_request(
+        catalog_query,
+        catalog_variables.clone(),
+    ));
+    assert_eq!(cold.status, 200);
+    assert_eq!(
+        cold.body["data"]["visible"]["nodes"][0]["id"],
+        json!(upstream_order_id)
+    );
+    assert_eq!(upstream_calls.load(Ordering::SeqCst), 1);
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateLocalOrderForMixedCatalog($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id email tags createdAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "local-live-order@example.test",
+                "currency": "USD",
+                "tags": ["hybrid"],
+                "lineItems": [{
+                    "title": "Local mixed catalog",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+    let local_order_id = create.body["data"]["orderCreate"]["order"]["id"].clone();
+
+    let mixed = proxy.process_request(json_graphql_request(
+        catalog_query,
+        catalog_variables.clone(),
+    ));
+    assert_eq!(mixed.status, 200);
+    assert_eq!(
+        mixed.body["data"]["visible"]["nodes"],
+        json!([
+            {
+                "id": upstream_order_id,
+                "email": "existing-live-order@example.test",
+                "note": "upstream baseline",
+                "tags": ["hybrid"],
+                "createdAt": "2024-01-02T00:00:00.000Z"
+            },
+            {
+                "id": local_order_id,
+                "email": "local-live-order@example.test",
+                "note": Value::Null,
+                "tags": ["hybrid"],
+                "createdAt": "2024-01-01T00:00:00.000Z"
+            }
+        ])
+    );
+    assert_eq!(
+        mixed.body["data"]["total"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+    assert_eq!(
+        mixed.body["data"]["existing"]["email"],
+        json!("existing-live-order@example.test")
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateExistingLiveOrder($input: OrderInput!) {
+          orderUpdate(input: $input) {
+            order { id note tags }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": upstream_order_id,
+                "note": "locally edited upstream order",
+                "tags": ["hybrid", "edited"]
+            }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(update.body["data"]["orderUpdate"]["userErrors"], json!([]));
+    assert_eq!(
+        update.body["data"]["orderUpdate"]["order"]["note"],
+        json!("locally edited upstream order")
+    );
+
+    let after_update = proxy.process_request(json_graphql_request(
+        catalog_query,
+        catalog_variables.clone(),
+    ));
+    assert_eq!(
+        after_update.body["data"]["visible"]["nodes"][0]["note"],
+        json!("locally edited upstream order")
+    );
+    assert_eq!(
+        after_update.body["data"]["total"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteExistingLiveOrder($orderId: ID!) {
+          orderDelete(orderId: $orderId) {
+            deletedId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "orderId": upstream_order_id }),
+    ));
+    assert_eq!(
+        delete.body["data"]["orderDelete"],
+        json!({ "deletedId": upstream_order_id, "userErrors": [] })
+    );
+
+    let after_delete =
+        proxy.process_request(json_graphql_request(catalog_query, catalog_variables));
+    assert_eq!(after_delete.body["data"]["existing"], Value::Null);
+    assert_eq!(
+        after_delete.body["data"]["visible"]["nodes"],
+        json!([{
+            "id": local_order_id,
+            "email": "local-live-order@example.test",
+            "note": Value::Null,
+            "tags": ["hybrid"],
+            "createdAt": "2024-01-01T00:00:00.000Z"
+        }])
+    );
+    assert_eq!(
+        after_delete.body["data"]["total"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+}
+
+#[test]
+fn live_hybrid_orders_observe_singular_order_id_when_selection_omits_id() {
+    let upstream_order_id = "gid://shopify/Order/9101";
+    let upstream_calls = Arc::new(AtomicUsize::new(0));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_calls = Arc::clone(&upstream_calls);
+        move |_request| {
+            upstream_calls.fetch_add(1, Ordering::SeqCst);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "existing": {
+                            "email": "idless-upstream-order@example.test",
+                            "note": "upstream id supplied by root argument",
+                            "tags": ["hybrid-idless"],
+                            "processedAt": "2024-01-01T00:00:00Z"
+                        },
+                        "total": { "count": 1, "precision": "EXACT" }
+                    }
+                }),
+            }
+        }
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateLocalOrderForIdlessMixedCatalog($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id email tags processedAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "idless-local-order@example.test",
+                "note": "local order",
+                "currency": "USD",
+                "processedAt": "2024-01-02T00:00:00Z",
+                "tags": ["hybrid-idless"],
+                "lineItems": [{
+                    "title": "Local idless mixed catalog",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query LiveHybridIdlessMixedOrders($existingId: ID!, $query: String!, $first: Int!) {
+          existing: order(id: $existingId) {
+            email
+            note
+            tags
+            processedAt
+          }
+          visible: orders(first: $first, query: $query, sortKey: PROCESSED_AT, reverse: false) {
+            nodes {
+              email
+              note
+              tags
+              processedAt
+            }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+            }
+          }
+          total: ordersCount(query: $query, limit: null) {
+            count
+            precision
+          }
+        }
+        "#,
+        json!({ "existingId": upstream_order_id, "query": "tag:hybrid-idless", "first": 5 }),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(upstream_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        read.body["data"]["existing"],
+        json!({
+            "email": "idless-upstream-order@example.test",
+            "note": "upstream id supplied by root argument",
+            "tags": ["hybrid-idless"],
+            "processedAt": "2024-01-01T00:00:00Z"
+        })
+    );
+    assert_eq!(
+        read.body["data"]["visible"]["nodes"],
+        json!([
+            {
+                "email": "idless-upstream-order@example.test",
+                "note": "upstream id supplied by root argument",
+                "tags": ["hybrid-idless"],
+                "processedAt": "2024-01-01T00:00:00Z"
+            },
+            {
+                "email": "idless-local-order@example.test",
+                "note": "local order",
+                "tags": ["hybrid-idless"],
+                "processedAt": "2024-01-02T00:00:00Z"
+            }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["total"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+}
+
+#[test]
+fn live_hybrid_orders_count_adds_staged_delta_to_upstream_count_without_nodes() {
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|_request| Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "total": { "count": 7, "precision": "EXACT" }
+                }
+            }),
+        });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateLocalOrderForCountOnly($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id tags }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "count-only-local-order@example.test",
+                "currency": "USD",
+                "tags": ["count-only"],
+                "lineItems": [{
+                    "title": "Count only local",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+
+    let count = proxy.process_request(json_graphql_request(
+        r#"
+        query CountOnlyMixedOrders($query: String!, $limit: Int) {
+          total: ordersCount(query: $query, limit: $limit) {
+            count
+            precision
+          }
+        }
+        "#,
+        json!({ "query": "tag:count-only", "limit": 7 }),
+    ));
+
+    assert_eq!(count.status, 200);
+    assert_eq!(
+        count.body["data"]["total"],
+        json!({ "count": 7, "precision": "AT_LEAST" })
+    );
+}
+
+#[test]
 fn orders_sorted_connection_handles_interleaved_create_and_update_windows() {
     fn create_order(proxy: &mut DraftProxy, email: &str, title: &str) -> String {
         let create = proxy.process_request(json_graphql_request(

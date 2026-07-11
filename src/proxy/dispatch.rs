@@ -377,7 +377,11 @@ impl DraftProxy {
             return ok_json(data);
         }
         if self.config.read_mode != ReadMode::Snapshot {
-            return (self.upstream_transport)(request.clone());
+            let response = (self.upstream_transport)(request.clone());
+            if self.config.read_mode == ReadMode::LiveHybrid {
+                self.observe_order_read_response(request, &response);
+            }
+            return response;
         }
 
         let fields = try_root_fields!(query, variables);
