@@ -70,7 +70,7 @@ impl DraftProxy {
             })
     }
 
-    pub(super) fn app_installation_for_app(&self, app_id: &str) -> Option<&Value> {
+    pub(in crate::proxy) fn app_installation_for_app(&self, app_id: &str) -> Option<&Value> {
         self.store.staged.installed_apps.get(app_id)
     }
 
