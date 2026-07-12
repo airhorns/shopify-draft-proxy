@@ -1,6 +1,7 @@
 use super::*;
 
 const DELIVERY_PROFILE_VARIANTS_HYDRATE_QUERY: &str = "query ShippingDeliveryProfileVariantsHydrate($ids: [ID!]!) { nodes(ids: $ids) { ... on ProductVariant { id title product { id title handle } } } }";
+const DELIVERY_PROFILE_LOCATION_NODES_HYDRATE_QUERY: &str = "query ShippingDeliveryProfileLocationNodesHydrate($ids: [ID!]!) { nodes(ids: $ids) { __typename ... on Location { id name isActive isFulfillmentService } } }";
 // Must byte-match the recorded `ShippingDeliveryProfileHydrate` upstream call in
 // the same captures. Issued when removing a profile the proxy has not staged
 // locally, to learn whether the target is the shop's default profile (which
@@ -9,7 +10,7 @@ const DELIVERY_PROFILE_DEFAULT_HYDRATE_QUERY: &str =
     "query ShippingDeliveryProfileHydrate($id: ID!) { deliveryProfile(id: $id) { id name default version } }";
 const DELIVERY_PROFILE_UPDATE_HYDRATE_QUERY: &str = "query ShippingDeliveryProfileUpdateHydrate($id: ID!) { deliveryProfile(id: $id) { id name default version } }";
 const DELIVERY_PROFILE_DEFAULT_REMOVE_MESSAGE: &str = "Cannot delete the default profile.";
-const DELIVERY_PROFILE_LOCATION_CATALOG_HYDRATE_FIRST_VALUES: &[usize] = &[250, 3, 2, 1];
+const DELIVERY_PROFILE_LOCATION_CATALOG_FALLBACK_FIRST_VALUES: &[usize] = &[2, 3, 1];
 const DELIVERY_PROFILE_GID_PREFIX: &str = "gid://shopify/DeliveryProfile/";
 
 struct DeliveryProfileMutationOutcome {
@@ -200,8 +201,10 @@ impl DraftProxy {
         request: &Request,
     ) -> DeliveryProfileMutationOutcome {
         let profile_input = resolved_object_field(&field.arguments, "profile").unwrap_or_default();
+        let location_ids = delivery_profile_location_ids_from_input(&profile_input);
+        self.hydrate_delivery_profile_locations(&location_ids, request);
         let mut location_exists =
-            |location_id: &str| self.delivery_profile_location_exists(location_id, request);
+            |location_id: &str| self.delivery_profile_location_exists(location_id);
         let user_errors = delivery_profile_create_user_errors(&profile_input, &mut location_exists);
         if !user_errors.is_empty() {
             return DeliveryProfileMutationOutcome::unstaged(delivery_profile_payload_json(
@@ -251,8 +254,10 @@ impl DraftProxy {
         };
 
         let profile_input = resolved_object_field(&field.arguments, "profile").unwrap_or_default();
+        let location_ids = delivery_profile_location_ids_from_input(&profile_input);
+        self.hydrate_delivery_profile_locations(&location_ids, request);
         let mut location_exists =
-            |location_id: &str| self.delivery_profile_location_exists(location_id, request);
+            |location_id: &str| self.delivery_profile_location_exists(location_id);
         let user_errors = delivery_profile_update_user_errors(&profile_input, &mut location_exists);
         if !user_errors.is_empty() {
             return DeliveryProfileMutationOutcome::unstaged(delivery_profile_payload_json(
@@ -891,41 +896,80 @@ impl DraftProxy {
         })
     }
 
-    fn delivery_profile_location_exists(&mut self, id: &str, request: &Request) -> bool {
-        if id.is_empty() {
-            return false;
-        }
-        if self.location_for_read(id).is_some() {
-            return true;
-        }
-        self.hydrate_delivery_profile_location_catalog(request);
-        if self.location_for_read(id).is_some() {
-            return true;
-        }
-        if self.has_observed_delivery_profile_location_catalog()
-            || self.config.read_mode == ReadMode::Snapshot
-        {
-            return self.location_for_read(id).is_some();
-        }
-        self.ensure_location_hydrated(id, request);
-        self.location_for_read(id).is_some()
-    }
-
-    fn has_observed_delivery_profile_location_catalog(&self) -> bool {
-        !self.store.staged.observed_shipping_locations.is_empty()
-    }
-
-    fn hydrate_delivery_profile_location_catalog(&mut self, request: &Request) {
-        if self.config.read_mode == ReadMode::Snapshot
-            || self.has_observed_delivery_profile_location_catalog()
-        {
+    fn hydrate_delivery_profile_locations(&mut self, location_ids: &[String], request: &Request) {
+        if self.config.read_mode == ReadMode::Snapshot {
             return;
         }
-        for first in DELIVERY_PROFILE_LOCATION_CATALOG_HYDRATE_FIRST_VALUES {
+
+        let mut missing_location_ids = Vec::new();
+        for location_id in location_ids {
+            if self.location_for_read(location_id).is_some() {
+                continue;
+            }
+            missing_location_ids.push(location_id.clone());
+        }
+        if missing_location_ids.is_empty() {
+            return;
+        }
+
+        self.hydrate_delivery_profile_location_nodes(&missing_location_ids, request);
+
+        let mut unresolved_location_ids = Vec::new();
+        for location_id in missing_location_ids {
+            if self.location_for_read(&location_id).is_none() {
+                unresolved_location_ids.push(location_id);
+            }
+        }
+        if !unresolved_location_ids.is_empty() {
+            self.hydrate_delivery_profile_location_catalog_fallback(
+                &unresolved_location_ids,
+                request,
+            );
+        }
+    }
+
+    fn hydrate_delivery_profile_location_nodes(
+        &mut self,
+        location_ids: &[String],
+        request: &Request,
+    ) {
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": DELIVERY_PROFILE_LOCATION_NODES_HYDRATE_QUERY,
+                "variables": { "ids": location_ids }
+            }),
+        );
+        if !(200..300).contains(&response.status) {
+            return;
+        }
+        let Some(nodes) = response.body["data"]["nodes"].as_array() else {
+            return;
+        };
+        for node in nodes {
+            if node.get("__typename").and_then(Value::as_str) != Some("Location") {
+                continue;
+            }
+            self.stage_observed_shipping_location(node.clone());
+        }
+    }
+
+    fn hydrate_delivery_profile_location_catalog_fallback(
+        &mut self,
+        location_ids: &[String],
+        request: &Request,
+    ) {
+        for first in delivery_profile_location_catalog_fallback_first_values(location_ids.len()) {
+            if location_ids
+                .iter()
+                .all(|location_id| self.location_for_read(location_id).is_some())
+            {
+                return;
+            }
             let response = self.upstream_post(
                 request,
                 json!({
-                    "query": delivery_profile_locations_hydrate_query(*first),
+                    "query": delivery_profile_locations_hydrate_query(first),
                     "variables": {}
                 }),
             );
@@ -933,8 +977,11 @@ impl DraftProxy {
                 continue;
             }
             self.observe_delivery_profile_locations_response(&response);
-            return;
         }
+    }
+
+    fn delivery_profile_location_exists(&self, id: &str) -> bool {
+        !id.is_empty() && self.location_for_read(id).is_some()
     }
 
     fn delivery_profiles_connection_json(
@@ -1082,6 +1129,19 @@ fn delivery_profile_locations_hydrate_query(first: usize) -> String {
     )
 }
 
+fn delivery_profile_location_catalog_fallback_first_values(requested_count: usize) -> Vec<usize> {
+    let mut first_values = Vec::new();
+    if (1..=3).contains(&requested_count) {
+        first_values.push(requested_count);
+    }
+    for first in DELIVERY_PROFILE_LOCATION_CATALOG_FALLBACK_FIRST_VALUES {
+        if !first_values.contains(first) {
+            first_values.push(*first);
+        }
+    }
+    first_values
+}
+
 fn collect_delivery_profile_response_values(value: &Value, profiles: &mut Vec<Value>) {
     if value
         .get("id")
@@ -1116,6 +1176,41 @@ fn collect_delivery_profile_response_values(value: &Value, profiles: &mut Vec<Va
         for item in items {
             collect_delivery_profile_response_values(item, profiles);
         }
+    }
+}
+
+fn delivery_profile_location_ids_from_input(
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Vec<String> {
+    let mut seen = BTreeSet::new();
+    let mut location_ids = Vec::new();
+    for group in resolved_object_list_field(input, "locationGroupsToCreate") {
+        collect_unique_delivery_profile_location_ids(
+            list_string_field(&group, "locations"),
+            &mut seen,
+            &mut location_ids,
+        );
+    }
+    for group in resolved_object_list_field(input, "locationGroupsToUpdate") {
+        collect_unique_delivery_profile_location_ids(
+            list_string_field(&group, "locationsToAdd"),
+            &mut seen,
+            &mut location_ids,
+        );
+    }
+    location_ids
+}
+
+fn collect_unique_delivery_profile_location_ids(
+    ids: Vec<String>,
+    seen: &mut BTreeSet<String>,
+    location_ids: &mut Vec<String>,
+) {
+    for id in ids {
+        if id.is_empty() || !seen.insert(id.clone()) {
+            continue;
+        }
+        location_ids.push(id);
     }
 }
 

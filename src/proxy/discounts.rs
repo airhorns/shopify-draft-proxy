@@ -4216,14 +4216,6 @@ fn apply_discount_activate_deactivate(
     }
 }
 
-/// Classify a bulk mutation root field into its (discount kind, action). Returns
-/// `None` for anything that is not one of the six
-/// `discount{Code,Automatic}Bulk{Activate,Deactivate,Delete}` mutations (notably
-/// the redeem-code bulk add/delete mutations, which are handled separately).
-pub(in crate::proxy) fn is_discount_bulk_action_root(name: &str) -> bool {
-    discount_bulk_root_action(name).is_some()
-}
-
 fn discount_bulk_root_action(name: &str) -> Option<(&'static str, DiscountBulkAction)> {
     match name {
         "discountCodeBulkActivate" => Some(("code", DiscountBulkAction::Activate)),
@@ -4234,6 +4226,13 @@ fn discount_bulk_root_action(name: &str) -> Option<(&'static str, DiscountBulkAc
         "discountAutomaticBulkDelete" => Some(("automatic", DiscountBulkAction::Delete)),
         _ => None,
     }
+}
+
+/// Whether a mutation root field is a discount bulk activate / deactivate /
+/// delete. These forward upstream for the async `job`, then apply their effect
+/// to the local overlay so later reads stay consistent.
+pub(crate) fn is_discount_bulk_action_root(name: &str) -> bool {
+    discount_bulk_root_action(name).is_some()
 }
 
 fn discount_bulk_saved_search_id(field: &RootFieldSelection) -> Option<String> {

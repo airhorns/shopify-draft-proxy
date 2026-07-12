@@ -9245,23 +9245,23 @@ fn delivery_profile_create_hydrates_unknown_location_before_validation() {
         configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
             let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
             captured_calls.lock().unwrap().push(body.clone());
-            assert_eq!(body["variables"], json!({}));
-            assert!(body["query"]
-                .as_str()
-                .is_some_and(|query| query.contains("first: 250")));
+            assert_eq!(body["variables"], json!({ "ids": [location_id] }));
+            assert!(body["query"].as_str().is_some_and(|query| query
+                .contains("ShippingDeliveryProfileLocationNodesHydrate")
+                && !query.contains("locationsAvailableForDeliveryProfilesConnection")
+                && !query.contains("first: 250")));
             Response {
                 status: 200,
                 headers: Default::default(),
                 body: json!({
                     "data": {
-                        "locationsAvailableForDeliveryProfilesConnection": {
-                            "nodes": [{
-                                "id": location_id,
-                                "name": "Hydrated non-fixture origin",
-                                "isActive": true,
-                                "isFulfillmentService": false
-                            }]
-                        }
+                        "nodes": [{
+                            "__typename": "Location",
+                            "id": location_id,
+                            "name": "Hydrated non-fixture origin",
+                            "isActive": true,
+                            "isFulfillmentService": false
+                        }]
                     }
                 }),
             }
@@ -9311,6 +9311,110 @@ fn delivery_profile_create_hydrates_unknown_location_before_validation() {
 }
 
 #[test]
+fn delivery_profile_location_validation_fallback_uses_small_catalog_probes() {
+    let location_id = "gid://shopify/Location/424242424249";
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
+            captured_calls.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            if query.contains("ShippingDeliveryProfileLocationNodesHydrate") {
+                assert_eq!(body["variables"], json!({ "ids": [location_id] }));
+                return Response {
+                    status: 502,
+                    headers: Default::default(),
+                    body: json!({ "errors": [{ "message": "cassette miss" }] }),
+                };
+            }
+            assert!(
+                query.contains("locationsAvailableForDeliveryProfilesConnection"),
+                "unexpected upstream query {query}"
+            );
+            assert!(
+                !query.contains("first: 250"),
+                "delivery profile location fallback must not request a broad catalog: {query}"
+            );
+            if query.contains("first: 1") {
+                return Response {
+                    status: 502,
+                    headers: Default::default(),
+                    body: json!({ "errors": [{ "message": "bounded miss" }] }),
+                };
+            }
+            assert!(query.contains("first: 2"));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "locationsAvailableForDeliveryProfilesConnection": {
+                            "nodes": [{
+                                "id": location_id,
+                                "name": "Small fallback origin",
+                                "isActive": true,
+                                "isFulfillmentService": false
+                            }]
+                        }
+                    }
+                }),
+            }
+        });
+
+    let profile = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryProfileSmallFallbackLocation($profile: DeliveryProfileInput!) {
+          deliveryProfileCreate(profile: $profile) {
+            profile {
+              profileLocationGroups {
+                locationGroup { locations(first: 5) { nodes { id name } } }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "profile": {
+                "name": "Profile with bounded fallback origin",
+                "locationGroupsToCreate": [{
+                    "locations": [location_id],
+                    "zonesToCreate": [{
+                        "name": "Domestic",
+                        "countries": [{ "code": "US", "includeAllProvinces": true }]
+                    }]
+                }]
+            }
+        }),
+    ));
+
+    assert_eq!(
+        profile.body["data"]["deliveryProfileCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        profile.body["data"]["deliveryProfileCreate"]["profile"]["profileLocationGroups"][0]
+            ["locationGroup"]["locations"]["nodes"],
+        json!([{ "id": location_id, "name": "Small fallback origin" }])
+    );
+    let calls = upstream_calls.lock().unwrap();
+    assert_eq!(calls.len(), 3);
+    assert!(calls.iter().all(|call| call["query"]
+        .as_str()
+        .is_some_and(|query| !query.contains("first: 250"))));
+    assert_eq!(
+        calls
+            .iter()
+            .filter(|call| call["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("ShippingDeliveryProfileLocationNodesHydrate")))
+            .count(),
+        1
+    );
+}
+
+#[test]
 fn delivery_profile_create_hydrates_requested_location_with_partial_local_state() {
     let hydrated_location_id = "gid://shopify/Location/424242424246";
     let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
@@ -9325,30 +9429,32 @@ fn delivery_profile_create_hydrates_requested_location_with_partial_local_state(
                     status: 200,
                     headers: Default::default(),
                     body: json!({
-                        "data": {
-                            "shop": { "resourceLimits": { "locationLimit": 250 } },
-                            "locations": {
-                                "nodes": [],
-                                "pageInfo": { "hasNextPage": false }
+                            "data": {
+                                "shop": { "resourceLimits": { "locationLimit": 250 } },
+                                "locations": {
+                                    "nodes": [],
+                                    "pageInfo": { "hasNextPage": false }
+                                }
                             }
-                        }
                     }),
                 };
             }
-            assert!(query.contains("locationsAvailableForDeliveryProfilesConnection(first: 250)"));
+            assert_eq!(body["variables"], json!({ "ids": [hydrated_location_id] }));
+            assert!(query.contains("ShippingDeliveryProfileLocationNodesHydrate"));
+            assert!(!query.contains("locationsAvailableForDeliveryProfilesConnection"));
+            assert!(!query.contains("first: 250"));
             Response {
                 status: 200,
                 headers: Default::default(),
                 body: json!({
                     "data": {
-                        "locationsAvailableForDeliveryProfilesConnection": {
-                            "nodes": [{
-                                "id": hydrated_location_id,
-                                "name": "Hydrated with staged sibling",
-                                "isActive": true,
-                                "isFulfillmentService": false
-                            }]
-                        }
+                        "nodes": [{
+                            "__typename": "Location",
+                            "id": hydrated_location_id,
+                            "name": "Hydrated with staged sibling",
+                            "isActive": true,
+                            "isFulfillmentService": false
+                        }]
                     }
                 }),
             }
@@ -9398,10 +9504,112 @@ fn delivery_profile_create_hydrates_requested_location_with_partial_local_state(
     assert_eq!(
         calls
             .iter()
-            .filter(|call| call["query"].as_str().is_some_and(|query| query
-                .contains("locationsAvailableForDeliveryProfilesConnection(first: 250)")))
+            .filter(|call| call["query"].as_str().is_some_and(
+                |query| query.contains("locationsAvailableForDeliveryProfilesConnection")
+            ))
+            .count(),
+        0
+    );
+    assert_eq!(
+        calls
+            .iter()
+            .filter(|call| call["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("ShippingDeliveryProfileLocationNodesHydrate")))
             .count(),
         1
+    );
+}
+
+#[test]
+fn delivery_profile_create_hydrates_many_locations_with_deduped_bounded_requests() {
+    let first_location_id = "gid://shopify/Location/424242424247";
+    let second_location_id = "gid://shopify/Location/424242424248";
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
+            captured_calls.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(query.contains("ShippingDeliveryProfileLocationNodesHydrate"));
+            assert!(!query.contains("locationsAvailableForDeliveryProfilesConnection"));
+            assert!(!query.contains("first: 250"));
+            assert_eq!(
+                body["variables"],
+                json!({ "ids": [first_location_id, second_location_id] })
+            );
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "nodes": [
+                            {
+                                "__typename": "Location",
+                                "id": first_location_id,
+                                "name": "First hydrated origin",
+                                "isActive": true,
+                                "isFulfillmentService": false
+                            },
+                            {
+                                "__typename": "Location",
+                                "id": second_location_id,
+                                "name": "Second hydrated origin",
+                                "isActive": true,
+                                "isFulfillmentService": false
+                            }
+                        ]
+                    }
+                }),
+            }
+        });
+
+    let profile = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryProfileManyHydratedLocations($profile: DeliveryProfileInput!) {
+          deliveryProfileCreate(profile: $profile) {
+            profile {
+              profileLocationGroups {
+                locationGroup { locations(first: 5) { nodes { id name } } }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "profile": {
+                "name": "Profile with many hydrated origins",
+                "locationGroupsToCreate": [{
+                    "locations": [first_location_id, second_location_id, first_location_id],
+                    "zonesToCreate": [{
+                        "name": "Domestic",
+                        "countries": [{ "code": "US", "includeAllProvinces": true }]
+                    }]
+                }]
+            }
+        }),
+    ));
+
+    assert_eq!(
+        profile.body["data"]["deliveryProfileCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        profile.body["data"]["deliveryProfileCreate"]["profile"]["profileLocationGroups"][0]
+            ["locationGroup"]["locations"]["nodes"],
+        json!([
+            { "id": first_location_id, "name": "First hydrated origin" },
+            { "id": second_location_id, "name": "Second hydrated origin" },
+            { "id": first_location_id, "name": "First hydrated origin" }
+        ])
+    );
+    let calls = upstream_calls.lock().unwrap();
+    assert_eq!(calls.len(), 1);
+    assert_eq!(
+        calls[0]["variables"],
+        json!({ "ids": [first_location_id, second_location_id] })
     );
 }
 
