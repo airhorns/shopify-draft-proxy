@@ -146,12 +146,18 @@ pub(in crate::proxy) fn json_error(status: u16, message: &str) -> Response {
 #[derive(Debug, Clone, PartialEq)]
 pub(in crate::proxy) struct GraphqlRequestBody {
     pub(in crate::proxy) query: String,
+    pub(in crate::proxy) operation_name: Option<String>,
     pub(in crate::proxy) variables: BTreeMap<String, ResolvedValue>,
 }
 
 pub(in crate::proxy) fn parse_graphql_request_body(body: &str) -> Option<GraphqlRequestBody> {
     let body = serde_json::from_str::<Value>(body).ok()?;
     let query = body.get("query")?.as_str()?.to_owned();
+    let operation_name = match body.get("operationName") {
+        Some(Value::String(value)) => Some(value.clone()),
+        Some(Value::Null) | None => None,
+        Some(_) => None,
+    };
     let variables = match body.get("variables") {
         Some(Value::Object(fields)) => fields
             .iter()
@@ -160,7 +166,11 @@ pub(in crate::proxy) fn parse_graphql_request_body(body: &str) -> Option<Graphql
         _ => BTreeMap::new(),
     };
 
-    Some(GraphqlRequestBody { query, variables })
+    Some(GraphqlRequestBody {
+        query,
+        operation_name,
+        variables,
+    })
 }
 
 pub(in crate::proxy) fn resolved_value_from_json(value: &Value) -> ResolvedValue {

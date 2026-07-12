@@ -578,10 +578,8 @@ pub(in crate::proxy) fn public_admin_graphql_validation_response(
 ) -> Option<Response> {
     let api_version = api_version.filter(|version| supported_admin_graphql_version(version))?;
 
-    if parse_query::<&str>(query).is_err() {
-        return Some(ok_json(json!({
-            "errors": [parse_error(query)]
-        })));
+    if let Some(response) = public_admin_graphql_parse_error_response(query, Some(api_version)) {
+        return Some(response);
     }
 
     let document = parsed_document_unfiltered(query, variables)?;
@@ -595,6 +593,21 @@ pub(in crate::proxy) fn public_admin_graphql_validation_response(
     }
 
     product_create_argument_arity_response(&document, api_version)
+}
+
+pub(in crate::proxy) fn public_admin_graphql_parse_error_response(
+    query: &str,
+    api_version: Option<&str>,
+) -> Option<Response> {
+    api_version.filter(|version| supported_admin_graphql_version(version))?;
+
+    if parse_query::<&str>(query).is_err() {
+        return Some(ok_json(json!({
+            "errors": [parse_error(query)]
+        })));
+    }
+
+    None
 }
 
 pub(in crate::proxy) fn graphql_locations(location: SourceLocation) -> Value {

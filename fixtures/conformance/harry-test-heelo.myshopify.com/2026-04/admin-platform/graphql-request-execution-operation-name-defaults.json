@@ -1,0 +1,90 @@
+{
+  "capturedAt": "2026-07-11T00:22:11.038Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "cases": {
+    "missingOperationName": {
+      "operationName": null,
+      "query": "query First {\n  shop {\n    id\n  }\n}\n\nquery Second {\n  shop {\n    name\n  }\n}\n",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "An operation name is required"
+            }
+          ]
+        }
+      }
+    },
+    "unknownOperationName": {
+      "operationName": "Missing",
+      "query": "query First {\n  shop {\n    id\n  }\n}\n\nquery Second {\n  shop {\n    name\n  }\n}\n",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "No operation named \"Missing\""
+            }
+          ]
+        }
+      }
+    },
+    "selectedOperationName": {
+      "operationName": "Selected",
+      "query": "query First {\n  shop {\n    id\n  }\n}\n\nquery Selected {\n  products(first: 0) {\n    nodes {\n      id\n    }\n  }\n}\n",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "products": {
+              "nodes": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "scalarDefault": {
+      "operationName": null,
+      "query": "query DefaultZero($first: Int = 0) {\n  products(first: $first) {\n    nodes {\n      id\n    }\n  }\n}\n",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "products": {
+              "nodes": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

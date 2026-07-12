@@ -29,6 +29,8 @@ type CliArgs = {
 type ProxyRequestSpec = {
   documentPath?: string;
   documentCapturePath?: string;
+  operationName?: string | null;
+  operationNameCapturePath?: string;
   variables?: Record<string, unknown>;
   variablesPath?: string;
   variablesCapturePath?: string;
@@ -539,6 +541,7 @@ async function loadRequest(
   namedResponses: Map<string, ProxyResponse>,
 ): Promise<{
   query: string;
+  operationName?: string | null;
   variables: Record<string, unknown>;
   headers: Record<string, string>;
   path: string;
@@ -562,20 +565,42 @@ async function loadRequest(
   else if (request.variablesPath) variables = await readJsonFile(path.resolve(repoRoot, request.variablesPath));
   else if (request.variables) variables = request.variables;
 
+  let operationName = request.operationName;
+  if (request.operationNameCapturePath) {
+    const capturedOperationName = getPath(capture, request.operationNameCapturePath);
+    if (
+      capturedOperationName !== null &&
+      capturedOperationName !== undefined &&
+      typeof capturedOperationName !== 'string'
+    ) {
+      throw new Error(`Spec references non-string captured operationName: ${request.operationNameCapturePath}`);
+    }
+    operationName = capturedOperationName ?? null;
+  }
+
   variables = resolveSpecialVariables(variables, capture, primaryResponse, previousResponse, namedResponses) as Record<
     string,
     unknown
   >;
-  return {
+  const loadedRequest: {
+    query: string;
+    operationName?: string | null;
+    variables: Record<string, unknown>;
+    headers: Record<string, string>;
+    path: string;
+  } = {
     query,
     variables,
     headers: request.headers ?? {},
     path: `/admin/api/${request.apiVersion ?? defaultAdminApiVersion}/graphql.json`,
   };
+  if (operationName !== undefined) loadedRequest.operationName = operationName;
+  return loadedRequest;
 }
 
 type LoadedProxyRequest = {
   query: string;
+  operationName?: string | null;
   variables: Record<string, unknown>;
   headers: Record<string, string>;
   path: string;
@@ -663,15 +688,14 @@ async function startCassetteServer(): Promise<CassetteServer> {
   };
 }
 
-async function sendProxyRequest(
-  proxy: DraftProxy,
-  request: { query: string; variables: Record<string, unknown>; headers: Record<string, string>; path: string },
-): Promise<ProxyResponse> {
+async function sendProxyRequest(proxy: DraftProxy, request: LoadedProxyRequest): Promise<ProxyResponse> {
+  const body: Record<string, unknown> = { query: request.query, variables: request.variables };
+  if ('operationName' in request) body['operationName'] = request.operationName ?? null;
   return await proxy.processRequest({
     method: 'POST',
     path: request.path,
     headers: { 'content-type': 'application/json', ...request.headers },
-    body: { query: request.query, variables: request.variables },
+    body,
   });
 }
 
@@ -819,7 +843,8 @@ function captureResponseForRequest(capture: unknown, request: LoadedProxyRequest
     if (
       typeof entry['query'] === 'string' &&
       (entry['query'] as string).trimEnd() === request.query.trimEnd() &&
-      stableJson(entry['variables'] ?? {}) === stableJson(request.variables ?? {})
+      stableJson(entry['variables'] ?? {}) === stableJson(request.variables ?? {}) &&
+      (!('operationName' in entry) || (entry['operationName'] ?? null) === (request.operationName ?? null))
     ) {
       const response = normalizedCapturePayload(entry['response'] ?? entry['result']);
       if (response !== null) return { status: 200, body: response };

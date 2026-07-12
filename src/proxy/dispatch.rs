@@ -29,6 +29,18 @@ fn no_dispatcher(domain: &str, root_field: &str) -> Response {
     )
 }
 
+fn operation_selection_error_response(error: OperationSelectionError) -> Response {
+    match error {
+        OperationSelectionError::MultipleOperationsRequireOperationName => ok_json(json!({
+            "errors": [{ "message": "An operation name is required" }]
+        })),
+        OperationSelectionError::UnknownOperationName(operation_name) => ok_json(json!({
+            "errors": [{ "message": format!("No operation named \"{operation_name}\"") }]
+        })),
+        OperationSelectionError::Parse => json_error(400, "Could not parse GraphQL operation"),
+    }
+}
+
 fn customer_payment_methods_only_read(fields: &[RootFieldSelection]) -> bool {
     !fields.is_empty()
         && fields.iter().all(|field| {
@@ -2548,14 +2560,35 @@ impl DraftProxy {
         let Some(graphql_request) = parse_graphql_request_body(&request.body) else {
             return json_error(400, "Expected JSON body with a string `query`");
         };
-        let query = graphql_request.query;
-        let variables = graphql_request.variables;
+        let raw_query = graphql_request.query;
+        let requested_operation_name = graphql_request.operation_name.as_deref();
+        let api_version = admin_graphql_version(&request.path);
 
-        if let Some(response) = public_admin_graphql_validation_response(
-            &query,
-            &variables,
-            admin_graphql_version(&request.path),
-        ) {
+        if let Some(response) = public_admin_graphql_parse_error_response(&raw_query, api_version) {
+            return response;
+        }
+
+        let selection = match selected_operation(&raw_query, requested_operation_name) {
+            Ok(selection) => selection,
+            Err(error) => return operation_selection_error_response(error),
+        };
+        let query = if selection.requires_filtered_document {
+            match selected_operation_query(&raw_query, requested_operation_name) {
+                Ok(query) => query,
+                Err(error) => return operation_selection_error_response(error),
+            }
+        } else {
+            raw_query
+        };
+        let variables =
+            match variables_with_operation_defaults(&query, &graphql_request.variables, None) {
+                Ok(variables) => variables,
+                Err(error) => return operation_selection_error_response(error),
+            };
+
+        if let Some(response) =
+            public_admin_graphql_validation_response(&query, &variables, api_version)
+        {
             return response;
         }
 
@@ -2566,12 +2599,8 @@ impl DraftProxy {
             return ok_json(json!({ "data": {} }));
         };
 
-        let schema_input_errors = public_admin_schema_input_errors(
-            &query,
-            &variables,
-            &request.body,
-            admin_graphql_version(&request.path),
-        );
+        let schema_input_errors =
+            public_admin_schema_input_errors(&query, &variables, &request.body, api_version);
         if !schema_input_errors.is_empty() {
             return ok_json(json!({ "errors": schema_input_errors }));
         }

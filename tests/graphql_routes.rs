@@ -18,6 +18,8 @@ mod marketing_inventory_online_store;
 mod metafield_definitions;
 #[path = "graphql_routes/metafields_markets_products_tail.rs"]
 mod metafields_markets_products_tail;
+#[path = "graphql_routes/operation_execution.rs"]
+mod operation_execution;
 #[path = "graphql_routes/orders.rs"]
 mod orders;
 #[path = "graphql_routes/platform.rs"]

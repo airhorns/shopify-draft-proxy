@@ -357,8 +357,7 @@ fn draft_proxy_route_and_snapshot_helpers_match_current_behavior() {
 fn records_supported_product_mutations_in_meta_log_with_raw_replay_inputs() {
     let mut proxy = snapshot_proxy().with_base_products(vec![base_product()]);
 
-    let create_query =
-        "mutation { productCreate(product: { title: \"Created product\" }) { product { id } } }";
+    let create_query = "mutation CreateForCommit { productCreate(product: { title: \"Created product\" }) { product { id } } }";
     let create = proxy.process_request(graphql_request(
         &json!({ "query": create_query }).to_string(),
     ));
@@ -2321,8 +2320,7 @@ fn commit_replays_staged_mutations_in_order_and_marks_entries_committed() {
             ok_transport_response(json!({ "data": { "ok": true } }))
         });
 
-    let create_query =
-        "mutation { productCreate(product: { title: \"Created product\" }) { product { id } } }";
+    let create_query = "mutation CreateForCommit { productCreate(product: { title: \"Created product\" }) { product { id } } }";
     let update_query = "mutation { productUpdate(product: { id: \"gid://shopify/Product/base\", title: \"Updated product\" }) { product { id } } }";
     let create_body =
         json!({ "query": create_query, "operationName": "CreateForCommit" }).to_string();
