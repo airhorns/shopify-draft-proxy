@@ -3,7 +3,12 @@ import { readdirSync } from 'node:fs';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 
-import { diffValues, parseJsonlRecordsForParity, selectPaths } from '../../scripts/parity-run.js';
+import {
+  defaultApiVersionForCapture,
+  diffValues,
+  parseJsonlRecordsForParity,
+  selectPaths,
+} from '../../scripts/parity-run.js';
 import {
   formatRecordedCallMismatch,
   recordedCallMatchesBody,
@@ -16,6 +21,21 @@ const repoRoot = new URL('../..', import.meta.url);
 const paritySpecRoot = new URL('../../config/parity-specs/', import.meta.url);
 const parityCliTimeoutMs = 30_000;
 const execFileAsync = promisify(execFile);
+
+describe('parity runner API version routing', () => {
+  it('uses a supported captured version from metadata or the fixture path', () => {
+    expect(defaultApiVersionForCapture('fixtures/example/2025-01/products/example.json', {})).toBe('2025-01');
+    expect(
+      defaultApiVersionForCapture('fixtures/example/unknown/products/example.json', { apiVersion: '2026-01' }),
+    ).toBe('2026-01');
+  });
+
+  it('keeps the current default for unsupported or absent capture versions', () => {
+    expect(
+      defaultApiVersionForCapture('fixtures/example/2026-07/customers/example.json', { apiVersion: '2026-07' }),
+    ).toBe('2026-04');
+  });
+});
 
 async function runCorepackPnpm(args: string[]): Promise<string> {
   const { stdout } = await execFileAsync('corepack', ['pnpm', ...args], {

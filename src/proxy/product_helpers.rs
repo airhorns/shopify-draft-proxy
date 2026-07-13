@@ -1310,7 +1310,7 @@ fn product_media_source_is_external_video(original_source: &str) -> bool {
 }
 
 fn product_media_user_errors_payload(
-    field: impl Into<crate::proxy::schema_validation::UserErrorField>,
+    field: impl Into<UserErrorField>,
     message: &str,
     code: &str,
 ) -> Value {
@@ -1371,11 +1371,11 @@ pub(in crate::proxy) fn product_next_updated_at(current: &str, ordinal: u64) -> 
 
 impl DraftProxy {
     pub(in crate::proxy) fn next_product_timestamp(&self) -> String {
-        product_mutation_timestamp(self.log_entries.len() as u64)
+        product_mutation_timestamp(self.mutation_log_ordinal() as u64)
     }
 
     pub(in crate::proxy) fn next_product_updated_at(&self, current: &str) -> String {
-        product_next_updated_at(current, self.log_entries.len() as u64)
+        product_next_updated_at(current, self.mutation_log_ordinal() as u64)
     }
 
     pub(in crate::proxy) fn product_json_with_variants_and_currency_context(
@@ -1739,7 +1739,7 @@ fn product_collection_sort_key(
     match sort_key {
         Some("ID") | Some("RELEVANCE") => value_gid_sort_key(collection),
         Some("TITLE") => value_string_field_sort_key(collection, "title"),
-        Some("CREATED") => value_string_field_sort_key(collection, "createdAt"),
+        Some("UPDATED_AT") => value_string_field_sort_key(collection, "updatedAt"),
         _ => vec![StagedSortValue::I64(index as i64)],
     }
 }
@@ -2029,9 +2029,15 @@ fn product_variant_connection_sort_key(
         Some("ID") => gid_string_sort_key(&variant.id),
         Some("INVENTORY_QUANTITY") => vec![StagedSortValue::I64(variant.inventory_quantity)],
         Some("INVENTORY_MANAGEMENT") => {
-            vec![StagedSortValue::I64(variant.inventory_item.tracked as i64)]
+            let mut key = vec![StagedSortValue::I64(variant.inventory_item.tracked as i64)];
+            key.extend(gid_string_sort_key(&variant.id));
+            key
         }
-        Some("INVENTORY_POLICY") => vec![sort_string_value(&variant.inventory_policy)],
+        Some("INVENTORY_POLICY") => {
+            let mut key = vec![sort_string_value(&variant.inventory_policy)];
+            key.extend(gid_string_sort_key(&variant.id));
+            key
+        }
         Some("NAME") | Some("TITLE") => vec![sort_string_value(&variant.title)],
         Some("SKU") => vec![sort_string_value(&variant.sku)],
         Some("FULL_TITLE") | Some("POPULAR") | Some("POSITION") | Some("RELEVANCE") => {
@@ -2303,6 +2309,11 @@ pub(in crate::proxy) fn product_variant_inventory_item_json_with_publication_con
         "id" => Some(json!(variant.inventory_item.id)),
         "tracked" => Some(json!(variant.inventory_item.tracked)),
         "requiresShipping" => Some(json!(variant.inventory_item.requires_shipping)),
+        "sku" => Some(if variant.sku.is_empty() {
+            Value::Null
+        } else {
+            json!(variant.sku)
+        }),
         // Render the inventory item's backreference variant with its owning product so
         // `inventoryItem(id:).variant.product` resolves rather than returning null.
         "variant" => Some(product_variant_json_with_publication_context(
@@ -3246,17 +3257,6 @@ fn variant_weight_error_field(prefix: &[String]) -> Value {
     }
 }
 
-pub(in crate::proxy) fn no_key_on_variant_create_response(field: &str) -> Response {
-    ok_json(json!({
-        "errors": [{
-            "message": format!("Field '{}' is not allowed on create", field),
-            "extensions": {
-                "code": "NO_KEY_ON_CREATE",
-                "key": field
-            }
-        }]
-    }))
-}
 pub(in crate::proxy) fn product_create_user_errors_response(
     query: &str,
     shop: &Value,
@@ -3656,17 +3656,6 @@ fn product_scalar_length_field_label(field: ProductScalarLengthField) -> &'stati
     }
 }
 
-pub(in crate::proxy) fn product_variant_input(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> Option<BTreeMap<String, ResolvedValue>> {
-    let mut arguments = root_field_arguments(query, variables)?;
-    match arguments.remove("input") {
-        Some(ResolvedValue::Object(input)) => Some(input),
-        _ => None,
-    }
-}
-
 pub(in crate::proxy) fn product_create_status_validation_error(
     request: &Request,
     query: &str,
@@ -3762,11 +3751,7 @@ fn product_status_input_field_validation_error(
             if product_status_allowed(&status, request) {
                 return None;
             }
-            let location = crate::proxy::schema_validation::inline_argument_value_location(
-                query,
-                field,
-                context.argument_name,
-            );
+            let location = inline_argument_value_location(query, field, context.argument_name);
             Some(invalid_product_status_literal_error(
                 query,
                 field,

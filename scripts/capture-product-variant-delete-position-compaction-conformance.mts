@@ -217,7 +217,7 @@ async function writeScopeBlocker(blocker: NonNullable<ReturnType<typeof parseWri
       'This ticket requires a real Shopify fixture proving middle-delete survivor positions. Without write_products access, the repo cannot record the setup product, variants, delete, and readback sequence.',
     completedSteps: [
       'added a focused capture harness and parity request/spec files for middle-delete variant position compaction',
-      'kept the legacy productVariantDelete proxy target backed by equivalent live productVariantsBulkDelete evidence because the current live schema does not expose the legacy root',
+      'retained historical productVariantDelete comparison metadata backed by equivalent live productVariantsBulkDelete evidence because the captured schema does not expose the legacy root',
     ],
     recommendedNextStep:
       'Switch the repo conformance credential to a safe dev-store token with read_products/write_products, then rerun `corepack pnpm exec tsx ./scripts/capture-product-variant-delete-position-compaction-conformance.mts`.',
@@ -256,7 +256,7 @@ try {
       recordedAt: new Date().toISOString(),
       liveDeleteRoot: 'productVariantsBulkDelete',
       notes:
-        'The single-delete compatibility branch records Shopify janitor output through a one-id productVariantsBulkDelete call because the current 2025-01 live schema does not expose productVariantDelete.',
+        'The historical single-delete comparison records Shopify janitor output through a one-id productVariantsBulkDelete call because the current 2025-01 live schema does not expose productVariantDelete.',
     },
     singleDelete,
     bulkDelete,

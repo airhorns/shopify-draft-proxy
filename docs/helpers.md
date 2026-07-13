@@ -4,9 +4,19 @@ This document points at shared Rust helper surfaces to check before adding resou
 
 The proxy is currently implemented in Rust. New runtime behavior belongs in `src/`, and TypeScript under `scripts/` / `js/` should stay limited to conformance tooling and the embeddable package shim.
 
+## `src/admin_graphql.rs`
+
+Use the executable-schema registry before adding another schema parser or checked-in schema projection.
+
+- `schema(...)` returns the lazily built `async-graphql` schema for a captured `AdminApiVersion`.
+- `root_field_arguments(...)`, `input_field_at_path(...)`, `input_owner_at_path(...)`, `input_object_fields(...)`, and `enum_values(...)` expose metadata from the same executable registry that validates requests.
+- `output_field_named_type(...)` supports nested output planning without a second output-schema model.
+
+Full schema captures live at `config/admin-graphql/<version>/schema.graphql` and are produced by `scripts/capture-admin-graphql-schema.mts`. Do not introduce another partial mutation/input/output schema source.
+
 ## `src/graphql.rs`
 
-Use the GraphQL helpers here before adding resource-local document parsing or argument readers.
+Use the compatibility document helpers here before adding resource-local argument readers. `async-graphql`, through `src/admin_graphql.rs`, is the executable parser, validator, projector, and null-propagation engine; these helpers provide the normalized domain-handler view and Shopify-specific error locations.
 
 - `parse_operation(...)` identifies operation type and top-level roots without depending on operation names.
 - `root_fields(...)` preserves aliases, response keys, selections, and resolved arguments for each root field.
@@ -15,18 +25,20 @@ Use the GraphQL helpers here before adding resource-local document parsing or ar
 
 Route behavior by actual root fields and resolved arguments from these helpers, not by raw query string checks, unless a narrowly documented fixture compatibility branch already exists.
 
-## `src/operation_registry.rs`
+## Root And Node Resolver Registries
 
-Use the registry helpers here before adding capability metadata or support discovery logic.
+Use `src/operation_registry.rs` and `src/resolver_registry.rs` before adding capability metadata, support discovery logic, or another root routing table.
 
 - `default_registry()` is the executable Rust registry.
 - `implemented_entries(...)` filters only locally modeled roots.
-- `operation_capability(...)` is the Admin-compatible capability helper.
-- `operation_capability_for_surface(...)` classifies by `(apiSurface, operationType, canonicalRoot)` and returns passthrough for unknown or unimplemented roots, even when metadata exists.
+- `operation_capability(...)` returns passthrough for unknown or unimplemented roots, even when metadata exists.
+- `ResolverRegistry::new(...)` derives the instance-owned local root inventory from those implemented entries.
 
-Do not mark a root implemented until the Rust runtime models its supported local lifecycle and downstream read-after-write behavior. Storefront root entries are generated from captured Storefront schema inventory and must remain unimplemented until runtime tests plus captured Storefront parity promote that specific Storefront root.
+For generic IDs, update `src/node_resolver_inventory.rs` and its matching loader in `src/proxy/node_registry.rs` rather than adding another `node`/`nodes` switch. The inventory is exported for coverage audits; the executable loader reads the owning domain's effective store state.
 
-## `src/proxy/schema_validation.rs` UserError Builders
+Do not mark a root implemented until the Rust runtime models its supported local lifecycle and downstream read-after-write behavior.
+
+## `src/proxy/validation_helpers.rs` UserError Builders
 
 Use these builders before adding inline `json!` userError objects with `field`, `message`, and optional `code` keys.
 
@@ -110,9 +122,7 @@ Before adding a new search parser, inspect these functions and `docs/hard-and-we
 Use the existing route/version helpers before adding local request-path parsing.
 
 - `admin_graphql_version(...)` extracts Shopify Admin API versions from Admin GraphQL paths.
-- `storefront_graphql_version(...)` extracts Shopify Storefront API versions from Storefront GraphQL paths.
-- `supported_admin_graphql_version(...)` and `supported_storefront_graphql_version(...)` are intentionally separate policies.
 - `version_at_least(...)` compares Shopify Admin API year-month versions.
 - The route classifier in `DraftProxy::process_request(...)` preserves Shopify-like versioned routes and meta API boundaries.
 
-Endpoint handlers should not add ad hoc Admin or Storefront path parsing unless the behavior is tightly scoped and documented. Storefront route code must use Storefront schema/version helpers and must not reuse Admin validation just because a root name overlaps.
+Endpoint handlers should not add ad hoc Admin path parsing unless the behavior is tightly scoped and documented.

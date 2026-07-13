@@ -1796,7 +1796,7 @@ impl DraftProxy {
                 vec![user_error(
                     Value::Null,
                     "Fulfillment orders could not be rerouted locally.",
-                    Some("NOT_IMPLEMENTED"),
+                    None,
                 )],
             ),
         )

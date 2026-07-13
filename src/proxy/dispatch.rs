@@ -1,6 +1,204 @@
-use super::discounts::is_discount_bulk_action_root;
 use super::*;
-use crate::graphql::{DirectiveSelection, VariableDefinitionInfo};
+use crate::admin_graphql::{
+    self, AdminApiVersion, RootExecutionContext, RootFieldError, RootFieldExecutor, RootFieldResult,
+};
+use crate::graphql::{
+    directive_invocations, DirectiveSelection, ParsedDocument, VariableDefinitionInfo,
+};
+
+struct ProxyRootExecutor {
+    proxy: Arc<std::sync::Mutex<DraftProxy>>,
+    root_requests: BTreeMap<String, Request>,
+    root_locations: BTreeMap<String, SourceLocation>,
+    discount_preflight: Option<(Request, Vec<RootFieldSelection>)>,
+    discount_preflight_done: std::sync::Mutex<bool>,
+    grouped_local_request: Option<Request>,
+    grouped_local_response: std::sync::Mutex<Option<Response>>,
+    full_passthrough_request: Option<Request>,
+    full_passthrough_response: Arc<std::sync::Mutex<Option<Response>>>,
+    reject_mixed_mutation: bool,
+    resolved_responses: Arc<std::sync::Mutex<BTreeMap<String, Response>>>,
+}
+
+fn shared_root_response(responses: &BTreeMap<String, Response>) -> Option<&Response> {
+    let mut responses = responses.values();
+    let first = responses.next()?;
+    responses.all(|response| response == first).then_some(first)
+}
+
+impl RootFieldExecutor for ProxyRootExecutor {
+    fn execute_root(&self, response_key: &str, root_name: &str) -> Result<RootFieldResult, String> {
+        if self.reject_mixed_mutation {
+            return Err(
+                "A mutation operation cannot mix locally staged and passthrough root fields."
+                    .to_string(),
+            );
+        }
+        if let Some((request, fields)) = &self.discount_preflight {
+            let mut done = self
+                .discount_preflight_done
+                .lock()
+                .map_err(|_| "Admin GraphQL discount preflight lock was poisoned".to_string())?;
+            if !*done {
+                let mut proxy = self
+                    .proxy
+                    .lock()
+                    .map_err(|_| "Admin GraphQL proxy state lock was poisoned".to_string())?;
+                proxy.hydrate_discount_item_refs(request, fields);
+                proxy.hydrate_discount_context_refs(request, fields);
+                proxy.engine_discount_refs_preflighted = true;
+                *done = true;
+            }
+        }
+        let response = if let Some(request) = &self.full_passthrough_request {
+            let mut cached = self
+                .full_passthrough_response
+                .lock()
+                .map_err(|_| "Admin GraphQL passthrough response lock was poisoned".to_string())?;
+            if cached.is_none() {
+                let mut proxy = self
+                    .proxy
+                    .lock()
+                    .map_err(|_| "Admin GraphQL proxy state lock was poisoned".to_string())?;
+                *cached = Some(proxy.dispatch_passthrough_graphql(request));
+            }
+            cached
+                .as_ref()
+                .expect("passthrough response should be cached")
+                .clone()
+        } else if let Some(request) = &self.grouped_local_request {
+            let mut cached = self
+                .grouped_local_response
+                .lock()
+                .map_err(|_| "Admin GraphQL grouped response lock was poisoned".to_string())?;
+            if cached.is_none() {
+                let mut proxy = self
+                    .proxy
+                    .lock()
+                    .map_err(|_| "Admin GraphQL proxy state lock was poisoned".to_string())?;
+                *cached = Some(proxy.resolve_prevalidated_graphql_root(request));
+            }
+            cached
+                .as_ref()
+                .expect("grouped local response should be cached")
+                .clone()
+        } else {
+            let request = self.root_requests.get(response_key).ok_or_else(|| {
+                format!(
+                    "No request-scoped resolver input was prepared for GraphQL root `{root_name}`"
+                )
+            })?;
+            let mut proxy = self
+                .proxy
+                .lock()
+                .map_err(|_| "Admin GraphQL proxy state lock was poisoned".to_string())?;
+            proxy.resolve_prevalidated_graphql_root(request)
+        };
+        self.resolved_responses
+            .lock()
+            .map_err(|_| "Admin GraphQL resolved response lock was poisoned".to_string())?
+            .insert(response_key.to_string(), response.clone());
+        let value = response
+            .body
+            .get("data")
+            .and_then(Value::as_object)
+            .and_then(|data| data.get(response_key))
+            .cloned()
+            .unwrap_or(Value::Null);
+        let mut errors = response
+            .body
+            .get("errors")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|error| {
+                let error_path = error.get("path").and_then(Value::as_array);
+                if error_path
+                    .and_then(|path| path.first())
+                    .and_then(Value::as_str)
+                    .is_some_and(|root| root != response_key)
+                {
+                    return None;
+                }
+                let error_code = error.pointer("/extensions/code").and_then(Value::as_str);
+                let locations =
+                    if matches!(error_code, Some("BAD_REQUEST" | "MAX_INPUT_SIZE_EXCEEDED")) {
+                        self.root_locations
+                            .get(response_key)
+                            .map(|location| {
+                                vec![async_graphql::Pos {
+                                    line: location.line,
+                                    column: location.column,
+                                }]
+                            })
+                            .unwrap_or_default()
+                    } else {
+                        error
+                            .get("locations")
+                            .and_then(Value::as_array)
+                            .into_iter()
+                            .flatten()
+                            .filter_map(|location| {
+                                Some(async_graphql::Pos {
+                                    line: location.get("line")?.as_u64()? as usize,
+                                    column: location.get("column")?.as_u64()? as usize,
+                                })
+                            })
+                            .collect()
+                    };
+                Some(RootFieldError {
+                    message: error
+                        .get("message")
+                        .and_then(Value::as_str)
+                        .unwrap_or("GraphQL root resolver failed")
+                        .to_string(),
+                    extensions: error
+                        .get("extensions")
+                        .and_then(Value::as_object)
+                        .map(|extensions| {
+                            extensions
+                                .iter()
+                                .map(|(key, value)| (key.clone(), value.clone()))
+                                .collect()
+                        })
+                        .unwrap_or_default(),
+                    path: error_path
+                        .map(|path| {
+                            path.iter()
+                                .skip(1)
+                                .filter_map(|segment| match segment {
+                                    Value::String(field) => {
+                                        Some(async_graphql::PathSegment::Field(field.clone()))
+                                    }
+                                    Value::Number(index) => index.as_u64().map(|index| {
+                                        async_graphql::PathSegment::Index(index as usize)
+                                    }),
+                                    _ => None,
+                                })
+                                .collect()
+                        })
+                        // HTTP/dispatcher failures historically gained the current
+                        // root path at the GraphQL execution boundary. Status-200
+                        // resolver errors without a path are intentionally pathless.
+                        .or_else(|| (response.status >= 400).then(Vec::new)),
+                    locations,
+                })
+            })
+            .collect::<Vec<_>>();
+        if errors.is_empty() && response.status >= 400 {
+            errors.push(RootFieldError {
+                message: format!(
+                    "GraphQL root `{root_name}` failed with status {}",
+                    response.status
+                ),
+                extensions: BTreeMap::new(),
+                path: Some(Vec::new()),
+                locations: Vec::new(),
+            });
+        }
+        Ok(RootFieldResult { value, errors })
+    }
+}
 
 macro_rules! try_root_fields {
     ($query:expr, $variables:expr) => {
@@ -97,281 +295,7 @@ fn changed_draft_order_tag_ids(
         .collect()
 }
 
-fn multi_root_operation_has_grouped_owner_roots(
-    operation_type: OperationType,
-    root_fields: &[String],
-) -> bool {
-    match operation_type {
-        OperationType::Query => {
-            customer_overlay_query_owns_root_group(root_fields)
-                || media_query_owns_saved_search_root_group(root_fields)
-                || online_store_query_owns_node_root_group(root_fields)
-        }
-        OperationType::Mutation | OperationType::Subscription => false,
-    }
-}
-
-fn customer_overlay_query_owns_root_group(root_fields: &[String]) -> bool {
-    root_fields.iter().any(|root| {
-        matches!(
-            root.as_str(),
-            "customer"
-                | "customerByIdentifier"
-                | "customers"
-                | "customersCount"
-                | "customerMergeJobStatus"
-        )
-    }) && root_fields.iter().all(|root| {
-        matches!(
-            root.as_str(),
-            "customer"
-                | "customerByIdentifier"
-                | "customers"
-                | "customersCount"
-                | "customerMergeJobStatus"
-                | "job"
-                | "node"
-        )
-    })
-}
-
-fn media_query_owns_saved_search_root_group(root_fields: &[String]) -> bool {
-    root_fields.iter().any(|root| root == "files")
-        && root_fields
-            .iter()
-            .all(|root| matches!(root.as_str(), "files" | "fileSavedSearches"))
-}
-
-fn online_store_query_owns_node_root_group(root_fields: &[String]) -> bool {
-    root_fields
-        .iter()
-        .any(|root| is_online_store_content_root(root))
-        && root_fields
-            .iter()
-            .all(|root| is_online_store_content_root(root) || root == "node")
-}
-
-fn is_online_store_content_root(root: &str) -> bool {
-    matches!(
-        root,
-        "article"
-            | "articleAuthors"
-            | "articles"
-            | "articleTags"
-            | "blog"
-            | "blogs"
-            | "blogsCount"
-            | "page"
-            | "pages"
-            | "pagesCount"
-            | "comment"
-            | "comments"
-    )
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct MultiRootDispatchKey {
-    domain: CapabilityDomain,
-    execution: CapabilityExecution,
-    branch: &'static str,
-}
-
-fn multi_root_dispatch_branch(
-    operation_type: OperationType,
-    root_field: &str,
-    domain: CapabilityDomain,
-) -> &'static str {
-    match (domain, operation_type) {
-        (CapabilityDomain::AdminPlatform, OperationType::Query) => match root_field {
-            "backupRegion" => "admin-platform.backup-region",
-            "domain" => "admin-platform.domain",
-            "job" => "admin-platform.job",
-            "node" | "nodes" => "admin-platform.node",
-            _ => "admin-platform.query",
-        },
-        (CapabilityDomain::AdminPlatform, OperationType::Mutation) => match root_field {
-            "backupRegionUpdate" => "admin-platform.backup-region-update",
-            "flowGenerateSignature" | "flowTriggerReceive" => "admin-platform.flow",
-            _ => "admin-platform.mutation",
-        },
-        (CapabilityDomain::Products, OperationType::Mutation) => match root_field {
-            "publicationCreate"
-            | "publicationUpdate"
-            | "publicationDelete"
-            | "productFeedCreate"
-            | "productFeedDelete"
-            | "productFullSync"
-            | "combinedListingUpdate"
-            | "productVariantRelationshipBulkUpdate"
-            | "bulkProductResourceFeedbackCreate"
-            | "shopResourceFeedbackCreate" => "products.tail-helper",
-            "productCreate" => "products.product-create",
-            "productUpdate" => "products.product-update",
-            "productDelete" => "products.product-delete",
-            "productSet" => "products.product-set",
-            "productDuplicate" => "products.product-duplicate",
-            "productBundleCreate" | "productBundleUpdate" => "products.product-bundle",
-            "productPublish" | "productUnpublish" => "products.product-publication",
-            "productChangeStatus" => "products.product-change-status",
-            "productCreateMedia"
-            | "productUpdateMedia"
-            | "productDeleteMedia"
-            | "productReorderMedia" => "products.product-media",
-            "productVariantAppendMedia" | "productVariantDetachMedia" => {
-                "products.product-variant-media"
-            }
-            "collectionCreate"
-            | "collectionUpdate"
-            | "collectionDelete"
-            | "collectionAddProducts"
-            | "collectionAddProductsV2"
-            | "collectionRemoveProducts"
-            | "collectionReorderProducts" => "products.collection",
-            "productVariantCreate"
-            | "productVariantUpdate"
-            | "productVariantDelete"
-            | "productVariantsBulkCreate"
-            | "productVariantsBulkUpdate"
-            | "productVariantsBulkDelete"
-            | "productVariantsBulkReorder" => "products.product-variant",
-            "sellingPlanGroupCreate"
-            | "sellingPlanGroupUpdate"
-            | "sellingPlanGroupDelete"
-            | "sellingPlanGroupAddProducts"
-            | "sellingPlanGroupRemoveProducts"
-            | "sellingPlanGroupAddProductVariants"
-            | "sellingPlanGroupRemoveProductVariants"
-            | "productJoinSellingPlanGroups"
-            | "productLeaveSellingPlanGroups"
-            | "productVariantJoinSellingPlanGroups"
-            | "productVariantLeaveSellingPlanGroups" => "products.selling-plan",
-            "productOptionsCreate"
-            | "productOptionUpdate"
-            | "productOptionsDelete"
-            | "productOptionsReorder" => "products.product-options",
-            "tagsAdd" | "tagsRemove" => "products.tags",
-            "metafieldsSet" | "metafieldsDelete" | "metafieldDelete" => "products.metafields",
-            "inventoryAdjustQuantities"
-            | "inventorySetQuantities"
-            | "inventorySetOnHandQuantities"
-            | "inventoryMoveQuantities"
-            | "inventoryActivate"
-            | "inventoryDeactivate"
-            | "inventoryBulkToggleActivation"
-            | "inventoryItemUpdate"
-            | "inventoryTransferCreate"
-            | "inventoryTransferCreateAsReadyToShip"
-            | "inventoryTransferMarkAsReadyToShip"
-            | "inventoryTransferEdit"
-            | "inventoryTransferSetItems"
-            | "inventoryTransferRemoveItems"
-            | "inventoryTransferDuplicate"
-            | "inventoryTransferCancel"
-            | "inventoryTransferDelete"
-            | "inventoryShipmentCreate"
-            | "inventoryShipmentCreateInTransit"
-            | "inventoryShipmentAddItems"
-            | "inventoryShipmentRemoveItems"
-            | "inventoryShipmentUpdateItemQuantities"
-            | "inventoryShipmentSetTracking"
-            | "inventoryShipmentMarkInTransit"
-            | "inventoryShipmentReceive"
-            | "inventoryShipmentDelete" => "products.inventory",
-            _ => "products.mutation",
-        },
-        (CapabilityDomain::Payments, OperationType::Query) => match root_field {
-            "customerPaymentMethod" => "payments.customer-payment-method",
-            "paymentCustomization" | "paymentCustomizations" => "payments.customizations",
-            "paymentTermsTemplates" => "payments.terms-templates",
-            _ => "payments.finance-risk",
-        },
-        (CapabilityDomain::Payments, OperationType::Mutation) => "payments.mutation",
-        (CapabilityDomain::BulkOperations, OperationType::Mutation) => match root_field {
-            "bulkOperationRunQuery" => "bulk-operations.run-query",
-            "bulkOperationRunMutation" => "bulk-operations.run-mutation",
-            "bulkOperationCancel" => "bulk-operations.cancel",
-            _ => "bulk-operations.mutation",
-        },
-        (CapabilityDomain::Discounts, OperationType::Mutation)
-            if is_discount_bulk_action_root(root_field) =>
-        {
-            "discounts.bulk-action"
-        }
-        (CapabilityDomain::StoreProperties, OperationType::Query) => match root_field {
-            "collection" => "store-properties.collection",
-            "shop" => "store-properties.shop",
-            "location" | "locations" | "locationsAvailableForDeliveryProfilesConnection" => {
-                "store-properties.locations"
-            }
-            _ => "store-properties.query",
-        },
-        (CapabilityDomain::StoreProperties, OperationType::Mutation) => match root_field {
-            "publishablePublish"
-            | "publishableUnpublish"
-            | "publishablePublishToCurrentChannel"
-            | "publishableUnpublishToCurrentChannel" => "store-properties.publishable",
-            "shopPolicyUpdate" => "store-properties.shop-policy",
-            "locationAdd" | "locationEdit" | "locationActivate" | "locationDelete" => {
-                "store-properties.location"
-            }
-            "locationDeactivate" => "store-properties.location-deactivate",
-            _ => "store-properties.mutation",
-        },
-        (CapabilityDomain::Segments, OperationType::Query) => match root_field {
-            "customerSegmentMembersQuery" => "segments.customer-segment-members-query",
-            _ => "segments.query",
-        },
-        (CapabilityDomain::Segments, OperationType::Mutation) => match root_field {
-            "customerSegmentMembersQueryCreate" => "segments.customer-segment-members-query-create",
-            _ => "segments.mutation",
-        },
-        (CapabilityDomain::Metafields, OperationType::Mutation) => match root_field {
-            "standardMetafieldDefinitionEnable" => "metafields.standard-definition-enable",
-            _ => "metafields.definition-pinning",
-        },
-        _ => "default",
-    }
-}
-
 impl DraftProxy {
-    fn should_dispatch_multi_root_graphql(
-        &self,
-        operation_type: OperationType,
-        root_fields: &[String],
-    ) -> bool {
-        if root_fields.len() <= 1
-            || !matches!(
-                operation_type,
-                OperationType::Query | OperationType::Mutation
-            )
-            || multi_root_operation_has_grouped_owner_roots(operation_type, root_fields)
-        {
-            return false;
-        }
-
-        let Some(first_root) = root_fields.first() else {
-            return false;
-        };
-        let first_key = self.multi_root_dispatch_key(operation_type, first_root);
-        root_fields
-            .iter()
-            .skip(1)
-            .any(|root| self.multi_root_dispatch_key(operation_type, root) != first_key)
-    }
-
-    fn multi_root_dispatch_key(
-        &self,
-        operation_type: OperationType,
-        root_field: &str,
-    ) -> MultiRootDispatchKey {
-        let capability = operation_capability(&self.registry, operation_type, Some(root_field));
-        MultiRootDispatchKey {
-            domain: capability.domain,
-            execution: capability.execution,
-            branch: multi_root_dispatch_branch(operation_type, root_field, capability.domain),
-        }
-    }
-
     pub(in crate::proxy) fn finalize_mutation_outcome(
         &mut self,
         request: &Request,
@@ -391,63 +315,6 @@ impl DraftProxy {
     ) -> Result<Vec<RootFieldSelection>, Response> {
         root_fields(query, variables)
             .ok_or_else(|| json_error(400, "Could not parse GraphQL operation"))
-    }
-
-    fn dispatch_multi_root_graphql(
-        &mut self,
-        request: &Request,
-        operation_type: OperationType,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        variable_definitions: &BTreeMap<String, VariableDefinitionInfo>,
-        fields: Vec<RootFieldSelection>,
-    ) -> Response {
-        let source_variables = resolved_variables_json(variables);
-        let source_root_fields: Vec<String> =
-            fields.iter().map(|field| field.name.clone()).collect();
-        let mut data = serde_json::Map::new();
-        let mut errors = Vec::new();
-
-        for field in fields {
-            let mut field_request = request.clone();
-            let field_query =
-                single_root_operation_query(operation_type, &field, variable_definitions);
-            field_request.body =
-                json!({ "query": field_query, "variables": source_variables }).to_string();
-            let log_start = self.log_entries.len();
-            let response = self.dispatch_graphql(&field_request);
-            self.annotate_multi_root_log_entries(
-                log_start,
-                request,
-                query,
-                &source_variables,
-                &source_root_fields,
-            );
-            merge_multi_root_field_response(&mut data, &mut errors, &field.response_key, response);
-        }
-
-        let mut body = serde_json::Map::new();
-        body.insert("data".to_string(), Value::Object(data));
-        if !errors.is_empty() {
-            body.insert("errors".to_string(), Value::Array(errors));
-        }
-        ok_json(Value::Object(body))
-    }
-
-    fn annotate_multi_root_log_entries(
-        &mut self,
-        log_start: usize,
-        source_request: &Request,
-        source_query: &str,
-        source_variables: &Value,
-        source_root_fields: &[String],
-    ) {
-        for entry in self.log_entries.iter_mut().skip(log_start) {
-            entry["sourceRawBody"] = json!(source_request.body.clone());
-            entry["sourceQuery"] = json!(source_query);
-            entry["sourceVariables"] = source_variables.clone();
-            entry["sourceRootFields"] = json!(source_root_fields);
-        }
     }
 
     /// A `products`/`productsCount`/`productVariants` root carrying a `query:`
@@ -678,6 +545,9 @@ impl DraftProxy {
                     ok_json(json!({ "data": self.domain_query_data(&fields) }))
                 }
             }
+            "job" if self.should_handle_customer_overlay_read(&fields) => ok_json(json!({
+                "data": self.customer_overlay_read_fields(&fields)
+            })),
             "job" => ok_json(self.product_tail_job_query_body(&fields)),
             "node" | "nodes" => {
                 let selection_errors = functions_output_selection_errors(query, variables, &fields);
@@ -959,281 +829,7 @@ impl DraftProxy {
         selection: &[SelectedField],
         request: Option<&Request>,
     ) -> Option<Value> {
-        if let Some(data) = self.shop_property_node_value_by_id(id, selection) {
-            return Some(data);
-        }
-        if let Some(data) = local_node_value(id, selection, Some(&self.store.staged.backup_region))
-        {
-            return Some(data);
-        }
-        if shopify_gid_resource_type(id) == Some("Product") {
-            if self.store.product_is_tombstoned(id) {
-                return Some(Value::Null);
-            }
-            if let Some(product) = self.store.product_by_id(id) {
-                let variants = self.store.product_variants_for_product(id);
-                let shop_currency_code = self.store.shop_currency_code();
-                return Some(self.product_json_with_variants_and_currency_context(
-                    product,
-                    &variants,
-                    selection,
-                    &shop_currency_code,
-                ));
-            }
-        }
-        if shopify_gid_resource_type(id) == Some("Collection") {
-            if self.store.collection_is_deleted(id) {
-                return Some(Value::Null);
-            }
-            if let Some(collection) = self.store.collection_by_id(id) {
-                return Some(self.collection_json_with_publication_fields(collection, selection));
-            }
-        }
-        if shopify_gid_resource_type(id) == Some("ProductVariant") {
-            let value = self.product_variant_by_id_value(id, selection);
-            if !value.is_null() {
-                return Some(value);
-            }
-        }
-        if shopify_gid_resource_type(id) == Some("Location") {
-            if self.store.staged.locations.is_tombstoned(id) {
-                return Some(Value::Null);
-            }
-            if let Some(location) = self.location_for_read(id) {
-                return Some(selected_json(&location, selection));
-            }
-        }
-        if shopify_gid_resource_type(id) == Some("DeliveryCustomization") {
-            if self.store.staged.delivery_customizations.is_tombstoned(id) {
-                return Some(Value::Null);
-            }
-            if let Some(customization) = self.store.staged.delivery_customizations.get(id) {
-                let api_client_id = request.and_then(request_app_namespace_api_client_id);
-                return Some(selected_delivery_customization_json(
-                    customization,
-                    selection,
-                    api_client_id.as_deref(),
-                ));
-            }
-        }
-        if shopify_gid_resource_type(id) == Some("ProductFeed") {
-            if let Some(value) = self.product_tail_feed_node_value(id, selection) {
-                return Some(value);
-            }
-        }
-        if let Some(operation) = self.product_delete_operation_value_by_id(id, selection) {
-            return Some(operation);
-        }
-        if is_product_operation_gid(id) {
-            return Some(
-                self.store
-                    .staged
-                    .product_operations
-                    .get(id)
-                    .map(|operation| self.product_operation_json(operation, selection))
-                    .unwrap_or(Value::Null),
-            );
-        }
-        if let Some(segment) = self.store.staged.segments.get(id) {
-            return Some(selected_json(segment, selection));
-        }
-        if let Some(query) = self.store.staged.customer_segment_member_queries.get(id) {
-            return Some(selected_json(query, selection));
-        }
-        if let Some(abandonment) = self.store.staged.abandonments.get(id) {
-            return Some(selected_json(abandonment, selection));
-        }
-        if shopify_gid_resource_type(id) == Some("Order") {
-            if self.store.staged.orders.is_tombstoned(id) {
-                return Some(Value::Null);
-            }
-            if let Some(order) = self.staged_order_record_for_id(id) {
-                return Some(self.selected_order_with_return_status(&order, selection));
-            }
-        }
-        if shopify_gid_resource_type(id) == Some("Customer") {
-            if let Some(value) = self.customer_node_value_by_id(id, selection) {
-                return Some(value);
-            }
-        }
-        if shopify_gid_resource_type(id) == Some("MailingAddress") {
-            if let Some(value) = self.customer_address_node_value_by_id(id, selection) {
-                return Some(value);
-            }
-        }
-        if shopify_gid_resource_type(id) == Some("CustomerPaymentMethod") {
-            if let Some(value) = self.customer_payment_method_node_value_by_id(id, selection) {
-                return Some(value);
-            }
-        }
-        if matches!(
-            shopify_gid_resource_type(id),
-            Some(
-                "StoreCreditAccount"
-                    | "StoreCreditAccountCreditTransaction"
-                    | "StoreCreditAccountDebitTransaction"
-                    | "StoreCreditAccountDebitRevertTransaction"
-                    | "StoreCreditAccountTransaction"
-            )
-        ) {
-            if let Some(value) = self.store_credit_node_value_by_id(id, selection) {
-                return Some(value);
-            }
-        }
-        if let Some(value) = self.fulfillment_return_node_value_by_id(id, selection) {
-            return Some(value);
-        }
-        if let Some(value) = self.app_node_value_by_id(id, selection, request) {
-            return Some(value);
-        }
-        if shopify_gid_resource_type(id) == Some("GiftCard") {
-            return Some(
-                self.gift_card_node_value_by_id(id, selection)
-                    .unwrap_or(Value::Null),
-            );
-        }
-        if matches!(
-            shopify_gid_resource_type(id),
-            Some("GiftCardCreditTransaction" | "GiftCardDebitTransaction")
-        ) {
-            return Some(
-                self.gift_card_transaction_node_value_by_id(id, selection)
-                    .unwrap_or(Value::Null),
-            );
-        }
-        if let Some(function) = self
-            .store
-            .staged
-            .function_metadata
-            .get(id)
-            .or_else(|| self.store.base.function_metadata.get(id))
-        {
-            return Some(selected_json(function, selection));
-        }
-        if self
-            .store
-            .staged
-            .deleted_function_validation_ids
-            .contains(id)
-        {
-            return Some(Value::Null);
-        }
-        if let Some(validation) = self
-            .store
-            .staged
-            .function_validations
-            .get(id)
-            .or_else(|| self.store.base.function_validations.get(id))
-        {
-            return Some(selected_json(
-                &validation_record_for_selection(validation, selection),
-                selection,
-            ));
-        }
-        if let Some(validation) = self
-            .store
-            .staged
-            .function_validation
-            .as_ref()
-            .filter(|record| record.get("id").and_then(Value::as_str) == Some(id))
-        {
-            return Some(selected_json(
-                &validation_record_for_selection(validation, selection),
-                selection,
-            ));
-        }
-        if self
-            .store
-            .staged
-            .deleted_function_cart_transform_ids
-            .contains(id)
-        {
-            return Some(Value::Null);
-        }
-        if let Some(cart_transform) = self
-            .store
-            .staged
-            .function_cart_transforms
-            .get(id)
-            .or_else(|| self.store.base.function_cart_transforms.get(id))
-        {
-            return Some(selected_json(
-                &cart_transform_record_for_selection(cart_transform, selection),
-                selection,
-            ));
-        }
-        if let Some(cart_transform) = self
-            .store
-            .staged
-            .function_cart_transform
-            .as_ref()
-            .filter(|record| record.get("id").and_then(Value::as_str) == Some(id))
-        {
-            return Some(selected_json(
-                &cart_transform_record_for_selection(cart_transform, selection),
-                selection,
-            ));
-        }
-        if self
-            .store
-            .staged
-            .deleted_function_fulfillment_constraint_rule_ids
-            .contains(id)
-        {
-            return Some(Value::Null);
-        }
-        if let Some(rule) = self
-            .store
-            .staged
-            .function_fulfillment_constraint_rules
-            .get(id)
-            .or_else(|| {
-                self.store
-                    .base
-                    .function_fulfillment_constraint_rules
-                    .get(id)
-            })
-        {
-            return Some(selected_json(
-                &fulfillment_constraint_rule_record_for_selection(rule, selection),
-                selection,
-            ));
-        }
-        if let Some(configuration) = self
-            .store
-            .staged
-            .tax_app_configuration
-            .as_ref()
-            .filter(|configuration| configuration["id"].as_str() == Some(id))
-        {
-            return Some(selected_json(configuration, selection));
-        }
-        if let Some(discount) = self.discount_node_value_by_id(id, selection) {
-            return Some(discount);
-        }
-        if let Some(inventory) = self.inventory_node_value_by_id(id, selection) {
-            return Some(inventory);
-        }
-        if let Some(metaobject) = self.metaobject_node_value_by_id(id, selection) {
-            return Some(metaobject);
-        }
-        if let Some(file) = self.store.staged.media_files.get(id) {
-            return Some(selected_json(file, selection));
-        }
-        if matches!(
-            shopify_gid_resource_type(id),
-            Some("MediaImage" | "Video" | "ExternalVideo" | "Model3d" | "GenericFile")
-        ) && self.store.staged.media_files.is_tombstoned(id)
-        {
-            return Some(Value::Null);
-        }
-        if let Some(b2b) = self.b2b_node_value_by_id(id, selection) {
-            return Some(b2b);
-        }
-        if let Some(value) = self.online_store_content_node_value(id, selection) {
-            return Some(value);
-        }
-        None
+        registered_node_value(self, id, selection, request).flatten()
     }
 
     pub(in crate::proxy) fn observe_nodes_response(&mut self, response: &Response) {
@@ -1296,7 +892,7 @@ impl DraftProxy {
         }
     }
 
-    fn app_node_value_by_id(
+    pub(in crate::proxy) fn app_node_value_by_id(
         &self,
         id: &str,
         selection: &[SelectedField],
@@ -1617,10 +1213,7 @@ impl DraftProxy {
                 if operation.operation_type == OperationType::Mutation
                     && matches!(
                         root_field,
-                        "productVariantCreate"
-                            | "productVariantUpdate"
-                            | "productVariantDelete"
-                            | "productVariantsBulkCreate"
+                        "productVariantsBulkCreate"
                             | "productVariantsBulkUpdate"
                             | "productVariantsBulkDelete"
                             | "productVariantsBulkReorder"
@@ -1686,13 +1279,6 @@ impl DraftProxy {
                     && root_field == "metafieldsDelete" =>
             {
                 let outcome = self.owner_metafields_delete(request, query, variables);
-                self.finalize_mutation_outcome(request, query, variables, outcome)
-            }
-            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && root_field == "metafieldDelete" =>
-            {
-                let outcome = self.owner_metafield_delete(request, query, variables);
                 self.finalize_mutation_outcome(request, query, variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
@@ -2564,17 +2150,451 @@ impl DraftProxy {
         }
     }
 
+    /// Execute an Admin GraphQL request through the captured versioned schema.
+    /// Domain code is reached only through root field resolvers; the GraphQL
+    /// engine owns the executable language and response projection.
     pub(in crate::proxy) fn dispatch_graphql(&mut self, request: &Request) -> Response {
+        let Some(graphql_request) = parse_graphql_request_body(&request.body) else {
+            return json_error(400, "Expected JSON body with a string `query`");
+        };
+        let Some(version) = AdminApiVersion::from_route(&request.path) else {
+            return json_error(404, "No captured Admin GraphQL schema for this route");
+        };
+        let schema = match admin_graphql::schema(version) {
+            Ok(schema) => schema,
+            Err(error) => {
+                return json_error(
+                    500,
+                    &format!("Could not initialize Admin GraphQL {version}: {error}"),
+                );
+            }
+        };
+
+        let selected_query = selected_operation_query(
+            &graphql_request.query,
+            graphql_request.operation_name.as_deref(),
+        )
+        .ok();
+        let prepared = selected_query.as_deref().and_then(|query| {
+            let variables =
+                variables_with_operation_defaults(query, &graphql_request.variables, None).ok()?;
+            let document = parsed_document(query, &variables)?;
+            let single_root = document.root_fields.len() == 1;
+            let root_requests = document
+                .root_fields
+                .iter()
+                .map(|field| {
+                    if single_root {
+                        return (field.response_key.clone(), request.clone());
+                    }
+                    let field_query = single_root_operation_query(
+                        document.operation_type,
+                        field,
+                        &document.variable_definitions,
+                    );
+                    (
+                        field.response_key.clone(),
+                        Request {
+                            method: request.method.clone(),
+                            path: request.path.clone(),
+                            headers: request.headers.clone(),
+                            body: json!({
+                                "query": field_query,
+                                "variables": resolved_variables_json(&variables)
+                            })
+                            .to_string(),
+                        },
+                    )
+                })
+                .collect::<BTreeMap<_, _>>();
+            Some((document, variables, root_requests))
+        });
+
+        let (operation_type, root_names, root_requests) = prepared
+            .as_ref()
+            .map(|(document, _, root_requests)| {
+                (
+                    Some(document.operation_type),
+                    document
+                        .root_fields
+                        .iter()
+                        .map(|field| field.name.clone())
+                        .collect::<Vec<_>>(),
+                    root_requests.clone(),
+                )
+            })
+            .unwrap_or((None, Vec::new(), BTreeMap::new()));
+        let capabilities = operation_type.map_or_else(Vec::new, |operation_type| {
+            root_names
+                .iter()
+                .map(|root| self.registry.resolve(operation_type, root))
+                .collect::<Vec<_>>()
+        });
+        let has_local_root = capabilities.iter().any(|capability| {
+            capability.domain != CapabilityDomain::Unknown
+                && matches!(
+                    capability.execution,
+                    CapabilityExecution::OverlayRead | CapabilityExecution::StageLocally
+                )
+        });
+        let has_passthrough_root = capabilities.iter().any(|capability| {
+            capability.domain == CapabilityDomain::Unknown
+                || capability.execution == CapabilityExecution::Passthrough
+        });
+
+        // A mixed mutation cannot be split without changing its atomicity or
+        // risking a supported write upstream. Reject it before any resolver is
+        // invoked. Queries can safely combine an upstream read with local
+        // overlay roots.
+        let reject_mixed_mutation = operation_type == Some(OperationType::Mutation)
+            && has_local_root
+            && has_passthrough_root;
+
+        let all_passthrough = !root_names.is_empty() && !has_local_root && has_passthrough_root;
+        if let Some((document, _, _)) = prepared.as_ref() {
+            if let Some(error) = required_variable_error(document, &graphql_request.variables) {
+                return ok_json(json!({ "errors": [error] }));
+            }
+            if let Some(body) = product_create_argument_arity_error(document) {
+                return ok_json(body);
+            }
+            if let Some(error) = directive_variable_mismatch_error(
+                document,
+                selected_query.as_deref().unwrap_or(&graphql_request.query),
+                &graphql_request.variables,
+            ) {
+                return ok_json(json!({ "errors": [error] }));
+            }
+            let id_errors = shopify_root_id_errors(
+                version,
+                document,
+                selected_query.as_deref().unwrap_or(&graphql_request.query),
+                &graphql_request.variables,
+            );
+            if !id_errors.is_empty() {
+                return ok_json(json!({ "errors": id_errors }));
+            }
+        }
+        let grouped_local_request = prepared.as_ref().and_then(|(document, variables, _)| {
+            selected_query.as_deref().and_then(|query| {
+                let owner_metafields = document.operation_type == OperationType::Query
+                    && self.should_route_owner_metafields_read(query, variables);
+                let grouped_domain_read = document.operation_type == OperationType::Query
+                    && document.root_fields.len() > 1
+                    && capabilities.first().is_some_and(|first| {
+                        first.domain != CapabilityDomain::Unknown
+                            && first.execution == CapabilityExecution::OverlayRead
+                            && capabilities.iter().all(|capability| capability == first)
+                    });
+                let grouped_media_saved_search_read =
+                    document.operation_type == OperationType::Query
+                        && document.root_fields.len() > 1
+                        && document.root_fields.iter().all(|field| {
+                            matches!(field.name.as_str(), "files" | "fileSavedSearches")
+                        });
+                let grouped_localization_markets_read = document.operation_type
+                    == OperationType::Query
+                    && document.root_fields.len() > 1
+                    && capabilities.first().is_some_and(|capability| {
+                        capability.domain == CapabilityDomain::Localization
+                            && capability.execution == CapabilityExecution::OverlayRead
+                    })
+                    && document
+                        .root_fields
+                        .iter()
+                        .any(|field| field.name == "markets")
+                    && capabilities.iter().all(|capability| {
+                        capability.execution == CapabilityExecution::OverlayRead
+                            && matches!(
+                                capability.domain,
+                                CapabilityDomain::Localization | CapabilityDomain::Markets
+                            )
+                    });
+                let live_events = self.config.read_mode == ReadMode::LiveHybrid
+                    && !capabilities.is_empty()
+                    && capabilities
+                        .iter()
+                        .all(|capability| capability.domain == CapabilityDomain::Events);
+                (owner_metafields
+                    || grouped_domain_read
+                    || grouped_media_saved_search_read
+                    || grouped_localization_markets_read
+                    || live_events)
+                    .then(|| request.clone())
+            })
+        });
+        let root_locations = prepared
+            .as_ref()
+            .map(|(document, _, _)| {
+                document
+                    .root_fields
+                    .iter()
+                    .map(|field| (field.response_key.clone(), field.location))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let discount_preflight = prepared.as_ref().and_then(|(document, _, _)| {
+            (document.operation_type == OperationType::Mutation
+                && capabilities
+                    .iter()
+                    .any(|capability| capability.domain == CapabilityDomain::Discounts))
+            .then(|| (request.clone(), document.root_fields.clone()))
+        });
+        let placeholder = DraftProxy::new(self.config.clone());
+        let mut owned_proxy = std::mem::replace(self, placeholder);
+        let log_start = owned_proxy.log_entries.len();
+        if operation_type == Some(OperationType::Mutation) && has_local_root {
+            owned_proxy.engine_mutation_log_start = Some(log_start);
+        }
+        let shared_proxy = Arc::new(std::sync::Mutex::new(owned_proxy));
+        let resolved_responses = Arc::new(std::sync::Mutex::new(BTreeMap::new()));
+        let full_passthrough_response = Arc::new(std::sync::Mutex::new(None));
+        let root_executor: Arc<dyn RootFieldExecutor> = Arc::new(ProxyRootExecutor {
+            proxy: Arc::clone(&shared_proxy),
+            root_requests,
+            root_locations,
+            discount_preflight,
+            discount_preflight_done: std::sync::Mutex::new(false),
+            grouped_local_request,
+            grouped_local_response: std::sync::Mutex::new(None),
+            full_passthrough_request: all_passthrough.then(|| request.clone()),
+            full_passthrough_response: Arc::clone(&full_passthrough_response),
+            reject_mixed_mutation,
+            resolved_responses: Arc::clone(&resolved_responses),
+        });
+
+        // `async-graphql`'s dynamic builder cannot register custom directive
+        // definitions. Preserve Shopify's executable `@idempotent` contract in
+        // the domain request, while removing only that directive from the copy
+        // validated/executed by the engine. All other directives remain under
+        // normal GraphQL validation.
+        let engine_query = expand_bare_store_credit_origin_selections(
+            &strip_idempotent_directives(&graphql_request.query),
+        );
+        let mut engine_request = async_graphql::Request::new(engine_query)
+            .variables(async_graphql::Variables::from_json(
+                resolved_variables_json(&graphql_request.variables),
+            ))
+            .data(RootExecutionContext {
+                executor: Arc::clone(&root_executor),
+            });
+        if let Some(operation_name) = graphql_request.operation_name {
+            engine_request = engine_request.operation_name(operation_name);
+        }
+        let engine_response = futures_executor::block_on(schema.execute(engine_request));
+        drop(root_executor);
+        let resolved_responses = resolved_responses
+            .lock()
+            .map(|responses| responses.clone())
+            .unwrap_or_default();
+
+        let mut owned_proxy = match Arc::try_unwrap(shared_proxy) {
+            Ok(proxy) => match proxy.into_inner() {
+                Ok(proxy) => proxy,
+                Err(poisoned) => poisoned.into_inner(),
+            },
+            Err(_) => {
+                return json_error(
+                    500,
+                    "Admin GraphQL execution retained a proxy state reference",
+                );
+            }
+        };
+        owned_proxy.engine_mutation_log_start = None;
+        owned_proxy.engine_discount_refs_preflighted = false;
+        *self = owned_proxy;
+
+        if operation_type == Some(OperationType::Mutation) && has_local_root {
+            let variables = prepared
+                .as_ref()
+                .map(|(_, variables, _)| variables)
+                .unwrap_or(&graphql_request.variables);
+            self.normalize_engine_mutation_log(
+                log_start,
+                request,
+                selected_query.as_deref().unwrap_or(&graphql_request.query),
+                variables,
+                &root_names,
+            );
+        }
+
+        if let Some(response) = full_passthrough_response
+            .lock()
+            .ok()
+            .and_then(|response| response.clone())
+        {
+            return response;
+        }
+
+        let authoritative_upstream_response =
+            shared_root_response(&resolved_responses).filter(|response| {
+                (200..300).contains(&response.status)
+                    && response.body.get("errors").is_none()
+                    && response.body.pointer("/extensions/cost").is_some()
+            });
+        let authoritative_passthrough_omission = authoritative_upstream_response.is_some()
+            && engine_response.errors.iter().any(|error| {
+                error
+                    .message
+                    .starts_with("Local resolver did not implement `")
+                    || (error.message == "internal: non-null types require a return value"
+                        && error.path.first().is_some_and(|segment| {
+                            let async_graphql::PathSegment::Field(root) = segment else {
+                                return false;
+                            };
+                            authoritative_upstream_response.is_some_and(|response| {
+                                response
+                                    .body
+                                    .get("data")
+                                    .and_then(Value::as_object)
+                                    .is_some_and(|data| !data.contains_key(root))
+                            })
+                        }))
+            });
+        let body = if authoritative_passthrough_omission {
+            // A read-through resolver can return Shopify's already-executed
+            // response verbatim. Shopify occasionally omits selected roots or
+            // nested fields from that response without reporting an error. Do
+            // not reinterpret an otherwise successful, cost-bearing upstream
+            // envelope as a local resolver failure.
+            authoritative_upstream_response
+                .map(|response| response.body.clone())
+                .unwrap_or_else(|| json!({ "data": Value::Null }))
+        } else if engine_response.errors.iter().any(|error| {
+            (error.message.contains("expected \"FieldValue::WithType\"")
+                && (error.message.contains("invalid value for interface")
+                    || error.message.contains("invalid value for union")))
+                || error
+                    .message
+                    .contains("\"null\" is not of the expected type")
+        }) {
+            // async-graphql's dynamic API cannot represent a null list element
+            // whose item type is an interface/union: `FieldValue::NULL` is
+            // rejected because abstract values normally require `with_type`.
+            // The request has already passed full engine validation. Preserve
+            // the correctly projected resolver payload for this narrow library
+            // limitation so `nodes(ids:)` can retain null placeholders.
+            let mut body = merge_resolved_root_responses(&resolved_responses);
+            if let Some((document, _, _)) = prepared.as_ref() {
+                strip_unselected_typenames_from_response(&mut body, document);
+            }
+            body
+        } else {
+            shopify_engine_response(
+                engine_response,
+                version,
+                prepared.as_ref().map(|(document, _, _)| document),
+                selected_query.as_deref().unwrap_or(&graphql_request.query),
+                prepared
+                    .as_ref()
+                    .map(|(_, variables, _)| variables)
+                    .unwrap_or(&graphql_request.variables),
+                &graphql_request.variable_input_orders,
+            )
+        };
+        let mut body = body;
+        strip_cloud_webhook_callback_urls(&mut body);
+        merge_resolved_extensions(&mut body, &resolved_responses);
+        if let Some(response) = shared_root_response(&resolved_responses) {
+            if let (Some(projected), Some(resolved)) =
+                (body.as_object_mut(), response.body.as_object())
+            {
+                for (name, value) in resolved {
+                    if !matches!(name.as_str(), "data" | "errors") {
+                        projected
+                            .entry(name.clone())
+                            .or_insert_with(|| value.clone());
+                    }
+                }
+            }
+            return Response {
+                status: response.status,
+                headers: response.headers.clone(),
+                body,
+            };
+        }
+        ok_json(body)
+    }
+
+    fn normalize_engine_mutation_log(
+        &mut self,
+        log_start: usize,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        root_fields: &[String],
+    ) {
+        if log_start >= self.log_entries.len() {
+            return;
+        }
+        let mut entries = self.log_entries.drain(log_start..).collect::<Vec<_>>();
+        if entries.len() == 1 {
+            let entry = &mut entries[0];
+            entry["query"] = json!(query);
+            entry["variables"] = resolved_variables_json(variables);
+            entry["rawBody"] = json!(request.body.clone());
+            entry["path"] = json!(request.path.clone());
+            entry["interpreted"]["rootFields"] = json!(root_fields);
+            self.log_entries.extend(entries);
+            return;
+        }
+
+        let staged_resource_ids = entries
+            .iter()
+            .filter_map(|entry| entry.get("stagedResourceIds").and_then(Value::as_array))
+            .flatten()
+            .cloned()
+            .collect::<Vec<_>>();
+        let status = if entries
+            .iter()
+            .any(|entry| entry.get("status") == Some(&json!("failed")))
+        {
+            "failed"
+        } else if entries
+            .iter()
+            .any(|entry| entry.get("status") == Some(&json!("staged")))
+        {
+            "staged"
+        } else {
+            "proxied"
+        };
+        let primary_root = root_fields.first().cloned().unwrap_or_default();
+        self.log_entries.push(json!({
+            "id": format!("log-{}", log_start + 1),
+            "operationName": null,
+            "path": request.path,
+            "query": query,
+            "variables": resolved_variables_json(variables),
+            "rawBody": request.body,
+            "stagedResourceIds": staged_resource_ids,
+            "status": status,
+            "interpreted": {
+                "operationType": "mutation",
+                "rootFields": root_fields,
+                "primaryRootField": primary_root,
+                "execution": "schema-resolvers"
+            },
+            "notes": "Executed serially as one validated GraphQL mutation operation."
+        }));
+    }
+
+    pub(in crate::proxy) fn dispatch_passthrough_graphql(&mut self, request: &Request) -> Response {
+        self.resolve_registered_graphql(request)
+    }
+
+    pub(in crate::proxy) fn resolve_prevalidated_graphql_root(
+        &mut self,
+        request: &Request,
+    ) -> Response {
+        self.resolve_registered_graphql(request)
+    }
+
+    fn resolve_registered_graphql(&mut self, request: &Request) -> Response {
         let Some(graphql_request) = parse_graphql_request_body(&request.body) else {
             return json_error(400, "Expected JSON body with a string `query`");
         };
         let raw_query = graphql_request.query;
         let requested_operation_name = graphql_request.operation_name.as_deref();
-        let api_version = admin_graphql_version(&request.path);
-
-        if let Some(response) = public_admin_graphql_parse_error_response(&raw_query, api_version) {
-            return response;
-        }
 
         let selection = match selected_operation(&raw_query, requested_operation_name) {
             Ok(selection) => selection,
@@ -2594,24 +2614,12 @@ impl DraftProxy {
                 Err(error) => return operation_selection_error_response(error),
             };
 
-        if let Some(response) =
-            public_admin_graphql_validation_response(&query, &variables, api_version)
-        {
-            return response;
-        }
-
         let Some(operation) = parse_operation_with_variables(&query, &variables) else {
             return json_error(400, "Could not parse GraphQL operation");
         };
         let Some(root_field) = operation.primary_root_field() else {
             return ok_json(json!({ "data": {} }));
         };
-
-        let schema_input_errors =
-            public_admin_schema_input_errors(&query, &variables, &request.body, api_version);
-        if !schema_input_errors.is_empty() {
-            return ok_json(json!({ "errors": schema_input_errors }));
-        }
 
         if operation.root_fields.len() > 1
             && operation.operation_type == OperationType::Query
@@ -2620,23 +2628,7 @@ impl DraftProxy {
             return self.owner_metafields_read(request, &query, &variables);
         }
 
-        if self.should_dispatch_multi_root_graphql(operation.operation_type, &operation.root_fields)
-        {
-            let Some(document) = parsed_document(&query, &variables) else {
-                return json_error(400, "Could not parse GraphQL operation");
-            };
-            return self.dispatch_multi_root_graphql(
-                request,
-                operation.operation_type,
-                &query,
-                &variables,
-                &document.variable_definitions,
-                document.root_fields,
-            );
-        }
-
-        let capability =
-            operation_capability(&self.registry, operation.operation_type, Some(root_field));
+        let capability = self.registry.resolve(operation.operation_type, root_field);
         if capability.domain == CapabilityDomain::Products
             && operation.operation_type == OperationType::Mutation
             && product_operation_selects_shop_currency_money(&query, &variables)
@@ -3011,20 +3003,38 @@ impl DraftProxy {
             (CapabilityDomain::Localization, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query =>
             {
+                let fields = try_root_fields!(&query, &variables);
+                let localization_needs_upstream =
+                    self.localization_should_fetch_upstream(root_field);
+                let grouped_markets_need_upstream = fields.len() > 1
+                    && fields.iter().any(|field| field.name == "markets")
+                    && self.markets_should_fetch_upstream(&fields, &variables);
+                if self.config.read_mode == ReadMode::LiveHybrid && grouped_markets_need_upstream {
+                    // The client's mixed localization/markets document is the
+                    // authoritative hydration request. Forward it once, observe
+                    // both stores, and then render locally when staged
+                    // localization state must overlay the response.
+                    let response = (self.upstream_transport)(request.clone());
+                    if response.status >= 400 || response.body.get("errors").is_some() {
+                        return response;
+                    }
+                    self.hydrate_markets_from_upstream_for_fields(&response.body, &fields);
+                    self.hydrate_localization_from_upstream(&response.body);
+                    if localization_needs_upstream {
+                        return response;
+                    }
+                }
                 // Cold LiveHybrid reads forward verbatim upstream and hydrate the
                 // base stores as a side effect (product existence, shop locales);
                 // once a lifecycle has staged localization records we serve
                 // locally (read-after-write).
-                if self.config.read_mode == ReadMode::LiveHybrid
-                    && self.localization_should_fetch_upstream(root_field)
-                {
+                if self.config.read_mode == ReadMode::LiveHybrid && localization_needs_upstream {
                     let response = (self.upstream_transport)(request.clone());
                     if response.status < 400 {
                         self.hydrate_localization_from_upstream(&response.body);
                     }
                     return response;
                 }
-                let fields = try_root_fields!(&query, &variables);
                 ok_json(json!({ "data": self.localization_query_data(&fields, request) }))
             }
             (CapabilityDomain::Localization, CapabilityExecution::StageLocally)
@@ -3475,6 +3485,2120 @@ impl DraftProxy {
     }
 }
 
+fn merge_resolved_extensions(body: &mut Value, responses: &BTreeMap<String, Response>) {
+    let Some(body_object) = body.as_object_mut() else {
+        return;
+    };
+    for response in responses.values() {
+        let Some(source) = response.body.get("extensions").and_then(Value::as_object) else {
+            continue;
+        };
+        let target = body_object.entry("extensions").or_insert_with(|| json!({}));
+        let Some(target) = target.as_object_mut() else {
+            continue;
+        };
+        for (name, value) in source {
+            match (target.get_mut(name), value) {
+                (Some(Value::Array(existing)), Value::Array(additional)) => {
+                    for item in additional {
+                        if !existing.contains(item) {
+                            existing.push(item.clone());
+                        }
+                    }
+                }
+                (Some(_), _) => {}
+                (None, _) => {
+                    target.insert(name.clone(), value.clone());
+                }
+            }
+        }
+    }
+}
+
+fn strip_cloud_webhook_callback_urls(value: &mut Value) {
+    match value {
+        Value::Array(values) => {
+            for value in values {
+                strip_cloud_webhook_callback_urls(value);
+            }
+        }
+        Value::Object(object) => {
+            let cloud_endpoint = object.get("endpoint").is_some_and(|endpoint| {
+                matches!(
+                    endpoint.get("__typename").and_then(Value::as_str),
+                    Some("WebhookPubSubEndpoint" | "WebhookEventBridgeEndpoint")
+                ) || endpoint.get("pubSubProject").is_some()
+                    || endpoint.get("pubSubTopic").is_some()
+                    || endpoint.get("arn").is_some()
+            });
+            if cloud_endpoint {
+                // Shopify omits the deprecated non-null callbackUrl field for
+                // cloud webhook destinations. The local record carries a
+                // placeholder only long enough for GraphQL non-null execution;
+                // it must not escape in the wire response.
+                object.remove("callbackUrl");
+            }
+            for value in object.values_mut() {
+                strip_cloud_webhook_callback_urls(value);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn shopify_engine_response(
+    engine_response: async_graphql::Response,
+    version: AdminApiVersion,
+    document: Option<&ParsedDocument>,
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+    variable_input_orders: &BTreeMap<Vec<String>, Vec<String>>,
+) -> Value {
+    let mut body = serde_json::to_value(engine_response)
+        .unwrap_or_else(|error| json!({ "errors": [{ "message": error.to_string() }] }));
+    if let Some(errors) = body.get_mut("errors").and_then(Value::as_array_mut) {
+        let explicit_error_roots = errors
+            .iter()
+            .filter(|error| {
+                error.get("message").and_then(Value::as_str)
+                    != Some("internal: non-null types require a return value")
+            })
+            .filter_map(|error| error.get("path")?.as_array()?.first().cloned())
+            .collect::<Vec<_>>();
+        errors.retain(|error| {
+            if error.get("message").and_then(Value::as_str)
+                != Some("internal: non-null types require a return value")
+            {
+                return true;
+            }
+            let root = error
+                .get("path")
+                .and_then(Value::as_array)
+                .and_then(|path| path.first());
+            !root.is_some_and(|root| explicit_error_roots.contains(root))
+        });
+    }
+    normalize_engine_error_paths(&mut body);
+    let validation_only = body
+        .get("errors")
+        .and_then(Value::as_array)
+        .is_some_and(|errors| {
+            !errors.is_empty() && errors.iter().all(|error| error.get("path").is_none())
+        });
+    if !validation_only {
+        return body;
+    }
+
+    // Shopify omits `data` for parse/validation failures. async-graphql emits
+    // `data: null`, so normalize only this pre-execution response envelope.
+    if let Some(object) = body.as_object_mut() {
+        object.remove("data");
+    }
+    if let Some(errors) = body.get_mut("errors").and_then(Value::as_array_mut) {
+        for error in errors {
+            let Some(message_text) = error
+                .get("message")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+            else {
+                continue;
+            };
+            match message_text.as_str() {
+                "Operation name required in request." => {
+                    error["message"] = json!("An operation name is required");
+                }
+                message_text
+                    if message_text.starts_with("Unknown operation named \"")
+                        && (message_text.ends_with('"') || message_text.ends_with("\".")) =>
+                {
+                    error["message"] = json!(format!(
+                        "No operation named {}",
+                        message_text
+                            .trim_start_matches("Unknown operation named ")
+                            .trim_end_matches('.')
+                    ));
+                }
+                message_text if document.is_none() && message_text.contains("expected ") => {
+                    let engine_location = error_location(error).unwrap_or((1, 1));
+                    let (line, column) = shopify_parse_error_location(query, engine_location);
+                    *error = json!({
+                        "message": format!(
+                            "syntax error, unexpected end of file at [{line}, {column}]"
+                        ),
+                        "locations": [{ "line": line, "column": column }],
+                        "extensions": { "code": "PARSE_ERROR" }
+                    });
+                }
+                message_text => {
+                    if let Some(variable_error) = shopify_variable_input_error(
+                        version,
+                        message_text,
+                        document,
+                        variables,
+                        variable_input_orders,
+                        error,
+                    ) {
+                        *error = variable_error;
+                        continue;
+                    }
+                    if let Some(input_error) =
+                        shopify_input_literal_error(version, message_text, document, query, error)
+                    {
+                        *error = input_error;
+                        continue;
+                    }
+                    if let Some(directive_error) = shopify_unknown_directive_argument_error(
+                        message_text,
+                        query,
+                        variables,
+                        error,
+                    ) {
+                        *error = directive_error;
+                        continue;
+                    }
+                    if let Some(directive_error) = shopify_directive_literal_error(
+                        message_text,
+                        query,
+                        variables,
+                        error_location(error),
+                    ) {
+                        *error = directive_error;
+                        continue;
+                    }
+                    if let Some(argument_error) =
+                        shopify_unknown_field_argument_error(message_text, document, error)
+                    {
+                        *error = argument_error;
+                        continue;
+                    }
+                    if let Some((directive_name, argument_name)) =
+                        async_graphql_missing_directive_argument(message_text)
+                    {
+                        let path = document
+                            .and_then(|document| {
+                                error_location(error).and_then(|location| {
+                                    response_path_for_location(document, location)
+                                })
+                            })
+                            .unwrap_or_default();
+                        let locations =
+                            error.get("locations").cloned().unwrap_or_else(|| json!([]));
+                        *error = json!({
+                            "message": format!(
+                                "Directive '{directive_name}' is missing required arguments: {argument_name}"
+                            ),
+                            "locations": locations,
+                            "path": path,
+                            "extensions": {
+                                "code": "missingRequiredArguments",
+                                "className": "Directive",
+                                "name": directive_name,
+                                "arguments": argument_name
+                            }
+                        });
+                        continue;
+                    }
+                    if let Some((field_name, type_name)) =
+                        async_graphql_missing_selection(message_text)
+                    {
+                        let path = document
+                            .and_then(|document| {
+                                error_location(error).and_then(|location| {
+                                    response_path_for_location(document, location)
+                                })
+                            })
+                            .unwrap_or_else(|| vec![json!(field_name)]);
+                        let locations =
+                            error.get("locations").cloned().unwrap_or_else(|| json!([]));
+                        *error = json!({
+                            "message": format!(
+                                "Field must have selections (field '{field_name}' returns {type_name} but has no selections. Did you mean '{field_name} {{ ... }}'?)"
+                            ),
+                            "locations": locations,
+                            "path": path,
+                            "extensions": {
+                                "code": "selectionMismatch",
+                                "nodeName": format!("field '{field_name}'"),
+                                "typeName": type_name
+                            }
+                        });
+                        continue;
+                    }
+                    let Some((field_name, type_name)) = async_graphql_unknown_field(message_text)
+                    else {
+                        continue;
+                    };
+                    let path = document
+                        .and_then(|document| {
+                            error_location(error)
+                                .and_then(|location| response_path_for_location(document, location))
+                        })
+                        .unwrap_or_else(|| vec![json!(field_name)]);
+                    let locations = error.get("locations").cloned().unwrap_or_else(|| json!([]));
+                    *error = json!({
+                        "message": format!(
+                            "Field '{field_name}' doesn't exist on type '{type_name}'"
+                        ),
+                        "locations": locations,
+                        "path": path,
+                        "extensions": {
+                            "code": "undefinedField",
+                            "typeName": type_name,
+                            "fieldName": field_name
+                        }
+                    });
+                }
+            }
+        }
+    }
+
+    if let (Some(document), Some(errors)) = (
+        document,
+        body.get_mut("errors").and_then(Value::as_array_mut),
+    ) {
+        *errors = errors
+            .drain(..)
+            .flat_map(|error| {
+                expand_inline_unknown_input_errors(version, document, query, &error)
+                    .or_else(|| expand_inline_missing_input_errors(version, document, &error))
+                    .unwrap_or_else(|| vec![error])
+            })
+            .collect();
+    }
+
+    let Some(document) = document else {
+        return body;
+    };
+    let Some(errors) = body.get("errors").and_then(Value::as_array) else {
+        return body;
+    };
+    let mut grouped = Vec::<(String, Vec<String>)>::new();
+    for error in errors {
+        let Some((field_name, argument_name)) = error
+            .get("message")
+            .and_then(Value::as_str)
+            .and_then(async_graphql_missing_field_argument)
+        else {
+            continue;
+        };
+        if let Some((_, arguments)) = grouped
+            .iter_mut()
+            .find(|(existing, _)| existing == &field_name)
+        {
+            arguments.push(argument_name);
+        } else {
+            grouped.push((field_name, vec![argument_name]));
+        }
+    }
+    if grouped.is_empty()
+        || grouped.iter().map(|(_, args)| args.len()).sum::<usize>() != errors.len()
+    {
+        return body;
+    }
+
+    let normalized = grouped
+        .into_iter()
+        .map(|(field_name, arguments)| {
+            let arguments = arguments.join(", ");
+            let root = document
+                .root_fields
+                .iter()
+                .find(|field| field.name == field_name);
+            let location = root
+                .map(|field| field.location)
+                .unwrap_or(document.location);
+            let response_key = root
+                .map(|field| field.response_key.as_str())
+                .unwrap_or(field_name.as_str());
+            missing_required_arguments_error(
+                &field_name,
+                &arguments,
+                location,
+                document_field_path(document, response_key),
+            )
+        })
+        .collect::<Vec<_>>();
+    body["errors"] = Value::Array(normalized);
+    body
+}
+
+fn normalize_engine_error_paths(body: &mut Value) {
+    let Some(errors) = body.get_mut("errors").and_then(Value::as_array_mut) else {
+        return;
+    };
+    for error in errors {
+        let Some(path) = error.get_mut("path").and_then(Value::as_array_mut) else {
+            continue;
+        };
+        let duplicated_root = path.len() >= 3
+            && path.first() == path.get(2)
+            && path.get(1).and_then(Value::as_str).is_some_and(|segment| {
+                segment == "query"
+                    || segment == "mutation"
+                    || segment == "subscription"
+                    || segment.starts_with("query ")
+                    || segment.starts_with("mutation ")
+                    || segment.starts_with("subscription ")
+            });
+        if duplicated_root {
+            path.remove(0);
+        }
+    }
+}
+
+fn shopify_root_id_errors(
+    version: AdminApiVersion,
+    document: &ParsedDocument,
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Vec<Value> {
+    let mut errors = Vec::new();
+    let mut reported_variables = BTreeSet::new();
+    for field in &document.root_fields {
+        for (argument_name, raw_value) in &field.raw_arguments {
+            let Some(metadata) = admin_graphql::input_field_at_path(
+                version,
+                document.operation_type,
+                &field.name,
+                &[argument_name],
+            ) else {
+                continue;
+            };
+            match raw_value {
+                RawArgumentValue::Variable { name, .. }
+                    if reported_variables.insert(name.clone()) =>
+                {
+                    let Some(value) = variables.get(name) else {
+                        continue;
+                    };
+                    let problems = variable_global_id_problems(
+                        version,
+                        &metadata,
+                        value,
+                        &[],
+                        metadata.named_type == "ID",
+                    );
+                    if problems.is_empty() {
+                        continue;
+                    }
+                    let Some(definition) = document.variable_definitions.get(name) else {
+                        continue;
+                    };
+                    let context = VariableValidationContext {
+                        variable_name: name,
+                        variable_type: &definition.type_display,
+                        location: definition.location,
+                    };
+                    if problems.iter().any(|problem| {
+                        problem
+                            .get("path")
+                            .and_then(Value::as_array)
+                            .is_some_and(|path| !path.is_empty())
+                    }) {
+                        errors.push(invalid_variable_error(context, value, problems));
+                    } else {
+                        errors.push(invalid_variable_error_envelope(
+                            format!(
+                                "Variable ${name} of type {} was provided invalid value",
+                                definition.type_display
+                            ),
+                            definition.location,
+                            resolved_value_json(value),
+                            Value::Array(problems),
+                        ));
+                    }
+                }
+                _ => collect_inline_global_id_errors(
+                    version,
+                    document,
+                    query,
+                    field,
+                    raw_value,
+                    &mut vec![argument_name.clone()],
+                    &mut errors,
+                ),
+            }
+        }
+    }
+    errors
+}
+
+fn collect_inline_global_id_errors(
+    version: AdminApiVersion,
+    document: &ParsedDocument,
+    query: &str,
+    field: &RootFieldSelection,
+    value: &RawArgumentValue,
+    path: &mut Vec<String>,
+    errors: &mut Vec<Value>,
+) {
+    let path_refs = path.iter().map(String::as_str).collect::<Vec<_>>();
+    let Some(metadata) = admin_graphql::input_field_at_path(
+        version,
+        document.operation_type,
+        &field.name,
+        &path_refs,
+    ) else {
+        return;
+    };
+    if metadata.named_type == "ID" {
+        let strict_root_id = admin_graphql::input_field_at_path(
+            version,
+            document.operation_type,
+            &field.name,
+            &[path.first().map(String::as_str).unwrap_or_default()],
+        )
+        .is_some_and(|root| root.named_type == "ID");
+        let invalid = match value {
+            RawArgumentValue::String(value)
+                if shopify_gid_resource_type(value).is_none()
+                    && (strict_root_id || value.is_empty()) =>
+            {
+                Some(value.clone())
+            }
+            RawArgumentValue::Int(value) if strict_root_id => Some(value.to_string()),
+            _ => None,
+        };
+        if let Some(invalid) = invalid {
+            errors.push(invalid_global_id_literal_error(
+                version, document, field, query, path, &invalid,
+            ));
+        }
+        if let RawArgumentValue::List(values) = value {
+            for (index, value) in values.iter().enumerate() {
+                path.push(index.to_string());
+                collect_inline_global_id_errors(
+                    version, document, query, field, value, path, errors,
+                );
+                path.pop();
+            }
+        }
+        return;
+    }
+    match value {
+        RawArgumentValue::List(values) => {
+            for (index, value) in values.iter().enumerate() {
+                path.push(index.to_string());
+                collect_inline_global_id_errors(
+                    version, document, query, field, value, path, errors,
+                );
+                path.pop();
+            }
+        }
+        RawArgumentValue::Object(fields) => {
+            for (name, value) in fields {
+                path.push(name.clone());
+                collect_inline_global_id_errors(
+                    version, document, query, field, value, path, errors,
+                );
+                path.pop();
+            }
+        }
+        _ => {}
+    }
+}
+
+fn variable_global_id_problems(
+    version: AdminApiVersion,
+    field: &admin_graphql::InputFieldMetadata,
+    value: &ResolvedValue,
+    path: &[Value],
+    strict: bool,
+) -> Vec<Value> {
+    if field.list {
+        let ResolvedValue::List(values) = value else {
+            return Vec::new();
+        };
+        return values
+            .iter()
+            .enumerate()
+            .flat_map(|(index, value)| {
+                let mut item_path = path.to_vec();
+                item_path.push(json!(index));
+                variable_named_global_id_problems(
+                    version,
+                    &field.named_type,
+                    value,
+                    &item_path,
+                    strict,
+                )
+            })
+            .collect();
+    }
+    variable_named_global_id_problems(version, &field.named_type, value, path, strict)
+}
+
+fn variable_named_global_id_problems(
+    version: AdminApiVersion,
+    named_type: &str,
+    value: &ResolvedValue,
+    path: &[Value],
+    strict: bool,
+) -> Vec<Value> {
+    if named_type == "ID" {
+        let invalid_id = match value {
+            ResolvedValue::String(value)
+                if shopify_gid_resource_type(value).is_none() && (strict || value.is_empty()) =>
+            {
+                Some(value.clone())
+            }
+            ResolvedValue::Int(value) if strict => Some(value.to_string()),
+            _ => None,
+        };
+        return invalid_id
+            .map(|invalid_id| {
+                let explanation = format!("Invalid global id '{invalid_id}'");
+                vec![variable_problem_with_message_value_path(path, &explanation)]
+            })
+            .unwrap_or_default();
+    }
+    let Some(input_fields) = admin_graphql::input_object_fields(version, named_type) else {
+        return Vec::new();
+    };
+    let ResolvedValue::Object(values) = value else {
+        return Vec::new();
+    };
+    input_fields
+        .into_iter()
+        .filter_map(|field| values.get(&field.name).map(|value| (field, value)))
+        .flat_map(|(field, value)| {
+            let mut field_path = path.to_vec();
+            field_path.push(json!(field.name));
+            variable_global_id_problems(version, &field, value, &field_path, false)
+        })
+        .collect()
+}
+
+fn invalid_global_id_literal_error(
+    version: AdminApiVersion,
+    document: &ParsedDocument,
+    field: &RootFieldSelection,
+    query: &str,
+    input_path: &[String],
+    invalid_id: &str,
+) -> Value {
+    let mut path = document_field_path(document, &field.response_key);
+    let root_is_id_list = input_path.first().is_some_and(|argument_name| {
+        admin_graphql::input_field_at_path(
+            version,
+            document.operation_type,
+            &field.name,
+            &[argument_name],
+        )
+        .is_some_and(|metadata| metadata.named_type == "ID" && metadata.list)
+    });
+    let error_input_path = if root_is_id_list {
+        &input_path[..1]
+    } else {
+        input_path
+    };
+    path.extend(input_path_values(
+        error_input_path.iter().map(String::as_str),
+    ));
+    let location = input_path
+        .iter()
+        .enumerate()
+        .rev()
+        .find_map(|(position, segment)| {
+            segment.parse::<usize>().ok().and_then(|index| {
+                inline_argument_list_item_object_location(
+                    query,
+                    field,
+                    input_path.first().map(String::as_str).unwrap_or_default(),
+                    index,
+                )
+                .filter(|_| position + 1 < input_path.len())
+            })
+        })
+        .unwrap_or(field.location);
+    json!({
+        "message": format!("Invalid global id '{invalid_id}'"),
+        "locations": [{ "line": location.line, "column": location.column }],
+        "path": path,
+        "extensions": {
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "CoercionError"
+        }
+    })
+}
+
+fn error_location(error: &Value) -> Option<(usize, usize)> {
+    let location = error.get("locations")?.as_array()?.first()?;
+    Some((
+        location.get("line")?.as_u64()? as usize,
+        location.get("column")?.as_u64()? as usize,
+    ))
+}
+
+fn shopify_parse_error_location(query: &str, engine_location: (usize, usize)) -> (usize, usize) {
+    let last_token_start = query
+        .lines()
+        .enumerate()
+        .filter_map(|(line, source)| {
+            source
+                .chars()
+                .position(|character| !character.is_whitespace())
+                .map(|column| (line + 1, column + 1))
+        })
+        .last();
+
+    match last_token_start {
+        // async-graphql locates an unexpected EOF after a trailing newline on
+        // the following empty line. Shopify reports the start of the final
+        // token instead, which is also what its captured PARSE_ERROR message
+        // embeds.
+        Some(location) if engine_location.0 > location.0 => location,
+        _ => engine_location,
+    }
+}
+
+fn async_graphql_unknown_field(message: &str) -> Option<(String, String)> {
+    let rest = message.strip_prefix("Unknown field \"")?;
+    let (field_name, rest) = rest.split_once("\" on type \"")?;
+    let (type_name, _) = rest.split_once('"')?;
+    Some((field_name.to_string(), type_name.to_string()))
+}
+
+fn async_graphql_missing_selection(message: &str) -> Option<(String, String)> {
+    let rest = message.strip_prefix("Field \"")?;
+    let (field_name, rest) = rest.split_once("\" of type \"")?;
+    let (type_name, rest) = rest.split_once('"')?;
+    rest.contains("must have a selection of subfields")
+        .then(|| (field_name.to_string(), type_name.to_string()))
+}
+
+fn async_graphql_missing_directive_argument(message: &str) -> Option<(String, String)> {
+    let rest = message.strip_prefix("Directive \"@")?;
+    let (directive_name, rest) = rest.split_once("\" argument \"")?;
+    let (argument_name, rest) = rest.split_once('"')?;
+    rest.contains("is required but not provided")
+        .then(|| (directive_name.to_string(), argument_name.to_string()))
+}
+
+fn shopify_unknown_field_argument_error(
+    message: &str,
+    document: Option<&ParsedDocument>,
+    engine_error: &Value,
+) -> Option<Value> {
+    let rest = message.strip_prefix("Unknown argument \"")?;
+    let (argument_name, rest) = rest.split_once("\" on field \"")?;
+    let (field_name, _) = rest.split_once('"')?;
+    let document = document?;
+    let field = document
+        .root_fields
+        .iter()
+        .find(|field| field.name == field_name)?;
+    let mut path = document_field_path(document, &field.response_key);
+    path.push(json!(argument_name));
+    Some(json!({
+        "message": format!("Field '{field_name}' doesn't accept argument '{argument_name}'"),
+        "locations": engine_error
+            .get("locations")
+            .cloned()
+            .unwrap_or_else(|| json!([{ "line": field.location.line, "column": field.location.column }])),
+        "path": path,
+        "extensions": {
+            "code": "argumentNotAccepted",
+            "name": field_name,
+            "typeName": "Field",
+            "argumentName": argument_name
+        }
+    }))
+}
+
+fn shopify_directive_literal_error(
+    message: &str,
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+    error_location: Option<(usize, usize)>,
+) -> Option<Value> {
+    let rest = message.strip_prefix("Invalid value for argument \"")?;
+    let (argument_name, _) = rest.split_once('"')?;
+    let invocations = directive_invocations(query, variables)?;
+    let invocation = invocations
+        .iter()
+        .filter(|invocation| invocation.raw_arguments.contains_key(argument_name))
+        .filter(|invocation| {
+            error_location.is_none_or(|location| {
+                (invocation.location.line, invocation.location.column) <= location
+            })
+        })
+        .max_by_key(|invocation| (invocation.location.line, invocation.location.column))?;
+    let expected_type = match (invocation.name.as_str(), argument_name) {
+        ("include" | "skip", "if") => "Boolean!",
+        _ => return None,
+    };
+    if let Some(RawArgumentValue::Variable { name, .. }) =
+        invocation.raw_arguments.get(argument_name)
+    {
+        let value = supplied_variable(variables, name)?;
+        if matches!(value, ResolvedValue::Bool(_)) {
+            return None;
+        }
+        let definition = variable_definition_info(query, name)?;
+        let json_value = resolved_value_json(value);
+        return Some(json!({
+            "message": format!(
+                "Variable ${name} of type {} was provided invalid value",
+                definition.type_display
+            ),
+            "locations": [{
+                "line": definition.location.line,
+                "column": definition.location.column
+            }],
+            "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": json_value,
+                "problems": [{
+                    "path": [],
+                    "explanation": format!(
+                        "Could not coerce value {} to Boolean",
+                        resolved_value_json(value)
+                    )
+                }]
+            }
+        }));
+    }
+    if invocation.raw_arguments.get(argument_name) != Some(&RawArgumentValue::Null) {
+        return None;
+    }
+    let mut path = invocation
+        .path
+        .iter()
+        .map(|segment| json!(segment))
+        .collect::<Vec<_>>();
+    path.push(json!(argument_name));
+    Some(json!({
+        "message": format!(
+            "Argument '{argument_name}' on Directive '{}' has an invalid value (null). Expected type '{expected_type}'.",
+            invocation.name
+        ),
+        "locations": [{
+            "line": invocation.location.line,
+            "column": invocation.location.column
+        }],
+        "path": path,
+        "extensions": {
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "Directive",
+            "argumentName": argument_name
+        }
+    }))
+}
+
+fn shopify_variable_input_error(
+    version: AdminApiVersion,
+    message: &str,
+    document: Option<&ParsedDocument>,
+    variables: &BTreeMap<String, ResolvedValue>,
+    variable_input_orders: &BTreeMap<Vec<String>, Vec<String>>,
+    engine_error: &Value,
+) -> Option<Value> {
+    let document = document?;
+    let argument_path = async_graphql_input_argument_path(message)?;
+    let path = argument_path.split('.').collect::<Vec<_>>();
+    let field = input_error_root_field(document, &path, error_location(engine_error))?;
+    let (variable_name, variable_field, variable_path) =
+        input_error_variable(version, document, field, &path)?;
+    let definition = document.variable_definitions.get(variable_name)?;
+    let value = variables.get(variable_name)?;
+    let mut problems = variable_value_problems(version, &variable_field, value, &variable_path);
+    if problems.is_empty() {
+        return None;
+    }
+    sort_variable_problems_by_input_order(&mut problems, variable_name, variable_input_orders);
+    let context = VariableValidationContext {
+        variable_name,
+        variable_type: &definition.type_display,
+        location: definition.location,
+    };
+    let has_nested_path = problems.iter().any(|problem| {
+        problem
+            .get("path")
+            .and_then(Value::as_array)
+            .is_some_and(|path| !path.is_empty())
+    });
+    Some(if has_nested_path {
+        invalid_variable_error(context, value, problems)
+    } else {
+        invalid_variable_error_envelope(
+            format!(
+                "Variable ${variable_name} of type {} was provided invalid value",
+                definition.type_display
+            ),
+            definition.location,
+            resolved_value_json(value),
+            Value::Array(problems),
+        )
+    })
+}
+
+fn sort_variable_problems_by_input_order(
+    problems: &mut [Value],
+    variable_name: &str,
+    variable_input_orders: &BTreeMap<Vec<String>, Vec<String>>,
+) {
+    problems.sort_by_key(|problem| {
+        let mut parent_path = vec![variable_name.to_string()];
+        problem
+            .get("path")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .map(|segment| {
+                let segment = segment
+                    .as_str()
+                    .map(str::to_string)
+                    .or_else(|| segment.as_u64().map(|value| value.to_string()))
+                    .unwrap_or_else(|| segment.to_string());
+                let rank = segment.parse::<usize>().ok().unwrap_or_else(|| {
+                    variable_input_orders
+                        .get(&parent_path)
+                        .and_then(|fields| fields.iter().position(|field| field == &segment))
+                        .unwrap_or(usize::MAX)
+                });
+                parent_path.push(segment.clone());
+                rank
+            })
+            .collect::<Vec<_>>()
+    });
+}
+
+fn async_graphql_input_argument_path(message: &str) -> Option<&str> {
+    message
+        .strip_prefix("Invalid value for argument \"")?
+        .split_once("\",")
+        .map(|(path, _)| path)
+}
+
+fn input_error_root_field<'a>(
+    document: &'a ParsedDocument,
+    path: &[&str],
+    location: Option<(usize, usize)>,
+) -> Option<&'a RootFieldSelection> {
+    let root_argument = path.first()?;
+    let candidates = document
+        .root_fields
+        .iter()
+        .filter(|field| field.raw_arguments.contains_key(*root_argument));
+    if let Some(location) = location {
+        candidates
+            .filter(|field| (field.location.line, field.location.column) <= location)
+            .max_by_key(|field| (field.location.line, field.location.column))
+            .or_else(|| {
+                document
+                    .root_fields
+                    .iter()
+                    .find(|field| field.raw_arguments.contains_key(*root_argument))
+            })
+    } else {
+        candidates.into_iter().next()
+    }
+}
+
+fn input_error_variable<'a>(
+    version: AdminApiVersion,
+    document: &ParsedDocument,
+    field: &'a RootFieldSelection,
+    path: &[&str],
+) -> Option<(&'a str, admin_graphql::InputFieldMetadata, Vec<Value>)> {
+    let root_argument = path.first()?;
+    let root_value = field.raw_arguments.get(*root_argument)?;
+    let root_field = admin_graphql::input_field_at_path(
+        version,
+        document.operation_type,
+        &field.name,
+        &path[..1],
+    )?;
+    if let RawArgumentValue::Variable { name, .. } = root_value {
+        return Some((name, root_field, Vec::new()));
+    }
+
+    let mut raw_value = root_value;
+    for (index, segment) in path.iter().enumerate().skip(1) {
+        raw_value = match raw_value {
+            RawArgumentValue::Object(fields) => fields.get(*segment)?,
+            RawArgumentValue::List(items) => items.get(segment.parse::<usize>().ok()?)?,
+            RawArgumentValue::Variable { name, .. } => {
+                let metadata = admin_graphql::input_field_at_path(
+                    version,
+                    document.operation_type,
+                    &field.name,
+                    &path[..index],
+                )?;
+                return Some((
+                    name,
+                    metadata,
+                    input_path_values(path.iter().skip(index).copied()),
+                ));
+            }
+            _ => return None,
+        };
+    }
+    let RawArgumentValue::Variable { name, .. } = raw_value else {
+        return None;
+    };
+    Some((
+        name,
+        admin_graphql::input_field_at_path(version, document.operation_type, &field.name, path)?,
+        Vec::new(),
+    ))
+}
+
+fn input_path_values<'a>(segments: impl Iterator<Item = &'a str>) -> Vec<Value> {
+    segments
+        .map(|segment| {
+            segment
+                .parse::<u64>()
+                .map(Value::from)
+                .unwrap_or_else(|_| Value::String(segment.to_string()))
+        })
+        .collect()
+}
+
+fn variable_value_problems(
+    version: AdminApiVersion,
+    field: &admin_graphql::InputFieldMetadata,
+    value: &ResolvedValue,
+    path: &[Value],
+) -> Vec<Value> {
+    if field.list {
+        let ResolvedValue::List(values) = value else {
+            return Vec::new();
+        };
+        return values
+            .iter()
+            .enumerate()
+            .flat_map(|(index, value)| {
+                let mut item_path = path.to_vec();
+                item_path.push(json!(index));
+                if matches!(value, ResolvedValue::Null) && field.list_item_required {
+                    vec![variable_problem_value_path(
+                        &item_path,
+                        "Expected value to not be null",
+                    )]
+                } else {
+                    variable_named_value_problems(version, &field.named_type, value, &item_path)
+                }
+            })
+            .collect();
+    }
+    variable_named_value_problems(version, &field.named_type, value, path)
+}
+
+fn variable_named_value_problems(
+    version: AdminApiVersion,
+    named_type: &str,
+    value: &ResolvedValue,
+    path: &[Value],
+) -> Vec<Value> {
+    let scalar_problem = match (named_type, value) {
+        ("Int", ResolvedValue::Int(_))
+        | ("Float", ResolvedValue::Int(_) | ResolvedValue::Float(_))
+        | ("String", ResolvedValue::String(_))
+        | ("Boolean", ResolvedValue::Bool(_)) => None,
+        ("Int", value) => Some(variable_problem_value_path(
+            path,
+            &format!(
+                "Could not coerce value {} to Int",
+                resolved_value_json(value)
+            ),
+        )),
+        ("Float", value) => Some(variable_problem_value_path(
+            path,
+            &format!(
+                "Could not coerce value {} to Float",
+                resolved_value_json(value)
+            ),
+        )),
+        ("String", value) => Some(variable_problem_value_path(
+            path,
+            &format!(
+                "Could not coerce value {} to String",
+                resolved_value_json(value)
+            ),
+        )),
+        ("Boolean", value) => Some(variable_problem_value_path(
+            path,
+            &format!(
+                "Could not coerce value {} to Boolean",
+                resolved_value_json(value)
+            ),
+        )),
+        ("Decimal", ResolvedValue::String(raw))
+            if raw.parse::<f64>().is_err() || !raw.parse::<f64>().is_ok_and(f64::is_finite) =>
+        {
+            let explanation = format!("invalid decimal '{raw}'");
+            Some(variable_problem_with_message_value_path(path, &explanation))
+        }
+        ("Decimal", ResolvedValue::Int(_) | ResolvedValue::Float(_)) => None,
+        _ => None,
+    };
+    if let Some(problem) = scalar_problem {
+        return vec![problem];
+    }
+    if named_type == "ID" {
+        let invalid_id = match value {
+            ResolvedValue::String(value) if shopify_gid_resource_type(value).is_none() => {
+                Some(value.clone())
+            }
+            ResolvedValue::Int(value) => Some(value.to_string()),
+            _ => None,
+        };
+        if let Some(invalid_id) = invalid_id {
+            let explanation = format!("Invalid global id '{invalid_id}'");
+            return vec![variable_problem_with_message_value_path(path, &explanation)];
+        }
+    }
+    if let Some(input_fields) = admin_graphql::input_object_fields(version, named_type) {
+        let ResolvedValue::Object(values) = value else {
+            return Vec::new();
+        };
+        let known_fields = input_fields
+            .iter()
+            .map(|field| field.name.as_str())
+            .collect::<BTreeSet<_>>();
+        let mut problems = values
+            .keys()
+            .filter(|name| !known_fields.contains(name.as_str()))
+            .map(|name| {
+                let mut field_path = path.to_vec();
+                field_path.push(json!(name));
+                variable_problem_value_path(
+                    &field_path,
+                    &format!("Field is not defined on {named_type}"),
+                )
+            })
+            .collect::<Vec<_>>();
+        for input_field in input_fields {
+            let provided = values.get(&input_field.name);
+            if input_field.required
+                && provided.is_none_or(|value| matches!(value, ResolvedValue::Null))
+            {
+                let mut field_path = path.to_vec();
+                field_path.push(json!(input_field.name));
+                problems.push(variable_problem_value_path(
+                    &field_path,
+                    "Expected value to not be null",
+                ));
+                continue;
+            }
+            let Some(value) = provided else {
+                continue;
+            };
+            let mut field_path = path.to_vec();
+            field_path.push(json!(input_field.name));
+            problems.extend(variable_value_problems(
+                version,
+                &input_field,
+                value,
+                &field_path,
+            ));
+        }
+        return problems;
+    }
+
+    if let (Some(values), ResolvedValue::String(value)) =
+        (admin_graphql::enum_values(version, named_type), value)
+    {
+        if !values.iter().any(|candidate| candidate == value) {
+            return vec![variable_problem_value_path(
+                path,
+                &format!("Expected \"{value}\" to be one of: {}", values.join(", ")),
+            )];
+        }
+    }
+    Vec::new()
+}
+
+fn shopify_input_literal_error(
+    version: AdminApiVersion,
+    message: &str,
+    document: Option<&ParsedDocument>,
+    query: &str,
+    engine_error: &Value,
+) -> Option<Value> {
+    let document = document?;
+    let argument_path = async_graphql_input_argument_path(message)?;
+    let path = argument_path.split('.').collect::<Vec<_>>();
+    let field = input_error_root_field(document, &path, error_location(engine_error))?;
+    if input_error_variable(version, document, field, &path).is_some() {
+        return None;
+    }
+    let path_values = input_path_values(path.iter().copied());
+    let locations =
+        |location: SourceLocation| json!([{ "line": location.line, "column": location.column }]);
+
+    let rest = message
+        .strip_prefix("Invalid value for argument \"")?
+        .split_once("\",")?
+        .1
+        .trim_start();
+    if let Some(rest) = rest.strip_prefix("unknown field \"") {
+        let (argument_name, rest) = rest.split_once("\" of type \"")?;
+        let (input_type, _) = rest.split_once('"')?;
+        let location = inline_input_field_name_location(
+            query,
+            field.location,
+            1 + path.len() as i32,
+            argument_name,
+        )
+        .unwrap_or(field.location);
+        let mut error_path = document_field_path(document, &field.response_key);
+        error_path.extend(path_values);
+        error_path.push(json!(argument_name));
+        return Some(json!({
+            "message": format!("InputObject '{input_type}' doesn't accept argument '{argument_name}'"),
+            "locations": locations(location),
+            "path": error_path,
+            "extensions": {
+                "code": "argumentNotAccepted",
+                "name": input_type,
+                "typeName": "InputObject",
+                "argumentName": argument_name
+            }
+        }));
+    }
+    if let Some(rest) = rest.strip_prefix("field \"") {
+        let (argument_name, rest) = rest.split_once("\" of type \"")?;
+        let (argument_type, rest) = rest.split_once('"')?;
+        if !rest.contains("is required but not provided") {
+            return None;
+        }
+        let input_type = admin_graphql::input_field_at_path(
+            version,
+            document.operation_type,
+            &field.name,
+            &path,
+        )?
+        .named_type;
+        let mut error_path = document_field_path(document, &field.response_key);
+        error_path.extend(path_values);
+        error_path.push(json!(argument_name));
+        let location = if path.len() == 1 {
+            inline_argument_value_location(query, field, path[0])
+        } else if let Some(index) = path
+            .last()
+            .and_then(|segment| segment.parse::<usize>().ok())
+        {
+            inline_argument_list_item_object_location(query, field, path[0], index)
+        } else {
+            inline_input_field_value_location(
+                query,
+                field.location,
+                path.len() as i32,
+                path.last().copied().unwrap_or(path[0]),
+            )
+            .or_else(|| inline_argument_value_location(query, field, path[0]))
+        }
+        .unwrap_or(field.location);
+        return Some(json!({
+            "message": format!(
+                "Argument '{argument_name}' on InputObject '{input_type}' is required. Expected type {argument_type}"
+            ),
+            "locations": locations(location),
+            "path": error_path,
+            "extensions": {
+                "code": "missingRequiredInputObjectAttribute",
+                "argumentName": argument_name,
+                "argumentType": argument_type,
+                "inputObjectType": input_type
+            }
+        }));
+    }
+    if let Some(rest) = rest.strip_prefix("enumeration type \"") {
+        let (_enum_type, rest) = rest.split_once("\" does not contain the value \"")?;
+        let leaf_invalid_value = rest.strip_suffix('"')?;
+        let semantic_path = path
+            .iter()
+            .copied()
+            .rev()
+            .skip_while(|segment| segment.parse::<usize>().is_ok())
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect::<Vec<_>>();
+        let invalid_value = if semantic_path.len() != path.len() {
+            raw_input_value_at_path(field, &semantic_path)
+                .map(raw_input_display)
+                .unwrap_or_else(|| leaf_invalid_value.to_string())
+        } else {
+            leaf_invalid_value.to_string()
+        };
+        let input_field = admin_graphql::input_field_at_path(
+            version,
+            document.operation_type,
+            &field.name,
+            &semantic_path,
+        )?;
+        let (owner_kind, owner_name, location) = if semantic_path.len() == 1 {
+            ("Field", field.name.clone(), field.location)
+        } else {
+            (
+                "InputObject",
+                admin_graphql::input_owner_at_path(
+                    version,
+                    document.operation_type,
+                    &field.name,
+                    &semantic_path,
+                )?,
+                inline_argument_value_location(query, field, path[0]).unwrap_or(field.location),
+            )
+        };
+        let argument_name = semantic_path.last()?;
+        let mut error_path = document_field_path(document, &field.response_key);
+        error_path.extend(input_path_values(semantic_path.iter().copied()));
+        return Some(json!({
+            "message": format!(
+                "Argument '{argument_name}' on {owner_kind} '{owner_name}' has an invalid value ({invalid_value}). Expected type '{}'.",
+                input_field.type_display
+            ),
+            "locations": locations(location),
+            "path": error_path,
+            "extensions": {
+                "code": "argumentLiteralsIncompatible",
+                "typeName": owner_kind,
+                "argumentName": argument_name
+            }
+        }));
+    }
+    if rest.starts_with("expected type \"")
+        && matches!(
+            raw_input_value_at_path(field, &path),
+            Some(RawArgumentValue::Null)
+        )
+    {
+        let input_field = admin_graphql::input_field_at_path(
+            version,
+            document.operation_type,
+            &field.name,
+            &path,
+        )?;
+        let (owner_kind, owner_name, location) = if path.len() == 1 {
+            ("Field", field.name.clone(), field.location)
+        } else {
+            (
+                "InputObject",
+                admin_graphql::input_owner_at_path(
+                    version,
+                    document.operation_type,
+                    &field.name,
+                    &path,
+                )?,
+                inline_argument_value_location(query, field, path[0]).unwrap_or(field.location),
+            )
+        };
+        let argument_name = path.last()?;
+        let mut error_path = document_field_path(document, &field.response_key);
+        error_path.extend(path_values);
+        return Some(json!({
+            "message": format!(
+                "Argument '{argument_name}' on {owner_kind} '{owner_name}' has an invalid value (null). Expected type '{}'.",
+                input_field.type_display
+            ),
+            "locations": locations(location),
+            "path": error_path,
+            "extensions": {
+                "code": "argumentLiteralsIncompatible",
+                "typeName": owner_kind,
+                "argumentName": argument_name
+            }
+        }));
+    }
+    if rest == "expected type \"ID\"" {
+        let raw_value = raw_input_value_at_path(field, &path)?;
+        let invalid_id = match raw_value {
+            RawArgumentValue::String(value) => value.clone(),
+            RawArgumentValue::Int(value) => value.to_string(),
+            _ => return None,
+        };
+        let mut error_path = document_field_path(document, &field.response_key);
+        error_path.extend(path_values);
+        return Some(json!({
+            "message": format!("Invalid global id '{invalid_id}'"),
+            "locations": locations(field.location),
+            "path": error_path,
+            "extensions": {
+                "code": "argumentLiteralsIncompatible",
+                "typeName": "CoercionError"
+            }
+        }));
+    }
+    if rest.starts_with("expected type \"") {
+        let raw_value = raw_input_value_at_path(field, &path)?;
+        let input_field = admin_graphql::input_field_at_path(
+            version,
+            document.operation_type,
+            &field.name,
+            &path,
+        )?;
+        let (owner_kind, owner_name, location) = if path.len() == 1 {
+            ("Field", field.name.clone(), field.location)
+        } else {
+            (
+                "InputObject",
+                admin_graphql::input_owner_at_path(
+                    version,
+                    document.operation_type,
+                    &field.name,
+                    &path,
+                )?,
+                inline_argument_value_location(query, field, path[0]).unwrap_or(field.location),
+            )
+        };
+        let argument_name = path.last()?;
+        let mut error_path = document_field_path(document, &field.response_key);
+        error_path.extend(path_values);
+        return Some(json!({
+            "message": format!(
+                "Argument '{argument_name}' on {owner_kind} '{owner_name}' has an invalid value ({}). Expected type '{}'.",
+                raw_input_display(raw_value),
+                input_field.type_display
+            ),
+            "locations": locations(location),
+            "path": error_path,
+            "extensions": {
+                "code": "argumentLiteralsIncompatible",
+                "typeName": owner_kind,
+                "argumentName": argument_name
+            }
+        }));
+    }
+    None
+}
+
+fn expand_inline_unknown_input_errors(
+    version: AdminApiVersion,
+    document: &ParsedDocument,
+    query: &str,
+    error: &Value,
+) -> Option<Vec<Value>> {
+    let extensions = error.get("extensions")?.as_object()?;
+    if extensions.get("code").and_then(Value::as_str) != Some("argumentNotAccepted")
+        || extensions.get("typeName").and_then(Value::as_str) != Some("InputObject")
+    {
+        return None;
+    }
+    let input_type = extensions.get("name")?.as_str()?;
+    let error_path = error.get("path")?.as_array()?;
+    if error_path.len() < 4 {
+        return None;
+    }
+    let response_key = error_path.get(1)?.as_str()?;
+    let field = document
+        .root_fields
+        .iter()
+        .find(|field| field.response_key == response_key)?;
+    let parent_path = error_path[2..error_path.len() - 1]
+        .iter()
+        .map(|segment| {
+            segment
+                .as_str()
+                .map(str::to_string)
+                .or_else(|| segment.as_u64().map(|value| value.to_string()))
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let parent_path_refs = parent_path.iter().map(String::as_str).collect::<Vec<_>>();
+    let RawArgumentValue::Object(input_fields) = raw_input_value_at_path(field, &parent_path_refs)?
+    else {
+        return None;
+    };
+    let known_fields = admin_graphql::input_object_fields(version, input_type)?
+        .into_iter()
+        .map(|field| field.name)
+        .collect::<BTreeSet<_>>();
+    let target_depth = 1 + parent_path.len() as i32;
+    let fallback_location = error_location(error)
+        .map(|(line, column)| SourceLocation { line, column })
+        .unwrap_or(field.location);
+    let mut unknown_fields = input_fields
+        .keys()
+        .filter(|name| !known_fields.contains(*name))
+        .map(|name| {
+            let location =
+                inline_input_field_name_location(query, field.location, target_depth, name)
+                    .unwrap_or(fallback_location);
+            (location, name.clone())
+        })
+        .collect::<Vec<_>>();
+    if unknown_fields.len() <= 1 {
+        return None;
+    }
+    unknown_fields.sort_by_key(|(location, name)| (location.line, location.column, name.clone()));
+
+    Some(
+        unknown_fields
+            .into_iter()
+            .map(|(location, argument_name)| {
+                let mut path = document_field_path(document, response_key);
+                path.extend(input_path_values(parent_path_refs.iter().copied()));
+                path.push(json!(argument_name));
+                json!({
+                    "message": format!(
+                        "InputObject '{input_type}' doesn't accept argument '{argument_name}'"
+                    ),
+                    "locations": [{ "line": location.line, "column": location.column }],
+                    "path": path,
+                    "extensions": {
+                        "code": "argumentNotAccepted",
+                        "name": input_type,
+                        "typeName": "InputObject",
+                        "argumentName": argument_name
+                    }
+                })
+            })
+            .collect(),
+    )
+}
+
+fn expand_inline_missing_input_errors(
+    version: AdminApiVersion,
+    document: &ParsedDocument,
+    error: &Value,
+) -> Option<Vec<Value>> {
+    let extensions = error.get("extensions")?.as_object()?;
+    if extensions.get("code").and_then(Value::as_str) != Some("missingRequiredInputObjectAttribute")
+    {
+        return None;
+    }
+    let input_type = extensions.get("inputObjectType")?.as_str()?;
+    let error_path = error.get("path")?.as_array()?;
+    if error_path.len() < 4 {
+        return None;
+    }
+    let response_key = error_path.get(1)?.as_str()?;
+    let field = document
+        .root_fields
+        .iter()
+        .find(|field| field.response_key == response_key)?;
+    let parent_path = error_path[2..error_path.len() - 1]
+        .iter()
+        .map(|segment| {
+            segment
+                .as_str()
+                .map(str::to_string)
+                .or_else(|| segment.as_u64().map(|value| value.to_string()))
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let parent_path_refs = parent_path.iter().map(String::as_str).collect::<Vec<_>>();
+    let RawArgumentValue::Object(provided_fields) =
+        raw_input_value_at_path(field, &parent_path_refs)?
+    else {
+        return None;
+    };
+    let mut missing_fields = admin_graphql::input_object_fields(version, input_type)?
+        .into_iter()
+        .filter(|field| field.required && !provided_fields.contains_key(&field.name))
+        .collect::<Vec<_>>();
+    // async-graphql reports missing inline input fields in its registry order,
+    // which is lexical. Expand the complete set in that same order while
+    // variable coercion continues to follow the incoming JSON object order.
+    missing_fields.sort_by(|left, right| left.name.cmp(&right.name));
+    if missing_fields.len() <= 1 {
+        return None;
+    }
+    let location = error_location(error)
+        .map(|(line, column)| SourceLocation { line, column })
+        .unwrap_or(field.location);
+
+    Some(
+        missing_fields
+            .into_iter()
+            .map(|missing| {
+                let mut path = document_field_path(document, response_key);
+                path.extend(input_path_values(parent_path_refs.iter().copied()));
+                path.push(json!(missing.name));
+                json!({
+                    "message": format!(
+                        "Argument '{}' on InputObject '{input_type}' is required. Expected type {}",
+                        missing.name, missing.type_display
+                    ),
+                    "locations": [{ "line": location.line, "column": location.column }],
+                    "path": path,
+                    "extensions": {
+                        "code": "missingRequiredInputObjectAttribute",
+                        "argumentName": missing.name,
+                        "argumentType": missing.type_display,
+                        "inputObjectType": input_type
+                    }
+                })
+            })
+            .collect(),
+    )
+}
+
+fn raw_input_value_at_path<'a>(
+    field: &'a RootFieldSelection,
+    path: &[&str],
+) -> Option<&'a RawArgumentValue> {
+    let mut value = field.raw_arguments.get(*path.first()?)?;
+    for segment in path.iter().skip(1) {
+        value = match value {
+            RawArgumentValue::Object(fields) => fields.get(*segment)?,
+            RawArgumentValue::List(items) => items.get(segment.parse::<usize>().ok()?)?,
+            _ => return None,
+        };
+    }
+    Some(value)
+}
+
+fn raw_input_display(value: &RawArgumentValue) -> String {
+    match value {
+        RawArgumentValue::String(value) => json!(value).to_string(),
+        RawArgumentValue::Int(value) => value.to_string(),
+        RawArgumentValue::Float(value) => value.to_string(),
+        RawArgumentValue::Bool(value) => value.to_string(),
+        RawArgumentValue::Null => "null".to_string(),
+        RawArgumentValue::Enum(value) => value.clone(),
+        RawArgumentValue::List(values) => format!(
+            "[{}]",
+            values
+                .iter()
+                .map(raw_input_display)
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        RawArgumentValue::Object(fields) => format!(
+            "{{{}}}",
+            fields
+                .iter()
+                .map(|(name, value)| format!("{name}: {}", raw_input_display(value)))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        RawArgumentValue::Variable { name, .. } => format!("${name}"),
+    }
+}
+
+fn shopify_unknown_directive_argument_error(
+    message: &str,
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+    engine_error: &Value,
+) -> Option<Value> {
+    let rest = message.strip_prefix("Unknown argument \"")?;
+    let (argument_name, rest) = rest.split_once("\" on directive \"")?;
+    let (directive_name, _) = rest.split_once('"')?;
+    let invocation = directive_invocations(query, variables)?
+        .into_iter()
+        .find(|invocation| {
+            invocation.name == directive_name
+                && invocation.raw_arguments.contains_key(argument_name)
+        })?;
+    let mut path = invocation
+        .path
+        .iter()
+        .map(|segment| json!(segment))
+        .collect::<Vec<_>>();
+    path.push(json!(argument_name));
+    Some(json!({
+        "message": format!(
+            "Directive '{directive_name}' doesn't accept argument '{argument_name}'"
+        ),
+        "locations": engine_error
+            .get("locations")
+            .cloned()
+            .unwrap_or_else(|| json!([])),
+        "path": path,
+        "extensions": {
+            "code": "argumentNotAccepted",
+            "name": directive_name,
+            "typeName": "Directive",
+            "argumentName": argument_name
+        }
+    }))
+}
+
+fn supplied_variable<'a>(
+    variables: &'a BTreeMap<String, ResolvedValue>,
+    name: &str,
+) -> Option<&'a ResolvedValue> {
+    variables.get(name)
+}
+
+fn response_path_for_location(
+    document: &ParsedDocument,
+    location: (usize, usize),
+) -> Option<Vec<Value>> {
+    for field in &document.root_fields {
+        let mut path = document_field_path(document, &field.response_key);
+        if (field.location.line, field.location.column) == location {
+            return Some(path);
+        }
+        if selected_response_path_for_location(&field.selection, location, &mut path) {
+            return Some(path);
+        }
+    }
+    nearest_response_path(document, location)
+}
+
+fn nearest_response_path(
+    document: &ParsedDocument,
+    location: (usize, usize),
+) -> Option<Vec<Value>> {
+    let mut best: Option<((usize, usize), Vec<Value>)> = None;
+    for field in &document.root_fields {
+        let path = document_field_path(document, &field.response_key);
+        consider_nearest_path(field.location, &path, location, &mut best);
+        nearest_selected_response_path(&field.selection, location, path, &mut best);
+    }
+    best.map(|(_, path)| path)
+}
+
+fn document_field_path(document: &ParsedDocument, response_key: &str) -> Vec<Value> {
+    vec![json!(document.operation_path), json!(response_key)]
+}
+
+fn nearest_selected_response_path(
+    fields: &[SelectedField],
+    location: (usize, usize),
+    path: Vec<Value>,
+    best: &mut Option<((usize, usize), Vec<Value>)>,
+) {
+    for field in fields {
+        let mut field_path = path.clone();
+        field_path.push(json!(field.response_key));
+        consider_nearest_path(field.location, &field_path, location, best);
+        nearest_selected_response_path(&field.selection, location, field_path, best);
+    }
+}
+
+fn consider_nearest_path(
+    candidate: SourceLocation,
+    path: &[Value],
+    location: (usize, usize),
+    best: &mut Option<((usize, usize), Vec<Value>)>,
+) {
+    let position = (candidate.line, candidate.column);
+    if position > location
+        || best
+            .as_ref()
+            .is_some_and(|(current, _)| *current >= position)
+    {
+        return;
+    }
+    *best = Some((position, path.to_vec()));
+}
+
+fn selected_response_path_for_location(
+    fields: &[SelectedField],
+    location: (usize, usize),
+    path: &mut Vec<Value>,
+) -> bool {
+    for field in fields {
+        path.push(json!(field.response_key));
+        if (field.location.line, field.location.column) == location
+            || selected_response_path_for_location(&field.selection, location, path)
+        {
+            return true;
+        }
+        path.pop();
+    }
+    false
+}
+
+fn required_variable_error(
+    document: &ParsedDocument,
+    supplied_variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<Value> {
+    let definition = document.variable_definitions.values().find(|definition| {
+        definition.type_display.ends_with('!')
+            && match supplied_variables.get(&definition.name) {
+                Some(ResolvedValue::Null) => true,
+                Some(_) => false,
+                None => definition.default_value.is_none(),
+            }
+    })?;
+    Some(json!({
+        "message": format!(
+            "Variable ${} of type {} was provided invalid value",
+            definition.name, definition.type_display
+        ),
+        "locations": [{
+            "line": definition.location.line,
+            "column": definition.location.column
+        }],
+        "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": null,
+            "problems": [{
+                "path": [],
+                "explanation": "Expected value to not be null"
+            }]
+        }
+    }))
+}
+
+fn product_create_argument_arity_error(document: &ParsedDocument) -> Option<Value> {
+    if document.operation_type != OperationType::Mutation {
+        return None;
+    }
+    let field = document
+        .root_fields
+        .iter()
+        .find(|field| field.name == "productCreate")?;
+    let accepted_argument_count = usize::from(field.raw_arguments.contains_key("input"))
+        + usize::from(field.raw_arguments.contains_key("product"));
+    if accepted_argument_count == 1 {
+        return None;
+    }
+    Some(json!({
+        "data": { field.response_key.clone(): Value::Null },
+        "errors": [{
+            "message": "productCreate must include exactly one of the following arguments: input, product.",
+            "locations": [{
+                "line": field.location.line,
+                "column": field.location.column
+            }],
+            "extensions": { "code": "INVALID_FIELD_ARGUMENTS" },
+            "path": [field.response_key.clone()]
+        }]
+    }))
+}
+
+fn directive_variable_mismatch_error(
+    document: &ParsedDocument,
+    query: &str,
+    supplied_variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<Value> {
+    let invocations = directive_invocations(query, supplied_variables)?;
+    for invocation in invocations {
+        for (argument_name, argument) in &invocation.raw_arguments {
+            let RawArgumentValue::Variable { name, .. } = argument else {
+                continue;
+            };
+            let Some(definition) = document.variable_definitions.get(name) else {
+                let location =
+                    argument_value_location_after(query, invocation.location, argument_name)
+                        .unwrap_or(invocation.location);
+                let mut path = invocation
+                    .path
+                    .iter()
+                    .map(|segment| json!(segment))
+                    .collect::<Vec<_>>();
+                path.push(json!(argument_name));
+                let operation = document.operation_name.as_deref().map_or_else(
+                    || format!("anonymous {}", document.operation_type.keyword()),
+                    |name| format!("{} {name}", document.operation_type.keyword()),
+                );
+                return Some(json!({
+                    "message": format!(
+                        "Variable ${name} is used by {operation} but not declared"
+                    ),
+                    "locations": [{
+                        "line": location.line,
+                        "column": location.column
+                    }],
+                    "path": path,
+                    "extensions": {
+                        "code": "variableNotDefined",
+                        "variableName": name
+                    }
+                }));
+            };
+            let expected_type = match (invocation.name.as_str(), argument_name.as_str()) {
+                ("include" | "skip", "if") => "Boolean!",
+                _ => continue,
+            };
+            if definition.type_display.ends_with('!') || definition.default_value.is_some() {
+                continue;
+            }
+            let location = argument_name_location_after(query, invocation.location, argument_name)
+                .unwrap_or(invocation.location);
+            let mut path = invocation
+                .path
+                .iter()
+                .map(|segment| json!(segment))
+                .collect::<Vec<_>>();
+            path.push(json!(argument_name));
+            return Some(json!({
+                "message": format!(
+                    "Nullability mismatch on variable ${name} and argument {argument_name} ({} / {expected_type})",
+                    definition.type_display
+                ),
+                "locations": [{
+                    "line": location.line,
+                    "column": location.column
+                }],
+                "path": path,
+                "extensions": {
+                    "code": "variableMismatch",
+                    "variableName": name,
+                    "typeName": definition.type_display,
+                    "argumentName": argument_name,
+                    "errorMessage": "Nullability mismatch"
+                }
+            }));
+        }
+    }
+    None
+}
+
+fn async_graphql_missing_field_argument(message: &str) -> Option<(String, String)> {
+    let rest = message.strip_prefix("Field \"")?;
+    let (field_name, rest) = rest.split_once("\" argument \"")?;
+    let (argument_name, rest) = rest.split_once('"')?;
+    rest.contains("is required but not provided")
+        .then(|| (field_name.to_string(), argument_name.to_string()))
+}
+
+fn merge_resolved_root_responses(responses: &BTreeMap<String, Response>) -> Value {
+    let mut data = serde_json::Map::new();
+    let mut errors = Vec::new();
+    for response in responses.values() {
+        if let Some(response_data) = response.body.get("data").and_then(Value::as_object) {
+            data.extend(response_data.clone());
+        }
+        if let Some(response_errors) = response.body.get("errors").and_then(Value::as_array) {
+            errors.extend(response_errors.iter().cloned());
+        }
+    }
+    let mut body = serde_json::Map::new();
+    body.insert("data".to_string(), Value::Object(data));
+    if !errors.is_empty() {
+        body.insert("errors".to_string(), Value::Array(errors));
+    }
+    Value::Object(body)
+}
+
+fn strip_unselected_typenames_from_response(body: &mut Value, document: &ParsedDocument) {
+    let Some(data) = body.get_mut("data").and_then(Value::as_object_mut) else {
+        return;
+    };
+    for field in &document.root_fields {
+        if let Some(value) = data.get_mut(&field.response_key) {
+            strip_unselected_typenames(value, &field.selection);
+        }
+    }
+}
+
+fn strip_unselected_typenames(value: &mut Value, selection: &[SelectedField]) {
+    if let Some(values) = value.as_array_mut() {
+        for value in values {
+            strip_unselected_typenames(value, selection);
+        }
+        return;
+    }
+    let Some(object) = value.as_object_mut() else {
+        return;
+    };
+    if !selection.iter().any(|field| field.name == "__typename") {
+        object.remove("__typename");
+    }
+    for field in selection {
+        if field.selection.is_empty() {
+            continue;
+        }
+        if let Some(value) = object.get_mut(&field.response_key) {
+            strip_unselected_typenames(value, &field.selection);
+        }
+    }
+}
+
+fn strip_idempotent_directives(query: &str) -> String {
+    let bytes = query.as_bytes();
+    let mut output = bytes.to_vec();
+    let mut index = 0;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'#' => {
+                index += 1;
+                while index < bytes.len() && bytes[index] != b'\n' {
+                    index += 1;
+                }
+            }
+            b'"' if bytes.get(index..index + 3) == Some(b"\"\"\"") => {
+                index += 3;
+                while index < bytes.len() {
+                    if bytes.get(index..index + 3) == Some(b"\"\"\"") {
+                        index += 3;
+                        break;
+                    }
+                    index += 1;
+                }
+            }
+            b'"' => {
+                index += 1;
+                while index < bytes.len() {
+                    match bytes[index] {
+                        b'\\' => index = (index + 2).min(bytes.len()),
+                        b'"' => {
+                            index += 1;
+                            break;
+                        }
+                        _ => index += 1,
+                    }
+                }
+            }
+            b'@' if bytes.get(index + 1..index + 11) == Some(b"idempotent")
+                && bytes
+                    .get(index + 11)
+                    .is_none_or(|byte| !byte.is_ascii_alphanumeric() && *byte != b'_') =>
+            {
+                let start = index;
+                index += 11;
+                while index < bytes.len() && bytes[index].is_ascii_whitespace() {
+                    index += 1;
+                }
+                if bytes.get(index) == Some(&b'(') {
+                    let mut depth = 0usize;
+                    while index < bytes.len() {
+                        match bytes[index] {
+                            b'"' => {
+                                index += 1;
+                                while index < bytes.len() {
+                                    match bytes[index] {
+                                        b'\\' => index = (index + 2).min(bytes.len()),
+                                        b'"' => {
+                                            index += 1;
+                                            break;
+                                        }
+                                        _ => index += 1,
+                                    }
+                                }
+                            }
+                            b'(' => {
+                                depth += 1;
+                                index += 1;
+                            }
+                            b')' => {
+                                depth = depth.saturating_sub(1);
+                                index += 1;
+                                if depth == 0 {
+                                    break;
+                                }
+                            }
+                            _ => index += 1,
+                        }
+                    }
+                }
+                for byte in &mut output[start..index] {
+                    if !matches!(*byte, b'\n' | b'\r') {
+                        *byte = b' ';
+                    }
+                }
+            }
+            _ => index += 1,
+        }
+    }
+    blank_unused_idempotency_key_definition(&mut output);
+    // Every replaced byte is ASCII and untouched spans retain their original
+    // UTF-8, so this conversion cannot fail.
+    String::from_utf8(output).expect("directive stripping should preserve UTF-8")
+}
+
+/// Shopify accepts a bare `origin` selection on store-credit transactions even
+/// though introspection exposes `StoreCreditAccountTransactionOrigin` as a
+/// union. Captured responses currently return `null` for that selection. Keep
+/// the executable schema honest for ordinary union selections, but add the
+/// smallest valid selection to the engine-only document for this observed
+/// Shopify exception. Domain handlers and response cleanup still use the
+/// caller's original document, so the synthetic `__typename` never leaks.
+fn expand_bare_store_credit_origin_selections(query: &str) -> String {
+    if !(query.contains("storeCreditAccountCredit")
+        || query.contains("storeCreditAccountDebit")
+        || query.contains("StoreCreditAccountTransaction")
+        || query.contains("StoreCreditAccountCreditTransaction")
+        || query.contains("StoreCreditAccountDebitTransaction"))
+    {
+        return query.to_string();
+    }
+
+    let bytes = query.as_bytes();
+    let mut output = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'#' => {
+                let start = index;
+                index += 1;
+                while index < bytes.len() && bytes[index] != b'\n' {
+                    index += 1;
+                }
+                output.extend_from_slice(&bytes[start..index]);
+            }
+            b'"' if bytes.get(index..index + 3) == Some(b"\"\"\"") => {
+                let start = index;
+                index += 3;
+                while index < bytes.len() {
+                    if bytes.get(index..index + 3) == Some(b"\"\"\"") {
+                        index += 3;
+                        break;
+                    }
+                    index += 1;
+                }
+                output.extend_from_slice(&bytes[start..index]);
+            }
+            b'"' => {
+                let start = index;
+                index += 1;
+                while index < bytes.len() {
+                    match bytes[index] {
+                        b'\\' => index = (index + 2).min(bytes.len()),
+                        b'"' => {
+                            index += 1;
+                            break;
+                        }
+                        _ => index += 1,
+                    }
+                }
+                output.extend_from_slice(&bytes[start..index]);
+            }
+            byte if byte.is_ascii_alphabetic() || byte == b'_' => {
+                let start = index;
+                index += 1;
+                while index < bytes.len()
+                    && (bytes[index].is_ascii_alphanumeric() || bytes[index] == b'_')
+                {
+                    index += 1;
+                }
+                output.extend_from_slice(&bytes[start..index]);
+                if &bytes[start..index] != b"origin" {
+                    continue;
+                }
+                let mut next = index;
+                while next < bytes.len() && bytes[next].is_ascii_whitespace() {
+                    next += 1;
+                }
+                if bytes.get(next).is_some_and(|next| {
+                    matches!(*next, b'}' | b',' | b'.')
+                        || next.is_ascii_alphabetic()
+                        || *next == b'_'
+                }) {
+                    output.extend_from_slice(b" { __typename }");
+                }
+            }
+            byte => {
+                output.push(byte);
+                index += 1;
+            }
+        }
+    }
+    String::from_utf8(output).expect("store-credit query expansion should preserve UTF-8")
+}
+
+fn blank_unused_idempotency_key_definition(output: &mut [u8]) {
+    const VARIABLE: &[u8] = b"$idempotencyKey";
+    let positions = output
+        .windows(VARIABLE.len())
+        .enumerate()
+        .filter_map(|(index, candidate)| (candidate == VARIABLE).then_some(index))
+        .collect::<Vec<_>>();
+    if positions.len() != 1 {
+        return;
+    }
+    let start = positions[0];
+    let mut end = start + VARIABLE.len();
+    while end < output.len() && !matches!(output[end], b',' | b')') {
+        end += 1;
+    }
+    for byte in &mut output[start..end] {
+        if !matches!(*byte, b'\n' | b'\r') {
+            *byte = b' ';
+        }
+    }
+}
+
 fn single_root_operation_query(
     operation_type: OperationType,
     field: &RootFieldSelection,
@@ -3698,48 +5822,7 @@ fn quote_graphql_string(value: &str) -> String {
     serde_json::to_string(value).unwrap_or_else(|_| "\"\"".to_string())
 }
 
-fn merge_multi_root_field_response(
-    data: &mut serde_json::Map<String, Value>,
-    errors: &mut Vec<Value>,
-    response_key: &str,
-    response: Response,
-) {
-    let mut has_data_key = false;
-    if let Some(response_data) = response.body.get("data").and_then(Value::as_object) {
-        if let Some(value) = response_data.get(response_key) {
-            data.insert(response_key.to_string(), value.clone());
-            has_data_key = true;
-        }
-    }
-    if !has_data_key {
-        data.insert(response_key.to_string(), Value::Null);
-    }
-
-    if let Some(response_errors) = response.body.get("errors").and_then(Value::as_array) {
-        errors.extend(
-            response_errors
-                .iter()
-                .cloned()
-                .map(|error| error_with_default_path(error, response_key)),
-        );
-    } else if response.status >= 400 {
-        errors.push(json!({
-            "message": format!("GraphQL root `{response_key}` failed with status {}", response.status),
-            "path": [response_key]
-        }));
-    }
-}
-
-fn error_with_default_path(mut error: Value, response_key: &str) -> Value {
-    if let Some(object) = error.as_object_mut() {
-        object
-            .entry("path".to_string())
-            .or_insert_with(|| json!([response_key]));
-    }
-    error
-}
-
-fn local_node_value(
+pub(in crate::proxy) fn local_node_value(
     id: &str,
     selection: &[SelectedField],
     backup_region: Option<&Value>,
@@ -3779,4 +5862,57 @@ fn finance_risk_no_data_read_data(fields: &[RootFieldSelection]) -> Value {
             _ => Value::Null,
         })
     })
+}
+
+#[cfg(test)]
+mod graphql_compatibility_tests {
+    use super::expand_bare_store_credit_origin_selections;
+
+    #[test]
+    fn expands_only_bare_store_credit_origin_fields_for_engine_validation() {
+        let query = r#"
+            mutation StoreCredit {
+              storeCreditAccountCredit(id: "gid://shopify/Customer/1", creditInput: { creditAmount: { amount: "1", currencyCode: USD } }) {
+                storeCreditAccountTransaction {
+                  origin
+                  account { id }
+                }
+              }
+            }
+        "#;
+        let expanded = expand_bare_store_credit_origin_selections(query);
+        assert!(expanded.contains("origin { __typename }"));
+        assert!(expanded.contains("account { id }"));
+
+        let selected = query.replace("origin\n", "origin { __typename }\n");
+        assert_eq!(
+            expand_bare_store_credit_origin_selections(&selected),
+            selected
+        );
+
+        let node_query =
+            "query { nodes(ids: []) { ... on StoreCreditAccountCreditTransaction { origin } } }";
+        assert!(expand_bare_store_credit_origin_selections(node_query)
+            .contains("origin { __typename }"));
+    }
+
+    #[test]
+    fn does_not_rewrite_origin_inside_inputs_strings_or_other_operations() {
+        let store_credit = r#"
+            mutation StoreCredit($input: ExampleInput = { origin: "origin" }) {
+              storeCreditAccountDebit(id: "gid://shopify/StoreCreditAccount/1", debitInput: { debitAmount: { amount: "1", currencyCode: USD } }) {
+                userErrors { message }
+              }
+            }
+        "#;
+        assert_eq!(
+            expand_bare_store_credit_origin_selections(store_credit),
+            store_credit
+        );
+        let unrelated = "query Inventory { inventoryTransfers(first: 1) { nodes { origin } } }";
+        assert_eq!(
+            expand_bare_store_credit_origin_selections(unrelated),
+            unrelated
+        );
+    }
 }

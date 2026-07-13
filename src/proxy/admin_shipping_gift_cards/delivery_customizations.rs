@@ -500,7 +500,7 @@ pub(in crate::proxy) fn delivery_customization_function_not_found_error(
 pub(in crate::proxy) fn delivery_customization_limit_error() -> Value {
     delivery_customization_user_error(
         vec!["deliveryCustomization", "enabled"],
-        "MAXIMUM_DELIVERY_CUSTOMIZATIONS",
+        "MAXIMUM_ACTIVE_DELIVERY_CUSTOMIZATIONS",
         "Cannot have more than 25 active delivery customizations.",
     )
 }

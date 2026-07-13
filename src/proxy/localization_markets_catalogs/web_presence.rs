@@ -310,7 +310,7 @@ fn web_presence_domain_context_unavailable_payload() -> Value {
         market_user_error(
             vec!["input", "subfolderSuffix"],
             "Shop domain context is unavailable for subfolder web presence URL generation.",
-            json!("UNSUPPORTED_IN_PROXY"),
+            json!("GENERIC_ERROR"),
         ),
     )
 }

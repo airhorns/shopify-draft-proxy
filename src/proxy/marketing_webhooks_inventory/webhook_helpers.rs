@@ -2,7 +2,12 @@ use super::*;
 
 pub(in crate::proxy) fn webhook_subscription_callback_url(uri: &str) -> Option<&str> {
     if uri.starts_with("arn:aws:events:") || uri.starts_with("pubsub://") {
-        None
+        // The captured schema keeps this deprecated field non-null even though
+        // Shopify omits it from cloud-delivery responses. Keep a private
+        // executor placeholder; the GraphQL response adapter removes it after
+        // non-null propagation has completed. `uri` and `endpoint` carry the
+        // actual EventBridge/PubSub destination.
+        Some("https://eventbridge.arn")
     } else {
         Some(uri)
     }

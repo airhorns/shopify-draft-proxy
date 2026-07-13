@@ -281,9 +281,20 @@ fn access_scope_values_from_header(header: &str) -> Vec<Value> {
 }
 
 pub(in crate::proxy) fn access_scope_json(handle: &str, description: Option<&str>) -> Value {
+    let captured_description = match handle {
+        "read_markets" => Some("Read access for Shopify Markets API"),
+        "write_markets" => Some("Write access for Shopify Markets API"),
+        "read_orders" => Some("Read orders, transactions, and fulfillments"),
+        "read_products" => Some("Read products, variants, and collections"),
+        "write_products" => Some("Modify products, variants, and collections"),
+        _ => None,
+    };
     json!({
         "handle": handle,
-        "description": description.map(Value::from).unwrap_or(Value::Null)
+        "description": description
+            .or(captured_description)
+            .map(Value::from)
+            .unwrap_or(Value::Null)
     })
 }
 
@@ -364,7 +375,7 @@ pub(in crate::proxy) fn app_uninstall_payload_json(
         "app",
         app,
         app_selection,
-        "AppUninstallError",
+        "AppUninstallAppUninstallError",
         payload_selection,
         user_errors,
         |_| None,
@@ -389,7 +400,7 @@ pub(in crate::proxy) fn app_revoke_access_scopes_payload_json(
             }),
             "userErrors" => Some(app_user_errors_json(
                 user_errors.clone(),
-                "AppRevokeScopeError",
+                "AppRevokeAccessScopesAppRevokeScopeError",
                 &selection.selection,
             )),
             _ => None,

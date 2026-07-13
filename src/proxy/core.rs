@@ -61,12 +61,14 @@ impl DraftProxy {
         Self {
             config,
             log_entries: Vec::new(),
-            registry: default_registry(),
+            registry: ResolverRegistry::new(default_registry()),
             store: Store::with_default_baseline(),
             next_synthetic_id: 1,
             shop_sells_subscriptions: None,
             clock: Arc::new(default_runtime_clock),
             last_mutation_timestamp: None,
+            engine_mutation_log_start: None,
+            engine_discount_refs_preflighted: false,
             commit_transport: Arc::new(default_commit_transport),
             upstream_transport: guarded_upstream_transport_from_arc(Arc::clone(
                 &upstream_transport,
@@ -76,7 +78,7 @@ impl DraftProxy {
     }
 
     pub fn with_registry(mut self, registry: Vec<OperationRegistryEntry>) -> Self {
-        self.registry = registry;
+        self.registry = ResolverRegistry::new(registry);
         self
     }
 
@@ -118,6 +120,11 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn current_epoch_seconds(&self) -> i64 {
         self.current_time().unix_timestamp()
+    }
+
+    pub(in crate::proxy) fn mutation_log_ordinal(&self) -> usize {
+        self.engine_mutation_log_start
+            .unwrap_or(self.log_entries.len())
     }
 
     pub(in crate::proxy) fn next_mutation_timestamp(&mut self) -> String {

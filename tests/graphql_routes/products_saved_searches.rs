@@ -72,6 +72,16 @@ fn assert_user_error_with_field_and_code(user_errors: &Value, field: Value, code
     );
 }
 
+fn assert_engine_resolver_failure(response: &Response, root: &str, message: &str) {
+    assert_eq!(response.body["errors"][0]["message"], json!(message));
+    assert_eq!(response.body["errors"][0]["path"], json!([root]));
+    assert!(
+        response.body["data"].is_null() || response.body["data"][root].is_null(),
+        "failed resolver `{root}` should be null in the engine response: {}",
+        response.body
+    );
+}
+
 fn location_of_empty_publication_id_object_literal(query: &str) -> Value {
     let needle = "{ publicationId: \"\"";
     let offset = query
@@ -451,7 +461,7 @@ fn create_product_media_for_test(
         .to_string()
 }
 
-fn create_legacy_variant_for_connection_test(
+fn create_variant_for_connection_test(
     proxy: &mut DraftProxy,
     product_id: &str,
     title: &str,
@@ -460,34 +470,40 @@ fn create_legacy_variant_for_connection_test(
     inventory_quantity: i64,
     tracked: bool,
 ) -> String {
+    let location_id =
+        staged_fulfillment_service_location_id(proxy, &format!("{sku} inventory location"));
     let response = proxy.process_request(json_graphql_request(
         r#"
-        mutation CreateVariantForConnectionTest($input: ProductVariantInput!) {
-          productVariantCreate(input: $input) {
-            productVariant { id }
+        mutation CreateVariantForConnectionTest(
+          $productId: ID!
+          $variants: [ProductVariantsBulkInput!]!
+        ) {
+          productVariantsBulkCreate(productId: $productId, variants: $variants) {
+            productVariants { id }
             userErrors { field message }
           }
         }
         "#,
         json!({
-            "input": {
-                "productId": product_id,
-                "title": title,
-                "sku": sku,
+            "productId": product_id,
+            "variants": [{
                 "price": "10.00",
                 "inventoryPolicy": inventory_policy,
-                "inventoryQuantity": inventory_quantity,
-                "selectedOptions": [{ "name": "Title", "value": title }],
-                "inventoryItem": { "tracked": tracked }
-            }
+                "inventoryQuantities": [{
+                    "locationId": location_id,
+                    "availableQuantity": inventory_quantity
+                }],
+                "optionValues": [{ "optionName": "Title", "name": title }],
+                "inventoryItem": { "sku": sku, "tracked": tracked }
+            }]
         }),
     ));
     assert_eq!(response.status, 200);
     assert_eq!(
-        response.body["data"]["productVariantCreate"]["userErrors"],
+        response.body["data"]["productVariantsBulkCreate"]["userErrors"],
         json!([])
     );
-    response.body["data"]["productVariantCreate"]["productVariant"]["id"]
+    response.body["data"]["productVariantsBulkCreate"]["productVariants"][0]["id"]
         .as_str()
         .expect("created variant id should be present")
         .to_string()
@@ -657,6 +673,7 @@ fn product_create_update_and_reorder_media_preserve_non_image_media_types() {
                     "alt": "Declared model"
                 },
                 {
+                    "mediaContentType": "VIDEO",
                     "originalSource": "https://cdn.example.com/inferred-video.MP4?download=1",
                     "alt": "Inferred video"
                 }
@@ -1752,13 +1769,13 @@ fn product_variants_read_respects_connection_arguments() {
 fn product_variants_connection_honors_sort_keys_and_reverse() {
     let product_id = "gid://shopify/Product/variant-sort-connection";
     let mut proxy = snapshot_proxy().with_base_products(vec![seed_product(product_id)]);
-    let zulu_id = create_legacy_variant_for_connection_test(
+    let zulu_id = create_variant_for_connection_test(
         &mut proxy, product_id, "Zulu", "SKU-C", "CONTINUE", 10, true,
     );
-    let alpha_id = create_legacy_variant_for_connection_test(
+    let alpha_id = create_variant_for_connection_test(
         &mut proxy, product_id, "Alpha", "SKU-A", "DENY", 30, false,
     );
-    let middle_id = create_legacy_variant_for_connection_test(
+    let middle_id = create_variant_for_connection_test(
         &mut proxy, product_id, "Middle", "SKU-B", "CONTINUE", 20, true,
     );
 
@@ -1854,19 +1871,19 @@ fn product_collections_connection_honors_sort_keys_reverse_and_windowing() {
             "id": "gid://shopify/Collection/30",
             "title": "Zulu",
             "handle": "zulu",
-            "createdAt": "2024-01-02T00:00:00.000Z"
+            "updatedAt": "2024-01-02T00:00:00.000Z"
         }),
         json!({
             "id": "gid://shopify/Collection/10",
             "title": "Alpha",
             "handle": "alpha",
-            "createdAt": "2024-01-03T00:00:00.000Z"
+            "updatedAt": "2024-01-03T00:00:00.000Z"
         }),
         json!({
             "id": "gid://shopify/Collection/20",
             "title": "Middle",
             "handle": "middle",
-            "createdAt": "2024-01-01T00:00:00.000Z"
+            "updatedAt": "2024-01-01T00:00:00.000Z"
         }),
     ];
     let mut proxy = snapshot_proxy().with_base_products(vec![product]);
@@ -1923,7 +1940,7 @@ fn product_collections_connection_honors_sort_keys_reverse_and_windowing() {
             ],
         ),
         (
-            "CREATED",
+            "UPDATED_AT",
             false,
             vec![
                 "gid://shopify/Collection/20",
@@ -2052,15 +2069,8 @@ fn product_and_variant_media_connections_return_windowed_edges_and_page_info() {
         })
     );
 
-    let variant_id = create_legacy_variant_for_connection_test(
-        &mut proxy,
-        product_id,
-        "Media Variant",
-        "MEDIA-VARIANT",
-        "DENY",
-        1,
-        true,
-    );
+    let variant = create_legacy_variant(&mut proxy, product_id, "MEDIA-VARIANT", "10.00");
+    let variant_id = variant["id"].as_str().unwrap().to_string();
     let append = proxy.process_request(json_graphql_request(
         r#"
         mutation AttachVariantMedia($productId: ID!, $variantMedia: [ProductVariantAppendMediaInput!]!) {
@@ -2313,435 +2323,6 @@ fn product_read_serializes_only_requested_scalar_fields() {
                     "handle": "seeded-product"
                 }
             }
-        })
-    );
-}
-
-#[test]
-fn legacy_product_variant_roots_stage_variants_into_product_graph() {
-    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
-        id: "gid://shopify/Product/1".to_string(),
-        created_at: "2024-01-01T00:00:00.000Z".to_string(),
-        updated_at: "2024-01-01T00:00:00.000Z".to_string(),
-        title: "Seeded product".to_string(),
-        handle: "seeded-product".to_string(),
-        status: "ACTIVE".to_string(),
-        description_html: String::new(),
-        vendor: String::new(),
-        product_type: String::new(),
-        tags: Vec::new(),
-        template_suffix: String::new(),
-        seo_title: String::new(),
-        seo_description: String::new(),
-        ..ProductRecord::default()
-    }]);
-
-    let create = proxy.process_request(json_graphql_request(
-        r#"
-        mutation LegacyVariantCreate($input: ProductVariantInput!) {
-          productVariantCreate(input: $input) {
-            product { id totalInventory tracksInventory variants(first: 10) { nodes { id sku price selectedOptions { name value } } } }
-            productVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity taxCode showUnitPrice unitPriceMeasurement { quantityValue quantityUnit referenceValue referenceUnit } selectedOptions { name value } inventoryItem { id tracked requiresShipping countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode measurement { weight { value unit } } } }
-            userErrors { field message }
-          }
-        }
-        "#,
-        json!({
-            "input": {
-                "productId": "gid://shopify/Product/1",
-                "title": "Blue",
-                "sku": "LEGACY-BLUE",
-                "barcode": "2222222222222",
-                "price": "9.99",
-                "compareAtPrice": "12.50",
-                "taxable": false,
-                "inventoryPolicy": "CONTINUE",
-                "inventoryQuantity": 7,
-                "taxCode": "PC040100",
-                "showUnitPrice": true,
-                "unitPriceMeasurement": {
-                    "quantityValue": 1,
-                    "quantityUnit": "L",
-                    "referenceValue": 100,
-                    "referenceUnit": "ML"
-                },
-                "selectedOptions": [{ "name": "Color", "value": "Blue" }],
-                "inventoryItem": {
-                    "tracked": true,
-                    "requiresShipping": false,
-                    "countryCodeOfOrigin": "CA",
-                    "provinceCodeOfOrigin": "ON",
-                    "harmonizedSystemCode": "1234.56",
-                    "measurement": { "weight": { "value": 2.5, "unit": "KILOGRAMS" } }
-                }
-            }
-        }),
-    ));
-
-    assert_eq!(create.status, 200);
-    assert_eq!(
-        create.body["data"]["productVariantCreate"]["productVariant"]["sku"],
-        json!("LEGACY-BLUE")
-    );
-    assert_eq!(
-        create.body["data"]["productVariantCreate"]["productVariant"]["price"],
-        json!("9.99")
-    );
-    assert_eq!(
-        create.body["data"]["productVariantCreate"]["productVariant"]["taxCode"],
-        json!("PC040100")
-    );
-    assert_eq!(
-        create.body["data"]["productVariantCreate"]["productVariant"]["inventoryItem"]
-            ["harmonizedSystemCode"],
-        json!("123456")
-    );
-    assert_eq!(
-        create.body["data"]["productVariantCreate"]["productVariant"]["inventoryItem"]
-            ["measurement"]["weight"]["value"],
-        json!(2.5)
-    );
-    assert_eq!(
-        create.body["data"]["productVariantCreate"]["product"]["variants"]["nodes"][0]["sku"],
-        json!("LEGACY-BLUE")
-    );
-    let variant_id = create.body["data"]["productVariantCreate"]["productVariant"]["id"]
-        .as_str()
-        .expect("variant id should be synthesized")
-        .to_string();
-    let inventory_item_id = create.body["data"]["productVariantCreate"]["productVariant"]
-        ["inventoryItem"]["id"]
-        .as_str()
-        .expect("inventory item id should be synthesized")
-        .to_string();
-
-    let read_after_create = proxy.process_request(json_graphql_request(
-        r#"
-        query LegacyVariantReadAfterWrite($productId: ID!, $variantId: ID!, $inventoryItemId: ID!) {
-          product(id: $productId) { id variants(first: 10) { nodes { id sku price taxCode inventoryItem { id tracked requiresShipping countryCodeOfOrigin harmonizedSystemCode } } } }
-          variant: productVariant(id: $variantId) { id sku price showUnitPrice product { id title } inventoryItem { id tracked requiresShipping measurement { weight { value unit } } } }
-          stock: inventoryItem(id: $inventoryItemId) { id tracked requiresShipping countryCodeOfOrigin harmonizedSystemCode variant { id sku inventoryQuantity product { id title } } }
-        }
-        "#,
-        json!({
-            "productId": "gid://shopify/Product/1",
-            "variantId": variant_id,
-            "inventoryItemId": inventory_item_id
-        }),
-    ));
-    assert_eq!(read_after_create.status, 200);
-    assert_eq!(
-        read_after_create.body["data"]["product"]["variants"]["nodes"][0]["sku"],
-        json!("LEGACY-BLUE")
-    );
-    assert_eq!(
-        read_after_create.body["data"]["variant"]["price"],
-        json!("9.99")
-    );
-    assert_eq!(
-        read_after_create.body["data"]["product"]["variants"]["nodes"][0]["taxCode"],
-        json!("PC040100")
-    );
-    assert_eq!(
-        read_after_create.body["data"]["stock"]["harmonizedSystemCode"],
-        json!("123456")
-    );
-    assert_eq!(
-        read_after_create.body["data"]["stock"]["variant"]["inventoryQuantity"],
-        json!(7)
-    );
-
-    let update = proxy.process_request(json_graphql_request(
-        r#"
-        mutation LegacyVariantUpdate($input: ProductVariantInput!) {
-          productVariantUpdate(input: $input) {
-            productVariant { id sku price taxCode inventoryItem { id tracked requiresShipping harmonizedSystemCode } }
-            userErrors { field message }
-          }
-        }
-        "#,
-        json!({
-            "input": {
-                "id": variant_id,
-                "sku": "LEGACY-BLUE-UPDATED",
-                "price": "1.00",
-                "taxCode": "PC040200",
-                "inventoryItem": { "tracked": false, "requiresShipping": true, "harmonizedSystemCode": "6543 21" }
-            }
-        }),
-    ));
-    assert_eq!(update.status, 200);
-    assert_eq!(
-        update.body["data"]["productVariantUpdate"]["productVariant"]["sku"],
-        json!("LEGACY-BLUE-UPDATED")
-    );
-    assert_eq!(
-        update.body["data"]["productVariantUpdate"]["productVariant"]["price"],
-        json!("1.00")
-    );
-    assert_eq!(
-        update.body["data"]["productVariantUpdate"]["productVariant"]["taxCode"],
-        json!("PC040200")
-    );
-    assert_eq!(
-        update.body["data"]["productVariantUpdate"]["productVariant"]["inventoryItem"]
-            ["harmonizedSystemCode"],
-        json!("654321")
-    );
-
-    let read_after_update = proxy.process_request(json_graphql_request(
-        r#"
-        query LegacyVariantReadAfterUpdate($productId: ID!, $variantId: ID!) {
-          product(id: $productId) { id variants(first: 10) { nodes { id sku price taxCode inventoryItem { tracked requiresShipping harmonizedSystemCode } } } }
-          variant: productVariant(id: $variantId) { id sku price taxCode inventoryItem { tracked requiresShipping harmonizedSystemCode } }
-        }
-        "#,
-        json!({
-            "productId": "gid://shopify/Product/1",
-            "variantId": variant_id
-        }),
-    ));
-    assert_eq!(
-        read_after_update.body["data"]["product"]["variants"]["nodes"][0]["sku"],
-        json!("LEGACY-BLUE-UPDATED")
-    );
-    assert_eq!(
-        read_after_update.body["data"]["variant"]["inventoryItem"]["tracked"],
-        json!(false)
-    );
-    assert_eq!(
-        read_after_update.body["data"]["variant"]["inventoryItem"]["harmonizedSystemCode"],
-        json!("654321")
-    );
-
-    let delete = proxy.process_request(json_graphql_request(
-        r#"
-        mutation LegacyVariantDelete($id: ID!) {
-          productVariantDelete(id: $id) { deletedProductVariantId userErrors { field message } }
-        }
-        "#,
-        json!({ "id": variant_id }),
-    ));
-    assert_eq!(delete.status, 200);
-    assert_eq!(
-        delete.body["data"]["productVariantDelete"]["deletedProductVariantId"],
-        json!(variant_id)
-    );
-
-    let read_after_delete = proxy.process_request(json_graphql_request(
-        r#"
-        query LegacyVariantReadAfterDelete($productId: ID!, $variantId: ID!, $inventoryItemId: ID!) {
-          product(id: $productId) { id variants(first: 10) { nodes { id } } }
-          variant: productVariant(id: $variantId) { id }
-          stock: inventoryItem(id: $inventoryItemId) { id }
-        }
-        "#,
-        json!({
-            "productId": "gid://shopify/Product/1",
-            "variantId": variant_id,
-            "inventoryItemId": inventory_item_id
-        }),
-    ));
-    assert_eq!(
-        read_after_delete.body["data"]["product"]["variants"]["nodes"],
-        json!([])
-    );
-    assert_eq!(read_after_delete.body["data"]["variant"], Value::Null);
-    assert_eq!(read_after_delete.body["data"]["stock"], Value::Null);
-}
-
-#[test]
-fn legacy_product_variant_create_validates_forbidden_keys_and_missing_product() {
-    let mut proxy = snapshot_proxy();
-
-    let forbidden_id = proxy.process_request(json_graphql_request(
-        r#"
-        mutation LegacyVariantCreateForbiddenId($input: ProductVariantInput!) {
-          productVariantCreate(input: $input) { productVariant { id } userErrors { field message } }
-        }
-        "#,
-        json!({
-            "input": {
-                "id": "gid://shopify/ProductVariant/1",
-                "productId": "gid://shopify/Product/1"
-            }
-        }),
-    ));
-    assert_eq!(forbidden_id.status, 200);
-    assert_eq!(
-        forbidden_id.body["errors"][0]["extensions"]["code"],
-        json!("NO_KEY_ON_CREATE")
-    );
-
-    let forbidden_adjustment = proxy.process_request(json_graphql_request(
-        r#"
-        mutation LegacyVariantCreateForbiddenAdjustment($input: ProductVariantInput!) {
-          productVariantCreate(input: $input) { productVariant { id } userErrors { field message } }
-        }
-        "#,
-        json!({
-            "input": {
-                "productId": "gid://shopify/Product/1",
-                "inventoryQuantityAdjustment": 1
-            }
-        }),
-    ));
-    assert_eq!(forbidden_adjustment.status, 200);
-    assert_eq!(
-        forbidden_adjustment.body["errors"][0]["extensions"]["key"],
-        json!("inventoryQuantityAdjustment")
-    );
-
-    let missing_product = proxy.process_request(json_graphql_request(
-        r#"
-        mutation LegacyVariantCreateMissingProduct($input: ProductVariantInput!) {
-          productVariantCreate(input: $input) { product { id } productVariant { id } userErrors { field message } }
-        }
-        "#,
-        json!({
-            "input": {
-                "productId": "gid://shopify/Product/missing",
-                "sku": "MISSING"
-            }
-        }),
-    ));
-    assert_eq!(missing_product.status, 200);
-    assert_eq!(
-        missing_product.body["data"]["productVariantCreate"]["product"],
-        Value::Null
-    );
-    assert_eq!(
-        missing_product.body["data"]["productVariantCreate"]["productVariant"],
-        Value::Null
-    );
-    assert_eq!(
-        missing_product.body["data"]["productVariantCreate"]["userErrors"],
-        json!([{ "field": ["productId"], "message": "Product does not exist" }])
-    );
-}
-
-#[test]
-fn legacy_product_variant_update_and_delete_validate_unknown_ids() {
-    let mut proxy = snapshot_proxy();
-
-    let update = proxy.process_request(json_graphql_request(
-        r#"
-        mutation LegacyVariantUpdateMissing($input: ProductVariantInput!) {
-          productVariantUpdate(input: $input) { productVariant { id } userErrors { field message } }
-        }
-        "#,
-        json!({
-            "input": {
-                "id": "gid://shopify/ProductVariant/missing",
-                "price": "1.00"
-            }
-        }),
-    ));
-    assert_eq!(update.status, 200);
-    assert_eq!(
-        update.body["data"]["productVariantUpdate"]["productVariant"],
-        Value::Null
-    );
-    assert_eq!(
-        update.body["data"]["productVariantUpdate"]["userErrors"],
-        json!([{ "field": ["id"], "message": "Product variant does not exist" }])
-    );
-
-    let delete = proxy.process_request(json_graphql_request(
-        r#"
-        mutation LegacyVariantDeleteMissing($id: ID!) {
-          productVariantDelete(id: $id) { deletedProductVariantId userErrors { field message } }
-        }
-        "#,
-        json!({ "id": "gid://shopify/ProductVariant/missing" }),
-    ));
-    assert_eq!(delete.status, 200);
-    assert_eq!(
-        delete.body["data"]["productVariantDelete"]["deletedProductVariantId"],
-        Value::Null
-    );
-    assert_eq!(
-        delete.body["data"]["productVariantDelete"]["userErrors"],
-        json!([{ "field": ["id"], "message": "Product variant does not exist" }])
-    );
-}
-
-#[test]
-fn legacy_product_variant_scalar_validation_rejects_before_staging() {
-    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
-        id: "gid://shopify/Product/1".to_string(),
-        created_at: "2024-01-01T00:00:00.000Z".to_string(),
-        updated_at: "2024-01-01T00:00:00.000Z".to_string(),
-        title: "Seeded product".to_string(),
-        handle: "seeded-product".to_string(),
-        status: "ACTIVE".to_string(),
-        description_html: String::new(),
-        vendor: String::new(),
-        product_type: String::new(),
-        tags: Vec::new(),
-        template_suffix: String::new(),
-        seo_title: String::new(),
-        seo_description: String::new(),
-        ..ProductRecord::default()
-    }]);
-    let seeded_variant =
-        create_legacy_variant(&mut proxy, "gid://shopify/Product/1", "VALID-SKU", "10.00");
-    let seeded_variant_id = seeded_variant["id"]
-        .as_str()
-        .expect("setup variant should have an id");
-
-    let update = proxy.process_request(json_graphql_request(
-        r#"
-        mutation LegacyVariantInvalidScalars($input: ProductVariantInput!) {
-          productVariantUpdate(input: $input) {
-            productVariant { id }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({
-            "input": {
-                "id": seeded_variant_id,
-                "price": "-1.00",
-                "sku": "S".repeat(256),
-                "inventoryItem": { "measurement": { "weight": { "value": -1, "unit": "KILOGRAMS" } } }
-            }
-        }),
-    ));
-    assert_eq!(update.status, 200);
-    let errors = update.body["data"]["productVariantUpdate"]["userErrors"]
-        .as_array()
-        .expect("validation user errors should be an array");
-    assert!(errors.contains(&json!({
-        "field": ["price"],
-        "message": "Price must be greater than or equal to 0",
-        "code": "GREATER_THAN_OR_EQUAL_TO"
-    })));
-    assert!(errors.contains(&json!({
-        "field": ["sku"],
-        "message": "SKU is too long (maximum is 255 characters)",
-        "code": "INVALID_INPUT"
-    })));
-    assert!(errors.contains(&json!({
-        "field": ["inventoryItem", "measurement", "weight"],
-        "message": "Weight must be greater than or equal to 0",
-        "code": "GREATER_THAN_OR_EQUAL_TO"
-    })));
-
-    let read = proxy.process_request(json_graphql_request(
-        r#"
-        query LegacyVariantUnchangedAfterInvalidUpdate($id: ID!) {
-          productVariant(id: $id) { id sku price }
-        }
-        "#,
-        json!({ "id": seeded_variant_id }),
-    ));
-    assert_eq!(
-        read.body["data"]["productVariant"],
-        json!({
-            "id": seeded_variant_id,
-            "sku": "VALID-SKU",
-            "price": "10.00"
         })
     );
 }
@@ -3471,9 +3052,9 @@ fn product_variants_bulk_reorder_rejects_invalid_inputs_atomically() {
     let blue_id = blue["id"].as_str().unwrap().to_string();
     let green_id = green["id"].as_str().unwrap().to_string();
     let original_order = json!([
-        { "sku": "RED" },
-        { "sku": "BLUE" },
-        { "sku": "GREEN" }
+        { "sku": "RED", "position": 1 },
+        { "sku": "BLUE", "position": 2 },
+        { "sku": "GREEN", "position": 3 }
     ]);
 
     let invalid_position = proxy.process_request(json_graphql_request(
@@ -3558,18 +3139,35 @@ fn product_variants_bulk_reorder_rejects_invalid_inputs_atomically() {
         }),
     ));
     assert_eq!(missing_variant.status, 200);
+    assert!(missing_variant.body.get("data").is_none());
     assert_eq!(
-        missing_variant.body["data"]["productVariantsBulkReorder"]["product"],
+        missing_variant.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+
+    let unknown_variant = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownVariantPosition($productId: ID!, $positions: [ProductVariantPositionInput!]!) {
+          productVariantsBulkReorder(productId: $productId, positions: $positions) {
+            product { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": "gid://shopify/Product/1",
+            "positions": [
+                { "id": "gid://shopify/ProductVariant/missing", "position": 2 }
+            ]
+        }),
+    ));
+    assert_eq!(
+        unknown_variant.body["data"]["productVariantsBulkReorder"]["product"],
         Value::Null
     );
     assert_user_error_with_field_and_code(
-        &missing_variant.body["data"]["productVariantsBulkReorder"]["userErrors"],
+        &unknown_variant.body["data"]["productVariantsBulkReorder"]["userErrors"],
         json!(["positions", "0", "id"]),
-        "MISSING_VARIANT",
-    );
-    assert_user_error_with_field_and_code(
-        &missing_variant.body["data"]["productVariantsBulkReorder"]["userErrors"],
-        json!(["positions", "1", "id"]),
         "MISSING_VARIANT",
     );
     assert_eq!(
@@ -3851,56 +3449,6 @@ fn product_variants_bulk_create_rejects_option_conflicts_and_duplicate_tuples_at
             "{label}: rejected create should not stage variants"
         );
     }
-}
-
-#[test]
-fn product_variant_delete_compacts_surviving_variant_positions() {
-    let product_id = "gid://shopify/Product/1";
-    let mut proxy = snapshot_proxy().with_base_products(vec![seed_product(product_id)]);
-    let variants =
-        create_bulk_positioned_variants(&mut proxy, product_id, &["RED", "BLUE", "GREEN"]);
-    let red_id = variants[0]["id"].as_str().unwrap().to_string();
-    let blue_id = variants[1]["id"].as_str().unwrap().to_string();
-    let green_id = variants[2]["id"].as_str().unwrap().to_string();
-
-    let delete = proxy.process_request(json_graphql_request(
-        r#"
-        mutation DeleteMiddleVariant($id: ID!) {
-          productVariantDelete(id: $id) {
-            deletedProductVariantId
-            userErrors { field message }
-          }
-        }
-        "#,
-        json!({ "id": blue_id }),
-    ));
-    assert_eq!(delete.status, 200);
-    assert_eq!(
-        delete.body["data"]["productVariantDelete"]["deletedProductVariantId"],
-        json!(blue_id)
-    );
-    assert_eq!(
-        delete.body["data"]["productVariantDelete"]["userErrors"],
-        json!([])
-    );
-
-    let read = proxy.process_request(json_graphql_request(
-        r#"
-        query VariantPositionsAfterSingleDelete($productId: ID!) {
-          product(id: $productId) {
-            variants(first: 10) { nodes { id sku position } }
-          }
-        }
-        "#,
-        json!({ "productId": product_id }),
-    ));
-    assert_eq!(
-        read.body["data"]["product"]["variants"]["nodes"],
-        json!([
-            { "id": red_id, "sku": "RED", "position": 1 },
-            { "id": green_id, "sku": "GREEN", "position": 2 }
-        ])
-    );
 }
 
 #[test]
@@ -4263,6 +3811,70 @@ fn product_variants_bulk_update_rejects_inventory_item_cost_bounds_atomically() 
 }
 
 #[test]
+fn product_variants_bulk_update_payload_overlays_staged_variant_metafields() {
+    let product_id = "gid://shopify/Product/bulk-payload-metafield";
+    let mut proxy = snapshot_proxy().with_base_products(vec![seed_product(product_id)]);
+    let variant = create_legacy_variant(&mut proxy, product_id, "META", "10.00");
+    let variant_id = variant["id"].as_str().unwrap().to_string();
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SetBulkPayloadVariantMetafield($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "metafields": [{
+                "ownerId": variant_id,
+                "namespace": "custom",
+                "key": "bulk_payload",
+                "type": "single_line_text_field",
+                "value": "staged value"
+            }]
+        }),
+    ));
+    assert_eq!(set.body["data"]["metafieldsSet"]["userErrors"], json!([]));
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReadVariantMetafieldFromBulkPayload(
+          $productId: ID!
+          $variants: [ProductVariantsBulkInput!]!
+        ) {
+          productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+            productVariants {
+              id
+              price
+              marker: metafield(namespace: "custom", key: "bulk_payload") { value }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "variants": [{ "id": variant_id, "price": "12.00" }]
+        }),
+    ));
+
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["productVariantsBulkUpdate"],
+        json!({
+            "productVariants": [{
+                "id": variant_id,
+                "price": "12.00",
+                "marker": { "value": "staged value" }
+            }],
+            "userErrors": []
+        })
+    );
+}
+
+#[test]
 fn product_variants_bulk_update_stages_valid_inputs_when_partial_updates_allowed() {
     let forwarded = Arc::new(Mutex::new(0usize));
     let captured = Arc::clone(&forwarded);
@@ -4502,9 +4114,10 @@ fn product_media_roots_without_store_backed_handlers_fail_closed() {
     ] {
         let response = proxy.process_request(json_graphql_request(query, json!({})));
         assert_eq!(response.status, 400, "{root} should fail closed");
-        assert_eq!(
-            response.body,
-            json!({ "errors": [{ "message": format!("No mutation dispatcher implemented for root field: {root}") }] })
+        assert_engine_resolver_failure(
+            &response,
+            root,
+            &format!("No mutation dispatcher implemented for root field: {root}"),
         );
     }
     assert_eq!(log_snapshot(&proxy), json!({ "entries": [] }));
@@ -4779,7 +4392,6 @@ fn assert_publication_create_uses_allocator_without_materializing_default_public
               id
               name
               autoPublish
-              channel { id name publication { id } }
             }
             userErrors { field message code }
           }
@@ -4842,12 +4454,6 @@ fn assert_publication_create_uses_allocator_without_materializing_default_public
         .expect("created publication channel should have an id");
     assert!(channel_id.starts_with("gid://shopify/Channel/"));
     assert!(channel_id.contains("shopify-draft-proxy=synthetic"));
-    assert_eq!(
-        channel_id,
-        create.body["data"]["publicationCreate"]["publication"]["channel"]["id"]
-            .as_str()
-            .expect("create payload channel should have an id")
-    );
     assert_ne!(channel_id, "gid://shopify/Channel/1");
     assert_eq!(
         channels.body["data"]["publicationsCount"],
@@ -5068,7 +4674,6 @@ fn product_publication_full_sync_and_feedback_tail_helpers_cover_current_behavio
           }
           deleteCreated: publicationDelete(id: $createdPublicationId) {
             deletedId
-            publication { id name }
             userErrors { field message code }
           }
         }
@@ -5120,7 +4725,7 @@ fn product_publication_full_sync_and_feedback_tail_helpers_cover_current_behavio
     let staged_non_feed = proxy.process_request(json_graphql_request(
         r#"
         mutation RustProductFullSyncStagedNonFeed($id: ID!) {
-          productFullSync(id: $id) { id job { id } userErrors { field message code } }
+          productFullSync(id: $id) { id userErrors { field message code } }
         }
         "#,
         json!({ "id": created_publication_id }),
@@ -5130,7 +4735,6 @@ fn product_publication_full_sync_and_feedback_tail_helpers_cover_current_behavio
         staged_non_feed.body["data"]["productFullSync"],
         json!({
             "id": Value::Null,
-            "job": Value::Null,
             "userErrors": [{
                 "field": ["id"],
                 "message": "ProductFeed does not exist",
@@ -5142,7 +4746,7 @@ fn product_publication_full_sync_and_feedback_tail_helpers_cover_current_behavio
     let unknown_feed = proxy.process_request(json_graphql_request(
         r#"
         mutation RustProductFullSyncUnknown($id: ID!) {
-          productFullSync(id: $id) { id job { id } userErrors { field message code } }
+          productFullSync(id: $id) { id userErrors { field message code } }
         }
         "#,
         json!({ "id": "gid://shopify/ProductFeed/999999999" }),
@@ -5154,7 +4758,6 @@ fn product_publication_full_sync_and_feedback_tail_helpers_cover_current_behavio
             "data": {
                 "productFullSync": {
                     "id": Value::Null,
-                    "job": Value::Null,
                     "userErrors": [{
                         "field": ["id"],
                         "message": "ProductFeed does not exist",
@@ -5165,20 +4768,19 @@ fn product_publication_full_sync_and_feedback_tail_helpers_cover_current_behavio
         })
     );
 
-    let job_selection = proxy.process_request(json_graphql_request(
+    let absent_feed = proxy.process_request(json_graphql_request(
         r#"
-        mutation RustProductFullSyncJob($id: ID!) {
-          productFullSync(id: $id) { id job { id } userErrors { field message code } }
+        mutation RustProductFullSyncAbsentFeed($id: ID!) {
+          productFullSync(id: $id) { id userErrors { field message code } }
         }
         "#,
         json!({ "id": "gid://shopify/ProductFeed/US-EN" }),
     ));
-    assert_eq!(job_selection.status, 200);
+    assert_eq!(absent_feed.status, 200);
     assert_eq!(
-        job_selection.body["data"]["productFullSync"],
+        absent_feed.body["data"]["productFullSync"],
         json!({
             "id": Value::Null,
-            "job": Value::Null,
             "userErrors": [{
                 "field": ["id"],
                 "message": "ProductFeed does not exist",
@@ -5207,7 +4809,7 @@ fn product_publication_full_sync_and_feedback_tail_helpers_cover_current_behavio
     let sync_before_create = proxy.process_request(json_graphql_request(
         r#"
         mutation RustProductFullSyncBeforeCreate($id: ID!) {
-          productFullSync(id: $id) { id job { id } userErrors { field message code } }
+          productFullSync(id: $id) { id userErrors { field message code } }
         }
         "#,
         json!({ "id": "gid://shopify/ProductFeed/CA-FR" }),
@@ -5217,7 +4819,6 @@ fn product_publication_full_sync_and_feedback_tail_helpers_cover_current_behavio
         sync_before_create.body["data"]["productFullSync"],
         json!({
             "id": Value::Null,
-            "job": Value::Null,
             "userErrors": [{
                 "field": ["id"],
                 "message": "ProductFeed does not exist",
@@ -5249,7 +4850,6 @@ fn product_publication_full_sync_and_feedback_tail_helpers_cover_current_behavio
           productFullSync(id: $id) {
             __typename
             id
-            job { __typename id done query { __typename } }
             userErrors { field message code }
           }
         }
@@ -5258,19 +4858,11 @@ fn product_publication_full_sync_and_feedback_tail_helpers_cover_current_behavio
     ));
     assert_eq!(sync.status, 200);
     let sync_payload = &sync.body["data"]["productFullSync"];
-    let job_id = sync_payload["job"]["id"].as_str().expect("sync job id");
-    assert!(job_id.starts_with("gid://shopify/Job/"));
     assert_eq!(
         sync_payload,
         &json!({
             "__typename": "ProductFullSyncPayload",
             "id": "gid://shopify/ProductFeed/CA-FR",
-            "job": {
-                "__typename": "Job",
-                "id": job_id,
-                "done": false,
-                "query": { "__typename": "QueryRoot" }
-            },
             "userErrors": []
         })
     );
@@ -5286,7 +4878,7 @@ fn product_publication_full_sync_and_feedback_tail_helpers_cover_current_behavio
             id: $id,
             updatedAtSince: $updatedAtSince,
             beforeUpdatedAt: $beforeUpdatedAt
-          ) { id job { id } userErrors { field message code } }
+          ) { id userErrors { field message code } }
         }
         "#,
         json!({
@@ -5301,10 +4893,6 @@ fn product_publication_full_sync_and_feedback_tail_helpers_cover_current_behavio
         Value::Null
     );
     assert_eq!(
-        invalid_range.body["data"]["productFullSync"]["job"],
-        Value::Null
-    );
-    assert_eq!(
         invalid_range.body["data"]["productFullSync"]["userErrors"][0]["field"],
         json!(["updatedAtSince"])
     );
@@ -5316,29 +4904,6 @@ fn product_publication_full_sync_and_feedback_tail_helpers_cover_current_behavio
         invalid_range.body["data"]["productFullSync"]["userErrors"][0]["message"]
             .as_str()
             .is_some_and(|message| message.contains("updatedAtSince"))
-    );
-
-    let job = proxy.process_request(json_graphql_request(
-        r#"
-        query RustProductFullSyncJobPoll($id: ID!) {
-          job(id: $id) { __typename id done query { __typename } }
-        }
-        "#,
-        json!({ "id": job_id }),
-    ));
-    assert_eq!(job.status, 200);
-    assert_eq!(
-        job.body,
-        json!({
-            "data": {
-                "job": {
-                    "__typename": "Job",
-                    "id": job_id,
-                    "done": false,
-                    "query": { "__typename": "QueryRoot" }
-                }
-            }
-        })
     );
 
     let too_long = "x".repeat(101);
@@ -5390,7 +4955,7 @@ fn product_publication_full_sync_and_feedback_tail_helpers_cover_current_behavio
             "userErrors": [{
                 "field": ["feedback", "0", "messages", "0"],
                 "message": "Message is too long (maximum is 100 characters)",
-                "code": "TOO_LONG"
+                "code": "LESS_THAN_OR_EQUAL_TO"
             }]
         })
     );
@@ -5401,7 +4966,7 @@ fn product_publication_full_sync_and_feedback_tail_helpers_cover_current_behavio
             "userErrors": [{
                 "field": ["feedback"],
                 "message": "Feedback cannot contain more than 50 entries",
-                "code": "TOO_LONG"
+                "code": "MAXIMUM_FEEDBACK_LIMIT_EXCEEDED"
             }]
         })
     );
@@ -5448,7 +5013,7 @@ fn product_publication_full_sync_and_feedback_tail_helpers_cover_current_behavio
             "userErrors": [{
                 "field": ["feedback", "messages", "0"],
                 "message": "Message is too long (maximum is 100 characters)",
-                "code": "TOO_LONG"
+                "code": "INVALID"
             }]
         })
     );
@@ -5479,18 +5044,9 @@ fn product_publication_full_sync_and_feedback_tail_helpers_cover_current_behavio
             .iter()
             .any(|entry| entry["status"] == json!("staged")
                 && entry["stagedResourceIds"].as_array().is_some_and(|ids| {
-                    ids.iter().any(|id| id == "gid://shopify/ProductFeed/CA-FR")
-                        && ids.iter().any(|id| {
-                            id.as_str().is_some_and(|id| {
-                                id.starts_with("gid://shopify/ProductFullSyncOperation/")
-                            })
-                        })
-                        && ids.iter().any(|id| {
-                            id.as_str()
-                                .is_some_and(|id| id.starts_with("gid://shopify/Job/"))
-                        })
+                    ids == &[json!("gid://shopify/ProductFeed/CA-FR")]
                 })),
-        "successful full sync should stage the ProductFeed, operation, and Job IDs: {log}"
+        "successful full sync should record the ProductFeed ID without schema-absent operation or Job resources: {log}"
     );
 }
 
@@ -6198,7 +5754,7 @@ fn product_resource_feedback_validates_mixed_batches_with_per_entry_errors() {
             "userErrors": [{
                 "field": ["feedback", "messages", "1"],
                 "message": "Message is too long (maximum is 100 characters)",
-                "code": "TOO_LONG"
+                "code": "INVALID"
             }]
         })
     );
@@ -6920,9 +6476,10 @@ fn product_reorder_media_without_store_backed_handler_fails_closed() {
         }),
     ));
     assert_eq!(mutation.status, 400);
-    assert_eq!(
-        mutation.body,
-        json!({ "errors": [{ "message": "No mutation dispatcher implemented for root field: productReorderMedia" }] })
+    assert_engine_resolver_failure(
+        &mutation,
+        "productReorderMedia",
+        "No mutation dispatcher implemented for root field: productReorderMedia",
     );
 
     let read = proxy.process_request(json_graphql_request(
@@ -6970,9 +6527,10 @@ fn product_create_and_delete_media_without_store_backed_handlers_fail_closed() {
         }),
     ));
     assert_eq!(create.status, 400);
-    assert_eq!(
-        create.body,
-        json!({ "errors": [{ "message": "No mutation dispatcher implemented for root field: productCreateMedia" }] })
+    assert_engine_resolver_failure(
+        &create,
+        "productCreateMedia",
+        "No mutation dispatcher implemented for root field: productCreateMedia",
     );
 
     let create_read = proxy.process_request(json_graphql_request(
@@ -7007,9 +6565,10 @@ fn product_create_and_delete_media_without_store_backed_handlers_fail_closed() {
         }),
     ));
     assert_eq!(delete.status, 400);
-    assert_eq!(
-        delete.body,
-        json!({ "errors": [{ "message": "No mutation dispatcher implemented for root field: productDeleteMedia" }] })
+    assert_engine_resolver_failure(
+        &delete,
+        "productDeleteMedia",
+        "No mutation dispatcher implemented for root field: productDeleteMedia",
     );
 
     let delete_read = proxy.process_request(json_graphql_request(
@@ -7058,9 +6617,10 @@ fn product_update_media_without_store_backed_handler_fails_closed() {
         }),
     ));
     assert_eq!(mutation.status, 400);
-    assert_eq!(
-        mutation.body,
-        json!({ "errors": [{ "message": "No mutation dispatcher implemented for root field: productUpdateMedia" }] })
+    assert_engine_resolver_failure(
+        &mutation,
+        "productUpdateMedia",
+        "No mutation dispatcher implemented for root field: productUpdateMedia",
     );
 
     let read = proxy.process_request(json_graphql_request(
@@ -9172,7 +8732,7 @@ fn publishable_mutations_validate_publication_input_locally() {
             query,
             json!({ "id": product_id, "input": [{ "publicationId": publication_id }, { "publicationId": "" }] }),
         ));
-        assert_eq!(empty_string.body.get("data"), None);
+        assert_eq!(empty_string.body["data"][root], Value::Null);
         assert_eq!(
             empty_string.body["errors"][0]["extensions"]["code"],
             json!("INVALID_VARIABLE")
@@ -9210,7 +8770,7 @@ fn publishable_mutations_validate_publication_input_locally() {
         );
         let empty_string = proxy.process_request(json_graphql_request(&literal_query, json!({})));
         assert_eq!(empty_string.status, 200);
-        assert_eq!(empty_string.body.get("data"), None);
+        assert_eq!(empty_string.body["data"][root], Value::Null);
         assert_eq!(
             empty_string.body["errors"][0],
             json!({
@@ -9254,7 +8814,10 @@ fn publishable_mutations_validate_publication_input_locally() {
         let response =
             proxy.process_request(json_graphql_request(&current_channel_query, json!({})));
         assert_eq!(response.status, 200);
-        assert_eq!(response.body.get("data"), None);
+        assert_eq!(
+            response.body["data"]["customerSegmentMembersQueryCreate"],
+            Value::Null
+        );
         assert_eq!(
             response.body["errors"][0]["extensions"]["code"],
             json!("argumentNotAccepted")
@@ -9913,23 +9476,27 @@ fn products_connection_and_count_filter_common_search_fields_from_store_state() 
         .expect("variant create should return id");
     let update_variant = proxy.process_request(json_graphql_request(
         r#"
-        mutation ProductCommonSearchFilterBarcode($input: ProductVariantInput!) {
-          productVariantUpdate(input: $input) {
-            productVariant { id barcode }
+        mutation ProductCommonSearchFilterBarcode(
+          $productId: ID!
+          $variants: [ProductVariantsBulkInput!]!
+        ) {
+          productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+            productVariants { id barcode }
             userErrors { field message }
           }
         }
         "#,
         json!({
-            "input": {
+            "productId": "gid://shopify/Product/alpha",
+            "variants": [{
                 "id": variant_id,
                 "barcode": "ALPHA-FILTER-BARCODE"
-            }
+            }]
         }),
     ));
     assert_eq!(update_variant.status, 200);
     assert_eq!(
-        update_variant.body["data"]["productVariantUpdate"]["userErrors"],
+        update_variant.body["data"]["productVariantsBulkUpdate"]["userErrors"],
         json!([])
     );
 
@@ -11486,7 +11053,7 @@ fn product_mutations_preserve_root_alias_response_keys() {
 
     let delete = proxy.process_request(graphql_request(
         "POST",
-        r#"{"query":"mutation { deleteResult: productDelete(product: { id: \"gid://shopify/Product/1\" }) { deletedProductId userErrors { field message  } } }"}"#,
+        r#"{"query":"mutation { deleteResult: productDelete(input: { id: \"gid://shopify/Product/1\" }) { deletedProductId userErrors { field message  } } }"}"#,
     ));
     assert_eq!(delete.status, 200);
     assert_eq!(
@@ -11508,7 +11075,7 @@ fn saved_search_roots_support_defaults_filtering_pagination_edges_and_aliases() 
 
     let response = proxy.process_request(graphql_request(
         "POST",
-        r#"{"query":"query { ord: orderSavedSearches(first: 2) { nodes { id name } edges { cursor node { id } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } draftOrderSavedSearches(first: 1) { nodes { name resourceType } } productSavedSearches(first: 2) { nodes { id } edges { cursor node { id } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } filtered: orderSavedSearches(query: \"financial_status\") { nodes { name query } } }"}"#,
+        r#"{"query":"query { ord: orderSavedSearches(first: 2) { nodes { id name } edges { cursor node { id } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } draftOrderSavedSearches(first: 1) { nodes { name resourceType } } productSavedSearches(first: 2) { nodes { id } edges { cursor node { id } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }"}"#,
     ));
 
     assert_eq!(response.status, 200);
@@ -11546,11 +11113,6 @@ fn saved_search_roots_support_defaults_filtering_pagination_edges_and_aliases() 
                         "startCursor": null,
                         "endCursor": null
                     }
-                },
-                "filtered": {
-                    "nodes": [
-                        { "name": "Unpaid", "query": "status:open financial_status:unpaid" }
-                    ]
                 }
             }
         })
@@ -12494,123 +12056,6 @@ fn segment_create_stages_neutral_operation_without_upstream_passthrough() {
 }
 
 #[test]
-fn segment_private_fields_project_local_defaults_and_nulls_across_lifecycle() {
-    let mut proxy = snapshot_proxy();
-    let create = proxy.process_request(json_graphql_request(
-        r#"
-        mutation SegmentPrivateFieldCreate($name: String!, $query: String!) {
-          segmentCreate(name: $name, query: $query) {
-            segment {
-              id
-              name
-              query
-              creationDate
-              lastEditDate
-              tagMigrated
-              valid
-              percentageSnapshot
-              percentageSnapshotUpdatedAt
-              translation
-              author { name }
-            }
-            userErrors { field message }
-          }
-        }
-        "#,
-        json!({
-            "name": "Private projection segment",
-            "query": "number_of_orders >= 1"
-        }),
-    ));
-    assert_eq!(create.status, 200);
-    let created_segment = create.body["data"]["segmentCreate"]["segment"].clone();
-    let segment_id = created_segment["id"].as_str().unwrap().to_string();
-    assert_eq!(
-        create.body["data"]["segmentCreate"]["userErrors"],
-        json!([])
-    );
-    assert_eq!(created_segment["tagMigrated"], json!(false));
-    assert_eq!(created_segment["valid"], json!(true));
-    assert_eq!(created_segment["percentageSnapshot"], Value::Null);
-    assert_eq!(created_segment["percentageSnapshotUpdatedAt"], Value::Null);
-    assert_eq!(created_segment["translation"], Value::Null);
-    assert_eq!(created_segment["author"], Value::Null);
-
-    let update = proxy.process_request(json_graphql_request(
-        r#"
-        mutation SegmentPrivateFieldUpdate($id: ID!, $name: String, $query: String) {
-          segmentUpdate(id: $id, name: $name, query: $query) {
-            segment {
-              id
-              name
-              query
-              creationDate
-              lastEditDate
-              tagMigrated
-              valid
-              percentageSnapshot
-              percentageSnapshotUpdatedAt
-              translation
-              author { name }
-            }
-            userErrors { field message }
-          }
-        }
-        "#,
-        json!({
-            "id": segment_id,
-            "name": "Private projection segment updated",
-            "query": "number_of_orders >= 2"
-        }),
-    ));
-    assert_eq!(update.status, 200);
-    let updated_segment = update.body["data"]["segmentUpdate"]["segment"].clone();
-    assert_eq!(
-        update.body["data"]["segmentUpdate"]["userErrors"],
-        json!([])
-    );
-    assert_eq!(updated_segment["id"], created_segment["id"]);
-    assert_eq!(
-        updated_segment["name"],
-        json!("Private projection segment updated")
-    );
-    assert_eq!(updated_segment["query"], json!("number_of_orders >= 2"));
-    assert_eq!(
-        updated_segment["creationDate"],
-        created_segment["creationDate"]
-    );
-    assert_eq!(updated_segment["tagMigrated"], json!(false));
-    assert_eq!(updated_segment["valid"], json!(true));
-    assert_eq!(updated_segment["percentageSnapshot"], Value::Null);
-    assert_eq!(updated_segment["percentageSnapshotUpdatedAt"], Value::Null);
-    assert_eq!(updated_segment["translation"], Value::Null);
-    assert_eq!(updated_segment["author"], Value::Null);
-
-    let read = proxy.process_request(json_graphql_request(
-        r#"
-        query SegmentPrivateFieldRead($id: ID!) {
-          segment(id: $id) {
-            id
-            name
-            query
-            creationDate
-            lastEditDate
-            tagMigrated
-            valid
-            percentageSnapshot
-            percentageSnapshotUpdatedAt
-            translation
-            author { name }
-          }
-        }
-        "#,
-        json!({ "id": updated_segment["id"] }),
-    ));
-    assert_eq!(read.status, 200);
-    assert_eq!(read.body["data"]["segment"], updated_segment);
-}
-
-#[test]
 fn segment_update_literal_null_only_attributes_are_absent_changes() {
     let mut proxy = snapshot_proxy();
     let created = proxy.process_request(json_graphql_request(
@@ -12949,7 +12394,10 @@ fn customer_segment_members_query_create_coerces_segment_id_before_resolver_erro
         ));
 
         assert_eq!(response.status, 200);
-        assert_eq!(response.body.get("data"), None);
+        assert_eq!(
+            response.body["data"]["customerSegmentMembersQueryCreate"],
+            Value::Null
+        );
         assert_eq!(
             response.body["errors"][0]["message"],
             json!(format!(
@@ -14091,23 +13539,8 @@ fn saved_search_blank_name_and_input_required_user_errors_are_schema_shaped_and_
         json!({ "createInput": null, "updateInput": null }),
     ));
     assert_eq!(null_inputs.status, 200);
-    assert_eq!(
-        null_inputs.body["data"],
-        json!({
-            "create": {
-                "savedSearch": null,
-                "userErrors": [
-                    { "field": ["input"], "message": "Saved search input is required" }
-                ]
-            },
-            "update": {
-                "savedSearch": null,
-                "userErrors": [
-                    { "field": ["input"], "message": "Saved search input is required" }
-                ]
-            }
-        })
-    );
+    assert!(null_inputs.body.get("data").is_none());
+    assert_eq!(null_inputs.body["errors"].as_array().unwrap().len(), 2);
 }
 
 #[test]
@@ -14117,7 +13550,7 @@ fn saved_search_required_input_omissions_return_top_level_graphql_errors() {
     let missing_name = proxy.process_request(json_graphql_request(
         r#"
         mutation SavedSearchCreateMissingName {
-          savedSearchCreate(input: { resourceType: PRODUCT }) {
+          savedSearchCreate(input: { resourceType: PRODUCT, query: "tag:missing-name" }) {
             savedSearch { id name query resourceType }
             userErrors { field message }
           }
@@ -14137,17 +13570,6 @@ fn saved_search_required_input_omissions_return_top_level_graphql_errors() {
                 "extensions": {
                     "code": "missingRequiredInputObjectAttribute",
                     "argumentName": "name",
-                    "argumentType": "String!",
-                    "inputObjectType": "SavedSearchCreateInput"
-                }
-            },
-            {
-                "message": "Argument 'query' on InputObject 'SavedSearchCreateInput' is required. Expected type String!",
-                "locations": [{ "line": 3, "column": 36 }],
-                "path": ["mutation SavedSearchCreateMissingName", "savedSearchCreate", "input", "query"],
-                "extensions": {
-                    "code": "missingRequiredInputObjectAttribute",
-                    "argumentName": "query",
                     "argumentType": "String!",
                     "inputObjectType": "SavedSearchCreateInput"
                 }
@@ -14225,7 +13647,7 @@ fn saved_search_required_input_omissions_return_top_level_graphql_errors() {
         missing_delete_id.body["errors"][0],
         json!({
             "message": "Argument 'id' on InputObject 'SavedSearchDeleteInput' is required. Expected type ID!",
-            "locations": [{ "line": 2, "column": 28 }],
+            "locations": [{ "line": 3, "column": 36 }],
             "path": ["mutation SavedSearchDeleteMissingId", "savedSearchDelete", "input", "id"],
             "extensions": {
                 "code": "missingRequiredInputObjectAttribute",
@@ -14298,7 +13720,7 @@ fn saved_search_required_variable_omissions_return_invalid_variable_errors() {
         missing_delete_id.body["errors"][0],
         json!({
             "message": "Variable $input of type SavedSearchDeleteInput! was provided invalid value for id (Expected value to not be null)",
-            "locations": [{ "line": 1, "column": 45 }],
+            "locations": [{ "line": 2, "column": 53 }],
             "extensions": {
                 "code": "INVALID_VARIABLE",
                 "value": {},
@@ -14320,7 +13742,7 @@ fn saved_search_required_variable_omissions_return_invalid_variable_errors() {
         null_delete_id.body["errors"][0],
         json!({
             "message": "Variable $input of type SavedSearchDeleteInput! was provided invalid value for id (Expected value to not be null)",
-            "locations": [{ "line": 1, "column": 45 }],
+            "locations": [{ "line": 2, "column": 53 }],
             "extensions": {
                 "code": "INVALID_VARIABLE",
                 "value": { "id": null },
@@ -14985,9 +14407,10 @@ fn admin_graphql_capability_classification_uses_implemented_registry_entries() {
         r#"{"query":"query { productVariants(first: 1) { nodes { id } } }"}"#,
     ));
     assert_eq!(known_query.status, 501);
-    assert_eq!(
-        known_query.body,
-        json!({ "errors": [{ "message": "No Rust overlay-read dispatcher implemented for root field: productVariants" }] })
+    assert_engine_resolver_failure(
+        &known_query,
+        "productVariants",
+        "No Rust overlay-read dispatcher implemented for root field: productVariants",
     );
 
     let known_mutation = proxy.process_request(graphql_request(
@@ -14995,9 +14418,10 @@ fn admin_graphql_capability_classification_uses_implemented_registry_entries() {
         r#"{"query":"mutation { urlRedirectCreate(urlRedirect: { path: \"/old\", target: \"/new\" }) { urlRedirect { id } userErrors { message } } }"}"#,
     ));
     assert_eq!(known_mutation.status, 501);
-    assert_eq!(
-        known_mutation.body,
-        json!({ "errors": [{ "message": "No Rust stage-locally dispatcher implemented for root field: urlRedirectCreate" }] })
+    assert_engine_resolver_failure(
+        &known_mutation,
+        "urlRedirectCreate",
+        "No Rust stage-locally dispatcher implemented for root field: urlRedirectCreate",
     );
 
     let unimplemented = proxy.process_request(graphql_request(
@@ -15021,13 +14445,13 @@ fn registry_classification_without_matching_root_field_fails_closed() {
 
     let response = proxy.process_request(graphql_request(
         "POST",
-        r#"{"query":"mutation { productVariantCreate(input: {}) { productVariant { id } userErrors { message } } }"}"#,
+        r#"{"query":"mutation { productVariantsBulkCreate(productId: \"gid://shopify/Product/1\", variants: []) { productVariants { id } userErrors { message } } }"}"#,
     ));
 
     assert_eq!(response.status, 400);
     assert_eq!(
         response.body,
-        json!({ "errors": [{ "message": "No mutation dispatcher implemented for root field: productVariantCreate" }] })
+        json!({ "errors": [{ "message": "No mutation dispatcher implemented for root field: productVariantsBulkCreate" }] })
     );
     assert_eq!(log_snapshot(&proxy), json!({ "entries": [] }));
 }
@@ -15050,44 +14474,10 @@ fn implemented_registry_entry_without_dispatch_match_arm_fails_closed() {
     ));
 
     assert_eq!(response.status, 501);
-    assert_eq!(
-        response.body,
-        json!({ "errors": [{ "message": "No Rust overlay-read dispatcher implemented for root field: productVariants" }] })
-    );
-}
-
-#[test]
-fn supported_product_variant_mutation_keeps_capability_metadata_in_log() {
-    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
-        id: "gid://shopify/Product/1".to_string(),
-        created_at: "2024-01-01T00:00:00.000Z".to_string(),
-        updated_at: "2024-01-01T00:00:00.000Z".to_string(),
-        title: "Seeded product".to_string(),
-        handle: "seeded-product".to_string(),
-        status: "ACTIVE".to_string(),
-        description_html: String::new(),
-        vendor: String::new(),
-        product_type: String::new(),
-        tags: Vec::new(),
-        template_suffix: String::new(),
-        seo_title: String::new(),
-        seo_description: String::new(),
-        ..ProductRecord::default()
-    }]);
-
-    let response = proxy.process_request(graphql_request(
-        "POST",
-        r#"{"query":"mutation { productVariantCreate(input: { productId: \"gid://shopify/Product/1\" }) { productVariant { id } userErrors { message } } }"}"#,
-    ));
-
-    assert_eq!(response.status, 200);
-    assert_eq!(
-        log_snapshot(&proxy)["entries"][0]["interpreted"]["capability"],
-        json!({
-            "operationName": "productVariantCreate",
-            "domain": "products",
-            "execution": "stage-locally"
-        })
+    assert_engine_resolver_failure(
+        &response,
+        "productVariants",
+        "No Rust overlay-read dispatcher implemented for root field: productVariants",
     );
 }
 
@@ -15125,6 +14515,7 @@ fn collection_lifecycle_mutations_stage_locally_without_upstream_writes() {
             }
         }
     });
+    let expected_shop = restore_product_payload_shop(&mut proxy);
 
     let create = proxy.process_request(json_graphql_request(
         r#"
@@ -15370,7 +14761,10 @@ fn collection_lifecycle_mutations_stage_locally_without_upstream_writes() {
         delete.body["data"]["collectionDelete"]["deletedCollectionId"],
         json!(collection_id)
     );
-    assert_eq!(delete.body["data"]["collectionDelete"]["shop"], json!({}));
+    assert_eq!(
+        delete.body["data"]["collectionDelete"]["shop"],
+        json!({ "id": expected_shop["id"] })
+    );
     assert_eq!(
         delete.body["data"]["collectionDelete"]["userErrors"],
         json!([])
@@ -15970,6 +15364,7 @@ fn collection_products_connection_honors_sort_keys_and_reverse() {
 #[test]
 fn collection_delete_payload_includes_shop_on_user_error() {
     let mut proxy = snapshot_proxy();
+    let shop = restore_product_payload_shop(&mut proxy);
 
     let missing = proxy.process_request(json_graphql_request(
         r#"
@@ -15989,7 +15384,7 @@ fn collection_delete_payload_includes_shop_on_user_error() {
         missing.body["data"]["collectionDelete"],
         json!({
             "deletedCollectionId": null,
-            "shop": {},
+            "shop": { "id": shop["id"] },
             "userErrors": [{
                 "field": ["id"],
                 "message": "Collection does not exist"

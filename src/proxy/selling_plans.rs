@@ -825,7 +825,7 @@ impl DraftProxy {
             return vec![user_error(
                 ["sellingPlanGroupIds"],
                 "Selling plan group IDs contains duplicate values.",
-                Some("DUPLICATE"),
+                None,
             )];
         }
         if !self.has_resource(resource_id, resource_kind) {
@@ -857,7 +857,7 @@ impl DraftProxy {
             return vec![user_error(
                 ["sellingPlanGroupIds"],
                 "Selling plan group is not a member.",
-                Some("NOT_A_MEMBER"),
+                None,
             )];
         }
         Vec::new()

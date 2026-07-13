@@ -413,7 +413,7 @@ fn app_revoke_access_scopes_validates_atomically_and_updates_current_installatio
     assert_eq!(
         optional.body["data"]["appRevokeAccessScopes"],
         json!({
-            "revoked": [{ "handle": "write_products", "description": null }],
+            "revoked": [{ "handle": "write_products", "description": "Modify products, variants, and collections" }],
             "userErrors": []
         })
     );
@@ -501,7 +501,7 @@ fn app_access_scopes_reflect_granted_non_products_scope_for_delegate_and_revoke(
     assert_eq!(
         revoke.body["data"]["appRevokeAccessScopes"],
         json!({
-            "revoked": [{ "handle": "read_orders", "description": null }],
+            "revoked": [{ "handle": "read_orders", "description": "Read orders, transactions, and fulfillments" }],
             "userErrors": []
         })
     );
@@ -624,14 +624,14 @@ fn app_lookup_and_uninstall_use_request_owned_app_identity() {
 
     let mut uninstall_request = json_graphql_request(
         r#"
-        mutation CustomAppUninstall($id: ID!) {
-          appUninstall(input: { id: $id }) {
+        mutation CustomAppUninstall {
+          appUninstall {
             app { id handle }
             userErrors { field message code }
           }
         }
         "#,
-        json!({ "id": custom_app_id }),
+        json!({}),
     );
     uninstall_request.headers.insert(
         "x-shopify-draft-proxy-api-client-id".to_string(),
@@ -648,8 +648,8 @@ fn app_lookup_and_uninstall_use_request_owned_app_identity() {
 
     let mut missing_request = json_graphql_request(
         r#"
-        mutation WrongAppUninstall {
-          appUninstall(input: { id: "gid://shopify/App/missing" }) {
+        mutation RepeatAppUninstall {
+          appUninstall {
             app { id }
             userErrors { field message code }
           }
@@ -661,15 +661,15 @@ fn app_lookup_and_uninstall_use_request_owned_app_identity() {
         "x-shopify-draft-proxy-api-client-id".to_string(),
         "347082227713".to_string(),
     );
-    let missing = snapshot_proxy().process_request(missing_request);
+    let missing = proxy.process_request(missing_request);
     assert_eq!(
         missing.body["data"]["appUninstall"],
         json!({
             "app": null,
             "userErrors": [{
                 "field": ["id"],
-                "message": "App not found",
-                "code": "APP_NOT_FOUND"
+                "message": "App is not installed on shop",
+                "code": "APP_NOT_INSTALLED"
             }]
         })
     );
@@ -819,15 +819,24 @@ fn app_purchase_one_time_create_validates_and_stages_selected_fields() {
 fn apps_user_errors_are_typed_and_selection_projected() {
     let mut proxy = snapshot_proxy();
 
+    let first_uninstall = proxy.process_request(json_graphql_request(
+        "mutation { appUninstall { app { id } userErrors { message } } }",
+        json!({}),
+    ));
+    assert_eq!(
+        first_uninstall.body["data"]["appUninstall"]["userErrors"],
+        json!([])
+    );
+
     let uninstall = proxy.process_request(json_graphql_request(
         r#"
         mutation {
-          appUninstall(input: { id: "gid://shopify/App/missing" }) {
+          appUninstall {
             app { id }
             userErrors {
               __typename
               message
-              ... on AppUninstallError { code }
+              ... on AppUninstallAppUninstallError { code }
             }
           }
         }
@@ -839,9 +848,9 @@ fn apps_user_errors_are_typed_and_selection_projected() {
         json!({
             "app": null,
             "userErrors": [{
-                "__typename": "AppUninstallError",
-                "message": "App not found",
-                "code": "APP_NOT_FOUND"
+                "__typename": "AppUninstallAppUninstallError",
+                "message": "App is not installed on shop",
+                "code": "APP_NOT_INSTALLED"
             }]
         })
     );
@@ -853,7 +862,7 @@ fn apps_user_errors_are_typed_and_selection_projected() {
             userErrors {
               __typename
               field
-              ... on AppRevokeScopeError { code }
+              ... on AppRevokeAccessScopesAppRevokeScopeError { code }
             }
           }
         }
@@ -864,7 +873,7 @@ fn apps_user_errors_are_typed_and_selection_projected() {
         revoke.body["data"]["appRevokeAccessScopes"],
         json!({
             "userErrors": [{
-                "__typename": "AppRevokeScopeError",
+                "__typename": "AppRevokeAccessScopesAppRevokeScopeError",
                 "field": ["scopes"],
                 "code": "UNKNOWN_SCOPES"
             }]
@@ -885,7 +894,7 @@ fn apps_user_errors_are_typed_and_selection_projected() {
         delegate.body["data"]["delegateAccessTokenCreate"],
         json!({
             "userErrors": [{
-                "__typename": "UserError",
+                "__typename": "DelegateAccessTokenCreateUserError",
                 "message": "The access scope can't be empty."
             }]
         })
@@ -1199,11 +1208,12 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
         json!({ "id": line_item_id }),
     ));
     assert_eq!(
-        missing_description.body["data"]["appUsageRecordCreate"],
-        json!({
-            "appUsageRecord": null,
-            "userErrors": [{ "field": ["description"], "message": "Description can't be blank" }]
-        })
+        missing_description.body["errors"][0]["extensions"]["code"],
+        json!("missingRequiredArguments")
+    );
+    assert_eq!(
+        missing_description.body["errors"][0]["extensions"]["arguments"],
+        json!("description")
     );
 
     let invalid_line_item_id = proxy.process_request(json_graphql_request(
@@ -1223,11 +1233,8 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
         json!({}),
     ));
     assert_eq!(
-        invalid_line_item_id.body["data"]["appUsageRecordCreate"],
-        json!({
-            "appUsageRecord": null,
-            "userErrors": [{ "field": ["subscriptionLineItemId"], "message": "Invalid id" }]
-        })
+        invalid_line_item_id.body["errors"][0]["extensions"]["code"],
+        json!("argumentLiteralsIncompatible")
     );
 
     let readback = proxy.process_request(json_graphql_request(
@@ -1439,35 +1446,16 @@ fn app_identity_hydrates_real_installation_for_nodes_scopes_and_uninstall() {
         })
     );
 
-    let unknown_uninstall = proxy.process_request(real_app_request(
-        r#"
-        mutation($input: AppUninstallInput) {
-          appUninstall(input: $input) {
-            app { id }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({ "input": { "id": "gid://shopify/App/9999999999" } }),
-    ));
-    assert_eq!(
-        unknown_uninstall.body["data"]["appUninstall"],
-        json!({
-            "app": null,
-            "userErrors": [{ "field": ["id"], "message": "App not found", "code": "APP_NOT_FOUND" }]
-        })
-    );
-
     let uninstall = proxy.process_request(real_app_request(
         r#"
-        mutation($input: AppUninstallInput) {
-          appUninstall(input: $input) {
+        mutation {
+          appUninstall {
             app { id handle }
             userErrors { field message code }
           }
         }
         "#,
-        json!({ "input": { "id": app_id } }),
+        json!({}),
     ));
     assert_eq!(
         uninstall.body["data"]["appUninstall"],
@@ -1859,29 +1847,6 @@ fn app_billing_access_local_lifecycle_reads_nodes_and_uninstall_cascade() {
 fn app_uninstall_user_error_messages_match_core_i18n_strings() {
     let mut proxy = snapshot_proxy();
 
-    let unknown = proxy.process_request(json_graphql_request(
-        r#"
-        mutation AppUninstallUnknownInput($input: AppUninstallInput) {
-          appUninstall(input: $input) {
-            app { id }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({ "input": { "id": "gid://shopify/App/9999999999" } }),
-    ));
-    assert_eq!(
-        unknown.body["data"]["appUninstall"],
-        json!({
-            "app": null,
-            "userErrors": [{
-                "field": ["id"],
-                "message": "App not found",
-                "code": "APP_NOT_FOUND"
-            }]
-        })
-    );
-
     let uninstall = proxy.process_request(json_graphql_request(
         r#"
         mutation AppUninstallCurrent {
@@ -1897,21 +1862,16 @@ fn app_uninstall_user_error_messages_match_core_i18n_strings() {
         uninstall.body["data"]["appUninstall"]["userErrors"],
         json!([])
     );
-    let current_app_id = uninstall.body["data"]["appUninstall"]["app"]["id"]
-        .as_str()
-        .expect("successful appUninstall should return app id")
-        .to_string();
-
     let already_uninstalled = proxy.process_request(json_graphql_request(
         r#"
-        mutation AppUninstallKnownInput($input: AppUninstallInput) {
-          appUninstall(input: $input) {
+        mutation AppUninstallAlreadyUninstalled {
+          appUninstall {
             app { id }
             userErrors { field message code }
           }
         }
         "#,
-        json!({ "input": { "id": current_app_id } }),
+        json!({}),
     ));
     assert_eq!(
         already_uninstalled.body["data"]["appUninstall"],
@@ -2113,27 +2073,12 @@ fn app_subscription_line_item_update_validates_recurring_currency_and_amount() {
         json!({ "usageLineItemId": usage_line_item_id }),
     ));
     assert_eq!(
-        synchronous_update.body["data"]["appSubscriptionLineItemUpdate"],
+        synchronous_update.body["errors"][0]["extensions"],
         json!({
-            "confirmationUrl": null,
-            "appSubscription": {
-                "lineItems": [
-                    {
-                        "id": usage_line_item_id,
-                        "plan": { "pricingDetails": {
-                            "__typename": "AppUsagePricing",
-                            "cappedAmount": { "amount": "12.0", "currencyCode": "USD" }
-                        }}
-                    },
-                    {
-                        "id": recurring_line_item_id,
-                        "plan": { "pricingDetails": {
-                            "__typename": "AppRecurringPricing"
-                        }}
-                    }
-                ]
-            },
-            "userErrors": []
+            "code": "argumentNotAccepted",
+            "name": "appSubscriptionLineItemUpdate",
+            "typeName": "Field",
+            "argumentName": "requireApproval"
         })
     );
 }
@@ -2398,7 +2343,7 @@ fn removed_app_revoke_access_scopes_codes_scenario_has_rust_coverage() {
     assert_eq!(
         optional.body["data"]["appRevokeAccessScopes"],
         json!({
-            "revoked": [{ "handle": "write_products", "description": null }],
+            "revoked": [{ "handle": "write_products", "description": "Modify products, variants, and collections" }],
             "userErrors": []
         })
     );
@@ -2476,7 +2421,6 @@ fn removed_delegate_access_token_current_input_local_staging_scenario_has_rust_c
         mutation {
           delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: 300 }) {
             delegateAccessToken { accessToken accessScopes createdAt expiresIn }
-            shop { id currencyCode }
             userErrors { field message code }
           }
         }
@@ -2499,10 +2443,6 @@ fn removed_delegate_access_token_current_input_local_staging_scenario_has_rust_c
     assert_eq!(
         create.body["data"]["delegateAccessTokenCreate"]["delegateAccessToken"]["expiresIn"],
         json!(300)
-    );
-    assert_eq!(
-        create.body["data"]["delegateAccessTokenCreate"]["shop"],
-        json!({})
     );
     assert_eq!(
         create.body["data"]["delegateAccessTokenCreate"]["userErrors"],
@@ -3168,25 +3108,6 @@ fn removed_app_billing_access_local_staging_scenario_has_rust_coverage() {
 fn removed_app_uninstall_error_codes_and_cascade_scenario_has_rust_coverage() {
     let mut proxy = snapshot_proxy();
 
-    let unknown = proxy.process_request(json_graphql_request(
-        r#"
-        mutation($input: AppUninstallInput) {
-          appUninstall(input: $input) {
-            app { id }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({ "input": { "id": "gid://shopify/App/9999999999" } }),
-    ));
-    assert_eq!(
-        unknown.body["data"]["appUninstall"],
-        json!({
-            "app": null,
-            "userErrors": [{ "field": ["id"], "message": "App not found", "code": "APP_NOT_FOUND" }]
-        })
-    );
-
     let (subscription_id, _line_item_id) =
         create_usage_subscription_for_removed_app_tests(&mut proxy, true, 100);
     let delegate_token = create_delegate_access_token_for_removed_app_tests(&mut proxy);
@@ -3202,10 +3123,6 @@ fn removed_app_uninstall_error_codes_and_cascade_scenario_has_rust_coverage() {
         "#,
         json!({}),
     ));
-    let app_id = uninstall.body["data"]["appUninstall"]["app"]["id"]
-        .as_str()
-        .unwrap()
-        .to_string();
     assert_eq!(
         uninstall.body["data"]["appUninstall"]["userErrors"],
         json!([])
@@ -3248,14 +3165,14 @@ fn removed_app_uninstall_error_codes_and_cascade_scenario_has_rust_coverage() {
 
     let known_uninstalled = proxy.process_request(json_graphql_request(
         r#"
-        mutation($input: AppUninstallInput) {
-          appUninstall(input: $input) {
+        mutation {
+          appUninstall {
             app { id }
             userErrors { field message code }
           }
         }
         "#,
-        json!({ "input": { "id": app_id } }),
+        json!({}),
     ));
     assert_eq!(
         known_uninstalled.body["data"]["appUninstall"],

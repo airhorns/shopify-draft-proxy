@@ -424,6 +424,9 @@ pub(in crate::proxy) fn price_list_parent_json(parent: &BTreeMap<String, Resolve
         "adjustment": {
             "type": adjustment_type,
             "value": price_list_adjustment_value_json(&adjustment)
+        },
+        "settings": {
+            "compareAtMode": "ADJUSTED"
         }
     });
     if let Some(settings) = resolved_object_field(parent, "settings") {
@@ -1587,6 +1590,11 @@ pub(in crate::proxy) fn market_region_country_codes(
     input: &BTreeMap<String, ResolvedValue>,
 ) -> Vec<String> {
     let mut codes = region_country_codes_from_value(input.get("regions"));
+    if let Some(regions_condition) = resolved_object_field(input, "regionsCondition") {
+        codes.extend(region_country_codes_from_value(
+            regions_condition.get("regions"),
+        ));
+    }
     if let Some(conditions) = resolved_object_field(input, "conditions") {
         if let Some(regions_condition) = resolved_object_field(&conditions, "regionsCondition") {
             codes.extend(region_country_codes_from_value(
@@ -1697,7 +1705,7 @@ pub(in crate::proxy) fn market_price_inclusions(input: &BTreeMap<String, Resolve
         return Value::Null;
     };
     json!({
-        "inclusiveDutiesPricingStrategy": resolved_string_field(&price_inclusions, "dutiesPricingStrategy").unwrap_or_else(|| "NOT_INCLUDED".to_string()),
+        "inclusiveDutiesPricingStrategy": resolved_string_field(&price_inclusions, "dutiesPricingStrategy").unwrap_or_else(|| "ADD_DUTIES_AT_CHECKOUT".to_string()),
         "inclusiveTaxPricingStrategy": resolved_string_field(&price_inclusions, "taxPricingStrategy").unwrap_or_else(|| "ADD_TAXES_AT_CHECKOUT".to_string())
     })
 }

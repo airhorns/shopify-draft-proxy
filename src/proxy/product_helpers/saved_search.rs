@@ -656,8 +656,8 @@ pub(in crate::proxy) fn is_saved_search_root(root: &str) -> bool {
 
 pub(in crate::proxy) fn saved_search_resource_type(root: &str) -> &'static str {
     match root {
-        "automaticDiscountSavedSearches" => "DISCOUNT",
-        "codeDiscountSavedSearches" => "DISCOUNT",
+        "automaticDiscountSavedSearches" => "PRICE_RULE",
+        "codeDiscountSavedSearches" => "PRICE_RULE",
         "collectionSavedSearches" => "COLLECTION",
         "customerSavedSearches" => "CUSTOMER",
         "discountRedeemCodeSavedSearches" => "DISCOUNT_REDEEM_CODE",

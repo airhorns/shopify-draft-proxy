@@ -2731,7 +2731,7 @@ impl DraftProxy {
         let metafields = function_metafields_from_field(
             field,
             &metafield_ids,
-            "FULFILLMENTCONSTRAINTRULE",
+            "FULFILLMENT_CONSTRAINT_RULE",
             |index, ids, _, _, _| {
                 ids.get(index)
                     .cloned()
@@ -2878,7 +2878,7 @@ impl DraftProxy {
             "__typename": "TaxAppConfiguration",
             "id": id,
             "ready": ready,
-            "state": if ready { "READY" } else { "NOT_READY" },
+            "state": if ready { "READY" } else { "PENDING" },
             "updatedAt": self.next_product_timestamp()
         });
         self.store.staged.functions_dirty = true;

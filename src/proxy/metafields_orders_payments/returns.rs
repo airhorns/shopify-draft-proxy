@@ -1996,11 +1996,14 @@ impl DraftProxy {
         let id = self.next_synthetic_gid("ReverseDelivery");
         let tracking = resolved_object_field(&field.arguments, "trackingInput").unwrap_or_default();
         let label = resolved_object_field(&field.arguments, "labelInput").unwrap_or_default();
-        let rfo_lines = self
+        let reverse_order = self
             .store
             .staged
             .reverse_fulfillment_orders
             .get(&reverse_order_id)
+            .cloned();
+        let rfo_lines = reverse_order
+            .as_ref()
             .and_then(|order| order["lineItems"]["nodes"].as_array())
             .cloned()
             .unwrap_or_default();
@@ -2048,7 +2051,8 @@ impl DraftProxy {
             .collect::<Vec<_>>();
         let delivery = json!({
             "id": id,
-            "reverseFulfillmentOrder": { "id": reverse_order_id },
+            "reverseFulfillmentOrder": reverse_order
+                .unwrap_or_else(|| json!({ "id": reverse_order_id.clone() })),
             "reverseDeliveryLineItems": {
                 "nodes": reverse_delivery_line_items
             },

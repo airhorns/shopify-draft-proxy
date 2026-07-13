@@ -258,7 +258,7 @@ fn metaobject_timestamps_follow_proxy_clock() {
     let sorted = proxy.process_request(json_graphql_request(
         r#"
         query TimestampEntriesSorted($type: String!) {
-          metaobjects(first: 10, type: $type, sortKey: UPDATED_AT, reverse: true) {
+          metaobjects(first: 10, type: $type, sortKey: "updated_at", reverse: true) {
             nodes { handle createdAt updatedAt }
           }
         }
@@ -488,7 +488,7 @@ fn metaobject_url_redirects_stage_and_read_after_definition_url_handle_update() 
           byPath: urlRedirects(first: 1, query: $pathQuery) {
             nodes { id path target }
           }
-          reverseByTarget: urlRedirects(first: 1, sortKey: TARGET, reverse: true) {
+          reverseByPath: urlRedirects(first: 1, sortKey: PATH, reverse: true) {
             nodes { path target }
           }
           matchingTargetCount: urlRedirectsCount(query: $targetQuery) { count precision }
@@ -509,7 +509,7 @@ fn metaobject_url_redirects_stage_and_read_after_definition_url_handle_update() 
         json!("/pages/new-redirect-definition/first-redirect-row")
     );
     assert_eq!(
-        read.body["data"]["reverseByTarget"]["nodes"][0]["path"],
+        read.body["data"]["reverseByPath"]["nodes"][0]["path"],
         json!("/pages/old-redirect-definition/second-redirect-row")
     );
     assert_eq!(
@@ -1299,7 +1299,6 @@ fn marketing_live_hybrid_cold_read_forwards_non_empty_upstream_catalog() {
                 "nodes": [{
                     "id": "gid://shopify/MarketingActivity/9001",
                     "title": "Upstream acquisition",
-                    "remoteId": "upstream-acquisition",
                     "marketingEvent": {
                         "id": "gid://shopify/MarketingEvent/19001",
                         "type": "AD",
@@ -1324,7 +1323,7 @@ fn marketing_live_hybrid_cold_read_forwards_non_empty_upstream_catalog() {
             "upstreamActivity": {
                 "id": "gid://shopify/MarketingActivity/9001",
                 "title": "Upstream acquisition",
-                "remoteId": "upstream-acquisition"
+                "marketingEvent": { "remoteId": "upstream-acquisition" }
             },
             "upstreamEvents": {
                 "nodes": [{
@@ -1370,11 +1369,11 @@ fn marketing_live_hybrid_cold_read_forwards_non_empty_upstream_catalog() {
         r#"
         query MarketingColdCatalogRead($activityId: ID!, $eventId: ID!) {
           upstreamActivities: marketingActivities(first: 2, sortKey: TITLE, query: "upstream") {
-            nodes { id title remoteId marketingEvent { id type remoteId description } }
+            nodes { id title marketingEvent { id type remoteId description } }
             edges { cursor node { id title } }
             pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
           }
-          upstreamActivity: marketingActivity(id: $activityId) { id title remoteId }
+          upstreamActivity: marketingActivity(id: $activityId) { id title marketingEvent { remoteId } }
           upstreamEvents: marketingEvents(first: 2, sortKey: ID) {
             nodes { id type remoteId description }
             edges { cursor node { id type } }
@@ -1414,7 +1413,6 @@ fn marketing_live_hybrid_effective_catalog_overlays_staged_lifecycle_on_upstream
                 "nodes": [{
                     "id": upstream_activity_id,
                     "title": "Upstream acquisition",
-                    "remoteId": "upstream-acquisition",
                     "isExternal": true,
                     "marketingEvent": {
                         "id": upstream_event_id,
@@ -1440,7 +1438,6 @@ fn marketing_live_hybrid_effective_catalog_overlays_staged_lifecycle_on_upstream
             "upstreamActivity": {
                 "id": upstream_activity_id,
                 "title": "Upstream acquisition",
-                "remoteId": "upstream-acquisition",
                 "isExternal": true,
                 "marketingEvent": {
                     "id": upstream_event_id,
@@ -1491,7 +1488,7 @@ fn marketing_live_hybrid_effective_catalog_overlays_staged_lifecycle_on_upstream
         r#"
         mutation CreateLocalMarketingActivity($input: MarketingActivityCreateExternalInput!) {
           created: marketingActivityCreateExternal(input: $input) {
-            marketingActivity { id title remoteId marketingEvent { id type remoteId } }
+            marketingActivity { id title marketingEvent { id type remoteId } }
             userErrors { field message code }
           }
         }
@@ -1528,7 +1525,7 @@ fn marketing_live_hybrid_effective_catalog_overlays_staged_lifecycle_on_upstream
         r#"
         query MarketingEffectiveCatalog($localCursor: String!, $upstreamActivityId: ID!, $upstreamEventId: ID!) {
           allActivities: marketingActivities(first: 5, sortKey: TITLE) {
-            nodes { id title remoteId }
+            nodes { id title marketingEvent { remoteId } }
             edges { cursor node { id title } }
             pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
           }
@@ -1543,7 +1540,7 @@ fn marketing_live_hybrid_effective_catalog_overlays_staged_lifecycle_on_upstream
           upstreamSearch: marketingActivities(first: 5, query: "remote_id:upstream-acquisition", sortKey: TITLE) {
             nodes { id title }
           }
-          upstreamActivity: marketingActivity(id: $upstreamActivityId) { id title remoteId }
+          upstreamActivity: marketingActivity(id: $upstreamActivityId) { id title marketingEvent { remoteId } }
           allEvents: marketingEvents(first: 5, sortKey: ID) {
             nodes { id type remoteId }
             edges { cursor node { id type } }
@@ -1562,8 +1559,8 @@ fn marketing_live_hybrid_effective_catalog_overlays_staged_lifecycle_on_upstream
     assert_eq!(
         read.body["data"]["allActivities"]["nodes"],
         json!([
-            {"id": local_id, "title": "Local staged", "remoteId": "local-staged"},
-            {"id": upstream_activity_id, "title": "Upstream acquisition", "remoteId": "upstream-acquisition"}
+            {"id": local_id, "title": "Local staged", "marketingEvent": {"remoteId": "local-staged"}},
+            {"id": upstream_activity_id, "title": "Upstream acquisition", "marketingEvent": {"remoteId": "upstream-acquisition"}}
         ])
     );
     assert_eq!(
@@ -1601,7 +1598,7 @@ fn marketing_live_hybrid_effective_catalog_overlays_staged_lifecycle_on_upstream
     );
     assert_eq!(
         read.body["data"]["upstreamActivity"],
-        json!({"id": upstream_activity_id, "title": "Upstream acquisition", "remoteId": "upstream-acquisition"})
+        json!({"id": upstream_activity_id, "title": "Upstream acquisition", "marketingEvent": {"remoteId": "upstream-acquisition"}})
     );
     assert_eq!(
         read.body["data"]["allEvents"]["nodes"],
@@ -1626,7 +1623,7 @@ fn marketing_live_hybrid_effective_catalog_overlays_staged_lifecycle_on_upstream
         r#"
         mutation UpdateObservedMarketingActivity($id: ID!, $input: MarketingActivityUpdateExternalInput!) {
           updated: marketingActivityUpdateExternal(marketingActivityId: $id, input: $input) {
-            marketingActivity { id title remoteId }
+            marketingActivity { id title marketingEvent { remoteId } }
             userErrors { field message code }
           }
         }
@@ -1639,13 +1636,13 @@ fn marketing_live_hybrid_effective_catalog_overlays_staged_lifecycle_on_upstream
     assert_eq!(update.body["data"]["updated"]["userErrors"], json!([]));
     assert_eq!(
         update.body["data"]["updated"]["marketingActivity"],
-        json!({"id": upstream_activity_id, "title": "Updated upstream acquisition", "remoteId": "upstream-acquisition"})
+        json!({"id": upstream_activity_id, "title": "Updated upstream acquisition", "marketingEvent": {"remoteId": "upstream-acquisition"}})
     );
 
     let after_update = proxy.process_request(json_graphql_request(
         r#"
         query MarketingReadAfterObservedUpdate($id: ID!) {
-          updatedActivity: marketingActivity(id: $id) { id title remoteId }
+          updatedActivity: marketingActivity(id: $id) { id title marketingEvent { remoteId } }
           allActivities: marketingActivities(first: 5, sortKey: TITLE) { nodes { id title } }
         }
         "#,
@@ -1653,7 +1650,7 @@ fn marketing_live_hybrid_effective_catalog_overlays_staged_lifecycle_on_upstream
     ));
     assert_eq!(
         after_update.body["data"]["updatedActivity"],
-        json!({"id": upstream_activity_id, "title": "Updated upstream acquisition", "remoteId": "upstream-acquisition"})
+        json!({"id": upstream_activity_id, "title": "Updated upstream acquisition", "marketingEvent": {"remoteId": "upstream-acquisition"}})
     );
     assert_eq!(
         after_update.body["data"]["allActivities"]["nodes"],
@@ -2035,12 +2032,12 @@ fn marketing_external_activity_lifecycle_stages_updates_engagements_and_reads_ba
         r#"
         mutation MarketingActivityLifecycle($input: MarketingActivityCreateExternalInput!) {
           createExternal: marketingActivityCreateExternal(input: $input) {
-            marketingActivity { id title status statusLabel remoteId sourceAndMedium utmParameters { campaign source medium } marketingEvent { id remoteId manageUrl previewUrl sourceAndMedium } }
+            marketingActivity { id title status statusLabel sourceAndMedium utmParameters { campaign source medium } marketingEvent { id remoteId manageUrl previewUrl sourceAndMedium } }
             userErrors { field message code }
           }
         }
         "#,
-        json!({"input": {"title": "Launch", "remoteId": "remote-1", "status": "ACTIVE", "remoteUrl": "https://example.com/manage", "previewUrl": "https://example.com/preview", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "launch", "source": "email", "medium": "newsletter"}}}),
+        json!({"input": {"title": "Launch", "remoteId": "remote-1", "status": "ACTIVE", "remoteUrl": "https://example.com/manage", "remotePreviewImageUrl": "https://example.com/preview", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "launch", "source": "email", "medium": "newsletter"}}}),
     ));
     let activity_id = create.body["data"]["createExternal"]["marketingActivity"]["id"]
         .as_str()
@@ -2124,12 +2121,10 @@ fn marketing_external_activity_lifecycle_stages_updates_engagements_and_reads_ba
 }
 
 #[test]
-fn marketing_money_defaults_use_shop_currency_when_currency_code_is_omitted() {
+fn marketing_money_inputs_require_currency_code_before_dispatch() {
     let mut proxy = snapshot_proxy();
-    restore_shop_currency(&mut proxy, "CAD");
 
-    let response = proxy.process_request(json_graphql_request(
-        r#"
+    let query = r#"
         mutation MarketingMoneyDefaults($activityInput: MarketingActivityCreateExternalInput!) {
           activity: marketingActivityCreateExternal(input: $activityInput) {
             marketingActivity {
@@ -2139,39 +2134,21 @@ fn marketing_money_defaults_use_shop_currency_when_currency_code_is_omitted() {
             userErrors { field message code }
           }
         }
-        "#,
-        json!({
-            "activityInput": {
-                "title": "Currency defaults",
-                "remoteId": "currency-defaults",
-                "status": "ACTIVE",
-                "remoteUrl": "https://example.com/currency-defaults",
-                "tactic": "NEWSLETTER",
-                "marketingChannelType": "EMAIL",
-                "utm": {
-                    "campaign": "currency-defaults",
-                    "source": "email",
-                    "medium": "newsletter"
-                },
-                "budget": {
-                    "budgetType": "DAILY",
-                    "total": { "amount": "12.34" }
-                },
-                "adSpend": { "amount": "5.67" }
-            }
-        }),
-    ));
+        "#;
+    let variables = r#"{"activityInput":{"title":"Currency defaults","remoteId":"currency-defaults","status":"ACTIVE","remoteUrl":"https://example.com/currency-defaults","tactic":"NEWSLETTER","marketingChannelType":"EMAIL","utm":{"campaign":"currency-defaults","source":"email","medium":"newsletter"},"budget":{"budgetType":"DAILY","total":{"amount":"12.34"}},"adSpend":{"amount":"5.67"}}}"#;
+    let body = format!(
+        r#"{{"query":{},"variables":{variables}}}"#,
+        serde_json::to_string(query).expect("query should serialize")
+    );
+    let response = proxy.process_request(graphql_request("POST", &body));
 
     assert_eq!(response.status, 200);
-    assert_eq!(response.body["data"]["activity"]["userErrors"], json!([]));
+    assert_eq!(response.body["data"], Value::Null);
     assert_eq!(
-        response.body["data"]["activity"]["marketingActivity"]["budget"]["total"],
-        json!({ "amount": "12.34", "currencyCode": "CAD" })
+        response.body["errors"][0]["message"],
+        json!("Variable $activityInput of type MarketingActivityCreateExternalInput! was provided invalid value for budget.total.currencyCode (Expected value to not be null), adSpend.currencyCode (Expected value to not be null)")
     );
-    assert_eq!(
-        response.body["data"]["activity"]["marketingActivity"]["adSpend"],
-        json!({ "amount": "5.67", "currencyCode": "CAD" })
-    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
@@ -2184,11 +2161,11 @@ fn marketing_external_activity_update_and_upsert_reject_tactic_change_from_store
           $upsertInput: MarketingActivityCreateExternalInput!
         ) {
           updateSeed: marketingActivityCreateExternal(input: $updateInput) {
-            marketingActivity { id title tactic remoteId }
+            marketingActivity { id title tactic }
             userErrors { field message code }
           }
           upsertSeed: marketingActivityCreateExternal(input: $upsertInput) {
-            marketingActivity { id title tactic remoteId }
+            marketingActivity { id title tactic }
             userErrors { field message code }
           }
         }
@@ -2229,7 +2206,7 @@ fn marketing_external_activity_update_and_upsert_reject_tactic_change_from_store
         json!({
             "updateActivityId": update_activity_id,
             "updateInput": {"title": "Should not stage update", "tactic": "NEWSLETTER"},
-            "upsertInput": {"remoteId": "storefront-upsert-seed", "title": "Should not stage upsert", "tactic": "NEWSLETTER"}
+            "upsertInput": {"remoteId": "storefront-upsert-seed", "title": "Should not stage upsert", "status": "ACTIVE", "remoteUrl": "https://example.com/storefront-upsert-seed", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL"}
         }),
     ));
     let expected_error = json!([{
@@ -2275,7 +2252,7 @@ fn marketing_per_app_scoping_keeps_external_activity_owned_by_request_app() {
         r#"
         mutation MarketingActivityPerAppCreate {
           createExternal: marketingActivityCreateExternal(input: { title: "Per App Campaign", remoteId: "campaign-1", status: ACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, remoteUrl: "https://example.com/per-app", budget: { budgetType: DAILY, total: { amount: "100.00", currencyCode: USD } }, urlParameterValue: "utm_campaign=per-app-a", utm: { campaign: "per-app-a", source: "newsletter", medium: "email" } }) {
-            marketingActivity { id title remoteId }
+            marketingActivity { id title marketingEvent { remoteId } }
             userErrors { field message code }
           }
         }
@@ -2383,7 +2360,7 @@ fn marketing_per_app_scoping_keeps_external_activity_owned_by_request_app() {
 
     let mut app_a_read = json_graphql_request(
         r#"
-        query MarketingActivityPerAppRead($activityId: ID!) { marketingActivity(id: $activityId) { title remoteId } }
+        query MarketingActivityPerAppRead($activityId: ID!) { marketingActivity(id: $activityId) { title marketingEvent { remoteId } } }
         "#,
         json!({"activityId": activity_id.clone()}),
     );
@@ -2394,7 +2371,7 @@ fn marketing_per_app_scoping_keeps_external_activity_owned_by_request_app() {
     let app_a_read = proxy.process_request(app_a_read);
     assert_eq!(
         app_a_read.body["data"]["marketingActivity"],
-        json!({"title": "Per App Campaign", "remoteId": "campaign-1"})
+        json!({"title": "Per App Campaign", "marketingEvent": {"remoteId": "campaign-1"}})
     );
 
     let mut app_a_delete = json_graphql_request(
@@ -2420,7 +2397,7 @@ fn marketing_per_app_scoping_keeps_external_activity_owned_by_request_app() {
 
     let mut app_a_read_after_delete = json_graphql_request(
         r#"
-        query MarketingActivityPerAppReadAfterDelete($activityId: ID!) { marketingActivity(id: $activityId) { title remoteId } }
+        query MarketingActivityPerAppReadAfterDelete($activityId: ID!) { marketingActivity(id: $activityId) { title marketingEvent { remoteId } } }
         "#,
         json!({"activityId": activity_id}),
     );
@@ -2497,12 +2474,11 @@ fn marketing_external_activity_uses_request_app_identity_channel_and_tracking_va
             marketingChannelType: SEARCH,
             channelHandle: "email",
             remoteUrl: "https://example.com/social-launch",
-            previewUrl: "https://example.com/social-preview",
+            remotePreviewImageUrl: "https://example.com/social-preview",
             utm: { campaign: "social-campaign", source: "social", medium: "paid" }
           }) {
             marketingActivity {
               id
-              remoteId
               app { id title }
               utmParameters { campaign source medium }
               marketingEvent {
@@ -2542,7 +2518,6 @@ fn marketing_external_activity_uses_request_app_identity_channel_and_tracking_va
         created,
         &json!({
             "id": activity_id,
-            "remoteId": "social-remote-1",
             "app": { "id": "gid://shopify/App/347082227713", "title": "shopify-draft-proxy" },
             "utmParameters": { "campaign": "social-campaign", "source": "social", "medium": "paid" },
             "marketingEvent": {
@@ -2819,7 +2794,7 @@ fn marketing_external_activity_upsert_create_branch_rejects_currency_and_duplica
 }
 
 #[test]
-fn marketing_external_activity_update_and_upsert_reject_immutable_field_changes() {
+fn marketing_external_activity_upsert_rejects_immutable_field_changes() {
     let mut proxy = snapshot_proxy();
     let seed = proxy.process_request(json_graphql_request(
         r#"
@@ -2861,22 +2836,6 @@ fn marketing_external_activity_update_and_upsert_reject_immutable_field_changes(
     assert_eq!(
         order.body["data"]["changed"],
         json!({"marketingActivity": null, "userErrors": [{"field": ["input"], "message": "Channel handle cannot be modified.", "code": "IMMUTABLE_CHANNEL_HANDLE"}]})
-    );
-
-    let update_parent = proxy.process_request(json_graphql_request(
-        r#"
-        mutation MarketingActivityLifecycle($remoteId: String!, $input: MarketingActivityUpdateExternalInput!) {
-          changed: marketingActivityUpdateExternal(remoteId: $remoteId, input: $input) {
-            marketingActivity { id title }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({"remoteId": "guard-child", "input": {"title": "Should not stage parent", "urlParameterValue": "guard-child-url", "utm": {"campaign": "guard-child", "source": "email", "medium": "newsletter"}, "parentRemoteId": "guard-other-parent", "hierarchyLevel": "AD"}}),
-    ));
-    assert_eq!(
-        update_parent.body["data"]["changed"],
-        json!({"marketingActivity": null, "userErrors": [{"field": ["input"], "message": "Parent ID cannot be modified.", "code": "IMMUTABLE_PARENT_ID"}]})
     );
 
     let invalid_parent = proxy.process_request(json_graphql_request(
@@ -2951,7 +2910,7 @@ fn marketing_external_activity_update_and_upsert_reject_immutable_field_changes(
     let read = proxy.process_request(json_graphql_request(
         r#"
         query MarketingActivityLifecycleRead($remoteIds: [String!]) {
-          marketingActivities(first: 10, remoteIds: $remoteIds) { nodes { title remoteId parentRemoteId hierarchyLevel urlParameterValue utmParameters { campaign source medium } } }
+          marketingActivities(first: 10, remoteIds: $remoteIds) { nodes { title parentRemoteId hierarchyLevel urlParameterValue utmParameters { campaign source medium } marketingEvent { remoteId } } }
         }
         "#,
         json!({"remoteIds": ["guard-child", "guard-utm-only"]}),
@@ -2962,7 +2921,7 @@ fn marketing_external_activity_update_and_upsert_reject_immutable_field_changes(
     // so the stored title reflects that last successful upsert.
     assert_eq!(
         read.body["data"]["marketingActivities"]["nodes"][0],
-        json!({"title": "Should not stage omitted URL", "remoteId": "guard-child", "parentRemoteId": "guard-parent", "hierarchyLevel": "AD", "urlParameterValue": "guard-child-url", "utmParameters": {"campaign": "guard-child", "source": "email", "medium": "newsletter"}})
+        json!({"title": "Should not stage omitted URL", "parentRemoteId": "guard-parent", "hierarchyLevel": "AD", "urlParameterValue": "guard-child-url", "utmParameters": {"campaign": "guard-child", "source": "email", "medium": "newsletter"}, "marketingEvent": {"remoteId": "guard-child"}})
     );
     assert_eq!(
         read.body["data"]["marketingActivities"]["nodes"][1]["title"],
@@ -2971,26 +2930,19 @@ fn marketing_external_activity_update_and_upsert_reject_immutable_field_changes(
 }
 
 #[test]
-fn marketing_external_activity_update_and_upsert_reject_not_external_and_missing_event_records() {
+fn marketing_external_activity_update_rejects_non_external_records() {
     let mut proxy = snapshot_proxy();
     let seed = proxy.process_request(json_graphql_request(
         r#"
-        mutation MarketingEngagementCreateValidationOrder($activityInput: MarketingActivityUpdateInput!, $externalInput: MarketingActivityCreateExternalInput!) {
+        mutation MarketingEngagementCreateValidationOrder($activityInput: MarketingActivityUpdateInput!) {
           native: marketingActivityUpdate(input: $activityInput) { marketingActivity { id title isExternal marketingEvent { id } } userErrors { field message } }
-          external: marketingActivityCreateExternal(input: $externalInput) { marketingActivity { id title remoteId } userErrors { field message code } }
         }
         "#,
         json!({
-            "activityInput": {"id": "gid://shopify/MarketingActivity/native-no-event", "title": "Native no event", "remoteId": "native-local", "status": "ACTIVE"},
-            "externalInput": {"title": "External", "remoteId": "eventless-remote", "status": "ACTIVE", "remoteUrl": "https://example.com/eventless", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "eventless-remote", "source": "email", "medium": "newsletter"}}
+            "activityInput": {"id": "gid://shopify/MarketingActivity/native-no-event", "title": "Native no event", "status": "ACTIVE"}
         }),
     ));
     assert_eq!(seed.body["data"]["native"]["userErrors"], json!([]));
-    assert_eq!(seed.body["data"]["external"]["userErrors"], json!([]));
-    let external_id = seed.body["data"]["external"]["marketingActivity"]["id"]
-        .as_str()
-        .unwrap()
-        .to_string();
 
     let not_external_update = proxy.process_request(json_graphql_request(
         r#"
@@ -3007,24 +2959,6 @@ fn marketing_external_activity_update_and_upsert_reject_not_external_and_missing
         not_external_update.body["data"]["changed"],
         json!({"marketingActivity": null, "userErrors": [{"field": null, "message": "Marketing activity is not external.", "code": "ACTIVITY_NOT_EXTERNAL"}]})
     );
-
-    let not_external_upsert = proxy.process_request(json_graphql_request(
-        r#"
-        mutation MarketingActivityLifecycle($input: MarketingActivityUpsertExternalInput!) {
-          changed: marketingActivityUpsertExternal(input: $input) {
-            marketingActivity { id title }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({"input": {"title": "Should not stage native upsert", "remoteId": "native-local", "status": "ACTIVE", "remoteUrl": "https://example.com/native", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "native-local", "source": "email", "medium": "newsletter"}}}),
-    ));
-    assert_eq!(
-        not_external_upsert.body["data"]["changed"],
-        json!({"marketingActivity": null, "userErrors": [{"field": null, "message": "Marketing activity is not external.", "code": "ACTIVITY_NOT_EXTERNAL"}]})
-    );
-
-    assert!(external_id.starts_with("gid://shopify/MarketingActivity/"));
 }
 
 #[test]
@@ -3263,15 +3197,15 @@ fn marketing_activity_delete_external_enforces_resolution_external_and_child_gua
             userErrors { field message  }
           }
           external: marketingActivityCreateExternal(input: $externalInput) {
-            marketingActivity { id remoteId isExternal }
+            marketingActivity { id isExternal marketingEvent { remoteId } }
             userErrors { field message code }
           }
           parent: marketingActivityCreateExternal(input: $parentInput) {
-            marketingActivity { id remoteId isExternal }
+            marketingActivity { id isExternal marketingEvent { remoteId } }
             userErrors { field message code }
           }
           child: marketingActivityCreateExternal(input: $childInput) {
-            marketingActivity { id remoteId parentRemoteId isExternal }
+            marketingActivity { id parentRemoteId isExternal marketingEvent { remoteId } }
             userErrors { field message code }
           }
         }
@@ -3325,7 +3259,7 @@ fn marketing_activity_delete_external_enforces_resolution_external_and_child_gua
             deletedMarketingActivityId
             userErrors { field message code }
           }
-          parentById: marketingActivityDeleteExternal(id: $parentId) {
+          parentById: marketingActivityDeleteExternal(marketingActivityId: $parentId) {
             deletedMarketingActivityId
             userErrors { field message code }
           }
@@ -3376,7 +3310,7 @@ fn marketing_activity_delete_external_enforces_resolution_external_and_child_gua
         r#"
         query MarketingActivityRead($nativeId: ID!, $parentId: ID!, $externalId: ID!) {
           native: marketingActivity(id: $nativeId) { id isExternal }
-          parent: marketingActivity(id: $parentId) { id remoteId }
+          parent: marketingActivity(id: $parentId) { id marketingEvent { remoteId } }
           external: marketingActivity(id: $externalId) { id }
         }
         "#,
@@ -3397,7 +3331,7 @@ fn marketing_activity_delete_external_enforces_resolution_external_and_child_gua
     );
     assert_eq!(
         read.body["data"]["parent"],
-        json!({"id": parent_id, "remoteId": "delete-guard-parent"})
+        json!({"id": parent_id, "marketingEvent": {"remoteId": "delete-guard-parent"}})
     );
     assert_eq!(read.body["data"]["external"], Value::Null);
 }
@@ -3487,9 +3421,9 @@ fn inventory_quantity_roots_stage_set_move_properties_and_downstream_reads() {
           }
         }
         "#,
-        json!({"input": {"name": "available", "reason": "correction", "referenceDocumentUri": "logistics://har-305/set/1777251367654", "ignoreCompareQuantity": true, "quantities": [
-            {"inventoryItemId": inventory_item_id, "locationId": shop_location_id, "quantity": 7},
-            {"inventoryItemId": inventory_item_id, "locationId": custom_location_id, "quantity": 2}
+        json!({"input": {"name": "available", "reason": "correction", "referenceDocumentUri": "logistics://har-305/set/1777251367654", "quantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": shop_location_id, "quantity": 7, "changeFromQuantity": null},
+            {"inventoryItemId": inventory_item_id, "locationId": custom_location_id, "quantity": 2, "changeFromQuantity": null}
         ]}}),
     ));
     assert_eq!(
@@ -4110,9 +4044,9 @@ fn location_inventory_levels_overlay_and_args() {
           }
         }
         "#,
-        json!({"input": {"name": "available", "reason": "correction", "ignoreCompareQuantity": true, "quantities": [
-            {"inventoryItemId": first_item_id, "locationId": source_location_id, "quantity": 4},
-            {"inventoryItemId": second_item_id, "locationId": source_location_id, "quantity": 8}
+        json!({"input": {"name": "available", "reason": "correction", "quantities": [
+            {"inventoryItemId": first_item_id, "locationId": source_location_id, "quantity": 4, "changeFromQuantity": null},
+            {"inventoryItemId": second_item_id, "locationId": source_location_id, "quantity": 8, "changeFromQuantity": null}
         ]}}),
     ));
     assert_eq!(
@@ -4262,7 +4196,6 @@ fn location_inventory_levels_overlay_and_args() {
         query LocationInventoryLevelsInactive(
           $sourceLocationId: ID!
           $destinationLocationId: ID!
-          $firstItemId: ID!
           $after: String!
           $before: String!
           $firstItemQuery: String!
@@ -4303,7 +4236,6 @@ fn location_inventory_levels_overlay_and_args() {
         json!({
             "sourceLocationId": source_location_id,
             "destinationLocationId": destination_location_id,
-            "firstItemId": first_item_id,
             "after": source_level_id,
             "before": inventory_level_id_for_test(&second_item_id, &source_location_id),
             "firstItemQuery": format!("inventory_item_id:{}", first_item_id)
@@ -4384,9 +4316,9 @@ fn inventory_item_inventory_levels_connection_honors_args() {
           }
         }
         "#,
-        json!({"input": {"name": "available", "reason": "correction", "ignoreCompareQuantity": true, "quantities": [
-            {"inventoryItemId": inventory_item_id, "locationId": source_location_id, "quantity": 4},
-            {"inventoryItemId": inventory_item_id, "locationId": destination_location_id, "quantity": 9}
+        json!({"input": {"name": "available", "reason": "correction", "quantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": source_location_id, "quantity": 4, "changeFromQuantity": null},
+            {"inventoryItemId": inventory_item_id, "locationId": destination_location_id, "quantity": 9, "changeFromQuantity": null}
         ]}}),
     ));
     assert_eq!(
@@ -5398,7 +5330,7 @@ fn inventory_quantity_mutations_reject_unknown_inventory_item_without_staging() 
           }
         }
         "#,
-        json!({"idempotencyKey": "unknown-item-move", "input": {"reason": "correction", "changes": [{
+        json!({"idempotencyKey": "unknown-item-move", "input": {"reason": "correction", "referenceDocumentUri": "ledger://inventory/unknown-item", "changes": [{
             "inventoryItemId": unknown_inventory_item_id,
             "quantity": 1,
             "from": {"locationId": location_id, "name": "available", "changeFromQuantity": 0},
@@ -5495,7 +5427,7 @@ fn inventory_quantity_mutations_reject_unknown_location_without_staging() {
           }
         }
         "#,
-        json!({"idempotencyKey": "unknown-location-move", "input": {"reason": "correction", "changes": [{
+        json!({"idempotencyKey": "unknown-location-move", "input": {"reason": "correction", "referenceDocumentUri": "ledger://inventory/unknown-location", "changes": [{
             "inventoryItemId": inventory_item_id,
             "quantity": 1,
             "from": {"locationId": unknown_location_id, "name": "available", "changeFromQuantity": 0},
@@ -5576,8 +5508,8 @@ fn inventory_level_reads_preserve_fulfillment_service_location_names() {
           }
         }
         "#,
-        json!({"input": {"name": "available", "reason": "correction", "ignoreCompareQuantity": true, "quantities": [
-            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": 4}
+        json!({"input": {"name": "available", "reason": "correction", "quantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": 4, "changeFromQuantity": null}
         ]}}),
     ));
     assert_eq!(
@@ -5666,8 +5598,8 @@ fn inventory_set_on_hand_quantities_stages_locally_logs_and_reads_back() {
           }
         }
         "#,
-        json!({"input": {"name": "available", "reason": "correction", "ignoreCompareQuantity": true, "quantities": [
-            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": 2}
+        json!({"input": {"name": "available", "reason": "correction", "quantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": 2, "changeFromQuantity": null}
         ]}}),
     ));
     assert_eq!(
@@ -6037,8 +5969,8 @@ fn inventory_adjust_quantities_leaves_product_total_inventory_lazy() {
           inventorySetQuantities(input: $input) { userErrors { field message code } }
         }
         "#,
-        json!({"input": {"name": "available", "reason": "correction", "ignoreCompareQuantity": true, "quantities": [
-            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": 2}
+        json!({"input": {"name": "available", "reason": "correction", "quantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": 2, "changeFromQuantity": null}
         ]}}),
     ));
     assert_eq!(
@@ -6207,8 +6139,8 @@ fn set_inventory_available_quantity(
           }
         }
         "#,
-        json!({"input": {"name": "available", "reason": "correction", "ignoreCompareQuantity": true, "quantities": [
-            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": quantity}
+        json!({"input": {"name": "available", "reason": "correction", "quantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": quantity, "changeFromQuantity": null}
         ]}}),
     ));
     assert_eq!(
@@ -6443,8 +6375,8 @@ fn inventory_activation_roots_stage_locally_and_read_inactive_levels() {
           inventorySetQuantities(input: $input) { userErrors { field message code } }
         }
         "#,
-        json!({"input": {"name": "available", "reason": "correction", "ignoreCompareQuantity": true, "quantities": [
-            {"inventoryItemId": inventory_item_id, "locationId": source_location_id, "quantity": 5}
+        json!({"input": {"name": "available", "reason": "correction", "quantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": source_location_id, "quantity": 5, "changeFromQuantity": null}
         ]}}),
     ));
     assert_eq!(
@@ -6601,7 +6533,7 @@ fn inventory_activation_roots_stage_locally_and_read_inactive_levels() {
               provinceCodeOfOrigin
               harmonizedSystemCode
               measurement { weight { value unit } }
-              countryHarmonizedSystemCodes { countryCode harmonizedSystemCode }
+              countryHarmonizedSystemCodes { nodes { countryCode harmonizedSystemCode } }
               variant { id inventoryQuantity }
             }
             userErrors { field message  }
@@ -6633,7 +6565,7 @@ fn inventory_activation_roots_stage_locally_and_read_inactive_levels() {
             "provinceCodeOfOrigin": "ON",
             "harmonizedSystemCode": "123456",
             "measurement": {"weight": {"value": 2.5, "unit": "KILOGRAMS"}},
-            "countryHarmonizedSystemCodes": [{"countryCode": "US", "harmonizedSystemCode": "654321"}],
+            "countryHarmonizedSystemCodes": {"nodes": [{"countryCode": "US", "harmonizedSystemCode": "654321"}]},
             "variant": {"id": variant_id, "inventoryQuantity": 5}
         })
     );
@@ -6864,8 +6796,8 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
           inventorySetQuantities(input: $input) { userErrors { field message code } }
         }
         "#,
-        json!({"input": {"name": "available", "reason": "correction", "ignoreCompareQuantity": true, "quantities": [
-            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": 1}
+        json!({"input": {"name": "available", "reason": "correction", "quantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": 1, "changeFromQuantity": null}
         ]}}),
     ));
     assert_eq!(
@@ -7021,28 +6953,33 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         ]}),
     ));
     assert_eq!(
-        extra_quantity_field_bulk.body["data"]["inventoryBulkToggleActivation"]["userErrors"],
-        json!([])
+        extra_quantity_field_bulk.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
     );
+    assert_eq!(
+        extra_quantity_field_bulk.body["errors"][0]["extensions"]["problems"][0]["path"],
+        json!([0, "available"])
+    );
+    assert!(extra_quantity_field_bulk.body.get("data").is_none());
 
     let inactive_location_id = add_active_transfer_location(&mut proxy, "Inactive bulk location");
     let make_inactive = proxy.process_request(json_graphql_request(
         r#"
-        mutation MakeBulkLocationInactive($id: ID!, $input: LocationEditInput!) {
-          locationEdit(id: $id, input: $input) {
+        mutation MakeBulkLocationInactive($id: ID!) {
+          locationDeactivate(locationId: $id) @idempotent(key: "inventory-bulk-inactive-location") {
             location { id isActive }
-            userErrors { field message code }
+            locationDeactivateUserErrors { field message code }
           }
         }
         "#,
-        json!({"id": inactive_location_id, "input": {"isActive": false}}),
+        json!({"id": inactive_location_id}),
     ));
     assert_eq!(
-        make_inactive.body["data"]["locationEdit"]["userErrors"],
+        make_inactive.body["data"]["locationDeactivate"]["locationDeactivateUserErrors"],
         json!([])
     );
     assert_eq!(
-        make_inactive.body["data"]["locationEdit"]["location"]["isActive"],
+        make_inactive.body["data"]["locationDeactivate"]["location"]["isActive"],
         json!(false)
     );
     let inactive_bulk = proxy.process_request(json_graphql_request(
@@ -7618,8 +7555,8 @@ fn order_create_decrements_inventory_when_inventory_behaviour_is_not_bypass() {
           }
         }
         "#,
-        json!({"input": {"name": "available", "reason": "correction", "referenceDocumentUri": "logistics://inventory/order-create-seed", "ignoreCompareQuantity": true, "quantities": [
-            {"inventoryItemId": decrement_inventory_item_id, "locationId": location_id, "quantity": 5}
+        json!({"input": {"name": "available", "reason": "correction", "referenceDocumentUri": "logistics://inventory/order-create-seed", "quantities": [
+            {"inventoryItemId": decrement_inventory_item_id, "locationId": location_id, "quantity": 5, "changeFromQuantity": null}
         ]}}),
     ));
     assert_eq!(
@@ -7722,8 +7659,8 @@ fn order_create_decrements_inventory_when_inventory_behaviour_is_not_bypass() {
           }
         }
         "#,
-        json!({"input": {"name": "available", "reason": "correction", "referenceDocumentUri": "logistics://inventory/order-create-bypass-seed", "ignoreCompareQuantity": true, "quantities": [
-            {"inventoryItemId": bypass_inventory_item_id, "locationId": location_id, "quantity": 8}
+        json!({"input": {"name": "available", "reason": "correction", "referenceDocumentUri": "logistics://inventory/order-create-bypass-seed", "quantities": [
+            {"inventoryItemId": bypass_inventory_item_id, "locationId": location_id, "quantity": 8, "changeFromQuantity": null}
         ]}}),
     ));
     assert_eq!(
@@ -8344,10 +8281,9 @@ fn inventory_node_reads_resolve_staged_inventory_graph_without_upstream_writes()
         }
         "#,
         json!({"input": {
-            "inventoryTransferId": transfer_id,
+            "movementId": transfer_id,
             "lineItems": [{
                 "inventoryItemId": inventory_item_id,
-                "inventoryTransferLineItemId": transfer_line_id,
                 "quantity": 1
             }]
         }}),
@@ -8917,12 +8853,6 @@ fn inventory_node_reads_follow_activation_transfer_and_shipment_lifecycles() {
         .as_str()
         .unwrap()
         .to_string();
-    let shipment_transfer_line_id = shipment_transfer.body["data"]
-        ["inventoryTransferCreateAsReadyToShip"]["inventoryTransfer"]["lineItems"]["nodes"][0]
-        ["id"]
-        .as_str()
-        .unwrap()
-        .to_string();
     let shipment = proxy.process_request(json_graphql_request(
         r#"
         mutation ShipmentForNodeLifecycle($input: InventoryShipmentCreateInput!) {
@@ -8937,10 +8867,9 @@ fn inventory_node_reads_follow_activation_transfer_and_shipment_lifecycles() {
         }
         "#,
         json!({"input": {
-            "inventoryTransferId": shipment_transfer_id,
+            "movementId": shipment_transfer_id,
             "lineItems": [{
                 "inventoryItemId": inventory_item_id,
-                "inventoryTransferLineItemId": shipment_transfer_line_id,
                 "quantity": 1
             }]
         }}),
@@ -9373,9 +9302,9 @@ fn inventory_transfers_connection_filters_sorts_and_windows_staged_records() {
           }
         }
         "#,
-        json!({"idempotencyKey": "inventory-transfer-connection-stock", "input": {"name": "available", "reason": "correction", "ignoreCompareQuantity": true, "quantities": [
-            {"inventoryItemId": first_item_id, "locationId": origin_location_id, "quantity": 4},
-            {"inventoryItemId": second_item_id, "locationId": origin_location_id, "quantity": 8}
+        json!({"idempotencyKey": "inventory-transfer-connection-stock", "input": {"name": "available", "reason": "correction", "quantities": [
+            {"inventoryItemId": first_item_id, "locationId": origin_location_id, "quantity": 4, "changeFromQuantity": null},
+            {"inventoryItemId": second_item_id, "locationId": origin_location_id, "quantity": 8, "changeFromQuantity": null}
         ]}}),
     ));
     assert_eq!(
@@ -9689,7 +9618,7 @@ fn online_store_mobile_platform_application_lifecycle_and_validation_are_local()
         mutation MobilePlatformApplicationUpdateValidation($appleId: ID!, $androidId: ID!, $missingId: ID!) {
           platformMismatch: mobilePlatformApplicationUpdate(id: $androidId, input: { apple: { appId: "com.example.wrong-platform" } }) { mobilePlatformApplication { __typename } userErrors { code field message } }
           missing: mobilePlatformApplicationUpdate(id: $missingId, input: { apple: { appId: "com.example.missing" } }) { mobilePlatformApplication { __typename } userErrors { code field message } }
-          blankAndroid: mobilePlatformApplicationUpdate(id: $androidId, input: { android: { applicationId: "" } }) { mobilePlatformApplication { __typename } userErrors { code field message } }
+          blankAndroid: mobilePlatformApplicationUpdate(id: $androidId, input: { android: { applicationId: "", sha256CertFingerprints: ["AA:BB"] } }) { mobilePlatformApplication { __typename } userErrors { code field message } }
           blankApple: mobilePlatformApplicationUpdate(id: $appleId, input: { apple: { appId: "  " } }) { mobilePlatformApplication { __typename } userErrors { code field message } }
         }
         "#,
@@ -9705,11 +9634,11 @@ fn online_store_mobile_platform_application_lifecycle_and_validation_are_local()
     );
     assert_eq!(
         validation.body["data"]["blankAndroid"]["userErrors"][0]["code"],
-        json!("BLANK")
+        json!("INVALID")
     );
     assert_eq!(
         validation.body["data"]["blankApple"]["userErrors"][0]["code"],
-        json!("BLANK")
+        json!("INVALID")
     );
 }
 
@@ -9912,10 +9841,6 @@ fn online_store_mobile_platform_application_create_model_validations_do_not_stag
             mobilePlatformApplication { __typename }
             userErrors { code field message }
           }
-          missingAndroidFingerprints: mobilePlatformApplicationCreate(input: { android: { applicationId: "com.example.missing.fingerprints", appLinksEnabled: true } }) {
-            mobilePlatformApplication { __typename }
-            userErrors { code field message }
-          }
           emptyAndroidFingerprints: mobilePlatformApplicationCreate(input: { android: { applicationId: "com.example.empty.fingerprints", appLinksEnabled: true, sha256CertFingerprints: [] } }) {
             mobilePlatformApplication { __typename }
             userErrors { code field message }
@@ -9944,10 +9869,9 @@ fn online_store_mobile_platform_application_create_model_validations_do_not_stag
         validation.body["data"],
         json!({
             "longAndroid": {"mobilePlatformApplication": null, "userErrors": [{"code": "TOO_LONG", "field": ["input", "android", "applicationId"], "message": "Application ID is too long (maximum is 100 characters)"}]},
-            "missingAndroidFingerprints": {"mobilePlatformApplication": null, "userErrors": [{"code": "BLANK", "field": ["input", "android", "sha256CertFingerprints"], "message": "Sha256 cert fingerprints can't be blank"}]},
-            "emptyAndroidFingerprints": {"mobilePlatformApplication": null, "userErrors": [{"code": "BLANK", "field": ["input", "android", "sha256CertFingerprints"], "message": "Sha256 cert fingerprints can't be blank"}]},
+            "emptyAndroidFingerprints": {"mobilePlatformApplication": null, "userErrors": [{"code": "INVALID", "field": ["input", "android", "sha256CertFingerprints"], "message": "Sha256 cert fingerprints can't be blank"}]},
             "longApple": {"mobilePlatformApplication": null, "userErrors": [{"code": "TOO_LONG", "field": ["input", "apple", "appId"], "message": "Application ID is too long (maximum is 100 characters)"}]},
-            "missingAppClip": {"mobilePlatformApplication": null, "userErrors": [{"code": "BLANK", "field": ["input", "apple", "appClipApplicationId"], "message": "App clip application can't be blank"}]},
+            "missingAppClip": {"mobilePlatformApplication": null, "userErrors": [{"code": "INVALID", "field": ["input", "apple", "appClipApplicationId"], "message": "App clip application can't be blank"}]},
             "longAppClip": {"mobilePlatformApplication": null, "userErrors": [{"code": "TOO_LONG", "field": ["input", "apple", "appClipApplicationId"], "message": "App clip application is too long (maximum is 255 characters)"}]}
         })
     );
@@ -9991,10 +9915,6 @@ fn online_store_mobile_platform_application_update_model_validations_do_not_muta
             mobilePlatformApplication { __typename }
             userErrors { code field message }
           }
-          missingAndroidFingerprints: mobilePlatformApplicationUpdate(id: $androidId, input: { android: { applicationId: "com.example.android.missing", appLinksEnabled: true } }) {
-            mobilePlatformApplication { __typename }
-            userErrors { code field message }
-          }
           emptyAndroidFingerprints: mobilePlatformApplicationUpdate(id: $androidId, input: { android: { applicationId: "com.example.android.new", appLinksEnabled: true, sha256CertFingerprints: [] } }) {
             mobilePlatformApplication { __typename }
             userErrors { code field message }
@@ -10025,10 +9945,9 @@ fn online_store_mobile_platform_application_update_model_validations_do_not_muta
         validation.body["data"],
         json!({
             "longAndroid": {"mobilePlatformApplication": null, "userErrors": [{"code": "TOO_LONG", "field": ["input", "android", "applicationId"], "message": "Application ID is too long (maximum is 100 characters)"}]},
-            "missingAndroidFingerprints": {"mobilePlatformApplication": null, "userErrors": [{"code": "BLANK", "field": ["input", "android", "sha256CertFingerprints"], "message": "Sha256 cert fingerprints can't be blank"}]},
-            "emptyAndroidFingerprints": {"mobilePlatformApplication": null, "userErrors": [{"code": "BLANK", "field": ["input", "android", "sha256CertFingerprints"], "message": "Sha256 cert fingerprints can't be blank"}]},
+            "emptyAndroidFingerprints": {"mobilePlatformApplication": null, "userErrors": [{"code": "INVALID", "field": ["input", "android", "sha256CertFingerprints"], "message": "Sha256 cert fingerprints can't be blank"}]},
             "longApple": {"mobilePlatformApplication": null, "userErrors": [{"code": "TOO_LONG", "field": ["input", "apple", "appId"], "message": "Application ID is too long (maximum is 100 characters)"}]},
-            "missingAppClip": {"mobilePlatformApplication": null, "userErrors": [{"code": "BLANK", "field": ["input", "apple", "appClipApplicationId"], "message": "App clip application can't be blank"}]},
+            "missingAppClip": {"mobilePlatformApplication": null, "userErrors": [{"code": "INVALID", "field": ["input", "apple", "appClipApplicationId"], "message": "App clip application can't be blank"}]},
             "longAppClip": {"mobilePlatformApplication": null, "userErrors": [{"code": "TOO_LONG", "field": ["input", "apple", "appClipApplicationId"], "message": "App clip application is too long (maximum is 255 characters)"}]}
         })
     );
@@ -10088,28 +10007,24 @@ fn online_store_script_tag_web_pixel_and_theme_file_validation_are_local() {
     let create_script = proxy.process_request(json_graphql_request(
         r#"
         mutation ScriptTagUpdateValidationCreate {
-          scriptTagCreate(input: { src: "https://cdn.example.test/app.js", displayScope: ALL }) { scriptTag { id src displayScope event cache } userErrors {  field message } }
+          scriptTagCreate(input: { src: "https://cdn.example.test/app.js", displayScope: ALL }) { scriptTag { id src displayScope cache } userErrors {  field message } }
         }
         "#,
         json!({}),
     ));
     assert_eq!(
         create_script.body["data"]["scriptTagCreate"]["scriptTag"],
-        json!({"id": "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", "src": "https://cdn.example.test/app.js", "displayScope": "ALL", "event": "onload", "cache": false})
+        json!({"id": "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", "src": "https://cdn.example.test/app.js", "displayScope": "ALL", "cache": false})
     );
 
     let script_update = proxy.process_request(json_graphql_request(
         r#"
-        mutation ScriptTagUpdateEventForceOnload {
-          scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { event: "onstart", cache: true }) { scriptTag { id src displayScope event cache } userErrors {  field message } }
+        mutation ScriptTagUpdateCache {
+          scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { cache: true }) { scriptTag { id src displayScope cache } userErrors {  field message } }
         }
         "#,
         json!({}),
     ));
-    assert_eq!(
-        script_update.body["data"]["scriptTagUpdate"]["scriptTag"]["event"],
-        json!("onload")
-    );
     assert_eq!(
         script_update.body["data"]["scriptTagUpdate"]["scriptTag"]["cache"],
         json!(true)
@@ -10123,7 +10038,6 @@ fn online_store_script_tag_web_pixel_and_theme_file_validation_are_local() {
           tooLong: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { src: $longSrc }) { scriptTag { id src } userErrors {  field message } }
           invalid: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { src: "not-a-url" }) { scriptTag { id src } userErrors {  field message } }
           http: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { src: "http://example.test/app.js" }) { scriptTag { id src } userErrors {  field message } }
-          badScope: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { displayScope: STOREFRONT }) { scriptTag { id displayScope } userErrors {  field message } }
         }
         "#,
         json!({"longSrc": format!("https://example.test/{}", "a".repeat(260))}),
@@ -10145,10 +10059,6 @@ fn online_store_script_tag_web_pixel_and_theme_file_validation_are_local() {
         json!({"scriptTag": null, "userErrors": [{"field": ["src"], "message": "Source is invalid"}]})
     );
     assert_eq!(
-        invalid_script_updates.body["data"]["badScope"],
-        json!({"scriptTag": null, "userErrors": [{"field": ["displayScope"], "message": "Display scope is not included in the list"}]})
-    );
-    assert_eq!(
         log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
         script_update_log_len
     );
@@ -10156,20 +10066,20 @@ fn online_store_script_tag_web_pixel_and_theme_file_validation_are_local() {
     let script_read_after_invalid_update = proxy.process_request(json_graphql_request(
         r#"
         query ScriptTagReadAfterInvalidUpdate {
-          scriptTag(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic") { id src displayScope event cache }
+          scriptTag(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic") { id src displayScope cache }
         }
         "#,
         json!({}),
     ));
     assert_eq!(
         script_read_after_invalid_update.body["data"]["scriptTag"],
-        json!({"id": "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", "src": "https://cdn.example.test/app.js", "displayScope": "ALL", "event": "onload", "cache": true})
+        json!({"id": "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", "src": "https://cdn.example.test/app.js", "displayScope": "ALL", "cache": true})
     );
 
     let web_pixel = proxy.process_request(json_graphql_request(
         r#"
         mutation WebPixelUpdateValidationLocalRuntime {
-          create: webPixelCreate(webPixel: {}) { webPixel { id settings } userErrors { __typename code field message } }
+          create: webPixelCreate(webPixel: { settings: "{}" }) { webPixel { id settings } userErrors { __typename code field message } }
           invalidJson: webPixelUpdate(id: "gid://shopify/WebPixel/2?shopify-draft-proxy=synthetic", webPixel: { settings: "not json" }) { webPixel { id settings } userErrors { __typename code field message } }
           validUpdate: webPixelUpdate(id: "gid://shopify/WebPixel/2?shopify-draft-proxy=synthetic", webPixel: { settings: "{\"accountID\":\"abc\"}" }) { webPixel { id settings } userErrors { __typename code field message } }
         }
@@ -10189,8 +10099,8 @@ fn online_store_script_tag_web_pixel_and_theme_file_validation_are_local() {
         r#"
         mutation ThemeFilesChecksumsAndValidation {
           themeCreate(source: "https://example.com/har-585-theme.zip", name: "HAR 585 theme", role: UNPUBLISHED) { theme { id } userErrors { field message code } }
-          first: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "templates/index.json", body: { type: TEXT, value: "hello" } }]) { upsertedThemeFiles { filename checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
-          second: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "templates/index.json", body: { type: TEXT, value: "hello world" } }]) { upsertedThemeFiles { filename checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
+          first: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "templates/index.json", body: { type: TEXT, value: "hello" } }]) { upsertedThemeFiles { filename checksumMd5 size } userErrors { field message code } }
+          second: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "templates/index.json", body: { type: TEXT, value: "hello world" } }]) { upsertedThemeFiles { filename checksumMd5 size } userErrors { field message code } }
           invalid: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "evil/path.liquid", body: { type: TEXT, value: "ignored" } }]) { upsertedThemeFiles { filename } userErrors { field message code } }
         }
         "#,
@@ -10206,7 +10116,7 @@ fn online_store_script_tag_web_pixel_and_theme_file_validation_are_local() {
     );
     assert_eq!(
         theme_files.body["data"]["invalid"]["userErrors"][0]["code"],
-        json!("INVALID")
+        json!("FILE_VALIDATION_ERROR")
     );
 }
 
@@ -10217,8 +10127,8 @@ fn online_store_script_tag_root_dispatch_delete_and_not_found_are_local() {
     let create = proxy.process_request(json_graphql_request(
         r#"
         mutation DeliberatelyNotAScriptTagOperationName {
-          first: scriptTagCreate(input: { src: "https://cdn.example.test/first.js", displayScope: ALL }) { scriptTag { id src displayScope event cache } userErrors {  field message } }
-          second: scriptTagCreate(input: { src: "https://cdn.example.test/second.js", displayScope: ORDER_STATUS, cache: true }) { scriptTag { id src displayScope event cache } userErrors {  field message } }
+          first: scriptTagCreate(input: { src: "https://cdn.example.test/first.js", displayScope: ALL }) { scriptTag { id src displayScope cache } userErrors {  field message } }
+          second: scriptTagCreate(input: { src: "https://cdn.example.test/second.js", displayScope: ORDER_STATUS, cache: true }) { scriptTag { id src displayScope cache } userErrors {  field message } }
         }
         "#,
         json!({}),
@@ -10237,9 +10147,9 @@ fn online_store_script_tag_root_dispatch_delete_and_not_found_are_local() {
     let read = proxy.process_request(json_graphql_request(
         r#"
         query ReadStagedScriptTags($firstId: ID!) {
-          first: scriptTag(id: $firstId) { id src displayScope event cache }
+          first: scriptTag(id: $firstId) { id src displayScope cache }
           scriptTags(first: 10) {
-            nodes { id src displayScope event cache }
+            nodes { id src displayScope cache }
             edges { cursor node { id } }
             pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
           }
@@ -10249,14 +10159,14 @@ fn online_store_script_tag_root_dispatch_delete_and_not_found_are_local() {
     ));
     assert_eq!(
         read.body["data"]["first"],
-        json!({"id": first_id, "src": "https://cdn.example.test/first.js", "displayScope": "ALL", "event": "onload", "cache": false})
+        json!({"id": first_id, "src": "https://cdn.example.test/first.js", "displayScope": "ALL", "cache": false})
     );
     assert_eq!(
         read.body["data"]["scriptTags"],
         json!({
             "nodes": [
-                {"id": first_id, "src": "https://cdn.example.test/first.js", "displayScope": "ALL", "event": "onload", "cache": false},
-                {"id": second_id, "src": "https://cdn.example.test/second.js", "displayScope": "ORDER_STATUS", "event": "onload", "cache": true}
+                {"id": first_id, "src": "https://cdn.example.test/first.js", "displayScope": "ALL", "cache": false},
+                {"id": second_id, "src": "https://cdn.example.test/second.js", "displayScope": "ORDER_STATUS", "cache": true}
             ],
             "edges": [
                 {"cursor": first_id, "node": {"id": first_id}},
@@ -10285,7 +10195,7 @@ fn online_store_script_tag_root_dispatch_delete_and_not_found_are_local() {
     assert_eq!(
         delete.body["data"]["deleteMissing"],
         json!({"deletedScriptTagId": null, "userErrors": [{
-            "__typename": "ScriptTagUserError",
+            "__typename": "UserError",
             "field": ["id"],
             "message": "Script tag not found"
         }]})
@@ -10295,8 +10205,8 @@ fn online_store_script_tag_root_dispatch_delete_and_not_found_are_local() {
         r#"
         query ReadScriptTagsAfterDelete($firstId: ID!, $secondId: ID!) {
           deleted: scriptTag(id: $firstId) { id }
-          kept: scriptTag(id: $secondId) { id src displayScope event cache }
-          scriptTags(first: 10) { nodes { id src displayScope event cache } }
+          kept: scriptTag(id: $secondId) { id src displayScope cache }
+          scriptTags(first: 10) { nodes { id src displayScope cache } }
         }
         "#,
         json!({"firstId": first_id, "secondId": second_id}),
@@ -10304,11 +10214,11 @@ fn online_store_script_tag_root_dispatch_delete_and_not_found_are_local() {
     assert_eq!(read_after_delete.body["data"]["deleted"], Value::Null);
     assert_eq!(
         read_after_delete.body["data"]["kept"],
-        json!({"id": second_id, "src": "https://cdn.example.test/second.js", "displayScope": "ORDER_STATUS", "event": "onload", "cache": true})
+        json!({"id": second_id, "src": "https://cdn.example.test/second.js", "displayScope": "ORDER_STATUS", "cache": true})
     );
     assert_eq!(
         read_after_delete.body["data"]["scriptTags"]["nodes"],
-        json!([{"id": second_id, "src": "https://cdn.example.test/second.js", "displayScope": "ORDER_STATUS", "event": "onload", "cache": true}])
+        json!([{"id": second_id, "src": "https://cdn.example.test/second.js", "displayScope": "ORDER_STATUS", "cache": true}])
     );
     assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 2);
 }
@@ -10426,7 +10336,6 @@ fn online_store_sales_channel_cold_reads_forward_and_hydrate_observed_state() {
                             "id": script_tag_id,
                             "src": "https://cdn.example.test/upstream.js",
                             "displayScope": "ALL",
-                            "event": "onload",
                             "cache": true
                         },
                         "scriptTags": {
@@ -10434,7 +10343,6 @@ fn online_store_sales_channel_cold_reads_forward_and_hydrate_observed_state() {
                                 "id": script_tag_id,
                                 "src": "https://cdn.example.test/upstream.js",
                                 "displayScope": "ALL",
-                                "event": "onload",
                                 "cache": true
                             }]
                         },
@@ -10470,13 +10378,13 @@ fn online_store_sales_channel_cold_reads_forward_and_hydrate_observed_state() {
     });
 
     let read_query = r#"
-        query SalesChannelColdRead($themeId: ID!, $scriptTagId: ID!, $webPixelId: ID!, $serverPixelId: ID!, $mobileAppId: ID!) {
+        query SalesChannelColdRead($themeId: ID!, $scriptTagId: ID!, $webPixelId: ID!, $mobileAppId: ID!) {
           theme(id: $themeId) { id name role }
           themes(first: 10) { nodes { id name role } }
-          scriptTag(id: $scriptTagId) { id src displayScope event cache }
-          scriptTags(first: 10) { nodes { id src displayScope event cache } }
+          scriptTag(id: $scriptTagId) { id src displayScope cache }
+          scriptTags(first: 10) { nodes { id src displayScope cache } }
           webPixel(id: $webPixelId) { id settings }
-          serverPixel(id: $serverPixelId) { id status webhookEndpointAddress }
+          serverPixel { id status webhookEndpointAddress }
           mobilePlatformApplication(id: $mobileAppId) { __typename ... on AppleApplication { id appId universalLinksEnabled } }
           mobilePlatformApplications(first: 10) { nodes { __typename ... on AppleApplication { id appId universalLinksEnabled } } }
         }
@@ -10485,7 +10393,6 @@ fn online_store_sales_channel_cold_reads_forward_and_hydrate_observed_state() {
         "themeId": theme_id,
         "scriptTagId": script_tag_id,
         "webPixelId": web_pixel_id,
-        "serverPixelId": server_pixel_id,
         "mobileAppId": mobile_app_id
     });
 
@@ -10513,7 +10420,7 @@ fn online_store_sales_channel_cold_reads_forward_and_hydrate_observed_state() {
     );
     assert_eq!(
         hydrated_read.body["data"]["scriptTag"],
-        json!({"id": script_tag_id, "src": "https://cdn.example.test/upstream.js", "displayScope": "ALL", "event": "onload", "cache": true})
+        json!({"id": script_tag_id, "src": "https://cdn.example.test/upstream.js", "displayScope": "ALL", "cache": true})
     );
     assert_eq!(
         hydrated_read.body["data"]["webPixel"],
@@ -10537,7 +10444,7 @@ fn online_store_script_tag_update_unknown_id_returns_not_found() {
         r#"
         mutation ScriptTagUpdateUnknown {
           scriptTagUpdate(id: "gid://shopify/ScriptTag/999999999", input: { src: "https://cdn.example.test/changed.js" }) {
-            scriptTag { id src displayScope event cache }
+            scriptTag { id src displayScope cache }
             userErrors {  field message }
           }
         }
@@ -10567,7 +10474,6 @@ fn online_store_storefront_access_token_edges_covers_current_behavior() {
         mutation RustOnlineStoreStorefrontAccessTokenLocalRuntimeFirst {
           storefrontAccessTokenCreate(input: { title: "Hydrogen" }) {
             storefrontAccessToken { id title accessToken accessScopes { handle } }
-            shop { id }
             userErrors {  field message }
           }
         }
@@ -10589,7 +10495,6 @@ fn online_store_storefront_access_token_edges_covers_current_behavior() {
                 "accessToken": first_token,
                 "accessScopes": []
             },
-            "shop": {},
             "userErrors": []
         })
     );
@@ -10663,7 +10568,6 @@ fn online_store_storefront_access_token_edges_covers_current_behavior() {
         mutation RustOnlineStoreStorefrontAccessTokenLocalRuntimeBlankTitle {
           storefrontAccessTokenCreate(input: { title: "   " }) {
             storefrontAccessToken { id }
-            shop { id }
             userErrors {  field message }
           }
         }
@@ -10674,7 +10578,6 @@ fn online_store_storefront_access_token_edges_covers_current_behavior() {
         blank.body["data"]["storefrontAccessTokenCreate"],
         json!({
             "storefrontAccessToken": null,
-            "shop": {},
             "userErrors": [{"field": ["input", "title"], "message": "Title can't be blank"}]
         })
     );
@@ -10718,7 +10621,7 @@ fn online_store_storefront_access_token_edges_covers_current_behavior() {
 }
 
 #[test]
-fn web_pixel_create_success_returns_non_null_settings() {
+fn web_pixel_create_requires_and_returns_non_null_settings() {
     let mut omitted_proxy = snapshot_proxy();
     let omitted = omitted_proxy.process_request(json_graphql_request(
         r#"
@@ -10731,16 +10634,11 @@ fn web_pixel_create_success_returns_non_null_settings() {
         "#,
         json!({}),
     ));
-    assert_eq!(
-        omitted.body["data"]["webPixelCreate"],
-        json!({
-            "webPixel": {
-                "id": "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic",
-                "settings": {}
-            },
-            "userErrors": []
-        })
-    );
+    assert_eq!(omitted.body["data"], Value::Null);
+    assert!(omitted.body["errors"][0]["message"]
+        .as_str()
+        .is_some_and(|message| message.contains("settings") && message.contains("required")));
+    assert_eq!(log_snapshot(&omitted_proxy)["entries"], json!([]));
 
     let mut empty_json_proxy = snapshot_proxy();
     let empty_json = empty_json_proxy.process_request(json_graphql_request(
@@ -10830,7 +10728,7 @@ fn online_store_pixel_endpoint_edges_covers_current_behavior() {
     let web_pixel = proxy.process_request(json_graphql_request(
         r#"
         mutation RustOnlineStorePixelLocalRuntimeEdges {
-          create: webPixelCreate(webPixel: {}) { webPixel { id settings } userErrors { __typename code field message } }
+          create: webPixelCreate(webPixel: { settings: "{}" }) { webPixel { id settings } userErrors { __typename code field message } }
           duplicate: webPixelCreate(webPixel: { settings: "{\"accountID\":\"abc\"}" }) { webPixel { id } userErrors { __typename code field message } }
           missingUpdate: webPixelUpdate(id: "gid://shopify/WebPixel/9999999999", webPixel: { settings: "{}" }) { webPixel { id } userErrors { __typename code field message } }
           invalidJson: webPixelUpdate(id: "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", webPixel: { settings: "not json" }) { webPixel { id settings } userErrors { __typename code field message } }
@@ -10845,7 +10743,7 @@ fn online_store_pixel_endpoint_edges_covers_current_behavior() {
     );
     assert_eq!(
         web_pixel.body["data"]["duplicate"],
-        json!({"webPixel": null, "userErrors": [{"__typename": "WebPixelUserError", "code": "TAKEN", "field": null, "message": "Web pixel is taken."}]})
+        json!({"webPixel": null, "userErrors": [{"__typename": "ErrorsWebPixelUserError", "code": "TAKEN", "field": null, "message": "Web pixel is taken."}]})
     );
     assert_eq!(
         web_pixel.body["data"]["missingUpdate"]["userErrors"][0]["code"],
@@ -10873,7 +10771,7 @@ fn online_store_pixel_endpoint_edges_covers_current_behavior() {
     ));
     assert_eq!(
         missing_server.body["data"]["eventBridgeServerPixelUpdate"],
-        json!({"serverPixel": null, "userErrors": [{"__typename": "ServerPixelUserError", "code": "NOT_FOUND", "field": ["id"], "message": "Server pixel not found"}]})
+        json!({"serverPixel": null, "userErrors": [{"__typename": "ErrorsServerPixelUserError", "code": "NOT_FOUND", "field": ["id"], "message": "Server pixel not found"}]})
     );
 
     // Valid endpoint updates execute and stage normally. Each erroring case
@@ -10937,7 +10835,10 @@ fn online_store_pixel_endpoint_edges_covers_current_behavior() {
         "#,
         json!({}),
     ));
-    assert_eq!(blank_pub_sub.body["data"], Value::Null);
+    assert_eq!(
+        blank_pub_sub.body["data"],
+        json!({"pubSubServerPixelUpdate": null})
+    );
     assert_eq!(
         blank_pub_sub.body["errors"],
         json!([{"message": "pubSubProject can't be blank", "extensions": {"code": "INVALID_FIELD_ARGUMENTS"}, "path": ["pubSubServerPixelUpdate"]}])
@@ -11226,7 +11127,7 @@ fn online_store_theme_lifecycle_tail_helpers_cover_current_behavior() {
     ));
     assert_eq!(
         update.body["data"]["locked"],
-        json!({"theme": null, "userErrors": [{"field": ["id"], "message": "Locked themes cannot be modified.", "code": "CANNOT_UPDATE_LOCKED_THEME"}]})
+        json!({"theme": null, "userErrors": [{"field": ["id"], "message": "Locked themes cannot be modified.", "code": "INVALID"}]})
     );
     assert_eq!(
         update.body["data"]["blank"],
@@ -11260,7 +11161,7 @@ fn online_store_theme_lifecycle_tail_helpers_cover_current_behavior() {
     ));
     assert_eq!(
         only_main.body["data"]["themeDelete"],
-        json!({"deletedThemeId": null, "userErrors": [{"field": ["id"], "message": "You can't delete your only published theme.", "code": "INVALID"}]})
+        json!({"deletedThemeId": null, "userErrors": [{"field": ["id"], "message": "You can't delete your only published theme.", "code": null}]})
     );
 
     let delete_non_main = proxy.process_request(json_graphql_request(
@@ -11444,8 +11345,8 @@ fn online_store_theme_file_lifecycle_tail_helpers_cover_current_behavior() {
     let upserts = proxy.process_request(json_graphql_request(
         r#"
         mutation RustOnlineStoreThemeFileLocalRuntimeUpsert {
-          first: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "templates/index.json", body: { type: TEXT, value: "hello" } }]) { upsertedThemeFiles { filename createdAt updatedAt checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
-          second: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "templates/index.json", body: { type: TEXT, value: "hello world" } }]) { upsertedThemeFiles { filename createdAt updatedAt checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
+          first: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "templates/index.json", body: { type: TEXT, value: "hello" } }]) { upsertedThemeFiles { filename createdAt updatedAt checksumMd5 size } userErrors { field message code } }
+          second: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "templates/index.json", body: { type: TEXT, value: "hello world" } }]) { upsertedThemeFiles { filename createdAt updatedAt checksumMd5 size } userErrors { field message code } }
           invalid: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "evil/path.liquid", body: { type: TEXT, value: "ignored" } }]) { upsertedThemeFiles { filename } userErrors { field message code } }
           app: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "assets/app.js", body: { type: TEXT, value: "console.log(1)" } }]) { upsertedThemeFiles { filename createdAt updatedAt } userErrors { field message code } }
           theme: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "assets/theme.js", body: { type: TEXT, value: "hello" } }]) { upsertedThemeFiles { filename createdAt updatedAt } userErrors { field message code } }
@@ -11465,7 +11366,7 @@ fn online_store_theme_file_lifecycle_tail_helpers_cover_current_behavior() {
     assert_eq!(first_created_at, first_updated_at);
     assert_eq!(
         first_file,
-        &json!({"filename": "templates/index.json", "createdAt": first_created_at.clone(), "updatedAt": first_updated_at.clone(), "checksumMd5": "5d41402abc4b2a76b9719d911017c592", "size": 5, "body": {"content": "hello"}})
+        &json!({"filename": "templates/index.json", "createdAt": first_created_at.clone(), "updatedAt": first_updated_at.clone(), "checksumMd5": "5d41402abc4b2a76b9719d911017c592", "size": 5})
     );
     let second_file = &upserts.body["data"]["second"]["upsertedThemeFiles"][0];
     let second_created_at = assert_online_store_operation_timestamp(
@@ -11479,7 +11380,7 @@ fn online_store_theme_file_lifecycle_tail_helpers_cover_current_behavior() {
     assert_eq!(second_created_at, first_created_at);
     assert_eq!(
         second_file,
-        &json!({"filename": "templates/index.json", "createdAt": second_created_at.clone(), "updatedAt": second_updated_at.clone(), "checksumMd5": "5eb63bbbe01eeed093cb22bb8f5acdc3", "size": 11, "body": {"content": "hello world"}})
+        &json!({"filename": "templates/index.json", "createdAt": second_created_at.clone(), "updatedAt": second_updated_at.clone(), "checksumMd5": "5eb63bbbe01eeed093cb22bb8f5acdc3", "size": 11})
     );
     let app_file = &upserts.body["data"]["app"]["upsertedThemeFiles"][0];
     let app_created_at = assert_online_store_operation_timestamp(
@@ -11505,18 +11406,18 @@ fn online_store_theme_file_lifecycle_tail_helpers_cover_current_behavior() {
     assert_eq!(theme_created_at, theme_updated_at);
     assert_eq!(
         upserts.body["data"]["invalid"],
-        json!({"upsertedThemeFiles": [], "userErrors": [{"field": ["files", "0", "filename"], "message": "Filename is invalid", "code": "INVALID"}]})
+        json!({"upsertedThemeFiles": [], "userErrors": [{"field": ["files", "0", "filename"], "message": "Filename is invalid", "code": "FILE_VALIDATION_ERROR"}]})
     );
 
     let copy_delete = proxy.process_request(json_graphql_request(
         r#"
         mutation RustOnlineStoreThemeFileLocalRuntimeCopyDelete {
           missingCopy: themeFilesCopy(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ srcFilename: "assets/missing.js", dstFilename: "assets/copy.js" }]) { copiedThemeFiles { filename } userErrors { field message code } }
-          copy: themeFilesCopy(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ srcFilename: "assets/app.js", dstFilename: "assets/copy.js" }]) { copiedThemeFiles { filename createdAt updatedAt checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
-          multiCopy: themeFilesCopy(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ srcFilename: "assets/app.js", dstFilename: "assets/app-copy.js" }, { srcFilename: "assets/theme.js", dstFilename: "assets/theme-copy.js" }]) { copiedThemeFiles { filename createdAt updatedAt checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
+          copy: themeFilesCopy(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ srcFilename: "assets/app.js", dstFilename: "assets/copy.js" }]) { copiedThemeFiles { filename createdAt updatedAt checksumMd5 size } userErrors { field message code } }
+          multiCopy: themeFilesCopy(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ srcFilename: "assets/app.js", dstFilename: "assets/app-copy.js" }, { srcFilename: "assets/theme.js", dstFilename: "assets/theme-copy.js" }]) { copiedThemeFiles { filename createdAt updatedAt checksumMd5 size } userErrors { field message code } }
           mixedCopy: themeFilesCopy(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ srcFilename: "assets/missing.js", dstFilename: "assets/missing-copy.js" }, { srcFilename: "assets/theme.js", dstFilename: "assets/theme-copy-2.js" }]) { copiedThemeFiles { filename createdAt updatedAt } userErrors { field message code } }
           requiredDelete: themeFilesDelete(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: ["config/settings_data.json", "config/settings_schema.json"]) { deletedThemeFiles { filename } userErrors { field message code } }
-          deleteCopy: themeFilesDelete(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: ["assets/copy.js"]) { deletedThemeFiles { filename createdAt updatedAt checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
+          deleteCopy: themeFilesDelete(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: ["assets/copy.js"]) { deletedThemeFiles { filename createdAt updatedAt checksumMd5 size } userErrors { field message code } }
         }
         "#,
         json!({}),
@@ -11537,7 +11438,7 @@ fn online_store_theme_file_lifecycle_tail_helpers_cover_current_behavior() {
     assert_eq!(copy_created_at, copy_updated_at);
     assert_eq!(
         copied_file,
-        &json!({"filename": "assets/copy.js", "createdAt": copy_created_at.clone(), "updatedAt": copy_updated_at.clone(), "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14, "body": {"content": "console.log(1)"}})
+        &json!({"filename": "assets/copy.js", "createdAt": copy_created_at.clone(), "updatedAt": copy_updated_at.clone(), "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14})
     );
     let app_copy_file = &copy_delete.body["data"]["multiCopy"]["copiedThemeFiles"][0];
     let app_copy_created_at = assert_online_store_operation_timestamp(
@@ -11562,8 +11463,8 @@ fn online_store_theme_file_lifecycle_tail_helpers_cover_current_behavior() {
     assert_eq!(
         copy_delete.body["data"]["multiCopy"],
         json!({"copiedThemeFiles": [
-            {"filename": "assets/app-copy.js", "createdAt": app_copy_created_at.clone(), "updatedAt": app_copy_updated_at.clone(), "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14, "body": {"content": "console.log(1)"}},
-            {"filename": "assets/theme-copy.js", "createdAt": theme_copy_created_at.clone(), "updatedAt": theme_copy_updated_at.clone(), "checksumMd5": "5d41402abc4b2a76b9719d911017c592", "size": 5, "body": {"content": "hello"}}
+            {"filename": "assets/app-copy.js", "createdAt": app_copy_created_at.clone(), "updatedAt": app_copy_updated_at.clone(), "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14},
+            {"filename": "assets/theme-copy.js", "createdAt": theme_copy_created_at.clone(), "updatedAt": theme_copy_updated_at.clone(), "checksumMd5": "5d41402abc4b2a76b9719d911017c592", "size": 5}
         ], "userErrors": []})
     );
     let theme_copy_2_file = &copy_delete.body["data"]["mixedCopy"]["copiedThemeFiles"][0];
@@ -11583,13 +11484,13 @@ fn online_store_theme_file_lifecycle_tail_helpers_cover_current_behavior() {
     assert_eq!(
         copy_delete.body["data"]["requiredDelete"]["userErrors"],
         json!([
-            {"field": ["files", "0"], "message": "File is required and can't be deleted", "code": "INVALID"},
-            {"field": ["files", "1"], "message": "File is required and can't be deleted", "code": "INVALID"}
+            {"field": ["files", "0"], "message": "File is required and can't be deleted", "code": "FILE_VALIDATION_ERROR"},
+            {"field": ["files", "1"], "message": "File is required and can't be deleted", "code": "FILE_VALIDATION_ERROR"}
         ])
     );
     assert_eq!(
         copy_delete.body["data"]["deleteCopy"],
-        json!({"deletedThemeFiles": [{"filename": "assets/copy.js", "createdAt": copy_created_at.clone(), "updatedAt": copy_updated_at.clone(), "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14, "body": {"content": "console.log(1)"}}], "userErrors": []})
+        json!({"deletedThemeFiles": [{"filename": "assets/copy.js", "createdAt": copy_created_at.clone(), "updatedAt": copy_updated_at.clone(), "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14}], "userErrors": []})
     );
 
     let read = proxy.process_request(json_graphql_request(
@@ -11712,10 +11613,6 @@ fn online_store_theme_files_filter_and_paginate_staged_connection() {
               nodes { filename }
               pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
             }
-            beforeWindow: files(filenames: ["templates/index.json", "assets/app.js", "assets/theme.js"], last: 1, before: "assets/theme.js") {
-              nodes { filename }
-              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
-            }
           }
         }
         "#,
@@ -11733,19 +11630,6 @@ fn online_store_theme_files_filter_and_paginate_staged_connection() {
             }
         })
     );
-    assert_eq!(
-        second_page.body["data"]["theme"]["beforeWindow"],
-        json!({
-            "nodes": [{"filename": "assets/app.js"}],
-            "pageInfo": {
-                "hasNextPage": true,
-                "hasPreviousPage": true,
-                "startCursor": "assets/app.js",
-                "endCursor": "assets/app.js"
-            }
-        })
-    );
-
     let delete = proxy.process_request(json_graphql_request(
         r#"
         mutation DeleteFilteredThemeFile {
@@ -11807,17 +11691,17 @@ fn online_store_theme_files_upsert_computes_body_modes_and_checksum_conflicts() 
         mutation RustOnlineStoreThemeFileBodyModes {
           text: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "assets/unicode.txt", body: { type: TEXT, value: "caf\u00e9" } }]) {
             job { id }
-            upsertedThemeFiles { filename checksumMd5 size body { content type value } }
+            upsertedThemeFiles { filename checksumMd5 size }
             userErrors { field message code }
           }
           base64: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "assets/base64.txt", body: { type: BASE64, value: "aGVsbG8gZnJvbSBiYXNlNjQ=" } }]) {
             job { id }
-            upsertedThemeFiles { filename checksumMd5 size body { content type value } }
+            upsertedThemeFiles { filename checksumMd5 size }
             userErrors { field message code }
           }
           remote: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "assets/remote.txt", body: { type: URL, value: "https://cdn.example.com/theme-file.txt" } }]) {
             job { id }
-            upsertedThemeFiles { filename checksumMd5 size body { content type value } }
+            upsertedThemeFiles { filename checksumMd5 size }
             userErrors { field message code }
           }
         }
@@ -11826,15 +11710,15 @@ fn online_store_theme_files_upsert_computes_body_modes_and_checksum_conflicts() 
     ));
     assert_eq!(
         upsert.body["data"]["text"]["upsertedThemeFiles"][0],
-        json!({"filename": "assets/unicode.txt", "checksumMd5": "07117fe4a1ebd544965dc19573183da2", "size": 5, "body": {"content": "caf\u{00e9}"}})
+        json!({"filename": "assets/unicode.txt", "checksumMd5": "07117fe4a1ebd544965dc19573183da2", "size": 5})
     );
     assert_eq!(
         upsert.body["data"]["base64"]["upsertedThemeFiles"][0],
-        json!({"filename": "assets/base64.txt", "checksumMd5": "c46e1c777b9d4e0b47ea917d2d6d6748", "size": 17, "body": {"content": "hello from base64"}})
+        json!({"filename": "assets/base64.txt", "checksumMd5": "c46e1c777b9d4e0b47ea917d2d6d6748", "size": 17})
     );
     assert_eq!(
         upsert.body["data"]["remote"]["upsertedThemeFiles"][0],
-        json!({"filename": "assets/remote.txt", "checksumMd5": "d41d8cd98f00b204e9800998ecf8427e", "size": 0, "body": {"type": "URL", "value": null}})
+        json!({"filename": "assets/remote.txt", "checksumMd5": "d41d8cd98f00b204e9800998ecf8427e", "size": 0})
     );
     for alias in ["text", "base64"] {
         let payload = upsert.body["data"][alias].as_object().unwrap();
@@ -11872,20 +11756,20 @@ fn online_store_theme_files_upsert_computes_body_modes_and_checksum_conflicts() 
             "body": {"type": "TEXT", "value": "changed"}
         }]}),
     ));
+    assert_eq!(conflict.body.get("data"), None);
     assert_eq!(
-        conflict.body["data"]["themeFilesUpsert"],
-        json!({"upsertedThemeFiles": [], "userErrors": [{
-            "field": ["files", "0", "checksumMd5"],
-            "message": "Checksum does not match",
-            "code": "CONFLICT"
-        }]})
+        conflict.body["errors"][0]["extensions"]["problems"],
+        json!([{
+            "path": [0, "checksumMd5"],
+            "explanation": "Field is not defined on OnlineStoreThemeFilesUpsertFileInput"
+        }])
     );
 
     let read = proxy.process_request(json_graphql_request(
         r#"
         query RustOnlineStoreThemeFileChecksumConflictRead {
           theme(id: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic") {
-            files(first: 10) { nodes { filename checksumMd5 size body { content type value } } }
+            files(first: 10) { nodes { filename checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } ... on OnlineStoreThemeFileBodyBase64 { contentBase64 } ... on OnlineStoreThemeFileBodyUrl { url } } } }
           }
         }
         "#,
@@ -11933,11 +11817,11 @@ fn online_store_theme_files_upsert_rejects_validation_regressions_without_stagin
     assert_eq!(
         validation.body["data"]["themeFilesUpsert"],
         json!({"job": null, "upsertedThemeFiles": [], "userErrors": [
-            {"field": ["files", "0", "filename"], "message": "Filename can't be blank", "code": "INVALID"},
-            {"field": ["files", "1", "filename"], "message": "Filename is invalid", "code": "INVALID"},
+            {"field": ["files", "0", "filename"], "message": "Filename can't be blank", "code": "FILE_VALIDATION_ERROR"},
+            {"field": ["files", "1", "filename"], "message": "Filename is invalid", "code": "FILE_VALIDATION_ERROR"},
             {"field": ["files", "2", "filename"], "message": "Access denied", "code": "ACCESS_DENIED"},
-            {"field": ["files", "4", "filename"], "message": "duplicate-file-input", "code": "INVALID"},
-            {"field": ["files", "5", "body"], "message": "invalid-body-input", "code": "INVALID"}
+            {"field": ["files", "4", "filename"], "message": "duplicate-file-input", "code": "DUPLICATE_FILE_INPUT"},
+            {"field": ["files", "5", "body"], "message": "invalid-body-input", "code": "FILE_VALIDATION_ERROR"}
         ]})
     );
 
@@ -11958,7 +11842,7 @@ fn online_store_theme_files_upsert_rejects_validation_regressions_without_stagin
         json!({"job": null, "upsertedThemeFiles": [], "userErrors": [{
             "field": ["files"],
             "message": "Exceeded maximum number of files",
-            "code": "INVALID"
+            "code": "LESS_THAN_OR_EQUAL_TO"
         }]})
     );
 
@@ -12012,7 +11896,7 @@ fn online_store_theme_files_copy_delete_validate_caps_duplicates_and_required_fi
         json!({"copiedThemeFiles": [], "userErrors": [{
             "field": ["files", "1", "dstFilename"],
             "message": "duplicate-file-input",
-            "code": "INVALID"
+            "code": "DUPLICATE_FILE_INPUT"
         }]})
     );
 
@@ -12033,7 +11917,7 @@ fn online_store_theme_files_copy_delete_validate_caps_duplicates_and_required_fi
         json!({"copiedThemeFiles": [], "userErrors": [{
             "field": ["files"],
             "message": "Exceeded maximum number of files",
-            "code": "INVALID"
+            "code": "LESS_THAN_OR_EQUAL_TO"
         }]})
     );
 
@@ -12052,8 +11936,8 @@ fn online_store_theme_files_copy_delete_validate_caps_duplicates_and_required_fi
     assert_eq!(
         delete_validation.body["data"]["themeFilesDelete"],
         json!({"deletedThemeFiles": [], "userErrors": [
-            {"field": ["files", "1"], "message": "duplicate-file-input", "code": "INVALID"},
-            {"field": ["files", "2"], "message": "File is required and can't be deleted", "code": "INVALID"}
+            {"field": ["files", "1"], "message": "duplicate-file-input", "code": "DUPLICATE_FILE_INPUT"},
+            {"field": ["files", "2"], "message": "File is required and can't be deleted", "code": "FILE_VALIDATION_ERROR"}
         ]})
     );
 
@@ -12069,7 +11953,7 @@ fn online_store_theme_files_copy_delete_validate_caps_duplicates_and_required_fi
         json!({"deletedThemeFiles": [], "userErrors": [{
             "field": ["files"],
             "message": "Exceeded maximum number of files",
-            "code": "INVALID"
+            "code": "LESS_THAN_OR_EQUAL_TO"
         }]})
     );
 }
@@ -12360,13 +12244,13 @@ fn assert_metaobject_reference_and_references_project_locally_staged_targets() {
 
     let delete = proxy.process_request(json_graphql_request(
         r#"
-        mutation DeleteMetaobjectReferenceTarget($product: ProductDeleteInput!) {
-          productDelete(product: $product) {
+        mutation DeleteMetaobjectReferenceTarget($input: ProductDeleteInput!) {
+          productDelete(input: $input) {
             deletedProductId
           }
         }
         "#,
-        json!({"product": {"id": target_id}}),
+        json!({"input": {"id": target_id}}),
     ));
     assert_eq!(delete.status, 200);
     assert_eq!(
@@ -13235,7 +13119,11 @@ fn metaobject_entry_lifecycle_dispatches_by_root_field_and_definition_state() {
         "#,
         json!({"metaobject": {
             "type": "ticket_metaobject_type",
-            "values": {"heading": "Normal Operation", "rank": "7", "body": "Projected body"}
+            "fields": [
+                {"key": "heading", "value": "Normal Operation"},
+                {"key": "rank", "value": "7"},
+                {"key": "body", "value": "Projected body"}
+            ]
         }}),
     ));
     assert_eq!(create.status, 200);
@@ -14549,7 +14437,15 @@ fn metaobject_delete_returns_record_not_found_without_logging_noop_deletes() {
         delete_query,
         json!({"id": "not-a-shopify-gid"}),
     ));
-    assert_eq!(malformed.body["data"]["metaobjectDelete"], record_not_found);
+    assert_eq!(malformed.body.get("data"), None);
+    assert_eq!(
+        malformed.body["errors"][0]["message"],
+        json!("Variable $id of type ID! was provided invalid value")
+    );
+    assert_eq!(
+        malformed.body["errors"][0]["extensions"]["problems"][0]["explanation"],
+        json!("Invalid global id 'not-a-shopify-gid'")
+    );
 
     assert_eq!(
         proxy
@@ -14934,7 +14830,7 @@ fn media_file_lifecycle_stages_uploaded_reads_and_empty_product_media_after_dele
         r#"
         mutation FileReferenceCreate($files: [FileCreateInput!]!) {
           fileCreate(files: $files) {
-            files { id alt createdAt fileStatus filename ... on MediaImage { image { url width height } } }
+            files { id alt createdAt fileStatus ... on MediaImage { image { url width height } } }
             userErrors { field message code }
           }
         }
@@ -14944,7 +14840,7 @@ fn media_file_lifecycle_stages_uploaded_reads_and_empty_product_media_after_dele
     assert_eq!(
         create.body["data"]["fileCreate"],
         json!({
-            "files": [{"id": "gid://shopify/MediaImage/2", "alt": "Reference source", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED", "filename": "reference-source.jpg", "image": {"url": "https://cdn.example.com/reference-source.jpg", "width": null, "height": null}}],
+            "files": [{"id": "gid://shopify/MediaImage/2", "alt": "Reference source", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED", "image": {"url": "https://cdn.example.com/reference-source.jpg", "width": null, "height": null}}],
             "userErrors": []
         })
     );
@@ -14978,14 +14874,14 @@ fn media_file_lifecycle_stages_uploaded_reads_and_empty_product_media_after_dele
     let files_read = proxy.process_request(json_graphql_request(
         r#"
         query FileReferenceFilesRead {
-          files(first: 10) { nodes { id alt createdAt fileStatus filename ... on MediaImage { image { url width height } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+          files(first: 10) { nodes { id alt createdAt fileStatus ... on MediaImage { image { url width height } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
         }
         "#,
         json!({}),
     ));
     assert_eq!(
         files_read.body["data"]["files"],
-        json!({"nodes": [{"id": "gid://shopify/MediaImage/2", "alt": "Reference source", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "READY", "filename": "reference-source.jpg", "image": {"url": "https://cdn.example.com/reference-source.jpg", "width": null, "height": null}}], "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": "cursor:gid://shopify/MediaImage/2", "endCursor": "cursor:gid://shopify/MediaImage/2"}})
+        json!({"nodes": [{"id": "gid://shopify/MediaImage/2", "alt": "Reference source", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "READY", "image": {"url": "https://cdn.example.com/reference-source.jpg", "width": null, "height": null}}], "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": "cursor:gid://shopify/MediaImage/2", "endCursor": "cursor:gid://shopify/MediaImage/2"}})
     );
 
     // Delete the file this test actually created (MediaImage/2). The engine
@@ -15027,7 +14923,7 @@ fn media_files_read_returns_staged_files_and_empty_file_saved_searches() {
         r#"
         mutation FilesUploadRuntimeCoverageCreate($files: [FileCreateInput!]!) {
           fileCreate(files: $files) {
-            files { id alt createdAt fileStatus filename ... on MediaImage { image { url width height } preview { image { url } } } }
+            files { id alt createdAt fileStatus ... on MediaImage { image { url width height } preview { image { url } } } }
             userErrors { field message code }
           }
         }
@@ -15042,7 +14938,6 @@ fn media_files_read_returns_staged_files_and_empty_file_saved_searches() {
                 "alt": "Local runtime file",
                 "createdAt": "2024-01-01T00:00:01.000Z",
                 "fileStatus": "UPLOADED",
-                "filename": "local-runtime.jpg",
                 "image": {
                     "url": "https://cdn.example.com/local-runtime.jpg",
                     "width": null,
@@ -15062,7 +14957,7 @@ fn media_files_read_returns_staged_files_and_empty_file_saved_searches() {
         r#"
         query FilesUploadRuntimeCoverageRead {
           files(first: 10) {
-            nodes { id alt createdAt fileStatus filename ... on MediaImage { image { url width height } preview { image { url } } } }
+            nodes { id alt createdAt fileStatus ... on MediaImage { image { url width height } preview { image { url } } } }
             pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
           }
           fileSavedSearches(first: 5) {
@@ -15082,7 +14977,6 @@ fn media_files_read_returns_staged_files_and_empty_file_saved_searches() {
                     "alt": "Local runtime file",
                     "createdAt": "2024-01-01T00:00:01.000Z",
                     "fileStatus": "READY",
-                    "filename": "local-runtime.jpg",
                     "image": {
                         "url": "https://cdn.example.com/local-runtime.jpg",
                         "width": null,
@@ -15122,7 +15016,7 @@ fn media_file_create_poll_ready_then_update_succeeds() {
         r#"
         mutation MediaFileReadyLifecycleCreate($files: [FileCreateInput!]!) {
           fileCreate(files: $files) {
-            files { id alt createdAt fileStatus filename }
+            files { id alt createdAt fileStatus }
             userErrors { field message code }
           }
         }
@@ -15143,7 +15037,7 @@ fn media_file_create_poll_ready_then_update_succeeds() {
         r#"
         query MediaFileReadyLifecyclePoll {
           files(first: 5) {
-            nodes { id alt fileStatus filename }
+            nodes { id alt fileStatus }
             pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
           }
         }
@@ -15156,8 +15050,7 @@ fn media_file_create_poll_ready_then_update_succeeds() {
             "nodes": [{
                 "id": file_id,
                 "alt": "Ready lifecycle",
-                "fileStatus": "READY",
-                "filename": "ready-lifecycle.jpg"
+                "fileStatus": "READY"
             }],
             "pageInfo": {
                 "hasNextPage": false,
@@ -15172,7 +15065,7 @@ fn media_file_create_poll_ready_then_update_succeeds() {
         r#"
         mutation MediaFileReadyLifecycleUpdate($files: [FileUpdateInput!]!) {
           fileUpdate(files: $files) {
-            files { id alt fileStatus filename }
+            files { id alt fileStatus }
             userErrors { field message code }
           }
         }
@@ -15185,8 +15078,7 @@ fn media_file_create_poll_ready_then_update_succeeds() {
             "files": [{
                 "id": file_id,
                 "alt": "Updated after ready",
-                "fileStatus": "READY",
-                "filename": "ready-lifecycle.jpg"
+                "fileStatus": "READY"
             }],
             "userErrors": []
         })
@@ -15214,7 +15106,6 @@ fn media_files_live_hybrid_cold_read_forwards_and_hydrates_files_and_saved_searc
                                 "createdAt": "2026-07-01T00:00:00Z",
                                 "updatedAt": "2026-07-01T00:00:00Z",
                                 "fileStatus": "READY",
-                                "filename": "upstream-file.jpg",
                                 "image": {
                                     "url": "https://cdn.example.com/upstream-file.jpg",
                                     "width": 1200,
@@ -15227,7 +15118,6 @@ fn media_files_live_hybrid_cold_read_forwards_and_hydrates_files_and_saved_searc
                                 "createdAt": "2026-07-01T00:00:01Z",
                                 "updatedAt": "2026-07-01T00:00:01Z",
                                 "fileStatus": "PROCESSING",
-                                "filename": "upstream-processing-file.jpg",
                                 "image": {
                                     "url": "https://cdn.example.com/upstream-processing-file.jpg",
                                     "width": 640,
@@ -15268,7 +15158,6 @@ fn media_files_live_hybrid_cold_read_forwards_and_hydrates_files_and_saved_searc
               id
               alt
               fileStatus
-              filename
               ... on MediaImage { image { url width height } }
             }
             pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
@@ -15289,7 +15178,6 @@ fn media_files_live_hybrid_cold_read_forwards_and_hydrates_files_and_saved_searc
                 "id": "gid://shopify/MediaImage/777",
                 "alt": "Upstream file",
                 "fileStatus": "READY",
-                "filename": "upstream-file.jpg",
                 "image": {
                     "url": "https://cdn.example.com/upstream-file.jpg",
                     "width": 1200,
@@ -15299,7 +15187,6 @@ fn media_files_live_hybrid_cold_read_forwards_and_hydrates_files_and_saved_searc
                 "id": "gid://shopify/MediaImage/778",
                 "alt": "Upstream processing file",
                 "fileStatus": "PROCESSING",
-                "filename": "upstream-processing-file.jpg",
                 "image": {
                     "url": "https://cdn.example.com/upstream-processing-file.jpg",
                     "width": 640,
@@ -15335,11 +15222,13 @@ fn media_files_live_hybrid_cold_read_forwards_and_hydrates_files_and_saved_searc
     assert_eq!(
         bodies.len(),
         1,
-        "cold media files read should forward upstream"
+        "the grouped cold media read should forward its original document once"
     );
-    assert!(bodies[0]["query"]
+    let query = bodies[0]["query"]
         .as_str()
-        .is_some_and(|query| query.contains("files") && query.contains("fileSavedSearches")));
+        .expect("grouped cold media read should carry the original query");
+    assert!(query.contains("files"));
+    assert!(query.contains("fileSavedSearches"));
 }
 
 #[test]
@@ -15451,7 +15340,6 @@ fn media_files_live_hybrid_saved_search_id_preserves_upstream_matches_when_searc
                                 "createdAt": "2026-07-01T00:00:00Z",
                                 "updatedAt": "2026-07-01T00:00:00Z",
                                 "fileStatus": "READY",
-                                "filename": "ready-upstream-match.jpg",
                                 "image": {
                                     "url": "https://cdn.example.com/ready-upstream-match.jpg",
                                     "width": 1200,
@@ -15478,7 +15366,6 @@ fn media_files_live_hybrid_saved_search_id_preserves_upstream_matches_when_searc
               id
               alt
               fileStatus
-              filename
               ... on MediaImage { image { url width height } }
             }
             pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
@@ -15496,7 +15383,6 @@ fn media_files_live_hybrid_saved_search_id_preserves_upstream_matches_when_searc
                 "id": "gid://shopify/MediaImage/990",
                 "alt": "Ready upstream match",
                 "fileStatus": "READY",
-                "filename": "ready-upstream-match.jpg",
                 "image": {
                     "url": "https://cdn.example.com/ready-upstream-match.jpg",
                     "width": 1200,
@@ -15610,7 +15496,7 @@ fn media_files_query_filters_and_sort_keys_apply_to_staged_files() {
         r#"
         mutation FileQuerySortCreate($files: [FileCreateInput!]!) {
           fileCreate(files: $files) {
-            files { id filename contentType createdAt updatedAt fileStatus }
+            files { id }
             userErrors { field message code }
           }
         }
@@ -15627,19 +15513,19 @@ fn media_files_query_filters_and_sort_keys_apply_to_staged_files() {
         r#"
         query FileQuerySortRead {
           filename: files(first: 10, query: "filename:alpha-file.pdf") {
-            nodes { id filename contentType fileStatus }
+            nodes { id alt __typename fileStatus }
           }
           mediaType: files(first: 10, query: "media_type:IMAGE") {
-            nodes { filename contentType }
+            nodes { alt __typename }
           }
           unknown: files(first: 10, query: "definitely_not_a_file_filter:value") {
-            nodes { filename }
+            nodes { id }
           }
           byFilename: files(first: 10, sortKey: FILENAME) {
-            nodes { filename }
+            nodes { alt }
           }
           byFilenameReverse: files(first: 10, sortKey: FILENAME, reverse: true) {
-            nodes { filename }
+            nodes { alt }
           }
         }
         "#,
@@ -15650,33 +15536,33 @@ fn media_files_query_filters_and_sort_keys_apply_to_staged_files() {
         read.body["data"]["filename"]["nodes"],
         json!([{
             "id": "gid://shopify/GenericFile/3",
-            "filename": "alpha-file.pdf",
-            "contentType": "FILE",
+            "alt": "Alpha file",
+            "__typename": "GenericFile",
             "fileStatus": "READY"
         }])
     );
     assert_eq!(
         read.body["data"]["mediaType"]["nodes"],
         json!([
-            {"filename": "zulu-image.jpg", "contentType": "IMAGE"},
-            {"filename": "middle-image.jpg", "contentType": "IMAGE"}
+            {"alt": "Zulu image", "__typename": "MediaImage"},
+            {"alt": "Middle image", "__typename": "MediaImage"}
         ])
     );
     assert_eq!(read.body["data"]["unknown"]["nodes"], json!([]));
     assert_eq!(
         read.body["data"]["byFilename"]["nodes"],
         json!([
-            {"filename": "alpha-file.pdf"},
-            {"filename": "middle-image.jpg"},
-            {"filename": "zulu-image.jpg"}
+            {"alt": "Alpha file"},
+            {"alt": "Middle image"},
+            {"alt": "Zulu image"}
         ])
     );
     assert_eq!(
         read.body["data"]["byFilenameReverse"]["nodes"],
         json!([
-            {"filename": "zulu-image.jpg"},
-            {"filename": "middle-image.jpg"},
-            {"filename": "alpha-file.pdf"}
+            {"alt": "Zulu image"},
+            {"alt": "Middle image"},
+            {"alt": "Alpha file"}
         ])
     );
 }
@@ -15689,7 +15575,7 @@ fn media_files_saved_search_read_and_saved_search_id_filter_use_staged_records()
         r#"
         mutation FileSavedSearchCreateFiles($files: [FileCreateInput!]!) {
           fileCreate(files: $files) {
-            files { id filename contentType }
+            files { id }
             userErrors { field message code }
           }
         }
@@ -15733,7 +15619,7 @@ fn media_files_saved_search_read_and_saved_search_id_filter_use_staged_records()
         r#"
         query FileSavedSearchRead($savedSearchId: ID!) {
           files(first: 10, savedSearchId: $savedSearchId) {
-            nodes { filename contentType }
+            nodes { alt __typename }
           }
           fileSavedSearches(first: 10) {
             nodes { id name query resourceType }
@@ -15755,7 +15641,7 @@ fn media_files_saved_search_read_and_saved_search_id_filter_use_staged_records()
     );
     assert_eq!(
         read.body["data"]["files"]["nodes"],
-        json!([{"filename": "alpha-file.pdf", "contentType": "FILE"}])
+        json!([{"alt": "Alpha file", "__typename": "GenericFile"}])
     );
 }
 
@@ -15804,7 +15690,7 @@ fn media_file_saved_searches_live_hybrid_deduplicates_equivalent_records() {
         r#"
         mutation FileSavedSearchDedupCreateFiles($files: [FileCreateInput!]!) {
           fileCreate(files: $files) {
-            files { id filename contentType }
+            files { id }
             userErrors { field message code }
           }
         }
@@ -15850,7 +15736,7 @@ fn media_file_saved_searches_live_hybrid_deduplicates_equivalent_records() {
         r#"
         query FileSavedSearchDedupRead($savedSearchId: ID!) {
           savedSearchFiles: files(first: 10, savedSearchId: $savedSearchId) {
-            nodes { filename contentType }
+            nodes { alt __typename }
           }
           fileSavedSearches(first: 10) {
             nodes { id name query resourceType }
@@ -15863,7 +15749,7 @@ fn media_file_saved_searches_live_hybrid_deduplicates_equivalent_records() {
 
     assert_eq!(
         read.body["data"]["savedSearchFiles"]["nodes"],
-        json!([{"filename": "alpha-file.pdf", "contentType": "FILE"}])
+        json!([{"alt": "Alpha file", "__typename": "GenericFile"}])
     );
     assert_eq!(
         read.body["data"]["fileSavedSearches"]["nodes"],
@@ -15877,7 +15763,7 @@ fn media_file_saved_searches_live_hybrid_deduplicates_equivalent_records() {
     assert_eq!(
         upstream_bodies.lock().unwrap().len(),
         1,
-        "LiveHybrid read should forward once before overlaying staged state"
+        "the grouped LiveHybrid read should forward its original document once"
     );
 }
 
@@ -15994,7 +15880,7 @@ fn media_file_create_allocates_unique_ids_across_separate_calls() {
     let create_query = r#"
         mutation FileReferenceCreate($files: [FileCreateInput!]!) {
           fileCreate(files: $files) {
-            files { id alt createdAt fileStatus filename }
+            files { id alt createdAt fileStatus }
             userErrors { field message code }
           }
         }
@@ -16027,7 +15913,7 @@ fn media_file_create_allocates_unique_ids_across_separate_calls() {
         r#"
         query FileReferenceFilesRead {
           files(first: 10) {
-            nodes { id alt createdAt fileStatus filename }
+            nodes { id alt createdAt fileStatus }
             pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
           }
         }
@@ -16038,8 +15924,8 @@ fn media_file_create_allocates_unique_ids_across_separate_calls() {
     assert_eq!(
         files_read.body["data"]["files"]["nodes"],
         json!([
-            {"id": first_id, "alt": "First batch", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "READY", "filename": "first.jpg"},
-            {"id": second_id, "alt": "Second batch", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "READY", "filename": "second.jpg"}
+            {"id": first_id, "alt": "First batch", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "READY"},
+            {"id": second_id, "alt": "Second batch", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "READY"}
         ])
     );
 }
@@ -16275,10 +16161,8 @@ fn media_file_create_omitted_model_extension_stages_generic_file_and_preserves_e
               id
               alt
               fileStatus
-              filename
-              mimeType
-              ... on GenericFile { url }
-              ... on Model3d { mediaErrors mediaWarnings }
+              ... on GenericFile { mimeType url }
+              ... on Model3d { filename mediaErrors { code message } mediaWarnings { code message } }
             }
             userErrors { field message code }
           }
@@ -16297,7 +16181,6 @@ fn media_file_create_omitted_model_extension_stages_generic_file_and_preserves_e
                 "id": "gid://shopify/GenericFile/2",
                 "alt": "Omitted GLB",
                 "fileStatus": "UPLOADED",
-                "filename": "model.glb",
                 "mimeType": "model/gltf-binary",
                 "url": "https://cdn.example.com/model.glb"
             },
@@ -16307,7 +16190,6 @@ fn media_file_create_omitted_model_extension_stages_generic_file_and_preserves_e
                 "alt": "Explicit model",
                 "fileStatus": "UPLOADED",
                 "filename": "explicit-model.glb",
-                "mimeType": "model/gltf-binary",
                 "mediaErrors": [],
                 "mediaWarnings": []
             }
@@ -16321,9 +16203,8 @@ fn media_file_create_omitted_model_extension_stages_generic_file_and_preserves_e
             nodes {
               __typename
               id
-              filename
               ... on GenericFile { url }
-              ... on Model3d { mediaErrors mediaWarnings }
+              ... on Model3d { filename mediaErrors { code message } mediaWarnings { code message } }
             }
           }
         }
@@ -16336,7 +16217,6 @@ fn media_file_create_omitted_model_extension_stages_generic_file_and_preserves_e
             {
                 "__typename": "GenericFile",
                 "id": "gid://shopify/GenericFile/2",
-                "filename": "model.glb",
                 "url": "https://cdn.example.com/model.glb"
             },
             {
@@ -16355,8 +16235,8 @@ fn media_file_create_omitted_model_extension_stages_generic_file_and_preserves_e
           node(id: $id) {
             __typename
             id
-            ... on GenericFile { alt fileStatus filename mimeType url }
-            ... on Model3d { mediaErrors mediaWarnings }
+            ... on GenericFile { alt fileStatus mimeType url }
+            ... on Model3d { mediaErrors { code message } mediaWarnings { code message } }
           }
         }
         "#,
@@ -16369,7 +16249,6 @@ fn media_file_create_omitted_model_extension_stages_generic_file_and_preserves_e
             "id": "gid://shopify/GenericFile/2",
             "alt": "Omitted GLB",
             "fileStatus": "READY",
-            "filename": "model.glb",
             "mimeType": "model/gltf-binary",
             "url": "https://cdn.example.com/model.glb"
         })
@@ -16382,7 +16261,7 @@ fn media_file_create_omitted_model_extension_stages_generic_file_and_preserves_e
             __typename
             id
             ... on GenericFile { url }
-            ... on Model3d { alt fileStatus filename mimeType mediaErrors mediaWarnings }
+            ... on Model3d { alt fileStatus filename mediaErrors { code message } mediaWarnings { code message } }
           }
         }
         "#,
@@ -16396,7 +16275,6 @@ fn media_file_create_omitted_model_extension_stages_generic_file_and_preserves_e
             "alt": "Explicit model",
             "fileStatus": "READY",
             "filename": "explicit-model.glb",
-            "mimeType": "model/gltf-binary",
             "mediaErrors": [],
             "mediaWarnings": []
         })
@@ -16436,7 +16314,7 @@ fn media_file_create_top_level_input_errors_do_not_stage_or_log() {
         mutation,
         json!({"files": too_many_files}),
     ));
-    assert!(batch_size.body.get("data").is_none());
+    assert_eq!(batch_size.body["data"], json!({"fileCreate": null}));
     assert_eq!(
         batch_size.body["errors"][0]["extensions"]["code"],
         json!("MAX_INPUT_SIZE_EXCEEDED")
@@ -16505,7 +16383,6 @@ fn media_file_update_hydrates_real_file_before_staging_captured_id() {
               id
               alt
               fileStatus
-              filename
               ... on MediaImage { image { url width height } }
             }
             userErrors { field message code }
@@ -16523,7 +16400,6 @@ fn media_file_update_hydrates_real_file_before_staging_captured_id() {
                 "id": media_id,
                 "alt": "Updated hydrated alt",
                 "fileStatus": "READY",
-                "filename": "hydrated-file-real.jpg",
                 "image": {
                     "url": "https://cdn.example.com/hydrated-file-real.jpg",
                     "width": 640,
@@ -16767,7 +16643,7 @@ fn media_file_update_rejects_filename_extension_case_mismatch_without_staging() 
         r#"
         mutation MediaFileUpdateValidation($files: [FileUpdateInput!]!) {
           fileUpdate(files: $files) {
-            files { id filename }
+            files { id }
             userErrors { field message code }
           }
         }
@@ -16793,14 +16669,14 @@ fn media_file_update_rejects_filename_extension_case_mismatch_without_staging() 
     let read_after_rejected_update = proxy.process_request(json_graphql_request(
         r#"
         query MediaFileUpdateRejectedRead {
-          files(first: 5) { nodes { id filename } }
+          files(first: 5) { nodes { id } }
         }
         "#,
         json!({}),
     ));
     assert_eq!(
         read_after_rejected_update.body["data"]["files"]["nodes"],
-        json!([{ "id": media_id, "filename": "ready-image.JPG" }])
+        json!([{ "id": media_id }])
     );
     let bodies = upstream_bodies.lock().unwrap();
     assert_eq!(bodies.len(), 2);
@@ -17326,8 +17202,10 @@ fn media_file_acknowledge_update_failed_validates_missing_and_non_ready_ids() {
               id
               fileStatus
               __typename
-              mediaErrors { code message }
-              mediaWarnings { code message }
+              ... on MediaImage {
+                mediaErrors { code message }
+                mediaWarnings { code message }
+              }
             }
             pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
           }
@@ -17356,7 +17234,7 @@ fn media_file_acknowledge_update_failed_validates_missing_and_non_ready_ids() {
 }
 
 #[test]
-fn media_file_create_and_update_reference_authorization_is_top_level_access_denied() {
+fn media_file_create_rejects_removed_references_and_update_authorization_is_access_denied() {
     let mut proxy = snapshot_proxy();
     let create_query = r#"
         mutation MediaReferenceAuthCreate($files: [FileCreateInput!]!) {
@@ -17375,18 +17253,17 @@ fn media_file_create_and_update_reference_authorization_is_top_level_access_deni
         "false".to_string(),
     );
     let create = proxy.process_request(create_request);
-    assert_eq!(create.body["data"]["fileCreate"], Value::Null);
+    assert_eq!(create.body.get("data"), None);
     assert_eq!(
-        create.body["errors"][0],
-        json!({
-            "message": "Access denied: Missing permission to manage products.",
-            "locations": [{"line": 2, "column": 3}],
-            "extensions": {
-                "code": "ACCESS_DENIED",
-                "documentation": "https://shopify.dev/api/usage/access-scopes"
-            },
-            "path": ["fileCreate"]
-        })
+        create.body["errors"][0]["message"],
+        json!("Variable $files of type [FileCreateInput!]! was provided invalid value for 0.referencesToAdd (Field is not defined on FileCreateInput)")
+    );
+    assert_eq!(
+        create.body["errors"][0]["extensions"]["problems"],
+        json!([{
+            "path": [0, "referencesToAdd"],
+            "explanation": "Field is not defined on FileCreateInput"
+        }])
     );
 
     let update_query = r#"
@@ -17415,7 +17292,7 @@ fn media_file_create_and_update_reference_authorization_is_top_level_access_deni
 }
 
 #[test]
-fn media_file_create_quota_affordance_rejects_matching_non_image_inputs() {
+fn media_file_create_quota_affordance_emits_schema_valid_non_image_limit_code() {
     let mut proxy = snapshot_proxy();
     let mut request = json_graphql_request(
         r#"
@@ -17434,8 +17311,7 @@ fn media_file_create_quota_affordance_rejects_matching_non_image_inputs() {
     );
     request.headers.insert(
         "x-shopify-draft-proxy-media-quota-errors".to_string(),
-        "VIDEO_THROTTLE_EXCEEDED,MODEL3D_THROTTLE_EXCEEDED,NON_IMAGE_MEDIA_PER_SHOP_LIMIT_EXCEEDED"
-            .to_string(),
+        "NON_IMAGE_MEDIA_PER_SHOP_LIMIT_EXCEEDED".to_string(),
     );
     let response = proxy.process_request(request);
     assert_eq!(
@@ -17443,13 +17319,13 @@ fn media_file_create_quota_affordance_rejects_matching_non_image_inputs() {
         json!({"files": [], "userErrors": [
             {
                 "field": ["files", "0", "contentType"],
-                "message": "Video upload throttle exceeded.",
-                "code": "VIDEO_THROTTLE_EXCEEDED"
+                "message": "Non-image media per shop limit exceeded.",
+                "code": "NON_IMAGE_MEDIA_PER_SHOP_LIMIT_EXCEEDED"
             },
             {
                 "field": ["files", "1", "contentType"],
-                "message": "Model 3D upload throttle exceeded.",
-                "code": "MODEL3D_THROTTLE_EXCEEDED"
+                "message": "Non-image media per shop limit exceeded.",
+                "code": "NON_IMAGE_MEDIA_PER_SHOP_LIMIT_EXCEEDED"
             },
             {
                 "field": ["files", "2", "contentType"],
@@ -17490,7 +17366,7 @@ fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
         "#,
         json!({
             "blog": {"title": "CMS Lifecycle Blog", "commentPolicy": "MODERATED"},
-            "page": {"title": "CMS Lifecycle Page", "body": "<p>Hello <strong>page</strong></p>", "visible": false, "visibilityDate": "2099-01-01T00:00:00Z"}
+            "page": {"title": "CMS Lifecycle Page", "body": "<p>Hello <strong>page</strong></p>", "isPublished": false, "publishDate": "2099-01-01T00:00:00Z"}
         }),
     ));
     assert_eq!(create.status, 200);
@@ -19302,28 +19178,35 @@ fn online_store_content_validation_branches_do_not_stage() {
         .as_str()
         .unwrap()
         .to_string();
-    let commentable = proxy.process_request(json_graphql_request(
+    let comment_policy = proxy.process_request(json_graphql_request(
         r#"
-        mutation BlogCommentable($id: ID!, $valid: BlogUpdateInput!, $invalid: BlogUpdateInput!) {
+        mutation BlogCommentPolicy($id: ID!, $valid: BlogUpdateInput!) {
           valid: blogUpdate(id: $id, blog: $valid) { blog { id title commentPolicy } userErrors { field message code } }
-          invalid: blogUpdate(id: $id, blog: $invalid) { blog { id title commentPolicy } userErrors { field message code } }
         }
         "#,
         json!({
             "id": blog_id,
-            "valid": {"commentable": "MODERATE"},
-            "invalid": {"commentable": "INVALID_VALUE"}
+            "valid": {"commentPolicy": "MODERATED"}
         }),
     ));
     assert_eq!(
-        commentable.body["data"]["valid"]["blog"]["commentPolicy"],
+        comment_policy.body["data"]["valid"]["blog"]["commentPolicy"],
         json!("MODERATED")
     );
+    let invalid_comment_policy = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BlogCommentPolicyInvalid($id: ID!, $invalid: BlogUpdateInput!) {
+          invalid: blogUpdate(id: $id, blog: $invalid) { blog { id title commentPolicy } userErrors { field message code } }
+        }
+        "#,
+        json!({"id": blog_id, "invalid": {"commentPolicy": "INVALID_VALUE"}}),
+    ));
+    assert_eq!(invalid_comment_policy.body.get("data"), None);
     assert_eq!(
-        commentable.body["data"]["invalid"],
-        json!({"blog": null, "userErrors": [{"field": ["blog", "commentable"], "message": "Commentable is not included in the list", "code": "INCLUSION"}]})
+        invalid_comment_policy.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
     );
-    let commentable_read = proxy.process_request(json_graphql_request(
+    let comment_policy_read = proxy.process_request(json_graphql_request(
         r#"
         query BlogCommentableRead($id: ID!) {
           blog(id: $id) { id title commentPolicy }
@@ -19332,7 +19215,7 @@ fn online_store_content_validation_branches_do_not_stage() {
         json!({"id": blog_id}),
     ));
     assert_eq!(
-        commentable_read.body["data"]["blog"]["commentPolicy"],
+        comment_policy_read.body["data"]["blog"]["commentPolicy"],
         json!("MODERATED")
     );
 }

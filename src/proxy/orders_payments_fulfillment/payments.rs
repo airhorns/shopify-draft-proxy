@@ -1903,7 +1903,7 @@ impl DraftProxy {
             .filter(|value| !value.trim().is_empty())
             .unwrap_or_else(|| "manual".to_string());
         let processed_at = resolved_string_field(&field.arguments, "processedAt")
-            .unwrap_or_else(|| order_mutation_timestamp(self.log_entries.len() as u64));
+            .unwrap_or_else(|| order_mutation_timestamp(self.mutation_log_ordinal() as u64));
         let mut transaction = payment_transaction_record_from_amount_set(
             &transaction_id,
             "SALE",
@@ -2475,6 +2475,14 @@ impl DraftProxy {
             );
         }
         if function_id.is_none() && function_handle.is_none() {
+            if request.path.contains("/admin/api/2025-01/") {
+                return payment_customization_error_payload(
+                    &field.selection,
+                    vec![payment_customization_required_input_field_error(
+                        "functionId",
+                    )],
+                );
+            }
             return payment_customization_error_payload(
                 &field.selection,
                 vec![payment_customization_user_error(

@@ -77,7 +77,6 @@ fn metafield_access_grants_errors(
                     operation_path: &document.operation_path,
                     response_key: &field.response_key,
                     field_location: field.location,
-                    raw_body: "",
                 };
                 vec![input_object_argument_not_accepted_error(
                     "MetafieldAccessInput",
@@ -1030,11 +1029,16 @@ impl DraftProxy {
             )]);
         }
         if self.metafield_definition_pin_count(owner_type) >= PINNED_DEFINITION_LIMIT {
+            let code = if typename == "StandardMetafieldDefinitionEnableUserError" {
+                "LIMIT_EXCEEDED"
+            } else {
+                "PINNED_LIMIT_REACHED"
+            };
             return Some(vec![metafield_definition_user_error(
                 typename,
                 field_path,
                 &pinned_definition_limit_message(),
-                "PINNED_LIMIT_REACHED",
+                code,
             )]);
         }
         None
@@ -2340,7 +2344,7 @@ fn metafield_definition_create_errors_for_namespace(
             "MetafieldDefinitionCreateUserError",
             json!(["definition", "namespace"]),
             &format!("Namespace {namespace} is reserved."),
-            "RESERVED",
+            "RESERVED_NAMESPACE_KEY",
         ));
     }
     if let Some(error) = key_length_error {
@@ -3377,7 +3381,7 @@ mod tests {
             r#"
             mutation SetMetafield($metafields: [MetafieldsSetInput!]!) {
               metafieldsSet(metafields: $metafields) {
-                metafields { id namespace key ownerType type value owner { __typename id } }
+                metafields { id namespace key ownerType type value owner { __typename ... on Node { id } } }
                 userErrors { field message code }
               }
             }
@@ -3562,7 +3566,7 @@ mod tests {
                     ownerType
                     type
                     value
-                    owner { __typename id }
+                    owner { __typename ... on Node { id } }
                     definition { id namespace key ownerType }
                   }
                   edges { cursor node { id value } }

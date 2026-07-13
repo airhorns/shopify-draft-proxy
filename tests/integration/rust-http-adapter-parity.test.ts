@@ -503,7 +503,7 @@ describe('Rust HTTP adapter route surface', () => {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
-              query: '{ currentAppInstallation { id } }',
+              query: '{ currentStaffMember { id } }',
             }),
           });
           expect(response).toEqual({

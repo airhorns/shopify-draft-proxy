@@ -227,6 +227,10 @@ impl DraftProxy {
             // dataSaleOptOut synthetic). With no staged customers there is
             // nothing local to serve, so the read forwards upstream unchanged.
             "customers" | "customersCount" => !self.store.staged.customers.is_empty(),
+            "customerMergeJobStatus" => resolved_string_field(&field.arguments, "jobId")
+                .is_some_and(|id| self.store.staged.customer_merge_requests.contains_key(&id)),
+            "job" => resolved_string_field(&field.arguments, "id")
+                .is_some_and(|id| self.store.staged.customer_merge_requests.contains_key(&id)),
             _ => false,
         })
     }
@@ -1057,14 +1061,21 @@ impl DraftProxy {
         transaction: &Value,
         selection: &[SelectedField],
     ) -> Value {
-        selected_payload_json(selection, |field| match field.name.as_str() {
+        let mut projected = selected_payload_json(selection, |field| match field.name.as_str() {
             "account" => transaction
                 .get("account")
                 .map(|account| self.selected_store_credit_account(account, &field.selection)),
             _ => selected_json(transaction, std::slice::from_ref(field))
                 .as_object()
                 .and_then(|object| object.get(&field.response_key).cloned()),
-        })
+        });
+        if let (Some(projected), Some(typename)) = (
+            projected.as_object_mut(),
+            transaction.get("__typename").and_then(Value::as_str),
+        ) {
+            projected.insert("__typename".to_string(), json!(typename));
+        }
+        projected
     }
 
     fn selected_store_credit_account(&self, account: &Value, selection: &[SelectedField]) -> Value {
@@ -1075,7 +1086,7 @@ impl DraftProxy {
                     .get("id")
                     .and_then(Value::as_str)
                     .unwrap_or_default();
-                let transactions = self
+                let mut transactions = self
                     .store
                     .staged
                     .store_credit_transaction_order
@@ -1084,10 +1095,16 @@ impl DraftProxy {
                     .filter(|transaction| transaction["account"]["id"].as_str() == Some(account_id))
                     .cloned()
                     .collect::<Vec<_>>();
-                Some(selected_connection_json_with_args(
-                    transactions,
+                if resolved_bool_field(&field.arguments, "reverse").unwrap_or(false) {
+                    transactions.reverse();
+                }
+                Some(selected_typed_connection_with_args(
+                    &transactions,
                     &field.arguments,
                     &field.selection,
+                    |transaction, selection| {
+                        self.selected_store_credit_transaction(transaction, selection)
+                    },
                     value_id_cursor,
                 ))
             }
@@ -2006,8 +2023,7 @@ impl DraftProxy {
             return (
                 json!({
                     "customer": null,
-                    "userErrors": inline_consent_errors,
-                    "customerUpdateUserErrors": inline_consent_errors
+                    "userErrors": inline_consent_errors
                 }),
                 Vec::new(),
                 Vec::new(),

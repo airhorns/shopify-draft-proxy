@@ -1081,13 +1081,6 @@ impl DraftProxy {
     }
 }
 
-pub(in crate::proxy) fn is_product_operation_gid(id: &str) -> bool {
-    matches!(
-        shopify_gid_resource_type(id),
-        Some("ProductSetOperation" | "ProductDuplicateOperation" | "ProductBundleOperation")
-    )
-}
-
 fn product_operation_typename(kind: ProductOperationKind) -> &'static str {
     match kind {
         ProductOperationKind::Set => "ProductSetOperation",

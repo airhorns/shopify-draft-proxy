@@ -856,7 +856,7 @@ fn metafields_set_input_shape_error(
     if shopify_gid_resource_type(&owner_id).is_none() {
         Some(metafields_set_path_user_error(
             vec!["metafields", &index, "ownerId"],
-            "INVALID_OWNER",
+            "INVALID",
             "Owner is invalid",
         ))
     } else if let Some(error) = metafields_set_namespace_key_validation(&namespace, &key) {

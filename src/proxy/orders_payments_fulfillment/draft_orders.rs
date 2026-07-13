@@ -506,7 +506,8 @@ pub(in crate::proxy) fn draft_order_input_needs_shop_currency(
 }
 
 fn draft_order_explicit_input_currency(input: &BTreeMap<String, ResolvedValue>) -> Option<String> {
-    resolved_string_field(input, "currencyCode")
+    resolved_string_field(input, "presentmentCurrencyCode")
+        .or_else(|| resolved_string_field(input, "currencyCode"))
         .or_else(|| {
             resolved_object_field(input, "shippingLine")
                 .and_then(|shipping_line| {
@@ -674,12 +675,30 @@ pub(in crate::proxy) fn draft_order_complete_implicit_payment_pending(draft_orde
 pub(in crate::proxy) fn draft_order_purchasing_entity(
     input: &BTreeMap<String, ResolvedValue>,
 ) -> Value {
-    resolved_object_field(input, "purchasingEntity")
-        .map(|entity| resolved_value_json(&ResolvedValue::Object(entity)))
+    let Some(entity) = resolved_object_field(input, "purchasingEntity") else {
+        return Value::Null;
+    };
+    if let Some(company) = resolved_object_field(&entity, "purchasingCompany") {
+        return json!({
+            "__typename": "PurchasingCompany",
+            "company": resolved_string_field(&company, "companyId")
+                .map(|id| json!({ "id": id }))
+                .unwrap_or(Value::Null),
+            "contact": resolved_string_field(&company, "companyContactId")
+                .map(|id| json!({ "id": id }))
+                .unwrap_or(Value::Null),
+            "location": resolved_string_field(&company, "companyLocationId")
+                .map(|id| json!({ "id": id }))
+                .unwrap_or(Value::Null)
+        });
+    }
+    resolved_string_field(&entity, "customerId")
+        .map(|id| json!({ "__typename": "Customer", "id": id }))
         .unwrap_or(Value::Null)
 }
 
 pub(in crate::proxy) fn draft_order_customer(input: &BTreeMap<String, ResolvedValue>) -> Value {
+    let display_name = resolved_string_field(input, "email").unwrap_or_default();
     resolved_object_field(input, "purchasingEntity")
         .and_then(|entity| resolved_string_field(&entity, "customerId"))
         .or_else(|| resolved_string_field(input, "customerId"))
@@ -687,7 +706,7 @@ pub(in crate::proxy) fn draft_order_customer(input: &BTreeMap<String, ResolvedVa
             json!({
                 "id": id,
                 "email": resolved_string_field(input, "email"),
-                "displayName": Value::Null
+                "displayName": display_name
             })
         })
         .unwrap_or(Value::Null)
@@ -2572,7 +2591,7 @@ impl DraftProxy {
         }
 
         let mut updated = draft_order.clone();
-        let invoice_sent_at = order_mutation_timestamp(self.log_entries.len() as u64);
+        let invoice_sent_at = order_mutation_timestamp(self.mutation_log_ordinal() as u64);
         updated["status"] = json!("INVOICE_SENT");
         updated["invoiceSentAt"] = json!(invoice_sent_at.clone());
         updated["updatedAt"] = json!(invoice_sent_at);

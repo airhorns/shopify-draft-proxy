@@ -7,6 +7,16 @@ from shopify_draft_proxy import (
 )
 
 
+def saved_search_nodes(
+    proxy: DraftProxy, root: str, name_fragment: str
+) -> list[dict[str, str]]:
+    response = proxy.process_graphql_request(
+        {"query": f"{{ {root}(first: 250) {{ nodes {{ id name }} }} }}"}
+    )
+    nodes = response["body"]["data"][root]["nodes"]
+    return [node for node in nodes if name_fragment in node["name"]]
+
+
 def test_health_and_config_are_served_by_native_runtime() -> None:
     proxy = create_draft_proxy(read_mode="snapshot", shopify_admin_origin="https://shopify.com")
 
@@ -32,20 +42,13 @@ def test_multiple_instances_keep_staged_state_independent() -> None:
     )
     assert create_response["status"] == 200
 
-    staged_read = first.process_graphql_request(
-        {"query": '{ orderSavedSearches(query: "Promo") { nodes { id name } } }'}
-    )
-    empty_read = second.process_graphql_request(
-        {"query": '{ orderSavedSearches(query: "Promo") { nodes { id name } } }'}
-    )
-
-    assert staged_read["body"]["data"]["orderSavedSearches"]["nodes"] == [
+    assert saved_search_nodes(first, "orderSavedSearches", "Promo") == [
         {
             "id": "gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic",
             "name": "Promo orders",
         }
     ]
-    assert empty_read["body"]["data"]["orderSavedSearches"]["nodes"] == []
+    assert saved_search_nodes(second, "orderSavedSearches", "Promo") == []
     assert first.get_log()["entries"]
     assert second.get_log()["entries"] == []
 
@@ -64,11 +67,7 @@ def test_dump_and_restore_round_trip_between_instances() -> None:
     assert dump["createdAt"] == "2026-05-29T00:00:00.000Z"
 
     restored = create_draft_proxy(state=dump)
-    restored_read = restored.process_graphql_request(
-        {"query": '{ productSavedSearches(query: "Promo") { nodes { id name } } }'}
-    )
-
-    assert restored_read["body"]["data"]["productSavedSearches"]["nodes"] == [
+    assert saved_search_nodes(restored, "productSavedSearches", "Promo") == [
         {
             "id": "gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic",
             "name": "Promo products",
@@ -77,7 +76,4 @@ def test_dump_and_restore_round_trip_between_instances() -> None:
 
     restored.reset()
     assert restored.commit(headers={"authorization": "Bearer test"})["ok"] is True
-    reset_read = restored.process_graphql_request(
-        {"query": '{ productSavedSearches(query: "Promo") { nodes { id name } } }'}
-    )
-    assert reset_read["body"]["data"]["productSavedSearches"]["nodes"] == []
+    assert saved_search_nodes(restored, "productSavedSearches", "Promo") == []

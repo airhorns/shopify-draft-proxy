@@ -1242,9 +1242,6 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
         match root_field {
-            "productVariantCreate" => self.product_variant_create(query, variables),
-            "productVariantUpdate" => self.product_variant_update(query, variables),
-            "productVariantDelete" => self.product_variant_delete(query, variables),
             "productVariantAppendMedia" | "productVariantDetachMedia" => {
                 self.product_variant_media_mutation(request, root_field, query, variables)
             }
@@ -1561,160 +1558,6 @@ impl DraftProxy {
                 _ => None,
             }
         })
-    }
-
-    fn product_variant_create(
-        &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> MutationOutcome {
-        let input = product_variant_input(query, variables).unwrap_or_default();
-        if input.contains_key("id") {
-            return MutationOutcome::response(no_key_on_variant_create_response("id"));
-        }
-        if input.contains_key("inventoryQuantityAdjustment") {
-            return MutationOutcome::response(no_key_on_variant_create_response(
-                "inventoryQuantityAdjustment",
-            ));
-        }
-
-        let product_id = resolved_string_field(&input, "productId").unwrap_or_default();
-        let Some(product) = self.store.product_by_id(&product_id).cloned() else {
-            return MutationOutcome::response(self.product_variant_success_response(
-                query,
-                "productVariantCreate",
-                None,
-                None,
-                vec![user_error_omit_code(
-                    ["productId"],
-                    "Product does not exist",
-                    None,
-                )],
-            ));
-        };
-        if let Some(response) =
-            self.product_variant_validation_response(query, "productVariantCreate", &input)
-        {
-            return MutationOutcome::response(response);
-        }
-
-        let variant_id = self.next_proxy_synthetic_gid("ProductVariant");
-        let inventory_item_id = self.next_proxy_synthetic_gid("InventoryItem");
-        let variant = product_variant_record_from_create_input(
-            &input,
-            variant_id.clone(),
-            product_id,
-            inventory_item_id,
-        );
-
-        // Shopify replaces the implicit `Title: Default Title` standalone variant the first
-        // time a real variant is created on a product that still only carries it, rather than
-        // keeping the auto-generated default alongside the new variant. Capture the pre-create
-        // variant set so we can drop the default once the real variant is staged.
-        let existing_variants = self.store.product_variants_for_product(&variant.product_id);
-        let replace_default = existing_variants.len() == 1
-            && existing_variants
-                .first()
-                .is_some_and(Self::is_standalone_default_variant);
-
-        self.store.stage_product_variant(variant.clone());
-
-        if replace_default {
-            for existing in &existing_variants {
-                self.store.delete_product_variant(&existing.id);
-            }
-            let final_variants = self.store.product_variants_for_product(&variant.product_id);
-            self.recompute_product_options_from_variants(&variant.product_id, &final_variants);
-        }
-
-        MutationOutcome::staged(
-            self.product_variant_success_response(
-                query,
-                "productVariantCreate",
-                Some(&product),
-                Some(&variant),
-                Vec::new(),
-            ),
-            LogDraft::staged(
-                "productVariantCreate",
-                "products",
-                vec![product.id, variant_id],
-            ),
-        )
-    }
-
-    fn product_variant_update(
-        &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> MutationOutcome {
-        let input = product_variant_input(query, variables).unwrap_or_default();
-        let id = resolved_string_field(&input, "id").unwrap_or_default();
-        let Some(existing) = self.store.product_variant_by_id(&id).cloned() else {
-            return MutationOutcome::response(self.product_variant_success_response(
-                query,
-                "productVariantUpdate",
-                None,
-                None,
-                vec![user_error_omit_code(
-                    ["id"],
-                    "Product variant does not exist",
-                    None,
-                )],
-            ));
-        };
-        if let Some(response) =
-            self.product_variant_validation_response(query, "productVariantUpdate", &input)
-        {
-            return MutationOutcome::response(response);
-        }
-        let mut variant = existing;
-        apply_product_variant_input(&mut variant, &input);
-        self.store.stage_product_variant(variant.clone());
-        let product = self.store.product_by_id(&variant.product_id).cloned();
-
-        MutationOutcome::staged(
-            self.product_variant_success_response(
-                query,
-                "productVariantUpdate",
-                product.as_ref(),
-                Some(&variant),
-                Vec::new(),
-            ),
-            LogDraft::staged(
-                "productVariantUpdate",
-                "products",
-                vec![variant.product_id.clone(), variant.id.clone()],
-            ),
-        )
-    }
-
-    fn product_variant_delete(
-        &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> MutationOutcome {
-        let id = resolved_string_field(variables, "id").unwrap_or_default();
-        let Some(variant) = self.store.product_variant_by_id(&id).cloned() else {
-            return MutationOutcome::response(self.product_variant_delete_response(
-                query,
-                None,
-                vec![user_error_omit_code(
-                    ["id"],
-                    "Product variant does not exist",
-                    None,
-                )],
-            ));
-        };
-        self.store.delete_product_variant(&id);
-        MutationOutcome::staged(
-            self.product_variant_delete_response(query, Some(&id), Vec::new()),
-            LogDraft::staged(
-                "productVariantDelete",
-                "products",
-                vec![variant.product_id, id],
-            ),
-        )
     }
 
     /// Shopify's auto-generated standalone variant carries the single option
@@ -2454,10 +2297,17 @@ impl DraftProxy {
                         variants
                             .iter()
                             .map(|variant| {
-                                self.product_variant_json_with_current_publication_context(
-                                    variant,
-                                    self.store.product_by_id(&variant.product_id),
+                                let base = self
+                                    .product_variant_json_with_current_publication_context(
+                                        variant,
+                                        self.store.product_by_id(&variant.product_id),
+                                        &selection.selection,
+                                    );
+                                self.owner_metafield_overlay_owner_json(
+                                    "productVariant",
+                                    &variant.id,
                                     &selection.selection,
+                                    base,
                                 )
                             })
                             .collect(),
@@ -2523,80 +2373,6 @@ impl DraftProxy {
             self.hydrate_product_nodes_for_observation_with_request(request, hydrate_ids);
         }
         self.store.product_by_id(product_id)
-    }
-
-    fn product_variant_success_response(
-        &self,
-        query: &str,
-        root_field: &str,
-        product: Option<&ProductRecord>,
-        variant: Option<&ProductVariantRecord>,
-        user_errors: Vec<Value>,
-    ) -> Response {
-        let (response_key, payload_selection) =
-            primary_root_response_selection(query, &BTreeMap::new(), || root_field.to_string());
-        ok_json(json!({
-            "data": {
-                response_key: self.product_variant_payload_json(
-                    &payload_selection,
-                    product,
-                    variant,
-                    user_errors
-                )
-            }
-        }))
-    }
-
-    fn product_variant_validation_response(
-        &self,
-        query: &str,
-        root_field: &str,
-        input: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<Response> {
-        let user_errors = product_variant_input_user_errors_with_prefix(input, &[]);
-        if user_errors.is_empty() {
-            None
-        } else {
-            Some(self.product_variant_success_response(query, root_field, None, None, user_errors))
-        }
-    }
-
-    fn product_variant_payload_json(
-        &self,
-        payload_selection: &[SelectedField],
-        product: Option<&ProductRecord>,
-        variant: Option<&ProductVariantRecord>,
-        user_errors: Vec<Value>,
-    ) -> Value {
-        let product_selection =
-            selected_child_selection(payload_selection, "product").unwrap_or_default();
-        let variant_selection =
-            selected_child_selection(payload_selection, "productVariant").unwrap_or_default();
-        selected_payload_json(payload_selection, |selection| {
-            match selection.name.as_str() {
-                "product" => Some(match product {
-                    Some(product) => {
-                        let variants = self.store.product_variants_for_product(&product.id);
-                        self.product_json_with_store_currency(
-                            product,
-                            &variants,
-                            &product_selection,
-                        )
-                    }
-                    None => Value::Null,
-                }),
-                "productVariant" => Some(match variant {
-                    Some(variant) => self.product_variant_json_with_current_publication_context(
-                        variant,
-                        self.store.product_by_id(&variant.product_id),
-                        &variant_selection,
-                    ),
-                    None => Value::Null,
-                }),
-                "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-                _ => None,
-            }
-        })
     }
 
     fn product_variant_bulk_root_field(
@@ -2876,7 +2652,7 @@ impl DraftProxy {
     }
 
     fn normalize_bulk_variant_title(variant: &mut ProductVariantRecord) {
-        if variant.title == "Default Title" && !variant.selected_options.is_empty() {
+        if !variant.selected_options.is_empty() {
             variant.title = variant
                 .selected_options
                 .iter()
@@ -2884,27 +2660,6 @@ impl DraftProxy {
                 .collect::<Vec<_>>()
                 .join(" / ");
         }
-    }
-
-    fn product_variant_delete_response(
-        &self,
-        query: &str,
-        deleted_id: Option<&str>,
-        user_errors: Vec<Value>,
-    ) -> Response {
-        let (response_key, payload_selection) =
-            primary_root_response_selection(query, &BTreeMap::new(), || {
-                "productVariantDelete".to_string()
-            });
-        ok_json(json!({
-            "data": {
-                response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
-                    "deletedProductVariantId" => Some(deleted_id.map_or(Value::Null, |id| json!(id))),
-                    "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-                    _ => None,
-                })
-            }
-        }))
     }
 
     pub(in crate::proxy) fn product_delete(
@@ -3811,28 +3566,27 @@ mod tests {
     fn create_variant(proxy: &mut DraftProxy, sku: &str, price: &str) -> Value {
         let response = proxy.process_request(test_request(
             r#"
-            mutation CreateLegacyVariantForTest($input: ProductVariantInput!) {
-              productVariantCreate(input: $input) {
-                productVariant { id sku price }
+            mutation CreateVariantForTest($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+              productVariantsBulkCreate(productId: $productId, variants: $variants) {
+                productVariants { id sku price }
                 userErrors { field message }
               }
             }
             "#,
             json!({
-                "input": {
-                    "productId": "gid://shopify/Product/1",
-                    "title": sku,
-                    "sku": sku,
+                "productId": "gid://shopify/Product/1",
+                "variants": [{
+                    "inventoryItem": { "sku": sku },
                     "price": price
-                }
+                }]
             }),
         ));
         assert_eq!(response.status, 200);
         assert_eq!(
-            response.body["data"]["productVariantCreate"]["userErrors"],
+            response.body["data"]["productVariantsBulkCreate"]["userErrors"],
             json!([])
         );
-        response.body["data"]["productVariantCreate"]["productVariant"].clone()
+        response.body["data"]["productVariantsBulkCreate"]["productVariants"][0].clone()
     }
 
     #[test]

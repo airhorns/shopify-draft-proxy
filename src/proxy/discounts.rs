@@ -105,6 +105,7 @@ impl DraftProxy {
                     .staged
                     .discount_code_index
                     .contains_key(&code.to_ascii_uppercase())
+                    && !self.discount_tombstone_matches_code(&code)
             }
             "discountNodes"
             | "discountNodesCount"
@@ -267,12 +268,16 @@ impl DraftProxy {
         // references up front by forwarding a single batched node lookup and
         // observing the result, so the per-field create/update validation below decides
         // INVALID references against real store state instead of seeded state.
-        self.hydrate_discount_item_refs(_request, &fields);
+        if !self.engine_discount_refs_preflighted {
+            self.hydrate_discount_item_refs(_request, &fields);
+        }
         // Resolve any buyer-context customer / segment members the same way: forward
         // a read for each referenced customer / segment that is not already staged and
         // observe the result, so `resolve_discount_context_names` bakes the real
         // display name / segment name from store state instead of a seeded precondition.
-        self.hydrate_discount_context_refs(_request, &fields);
+        if !self.engine_discount_refs_preflighted {
+            self.hydrate_discount_context_refs(_request, &fields);
+        }
         let mut log_drafts = Vec::new();
         let mut top_level_errors = Vec::new();
         let data = root_payload_json(&fields, |field| {
@@ -574,7 +579,11 @@ impl DraftProxy {
     /// `ProductsHydrateNodes` cassette byte-for-byte. Only forwarded in
     /// `live-hybrid`; in `snapshot` the existence checks keep their permissive
     /// default (no upstream to consult).
-    fn hydrate_discount_item_refs(&mut self, request: &Request, fields: &[RootFieldSelection]) {
+    pub(in crate::proxy) fn hydrate_discount_item_refs(
+        &mut self,
+        request: &Request,
+        fields: &[RootFieldSelection],
+    ) {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return;
         }
@@ -631,7 +640,11 @@ impl DraftProxy {
     /// earlier in the scenario are skipped. Only forwarded in `live-hybrid`; in
     /// `snapshot` mode there is no upstream to consult, so the names degrade to the
     /// permissive "id only" default (mirroring `hydrate_discount_item_refs`).
-    fn hydrate_discount_context_refs(&mut self, request: &Request, fields: &[RootFieldSelection]) {
+    pub(in crate::proxy) fn hydrate_discount_context_refs(
+        &mut self,
+        request: &Request,
+        fields: &[RootFieldSelection],
+    ) {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return;
         }
@@ -1151,10 +1164,11 @@ impl DraftProxy {
                     return MutationFieldOutcome::unlogged(discount_payload_for_root(
                         &field.name,
                         Value::Null,
-                        vec![user_error(
+                        vec![user_error_with_extra_info(
                             ["base"],
                             "Discount could not be activated.",
                             Some("INTERNAL_ERROR"),
+                            Value::Null,
                         )],
                     ));
                 }
@@ -1384,7 +1398,7 @@ impl DraftProxy {
             let valid = self
                 .store
                 .saved_search_by_id(&saved_search_id)
-                .map(|record| record.resource_type == "DISCOUNT")
+                .map(|record| record.resource_type == "PRICE_RULE")
                 .unwrap_or(false);
             if !valid {
                 let message = if automatic {
@@ -1428,7 +1442,7 @@ impl DraftProxy {
             _ => discount_bulk_saved_search_id(field).and_then(|id| {
                 self.store
                     .saved_search_by_id(&id)
-                    .filter(|record| record.resource_type == "DISCOUNT")
+                    .filter(|record| record.resource_type == "PRICE_RULE")
                     .map(|record| record.query)
             }),
         };
@@ -1914,6 +1928,7 @@ impl DraftProxy {
             .and_then(Value::as_str)
             .unwrap_or_default();
         let mut fields = serde_json::Map::new();
+        fields.insert("__typename".to_string(), json!(typename));
         for field in selection {
             if !discount_body_selection_applies(field, typename) {
                 continue;
@@ -3645,7 +3660,13 @@ fn discount_record_from_input(
         "recurringCycleLimit": resolved_i64_path(input, &["recurringCycleLimit"])
             .map(Value::from)
             .or_else(|| existing.map(|record| record["recurringCycleLimit"].clone()))
-            .unwrap_or(Value::Null),
+            .unwrap_or_else(|| {
+                if typename == "DiscountAutomaticFreeShipping" {
+                    json!(0)
+                } else {
+                    Value::Null
+                }
+            }),
         "discountClasses": discount_classes,
         "combinesWith": combines_with,
         "context": discount_context,
@@ -4226,13 +4247,6 @@ fn discount_bulk_root_action(name: &str) -> Option<(&'static str, DiscountBulkAc
         "discountAutomaticBulkDelete" => Some(("automatic", DiscountBulkAction::Delete)),
         _ => None,
     }
-}
-
-/// Whether a mutation root field is a discount bulk activate / deactivate /
-/// delete. These forward upstream for the async `job`, then apply their effect
-/// to the local overlay so later reads stay consistent.
-pub(in crate::proxy) fn is_discount_bulk_action_root(name: &str) -> bool {
-    discount_bulk_root_action(name).is_some()
 }
 
 fn discount_bulk_saved_search_id(field: &RootFieldSelection) -> Option<String> {

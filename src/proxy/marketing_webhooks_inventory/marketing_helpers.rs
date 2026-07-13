@@ -221,13 +221,18 @@ pub(in crate::proxy) fn marketing_activity_from_input(
     }
     let title =
         input_or_old!("title", "/title").unwrap_or_else(|| "Marketing activity".to_string());
-    let remote_id = input_or_old!("remoteId", "/remoteId");
+    let remote_id = resolved_string_field(&input, "remoteId").or_else(|| {
+        old.pointer("/marketingEvent/remoteId")
+            .or_else(|| old.pointer("/remoteId"))
+            .and_then(Value::as_str)
+            .map(str::to_string)
+    });
     let status = input_or_old!("status", "/status").unwrap_or_else(|| "UNDEFINED".to_string());
     let tactic = input_or_old!("tactic", "/tactic").unwrap_or_else(|| "NEWSLETTER".to_string());
     let channel_type = input_or_old!("marketingChannelType", "/marketingChannelType")
         .unwrap_or_else(|| "EMAIL".to_string());
     let remote_url = input_or_old!("remoteUrl", "/marketingEvent/manageUrl");
-    let preview_url = input_or_old!("previewUrl", "/marketingEvent/previewUrl");
+    let preview_url = input_or_old!("remotePreviewImageUrl", "/marketingEvent/previewUrl");
     let url_parameter_value = input_or_old!("urlParameterValue", "/urlParameterValue");
     let channel_handle = input_or_old_value!("channelHandle", "/marketingEvent/channelHandle");
     let campaign = utm_or_old!("campaign", "/utmParameters/campaign");
@@ -476,7 +481,10 @@ pub(in crate::proxy) fn invalid_marketing_url_error(
 ) -> Option<Value> {
     for (field, value) in [
         ("remoteUrl", resolved_string_field(input, "remoteUrl")),
-        ("previewUrl", resolved_string_field(input, "previewUrl")),
+        (
+            "remotePreviewImageUrl",
+            resolved_string_field(input, "remotePreviewImageUrl"),
+        ),
     ] {
         if let Some(url) = value {
             if !(url.starts_with("http://") || url.starts_with("https://")) {

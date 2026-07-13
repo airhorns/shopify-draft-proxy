@@ -1,4 +1,5 @@
 use pretty_assertions::assert_eq;
+use shopify_draft_proxy::admin_graphql::{schema, AdminApiVersion};
 use shopify_draft_proxy::graphql::OperationType;
 use shopify_draft_proxy::operation_registry::{
     default_registry, execution_for_operation_type, implemented_entries, operation_capability,
@@ -292,20 +293,20 @@ fn implemented_entries_classify_through_canonical_registry_names() {
 }
 
 fn captured_2026_04_admin_mutation_names() -> BTreeSet<String> {
-    let schema: serde_json::Value = serde_json::from_str(include_str!(
-        "../config/admin-graphql/2026-04/mutation-schema.json"
-    ))
-    .expect("captured Admin mutation schema must be valid JSON");
-    schema["mutations"]
-        .as_array()
-        .expect("captured Admin mutation schema must list mutations")
-        .iter()
-        .map(|mutation| {
-            mutation["name"]
-                .as_str()
-                .expect("captured mutation must have a name")
-                .to_string()
-        })
+    let registry = schema(AdminApiVersion::V2026_04)
+        .expect("captured Admin schema must build")
+        .registry();
+    let mutation_type = registry
+        .mutation_type
+        .as_deref()
+        .expect("captured Admin schema must expose a mutation root");
+    registry
+        .types
+        .get(mutation_type)
+        .and_then(async_graphql::registry::MetaType::fields)
+        .expect("captured Admin mutation root must expose fields")
+        .keys()
+        .cloned()
         .collect()
 }
 

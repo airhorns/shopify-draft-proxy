@@ -836,28 +836,6 @@ pub(in crate::proxy) fn order_create_discount_amount(
     (amount, codes)
 }
 
-pub(in crate::proxy) fn order_create_line_item_discount_allocations(
-    discounts: &[Value],
-    currency_code: &str,
-) -> Vec<Value> {
-    discounts
-        .iter()
-        .filter_map(|discount| {
-            let value = discount.get("value")?;
-            let amount = value
-                .get("amount")
-                .and_then(Value::as_str)
-                .and_then(|amount| amount.parse::<f64>().ok())
-                .unwrap_or(0.0);
-            let currency = value
-                .get("currencyCode")
-                .and_then(Value::as_str)
-                .unwrap_or(currency_code);
-            Some(json!({ "allocatedAmountSet": money_bag(amount, currency) }))
-        })
-        .collect()
-}
-
 pub(in crate::proxy) fn order_create_line_item_record(
     input: &BTreeMap<String, ResolvedValue>,
     index: usize,
@@ -882,21 +860,6 @@ pub(in crate::proxy) fn order_create_line_item_record(
         .unwrap_or_else(|| presentment_currency_code.to_string());
     let tax_lines = order_create_tax_lines(input, "taxLines", currency_code);
     let tax_total = sum_money_set(&tax_lines, "priceSet");
-    let applied_discounts = resolved_object_list_field(input, "appliedDiscounts")
-        .into_iter()
-        .map(|discount| {
-            let fixed = resolved_object_field(&discount, "value")
-                .and_then(|value| resolved_object_field(&value, "fixedAmountValue"))
-                .unwrap_or_default();
-            let amount = resolved_money_amount(&fixed).unwrap_or(0.0);
-            let currency =
-                resolved_money_currency(&fixed).unwrap_or_else(|| currency_code.to_string());
-            json!({
-                "title": resolved_string_field(&discount, "title").unwrap_or_default(),
-                "value": money_value(&format_money_amount(amount), &currency)
-            })
-        })
-        .collect::<Vec<_>>();
     let custom_attributes = order_create_custom_attributes(input, "properties");
     let product_id = resolved_string_field(input, "productId");
     let variant_id = resolved_string_field(input, "variantId");
@@ -912,13 +875,8 @@ pub(in crate::proxy) fn order_create_line_item_record(
         .or_else(|| resolved_string_field(input, "sellingPlanName"))
         .map(|name| json!({ "name": name }))
         .unwrap_or(Value::Null);
-    let weight = resolved_object_field(input, "weight")
-        .map(|weight| {
-            json!({
-                "value": resolved_number_field(&weight, "value").unwrap_or(0.0),
-                "unit": resolved_string_field(&weight, "unit").unwrap_or_else(|| "KILOGRAMS".to_string())
-            })
-        })
+    let fulfillment_service = resolved_string_field(input, "fulfillmentService")
+        .map(|handle| json!({ "handle": handle }))
         .unwrap_or(Value::Null);
     let unit_amount_text = format_money_amount(unit_amount);
     let presentment_amount_text = format_money_amount(presentment_amount);
@@ -927,6 +885,7 @@ pub(in crate::proxy) fn order_create_line_item_record(
         "title": resolved_string_field(input, "title").unwrap_or_else(|| "Custom Item".to_string()),
         "quantity": quantity,
         "currentQuantity": quantity,
+        "fulfillableQuantity": quantity,
         "refundableQuantity": quantity,
         "sku": resolved_string_field(input, "sku").unwrap_or_default(),
         "variantTitle": resolved_string_field(input, "variantTitle"),
@@ -938,13 +897,11 @@ pub(in crate::proxy) fn order_create_line_item_record(
         "customAttributes": custom_attributes,
         "requiresShipping": resolved_bool_field(input, "requiresShipping").unwrap_or(true),
         "taxable": resolved_bool_field(input, "taxable").unwrap_or(true),
-        "giftCard": resolved_bool_field(input, "giftCard").unwrap_or(false),
+        "isGiftCard": resolved_bool_field(input, "giftCard").unwrap_or(false),
         "vendor": resolved_string_field(input, "vendor"),
-        "fulfillmentService": resolved_string_field(input, "fulfillmentService"),
-        "fulfillmentStatus": resolved_string_field(input, "fulfillmentStatus"),
-        "weight": weight,
-        "appliedDiscounts": applied_discounts.clone(),
-        "discountAllocations": order_create_line_item_discount_allocations(&applied_discounts, currency_code),
+        "fulfillmentService": fulfillment_service,
+        "fulfillmentStatus": "unfulfilled",
+        "discountAllocations": [],
         "originalUnitPriceSet": money_set_pair(
             &unit_amount_text,
             &line_currency,
@@ -1002,6 +959,14 @@ pub(in crate::proxy) fn order_default_fulfillment_order(
         "id": shopify_gid("FulfillmentOrder", tail),
         "status": "OPEN",
         "requestStatus": "UNSUBMITTED",
+        "fulfillAt": Value::Null,
+        "fulfillBy": Value::Null,
+        "updatedAt": "2024-01-01T00:00:00.000Z",
+        "assignedLocation": {
+            "name": "",
+            "location": Value::Null
+        },
+        "fulfillmentHolds": [],
         "supportedActions": [],
         "lineItems": order_connection(fulfillment_order_line_items)
     })
@@ -1566,7 +1531,7 @@ impl DraftProxy {
             );
         };
 
-        let staged_at = order_mutation_timestamp(self.log_entries.len() as u64);
+        let staged_at = order_mutation_timestamp(self.mutation_log_ordinal() as u64);
         order["updatedAt"] = json!(staged_at.clone());
         order["__draftProxyInvoiceSend"] =
             order_invoice_send_metadata(&field.arguments, &recipient, &staged_at);
@@ -1961,7 +1926,7 @@ impl DraftProxy {
             order["localizedFields"] = order_connection(entries.clone());
             order["localizationExtensions"] = order_connection(entries);
         }
-        order["updatedAt"] = json!(order_mutation_timestamp(self.log_entries.len() as u64));
+        order["updatedAt"] = json!(order_mutation_timestamp(self.mutation_log_ordinal() as u64));
 
         self.store
             .staged
@@ -2638,6 +2603,16 @@ impl DraftProxy {
             "fulfillmentOrders": order_connection(fulfillment_orders),
             "transactions": transactions
         });
+        let fulfillment_order_parent = json!({
+            "id": order["id"].clone(),
+            "name": order["name"].clone(),
+            "displayFulfillmentStatus": order["displayFulfillmentStatus"].clone()
+        });
+        if let Some(fulfillment_orders) = fulfillment_order_nodes_mut(&mut order) {
+            for fulfillment_order in fulfillment_orders {
+                fulfillment_order["order"] = fulfillment_order_parent.clone();
+            }
+        }
         order_create_payment_fields(
             &mut order,
             &transactions,
@@ -3623,8 +3598,9 @@ impl DraftProxy {
         // order." That attribution string is opaque store/app state Shopify
         // renders server-side and exposes via no queryable Admin API field (not
         // even the event's own `appTitle`), so the proxy cannot reproduce it
-        // without a seed. The author is left unresolved here (event message
-        // null); the parity spec excludes the un-reproducible message text.
+        // without a seed. The author is left unresolved here (event message is
+        // the empty string required by the non-null schema); captured parity
+        // excludes the un-reproducible attribution text.
         let author = self.store.staged.order_edit_author.clone();
         let order_unarchived = order_edit_order_is_closed(&base);
         let committed = oe_commit_order(&base, &session, author.as_deref());

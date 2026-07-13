@@ -18,6 +18,7 @@ use crate::operation_registry::{
     default_registry, operation_capability, ApiSurface, CapabilityDomain, CapabilityExecution,
     OperationRegistryEntry,
 };
+use crate::resolver_registry::ResolverRegistry;
 
 pub const DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES: u64 = 104_857_600;
 pub(in crate::proxy) const METAFIELDS_SET_INPUT_LIMIT: usize = 25;
@@ -2099,7 +2100,7 @@ fn default_runtime_clock() -> time::OffsetDateTime {
 pub struct DraftProxy {
     config: Config,
     log_entries: Vec<Value>,
-    registry: Vec<OperationRegistryEntry>,
+    registry: ResolverRegistry,
     store: Store,
     next_synthetic_id: u64,
     /// Per-scenario cache of the upstream shop's `shop.features.sellsSubscriptions`
@@ -2111,6 +2112,8 @@ pub struct DraftProxy {
     shop_sells_subscriptions: Option<bool>,
     clock: RuntimeClock,
     last_mutation_timestamp: Option<time::OffsetDateTime>,
+    engine_mutation_log_start: Option<usize>,
+    engine_discount_refs_preflighted: bool,
     commit_transport: CommitTransport,
     upstream_transport: UpstreamTransport,
     storefront_upstream_transport: UpstreamTransport,
@@ -2137,6 +2140,7 @@ mod metafield_metaobject_definitions;
 mod metafields_orders_payments;
 mod metaobjects;
 mod money;
+mod node_registry;
 mod online_store_content;
 mod orders_payments_fulfillment;
 mod phone;
@@ -2148,13 +2152,13 @@ mod resolved_values;
 mod resource_ids;
 mod routing;
 mod scalar_helpers;
-mod schema_validation;
 mod search;
 mod selection;
 mod selling_plans;
 mod store_properties;
 mod storefront;
 mod url_redirects;
+mod validation_helpers;
 
 pub(in crate::proxy) use self::admin_shipping_gift_cards::*;
 pub(in crate::proxy) use self::app_shipping_helpers::*;
@@ -2171,18 +2175,18 @@ pub(in crate::proxy) use self::media_products_saved_searches::*;
 pub(in crate::proxy) use self::metafield_metaobject_definitions::*;
 pub(in crate::proxy) use self::metafields_orders_payments::*;
 pub(in crate::proxy) use self::money::*;
+pub(in crate::proxy) use self::node_registry::*;
 pub(in crate::proxy) use self::orders_payments_fulfillment::*;
 pub(in crate::proxy) use self::phone::*;
 pub(in crate::proxy) use self::product_helpers::*;
-pub(in crate::proxy) use self::product_operations::*;
 pub(in crate::proxy) use self::product_options::*;
 pub(in crate::proxy) use self::resolved_values::*;
 pub(in crate::proxy) use self::resource_ids::*;
 pub(in crate::proxy) use self::routing::*;
 pub(in crate::proxy) use self::scalar_helpers::*;
-pub(in crate::proxy) use self::schema_validation::*;
 pub(in crate::proxy) use self::selection::*;
 pub(in crate::proxy) use self::store_properties::*;
+pub(in crate::proxy) use self::validation_helpers::*;
 
 #[cfg(test)]
 mod upstream_guard_tests {

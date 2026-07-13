@@ -33,6 +33,11 @@ pub(in crate::proxy) fn selected_json(record: &Value, selections: &[SelectedFiel
         };
         fields.insert(selection.response_key.clone(), value);
     }
+    if let Some(typename) = typename {
+        fields
+            .entry("__typename".to_string())
+            .or_insert_with(|| json!(typename));
+    }
     Value::Object(fields)
 }
 
@@ -49,7 +54,26 @@ pub(in crate::proxy) fn selected_typed_json(
             .entry("__typename".to_string())
             .or_insert_with(|| json!(type_name));
     }
-    selected_json(&record, selections)
+    selected_abstract_json(&record, selections)
+}
+
+/// Project a concrete object that is returned through an interface or union.
+/// The hidden concrete typename is retained for the executable GraphQL engine;
+/// it is emitted only when the caller actually selects `__typename`.
+pub(in crate::proxy) fn selected_abstract_json(
+    record: &Value,
+    selections: &[SelectedField],
+) -> Value {
+    let mut projected = selected_json(record, selections);
+    if let (Some(projected), Some(typename)) = (
+        projected.as_object_mut(),
+        record.get("__typename").and_then(Value::as_str),
+    ) {
+        projected
+            .entry("__typename".to_string())
+            .or_insert_with(|| json!(typename));
+    }
+    projected
 }
 
 pub(in crate::proxy) fn selected_user_errors(

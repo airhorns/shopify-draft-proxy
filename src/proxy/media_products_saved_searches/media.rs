@@ -1268,12 +1268,7 @@ fn media_quota_errors(request: &Request, inputs: &[BTreeMap<String, ResolvedValu
         .filter_map(|(index, input)| {
             let content_type =
                 resolved_string_field(input, "contentType").unwrap_or_else(|| "IMAGE".to_string());
-            let code = if content_type == "VIDEO" && requested.contains("VIDEO_THROTTLE_EXCEEDED") {
-                Some("VIDEO_THROTTLE_EXCEEDED")
-            } else if content_type == "MODEL_3D" && requested.contains("MODEL3D_THROTTLE_EXCEEDED")
-            {
-                Some("MODEL3D_THROTTLE_EXCEEDED")
-            } else if content_type != "IMAGE"
+            let code = if content_type != "IMAGE"
                 && requested.contains("NON_IMAGE_MEDIA_PER_SHOP_LIMIT_EXCEEDED")
             {
                 Some("NON_IMAGE_MEDIA_PER_SHOP_LIMIT_EXCEEDED")
@@ -1292,8 +1287,6 @@ fn media_quota_errors(request: &Request, inputs: &[BTreeMap<String, ResolvedValu
 
 fn media_quota_message(code: &str) -> &'static str {
     match code {
-        "VIDEO_THROTTLE_EXCEEDED" => "Video upload throttle exceeded.",
-        "MODEL3D_THROTTLE_EXCEEDED" => "Model 3D upload throttle exceeded.",
         "NON_IMAGE_MEDIA_PER_SHOP_LIMIT_EXCEEDED" => "Non-image media per shop limit exceeded.",
         _ => "Media quota exceeded.",
     }

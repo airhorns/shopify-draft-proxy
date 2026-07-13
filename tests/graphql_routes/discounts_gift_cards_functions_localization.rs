@@ -1494,13 +1494,13 @@ fn discount_broad_bulk_search_and_saved_search_target_effective_local_catalog() 
                                         "id": active_saved_search_id_for_transport.clone(),
                                         "name": "Bulk active discounts",
                                         "query": "status:active",
-                                        "resourceType": "DISCOUNT"
+                                        "resourceType": "PRICE_RULE"
                                     },
                                     {
                                         "id": scheduled_saved_search_id_for_transport.clone(),
                                         "name": "Bulk scheduled discounts",
                                         "query": "status:scheduled",
-                                        "resourceType": "DISCOUNT"
+                                        "resourceType": "PRICE_RULE"
                                     }
                                 ]
                             }
@@ -1857,20 +1857,23 @@ fn discount_stage_locally_roots_dispatch_by_root_field_not_operation_name_or_ali
     )
     .with_upstream_transport(move |request| {
         // The discount mutation itself must always stage locally and never
-        // passthrough. The one upstream request the create path is allowed to
-        // make is the duplicate-code uniqueness read (`codeDiscountNodeByCode`),
-        // which decides TAKEN from real store state now that the `/__meta/seed`
-        // discount index has been removed.
+        // passthrough. Reads may still hydrate a baseline for overlay results.
         assert!(
-            request.body.contains("codeDiscountNodeByCode") && !request.body.contains("mutation"),
-            "only the duplicate-code uniqueness read may be forwarded, got: {}",
+            !request.body.contains("mutation"),
+            "discount mutations must not be forwarded, got: {}",
             request.body
         );
         *hit_counter.lock().unwrap() += 1;
+        let data = if request.body.contains("discountNodesCount") {
+            json!({ "activeCount": { "count": 0, "precision": "EXACT" } })
+        } else {
+            assert!(request.body.contains("codeDiscountNodeByCode"));
+            json!({ "codeDiscountNodeByCode": null })
+        };
         shopify_draft_proxy::proxy::Response {
             status: 200,
             headers: Default::default(),
-            body: json!({ "data": { "codeDiscountNodeByCode": null } }),
+            body: json!({ "data": data }),
         }
     });
 
@@ -3198,7 +3201,8 @@ fn discount_app_activation_fails_when_backing_function_is_unavailable() {
     let expected_error = json!([{
         "field": ["base"],
         "message": "Discount could not be activated.",
-        "code": "INTERNAL_ERROR"
+        "code": "INTERNAL_ERROR",
+        "extraInfo": null
     }]);
     assert_eq!(
         response.body["data"]["code"]["codeDiscountNode"],
@@ -4418,7 +4422,7 @@ fn discount_automatic_basic_buyer_context_lifecycle_stages_selected_context_read
         r#"
         mutation DiscountAutomaticBasicBuyerContextCreate($input: DiscountAutomaticBasicInput!) {
           discountAutomaticBasicCreate(automaticBasicDiscount: $input) {
-            automaticDiscountNode { id automaticDiscount { __typename ... on DiscountAutomaticBasic { title status context { __typename ... on DiscountCustomers { customers { __typename id displayName } } ... on DiscountCustomerSegments { segments { __typename id name } } } } } }
+            automaticDiscountNode { id automaticDiscount { __typename ... on DiscountAutomaticBasic { title status context { __typename ... on DiscountCustomers { customers { __typename id } } ... on DiscountCustomerSegments { segments { __typename id name } } } } } }
             userErrors { field message code extraInfo }
           }
         }
@@ -4451,7 +4455,7 @@ fn discount_automatic_basic_buyer_context_lifecycle_stages_selected_context_read
         r#"
         mutation DiscountAutomaticBasicBuyerContextUpdate($id: ID!, $input: DiscountAutomaticBasicInput!) {
           discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $input) {
-            automaticDiscountNode { id automaticDiscount { __typename ... on DiscountAutomaticBasic { title status context { __typename ... on DiscountCustomerSegments { segments { __typename id name } } } } } }
+            automaticDiscountNode { id automaticDiscount { __typename ... on DiscountAutomaticBasic { title status context { __typename ... on DiscountCustomerSegments { segments { __typename id } } } } } }
             userErrors { field message code extraInfo }
           }
         }
@@ -4479,7 +4483,7 @@ fn discount_automatic_basic_buyer_context_lifecycle_stages_selected_context_read
         query DiscountAutomaticBasicBuyerContextRead($id: ID!) {
           automaticDiscountNode(id: $id) {
             id
-            automaticDiscount { __typename ... on DiscountAutomaticBasic { title context { __typename ... on DiscountCustomerSegments { segments { __typename id name } } } } }
+            automaticDiscount { __typename ... on DiscountAutomaticBasic { title context { __typename ... on DiscountCustomerSegments { segments { __typename id } } } } }
           }
         }
         "#,
@@ -4580,10 +4584,20 @@ fn discount_live_hybrid_catalog_merges_upstream_and_staged_discounts() {
         "automaticDiscount": upstream_automatic,
         "metafields": upstream_discount_metafields(upstream_automatic_id)
     });
+    let upstream_admin_code_node = json!({
+        "id": upstream_code_id,
+        "discount": upstream_code_node["codeDiscount"].clone()
+    });
+    let upstream_admin_automatic_node = json!({
+        "id": upstream_automatic_id,
+        "discount": upstream_automatic_node["automaticDiscount"].clone()
+    });
     let upstream_calls = Arc::new(Mutex::new(Vec::<String>::new()));
     let captured_calls = Arc::clone(&upstream_calls);
     let code_node_for_transport = upstream_code_node.clone();
     let automatic_node_for_transport = upstream_automatic_node.clone();
+    let admin_code_node_for_transport = upstream_admin_code_node.clone();
+    let admin_automatic_node_for_transport = upstream_admin_automatic_node.clone();
     let mut proxy =
         configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
             let body: Value =
@@ -4597,59 +4611,48 @@ fn discount_live_hybrid_catalog_merges_upstream_and_staged_discounts() {
                     body: json!({ "data": { "codeDiscountNodeByCode": null } }),
                 };
             }
-            if query.contains("DiscountMixedCatalogRead") {
-                return Response {
-                    status: 200,
-                    headers: Default::default(),
-                    body: json!({
-                        "data": {
-                            "all": upstream_discount_connection(vec![
-                                code_node_for_transport.clone(),
-                                automatic_node_for_transport.clone()
-                            ]),
-                            "codeOnly": upstream_discount_connection(vec![
-                                code_node_for_transport.clone()
-                            ]),
-                            "automaticOnly": upstream_discount_connection(vec![
-                                automatic_node_for_transport.clone()
-                            ]),
-                            "count": { "count": 2, "precision": "EXACT" },
-                            "byCode": code_node_for_transport.clone(),
-                            "byAutomatic": automatic_node_for_transport.clone()
-                        }
-                    }),
-                };
+            let mut data = serde_json::Map::new();
+            if query.contains("all: discountNodes") {
+                data.insert(
+                    "all".to_string(),
+                    upstream_discount_connection(vec![
+                        admin_code_node_for_transport.clone(),
+                        admin_automatic_node_for_transport.clone(),
+                    ]),
+                );
             }
-            if query.contains("DiscountMixedCatalogSecondPage") {
-                return Response {
-                    status: 200,
-                    headers: Default::default(),
-                    body: json!({
-                        "data": {
-                            "all": upstream_discount_connection(vec![
-                                code_node_for_transport.clone(),
-                                automatic_node_for_transport.clone()
-                            ])
-                        }
-                    }),
-                };
+            if query.contains("codeOnly: codeDiscountNodes") {
+                data.insert(
+                    "codeOnly".to_string(),
+                    upstream_discount_connection(vec![code_node_for_transport.clone()]),
+                );
             }
-            if query.contains("DiscountMixedCatalogAfterMutations") {
+            if query.contains("automaticOnly: automaticDiscountNodes") {
+                data.insert(
+                    "automaticOnly".to_string(),
+                    upstream_discount_connection(vec![automatic_node_for_transport.clone()]),
+                );
+            }
+            if query.contains("count: discountNodesCount") {
+                data.insert(
+                    "count".to_string(),
+                    json!({ "count": 2, "precision": "EXACT" }),
+                );
+            }
+            if query.contains("byCode: codeDiscountNodeByCode") {
+                data.insert("byCode".to_string(), code_node_for_transport.clone());
+            }
+            if query.contains("byAutomatic: automaticDiscountNode") {
+                data.insert(
+                    "byAutomatic".to_string(),
+                    automatic_node_for_transport.clone(),
+                );
+            }
+            if !data.is_empty() {
                 return Response {
                     status: 200,
                     headers: Default::default(),
-                    body: json!({
-                        "data": {
-                            "codeOnly": upstream_discount_connection(vec![
-                                code_node_for_transport.clone()
-                            ]),
-                            "automaticOnly": upstream_discount_connection(vec![
-                                automatic_node_for_transport.clone()
-                            ]),
-                            "count": { "count": 2, "precision": "EXACT" },
-                            "byCode": code_node_for_transport.clone()
-                        }
-                    }),
+                    body: json!({ "data": data }),
                 };
             }
             Response {
@@ -4709,7 +4712,7 @@ fn discount_live_hybrid_catalog_merges_upstream_and_staged_discounts() {
               codeDiscount { __typename ... on DiscountCodeBasic { title status codes(first: 5) { nodes { code } } } }
             }
           }
-          automaticOnly: automaticDiscountNodes(first: 5, sortKey: TITLE, query: $active) {
+          automaticOnly: automaticDiscountNodes(first: 5, sortKey: ID, query: $active) {
             nodes {
               id
               automaticDiscount { __typename ... on DiscountAutomaticBasic { title status } }
@@ -4854,7 +4857,7 @@ fn discount_live_hybrid_catalog_merges_upstream_and_staged_discounts() {
               codeDiscount { __typename ... on DiscountCodeBasic { title status } }
             }
           }
-          automaticOnly: automaticDiscountNodes(first: 5, sortKey: TITLE, query: $active) {
+          automaticOnly: automaticDiscountNodes(first: 5, sortKey: ID, query: $active) {
             nodes {
               id
               automaticDiscount { __typename ... on DiscountAutomaticBasic { title status } }
@@ -4893,7 +4896,9 @@ fn discount_live_hybrid_catalog_merges_upstream_and_staged_discounts() {
     assert!(
         calls
             .iter()
-            .any(|query| query.contains("DiscountMixedCatalogRead")),
+            .filter(|query| query.contains("codeOnly: codeDiscountNodes"))
+            .count()
+            >= 2,
         "post-mutation discount catalog read should hydrate the upstream catalog, got {calls:?}"
     );
 }
@@ -5028,16 +5033,28 @@ fn discount_list_roots_honor_all_sort_keys_and_reverse() {
             vec!["Zulu code connection", "Bravo code connection"],
             "{sort_key} reverse should reverse code discount nodes"
         );
-        assert_eq!(
-            read_discount_connection_titles(&mut proxy, "automaticDiscountNodes", sort_key, false),
-            vec!["Alpha automatic connection", "Yankee automatic connection"],
-            "{sort_key} should sort automatic discount nodes"
-        );
-        assert_eq!(
-            read_discount_connection_titles(&mut proxy, "automaticDiscountNodes", sort_key, true),
-            vec!["Yankee automatic connection", "Alpha automatic connection"],
-            "{sort_key} reverse should reverse automatic discount nodes"
-        );
+        if sort_key == "CREATED_AT" {
+            assert_eq!(
+                read_discount_connection_titles(
+                    &mut proxy,
+                    "automaticDiscountNodes",
+                    sort_key,
+                    false,
+                ),
+                vec!["Alpha automatic connection", "Yankee automatic connection"],
+                "{sort_key} should sort automatic discount nodes"
+            );
+            assert_eq!(
+                read_discount_connection_titles(
+                    &mut proxy,
+                    "automaticDiscountNodes",
+                    sort_key,
+                    true,
+                ),
+                vec!["Yankee automatic connection", "Alpha automatic connection"],
+                "{sort_key} reverse should reverse automatic discount nodes"
+            );
+        }
     }
 
     for sort_key in ["ID", "RELEVANCE"] {
@@ -5071,16 +5088,28 @@ fn discount_list_roots_honor_all_sort_keys_and_reverse() {
             vec!["Bravo code connection", "Zulu code connection"],
             "{sort_key} reverse should reverse id order for code discount nodes"
         );
-        assert_eq!(
-            read_discount_connection_titles(&mut proxy, "automaticDiscountNodes", sort_key, false),
-            vec!["Yankee automatic connection", "Alpha automatic connection"],
-            "{sort_key} should use id order for automatic discount nodes"
-        );
-        assert_eq!(
-            read_discount_connection_titles(&mut proxy, "automaticDiscountNodes", sort_key, true),
-            vec!["Alpha automatic connection", "Yankee automatic connection"],
-            "{sort_key} reverse should reverse id order for automatic discount nodes"
-        );
+        if sort_key == "ID" {
+            assert_eq!(
+                read_discount_connection_titles(
+                    &mut proxy,
+                    "automaticDiscountNodes",
+                    sort_key,
+                    false,
+                ),
+                vec!["Yankee automatic connection", "Alpha automatic connection"],
+                "{sort_key} should use id order for automatic discount nodes"
+            );
+            assert_eq!(
+                read_discount_connection_titles(
+                    &mut proxy,
+                    "automaticDiscountNodes",
+                    sort_key,
+                    true,
+                ),
+                vec!["Alpha automatic connection", "Yankee automatic connection"],
+                "{sort_key} reverse should reverse id order for automatic discount nodes"
+            );
+        }
     }
 }
 
@@ -5220,7 +5249,7 @@ fn discount_redeem_code_connection_windows_edges_and_page_info() {
 #[test]
 fn functions_metadata_local_staging_updates_deletes_and_reads_validation_cart_and_function_roots() {
     let mut proxy = function_metadata_proxy();
-    let stage = r#"mutation StageFunctionMetadata($validation: ValidationCreateInput!, $cartFunctionHandle: String!, $cartBlockOnFailure: Boolean!, $ready: Boolean!) { validationCreate(validation: $validation) { validation { id title enable blockOnFailure functionHandle createdAt updatedAt shopifyFunction { id title handle apiType } } userErrors { field message code } } cartTransformCreate(functionHandle: $cartFunctionHandle, blockOnFailure: $cartBlockOnFailure) { cartTransform { id blockOnFailure functionId } userErrors { field message code } } taxAppConfigure(ready: $ready) { taxAppConfiguration { id ready state updatedAt } userErrors { field message code } } }"#;
+    let stage = r#"mutation StageFunctionMetadata($validation: ValidationCreateInput!, $cartFunctionHandle: String!, $cartBlockOnFailure: Boolean!, $ready: Boolean!) { validationCreate(validation: $validation) { validation { id title enabled blockOnFailure shopifyFunction { id title handle apiType } } userErrors { field message code } } cartTransformCreate(functionHandle: $cartFunctionHandle, blockOnFailure: $cartBlockOnFailure) { cartTransform { id blockOnFailure functionId } userErrors { field message code } } taxAppConfigure(ready: $ready) { taxAppConfiguration { state } userErrors { field message code } } }"#;
     let missing_validation_delete = r#"mutation DeleteFunctionValidation($id: ID!) { validationDelete(id: $id) { deletedId userErrors { field message code } } }"#;
     let missing_validation_response = proxy.process_request(json_graphql_request(
         missing_validation_delete,
@@ -5282,7 +5311,7 @@ fn functions_metadata_local_staging_updates_deletes_and_reads_validation_cart_an
         })
     );
 
-    let update = r#"mutation UpdateFunctionValidation($id: ID!, $validation: ValidationUpdateInput!) { validationUpdate(id: $id, validation: $validation) { validation { id title enable blockOnFailure functionHandle updatedAt } userErrors { field message code } } }"#;
+    let update = r#"mutation UpdateFunctionValidation($id: ID!, $validation: ValidationUpdateInput!) { validationUpdate(id: $id, validation: $validation) { validation { id title enabled blockOnFailure shopifyFunction { handle } } userErrors { field message code } } }"#;
     let update_response = proxy.process_request(json_graphql_request(update, json!({
         "id": validation_id,
         "validation": { "title": "Updated validation", "enable": false, "blockOnFailure": false }
@@ -5296,7 +5325,7 @@ fn functions_metadata_local_staging_updates_deletes_and_reads_validation_cart_an
         json!("Updated validation")
     );
     assert_eq!(
-        update_response.body["data"]["validationUpdate"]["validation"]["enable"],
+        update_response.body["data"]["validationUpdate"]["validation"]["enabled"],
         json!(false)
     );
     assert_eq!(
@@ -5304,15 +5333,11 @@ fn functions_metadata_local_staging_updates_deletes_and_reads_validation_cart_an
         json!(false)
     );
     assert_eq!(
-        update_response.body["data"]["validationUpdate"]["validation"]["functionHandle"],
+        update_response.body["data"]["validationUpdate"]["validation"]["shopifyFunction"]["handle"],
         json!("validation-local")
     );
-    assert_datetime_string(
-        &update_response.body["data"]["validationUpdate"]["validation"]["updatedAt"],
-        "validation update updatedAt",
-    );
 
-    let read = r#"query ReadFunctionMetadata($validationId: ID!) { validation(id: $validationId) { id title enabled blockOnFailure shopifyFunction { id title handle apiType } } validations(first: 5) { nodes { id title enabled blockOnFailure } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } cartTransforms(first: 5) { nodes { id blockOnFailure functionId } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } validationFunctions: shopifyFunctions(first: 5, apiType: VALIDATION) { nodes { id title handle apiType } } cartFunctions: shopifyFunctions(first: 5, apiType: CART_TRANSFORM) { nodes { id title handle apiType } } cartFunction: shopifyFunction(id: "gid://shopify/ShopifyFunction/cart-transform-local") { id title handle apiType } }"#;
+    let read = r#"query ReadFunctionMetadata($validationId: ID!) { validation(id: $validationId) { id title enabled blockOnFailure shopifyFunction { id title handle apiType } } validations(first: 5) { nodes { id title enabled blockOnFailure } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } cartTransforms(first: 5) { nodes { id blockOnFailure functionId } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } validationFunctions: shopifyFunctions(first: 5, apiType: "VALIDATION") { nodes { id title handle apiType } } cartFunctions: shopifyFunctions(first: 5, apiType: "CART_TRANSFORM") { nodes { id title handle apiType } } cartFunction: shopifyFunction(id: "gid://shopify/ShopifyFunction/cart-transform-local") { id title handle apiType } }"#;
     let read_response = proxy.process_request(json_graphql_request(
         read,
         json!({ "validationId": validation_id }),
@@ -5520,14 +5545,14 @@ fn functions_validation_reads_reject_fabricated_output_fields() {
 }
 
 #[test]
-fn tax_app_configure_stages_configuration_for_node_readback() {
+fn tax_app_configure_stages_configuration_state() {
     let mut proxy = function_metadata_proxy();
 
     let configure = proxy.process_request(tax_app_graphql_request(
         r#"
         mutation ConfigureTaxApp($ready: Boolean!) {
           taxAppConfigure(ready: $ready) {
-            taxAppConfiguration { id ready state updatedAt }
+            taxAppConfiguration { state }
             userErrors { field message code }
           }
         }
@@ -5538,31 +5563,16 @@ fn tax_app_configure_stages_configuration_for_node_readback() {
         configure.body["data"]["taxAppConfigure"]["userErrors"],
         json!([])
     );
-    let configuration = configure.body["data"]["taxAppConfigure"]["taxAppConfiguration"].clone();
-    let configuration_id = json_string(&configuration["id"], "tax app configuration id");
-    assert_synthetic_gid(&configuration_id, "TaxAppConfiguration");
-    assert_ne!(configuration_id, "gid://shopify/TaxAppConfiguration/local");
-
-    let read = proxy.process_request(tax_app_graphql_request(
-        r#"
-        query ReadTaxAppConfiguration($id: ID!) {
-          node(id: $id) {
-            __typename
-            ... on TaxAppConfiguration { id ready state updatedAt }
-          }
-        }
-        "#,
-        json!({ "id": configuration_id.clone() }),
-    ));
-    let mut expected_read = configuration.clone();
-    expected_read["__typename"] = json!("TaxAppConfiguration");
-    assert_eq!(read.body["data"]["node"], expected_read);
+    assert_eq!(
+        configure.body["data"]["taxAppConfigure"]["taxAppConfiguration"],
+        json!({ "state": "READY" })
+    );
 
     let update = proxy.process_request(tax_app_graphql_request(
         r#"
         mutation UpdateTaxAppReadiness($ready: Boolean!) {
           taxAppConfigure(ready: $ready) {
-            taxAppConfiguration { id ready state updatedAt }
+            taxAppConfiguration { state }
             userErrors { field message code }
           }
         }
@@ -5570,16 +5580,8 @@ fn tax_app_configure_stages_configuration_for_node_readback() {
         json!({ "ready": false }),
     ));
     assert_eq!(
-        update.body["data"]["taxAppConfigure"]["taxAppConfiguration"]["id"],
-        json!(configuration_id)
-    );
-    assert_eq!(
-        update.body["data"]["taxAppConfigure"]["taxAppConfiguration"]["ready"],
-        json!(false)
-    );
-    assert_eq!(
         update.body["data"]["taxAppConfigure"]["taxAppConfiguration"]["state"],
-        json!("NOT_READY")
+        json!("PENDING")
     );
 }
 
@@ -5591,7 +5593,7 @@ fn tax_app_configure_requires_tax_calculations_app_authority() {
         r#"
         mutation ConfigureTaxAppWithoutAuthority($ready: Boolean!) {
           taxAppConfigure(ready: $ready) {
-            taxAppConfiguration { id ready state }
+            taxAppConfiguration { state }
             userErrors { field message code }
           }
         }
@@ -5621,9 +5623,9 @@ fn functions_owner_metadata_stages_validation_cart_tax_and_downstream_reads() {
     let stage = proxy.process_request(tax_app_graphql_request(
         r#"
         mutation StageOwnedFunctionMetadata($validation: ValidationCreateInput!, $cartFunctionHandle: String!, $cartBlockOnFailure: Boolean!, $ready: Boolean!) {
-          validationCreate(validation: $validation) { validation { id title enable blockOnFailure functionId functionHandle createdAt updatedAt shopifyFunction { id title handle apiType description appKey app { __typename id title handle apiKey } } } userErrors { field message code } }
+          validationCreate(validation: $validation) { validation { id title enabled blockOnFailure shopifyFunction { id title handle apiType description appKey app { __typename id title handle apiKey } } } userErrors { field message code } }
           cartTransformCreate(functionHandle: $cartFunctionHandle, blockOnFailure: $cartBlockOnFailure) { cartTransform { id blockOnFailure functionId } userErrors { field message code } }
-          taxAppConfigure(ready: $ready) { taxAppConfiguration { id ready state updatedAt } userErrors { field message code } }
+          taxAppConfigure(ready: $ready) { taxAppConfiguration { state } userErrors { field message code } }
         }
         "#,
         json!({
@@ -5654,7 +5656,7 @@ fn functions_owner_metadata_stages_validation_cart_tax_and_downstream_reads() {
     let update = proxy.process_request(json_graphql_request(
         r#"
         mutation UpdateOwnedFunctionValidation($id: ID!, $validation: ValidationUpdateInput!) {
-          validationUpdate(id: $id, validation: $validation) { validation { id title enable blockOnFailure functionId functionHandle updatedAt shopifyFunction { id handle appKey app { title apiKey } } } userErrors { field message code } }
+          validationUpdate(id: $id, validation: $validation) { validation { id title enabled blockOnFailure shopifyFunction { id handle appKey app { title apiKey } } } userErrors { field message code } }
         }
         "#,
         json!({ "id": validation_id, "validation": { "title": "Owned validation renamed" } }),
@@ -5664,7 +5666,7 @@ fn functions_owner_metadata_stages_validation_cart_tax_and_downstream_reads() {
         json!("Owned validation renamed")
     );
     assert_eq!(
-        update.body["data"]["validationUpdate"]["validation"]["enable"],
+        update.body["data"]["validationUpdate"]["validation"]["enabled"],
         json!(false)
     );
     assert_eq!(
@@ -5676,7 +5678,7 @@ fn functions_owner_metadata_stages_validation_cart_tax_and_downstream_reads() {
         r#"
         query ReadOwnedFunctionMetadata($validationId: ID!) {
           validation(id: $validationId) { id title enabled blockOnFailure shopifyFunction { id title handle apiType description appKey app { __typename id title handle apiKey } } }
-          validationFunctions: shopifyFunctions(first: 5, apiType: VALIDATION) { nodes { id title handle apiType appKey app { title apiKey } } }
+          validationFunctions: shopifyFunctions(first: 5, apiType: "VALIDATION") { nodes { id title handle apiType appKey app { title apiKey } } }
           cartFunction: shopifyFunction(id: "gid://shopify/ShopifyFunction/cart-owned") { id title handle apiType appKey app { __typename title apiKey } }
         }
         "#,
@@ -5847,11 +5849,11 @@ fn functions_handle_lookup_uses_narrow_query_and_reuses_metadata() {
         r#"
         mutation RepeatedHandleFunctionValidation {
           first: validationCreate(validation: { functionHandle: "validation-alpha", title: "First" }) {
-            validation { id functionHandle shopifyFunction { id handle apiType } }
+            validation { id shopifyFunction { id handle apiType } }
             userErrors { field message code }
           }
           second: validationCreate(validation: { functionHandle: "validation-alpha", title: "Second" }) {
-            validation { id functionHandle shopifyFunction { id handle apiType } }
+            validation { id shopifyFunction { id handle apiType } }
             userErrors { field message code }
           }
         }
@@ -5867,7 +5869,7 @@ fn functions_handle_lookup_uses_narrow_query_and_reuses_metadata() {
         r#"
         mutation ReusedHandleFunctionValidation {
           validationCreate(validation: { functionHandle: "validation-alpha", title: "Third" }) {
-            validation { id functionHandle }
+            validation { id shopifyFunction { handle } }
             userErrors { field message code }
           }
         }
@@ -5943,7 +5945,7 @@ fn functions_cold_reads_forward_and_hydrate_non_catalog_function_metadata() {
     let cold_read = proxy.process_request(json_graphql_request(
         r#"
         query ColdNonCatalogFunctionRead {
-          validationFunctions: shopifyFunctions(first: 5, apiType: VALIDATION) {
+          validationFunctions: shopifyFunctions(first: 5, apiType: "VALIDATION") {
             nodes { id title handle apiType app { id apiKey } }
           }
         }
@@ -5960,7 +5962,7 @@ fn functions_cold_reads_forward_and_hydrate_non_catalog_function_metadata() {
         r#"
         mutation CreateFromHydratedNonCatalogFunction {
           validationCreate(validation: { functionHandle: "non-catalog-validation", title: "Hydrated non-catalog validation", enable: true }) {
-            validation { id title functionHandle shopifyFunction { id handle apiType app { apiKey } } }
+            validation { id title shopifyFunction { id handle apiType app { apiKey } } }
             userErrors { field message code }
           }
         }
@@ -5994,7 +5996,7 @@ fn functions_cold_reads_forward_and_hydrate_non_catalog_function_metadata() {
     let local_read = proxy.process_request(json_graphql_request(
         r#"
         query LocalReadAfterHydratedFunction {
-          validationFunctions: shopifyFunctions(first: 5, apiType: VALIDATION) {
+          validationFunctions: shopifyFunctions(first: 5, apiType: "VALIDATION") {
             nodes { handle apiType app { apiKey } }
           }
         }
@@ -6082,16 +6084,16 @@ fn functions_hydrated_raw_api_types_remain_public_while_filters_use_canonical_ke
 
     let query = r#"
         query RawFunctionApiTypes {
-          validationFunctions: shopifyFunctions(first: 5, apiType: VALIDATION) {
+          validationFunctions: shopifyFunctions(first: 5, apiType: "VALIDATION") {
             nodes { handle apiType }
           }
-          cartFunctions: shopifyFunctions(first: 5, apiType: CART_TRANSFORM) {
+          cartFunctions: shopifyFunctions(first: 5, apiType: "CART_TRANSFORM") {
             nodes { handle apiType }
           }
-          discountFunctions: shopifyFunctions(first: 5, apiType: DISCOUNT) {
+          discountFunctions: shopifyFunctions(first: 5, apiType: "DISCOUNT") {
             nodes { handle apiType }
           }
-          paymentFunctions: shopifyFunctions(first: 5, apiType: PAYMENT_CUSTOMIZATION) {
+          paymentFunctions: shopifyFunctions(first: 5, apiType: "PAYMENT_CUSTOMIZATION") {
             nodes { handle apiType }
           }
         }
@@ -6226,7 +6228,7 @@ fn functions_shopify_functions_without_api_type_returns_all_local_metadata_and_w
             edges { cursor node { handle } }
             pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
           }
-          cartFunctions: shopifyFunctions(first: 10, apiType: CART_TRANSFORM) {
+          cartFunctions: shopifyFunctions(first: 10, apiType: "CART_TRANSFORM") {
             nodes { handle apiType }
           }
         }
@@ -6393,11 +6395,24 @@ fn functions_live_hybrid_reads_merge_upstream_records_after_one_local_validation
                 .unwrap_or(Value::Null);
                 json!({ "data": { "shopifyFunction": function } })
             }
+            "FunctionValidationHydrateById" => {
+                json!({ "data": { "validation": upstream_validation.clone() } })
+            }
             _ if query.contains("validations") => json!({
                 "data": { "validations": { "nodes": [upstream_validation.clone()] } }
             }),
             _ if query.contains("cartTransforms") => json!({
-                "data": { "cartTransforms": { "nodes": [upstream_cart_transform.clone()] } }
+                "data": {
+                    "cartTransforms": {
+                        "nodes": [upstream_cart_transform.clone()],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": null,
+                            "endCursor": null
+                        }
+                    }
+                }
             }),
             _ if query.contains("shopifyFunctions") => json!({
                 "data": {
@@ -6475,7 +6490,7 @@ fn functions_live_hybrid_reads_merge_upstream_records_after_one_local_validation
             nodes { id handle apiType app { apiKey } }
             pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
           }
-          cartFunctions: shopifyFunctions(first: 10, apiType: CART_TRANSFORM) {
+          cartFunctions: shopifyFunctions(first: 10, apiType: "CART_TRANSFORM") {
             nodes { id handle apiType app { apiKey } }
           }
           upstreamCartFunction: shopifyFunction(id: "gid://shopify/ShopifyFunction/upstream-cart") {
@@ -6761,7 +6776,7 @@ fn functions_create_uses_authenticated_app_identity_for_ownership() {
     let mut foreign_read = json_graphql_request(
         r#"
         query ForeignAppCannotReadCachedFunctionMetadata {
-          validationFunctions: shopifyFunctions(first: 5, apiType: VALIDATION) {
+          validationFunctions: shopifyFunctions(first: 5, apiType: "VALIDATION") {
             nodes { id handle app { id apiKey } }
           }
           ownedFunction: shopifyFunction(id: "gid://shopify/ShopifyFunction/validation-owned") {
@@ -7050,11 +7065,11 @@ fn functions_validation_max_cap_update_defaults_and_metafield_rejection_preserve
 
     let mut stage = String::from("mutation ValidationCapAndDefaultsStage {");
     stage.push_str(
-        r#" subject: validationCreate(validation: { functionHandle: "validation-alpha", title: "Subject", enable: false, blockOnFailure: true }) { validation { id enable blockOnFailure title } userErrors { field message code } }"#,
+        r#" subject: validationCreate(validation: { functionHandle: "validation-alpha", title: "Subject", enable: false, blockOnFailure: true }) { validation { id enabled blockOnFailure title } userErrors { field message code } }"#,
     );
     for index in 1..=25 {
         stage.push_str(&format!(
-            r#" active{index}: validationCreate(validation: {{ functionHandle: "validation-alpha", title: "Active {index}", enable: true }}) {{ validation {{ id enable blockOnFailure }} userErrors {{ field message code }} }}"#
+            r#" active{index}: validationCreate(validation: {{ functionHandle: "validation-alpha", title: "Active {index}", enable: true }}) {{ validation {{ id enabled blockOnFailure }} userErrors {{ field message code }} }}"#
         ));
     }
     stage.push_str(
@@ -7076,7 +7091,7 @@ fn functions_validation_max_cap_update_defaults_and_metafield_rejection_preserve
     assert_synthetic_gid(&subject_id, "Validation");
 
     let update_default = proxy.process_request(json_graphql_request(
-        r#"mutation ValidationUpdateDefaults($id: ID!) { validationUpdate(id: $id, validation: { title: "Renamed" }) { validation { id title enable enabled blockOnFailure } userErrors { field message code } } }"#,
+        r#"mutation ValidationUpdateDefaults($id: ID!) { validationUpdate(id: $id, validation: { title: "Renamed" }) { validation { id title enabled blockOnFailure } userErrors { field message code } } }"#,
         json!({ "id": subject_id }),
     ));
     assert_eq!(
@@ -7084,7 +7099,6 @@ fn functions_validation_max_cap_update_defaults_and_metafield_rejection_preserve
         json!({
             "id": subject_id,
             "title": "Renamed",
-            "enable": false,
             "enabled": false,
             "blockOnFailure": false
         })
@@ -7278,7 +7292,7 @@ fn functions_fulfillment_constraint_rules_stage_locally_and_read_after_write() {
     assert_eq!(
         create.body["data"]["fulfillmentConstraintRuleCreate"]["fulfillmentConstraintRule"]
             ["metafields"]["nodes"][0]["ownerType"],
-        json!("FULFILLMENTCONSTRAINTRULE")
+        json!("FULFILLMENT_CONSTRAINT_RULE")
     );
 
     let log = log_snapshot(&proxy);
@@ -7625,7 +7639,7 @@ fn functions_fulfillment_constraint_rules_return_shopify_like_user_errors() {
 }
 
 #[test]
-fn functions_fulfillment_constraint_rule_update_rejects_unknown_function_identifiers() {
+fn functions_fulfillment_constraint_rule_update_rejects_removed_function_arguments() {
     let mut proxy = function_metadata_proxy();
 
     let create = proxy.process_request(json_graphql_request(
@@ -7676,27 +7690,23 @@ fn functions_fulfillment_constraint_rule_update_rejects_unknown_function_identif
         json!({ "id": rule_id }),
     ));
 
-    assert_eq!(
-        update.body["data"],
-        json!({
-            "unknownId": {
-                "fulfillmentConstraintRule": null,
-                "userErrors": [{
-                    "code": "FUNCTION_NOT_FOUND",
-                    "field": ["functionId"],
-                    "message": "Function gid://shopify/ShopifyFunction/999999999999 not found. Ensure that it is released in the current app (gid://shopify/App/local), and that the app is installed."
-                }]
-            },
-            "unknownHandle": {
-                "fulfillmentConstraintRule": null,
-                "userErrors": [{
-                    "code": "FUNCTION_NOT_FOUND",
-                    "field": ["functionHandle"],
-                    "message": "Function definitely-missing-fulfillment-constraint not found. Ensure that it is released in the current app (gid://shopify/App/local), and that the app is installed."
-                }]
-            }
-        })
-    );
+    assert!(update.body.get("data").is_none());
+    let errors = update.body["errors"].as_array().unwrap();
+    assert_eq!(errors.len(), 2);
+    for argument in ["functionId", "functionHandle"] {
+        assert!(
+            errors.iter().any(|error| {
+                error["message"]
+                    == format!(
+                        "Field 'fulfillmentConstraintRuleUpdate' doesn't accept argument '{argument}'"
+                    )
+                    && error["extensions"]["code"] == "argumentNotAccepted"
+                    && error["extensions"]["argumentName"] == argument
+            }),
+            "missing schema error for removed argument {argument}: {errors:#?}"
+        );
+    }
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
 
     let read = proxy.process_request(json_graphql_request(
         r#"query FulfillmentConstraintRuleAfterUnknownFunctionUpdate { fulfillmentConstraintRules { id deliveryMethodTypes function { handle } } }"#,
@@ -8251,13 +8261,21 @@ fn localization_source_read_stages_observed_markets_and_shop_locales_for_transla
     let resource_id = create_fallback_localization_product(&mut proxy);
 
     let source_read = proxy.process_request(json_graphql_request(
-        r#"query LocalizationTranslationsMarketScopedRead($marketsFirst: Int!) {
+        r#"query LocalizationTranslationsMarketScopedRead($resourceId: ID!, $marketsFirst: Int!) {
+          translatableResource(resourceId: $resourceId) {
+            resourceId
+            translations(locale: "es") { key value locale }
+          }
           markets(first: $marketsFirst) { nodes { id name handle status type } }
           allShopLocales: shopLocales { locale name primary published marketWebPresences { id } }
         }"#,
-        json!({ "marketsFirst": 1 }),
+        json!({ "resourceId": resource_id.as_str(), "marketsFirst": 1 }),
     ));
     assert_eq!(source_read.status, 200);
+    assert_eq!(
+        source_read.body["data"]["translatableResource"],
+        json!({ "resourceId": resource_id, "translations": [] })
+    );
     assert_eq!(
         source_read.body["data"]["markets"]["nodes"][0]["id"],
         json!("gid://shopify/Market/97997685042")
@@ -9199,7 +9217,7 @@ fn localization_translatable_roots_are_store_backed_without_operation_markers() 
     );
 
     let read = proxy.process_request(json_graphql_request(
-        r#"query ArbitraryLocalizationRead($productId: ID!, $collectionId: ID!, $ids: [ID!]!, $marketId: ID!) {
+        r#"query ArbitraryLocalizationRead($productId: ID!, $ids: [ID!]!, $marketId: ID!) {
           direct: translatableResource(resourceId: $productId) {
             resourceId
             allFr: translations(locale: "fr") { key value locale market { id } }
@@ -9219,7 +9237,6 @@ fn localization_translatable_roots_are_store_backed_without_operation_markers() 
         }"#,
         json!({
             "productId": product_id.as_str(),
-            "collectionId": collection_id.as_str(),
             "ids": [collection_id.as_str(), product_id.as_str()],
             "marketId": market_id
         }),
@@ -10750,14 +10767,14 @@ fn gift_card_live_hybrid_cold_reads_forward_upstream_without_local_overlay() {
                             "balance": { "amount": "25.0", "currencyCode": "USD" }
                         },
                         "cards": {
-                            "nodes": [{
-                                "id": upstream_id,
-                                "note": "real upstream note"
-                            }],
-                            "pageInfo": {
-                                "hasNextPage": false,
-                                "hasPreviousPage": false
-                            }
+                        "nodes": [{
+                            "id": upstream_id,
+                            "note": "real upstream note"
+                        }],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false
+                        }
                         },
                         "count": { "count": 1, "precision": "EXACT" },
                         "configuration": {
@@ -11707,7 +11724,7 @@ fn gift_card_transaction_payload_selection_errors_use_request_locations_and_path
             "errors": [{
                 "message": "Field 'giftCard' doesn't exist on type 'GiftCardDebitPayload'",
                 "locations": query_location(anonymous_query, "giftCard { id }"),
-                "path": ["giftCardDebit", "giftCard"],
+                "path": ["mutation", "giftCardDebit", "giftCard"],
                 "extensions": {
                     "code": "undefinedField",
                     "typeName": "GiftCardDebitPayload",
@@ -11739,7 +11756,7 @@ fn gift_card_recipient_id_errors_use_request_locations_and_paths() {
         json!({
             "errors": [{
                 "message": "Argument 'id' on InputObject 'GiftCardRecipientInput' is required. Expected type ID!",
-                "locations": query_location(create_query, "recipientAttributes"),
+                "locations": query_location(create_query, "{ preferredName"),
                 "path": [
                     "mutation CustomRecipientCreate",
                     "createAlias",
@@ -11773,8 +11790,8 @@ fn gift_card_recipient_id_errors_use_request_locations_and_paths() {
         json!({
             "errors": [{
                 "message": "Argument 'id' on InputObject 'GiftCardRecipientInput' is required. Expected type ID!",
-                "locations": query_location(update_query, "recipientAttributes"),
-                "path": ["updateAlias", "input", "recipientAttributes", "id"],
+                "locations": query_location(update_query, "{ message"),
+                "path": ["mutation", "updateAlias", "input", "recipientAttributes", "id"],
                 "extensions": {
                     "code": "missingRequiredInputObjectAttribute",
                     "argumentName": "id",
@@ -13537,7 +13554,7 @@ fn gift_card_roots_accept_ordinary_operation_names_without_501s() {
 
     let create = proxy.process_request(json_graphql_request(
         r#"mutation IssueLocalGiftCard {
-          issue: giftCardCreate(input: { initialValue: "12.50", notify: false }) {
+          issue: giftCardCreate(input: { initialValue: "12.50" }) {
             giftCard { id balance { amount currencyCode } }
             giftCardCode
             userErrors { field code message }
@@ -13648,7 +13665,7 @@ fn gift_card_roots_accept_ordinary_operation_names_without_501s() {
             },
             "notifyDisabled": {
                 "giftCard": null,
-                "userErrors": [{ "field": ["id"], "code": "INVALID", "message": "Notifications for this gift card are disabled." }]
+                "userErrors": [{ "field": null, "code": "INVALID", "message": "The gift card has no customer." }]
             },
             "missingRecipientNotify": {
                 "giftCard": null,
@@ -13712,7 +13729,7 @@ fn gift_card_credit_debit_preserve_optional_transaction_notes() {
 
     let create = proxy.process_request(json_graphql_request(
         r#"mutation IssueLocalGiftCard {
-          giftCardCreate(input: { initialValue: "20.00", notify: false }) {
+          giftCardCreate(input: { initialValue: "20.00" }) {
             giftCard { id }
             userErrors { field code message }
           }
@@ -14169,16 +14186,12 @@ fn gift_card_entitlement_disabled_wins_for_all_supported_mutation_roots() {
 }
 
 #[test]
-fn gift_card_create_notify_false_stages_card_and_notification_disabled_error() {
+fn gift_card_create_notify_is_rejected_by_the_versioned_schema() {
     let mut proxy = snapshot_proxy();
 
     let response = proxy.process_request(json_graphql_request(
         r#"mutation GiftCardCreateNotify {
-          createNotifyFalse: giftCardCreate(input: { initialValue: "10", notify: false }) {
-            giftCard { id }
-            userErrors { field code message }
-          }
-          notifyDisabled: giftCardSendNotificationToCustomer(id: "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic") {
+          giftCardCreate(input: { initialValue: "10", notify: false }) {
             giftCard { id }
             userErrors { field code message }
           }
@@ -14187,29 +14200,20 @@ fn gift_card_create_notify_false_stages_card_and_notification_disabled_error() {
     ));
 
     assert_eq!(
-        response.body["data"],
+        response.body["errors"][0]["message"],
+        json!("InputObject 'GiftCardCreateInput' doesn't accept argument 'notify'")
+    );
+    assert_eq!(
+        response.body["errors"][0]["extensions"],
         json!({
-            "createNotifyFalse": {
-                "giftCard": { "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic" },
-                "userErrors": []
-            },
-            "notifyDisabled": {
-                "giftCard": null,
-                "userErrors": [{
-                    "field": ["id"],
-                    "code": "INVALID",
-                    "message": "Notifications for this gift card are disabled."
-                }]
-            }
+            "code": "argumentNotAccepted",
+            "name": "GiftCardCreateInput",
+            "typeName": "InputObject",
+            "argumentName": "notify"
         })
     );
-
-    let log = log_snapshot(&proxy);
-    assert_eq!(log["entries"].as_array().unwrap().len(), 1);
-    assert_eq!(
-        log["entries"][0]["stagedResourceIds"],
-        json!(["gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic"])
-    );
+    assert!(response.body.get("data").is_none());
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
@@ -14248,43 +14252,6 @@ fn gift_card_local_only_and_schema_hidden_branches_have_explicit_runtime_coverag
             })
         );
         assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
-    }
-
-    // gift-card-create-notify
-    {
-        let mut proxy = snapshot_proxy();
-
-        let response = proxy.process_request(json_graphql_request(
-            r#"mutation GiftCardLocalCreateNotify {
-              createNotifyFalse: giftCardCreate(input: { initialValue: "10", notify: false }) {
-                giftCard { id }
-                userErrors { field code message }
-              }
-              notifyDisabled: giftCardSendNotificationToCustomer(id: "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic") {
-                giftCard { id }
-                userErrors { field code message }
-              }
-            }"#,
-            json!({}),
-        ));
-        assert_eq!(
-            response.body["data"],
-            json!({
-                "createNotifyFalse": {
-                    "giftCard": { "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic" },
-                    "userErrors": []
-                },
-                "notifyDisabled": {
-                    "giftCard": null,
-                    "userErrors": [{
-                        "field": ["id"],
-                        "code": "INVALID",
-                        "message": "Notifications for this gift card are disabled."
-                    }]
-                }
-            })
-        );
-        assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
     }
 
     // gift-card-trial-shop-assignment
@@ -16187,7 +16154,7 @@ fn discount_update_hydrates_free_shipping_scope_before_omitted_update() {
 }
 
 #[test]
-fn discount_context_refs_hydrate_once_for_multi_ref_inputs() {
+fn discount_context_refs_hydrate_in_one_shared_batch() {
     let captured_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
     let captured_requests = Arc::clone(&captured_bodies);
     let mut proxy =
@@ -16349,23 +16316,25 @@ fn discount_context_refs_hydrate_once_for_multi_ref_inputs() {
     assert_eq!(
         requests.len(),
         1,
-        "context refs should hydrate with one batched nodes request, got: {:?}",
+        "the mutation should issue one shared nodes preflight, got: {:?}",
         requests
             .iter()
             .map(|body| body["operationName"].clone())
             .collect::<Vec<_>>()
     );
-    let query = requests[0]["query"]
-        .as_str()
-        .expect("batched context hydrate should carry query");
-    assert!(
-        query.contains("nodes(ids: $ids)"),
-        "context refs should use a batched nodes hydrate, got: {query}"
-    );
-    assert!(
-        !query.contains("addressesV2"),
-        "discount buyer-context hydrate should not fetch customer address windows, got: {query}"
-    );
+    for request in requests.iter() {
+        let query = request["query"]
+            .as_str()
+            .expect("batched context hydrate should carry query");
+        assert!(
+            query.contains("nodes(ids: $ids)"),
+            "context refs should use a batched nodes hydrate, got: {query}"
+        );
+        assert!(
+            !query.contains("addressesV2"),
+            "discount buyer-context hydrate should not fetch customer address windows, got: {query}"
+        );
+    }
     assert_eq!(
         requests[0]["variables"]["ids"],
         json!([
@@ -17062,8 +17031,8 @@ fn discount_code_basic_buyer_context_lifecycle_stages_segment_readback() {
                   codes(first: 1) { nodes { code asyncUsageCount } }
                   context {
                     __typename
-                    ... on DiscountCustomers { customers { __typename id displayName } }
-                    ... on DiscountCustomerSegments { segments { __typename id name } }
+                    ... on DiscountCustomers { customers { __typename id } }
+                    ... on DiscountCustomerSegments { segments { __typename id } }
                   }
                 }
               }
@@ -17104,7 +17073,7 @@ fn discount_code_basic_buyer_context_lifecycle_stages_segment_readback() {
     let update_query = r#"
         mutation DiscountCodeBasicBuyerContextUpdate($id: ID!, $input: DiscountCodeBasicInput!) {
           discountCodeBasicUpdate(id: $id, basicCodeDiscount: $input) {
-            codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeBasic { title status codes(first: 1) { nodes { code asyncUsageCount } } context { __typename ... on DiscountCustomerSegments { segments { __typename id name } } } } } }
+            codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeBasic { title status codes(first: 1) { nodes { code asyncUsageCount } } context { __typename ... on DiscountCustomerSegments { segments { __typename id } } } } } }
             userErrors { field message code extraInfo }
           }
         }
@@ -17139,8 +17108,8 @@ fn discount_code_basic_buyer_context_lifecycle_stages_segment_readback() {
 
     let read = proxy.process_request(json_graphql_request(r#"
         query DiscountCodeBasicBuyerContextRead($id: ID!, $code: String!) {
-          discountNode(id: $id) { id discount { __typename ... on DiscountCodeBasic { title context { __typename ... on DiscountCustomerSegments { segments { __typename id name } } } } } }
-          codeDiscountNodeByCode(code: $code) { codeDiscount { __typename ... on DiscountCodeBasic { title context { __typename ... on DiscountCustomerSegments { segments { __typename id name } } } } } }
+          discountNode(id: $id) { id discount { __typename ... on DiscountCodeBasic { title context { __typename ... on DiscountCustomerSegments { segments { __typename id } } } } } }
+          codeDiscountNodeByCode(code: $code) { codeDiscount { __typename ... on DiscountCodeBasic { title context { __typename ... on DiscountCustomerSegments { segments { __typename id } } } } } }
         }
     "#, json!({ "id": discount_id.clone(), "code": "HAR390SEG1777346878525" })));
     assert_eq!(

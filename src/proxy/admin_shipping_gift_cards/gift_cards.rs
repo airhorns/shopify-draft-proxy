@@ -692,7 +692,6 @@ impl DraftProxy {
             .map(|code| normalize_gift_card_code(&code))
             .unwrap_or_else(|| synthetic_gift_card_code(&id));
         let last_characters = gift_card_code_last_characters(&code);
-        let notify = resolved_bool_field(&input, "notify").unwrap_or(true);
         let shop_currency_code = self.gift_card_configuration_currency();
         let mut card = gift_card_lifecycle_base_card(&id, &shop_currency_code);
         card["lastCharacters"] = json!(last_characters);
@@ -700,7 +699,6 @@ impl DraftProxy {
         card["giftCardCode"] = json!(code);
         card["initialValue"] = money_value(&amount, &shop_currency_code);
         card["balance"] = card["initialValue"].clone();
-        card["notify"] = json!(notify);
         card["source"] = json!("api_client");
         card["note"] = resolved_nullable_string_field(&input, "note");
         card["expiresOn"] = resolved_nullable_string_field(&input, "expiresOn");
@@ -2142,7 +2140,7 @@ pub(in crate::proxy) fn gift_card_transaction_payload(
 ) -> Value {
     selected_payload_json(selections, |selection| match selection.name.as_str() {
         name if name == transaction_field => Some(match transaction.as_ref() {
-            Some(transaction) => selected_json(transaction, &selection.selection),
+            Some(transaction) => selected_abstract_json(transaction, &selection.selection),
             None => Value::Null,
         }),
         "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),

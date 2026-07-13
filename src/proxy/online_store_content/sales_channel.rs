@@ -38,6 +38,14 @@ impl DraftProxy {
                                 .get(&field.response_key)
                                 .cloned()
                                 .unwrap_or(Value::Null)
+                        } else if field.name == "serverPixel" {
+                            self.store
+                                .staged
+                                .online_store_integrations
+                                .values()
+                                .find(|record| is_server_pixel_record(record))
+                                .map(|record| selected_json(record, &field.selection))
+                                .unwrap_or(Value::Null)
                         } else {
                             let id =
                                 resolved_string_field(&field.arguments, "id").unwrap_or_default();
@@ -400,12 +408,13 @@ impl DraftProxy {
                 return mobile_app_payload(
                     &field.selection,
                     None,
-                    vec![presence_user_error(
+                    vec![mobile_app_error(
+                        "INVALID",
                         ["mobilePlatformApplication", "android", "applicationId"],
                         if application_id.is_empty() {
-                            "Application"
+                            "Application can't be blank"
                         } else {
-                            "Application ID"
+                            "Application ID can't be blank"
                         },
                     )],
                 );
@@ -419,9 +428,10 @@ impl DraftProxy {
                 return mobile_app_payload(
                     &field.selection,
                     None,
-                    vec![presence_user_error(
+                    vec![mobile_app_error(
+                        "INVALID",
                         ["input", "android", "sha256CertFingerprints"],
-                        "Sha256 cert fingerprints",
+                        "Sha256 cert fingerprints can't be blank",
                     )],
                 );
             }
@@ -444,12 +454,13 @@ impl DraftProxy {
             return mobile_app_payload(
                 &field.selection,
                 None,
-                vec![presence_user_error(
+                vec![mobile_app_error(
+                    "INVALID",
                     ["mobilePlatformApplication", "apple", "appId"],
                     if app_id.trim().is_empty() && app_id.len() > 1 {
-                        "App"
+                        "App can't be blank"
                     } else {
-                        "App ID"
+                        "App ID can't be blank"
                     },
                 )],
             );
@@ -535,9 +546,10 @@ impl DraftProxy {
                     return mobile_app_payload(
                         &field.selection,
                         None,
-                        vec![presence_user_error(
+                        vec![mobile_app_error(
+                            "INVALID",
                             ["mobilePlatformApplication", "android", "applicationId"],
-                            "Application ID",
+                            "Application ID can't be blank",
                         )],
                     );
                 }
@@ -556,9 +568,10 @@ impl DraftProxy {
                 return mobile_app_payload(
                     &field.selection,
                     None,
-                    vec![presence_user_error(
+                    vec![mobile_app_error(
+                        "INVALID",
                         ["input", "android", "sha256CertFingerprints"],
-                        "Sha256 cert fingerprints",
+                        "Sha256 cert fingerprints can't be blank",
                     )],
                 );
             }
@@ -570,9 +583,10 @@ impl DraftProxy {
                     return mobile_app_payload(
                         &field.selection,
                         None,
-                        vec![presence_user_error(
+                        vec![mobile_app_error(
+                            "INVALID",
                             ["mobilePlatformApplication", "apple", "appId"],
-                            "App ID",
+                            "App ID can't be blank",
                         )],
                     );
                 }
@@ -643,18 +657,6 @@ impl DraftProxy {
         };
         if let Some(errors) = validate_script_src(input, false) {
             return script_tag_payload(&field.selection, None, vec![errors]);
-        }
-        if matches!(input.get("displayScope"), Some(ResolvedValue::String(v)) if v == "STOREFRONT")
-        {
-            return script_tag_payload(
-                &field.selection,
-                None,
-                vec![user_error(
-                    ["displayScope"],
-                    "Display scope is not included in the list",
-                    Some("INCLUSION"),
-                )],
-            );
         }
         let Some(mut record) = self
             .store
@@ -841,7 +843,7 @@ impl DraftProxy {
                 vec![user_error_omit_code(
                     vec!["id"],
                     "Locked themes cannot be modified.",
-                    Some("CANNOT_UPDATE_LOCKED_THEME"),
+                    Some("INVALID"),
                 )],
             );
         }
@@ -911,7 +913,7 @@ impl DraftProxy {
                 vec![user_error_omit_code(
                     vec!["id"],
                     "You can't delete your only published theme.",
-                    Some("INVALID"),
+                    None,
                 )],
             );
         }
@@ -949,27 +951,8 @@ impl DraftProxy {
                     index,
                     "body",
                     "invalid-body-input",
-                    "INVALID",
+                    "FILE_VALIDATION_ERROR",
                 ));
-            }
-            if let Some(expected_checksum) = theme_file_arg_string(file, "checksumMd5") {
-                if self
-                    .find_theme_file(&theme_id, &filename)
-                    .and_then(|record| {
-                        record
-                            .get("checksumMd5")
-                            .and_then(Value::as_str)
-                            .map(str::to_string)
-                    })
-                    .is_some_and(|current_checksum| current_checksum != expected_checksum)
-                {
-                    errors.push(theme_file_field_error(
-                        index,
-                        "checksumMd5",
-                        "Checksum does not match",
-                        "CONFLICT",
-                    ));
-                }
             }
         }
         if !errors.is_empty() {
@@ -1089,14 +1072,14 @@ impl DraftProxy {
                 errors.push(theme_file_delete_error(
                     index,
                     "duplicate-file-input",
-                    "INVALID",
+                    "DUPLICATE_FILE_INPUT",
                 ));
             }
             if THEME_UNDELETABLE_FILES.contains(&filename.as_str()) {
                 errors.push(theme_file_delete_error(
                     index,
                     "File is required and can't be deleted",
-                    "INVALID",
+                    "FILE_VALIDATION_ERROR",
                 ));
             }
         }

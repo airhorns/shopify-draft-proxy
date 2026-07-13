@@ -696,7 +696,7 @@ impl DraftProxy {
                 field,
                 vec!["input", "handle"],
                 "Generated handle has already been taken",
-                json!("GENERATED_DUPLICATED_HANDLE"),
+                json!("TAKEN"),
             );
         }
         if explicit_handle.is_none() {
@@ -852,6 +852,7 @@ impl DraftProxy {
         market_id: &str,
         shop_currency_code: &str,
     ) {
+        let existing_region_codes = market_record_country_codes(market);
         let Some(object) = market.as_object_mut() else {
             return;
         };
@@ -903,7 +904,26 @@ impl DraftProxy {
             object.insert("priceInclusions".to_string(), price_inclusions);
         }
         if market_update_region_input_present(input) {
-            let region_codes = market_region_country_codes(input);
+            let mut region_codes = existing_region_codes;
+            if input.contains_key("regions")
+                || resolved_object_field(input, "conditions")
+                    .is_some_and(|conditions| conditions.contains_key("regionsCondition"))
+            {
+                region_codes = market_region_country_codes(input);
+            }
+            if let Some(conditions) = resolved_object_field(input, "conditions") {
+                if let Some(to_delete) = resolved_object_field(&conditions, "conditionsToDelete") {
+                    let deleted = market_region_country_codes(&to_delete);
+                    region_codes.retain(|code| !deleted.contains(code));
+                }
+                if let Some(to_add) = resolved_object_field(&conditions, "conditionsToAdd") {
+                    for code in market_region_country_codes(&to_add) {
+                        if !region_codes.contains(&code) {
+                            region_codes.push(code);
+                        }
+                    }
+                }
+            }
             let region_nodes = market_region_country_nodes(market_id, &region_codes);
             object.insert("regionCodes".to_string(), json!(region_codes));
             object.insert(

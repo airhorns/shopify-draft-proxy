@@ -104,6 +104,7 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..');
 const paritySpecRoot = path.join(repoRoot, 'config', 'parity-specs');
 const defaultAdminApiVersion = '2026-04';
+const executableAdminApiVersions = new Set(['2025-01', '2025-10', '2026-01', '2026-04']);
 const defaultReadMode: ReadMode = 'live-hybrid';
 const productsHydrateNodesObservationPath = path.join(
   repoRoot,
@@ -540,8 +541,8 @@ async function hydrateCapturedProductDomainNodes(
   await sendProxyRequest(proxy, hydrateRequest);
 }
 
-function proxyGraphqlPath(request: ProxyRequestSpec | undefined): string {
-  const apiVersion = request?.apiVersion ?? defaultAdminApiVersion;
+function proxyGraphqlPath(request: ProxyRequestSpec | undefined, defaultApiVersion = defaultAdminApiVersion): string {
+  const apiVersion = request?.apiVersion ?? defaultApiVersion;
   if (request?.apiSurface === 'storefront') {
     return `/api/${apiVersion}/graphql.json`;
   }
@@ -554,6 +555,7 @@ async function loadRequest(
   primaryResponse: ProxyResponse | null,
   previousResponse: ProxyResponse | null,
   namedResponses: Map<string, ProxyResponse>,
+  defaultApiVersion: string,
 ): Promise<{
   query: string;
   operationName?: string | null;
@@ -617,7 +619,7 @@ async function loadRequest(
     query,
     variables,
     headers,
-    path: proxyGraphqlPath(request),
+    path: proxyGraphqlPath(request, defaultApiVersion),
     apiSurface,
   };
   if (operationName !== undefined) loadedRequest.operationName = operationName;
@@ -632,6 +634,13 @@ type LoadedProxyRequest = {
   path: string;
   apiSurface: ApiSurface;
 };
+
+export function defaultApiVersionForCapture(capturePath: string, capture: Record<string, unknown>): string {
+  const declared = capture['apiVersion'];
+  if (typeof declared === 'string' && executableAdminApiVersions.has(declared)) return declared;
+  const pathVersion = capturePath.split(/[\\/]/u).find((segment) => executableAdminApiVersions.has(segment));
+  return pathVersion ?? defaultAdminApiVersion;
+}
 
 type CassetteServer = {
   origin: string;
@@ -1000,6 +1009,7 @@ async function runSpec(
   const capturePath = spec.liveCaptureFiles?.[0];
   if (!capturePath) return [`${relativeSpecPath}: spec has no liveCaptureFiles[0]`];
   const capture = await readJsonFile<Record<string, unknown>>(path.resolve(repoRoot, capturePath));
+  const defaultApiVersion = defaultApiVersionForCapture(capturePath, capture);
   const upstreamCalls = (capture['upstreamCalls'] ?? []) as RecordedUpstreamCall[];
   cassette.setCalls(upstreamCalls);
   proxy.restoreState(cleanState);
@@ -1009,7 +1019,7 @@ async function runSpec(
   let previousResponse: ProxyResponse | null = null;
   const namedResponses = new Map<string, ProxyResponse>();
   try {
-    const primaryRequest = await loadRequest(spec.proxyRequest, capture, null, null, namedResponses);
+    const primaryRequest = await loadRequest(spec.proxyRequest, capture, null, null, namedResponses, defaultApiVersion);
     if (primaryRequest !== null) {
       const primaryFallbackTarget =
         spec.comparison?.targets?.find(
@@ -1028,6 +1038,11 @@ async function runSpec(
       await hydrateInventoryNodes(proxy, primaryRequest);
       primaryResponse = await sendProxyRequest(proxy, primaryRequest);
       previousResponse = primaryResponse;
+      if (debug) {
+        log(
+          `[parity-debug] ${relativeSpecPath} [primary] proxy response ${JSON.stringify(primaryResponse.body).slice(0, 1000)}`,
+        );
+      }
     }
     let mainState = proxy.dumpState('1970-01-01T00:00:00.000Z');
 
@@ -1061,6 +1076,7 @@ async function runSpec(
           primaryResponse,
           previousResponse,
           namedResponses,
+          defaultApiVersion,
         );
         if (request === null) throw new Error(`${target.name}: target proxyRequest did not resolve to a request`);
         await hydrateCapturedProductDomainNodes(proxy, cassette, capture, request);
