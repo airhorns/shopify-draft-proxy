@@ -60,6 +60,15 @@ direct_domain_resolver!(
 );
 direct_domain_resolver!(resolve_customers_root, dispatch_customers_graphql);
 direct_domain_resolver!(resolve_b2b_root, dispatch_b2b_graphql);
+direct_domain_resolver!(resolve_saved_searches_root, dispatch_saved_searches_graphql);
+direct_domain_resolver!(resolve_online_store_root, dispatch_online_store_graphql);
+direct_domain_resolver!(resolve_metaobjects_root, dispatch_metaobjects_graphql);
+direct_domain_resolver!(
+    resolve_bulk_operations_root,
+    dispatch_bulk_operations_graphql
+);
+direct_domain_resolver!(resolve_discounts_root, dispatch_discounts_graphql);
+direct_domain_resolver!(resolve_gift_cards_root, dispatch_gift_cards_graphql);
 
 fn resolve_compatibility_root(
     proxy: &mut DraftProxy,
@@ -75,26 +84,26 @@ pub(crate) fn resolver_handler_for_domain(domain: CapabilityDomain) -> ResolverH
         CapabilityDomain::ShippingFulfillments => resolve_shipping_fulfillments_root,
         CapabilityDomain::Customers => resolve_customers_root,
         CapabilityDomain::B2b => resolve_b2b_root,
+        CapabilityDomain::SavedSearches => resolve_saved_searches_root,
+        CapabilityDomain::OnlineStore => resolve_online_store_root,
+        CapabilityDomain::Metaobjects => resolve_metaobjects_root,
+        CapabilityDomain::BulkOperations => resolve_bulk_operations_root,
+        CapabilityDomain::Discounts => resolve_discounts_root,
+        CapabilityDomain::GiftCards => resolve_gift_cards_root,
         CapabilityDomain::AdminPlatform
         | CapabilityDomain::Apps
         | CapabilityDomain::Media
-        | CapabilityDomain::BulkOperations
         | CapabilityDomain::StoreProperties
-        | CapabilityDomain::Discounts
         | CapabilityDomain::Events
         | CapabilityDomain::Functions
         | CapabilityDomain::Payments
         | CapabilityDomain::Marketing
-        | CapabilityDomain::OnlineStore
-        | CapabilityDomain::SavedSearches
         | CapabilityDomain::Privacy
         | CapabilityDomain::Segments
-        | CapabilityDomain::GiftCards
         | CapabilityDomain::Webhooks
         | CapabilityDomain::Localization
         | CapabilityDomain::Markets
-        | CapabilityDomain::Metafields
-        | CapabilityDomain::Metaobjects => resolve_compatibility_root,
+        | CapabilityDomain::Metafields => resolve_compatibility_root,
         CapabilityDomain::Unknown => {
             panic!("unknown GraphQL capabilities cannot register local resolvers")
         }
@@ -359,9 +368,7 @@ fn no_dispatcher(domain: &str, root_field: &str) -> Response {
     )
 }
 
-pub(in crate::proxy) fn operation_selection_error_response(
-    error: OperationSelectionError,
-) -> Response {
+pub(in crate::proxy) fn operation_selection_error_response(error: OperationSelectionError) -> Response {
     match error {
         OperationSelectionError::MultipleOperationsRequireOperationName => ok_json(json!({
             "errors": [{ "message": "An operation name is required" }]
@@ -494,7 +501,7 @@ impl DraftProxy {
         outcome.response
     }
 
-    fn root_fields_or_error(
+    pub(in crate::proxy) fn root_fields_or_error(
         &self,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
@@ -1306,7 +1313,10 @@ impl DraftProxy {
         }));
     }
 
-    fn dispatch_capability_fallback(execution: CapabilityExecution, root_field: &str) -> Response {
+    pub(in crate::proxy) fn dispatch_capability_fallback(
+        execution: CapabilityExecution,
+        root_field: &str,
+    ) -> Response {
         no_dispatcher(execution.registry_name(), root_field)
     }
 
@@ -3018,16 +3028,6 @@ impl DraftProxy {
         } = execution;
         let capability = self.registry.resolve(operation.operation_type, root_field);
         match (capability.domain, capability.execution) {
-            (CapabilityDomain::SavedSearches, CapabilityExecution::OverlayRead) => {
-                self.saved_search_overlay_read_response(request, query, variables)
-            }
-            (CapabilityDomain::SavedSearches, CapabilityExecution::StageLocally) => {
-                if let Some(response) = saved_search_required_input_error(query, variables) {
-                    return response;
-                }
-                let outcome = self.saved_search_mutation_fields(request, query, variables);
-                self.finalize_mutation_outcome(request, query, variables, outcome)
-            }
             (CapabilityDomain::AdminPlatform, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query =>
             {
@@ -3114,86 +3114,6 @@ impl DraftProxy {
                     "appUninstall" => self.app_uninstall(query, variables, request),
                     _ => no_dispatcher("apps", root_field),
                 }
-            }
-            (CapabilityDomain::OnlineStore, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query =>
-            {
-                let fields = try_root_fields!(self, query, variables);
-                self.online_store_query_response(request, &fields)
-            }
-            (CapabilityDomain::OnlineStore, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation =>
-            {
-                let fields = try_root_fields!(self, query, variables);
-                self.online_store_mutation(&fields, request, query, variables)
-            }
-            (CapabilityDomain::Metaobjects, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query =>
-            {
-                let fields = try_root_fields!(self, query, variables);
-                if self.config.read_mode != ReadMode::Snapshot {
-                    self.metaobject_live_hybrid_read(request, &fields)
-                } else {
-                    ok_json(json!({ "data": self.metaobject_query_data(&fields, request) }))
-                }
-            }
-            (CapabilityDomain::Metaobjects, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation =>
-            {
-                let fields = try_root_fields!(self, query, variables);
-                if self.metaobject_mutation_is_local(&fields) {
-                    self.metaobject_mutation(&fields, request, query, variables)
-                } else {
-                    // Target lives upstream (seeded/live-captured): forward so the
-                    // real backend response is replayed instead of a synthetic one.
-                    (self.upstream_transport)(request.clone())
-                }
-            }
-            (CapabilityDomain::BulkOperations, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query =>
-            {
-                self.bulk_operation_read_response(request, query, variables, root_field)
-            }
-            (CapabilityDomain::BulkOperations, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && root_field == "bulkOperationRunQuery" =>
-            {
-                self.bulk_operation_run_query(request, query, variables)
-            }
-            (CapabilityDomain::BulkOperations, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && root_field == "bulkOperationRunMutation" =>
-            {
-                self.bulk_operation_run_mutation(request, query, variables)
-            }
-            (CapabilityDomain::BulkOperations, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && root_field == "bulkOperationCancel" =>
-            {
-                self.bulk_operation_cancel(request, query, variables)
-            }
-            (CapabilityDomain::Discounts, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query =>
-            {
-                self.discounts_query_response(request, query, variables)
-            }
-            (CapabilityDomain::Discounts, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation =>
-            {
-                let outcome = self.discounts_mutation(request, query, variables);
-                self.finalize_mutation_outcome(request, query, variables, outcome)
-            }
-            (CapabilityDomain::GiftCards, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query =>
-            {
-                let fields = try_root_fields!(self, query, variables);
-                self.gift_card_read_response(request, &fields)
-            }
-            (CapabilityDomain::GiftCards, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation =>
-            {
-                let fields = try_root_fields!(self, query, variables);
-                self.gift_card_mutation_response(&fields, request, query, variables)
             }
             (CapabilityDomain::Payments, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query =>
@@ -4446,8 +4366,37 @@ fn finance_risk_no_data_read_data(fields: &[RootFieldSelection]) -> Value {
 
 #[cfg(test)]
 mod graphql_compatibility_tests {
-    use super::{expand_bare_store_credit_origin_selections, with_request_owned_proxy};
+    use super::{
+        expand_bare_store_credit_origin_selections, resolve_bulk_operations_root,
+        resolve_discounts_root, resolve_gift_cards_root, resolve_metaobjects_root,
+        resolve_online_store_root, resolve_saved_searches_root, resolver_handler_for_domain,
+        with_request_owned_proxy,
+    };
+    use crate::operation_registry::CapabilityDomain;
     use crate::proxy::{Config, DraftProxy};
+    use crate::resolver_registry::ResolverHandler;
+
+    #[test]
+    fn migrated_domains_use_dedicated_resolver_callbacks() {
+        let expected: &[(CapabilityDomain, ResolverHandler)] = &[
+            (CapabilityDomain::SavedSearches, resolve_saved_searches_root),
+            (CapabilityDomain::OnlineStore, resolve_online_store_root),
+            (CapabilityDomain::Metaobjects, resolve_metaobjects_root),
+            (
+                CapabilityDomain::BulkOperations,
+                resolve_bulk_operations_root,
+            ),
+            (CapabilityDomain::Discounts, resolve_discounts_root),
+            (CapabilityDomain::GiftCards, resolve_gift_cards_root),
+        ];
+
+        for (domain, expected_handler) in expected {
+            assert!(std::ptr::fn_addr_eq(
+                resolver_handler_for_domain(*domain),
+                *expected_handler,
+            ));
+        }
+    }
 
     #[test]
     fn expands_only_bare_store_credit_origin_fields_for_engine_validation() {

@@ -1,6 +1,56 @@
 use super::*;
 use std::sync::OnceLock;
 
+impl DraftProxy {
+    pub(in crate::proxy) fn dispatch_metaobjects_graphql(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        operation: &crate::graphql::ParsedOperation,
+        root_field: &str,
+        execution: CapabilityExecution,
+    ) -> Response {
+        match execution {
+            CapabilityExecution::OverlayRead
+                if operation.operation_type == OperationType::Query =>
+            {
+                let fields = match self.root_fields_or_error(query, variables) {
+                    Ok(fields) => fields,
+                    Err(response) => return response,
+                };
+                if self.config.read_mode != ReadMode::Snapshot && !self.has_local_metaobject_state()
+                {
+                    self.metaobject_live_hybrid_read(request, &fields)
+                } else {
+                    ok_json(json!({ "data": self.metaobject_query_data(&fields, request) }))
+                }
+            }
+            CapabilityExecution::StageLocally
+                if operation.operation_type == OperationType::Mutation =>
+            {
+                let fields = match self.root_fields_or_error(query, variables) {
+                    Ok(fields) => fields,
+                    Err(response) => return response,
+                };
+                if self.metaobject_mutation_is_local(&fields) {
+                    self.metaobject_mutation(&fields, request, query, variables)
+                } else {
+                    // Target lives upstream (seeded/live-captured): forward so the
+                    // real backend response is replayed instead of a synthetic one.
+                    (self.upstream_transport)(request.clone())
+                }
+            }
+            CapabilityExecution::OverlayRead | CapabilityExecution::StageLocally => {
+                Self::dispatch_capability_fallback(execution, root_field)
+            }
+            CapabilityExecution::Passthrough => {
+                unreachable!("non-unknown passthrough capabilities are not registered")
+            }
+        }
+    }
+}
+
 const STANDARD_METAOBJECT_TEMPLATES_FIXTURE: &str = include_str!(
     "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/standard-metaobject-templates.json"
 );

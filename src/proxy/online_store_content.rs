@@ -8,6 +8,45 @@ mod search;
 
 pub(in crate::proxy) use self::online_store_helpers::*;
 
+impl DraftProxy {
+    pub(in crate::proxy) fn dispatch_online_store_graphql(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        operation: &crate::graphql::ParsedOperation,
+        root_field: &str,
+        execution: CapabilityExecution,
+    ) -> Response {
+        match execution {
+            CapabilityExecution::OverlayRead
+                if operation.operation_type == OperationType::Query =>
+            {
+                let fields = match self.root_fields_or_error(query, variables) {
+                    Ok(fields) => fields,
+                    Err(response) => return response,
+                };
+                self.online_store_query_response(request, &fields)
+            }
+            CapabilityExecution::StageLocally
+                if operation.operation_type == OperationType::Mutation =>
+            {
+                let fields = match self.root_fields_or_error(query, variables) {
+                    Ok(fields) => fields,
+                    Err(response) => return response,
+                };
+                self.online_store_mutation(&fields, request, query, variables)
+            }
+            CapabilityExecution::OverlayRead | CapabilityExecution::StageLocally => {
+                Self::dispatch_capability_fallback(execution, root_field)
+            }
+            CapabilityExecution::Passthrough => {
+                unreachable!("non-unknown passthrough capabilities are not registered")
+            }
+        }
+    }
+}
+
 const ONLINE_STORE_TITLE_MAX_CHARS: usize = 255;
 const ONLINE_STORE_HANDLE_MAX_CHARS: usize = 255;
 const ONLINE_STORE_ARTICLE_HANDLE_MAX_CHARS: usize = 265;

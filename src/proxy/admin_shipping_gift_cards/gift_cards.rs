@@ -1,6 +1,45 @@
 use crate::proxy::*;
 use std::cmp::Ordering;
 
+impl DraftProxy {
+    pub(in crate::proxy) fn dispatch_gift_cards_graphql(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        operation: &crate::graphql::ParsedOperation,
+        root_field: &str,
+        execution: CapabilityExecution,
+    ) -> Response {
+        match execution {
+            CapabilityExecution::OverlayRead
+                if operation.operation_type == OperationType::Query =>
+            {
+                let fields = match self.root_fields_or_error(query, variables) {
+                    Ok(fields) => fields,
+                    Err(response) => return response,
+                };
+                self.gift_card_read_response(request, &fields)
+            }
+            CapabilityExecution::StageLocally
+                if operation.operation_type == OperationType::Mutation =>
+            {
+                let fields = match self.root_fields_or_error(query, variables) {
+                    Ok(fields) => fields,
+                    Err(response) => return response,
+                };
+                self.gift_card_mutation_response(&fields, request, query, variables)
+            }
+            CapabilityExecution::OverlayRead | CapabilityExecution::StageLocally => {
+                Self::dispatch_capability_fallback(execution, root_field)
+            }
+            CapabilityExecution::Passthrough => {
+                unreachable!("non-unknown passthrough capabilities are not registered")
+            }
+        }
+    }
+}
+
 const GIFT_CARD_SEND_NOTIFICATION_WINDOW_DAYS: i64 = 90;
 const GIFT_CARD_NARROW_HYDRATE_OPERATION_NAME: &str = "GiftCardHydrate";
 const GIFT_CARD_TRANSACTION_HYDRATE_OPERATION_NAME: &str = "GiftCardTransactionHydrate";

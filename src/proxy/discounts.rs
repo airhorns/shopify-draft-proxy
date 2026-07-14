@@ -8,6 +8,38 @@ use self::errors::*;
 use self::hydrate_queries::*;
 use self::redeem_codes::*;
 
+impl DraftProxy {
+    pub(in crate::proxy) fn dispatch_discounts_graphql(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        operation: &crate::graphql::ParsedOperation,
+        root_field: &str,
+        execution: CapabilityExecution,
+    ) -> Response {
+        match execution {
+            CapabilityExecution::OverlayRead
+                if operation.operation_type == OperationType::Query =>
+            {
+                self.discounts_query_response(request, query, variables)
+            }
+            CapabilityExecution::StageLocally
+                if operation.operation_type == OperationType::Mutation =>
+            {
+                let outcome = self.discounts_mutation(request, query, variables);
+                self.finalize_mutation_outcome(request, query, variables, outcome)
+            }
+            CapabilityExecution::OverlayRead | CapabilityExecution::StageLocally => {
+                Self::dispatch_capability_fallback(execution, root_field)
+            }
+            CapabilityExecution::Passthrough => {
+                unreachable!("non-unknown passthrough capabilities are not registered")
+            }
+        }
+    }
+}
+
 const DISCOUNT_CONTEXT_CUSTOMER_SELECTION_CONFLICT_MESSAGE: &str =
     "Only one of context or customerSelection can be provided.";
 const DISCOUNT_MINIMUM_QUANTITY_UPPER_BOUND: i64 = 2_147_483_647;

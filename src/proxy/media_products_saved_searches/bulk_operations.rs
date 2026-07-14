@@ -4,6 +4,50 @@ use super::owner_metafields::{
 };
 use super::*;
 
+impl DraftProxy {
+    pub(in crate::proxy) fn dispatch_bulk_operations_graphql(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        operation: &crate::graphql::ParsedOperation,
+        root_field: &str,
+        execution: CapabilityExecution,
+    ) -> Response {
+        match execution {
+            CapabilityExecution::OverlayRead
+                if operation.operation_type == OperationType::Query =>
+            {
+                self.bulk_operation_read_response(request, query, variables, root_field)
+            }
+            CapabilityExecution::StageLocally
+                if operation.operation_type == OperationType::Mutation
+                    && root_field == "bulkOperationRunQuery" =>
+            {
+                self.bulk_operation_run_query(request, query, variables)
+            }
+            CapabilityExecution::StageLocally
+                if operation.operation_type == OperationType::Mutation
+                    && root_field == "bulkOperationRunMutation" =>
+            {
+                self.bulk_operation_run_mutation(request, query, variables)
+            }
+            CapabilityExecution::StageLocally
+                if operation.operation_type == OperationType::Mutation
+                    && root_field == "bulkOperationCancel" =>
+            {
+                self.bulk_operation_cancel(request, query, variables)
+            }
+            CapabilityExecution::OverlayRead | CapabilityExecution::StageLocally => {
+                Self::dispatch_capability_fallback(execution, root_field)
+            }
+            CapabilityExecution::Passthrough => {
+                unreachable!("non-unknown passthrough capabilities are not registered")
+            }
+        }
+    }
+}
+
 const BULK_OPERATION_HYDRATE_QUERY: &str = "query BulkOperationHydrate($id: ID!) { bulkOperation(id: $id) { id status type errorCode createdAt completedAt objectCount rootObjectCount fileSize url partialDataUrl query } }";
 const BULK_OPERATION_QUERY_STORAGE_BYTE_LIMIT: usize = 65_535;
 const BULK_OPERATION_RUN_MUTATION_MAX_CONNECTIONS: usize = 1;
