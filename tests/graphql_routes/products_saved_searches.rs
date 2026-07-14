@@ -82,6 +82,56 @@ fn assert_engine_resolver_failure(response: &Response, root: &str, message: &str
     );
 }
 
+#[test]
+fn mixed_product_helper_read_forwards_the_original_document_once() {
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "byId": {
+                            "id": "gid://shopify/Product/1",
+                            "title": "Upstream product"
+                        },
+                        "productVariantsCount": { "count": 3, "precision": "EXACT" }
+                    }
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query MixedProductHelperRead($id: ID!) {
+          byId: productByIdentifier(identifier: { id: $id }) { id title }
+          productVariantsCount { count precision }
+        }
+        "#,
+        json!({"id": "gid://shopify/Product/1"}),
+    ));
+
+    assert_eq!(
+        response.body["data"],
+        json!({
+            "byId": {
+                "id": "gid://shopify/Product/1",
+                "title": "Upstream product"
+            },
+            "productVariantsCount": { "count": 3, "precision": "EXACT" }
+        })
+    );
+    let bodies = upstream_bodies.lock().unwrap();
+    assert_eq!(bodies.len(), 1);
+    let query = bodies[0]["query"].as_str().expect("query is preserved");
+    assert!(query.contains("productByIdentifier"));
+    assert!(query.contains("productVariantsCount"));
+}
+
 fn location_of_empty_publication_id_object_literal(query: &str) -> Value {
     let needle = "{ publicationId: \"\"";
     let offset = query
@@ -1034,6 +1084,105 @@ fn product_set_unknown_category_returns_derived_category_fields() {
     ));
     assert_eq!(read.status, 200);
     assert_eq!(read.body["data"]["product"]["category"], expected_category);
+}
+
+#[test]
+fn product_set_hydrates_inventory_location_names_before_staging_levels() {
+    let location_id = "gid://shopify/Location/424242";
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("location hydrate parses");
+            captured_calls.lock().unwrap().push(body.clone());
+            assert!(body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("query StorePropertiesLocationHydrate")));
+            assert_eq!(body["variables"]["id"], json!(location_id));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "location": {
+                            "id": location_id,
+                            "legacyResourceId": "424242",
+                            "name": "Hydrated product-set location",
+                            "activatable": false,
+                            "addressVerified": true,
+                            "createdAt": "2024-01-01T00:00:00Z",
+                            "deactivatable": true,
+                            "deactivatedAt": null,
+                            "deletable": true,
+                            "fulfillsOnlineOrders": true,
+                            "hasActiveInventory": false,
+                            "hasUnfulfilledOrders": false,
+                            "isActive": true,
+                            "isFulfillmentService": false,
+                            "isPrimary": false,
+                            "shipsInventory": true,
+                            "updatedAt": "2024-01-01T00:00:00Z",
+                            "fulfillmentService": null,
+                            "address": null,
+                            "suggestedAddresses": [],
+                            "metafield": null,
+                            "metafields": { "nodes": [], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null } },
+                            "inventoryLevels": { "nodes": [], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null } }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductSetHydratedLocation($input: ProductSetInput!) {
+          productSet(input: $input, synchronous: true) {
+            product {
+              id
+              variants(first: 1) {
+                nodes {
+                  inventoryItem {
+                    inventoryLevels(first: 1) {
+                      nodes { location { id name } }
+                    }
+                  }
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Hydrated product-set locations",
+                "productOptions": [{ "name": "Color", "values": [{ "name": "Blue" }] }],
+                "variants": [{
+                    "optionValues": [{ "optionName": "Color", "name": "Blue" }],
+                    "inventoryQuantities": [{
+                        "name": "available",
+                        "quantity": 3,
+                        "locationId": location_id
+                    }],
+                    "inventoryItem": { "tracked": true }
+                }]
+            }
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body.get("errors"), None);
+    assert_eq!(
+        response.body["data"]["productSet"]["product"]["variants"]["nodes"][0]["inventoryItem"]
+            ["inventoryLevels"]["nodes"][0]["location"],
+        json!({
+            "id": location_id,
+            "name": "Hydrated product-set location"
+        })
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
 }
 
 #[test]
@@ -9080,6 +9229,68 @@ fn product_create_payload_shop_uses_restored_shop_state_for_success_and_user_err
 }
 
 #[test]
+fn product_create_payload_shop_hydrates_identity_in_live_hybrid() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("shop identity hydrate parses");
+            captured_calls.lock().unwrap().push(body.clone());
+            assert!(body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("query ProductPayloadShopHydrate")));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "shop": {
+                            "id": "gid://shopify/Shop/live-product",
+                            "name": "Live product shop",
+                            "myshopifyDomain": "live-product.myshopify.com",
+                            "url": "https://live-product.example",
+                            "currencyCode": "EUR",
+                            "primaryDomain": {
+                                "id": "gid://shopify/Domain/live-product",
+                                "host": "live-product.example",
+                                "url": "https://live-product.example",
+                                "sslEnabled": true
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductCreateHydratedShop($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id title }
+            shop { id name myshopifyDomain currencyCode }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "product": { "title": "Hydrated shop product" } }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body.get("errors"), None);
+    assert_eq!(
+        response.body["data"]["productCreate"]["shop"],
+        json!({
+            "id": "gid://shopify/Shop/live-product",
+            "name": "Live product shop",
+            "myshopifyDomain": "live-product.myshopify.com",
+            "currencyCode": "EUR"
+        })
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+}
+
+#[test]
 fn product_create_legacy_input_id_and_variants_validation_matches_2026_04_shapes() {
     let fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-create-no-key-on-create.json"
@@ -12288,6 +12499,43 @@ fn segment_mutations_suffix_duplicate_names() {
 }
 
 #[test]
+fn multi_root_segment_mutation_executes_each_alias_once() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MultiRootSegmentCreate {
+          first: segmentCreate(name: "Engine isolated", query: "number_of_orders >= 1") {
+            segment { id name }
+            userErrors { field message }
+          }
+          second: segmentCreate(name: "Engine isolated", query: "number_of_orders >= 1") {
+            segment { id name }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        response.body["data"]["first"]["segment"]["name"],
+        json!("Engine isolated")
+    );
+    assert_eq!(
+        response.body["data"]["second"]["segment"]["name"],
+        json!("Engine isolated (2)")
+    );
+    let read = proxy.process_request(json_graphql_request(
+        "query { segmentsCount { count precision } }",
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["segmentsCount"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+}
+
+#[test]
 fn customer_segment_members_query_create_validates_stages_and_reads_node() {
     let mut proxy = snapshot_proxy();
     let create_query = r#"
@@ -15392,6 +15640,94 @@ fn collection_delete_payload_includes_shop_on_user_error() {
         })
     );
     assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+}
+
+#[test]
+fn collection_delete_payload_hydrates_selected_shop_identity_in_live_hybrid() {
+    let collection_id = "gid://shopify/Collection/424242";
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("hydrate request parses");
+            captured_calls.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            let data = if query.contains("query ProductPayloadShopHydrate") {
+                json!({
+                    "shop": {
+                        "id": "gid://shopify/Shop/live-collection",
+                        "name": "Live collection shop",
+                        "myshopifyDomain": "live-collection.myshopify.com",
+                        "url": "https://live-collection.example",
+                        "currencyCode": "CAD",
+                        "primaryDomain": {
+                            "id": "gid://shopify/Domain/live-collection",
+                            "host": "live-collection.example",
+                            "url": "https://live-collection.example",
+                            "sslEnabled": true
+                        }
+                    }
+                })
+            } else {
+                assert!(query.contains("query ProductsHydrateNodes"));
+                json!({
+                    "nodes": [{
+                        "__typename": "Collection",
+                        "id": collection_id,
+                        "title": "Hydrated collection",
+                        "handle": "hydrated-collection",
+                        "products": {
+                            "nodes": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false
+                            }
+                        }
+                    }]
+                })
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": data }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteHydratedCollection($input: CollectionDeleteInput!) {
+          collectionDelete(input: $input) {
+            deletedCollectionId
+            shop { id name myshopifyDomain currencyCode }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": collection_id } }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["collectionDelete"],
+        json!({
+            "deletedCollectionId": collection_id,
+            "shop": {
+                "id": "gid://shopify/Shop/live-collection",
+                "name": "Live collection shop",
+                "myshopifyDomain": "live-collection.myshopify.com",
+                "currencyCode": "CAD"
+            },
+            "userErrors": []
+        })
+    );
+    let calls = upstream_calls.lock().unwrap();
+    assert_eq!(calls.len(), 2);
+    assert!(calls[0]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("query ProductPayloadShopHydrate")));
+    assert!(calls[1]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("query ProductsHydrateNodes")));
 }
 
 #[test]

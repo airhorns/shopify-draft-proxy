@@ -11,8 +11,10 @@ Use the executable-schema registry before adding another schema parser or checke
 - `schema(...)` returns the lazily built `async-graphql` schema for a captured `AdminApiVersion`.
 - `root_field_arguments(...)`, `input_field_at_path(...)`, `input_owner_at_path(...)`, `input_object_fields(...)`, and `enum_values(...)` expose metadata from the same executable registry that validates requests.
 - `output_field_named_type(...)` supports nested output planning without a second output-schema model.
+- `output_type_condition_applies(...)` lets transitional JSON projectors use captured interface/union relationships instead of maintaining handwritten implementor lists; the executable engine remains the final projection authority.
+- Custom scalar codecs live beside schema construction. Extend that explicit codec table when a captured schema adds a scalar; do not make unknown scalars permissive. `invalid_url_scalar_message(...)` is shared with the Shopify error adapter so engine validation and wire-envelope text cannot drift.
 
-Full schema captures live at `config/admin-graphql/<version>/schema.graphql` and are produced by `scripts/capture-admin-graphql-schema.mts`. Do not introduce another partial mutation/input/output schema source.
+Full schema captures live at `config/admin-graphql/<version>/schema.graphql`, the executable/default version inventory lives in `config/admin-graphql/manifest.json`, and captures are produced by `scripts/capture-admin-graphql-schema.mts`. Do not introduce another partial mutation/input/output schema source or a second TypeScript version list.
 
 ## `src/graphql.rs`
 
@@ -36,6 +38,8 @@ Use `src/operation_registry.rs` and `src/resolver_registry.rs` before adding cap
 
 For generic IDs, update `src/node_resolver_inventory.rs` and its matching loader in `src/proxy/node_registry.rs` rather than adding another `node`/`nodes` switch. The inventory is exported for coverage audits; the executable loader reads the owning domain's effective store state.
 
+Node loaders return store evidence through `NodeLoadState`: `Found`, `KnownMissing`, `NeedsHydration`, or `UnsupportedType`. Return `Some(Value::Null)` from an inventory loader when a tombstone or modeled safe-null makes absence authoritative; return `None` only when live-hybrid may need hydration. Do not add a parallel loader-name enum or per-call domain switch.
+
 Do not mark a root implemented until the Rust runtime models its supported local lifecycle and downstream read-after-write behavior.
 
 ## `src/proxy/validation_helpers.rs` UserError Builders
@@ -49,6 +53,8 @@ Use these builders before adding inline `json!` userError objects with `field`, 
 - `UserErrorField` accepts static paths, dynamic string paths, and JSON values, so prefer passing the field path directly instead of rebuilding arrays locally.
 
 Do not use these helpers for top-level GraphQL `errors`/`extensions` envelopes; those are a different response shape.
+
+Top-level parse, validation, variable/scalar coercion, location, path, and extension-code compatibility belongs in `src/proxy/graphql_error_compat.rs`. Keep resolver/business validation in domain modules and payload `userErrors`; do not add Shopify engine-envelope rewriting to `dispatch.rs` or a resource handler.
 
 ## Selection, Connection, And Count Helpers
 

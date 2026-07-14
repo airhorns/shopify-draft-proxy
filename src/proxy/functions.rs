@@ -2102,10 +2102,7 @@ fn selected_output_type_field<'a>(
 }
 
 fn selection_applies_to_output_type(selection: &SelectedField, type_name: &str) -> bool {
-    selection
-        .type_condition
-        .as_deref()
-        .is_none_or(|condition| condition == type_name)
+    selected_field_applies_to_type(type_name, selection)
 }
 
 pub(in crate::proxy) fn functions_output_selection_errors(

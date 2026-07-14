@@ -8,11 +8,10 @@ use serde_json::{json, Value};
 
 use crate::graphql::{
     parse_operation, parse_operation_with_variables,
-    parse_operation_with_variables_and_operation_name, parsed_document, primary_root_field,
-    root_field_arguments, root_fields, selected_operation, selected_operation_query,
-    variable_definition_info, variables_with_operation_defaults, OperationSelectionError,
-    OperationType, RawArgumentValue, ResolvedValue, RootFieldSelection, SelectedField,
-    SourceLocation,
+    parse_operation_with_variables_and_operation_name, parsed_document, root_field_arguments,
+    root_fields, selected_operation, selected_operation_query, variable_definition_info,
+    variables_with_operation_defaults, OperationSelectionError, OperationType, RawArgumentValue,
+    ResolvedValue, RootFieldSelection, SelectedField, SourceLocation,
 };
 use crate::operation_registry::{
     default_registry, operation_capability, ApiSurface, CapabilityDomain, CapabilityExecution,
@@ -116,26 +115,6 @@ impl DraftProxy {
             .insert(staged_upload_path.to_string(), body);
         registered
     }
-}
-
-fn primary_root_response_parts(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-    default_response_key: impl FnOnce() -> String,
-) -> (String, Vec<SelectedField>, BTreeMap<String, ResolvedValue>) {
-    primary_root_field(query, variables)
-        .map(|field| (field.response_key, field.selection, field.arguments))
-        .unwrap_or_else(|| (default_response_key(), Vec::new(), BTreeMap::new()))
-}
-
-fn primary_root_response_selection(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-    default_response_key: impl FnOnce() -> String,
-) -> (String, Vec<SelectedField>) {
-    primary_root_field(query, variables)
-        .map(|field| (field.response_key, field.selection))
-        .unwrap_or_else(|| (default_response_key(), Vec::new()))
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -282,6 +261,7 @@ struct BaseState {
     marketing_events: OrderedRecords<Value>,
     gift_cards: BTreeMap<String, Value>,
     gift_card_configuration: Option<Value>,
+    gift_card_complete_queries: BTreeSet<String>,
     shop: Value,
     storefront_shop: Value,
     storefront_localizations: BTreeMap<String, Value>,
@@ -2114,6 +2094,9 @@ pub struct DraftProxy {
     last_mutation_timestamp: Option<time::OffsetDateTime>,
     engine_mutation_log_start: Option<usize>,
     engine_discount_refs_preflighted: bool,
+    /// Engine-coerced compatibility view for the root currently being
+    /// resolved. This is request-scoped transient state and is never dumped.
+    engine_root_fields: Option<Vec<RootFieldSelection>>,
     commit_transport: CommitTransport,
     upstream_transport: UpstreamTransport,
     storefront_upstream_transport: UpstreamTransport,
@@ -2127,8 +2110,9 @@ mod commit;
 mod connection;
 mod core;
 mod discounts;
-mod dispatch;
+pub(crate) mod dispatch;
 mod functions;
+mod graphql_error_compat;
 mod json_helpers;
 mod localization_markets_catalogs;
 mod market_unsupported_country_regions;
@@ -2140,7 +2124,7 @@ mod metafield_metaobject_definitions;
 mod metafields_orders_payments;
 mod metaobjects;
 mod money;
-mod node_registry;
+pub(crate) mod node_registry;
 mod online_store_content;
 mod orders_payments_fulfillment;
 mod phone;
@@ -2165,6 +2149,7 @@ pub(in crate::proxy) use self::app_shipping_helpers::*;
 pub(in crate::proxy) use self::b2b_customers::*;
 pub(in crate::proxy) use self::civil_date::*;
 pub(in crate::proxy) use self::connection::*;
+pub(crate) use self::dispatch::resolver_handler_for_domain;
 pub(in crate::proxy) use self::functions::*;
 pub(in crate::proxy) use self::json_helpers::*;
 pub(in crate::proxy) use self::localization_markets_catalogs::*;

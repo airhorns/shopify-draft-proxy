@@ -21,8 +21,78 @@ const SHOP_POLICY_TYPE_VALUES: &[&str] = &[
 const SHOP_POLICY_HYDRATE_QUERY: &str = "query StorePropertiesShopBaselineHydrate { shop { id name myshopifyDomain url primaryDomain { id host url sslEnabled } contactEmail email currencyCode enabledPresentmentCurrencies ianaTimezone timezoneAbbreviation timezoneOffset timezoneOffsetMinutes taxesIncluded taxShipping unitSystem weightUnit shopAddress { id address1 address2 city company coordinatesValidated country countryCodeV2 formatted formattedArea latitude longitude phone province provinceCode zip } plan { partnerDevelopment publicDisplayName shopifyPlus } resourceLimits { locationLimit maxProductOptions maxProductVariants redirectLimitReached } features { avalaraAvatax branding bundles { eligibleForBundles ineligibilityReason sellsBundles } captcha cartTransform { eligibleOperations { expandOperation mergeOperation updateOperation } } dynamicRemarketing eligibleForSubscriptionMigration eligibleForSubscriptions giftCards harmonizedSystemCode legacySubscriptionGatewayEnabled liveView paypalExpressSubscriptionGatewayStatus reports sellsSubscriptions showMetrics storefront unifiedMarkets } paymentSettings { supportedDigitalWallets } shopPolicies { id title body type url createdAt updatedAt } } }";
 const SHOP_PRICING_HYDRATE_QUERY: &str =
     "query DraftProxyShopPricingHydrate { shop { currencyCode taxesIncluded taxShipping } }";
+// This document predates the shared shop-context loader and is already recorded
+// byte-for-byte in product mutation cassettes. Reuse it for every payload that
+// needs the same identity slice instead of proliferating domain-specific shop
+// queries. The historical operation name is intentionally retained until those
+// captures are refreshed together.
+pub(in crate::proxy) const SHOP_IDENTITY_HYDRATE_QUERY: &str = r#"#graphql
+  query ProductPayloadShopHydrate {
+    shop {
+      id
+      name
+      myshopifyDomain
+      url
+      currencyCode
+      primaryDomain {
+        id
+        host
+        url
+        sslEnabled
+      }
+    }
+  }
+"#;
 
 impl DraftProxy {
+    pub(in crate::proxy) fn payload_shop_selection_needs_hydration(
+        &self,
+        shop_selection: &[SelectedField],
+    ) -> bool {
+        if self.config.read_mode == ReadMode::Snapshot || shop_selection.is_empty() {
+            return false;
+        }
+        !self.shop_has_observed_identity()
+            || shop_selection
+                .iter()
+                .any(|field| self.store.base.shop.get(&field.name).is_none())
+    }
+
+    pub(in crate::proxy) fn shop_has_observed_identity(&self) -> bool {
+        self.store
+            .base
+            .shop
+            .get("id")
+            .and_then(Value::as_str)
+            .is_some_and(|id| {
+                let id = id.trim();
+                !id.is_empty() && !id.contains("shopify-draft-proxy=synthetic")
+            })
+    }
+
+    pub(in crate::proxy) fn hydrate_payload_shop_identity_if_selected(
+        &mut self,
+        request: &Request,
+        payload_selection: &[SelectedField],
+    ) {
+        let Some(shop_selection) = selected_child_selection(payload_selection, "shop") else {
+            return;
+        };
+        if !self.payload_shop_selection_needs_hydration(&shop_selection) {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": SHOP_IDENTITY_HYDRATE_QUERY,
+                "variables": {}
+            }),
+        );
+        if (200..300).contains(&response.status) && response.body.get("errors").is_none() {
+            self.hydrate_shop_state_from_response_data(&response.body["data"]);
+        }
+    }
+
     pub(in crate::proxy) fn hydrate_shop_pricing_state_if_missing(
         &mut self,
         request: &Request,
@@ -59,10 +129,11 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        if let Some(response) = shop_policy_update_invalid_variable_response(query, variables) {
+        if let Some(response) = self.shop_policy_update_invalid_variable_response(query, variables)
+        {
             return response;
         }
-        let Some(fields) = root_fields(query, variables) else {
+        let Some(fields) = self.execution_root_fields(query, variables) else {
             return json_error(400, "Could not parse GraphQL operation");
         };
         let mut staged_ids = Vec::new();
@@ -180,6 +251,23 @@ impl DraftProxy {
             }),
             payload_selection,
         )
+    }
+
+    fn shop_policy_update_invalid_variable_response(
+        &self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Response> {
+        let field = self.execution_root_field(query, variables, "shopPolicyUpdate")?;
+        let RawArgumentValue::Variable { name, value } = field.raw_arguments.get("shopPolicy")?
+        else {
+            return None;
+        };
+        let input = match value {
+            Some(ResolvedValue::Object(input)) => input,
+            _ => return None,
+        };
+        shop_policy_update_invalid_input_response(query, name, input, field.location)
     }
 
     fn next_shop_policy_id(&mut self) -> String {
@@ -438,22 +526,14 @@ fn shop_address_json(address: &Value, selection: &[SelectedField]) -> Value {
     selected_json(&address, selection)
 }
 
-fn shop_policy_update_invalid_variable_response(
+fn shop_policy_update_invalid_input_response(
     query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
+    name: &str,
+    input: &BTreeMap<String, ResolvedValue>,
+    field_location: SourceLocation,
 ) -> Option<Response> {
-    let field = root_fields(query, variables)?
-        .into_iter()
-        .find(|field| field.name == "shopPolicyUpdate")?;
-    let RawArgumentValue::Variable { name, value } = field.raw_arguments.get("shopPolicy")? else {
-        return None;
-    };
-    let input = match value {
-        Some(ResolvedValue::Object(input)) => input,
-        _ => return None,
-    };
     let variable = variable_definition_info(query, name);
-    let variable_name = name.as_str();
+    let variable_name = name;
     let variable_type = variable
         .as_ref()
         .map(|definition| definition.type_display.as_str())
@@ -461,7 +541,7 @@ fn shop_policy_update_invalid_variable_response(
     let location = variable
         .as_ref()
         .map(|definition| definition.location)
-        .unwrap_or(field.location);
+        .unwrap_or(field_location);
     let mut problems = Vec::new();
     match input.get("type") {
         Some(ResolvedValue::String(policy_type))

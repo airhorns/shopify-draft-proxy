@@ -7,6 +7,7 @@ import path from 'node:path';
 import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
+import { captureDraftProxyShopPricingHydrate } from './support/shopify/runtime-hydration-capture.js';
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
   defaultApiVersion: '2026-04',
@@ -215,6 +216,10 @@ const draftOrderDeleteDocument = `#graphql
 `;
 
 await mkdir(outputDir, { recursive: true });
+
+const shopPricingHydrate = await captureDraftProxyShopPricingHydrate((query, variables) =>
+  runGraphqlRequest(query, variables),
+);
 
 const runId = Date.now();
 const pastDueAt = '2020-01-01T00:00:00Z';
@@ -457,7 +462,7 @@ try {
         },
       },
     },
-    upstreamCalls: [],
+    upstreamCalls: [shopPricingHydrate],
     cleanup,
     notes:
       'Captured on disposable draft orders. Shopify reports due/overdue true for non-completed fixed schedules with dueAt in the past, false for future schedules, and downstream draftOrder.paymentTerms reads preserve the same booleans after create and update.',

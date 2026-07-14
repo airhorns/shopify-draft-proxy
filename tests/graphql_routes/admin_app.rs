@@ -112,6 +112,73 @@ fn delegate_access_token_create_validates_and_stages_synthetic_secret() {
 }
 
 #[test]
+fn delegate_access_token_payload_hydrates_selected_shop_identity_in_live_hybrid() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("shop identity hydrate parses");
+            captured_calls.lock().unwrap().push(body.clone());
+            assert!(body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("query ProductPayloadShopHydrate")));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "shop": {
+                            "id": "gid://shopify/Shop/live",
+                            "name": "Live shop",
+                            "myshopifyDomain": "live-shop.myshopify.com",
+                            "url": "https://live-shop.example",
+                            "currencyCode": "CAD",
+                            "primaryDomain": {
+                                "id": "gid://shopify/Domain/live",
+                                "host": "live-shop.example",
+                                "url": "https://live-shop.example",
+                                "sslEnabled": true
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DelegateAccessTokenSelectedShop {
+          delegateAccessTokenCreate(
+            input: { delegateAccessScope: ["read_products"], expiresIn: 300 }
+          ) {
+            delegateAccessToken { accessToken }
+            shop { id myshopifyDomain currencyCode }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body.get("errors"), None);
+    assert_eq!(
+        response.body["data"]["delegateAccessTokenCreate"]["shop"],
+        json!({
+            "id": "gid://shopify/Shop/live",
+            "myshopifyDomain": "live-shop.myshopify.com",
+            "currencyCode": "CAD"
+        })
+    );
+    assert_eq!(
+        response.body["data"]["delegateAccessTokenCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+}
+
+#[test]
 fn apps_mutations_dispatch_by_root_field_for_ordinary_operation_names() {
     let mut proxy = configured_proxy(
         ReadMode::Snapshot,

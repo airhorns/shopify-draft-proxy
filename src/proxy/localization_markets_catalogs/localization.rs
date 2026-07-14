@@ -15,7 +15,11 @@ impl DraftProxy {
                         .collect(),
                 ),
                 "shopLocales" => {
-                    let published_filter = resolved_bool_field(&field.arguments, "published");
+                    // Shopify's schema default is `published: false`, where false means
+                    // "do not restrict to published locales" rather than "only return
+                    // unpublished locales". Only true activates the filter.
+                    let published_filter = resolved_bool_field(&field.arguments, "published")
+                        .filter(|published| *published);
                     Value::Array(
                         self.localization_shop_locales(published_filter)
                             .iter()

@@ -6729,23 +6729,20 @@ fn order_create_validation_matrix_returns_typed_user_errors() {
         ),
         variables.clone(),
     ));
+    assert_eq!(invalid_decimal_literals.body.get("errors"), None);
     assert_eq!(
-        invalid_decimal_literals.body["errors"]
-            .as_array()
-            .unwrap()
-            .len(),
-        2
+        invalid_decimal_literals.body["data"]["lineItemTaxLineMissingRate"]["userErrors"],
+        json!([{
+            "field": ["order", "lineItems", 0, "taxLines", 0, "rate"],
+            "code": "TAX_LINE_RATE_MISSING"
+        }])
     );
-    assert!(
-        invalid_decimal_literals.body["errors"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .all(|error| error["message"]
-                .as_str()
-                .is_some_and(|message| message.contains("Expected type 'Decimal!'"))),
-        "unexpected Decimal validation errors: {}",
-        invalid_decimal_literals.body["errors"]
+    assert_eq!(
+        invalid_decimal_literals.body["data"]["shippingLineTaxLineMissingRate"]["userErrors"],
+        json!([{
+            "field": ["order", "shippingLines", 0, "taxLines", 0, "rate"],
+            "code": "TAX_LINE_RATE_MISSING"
+        }])
     );
 
     let response = proxy.process_request(json_graphql_request(
@@ -7729,7 +7726,7 @@ fn draft_order_bulk_add_tags_preserves_display_case_and_dedupes_by_identity() {
 #[test]
 fn draft_order_lifecycle_family_stages_and_reads_from_store() {
     let mut proxy = snapshot_proxy();
-    restore_shop_currency(&mut proxy, "USD");
+    restore_shop_currency(&mut proxy, "CAD");
 
     let create = proxy.process_request(json_graphql_request(
         r#"
@@ -7908,7 +7905,7 @@ fn draft_order_lifecycle_family_stages_and_reads_from_store() {
     assert_eq!(
         calculate.body["data"]["draftOrderCalculate"]["calculatedDraftOrder"]["totalPriceSet"]
             ["shopMoney"],
-        json!({ "amount": "7.5", "currencyCode": "USD" })
+        json!({ "amount": "7.5", "currencyCode": "CAD" })
     );
 
     let duplicate = proxy.process_request(json_graphql_request(
@@ -8701,6 +8698,24 @@ fn draft_order_variant_hydration_batches_unique_missing_variants_per_operation()
             let body: Value =
                 serde_json::from_str(&request.body).expect("variant hydrate request parses");
             captured_calls.lock().unwrap().push(body.clone());
+            if body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("DraftProxyShopPricingHydrate"))
+            {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "shop": {
+                                "currencyCode": "USD",
+                                "taxesIncluded": false,
+                                "taxShipping": false
+                            }
+                        }
+                    }),
+                };
+            }
             match body["operationName"].as_str() {
                 Some("OrdersDraftOrderVariantHydrate") => {
                     let id = body["variables"]["id"]
@@ -8773,7 +8788,7 @@ fn draft_order_variant_hydration_batches_unique_missing_variants_per_operation()
     );
     {
         let calls = upstream_calls.lock().unwrap();
-        assert_eq!(calls.len(), 1);
+        assert_eq!(calls.len(), 2);
         assert_eq!(
             calls[0]["operationName"],
             json!("OrdersDraftOrderVariantsHydrate")
@@ -8782,6 +8797,9 @@ fn draft_order_variant_hydration_batches_unique_missing_variants_per_operation()
             calls[0]["variables"]["ids"],
             json!([variant_a, variant_b, variant_c])
         );
+        assert!(calls[1]["query"]
+            .as_str()
+            .is_some_and(|query| query.contains("DraftProxyShopPricingHydrate")));
     }
 
     let draft_order_id = create.body["data"]["draftOrderCreate"]["draftOrder"]["id"].clone();
@@ -8816,12 +8834,12 @@ fn draft_order_variant_hydration_batches_unique_missing_variants_per_operation()
     );
     {
         let calls = upstream_calls.lock().unwrap();
-        assert_eq!(calls.len(), 2);
+        assert_eq!(calls.len(), 3);
         assert_eq!(
-            calls[1]["operationName"],
+            calls[2]["operationName"],
             json!("OrdersDraftOrderVariantsHydrate")
         );
-        assert_eq!(calls[1]["variables"]["ids"], json!([variant_b, variant_c]));
+        assert_eq!(calls[2]["variables"]["ids"], json!([variant_b, variant_c]));
     }
 
     let calculate = proxy.process_request(json_graphql_request(
@@ -8841,13 +8859,13 @@ fn draft_order_variant_hydration_batches_unique_missing_variants_per_operation()
         json!([])
     );
     let calls = upstream_calls.lock().unwrap();
-    assert_eq!(calls.len(), 3);
+    assert_eq!(calls.len(), 4);
     assert_eq!(
-        calls[2]["operationName"],
+        calls[3]["operationName"],
         json!("OrdersDraftOrderVariantsHydrate")
     );
     assert_eq!(
-        calls[2]["variables"]["ids"],
+        calls[3]["variables"]["ids"],
         json!([variant_a, variant_b, variant_c])
     );
 }
@@ -8859,10 +8877,24 @@ fn draft_order_custom_only_line_items_do_not_hydrate_variants() {
     let mut proxy =
         configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
             captured_calls.fetch_add(1, Ordering::SeqCst);
-            panic!(
-                "custom-only draft order inputs should not call upstream: {}",
-                request.body
-            );
+            let body: Value =
+                serde_json::from_str(&request.body).expect("shop pricing hydrate parses");
+            assert!(body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("DraftProxyShopPricingHydrate")));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "shop": {
+                            "currencyCode": "USD",
+                            "taxesIncluded": false,
+                            "taxShipping": false
+                        }
+                    }
+                }),
+            }
         });
     let input = json!({
         "lineItems": [{
@@ -8926,7 +8958,7 @@ fn draft_order_custom_only_line_items_do_not_hydrate_variants() {
         calculate.body["data"]["draftOrderCalculate"]["userErrors"],
         json!([])
     );
-    assert_eq!(upstream_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(upstream_calls.load(Ordering::SeqCst), 1);
 }
 
 #[test]
@@ -9058,6 +9090,78 @@ fn draft_order_scalar_custom_line_prices_use_hydrated_shop_currency() {
     assert_eq!(
         calculated["totalPriceSet"]["shopMoney"],
         json!({ "amount": "7.5", "currencyCode": "CAD" })
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn draft_order_explicit_presentment_currency_still_hydrates_shop_money_currency() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("shop pricing hydrate parses");
+            captured_calls.lock().unwrap().push(body.clone());
+            assert!(body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("DraftProxyShopPricingHydrate")));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "shop": {
+                            "currencyCode": "CAD",
+                            "taxesIncluded": false,
+                            "taxShipping": false
+                        }
+                    }
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DraftOrderExplicitPresentmentCurrency($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder {
+              presentmentCurrencyCode
+              totalPriceSet {
+                shopMoney { amount currencyCode }
+                presentmentMoney { amount currencyCode }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "presentmentCurrencyCode": "USD",
+                "lineItems": [{
+                    "title": "Explicit presentment currency",
+                    "quantity": 1,
+                    "originalUnitPriceWithCurrency": {
+                        "amount": "10.00",
+                        "currencyCode": "USD"
+                    }
+                }]
+            }
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body.get("errors"), None);
+    let draft = &response.body["data"]["draftOrderCreate"]["draftOrder"];
+    assert_eq!(draft["presentmentCurrencyCode"], json!("USD"));
+    assert_eq!(
+        draft["totalPriceSet"]["shopMoney"]["currencyCode"],
+        json!("CAD")
+    );
+    assert_eq!(
+        draft["totalPriceSet"]["presentmentMoney"]["currencyCode"],
+        json!("USD")
     );
     assert_eq!(upstream_calls.lock().unwrap().len(), 1);
 }
@@ -16411,6 +16515,7 @@ fn draft_order_complete_uses_payment_terms_as_implicit_pending_unless_overridden
 #[test]
 fn draft_order_complete_uses_staged_totals_and_source_for_any_email() {
     let mut proxy = snapshot_proxy();
+    restore_shop_currency(&mut proxy, "CAD");
 
     let create = proxy.process_request(json_graphql_request(
         r#"

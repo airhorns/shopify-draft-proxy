@@ -351,7 +351,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         root_field: &str,
     ) -> Response {
-        let Some(fields) = root_fields(query, variables) else {
+        let Some(fields) = self.execution_root_fields(query, variables) else {
             return json_error(400, "Could not parse GraphQL operation");
         };
         if self.should_passthrough_cold_bulk_operations_read(&fields) {
@@ -489,8 +489,10 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        let (response_key, payload_selection, arguments) =
-            primary_root_response_parts(query, variables, || "bulkOperationRunQuery".to_string());
+        let (response_key, payload_selection, arguments) = self
+            .execution_primary_root_response_parts(query, variables, || {
+                "bulkOperationRunQuery".to_string()
+            });
         let query_text = resolved_string_field(&arguments, "query").unwrap_or_else(|| {
             "#graphql\n{ products { edges { node { id title } } } }".to_string()
         });
@@ -635,8 +637,8 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        let (response_key, payload_selection, arguments) =
-            primary_root_response_parts(query, variables, || {
+        let (response_key, payload_selection, arguments) = self
+            .execution_primary_root_response_parts(query, variables, || {
                 "bulkOperationRunMutation".to_string()
             });
         let mutation_text = resolved_string_field(&arguments, "mutation").unwrap_or_default();
@@ -841,7 +843,7 @@ impl DraftProxy {
                 })
                 .to_string(),
             };
-            let mut row = self.resolve_prevalidated_graphql_root(&row_request).body;
+            let mut row = self.resolve_nested_graphql_request(&row_request).body;
             if let Some(object) = row.as_object_mut() {
                 object.insert("__lineNumber".to_string(), json!(line_number));
             } else {
@@ -863,7 +865,9 @@ impl DraftProxy {
     ) -> Response {
         let id = resolved_string_field(variables, "id").unwrap_or_default();
         let (response_key, payload_selection) =
-            primary_root_response_selection(query, variables, || "bulkOperationCancel".to_string());
+            self.execution_primary_root_response_selection(query, variables, || {
+                "bulkOperationCancel".to_string()
+            });
 
         if self.bulk_operation_by_id(&id).is_none() {
             self.hydrate_bulk_operation_for_cancel(request, &id);

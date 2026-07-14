@@ -7,7 +7,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
-        let fields = root_fields(query, variables)?;
+        let fields = self.execution_root_fields(query, variables)?;
         let mut declined = false;
         let data = root_payload_json(&fields, |field| {
             if declined {

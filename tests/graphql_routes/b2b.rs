@@ -4670,6 +4670,7 @@ fn b2b_company_location_aggregate_currency_uses_location_country_for_draft_order
 #[test]
 fn b2b_company_and_location_order_sub_connections_are_state_backed() {
     let mut proxy = snapshot_proxy();
+    restore_shop_currency(&mut proxy, "USD");
 
     let create_company = proxy.process_request(json_graphql_request(
         r#"

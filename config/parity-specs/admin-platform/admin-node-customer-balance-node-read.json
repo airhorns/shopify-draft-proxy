@@ -286,6 +286,11 @@
             "reason": "The proxy stages store-credit debit transactions locally with the current generic StoreCreditAccountTransaction GID allocator."
           },
           {
+            "path": "$.nodes[2].transactions.nodes[1].account.id",
+            "matcher": "shopify-gid:StoreCreditAccount",
+            "reason": "The nested debit transaction references the proxy-created synthetic StoreCreditAccount GID."
+          },
+          {
             "path": "$.nodes[3].id",
             "matcher": "shopify-gid:StoreCreditAccountTransaction",
             "reason": "The proxy stages store-credit credit transactions locally with the current generic StoreCreditAccountTransaction GID allocator."

@@ -199,7 +199,10 @@ impl DraftProxy {
         let mut data = serde_json::Map::new();
         let mut staged_ids = Vec::new();
         let mut primary_staged_root: Option<String> = None;
-        for field in root_fields(query, variables).unwrap_or_default() {
+        for field in self
+            .execution_root_fields(query, variables)
+            .unwrap_or_default()
+        {
             let root_name = field.name.clone();
             let mut track_staged_id_from_payload = true;
             let payload = match field.name.as_str() {
@@ -1428,7 +1431,10 @@ impl DraftProxy {
     ) -> Response {
         let api_client_id = request_app_namespace_api_client_id(request);
         let mut data = serde_json::Map::new();
-        for field in root_fields(query, variables).unwrap_or_default() {
+        for field in self
+            .execution_root_fields(query, variables)
+            .unwrap_or_default()
+        {
             match field.name.as_str() {
                 "metafieldDefinition" => {
                     let identifier =
@@ -1597,7 +1603,10 @@ impl DraftProxy {
     ) -> Response {
         let mut data = serde_json::Map::new();
         let mut staged_ids = Vec::new();
-        for field in root_fields(query, variables).unwrap_or_default() {
+        for field in self
+            .execution_root_fields(query, variables)
+            .unwrap_or_default()
+        {
             if field.name != "standardMetafieldDefinitionEnable" {
                 continue;
             }

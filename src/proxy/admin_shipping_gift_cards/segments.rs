@@ -153,8 +153,10 @@ impl DraftProxy {
         let Some(document) = parsed_document(query, variables) else {
             return json_error(400, "Could not parse GraphQL operation");
         };
-        let fields = document
-            .root_fields
+        let Some(execution_fields) = self.execution_root_fields(query, variables) else {
+            return json_error(400, "Operation has no root field");
+        };
+        let fields = execution_fields
             .iter()
             .filter(|field| {
                 matches!(
@@ -405,8 +407,8 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let (response_key, payload_selection, arguments) =
-            primary_root_response_parts(query, variables, || {
+        let (response_key, payload_selection, arguments) = self
+            .execution_primary_root_response_parts(query, variables, || {
                 "customerSegmentMembersQueryCreate".to_string()
             });
         let query_selection =

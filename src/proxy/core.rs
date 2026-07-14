@@ -69,6 +69,7 @@ impl DraftProxy {
             last_mutation_timestamp: None,
             engine_mutation_log_start: None,
             engine_discount_refs_preflighted: false,
+            engine_root_fields: None,
             commit_transport: Arc::new(default_commit_transport),
             upstream_transport: guarded_upstream_transport_from_arc(Arc::clone(
                 &upstream_transport,
@@ -495,6 +496,7 @@ impl DraftProxy {
                 "discountOrder": self.store.base.discounts.order,
                 "giftCards": self.store.base.gift_cards.clone(),
                 "giftCardConfiguration": self.store.base.gift_card_configuration.clone().unwrap_or(Value::Null),
+                "giftCardCompleteQueries": self.store.base.gift_card_complete_queries.iter().cloned().collect::<Vec<_>>(),
                 "shop": self.store.base.shop.clone(),
                 "storefrontShop": self.store.base.storefront_shop.clone(),
                 "storefrontLocalizations": self.store.base.storefront_localizations.clone(),
@@ -1582,6 +1584,12 @@ impl DraftProxy {
             .get("giftCardConfiguration")
             .filter(|configuration| configuration.is_object())
             .cloned();
+        self.store.base.gift_card_complete_queries = state["baseState"]
+            .get("giftCardCompleteQueries")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         let base_shop = state["baseState"]
             .get("shop")
             .filter(|shop| shop.is_object() || shop.is_null())

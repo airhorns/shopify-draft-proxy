@@ -10,6 +10,11 @@ import {
   type JsonRecord,
 } from './conformance-capture-lib.js';
 import type { ConformanceGraphqlResult } from './conformance-graphql-client.js';
+import {
+  captureDraftProxyShopPricingHydrate,
+  captureRuntimeHydrationCall,
+  STORE_PROPERTIES_LOCATION_HYDRATE_QUERY,
+} from './support/shopify/runtime-hydration-capture.js';
 
 type CaptureStep = {
   query: string;
@@ -385,6 +390,15 @@ async function main(): Promise<void> {
       readRecord(data(locationProbe)['shop'])?.['currencyCode'],
       'shop.currencyCode',
     );
+    const locationHydrate = await captureRuntimeHydrationCall({
+      operationName: 'StorePropertiesLocationHydrate',
+      query: STORE_PROPERTIES_LOCATION_HYDRATE_QUERY,
+      variables: { id: locationId },
+      runGraphqlRequest: (query, variables) => capture.runGraphqlRequest(query, variables),
+    });
+    const shopPricingHydrate = await captureDraftProxyShopPricingHydrate((query, variables) =>
+      capture.runGraphqlRequest(query, variables),
+    );
 
     function productSetVariables(name: string, inventoryQuantity: number): JsonRecord {
       return {
@@ -635,6 +649,7 @@ async function main(): Promise<void> {
         },
         cleanup,
       },
+      upstreamCalls: [locationHydrate, shopPricingHydrate],
     });
 
     await writeText(productSetDocumentPath, trimGraphql(productSetDocument));

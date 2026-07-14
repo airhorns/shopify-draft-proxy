@@ -7,10 +7,8 @@ pub(in crate::proxy) fn selected_json(record: &Value, selections: &[SelectedFiel
     let typename = record.get("__typename").and_then(Value::as_str);
     let mut fields = serde_json::Map::new();
     for selection in selections {
-        if let Some(type_condition) = selection.type_condition.as_deref() {
-            if !type_condition_matches(record, typename, type_condition) {
-                continue;
-            }
+        if !selected_field_applies_to_record(record, typename, selection) {
+            continue;
         }
         let Some(value) = record.get(&selection.name) else {
             continue;
@@ -39,6 +37,27 @@ pub(in crate::proxy) fn selected_json(record: &Value, selections: &[SelectedFiel
             .or_insert_with(|| json!(typename));
     }
     Value::Object(fields)
+}
+
+pub(in crate::proxy) fn selected_field_applies_to_record(
+    record: &Value,
+    typename: Option<&str>,
+    selection: &SelectedField,
+) -> bool {
+    let Some(record_type) = record_type_name(record, typename) else {
+        return true;
+    };
+    selected_field_applies_to_type(record_type, selection)
+}
+
+pub(in crate::proxy) fn selected_field_applies_to_type(
+    type_name: &str,
+    selection: &SelectedField,
+) -> bool {
+    selection.type_condition.as_deref().is_none_or(|condition| {
+        condition == type_name
+            || crate::admin_graphql::output_type_condition_applies(type_name, condition)
+    })
 }
 
 pub(in crate::proxy) fn selected_typed_json(
@@ -172,36 +191,6 @@ fn quantities_selection_by_names(selection: &SelectedField, values: &[Value]) ->
         })
         .collect();
     Some(Value::Array(rows))
-}
-
-fn type_condition_matches(record: &Value, typename: Option<&str>, type_condition: &str) -> bool {
-    let Some(record_type) = record_type_name(record, typename) else {
-        return true;
-    };
-    if type_condition == record_type {
-        return true;
-    }
-
-    match type_condition {
-        "Node" => record.get("id").and_then(Value::as_str).is_some(),
-        "Catalog" => matches!(
-            record_type,
-            "MarketCatalog"
-                | "CompanyLocationCatalog"
-                | "CountryCatalog"
-                | "AppCatalog"
-                | "NoneCatalog"
-        ),
-        "File" => matches!(
-            record_type,
-            "MediaImage" | "Video" | "GenericFile" | "Model3d" | "ExternalVideo"
-        ),
-        "Media" => matches!(
-            record_type,
-            "MediaImage" | "Video" | "Model3d" | "ExternalVideo"
-        ),
-        _ => false,
-    }
 }
 
 fn record_type_name<'a>(record: &'a Value, typename: Option<&'a str>) -> Option<&'a str> {
@@ -433,6 +422,33 @@ mod tests {
                 "__typename": "MarketCatalog",
                 "title": "Wholesale",
                 "status": "ACTIVE"
+            })
+        );
+    }
+
+    #[test]
+    fn selected_json_applies_store_credit_interface_fields_to_concrete_transactions() {
+        let record = json!({
+            "__typename": "StoreCreditAccountCreditTransaction",
+            "event": "ADJUSTMENT",
+            "remainingAmount": { "amount": "12.0", "currencyCode": "CAD" }
+        });
+        let selections = vec![
+            typed_field("event", "event", "StoreCreditAccountTransaction", vec![]),
+            typed_field(
+                "remainingAmount",
+                "remainingAmount",
+                "StoreCreditAccountCreditTransaction",
+                vec![field("amount", "amount", vec![])],
+            ),
+        ];
+
+        assert_eq!(
+            selected_json(&record, &selections),
+            json!({
+                "__typename": "StoreCreditAccountCreditTransaction",
+                "event": "ADJUSTMENT",
+                "remainingAmount": { "amount": "12.0" }
             })
         );
     }

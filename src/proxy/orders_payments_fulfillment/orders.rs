@@ -1445,7 +1445,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
-        let fields = root_fields(query, variables)?;
+        let fields = self.execution_root_fields(query, variables)?;
         if !fields.iter().all(|field| field.name == "orderInvoiceSend") {
             return None;
         }
@@ -1619,7 +1619,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
-        let fields = root_fields(query, variables)?;
+        let fields = self.execution_root_fields(query, variables)?;
         if !fields.iter().all(|field| {
             matches!(
                 field.name.as_str(),
@@ -2680,7 +2680,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
-        let fields = root_fields(query, variables)?;
+        let fields = self.execution_root_fields(query, variables)?;
         let field = fields.iter().find(|field| field.name == root_field);
         if root_field == "fulfillment" {
             let field = field?;

@@ -8,7 +8,7 @@
   ],
   "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
   "proxyConfig": {
-    "readMode": "snapshot"
+    "readMode": "live-hybrid"
   },
   "comparisonMode": "captured-vs-proxy-request",
   "notes": "Strict parity target for giftCards connection mechanics. The live capture creates three disposable gift cards with a shared searchable code fragment, captures ID-sorted and reverse first pages, cursor windows, and giftCardsCount(limit:) precision, then deactivates two cards to capture DISABLED_AT ordering/null placement and cursor windows before deactivating the remaining card. Cursor values are intentionally treated as volatile because Shopify returns opaque cursors and the proxy uses stable local cursors; the targets still require non-empty proxy cursors.",

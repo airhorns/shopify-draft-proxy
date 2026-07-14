@@ -100,7 +100,7 @@ impl DraftProxy {
                 )
             })
         {
-            let Some(fields) = crate::graphql::root_fields(query, variables) else {
+            let Some(fields) = self.execution_root_fields(query, variables) else {
                 return json_error(400, "Could not parse GraphQL operation");
             };
             return ok_json(json!({ "data": self.url_redirect_query_data(&fields) }));
@@ -649,7 +649,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let Some(fields) = root_fields(query, variables) else {
+        let Some(fields) = self.execution_root_fields(query, variables) else {
             return MutationOutcome::response(json_error(400, "Could not parse GraphQL operation"));
         };
         if let Some(response) = store_credit_result_only_currency_response(&fields) {
@@ -1062,9 +1062,17 @@ impl DraftProxy {
         selection: &[SelectedField],
     ) -> Value {
         let mut projected = selected_payload_json(selection, |field| match field.name.as_str() {
-            "account" => transaction
-                .get("account")
-                .map(|account| self.selected_store_credit_account(account, &field.selection)),
+            "account"
+                if selected_field_applies_to_record(
+                    transaction,
+                    transaction.get("__typename").and_then(Value::as_str),
+                    field,
+                ) =>
+            {
+                transaction
+                    .get("account")
+                    .map(|account| self.selected_store_credit_account(account, &field.selection))
+            }
             _ => selected_json(transaction, std::slice::from_ref(field))
                 .as_object()
                 .and_then(|object| object.get(&field.response_key).cloned()),
@@ -1079,9 +1087,11 @@ impl DraftProxy {
     }
 
     fn selected_store_credit_account(&self, account: &Value, selection: &[SelectedField]) -> Value {
-        selected_payload_json(selection, |field| match field.name.as_str() {
+        let projected = selected_payload_json(selection, |field| match field.name.as_str() {
             "__typename" => Some(json!("StoreCreditAccount")),
-            "transactions" => {
+            "transactions"
+                if selected_field_applies_to_record(account, Some("StoreCreditAccount"), field) =>
+            {
                 let account_id = account
                     .get("id")
                     .and_then(Value::as_str)
@@ -1111,7 +1121,8 @@ impl DraftProxy {
             _ => selected_json(account, std::slice::from_ref(field))
                 .as_object()
                 .and_then(|object| object.get(&field.response_key).cloned()),
-        })
+        });
+        projected
     }
 
     pub(in crate::proxy) fn store_credit_node_value_by_id(
@@ -1597,10 +1608,9 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let (response_key, payload_selection) = primary_root_field(query, variables)
-            .map(|field| (field.response_key, field.selection))
-            .unwrap_or_else(|| ("orderCreate".to_string(), Vec::new()));
-        let order_input = resolved_object_field(variables, "order").unwrap_or_default();
+        let (response_key, payload_selection, arguments) = self
+            .execution_primary_root_response_parts(query, variables, || "orderCreate".to_string());
+        let order_input = resolved_object_field(&arguments, "order").unwrap_or_default();
         let customer_id = resolved_string_field(&order_input, "customerId").unwrap_or_default();
         let customer = self
             .store
@@ -1634,7 +1644,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        let Some(fields) = root_fields(query, variables) else {
+        let Some(fields) = self.execution_root_fields(query, variables) else {
             return json_error(400, "Could not parse GraphQL operation");
         };
         if !fields.iter().all(|field| {
@@ -1686,7 +1696,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        let Some(fields) = root_fields(query, variables) else {
+        let Some(fields) = self.execution_root_fields(query, variables) else {
             return json_error(400, "Could not parse GraphQL operation");
         };
         if !fields.iter().all(|field| {
@@ -2113,7 +2123,7 @@ impl DraftProxy {
         if selected_child_selection(payload_selection, "shop").is_none() {
             return Value::Null;
         }
-        if !self.customer_delete_shop_has_real_identity() {
+        if !self.shop_has_observed_identity() {
             return Value::Null;
         }
         self.store.effective_shop()
@@ -2127,7 +2137,7 @@ impl DraftProxy {
         let Some(shop_selection) = selected_child_selection(payload_selection, "shop") else {
             return;
         };
-        if !self.customer_delete_shop_needs_hydration(&shop_selection) {
+        if !self.payload_shop_selection_needs_hydration(&shop_selection) {
             return;
         }
         let response = self.upstream_post(
@@ -2141,36 +2151,6 @@ impl DraftProxy {
         if (200..300).contains(&response.status) {
             self.hydrate_shop_state_from_response_data(&response.body["data"]);
         }
-    }
-
-    fn customer_delete_shop_needs_hydration(&self, shop_selection: &[SelectedField]) -> bool {
-        if self.config.read_mode == ReadMode::Snapshot || shop_selection.is_empty() {
-            return false;
-        }
-        let has_default_shop = self
-            .store
-            .base
-            .shop
-            .get("myshopifyDomain")
-            .and_then(Value::as_str)
-            == Some("shopify-draft-proxy.local");
-        !self.customer_delete_shop_has_real_identity()
-            || has_default_shop
-            || shop_selection
-                .iter()
-                .any(|field| self.store.base.shop.get(&field.name).is_none())
-    }
-
-    fn customer_delete_shop_has_real_identity(&self) -> bool {
-        self.store
-            .base
-            .shop
-            .get("id")
-            .and_then(Value::as_str)
-            .is_some_and(|id| {
-                let id = id.trim();
-                !id.is_empty() && !id.contains("shopify-draft-proxy=synthetic")
-            })
     }
 
     fn customer_set_payload(

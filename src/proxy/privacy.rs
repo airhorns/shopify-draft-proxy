@@ -15,8 +15,9 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let Some(field) =
-            root_fields(query, variables).and_then(|fields| fields.into_iter().next())
+        let Some(field) = self
+            .execution_root_fields(query, variables)
+            .and_then(|fields| fields.into_iter().next())
         else {
             return MutationOutcome::response(json_error(400, "Could not parse GraphQL operation"));
         };

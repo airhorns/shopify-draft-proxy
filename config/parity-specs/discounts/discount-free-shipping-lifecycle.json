@@ -23,6 +23,9 @@
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-free-shipping-lifecycle.json"
   ],
   "runtimeTestFiles": ["tests/integration/discount-free-shipping-lifecycle-flow.test.ts"],
+  "proxyConfig": {
+    "readMode": "live-hybrid"
+  },
   "proxyRequest": {
     "documentPath": "config/parity-requests/discounts/discount-free-shipping-lifecycle-create.graphql",
     "variables": {

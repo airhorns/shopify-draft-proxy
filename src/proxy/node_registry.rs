@@ -1,15 +1,21 @@
 use super::*;
 
-type NodeLoader = fn(&DraftProxy, &str, &[SelectedField], Option<&Request>) -> Option<Value>;
+use crate::node_resolver_inventory::{default_node_resolver_inventory, NodeResolverBehavior};
 
-use crate::node_resolver_inventory::{default_node_resolver_inventory, NodeLoaderKey};
+#[derive(Debug, Clone, PartialEq)]
+pub(in crate::proxy) enum NodeLoadState {
+    Found(Value),
+    KnownMissing,
+    NeedsHydration,
+    UnsupportedType,
+}
 
 pub(in crate::proxy) fn registered_node_value(
     proxy: &DraftProxy,
     id: &str,
     selection: &[SelectedField],
     request: Option<&Request>,
-) -> Option<Option<Value>> {
+) -> NodeLoadState {
     // Shopify market-region IDs use the nested `Market/Region/...` shape even
     // though the GraphQL runtime type is `MarketRegionCountry`. Resolve that
     // exceptional identity shape at the registry boundary so domain loaders
@@ -17,52 +23,28 @@ pub(in crate::proxy) fn registered_node_value(
     let resource_type = if id.starts_with("gid://shopify/Market/Region/") {
         "MarketRegionCountry"
     } else {
-        shopify_gid_resource_type(id)?
+        let Some(resource_type) = shopify_gid_resource_type(id) else {
+            return NodeLoadState::UnsupportedType;
+        };
+        resource_type
     };
-    let loader: NodeLoader = match default_node_resolver_inventory()
+    let Some(registration) = default_node_resolver_inventory()
         .iter()
-        .find(|registration| registration.type_name == resource_type)?
-        .loader_key()
-    {
-        NodeLoaderKey::App => load_app,
-        NodeLoaderKey::B2b => load_b2b,
-        NodeLoaderKey::BackupRegion => load_backup_region,
-        NodeLoaderKey::CartTransform => load_cart_transform,
-        NodeLoaderKey::Collection => load_collection,
-        NodeLoaderKey::Customer => load_customer,
-        NodeLoaderKey::CustomerAddress => load_customer_address,
-        NodeLoaderKey::CustomerPaymentMethod => load_customer_payment_method,
-        NodeLoaderKey::CustomerSegmentMembersQuery => load_customer_segment_members_query,
-        NodeLoaderKey::DeliveryCustomization => load_delivery_customization,
-        NodeLoaderKey::Discount => load_discount,
-        NodeLoaderKey::FulfillmentConstraintRule => load_fulfillment_constraint_rule,
-        NodeLoaderKey::FulfillmentReturn => load_fulfillment_return,
-        NodeLoaderKey::GiftCard => load_gift_card,
-        NodeLoaderKey::GiftCardTransaction => load_gift_card_transaction,
-        NodeLoaderKey::Inventory => load_inventory,
-        NodeLoaderKey::KnownNull => load_known_null,
-        NodeLoaderKey::Location => load_location,
-        NodeLoaderKey::Media => load_media,
-        NodeLoaderKey::Metaobject => load_metaobject,
-        NodeLoaderKey::OnlineStore => load_online_store,
-        NodeLoaderKey::Order => load_order,
-        NodeLoaderKey::Product => load_product,
-        NodeLoaderKey::ProductDeleteOperation => load_product_delete_operation,
-        NodeLoaderKey::ProductFeed => load_product_feed,
-        NodeLoaderKey::ProductOperation => load_product_operation,
-        NodeLoaderKey::ProductVariant => load_product_variant,
-        NodeLoaderKey::Segment => load_segment,
-        NodeLoaderKey::ShopifyFunction => load_shopify_function,
-        NodeLoaderKey::ShopProperty => load_shop_property,
-        NodeLoaderKey::StoreCredit => load_store_credit,
-        NodeLoaderKey::TaxAppConfiguration => load_tax_app_configuration,
-        NodeLoaderKey::Validation => load_validation,
-        NodeLoaderKey::Abandonment => load_abandonment,
+        .find(|registration| registration.type_name == resource_type)
+    else {
+        return NodeLoadState::UnsupportedType;
     };
-    Some(loader(proxy, id, selection, request))
+    match (registration.loader)(proxy, id, selection, request) {
+        Some(value) if value.is_null() => NodeLoadState::KnownMissing,
+        Some(value) => NodeLoadState::Found(value),
+        None if registration.behavior == NodeResolverBehavior::ReturnKnownNull => {
+            NodeLoadState::KnownMissing
+        }
+        None => NodeLoadState::NeedsHydration,
+    }
 }
 
-fn load_app(
+pub(crate) fn load_app(
     proxy: &DraftProxy,
     id: &str,
     selection: &[SelectedField],
@@ -71,7 +53,7 @@ fn load_app(
     proxy.app_node_value_by_id(id, selection, request)
 }
 
-fn load_online_store(
+pub(crate) fn load_online_store(
     proxy: &DraftProxy,
     id: &str,
     selection: &[SelectedField],
@@ -82,7 +64,7 @@ fn load_online_store(
 
 macro_rules! simple_loader {
     ($name:ident, $method:ident) => {
-        fn $name(
+        pub(crate) fn $name(
             proxy: &DraftProxy,
             id: &str,
             selection: &[SelectedField],
@@ -112,7 +94,7 @@ simple_loader!(load_inventory, inventory_node_value_by_id);
 simple_loader!(load_metaobject, metaobject_node_value_by_id);
 simple_loader!(load_shop_property, shop_property_node_value_by_id);
 
-fn load_product(
+pub(crate) fn load_product(
     proxy: &DraftProxy,
     id: &str,
     selection: &[SelectedField],
@@ -131,7 +113,7 @@ fn load_product(
     ))
 }
 
-fn load_collection(
+pub(crate) fn load_collection(
     proxy: &DraftProxy,
     id: &str,
     selection: &[SelectedField],
@@ -146,7 +128,7 @@ fn load_collection(
         .map(|collection| proxy.collection_json_with_publication_fields(collection, selection))
 }
 
-fn load_product_variant(
+pub(crate) fn load_product_variant(
     proxy: &DraftProxy,
     id: &str,
     selection: &[SelectedField],
@@ -156,7 +138,7 @@ fn load_product_variant(
     (!value.is_null()).then_some(value)
 }
 
-fn load_location(
+pub(crate) fn load_location(
     proxy: &DraftProxy,
     id: &str,
     selection: &[SelectedField],
@@ -170,7 +152,7 @@ fn load_location(
         .map(|location| selected_json(&location, selection))
 }
 
-fn load_delivery_customization(
+pub(crate) fn load_delivery_customization(
     proxy: &DraftProxy,
     id: &str,
     selection: &[SelectedField],
@@ -194,7 +176,7 @@ simple_loader!(
     product_delete_operation_value_by_id
 );
 
-fn load_product_operation(
+pub(crate) fn load_product_operation(
     proxy: &DraftProxy,
     id: &str,
     selection: &[SelectedField],
@@ -211,7 +193,7 @@ fn load_product_operation(
     )
 }
 
-fn load_segment(
+pub(crate) fn load_segment(
     proxy: &DraftProxy,
     id: &str,
     selection: &[SelectedField],
@@ -225,7 +207,7 @@ fn load_segment(
         .map(|record| selected_json(record, selection))
 }
 
-fn load_customer_segment_members_query(
+pub(crate) fn load_customer_segment_members_query(
     proxy: &DraftProxy,
     id: &str,
     selection: &[SelectedField],
@@ -239,7 +221,7 @@ fn load_customer_segment_members_query(
         .map(|record| selected_json(record, selection))
 }
 
-fn load_abandonment(
+pub(crate) fn load_abandonment(
     proxy: &DraftProxy,
     id: &str,
     selection: &[SelectedField],
@@ -253,7 +235,7 @@ fn load_abandonment(
         .map(|record| selected_json(record, selection))
 }
 
-fn load_order(
+pub(crate) fn load_order(
     proxy: &DraftProxy,
     id: &str,
     selection: &[SelectedField],
@@ -267,7 +249,7 @@ fn load_order(
         .map(|order| proxy.selected_order_with_return_status(&order, selection))
 }
 
-fn load_backup_region(
+pub(crate) fn load_backup_region(
     proxy: &DraftProxy,
     id: &str,
     selection: &[SelectedField],
@@ -276,7 +258,7 @@ fn load_backup_region(
     super::dispatch::local_node_value(id, selection, Some(&proxy.store.staged.backup_region))
 }
 
-fn load_shopify_function(
+pub(crate) fn load_shopify_function(
     proxy: &DraftProxy,
     id: &str,
     selection: &[SelectedField],
@@ -291,7 +273,7 @@ fn load_shopify_function(
         .map(|record| selected_json(record, selection))
 }
 
-fn load_validation(
+pub(crate) fn load_validation(
     proxy: &DraftProxy,
     id: &str,
     selection: &[SelectedField],
@@ -327,7 +309,7 @@ fn load_validation(
         })
 }
 
-fn load_cart_transform(
+pub(crate) fn load_cart_transform(
     proxy: &DraftProxy,
     id: &str,
     selection: &[SelectedField],
@@ -363,7 +345,7 @@ fn load_cart_transform(
         })
 }
 
-fn load_fulfillment_constraint_rule(
+pub(crate) fn load_fulfillment_constraint_rule(
     proxy: &DraftProxy,
     id: &str,
     selection: &[SelectedField],
@@ -397,7 +379,7 @@ fn load_fulfillment_constraint_rule(
         })
 }
 
-fn load_tax_app_configuration(
+pub(crate) fn load_tax_app_configuration(
     proxy: &DraftProxy,
     id: &str,
     selection: &[SelectedField],
@@ -412,7 +394,7 @@ fn load_tax_app_configuration(
         .map(|configuration| selected_json(configuration, selection))
 }
 
-fn load_media(
+pub(crate) fn load_media(
     proxy: &DraftProxy,
     id: &str,
     selection: &[SelectedField],
@@ -429,7 +411,7 @@ fn load_media(
         .map(|file| selected_json(file, selection))
 }
 
-fn load_known_null(
+pub(crate) fn load_known_null(
     _proxy: &DraftProxy,
     id: &str,
     selection: &[SelectedField],
@@ -453,7 +435,7 @@ mod tests {
         type_names.dedup();
         assert_eq!(type_names.len(), original_len);
         for registration in default_node_resolver_inventory() {
-            let _ = registration.loader_key();
+            let _loader = registration.loader;
         }
     }
 }

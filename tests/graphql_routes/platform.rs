@@ -2,6 +2,64 @@ use super::common::*;
 use pretty_assertions::assert_eq;
 use shopify_draft_proxy::proxy::Response;
 
+#[test]
+fn mixed_admin_platform_read_forwards_the_original_document_once() {
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "publicApiVersions": [{
+                            "handle": "2026-04",
+                            "displayName": "2026-04",
+                            "supported": true
+                        }],
+                        "domain": {
+                            "id": "gid://shopify/Domain/1",
+                            "host": "example.test"
+                        }
+                    }
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query MixedAdminPlatformRead($domainId: ID!) {
+          publicApiVersions { handle displayName supported }
+          domain(id: $domainId) { id host }
+        }
+        "#,
+        json!({"domainId": "gid://shopify/Domain/1"}),
+    ));
+
+    assert_eq!(
+        response.body["data"],
+        json!({
+            "publicApiVersions": [{
+                "handle": "2026-04",
+                "displayName": "2026-04",
+                "supported": true
+            }],
+            "domain": {
+                "id": "gid://shopify/Domain/1",
+                "host": "example.test"
+            }
+        })
+    );
+    let bodies = upstream_bodies.lock().unwrap();
+    assert_eq!(bodies.len(), 1);
+    let query = bodies[0]["query"].as_str().expect("query is preserved");
+    assert!(query.contains("publicApiVersions"));
+    assert!(query.contains("domain(id: $domainId)"));
+}
+
 fn add_platform_location(
     proxy: &mut DraftProxy,
     name: &str,
@@ -2608,6 +2666,105 @@ fn generic_node_reads_keep_well_formed_absent_and_unknown_ids_null() {
 }
 
 #[test]
+fn live_hybrid_nodes_batch_merges_staged_and_tombstoned_records_over_one_upstream_read() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("node request body parses");
+            captured_requests.lock().unwrap().push(body.clone());
+            let nodes = body["variables"]["ids"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .map(|id| match id.as_str().unwrap_or_default() {
+                    "gid://shopify/Order/upstream" => json!({
+                        "__typename": "Order",
+                        "id": "gid://shopify/Order/upstream",
+                        "name": "#UPSTREAM"
+                    }),
+                    id => json!({
+                        "__typename": "Product",
+                        "id": id,
+                        "title": "stale upstream product"
+                    }),
+                })
+                .collect::<Vec<_>>();
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "nodes": nodes } }),
+            }
+        });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateProductsForMixedNodeBatch {
+          kept: productCreate(product: { title: "Local staged product" }) {
+            product { id }
+            userErrors { field message }
+          }
+          deleted: productCreate(product: { title: "Deleted staged product" }) {
+            product { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let kept_id = required_string(
+        &create.body["data"]["kept"]["product"]["id"],
+        "kept staged product id",
+    );
+    let deleted_id = required_string(
+        &create.body["data"]["deleted"]["product"]["id"],
+        "deleted staged product id",
+    );
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteProductForMixedNodeBatch($input: ProductDeleteInput!) {
+          productDelete(input: $input) { deletedProductId userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "id": deleted_id } }),
+    ));
+    assert_eq!(
+        delete.body["data"]["productDelete"]["deletedProductId"],
+        json!(deleted_id)
+    );
+
+    let node_read = proxy.process_request(json_graphql_request(
+        r#"
+        query MixedLocalAndColdNodes($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            __typename
+            ... on Product { id title }
+            ... on Order { id name }
+          }
+        }
+        "#,
+        json!({
+            "ids": [kept_id, "gid://shopify/Order/upstream", deleted_id]
+        }),
+    ));
+
+    assert_eq!(
+        node_read.body["data"]["nodes"],
+        json!([
+            { "__typename": "Product", "id": kept_id, "title": "Local staged product" },
+            { "__typename": "Order", "id": "gid://shopify/Order/upstream", "name": "#UPSTREAM" },
+            null
+        ])
+    );
+    let upstream_requests = upstream_requests.lock().unwrap();
+    assert_eq!(upstream_requests.len(), 1);
+    assert!(upstream_requests[0]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("query MixedLocalAndColdNodes")));
+}
+
+#[test]
 fn generic_node_reads_project_customer_payment_store_credit_and_gift_card_records() {
     let mut proxy = snapshot_proxy();
 
@@ -2840,6 +2997,8 @@ fn generic_node_reads_project_customer_payment_store_credit_and_gift_card_record
           $giftCardCreditId: ID!
           $giftCardDebitId: ID!
           $ids: [ID!]!
+          $accountBatchIds: [ID!]!
+          $mixedStoreCreditIds: [ID!]!
         ) {
           customerNode: node(id: $customerId) {
             __typename
@@ -2878,6 +3037,9 @@ fn generic_node_reads_project_customer_payment_store_credit_and_gift_card_record
               transactions(first: 5) {
                 nodes {
                   __typename
+                  balanceAfterTransaction { amount currencyCode }
+                  event
+                  origin
                   ... on StoreCreditAccountCreditTransaction { id amount { amount currencyCode } balanceAfterTransaction { amount currencyCode } }
                   ... on StoreCreditAccountDebitTransaction { id amount { amount currencyCode } balanceAfterTransaction { amount currencyCode } }
                 }
@@ -2927,6 +3089,80 @@ fn generic_node_reads_project_customer_payment_store_credit_and_gift_card_record
             ... on GiftCardDebitTransaction { id note }
             ... on Customer { id email }
           }
+          accountBatch: nodes(ids: $accountBatchIds) {
+            __typename
+            ... on StoreCreditAccount {
+              id
+              transactions(first: 5) {
+                nodes {
+                  __typename
+                  amount { amount currencyCode }
+                  balanceAfterTransaction { amount currencyCode }
+                  event
+                  origin
+                  ... on StoreCreditAccountCreditTransaction {
+                    id
+                    remainingAmount { amount currencyCode }
+                  }
+                  ... on StoreCreditAccountDebitTransaction {
+                    id
+                    account { id }
+                  }
+                }
+              }
+            }
+          }
+          mixedStoreCreditBatch: nodes(ids: $mixedStoreCreditIds) {
+            __typename
+            ... on StoreCreditAccount {
+              id
+              transactions(first: 5) {
+                nodes {
+                  __typename
+                  amount { amount currencyCode }
+                  balanceAfterTransaction { amount currencyCode }
+                  event
+                  origin
+                  ... on StoreCreditAccountCreditTransaction {
+                    id
+                    remainingAmount { amount currencyCode }
+                  }
+                  ... on StoreCreditAccountDebitTransaction {
+                    id
+                    account { id }
+                  }
+                }
+              }
+            }
+            ... on StoreCreditAccountCreditTransaction {
+              id
+              amount { amount currencyCode }
+              balanceAfterTransaction { amount currencyCode }
+              event
+              origin
+              remainingAmount { amount currencyCode }
+              account { id }
+            }
+            ... on StoreCreditAccountDebitTransaction {
+              id
+              amount { amount currencyCode }
+              balanceAfterTransaction { amount currencyCode }
+              event
+              origin
+              account { id }
+            }
+            ... on GiftCard {
+              id
+              transactions(first: 5) {
+                nodes {
+                  __typename
+                  id
+                  note
+                  amount { amount currencyCode }
+                }
+              }
+            }
+          }
         }
         "#,
         json!({
@@ -2944,11 +3180,22 @@ fn generic_node_reads_project_customer_payment_store_credit_and_gift_card_record
                 store_credit_credit_id,
                 gift_card_debit_id,
                 customer_id
+            ],
+            "accountBatchIds": [
+                store_credit_account_id,
+                "gid://shopify/StoreCreditAccount/999999999999"
+            ],
+            "mixedStoreCreditIds": [
+                store_credit_account_id,
+                store_credit_credit_id,
+                store_credit_debit_id,
+                gift_card_id
             ]
         }),
     ));
     assert_eq!(node_read.status, 200);
     assert_eq!(node_read.body.get("errors"), None);
+
     assert_eq!(
         node_read.body["data"]["customerNode"],
         json!({
@@ -3007,13 +3254,17 @@ fn generic_node_reads_project_customer_payment_store_credit_and_gift_card_record
                         "__typename": "StoreCreditAccountCreditTransaction",
                         "id": store_credit_credit_id,
                         "amount": { "amount": "10.0", "currencyCode": "USD" },
-                        "balanceAfterTransaction": { "amount": "10.0", "currencyCode": "USD" }
+                        "balanceAfterTransaction": { "amount": "10.0", "currencyCode": "USD" },
+                        "event": "ADJUSTMENT",
+                        "origin": Value::Null
                     },
                     {
                         "__typename": "StoreCreditAccountDebitTransaction",
                         "id": store_credit_debit_id,
                         "amount": { "amount": "-3.0", "currencyCode": "USD" },
-                        "balanceAfterTransaction": { "amount": "7.0", "currencyCode": "USD" }
+                        "balanceAfterTransaction": { "amount": "7.0", "currencyCode": "USD" },
+                        "event": "ADJUSTMENT",
+                        "origin": Value::Null
                     }
                 ]
             }
@@ -3038,6 +3289,42 @@ fn generic_node_reads_project_customer_payment_store_credit_and_gift_card_record
             "balanceAfterTransaction": { "amount": "7.0", "currencyCode": "USD" },
             "account": { "id": store_credit_account_id }
         })
+    );
+    assert_eq!(
+        node_read.body["data"]["accountBatch"],
+        json!([
+            {
+                "__typename": "StoreCreditAccount",
+                "id": store_credit_account_id,
+                "transactions": {
+                    "nodes": [
+                        {
+                            "__typename": "StoreCreditAccountCreditTransaction",
+                            "id": store_credit_credit_id,
+                            "amount": { "amount": "10.0", "currencyCode": "USD" },
+                            "balanceAfterTransaction": { "amount": "10.0", "currencyCode": "USD" },
+                            "event": "ADJUSTMENT",
+                            "origin": Value::Null,
+                            "remainingAmount": { "amount": "7.0", "currencyCode": "USD" }
+                        },
+                        {
+                            "__typename": "StoreCreditAccountDebitTransaction",
+                            "id": store_credit_debit_id,
+                            "amount": { "amount": "-3.0", "currencyCode": "USD" },
+                            "balanceAfterTransaction": { "amount": "7.0", "currencyCode": "USD" },
+                            "event": "ADJUSTMENT",
+                            "origin": Value::Null,
+                            "account": { "id": store_credit_account_id }
+                        }
+                    ]
+                }
+            },
+            Value::Null
+        ])
+    );
+    assert_eq!(
+        node_read.body["data"]["mixedStoreCreditBatch"][0]["transactions"],
+        node_read.body["data"]["accountBatch"][0]["transactions"]
     );
     assert_eq!(
         node_read.body["data"]["giftCardCreditNode"],

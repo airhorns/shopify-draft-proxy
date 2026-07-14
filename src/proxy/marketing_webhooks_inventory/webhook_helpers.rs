@@ -529,8 +529,11 @@ impl DraftProxy {
         let Some(document) = parsed_document(query, variables) else {
             return json_error(400, "Could not parse GraphQL operation");
         };
+        let Some(fields) = self.execution_root_fields(query, variables) else {
+            return json_error(400, "Operation has no root field");
+        };
         let mut early_response = None;
-        let data = root_payload_json(&document.root_fields, |field| {
+        let data = root_payload_json(&fields, |field| {
             if early_response.is_some() {
                 return None;
             }
@@ -589,12 +592,14 @@ impl DraftProxy {
         let id = self.next_proxy_synthetic_gid("WebhookSubscription");
         let api_client_id = request_header(request, API_CLIENT_ID_HEADER);
         let api_version = webhook_subscription_effective_api_version(request);
+        let request_api_version = admin_graphql_version(&request.path);
         let record = self.webhook_subscription_record(
             &id,
             &field.arguments,
             None,
             api_client_id.as_deref(),
             api_version.as_deref(),
+            request_api_version,
         );
         let errors =
             self.webhook_subscription_validation_errors(&field.name, &id, &record, request);
@@ -630,12 +635,14 @@ impl DraftProxy {
         };
         let api_client_id = request_header(request, API_CLIENT_ID_HEADER);
         let api_version = webhook_subscription_effective_api_version(request);
+        let request_api_version = admin_graphql_version(&request.path);
         let record = self.webhook_subscription_record(
             &id,
             &field.arguments,
             Some(existing),
             api_client_id.as_deref(),
             api_version.as_deref(),
+            request_api_version,
         );
         let errors =
             self.webhook_subscription_validation_errors(&field.name, &id, &record, request);
@@ -917,6 +924,7 @@ impl DraftProxy {
         existing: Option<Value>,
         api_client_id: Option<&str>,
         api_version_handle: Option<&str>,
+        request_api_version: Option<&str>,
     ) -> Value {
         let webhook_input =
             resolved_object_field(arguments, "webhookSubscription").unwrap_or_default();
@@ -1026,7 +1034,9 @@ impl DraftProxy {
             .and_then(|record| record.get("apiVersion"))
             .filter(|value| value.is_object())
             .cloned()
-            .unwrap_or_else(|| webhook_subscription_api_version_record(api_version_handle));
+            .unwrap_or_else(|| {
+                webhook_subscription_api_version_record(api_version_handle, request_api_version)
+            });
         let mut record = json!({
             "id": id,
             "legacyResourceId": webhook_subscription_legacy_id(id),
@@ -1299,15 +1309,29 @@ fn webhook_subscription_effective_api_version(request: &Request) -> Option<Strin
         .or_else(|| admin_graphql_version(&request.path).map(|version| version.trim().to_string()))
 }
 
-fn webhook_subscription_api_version_record(handle: Option<&str>) -> Value {
+fn webhook_subscription_api_version_record(
+    handle: Option<&str>,
+    request_api_version: Option<&str>,
+) -> Value {
     let handle = match handle.map(str::trim).filter(|handle| !handle.is_empty()) {
         Some(handle) => handle.to_string(),
         None => latest_supported_admin_graphql_version()
             .unwrap_or("2026-04")
             .to_string(),
     };
-    let (display_name, supported) = if supported_admin_graphql_version(&handle) {
-        if Some(handle.as_str()) == latest_supported_admin_graphql_version() {
+    let request_api_version = request_api_version
+        .filter(|version| supported_admin_graphql_version(version))
+        .map(str::to_string)
+        .or_else(|| latest_supported_admin_graphql_version().map(str::to_string));
+    let future_release = request_api_version
+        .as_deref()
+        .is_some_and(|request_version| {
+            supported_admin_graphql_version(&handle) && handle.as_str() > request_version
+        });
+    let (display_name, supported) = if future_release {
+        (format!("{handle} (Release candidate)"), false)
+    } else if supported_admin_graphql_version(&handle) {
+        if Some(handle.as_str()) == request_api_version.as_deref() {
             (format!("{handle} (Latest)"), true)
         } else {
             (handle.clone(), true)

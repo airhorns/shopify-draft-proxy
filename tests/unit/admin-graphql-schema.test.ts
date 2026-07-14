@@ -5,9 +5,12 @@ import { buildSchema, parse, validate, type GraphQLSchema } from 'graphql';
 import { describe, expect, it } from 'vitest';
 
 const repoRoot = new URL('../..', import.meta.url).pathname;
-const versions = ['2025-01', '2025-10', '2026-01', '2026-04'] as const;
+const manifest = JSON.parse(readFileSync(path.join(repoRoot, 'config', 'admin-graphql', 'manifest.json'), 'utf8')) as {
+  executableVersions: string[];
+};
+const versions = manifest.executableVersions;
 
-function loadSchema(version: (typeof versions)[number]): GraphQLSchema {
+function loadSchema(version: string): GraphQLSchema {
   return buildSchema(readFileSync(path.join(repoRoot, 'config', 'admin-graphql', version, 'schema.graphql'), 'utf8'));
 }
 

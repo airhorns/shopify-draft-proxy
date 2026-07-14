@@ -9976,28 +9976,41 @@ fn online_store_mobile_platform_application_update_model_validations_do_not_muta
 fn online_store_script_tag_web_pixel_and_theme_file_validation_are_local() {
     let mut proxy = snapshot_proxy();
 
+    let script_scalar_validation = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ScriptTagCreateValidatesScalarSrc {
+          blank: scriptTagCreate(input: { src: "" }) { scriptTag { id src displayScope } userErrors {  field message } }
+          invalid: scriptTagCreate(input: { src: "not-a-url" }) { scriptTag { id src displayScope } userErrors {  field message } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert!(script_scalar_validation.body.get("data").is_none());
+    assert_eq!(
+        script_scalar_validation.body["errors"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|error| error["message"].clone())
+            .collect::<Vec<_>>(),
+        vec![
+            json!("Invalid url '', missing scheme"),
+            json!("Invalid url 'not-a-url', missing scheme")
+        ]
+    );
+
     let script_validation = proxy.process_request(json_graphql_request(
         r#"
         mutation ScriptTagCreateValidatesSrc {
-          blank: scriptTagCreate(input: { src: "" }) { scriptTag { id src displayScope } userErrors {  field message } }
           tooLong: scriptTagCreate(input: { src: "https://example.test/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }) { scriptTag { id src displayScope } userErrors {  field message } }
-          invalid: scriptTagCreate(input: { src: "not-a-url" }) { scriptTag { id src displayScope } userErrors {  field message } }
           http: scriptTagCreate(input: { src: "http://example.test/app.js" }) { scriptTag { id src displayScope } userErrors {  field message } }
         }
         "#,
         json!({}),
     ));
     assert_eq!(
-        script_validation.body["data"]["blank"]["userErrors"][0],
-        json!({"field": ["input", "src"], "message": "Source can't be blank"})
-    );
-    assert_eq!(
         script_validation.body["data"]["tooLong"]["userErrors"][0]["message"],
         json!("Source is too long (maximum is 255 characters)")
-    );
-    assert_eq!(
-        script_validation.body["data"]["invalid"]["userErrors"][0]["message"],
-        json!("Source is invalid")
     );
     assert_eq!(
         script_validation.body["data"]["http"]["userErrors"][0]["message"],
@@ -10031,28 +10044,41 @@ fn online_store_script_tag_web_pixel_and_theme_file_validation_are_local() {
     );
     let script_update_log_len = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
 
+    let invalid_script_update_scalars = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ScriptTagUpdateValidatesScalarSrc {
+          blank: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { src: "   " }) { scriptTag { id src } userErrors {  field message } }
+          invalid: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { src: "not-a-url" }) { scriptTag { id src } userErrors {  field message } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert!(invalid_script_update_scalars.body.get("data").is_none());
+    assert_eq!(
+        invalid_script_update_scalars.body["errors"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|error| error["message"].clone())
+            .collect::<Vec<_>>(),
+        vec![
+            json!("Invalid url '   ', missing scheme"),
+            json!("Invalid url 'not-a-url', missing scheme")
+        ]
+    );
+
     let invalid_script_updates = proxy.process_request(json_graphql_request(
         r#"
-        mutation ScriptTagUpdateValidatesChangedSrc($longSrc: String!) {
-          blank: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { src: "   " }) { scriptTag { id src } userErrors {  field message } }
+        mutation ScriptTagUpdateValidatesChangedSrc($longSrc: URL!) {
           tooLong: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { src: $longSrc }) { scriptTag { id src } userErrors {  field message } }
-          invalid: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { src: "not-a-url" }) { scriptTag { id src } userErrors {  field message } }
           http: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { src: "http://example.test/app.js" }) { scriptTag { id src } userErrors {  field message } }
         }
         "#,
         json!({"longSrc": format!("https://example.test/{}", "a".repeat(260))}),
     ));
     assert_eq!(
-        invalid_script_updates.body["data"]["blank"],
-        json!({"scriptTag": null, "userErrors": [{"field": ["src"], "message": "Source can't be blank"}]})
-    );
-    assert_eq!(
         invalid_script_updates.body["data"]["tooLong"],
         json!({"scriptTag": null, "userErrors": [{"field": ["src"], "message": "Source is too long (maximum is 255 characters)"}]})
-    );
-    assert_eq!(
-        invalid_script_updates.body["data"]["invalid"],
-        json!({"scriptTag": null, "userErrors": [{"field": ["src"], "message": "Source is invalid"}]})
     );
     assert_eq!(
         invalid_script_updates.body["data"]["http"],

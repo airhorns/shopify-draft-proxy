@@ -8,18 +8,30 @@
 use std::{collections::BTreeMap, ops::Deref};
 
 use crate::{
-    graphql::OperationType,
+    graphql::{OperationType, ParsedOperation, ResolvedValue},
     operation_registry::{
         CapabilityDomain, CapabilityExecution, OperationCapability, OperationRegistryEntry,
     },
+    proxy::{DraftProxy, Request, Response},
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ResolverExecution<'a> {
+    pub request: &'a Request,
+    pub query: &'a str,
+    pub variables: &'a BTreeMap<String, ResolvedValue>,
+    pub operation: &'a ParsedOperation,
+    pub root_name: &'a str,
+}
+
+pub(crate) type ResolverHandler = for<'a> fn(&mut DraftProxy, ResolverExecution<'a>) -> Response;
+
+#[derive(Debug, Clone)]
 pub struct ResolverRegistration {
     pub operation_type: OperationType,
     pub root_name: String,
     pub domain: CapabilityDomain,
     pub execution: CapabilityExecution,
+    pub(crate) handler: ResolverHandler,
 }
 
 #[derive(Debug, Clone)]
@@ -41,6 +53,7 @@ impl ResolverRegistry {
                 root_name: entry.name.clone(),
                 domain: entry.domain,
                 execution: entry.execution(),
+                handler: crate::proxy::resolver_handler_for_domain(entry.domain),
             };
             let previous = local_roots.insert(key, registration);
             assert!(
@@ -66,6 +79,15 @@ impl ResolverRegistry {
                 domain: CapabilityDomain::Unknown,
                 execution: CapabilityExecution::Passthrough,
             })
+    }
+
+    pub(crate) fn registration(
+        &self,
+        operation_type: OperationType,
+        root_name: &str,
+    ) -> Option<&ResolverRegistration> {
+        self.local_roots
+            .get(&(operation_type, root_name.to_string()))
     }
 
     pub fn local_resolvers(&self) -> impl Iterator<Item = &ResolverRegistration> {

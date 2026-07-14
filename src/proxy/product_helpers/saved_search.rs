@@ -851,7 +851,9 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        let fields = root_fields(query, variables).unwrap_or_default();
+        let fields = self
+            .execution_root_fields(query, variables)
+            .unwrap_or_default();
         if self.config.read_mode == ReadMode::LiveHybrid
             && fields.iter().any(|field| is_saved_search_root(&field.name))
         {
@@ -1039,7 +1041,9 @@ impl DraftProxy {
     ) -> MutationOutcome {
         let api_client_id = saved_search_request_api_client_id(request);
         let mut log_drafts = Vec::new();
-        let fields = root_fields(query, variables).unwrap_or_default();
+        let fields = self
+            .execution_root_fields(query, variables)
+            .unwrap_or_default();
         let data = root_payload_json(&fields, |field| {
             let outcome = match field.name.as_str() {
                 "savedSearchCreate" => self.saved_search_create_field(field, &api_client_id),

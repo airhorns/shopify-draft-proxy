@@ -654,7 +654,9 @@ impl DraftProxy {
         user_errors: Vec<ProductOptionUserError>,
     ) -> Response {
         let (response_key, payload_selection) =
-            primary_root_response_selection(query, &BTreeMap::new(), || root_field.to_string());
+            self.execution_primary_root_response_selection(query, &BTreeMap::new(), || {
+                root_field.to_string()
+            });
         let payload = product_option_payload_json(
             &payload_selection,
             product,
@@ -680,7 +682,7 @@ impl DraftProxy {
         user_errors: Vec<ProductOptionUserError>,
     ) -> Response {
         let (response_key, payload_selection) =
-            primary_root_response_selection(query, &BTreeMap::new(), || {
+            self.execution_primary_root_response_selection(query, &BTreeMap::new(), || {
                 "productOptionsDelete".to_string()
             });
         let product_selection =

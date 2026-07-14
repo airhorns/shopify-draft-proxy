@@ -1,6 +1,76 @@
 use super::common::*;
 use pretty_assertions::assert_eq;
 
+#[test]
+fn fixed_amount_discount_hydrates_shop_currency_before_serialization() {
+    let upstream_queries = Arc::new(Mutex::new(Vec::<String>::new()));
+    let captured_queries = Arc::clone(&upstream_queries);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            let query = body["query"].as_str().unwrap_or_default().to_string();
+            captured_queries.lock().unwrap().push(query.clone());
+            let data = if query.contains("DraftProxyShopPricingHydrate") {
+                json!({
+                    "shop": {
+                        "currencyCode": "CAD",
+                        "taxesIncluded": false,
+                        "taxShipping": false
+                    }
+                })
+            } else {
+                json!({ "codeDiscountNodeByCode": null })
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": data }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountCurrencyHydrate($input: DiscountCodeBasicInput!) {
+          discountCodeBasicCreate(basicCodeDiscount: $input) {
+            codeDiscountNode {
+              codeDiscount {
+                ... on DiscountCodeBasic {
+                  minimumRequirement {
+                    ... on DiscountMinimumSubtotal {
+                      greaterThanOrEqualToSubtotal { amount currencyCode }
+                    }
+                  }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Currency hydrate",
+                "code": "CURRENCYHYDRATE",
+                "startsAt": "2026-01-01T00:00:00Z",
+                "context": { "all": "ALL" },
+                "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } },
+                "minimumRequirement": { "subtotal": { "greaterThanOrEqualToSubtotal": "1.00" } }
+            }
+        }),
+    ));
+
+    assert_eq!(
+        response.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["codeDiscount"]
+            ["minimumRequirement"]["greaterThanOrEqualToSubtotal"]["currencyCode"],
+        json!("CAD")
+    );
+    assert!(upstream_queries
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|query| query.contains("DraftProxyShopPricingHydrate")));
+}
+
 fn json_string(value: &Value, context: &str) -> String {
     value
         .as_str()
@@ -8220,6 +8290,81 @@ fn localization_markets_read_hydrates_from_live_source_and_reuses_observed_marke
 }
 
 #[test]
+fn mixed_localization_read_hydrates_only_cold_markets_for_staged_resources() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("market hydrate body parses");
+            captured_requests.lock().unwrap().push(body.clone());
+            assert_eq!(body["operationName"], json!("LocalizationMarketsHydrate"));
+            assert!(body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("query LocalizationMarketsHydrate")));
+            assert!(!body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("translatableResource")));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "markets": {
+                            "nodes": [{
+                                "id": "gid://shopify/Market/observed",
+                                "name": "Observed market",
+                                "handle": "observed-market",
+                                "status": "ACTIVE",
+                                "type": "REGION"
+                            }]
+                        }
+                    }
+                }),
+            }
+        });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductForMixedLocalizationRead($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "product": { "title": "Local translatable product" } }),
+    ));
+    let product_id = create.body["data"]["productCreate"]["product"]["id"].clone();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query MixedLocalTranslationAndColdMarkets($resourceId: ID!) {
+          translatableResource(resourceId: $resourceId) {
+            resourceId
+            translatableContent { key value locale type digest }
+            translations(locale: "es") { key value locale outdated }
+          }
+          markets(first: 10) { nodes { id name handle status type } }
+        }
+        "#,
+        json!({ "resourceId": product_id }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body.get("errors"), None);
+    assert_eq!(
+        response.body["data"]["translatableResource"]["resourceId"],
+        product_id
+    );
+    assert_eq!(
+        response.body["data"]["markets"]["nodes"][0]["name"],
+        json!("Observed market")
+    );
+    assert_eq!(upstream_requests.lock().unwrap().len(), 1);
+}
+
+#[test]
 fn localization_source_read_stages_observed_markets_and_shop_locales_for_translation_replay() {
     let upstream_requests = Arc::new(Mutex::new(Vec::new()));
     let captured_requests = Arc::clone(&upstream_requests);
@@ -10820,6 +10965,142 @@ fn gift_card_live_hybrid_cold_reads_forward_upstream_without_local_overlay() {
     assert_eq!(
         response.body["data"]["configuration"]["issueLimit"]["currencyCode"],
         json!("USD")
+    );
+}
+
+#[test]
+fn gift_card_live_hybrid_zero_count_baseline_makes_filtered_staged_windows_local() {
+    let hits = Arc::new(Mutex::new(0usize));
+    let hit_counter = Arc::clone(&hits);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            *hit_counter.lock().unwrap() += 1;
+            if request.body.contains("GiftCardCreateConfiguration") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "giftCardConfiguration": {
+                                "issueLimit": { "amount": "3000.0", "currencyCode": "CAD" },
+                                "purchaseLimit": { "amount": "14000.0", "currencyCode": "CAD" }
+                            }
+                        }
+                    }),
+                };
+            }
+            assert!(
+                request.body.contains("GiftCardConnectionBaseline"),
+                "only the initial filtered baseline should forward, got {}",
+                request.body
+            );
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "forward": {
+                            "nodes": [],
+                            "edges": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": null,
+                                "endCursor": null
+                            }
+                        },
+                        "reverse": {
+                            "nodes": [],
+                            "edges": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": null,
+                                "endCursor": null
+                            }
+                        },
+                        "countLimit": { "count": 0, "precision": "EXACT" }
+                    }
+                }),
+            }
+        });
+
+    let setup = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardConnectionBaselineSetup {
+          first: giftCardCreate(input: { initialValue: "41.01", code: "livebaselinea" }) {
+            giftCard { id lastCharacters initialValue { amount currencyCode } }
+            userErrors { field message }
+          }
+          second: giftCardCreate(input: { initialValue: "41.02", code: "livebaselineb" }) {
+            giftCard { id lastCharacters initialValue { amount currencyCode } }
+            userErrors { field message }
+          }
+          third: giftCardCreate(input: { initialValue: "41.03", code: "livebaselinec" }) {
+            giftCard { id lastCharacters initialValue { amount currencyCode } }
+            userErrors { field message }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(setup.body["data"]["first"]["userErrors"], json!([]));
+    assert_eq!(setup.body["data"]["second"]["userErrors"], json!([]));
+    assert_eq!(setup.body["data"]["third"]["userErrors"], json!([]));
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"query GiftCardConnectionBaseline($query: String!) {
+          forward: giftCards(first: 2, query: $query, sortKey: ID) {
+            nodes { id lastCharacters initialValue { amount currencyCode } }
+            edges { cursor node { id lastCharacters } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          reverse: giftCards(first: 2, query: $query, sortKey: ID, reverse: true) {
+            nodes { id lastCharacters }
+            edges { cursor node { id lastCharacters } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          countLimit: giftCardsCount(query: $query, limit: 2) { count precision }
+        }"#,
+        json!({ "query": "livebaseline" }),
+    ));
+    assert_eq!(*hits.lock().unwrap(), 2);
+    assert_eq!(
+        first_page.body["data"]["forward"]["nodes"]
+            .as_array()
+            .map(Vec::len),
+        Some(2)
+    );
+    assert_eq!(
+        first_page.body["data"]["countLimit"],
+        json!({ "count": 2, "precision": "AT_LEAST" })
+    );
+    let after = json_string(
+        &first_page.body["data"]["forward"]["pageInfo"]["endCursor"],
+        "gift-card baseline end cursor",
+    );
+
+    let window = proxy.process_request(json_graphql_request(
+        r#"query GiftCardConnectionBaselineWindow($query: String!, $after: String!) {
+          giftCards(first: 1, query: $query, sortKey: ID, after: $after) {
+            nodes { id lastCharacters initialValue { amount currencyCode } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }"#,
+        json!({ "query": "livebaseline", "after": after }),
+    ));
+    assert_eq!(
+        *hits.lock().unwrap(),
+        2,
+        "the complete zero-count baseline should keep later windows local"
+    );
+    assert_eq!(
+        window.body["data"]["giftCards"]["nodes"]
+            .as_array()
+            .map(Vec::len),
+        Some(1)
+    );
+    assert_eq!(
+        window.body["data"]["giftCards"]["nodes"][0]["initialValue"]["amount"],
+        json!("41.03")
     );
 }
 
@@ -15274,7 +15555,7 @@ fn discount_free_shipping_lifecycle_stages_code_and_automatic_statuses() {
     assert_eq!(
         updated.body["data"]["discountCodeFreeShippingUpdate"]["codeDiscountNode"]["codeDiscount"]
             ["destinationSelection"],
-        json!({ "__typename": "DiscountCountries", "countries": ["CA", "US"], "includeRestOfWorld": false })
+        json!({ "__typename": "DiscountCountries", "countries": [], "includeRestOfWorld": false })
     );
     assert_eq!(
         updated.body["data"]["discountCodeFreeShippingUpdate"]["userErrors"],
@@ -15294,7 +15575,7 @@ fn discount_free_shipping_lifecycle_stages_code_and_automatic_statuses() {
     assert_eq!(
         automatic_updated.body["data"]["discountAutomaticFreeShippingUpdate"]
             ["automaticDiscountNode"]["automaticDiscount"]["destinationSelection"],
-        json!({ "__typename": "DiscountCountries", "countries": ["US"], "includeRestOfWorld": false })
+        json!({ "__typename": "DiscountCountries", "countries": [], "includeRestOfWorld": false })
     );
     assert_eq!(
         automatic_updated.body["data"]["discountAutomaticFreeShippingUpdate"]
@@ -15680,10 +15961,28 @@ fn discount_activate_hydrates_full_upstream_code_basic_config() {
     let expected_redeem_code_id = redeem_code_id.clone();
     let mut proxy =
         configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream request body should parse");
+            if body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("DraftProxyShopPricingHydrate"))
+            {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "shop": {
+                                "currencyCode": "USD",
+                                "taxesIncluded": false,
+                                "taxShipping": false
+                            }
+                        }
+                    }),
+                };
+            }
             *hit_counter.lock().unwrap() += 1;
             assert_full_discount_config_hydrate_request(&request.body);
-            let body: Value =
-                serde_json::from_str(&request.body).expect("discount hydrate body should parse");
             assert_eq!(body["variables"]["id"], json!(expected_discount_id));
             Response {
                 status: 200,
@@ -16570,7 +16869,7 @@ fn discount_basic_summary_derives_value_scope_and_minimum_requirement() {
     assert_eq!(created.body["data"]["code"]["userErrors"], json!([]));
     assert_eq!(
         created.body["data"]["code"]["codeDiscountNode"]["codeDiscount"]["summary"],
-        json!("10% off entire order • Minimum purchase of $1.00")
+        json!("10% off one-time purchase products • Minimum purchase of $1.00")
     );
     assert_eq!(
         created.body["data"]["subscription"]["userErrors"],

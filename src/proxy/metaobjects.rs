@@ -349,18 +349,15 @@ fn metaobject_definition_capabilities(input: &BTreeMap<String, ResolvedValue>) -
 }
 
 /// Normalises an onlineStore capability `data` input into its stored shape. The
-/// admin API accepts `createRedirects` on input but echoes it back as
-/// `canCreateRedirects`, so we translate the field name here. Captured
-/// definition-create behavior defaults omitted `createRedirects` to true when
-/// online-store data is present.
+/// `canCreateRedirects` describes current redirect capacity; it is not the
+/// echoed value of the input-only `createRedirects` switch. The local model has
+/// capacity when online-store data is present (the update path separately reads
+/// `createRedirects` to decide whether to stage redirects).
 fn metaobject_online_store_capability_data(data: &BTreeMap<String, ResolvedValue>) -> Value {
-    let can_create_redirects = resolved_bool_field(data, "createRedirects")
-        .or_else(|| resolved_bool_field(data, "canCreateRedirects"))
-        .unwrap_or(true);
     json!({
         "urlHandle": resolved_string_field(data, "urlHandle")
             .map_or(Value::Null, |url_handle| json!(url_handle)),
-        "canCreateRedirects": can_create_redirects
+        "canCreateRedirects": true
     })
 }
 

@@ -188,17 +188,9 @@ impl DraftProxy {
     }
 
     fn selected_catalog_json(&self, catalog: &Value, selections: &[SelectedField]) -> Value {
-        let market_ids = catalog_market_ids(catalog);
         selected_record_with_connections(catalog, selections, |selection| {
             match selection.name.as_str() {
-                "markets" => {
-                    let ids = market_ids.iter().rev().cloned().collect::<Vec<_>>();
-                    Some(self.selected_markets_by_ids_connection(
-                        ids,
-                        &selection.arguments,
-                        &selection.selection,
-                    ))
-                }
+                "markets" => Some(self.selected_catalog_markets_connection(catalog, selection)),
                 "priceList" => {
                     let price_list_id = catalog_relation_id(catalog, "priceListId", "priceList");
                     price_list_id
@@ -221,6 +213,43 @@ impl DraftProxy {
                 _ => None,
             }
         })
+    }
+
+    fn selected_catalog_markets_connection(
+        &self,
+        catalog: &Value,
+        selection: &SelectedField,
+    ) -> Value {
+        let embedded = catalog["markets"]["nodes"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|market| {
+                market["id"]
+                    .as_str()
+                    .map(|id| (id.to_string(), market.clone()))
+            })
+            .collect::<BTreeMap<_, _>>();
+        let records = catalog_market_ids(catalog)
+            .into_iter()
+            .rev()
+            .map(|id| {
+                self.store
+                    .staged
+                    .markets
+                    .get(&id)
+                    .cloned()
+                    .or_else(|| embedded.get(&id).cloned())
+                    .unwrap_or_else(|| json!({ "id": id }))
+            })
+            .collect::<Vec<_>>();
+        selected_typed_connection_with_args(
+            &records,
+            &selection.arguments,
+            &selection.selection,
+            |market, node_selection| self.selected_market_json(market, node_selection),
+            value_id_cursor,
+        )
     }
 
     pub(in crate::proxy) fn selected_catalog_payload(
@@ -248,10 +277,8 @@ impl DraftProxy {
         }
         let mut record = serde_json::Map::new();
         for field in selection {
-            if let Some(type_condition) = field.type_condition.as_deref() {
-                if !matches!(type_condition, "PriceList" | "Node") {
-                    continue;
-                }
+            if !selected_field_applies_to_type("PriceList", field) {
+                continue;
             }
             let value = match field.name.as_str() {
                 "prices" => Some(selected_price_list_prices(

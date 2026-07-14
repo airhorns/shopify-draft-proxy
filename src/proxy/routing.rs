@@ -1,6 +1,6 @@
 use super::*;
+use crate::admin_graphql::AdminApiVersion;
 
-const SUPPORTED_ADMIN_GRAPHQL_VERSIONS: &[&str] = &["2025-01", "2025-10", "2026-01", "2026-04"];
 const SUPPORTED_STOREFRONT_GRAPHQL_VERSIONS: &[&str] = &["2025-01", "2026-04"];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -106,7 +106,7 @@ fn storefront_graphql_path_version(path: &str) -> Option<&str> {
 }
 
 pub(in crate::proxy) fn supported_admin_graphql_version(version: &str) -> bool {
-    SUPPORTED_ADMIN_GRAPHQL_VERSIONS.contains(&version)
+    AdminApiVersion::parse(version).is_some()
 }
 
 pub(in crate::proxy) fn supported_storefront_graphql_version(version: &str) -> bool {
@@ -114,7 +114,10 @@ pub(in crate::proxy) fn supported_storefront_graphql_version(version: &str) -> b
 }
 
 pub(in crate::proxy) fn latest_supported_admin_graphql_version() -> Option<&'static str> {
-    SUPPORTED_ADMIN_GRAPHQL_VERSIONS.last().copied()
+    AdminApiVersion::ALL
+        .last()
+        .copied()
+        .map(AdminApiVersion::as_str)
 }
 
 pub(in crate::proxy) fn version_at_least(

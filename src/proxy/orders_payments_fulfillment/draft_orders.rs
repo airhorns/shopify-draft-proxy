@@ -98,12 +98,14 @@ pub(in crate::proxy) fn draft_order_base_record(
     variant_hydrations: &BTreeMap<String, Value>,
     shop_currency_code: &str,
 ) -> Value {
-    let currency = draft_order_input_currency(input, shop_currency_code);
+    let presentment_currency = draft_order_input_currency(input, shop_currency_code);
     let line_items = resolved_object_list_field(input, "lineItems");
-    let line_item_nodes = draft_order_line_items(&line_items, id, &currency, variant_hydrations);
+    let line_item_nodes =
+        draft_order_line_items(&line_items, id, &presentment_currency, variant_hydrations);
     let original_subtotal = sum_money_set(&line_item_nodes, "originalTotalSet");
     let mut record = draft_order_record_skeleton(id, name, line_item_nodes);
-    record["currencyCode"] = json!(currency);
+    record["currencyCode"] = json!(shop_currency_code);
+    record["presentmentCurrencyCode"] = json!(presentment_currency);
     record["email"] = resolved_string_field(input, "email")
         .map(Value::String)
         .unwrap_or(Value::Null);
@@ -497,12 +499,6 @@ pub(in crate::proxy) fn draft_order_input_currency(
     shop_currency_code: &str,
 ) -> String {
     draft_order_explicit_input_currency(input).unwrap_or_else(|| shop_currency_code.to_string())
-}
-
-pub(in crate::proxy) fn draft_order_input_needs_shop_currency(
-    input: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    draft_order_explicit_input_currency(input).is_none()
 }
 
 fn draft_order_explicit_input_currency(input: &BTreeMap<String, ResolvedValue>) -> Option<String> {
@@ -1220,7 +1216,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
-        let fields = root_fields(query, variables)?;
+        let fields = self.execution_root_fields(query, variables)?;
         let field = fields.iter().find(|field| field.name == root_field);
 
         // Forward a hydrate + observe for a draft not created locally this scenario
@@ -1287,7 +1283,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Response> {
-        let fields = root_fields(query, variables)?;
+        let fields = self.execution_root_fields(query, variables)?;
         if !fields.iter().all(|field| {
             matches!(
                 field.name.as_str(),
@@ -1447,9 +1443,11 @@ impl DraftProxy {
                 &field.selection,
             );
         }
-        if draft_order_input_needs_shop_currency(&input) {
-            self.hydrate_shop_pricing_state_if_missing(request, true, false);
-        }
+        // Even when the input supplies a presentment currency, Shopify's
+        // `shopMoney` fields are denominated in the shop currency. A cold
+        // LiveHybrid proxy therefore needs the shop pricing slice before it can
+        // build a valid draft-order money graph.
+        self.hydrate_shop_pricing_state_if_missing(request, true, false);
         let id = self.next_draft_order_id();
         let name = self.draft_order_name_for_id(&id);
         let customer = draft_order_customer_id(&input)
@@ -1568,9 +1566,7 @@ impl DraftProxy {
                 &field.selection,
             );
         }
-        if draft_order_input_needs_shop_currency(&input) {
-            self.hydrate_shop_pricing_state_if_missing(request, true, false);
-        }
+        self.hydrate_shop_pricing_state_if_missing(request, true, false);
         let calculated = draft_order_calculated_record(
             &input,
             &variant_hydrations,
@@ -2179,7 +2175,11 @@ impl DraftProxy {
     }
 
     pub(super) fn recalculate_draft_order_totals(&self, draft_order: &mut Value) {
-        let currency = draft_order_currency(draft_order, &self.store.shop_currency_code());
+        let shop_currency = draft_order_currency(draft_order, &self.store.shop_currency_code());
+        let presentment_currency = draft_order["presentmentCurrencyCode"]
+            .as_str()
+            .unwrap_or(&shop_currency)
+            .to_string();
         let line_items = connection_nodes(&draft_order["lineItems"]);
         let original_subtotal = sum_money_set(&line_items, "originalTotalSet");
         let line_discount_total = draft_order_line_discount_total(&line_items);
@@ -2190,13 +2190,19 @@ impl DraftProxy {
             line_discount_total + draft_order_discount_amount(&draft_order["appliedDiscount"]);
         let subtotal = (original_subtotal - discount_total).max(0.0);
         let total = subtotal + shipping_total + tax_total;
-        draft_order["lineItemsSubtotalPrice"] = money_bag(original_subtotal, &currency);
-        draft_order["subtotalPriceSet"] = money_bag(subtotal, &currency);
+        draft_order["lineItemsSubtotalPrice"] =
+            money_bag_from_amount(original_subtotal, &shop_currency, &presentment_currency);
+        draft_order["subtotalPriceSet"] =
+            money_bag_from_amount(subtotal, &shop_currency, &presentment_currency);
         draft_order["totalTax"] = json!(format!("{:.2}", (tax_total * 100.0).round() / 100.0));
-        draft_order["totalTaxSet"] = money_bag(tax_total, &currency);
-        draft_order["totalDiscountsSet"] = money_bag(discount_total, &currency);
-        draft_order["totalShippingPriceSet"] = money_bag(shipping_total, &currency);
-        draft_order["totalPriceSet"] = money_bag(total, &currency);
+        draft_order["totalTaxSet"] =
+            money_bag_from_amount(tax_total, &shop_currency, &presentment_currency);
+        draft_order["totalDiscountsSet"] =
+            money_bag_from_amount(discount_total, &shop_currency, &presentment_currency);
+        draft_order["totalShippingPriceSet"] =
+            money_bag_from_amount(shipping_total, &shop_currency, &presentment_currency);
+        draft_order["totalPriceSet"] =
+            money_bag_from_amount(total, &shop_currency, &presentment_currency);
         draft_order["totalQuantityOfLineItems"] = json!(line_items
             .iter()
             .filter_map(|line| line["quantity"].as_i64())
@@ -2455,7 +2461,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Response> {
-        let fields = root_fields(query, variables)?;
+        let fields = self.execution_root_fields(query, variables)?;
         if !fields
             .iter()
             .any(|field| field.name == "draftOrderInvoiceSend")
@@ -2627,7 +2633,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
-        let fields = root_fields(query, variables)?;
+        let fields = self.execution_root_fields(query, variables)?;
         // Only claim bulk-tag mutations or a `draftOrder` read whose id is
         // actually tracked in this handler's tag state. A bare `draftOrder`
         // detail read of an untracked id must fall through to the lifecycle

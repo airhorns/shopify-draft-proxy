@@ -159,7 +159,8 @@ const automaticDeleteDocument = `#graphql
   }
 `;
 
-const discountHydrateDocument = await readDiscountHydrateDocument();
+const codeHydrateDocument = await readDiscountHydrateDocument('code');
+const automaticHydrateDocument = await readDiscountHydrateDocument('automatic');
 
 function assertSuccess(result: ConformanceGraphqlResult, context: string): void {
   if (result.status < 200 || result.status >= 300 || result.payload.errors) {
@@ -387,10 +388,10 @@ try {
     'expired automatic deactivate',
   );
 
-  const hydrateActiveCode = await runGraphqlRaw(discountHydrateDocument, { id: activeCodeId });
-  const hydrateExpiredCode = await runGraphqlRaw(discountHydrateDocument, { id: expiredCodeId });
-  const hydrateActiveAutomatic = await runGraphqlRaw(discountHydrateDocument, { id: activeAutomaticId });
-  const hydrateExpiredAutomatic = await runGraphqlRaw(discountHydrateDocument, { id: expiredAutomaticId });
+  const hydrateActiveCode = await runGraphqlRaw(codeHydrateDocument, { id: activeCodeId });
+  const hydrateExpiredCode = await runGraphqlRaw(codeHydrateDocument, { id: expiredCodeId });
+  const hydrateActiveAutomatic = await runGraphqlRaw(automaticHydrateDocument, { id: activeAutomaticId });
+  const hydrateExpiredAutomatic = await runGraphqlRaw(automaticHydrateDocument, { id: expiredAutomaticId });
 
   const output = {
     storeDomain,
@@ -424,27 +425,27 @@ try {
     automaticDeactivateNoop,
     upstreamCalls: [
       {
-        operationName: 'DiscountHydrate',
+        operationName: 'DiscountCodeHydrate',
         variables: { id: activeCodeId },
-        query: discountHydrateDocument,
+        query: codeHydrateDocument,
         response: { status: hydrateActiveCode.status, body: hydrateActiveCode.payload },
       },
       {
-        operationName: 'DiscountHydrate',
+        operationName: 'DiscountCodeHydrate',
         variables: { id: expiredCodeId },
-        query: discountHydrateDocument,
+        query: codeHydrateDocument,
         response: { status: hydrateExpiredCode.status, body: hydrateExpiredCode.payload },
       },
       {
-        operationName: 'DiscountHydrate',
+        operationName: 'DiscountAutomaticHydrate',
         variables: { id: activeAutomaticId },
-        query: discountHydrateDocument,
+        query: automaticHydrateDocument,
         response: { status: hydrateActiveAutomatic.status, body: hydrateActiveAutomatic.payload },
       },
       {
-        operationName: 'DiscountHydrate',
+        operationName: 'DiscountAutomaticHydrate',
         variables: { id: expiredAutomaticId },
-        query: discountHydrateDocument,
+        query: automaticHydrateDocument,
         response: { status: hydrateExpiredAutomatic.status, body: hydrateExpiredAutomatic.payload },
       },
     ],

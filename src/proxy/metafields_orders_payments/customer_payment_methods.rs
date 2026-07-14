@@ -93,7 +93,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
-        let fields = root_fields(query, variables)?;
+        let fields = self.execution_root_fields(query, variables)?;
         let customer_fields = fields
             .iter()
             .filter(|field| field.name != "paymentReminderSend");

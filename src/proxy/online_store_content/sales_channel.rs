@@ -1493,9 +1493,7 @@ fn selected_online_store_theme_json(record: &Value, selections: &[SelectedField]
     };
     for selection in selections {
         if selection.name != "files"
-            || !online_store_theme_selection_type_condition_matches(
-                selection.type_condition.as_deref(),
-            )
+            || !selected_field_applies_to_type("OnlineStoreTheme", selection)
         {
             continue;
         }
@@ -1505,13 +1503,6 @@ fn selected_online_store_theme_json(record: &Value, selections: &[SelectedField]
         );
     }
     projected
-}
-
-fn online_store_theme_selection_type_condition_matches(type_condition: Option<&str>) -> bool {
-    matches!(
-        type_condition,
-        None | Some("OnlineStoreTheme" | "Node" | "HasPublishedTranslations")
-    )
 }
 
 fn selected_online_store_theme_files_json(theme: &Value, selection: &SelectedField) -> Value {

@@ -59,7 +59,7 @@ impl DraftProxy {
         operation_type: OperationType,
         _parsed_root_fields: &[String],
     ) -> Option<Response> {
-        let fields = root_fields(query, variables)?;
+        let fields = self.execution_root_fields(query, variables)?;
         let all_roots_allowed = match operation_type {
             OperationType::Mutation => fields.iter().all(|field| {
                 matches!(

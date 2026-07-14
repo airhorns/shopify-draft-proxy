@@ -107,17 +107,11 @@ fn order_return_status(returns: &[Value]) -> &'static str {
 }
 
 fn selected_order_type_condition_applies(field: &SelectedField) -> bool {
-    matches!(
-        field.type_condition.as_deref(),
-        None | Some("Order" | "Node")
-    )
+    selected_field_applies_to_type("Order", field)
 }
 
 fn selected_return_type_condition_applies(field: &SelectedField) -> bool {
-    matches!(
-        field.type_condition.as_deref(),
-        None | Some("Return" | "Node")
-    )
+    selected_field_applies_to_type("Return", field)
 }
 
 fn selection_contains_order_return_fields(selection: &[SelectedField]) -> bool {
@@ -1142,7 +1136,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
-        let fields = root_fields(query, variables)?;
+        let fields = self.execution_root_fields(query, variables)?;
         if matches!(
             root_field,
             "return" | "order" | "reverseDelivery" | "reverseFulfillmentOrder"

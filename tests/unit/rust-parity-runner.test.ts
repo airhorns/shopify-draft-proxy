@@ -30,10 +30,17 @@ describe('parity runner API version routing', () => {
     ).toBe('2026-01');
   });
 
-  it('keeps the current default for unsupported or absent capture versions', () => {
-    expect(
-      defaultApiVersionForCapture('fixtures/example/2026-07/customers/example.json', { apiVersion: '2026-07' }),
-    ).toBe('2026-04');
+  it('rejects unsupported capture versions instead of silently replaying another schema', () => {
+    expect(() =>
+      defaultApiVersionForCapture('fixtures/example/2026-10/customers/example.json', { apiVersion: '2026-10' }),
+    ).toThrow(/2026-10.*executable schemas/u);
+    expect(() => defaultApiVersionForCapture('fixtures/example/2026-10/customers/example.json', {})).toThrow(
+      /2026-10.*executable schemas/u,
+    );
+  });
+
+  it('uses the manifest default when capture metadata and path omit a version', () => {
+    expect(defaultApiVersionForCapture('fixtures/example/unknown/customers/example.json', {})).toBe('2026-07');
   });
 });
 

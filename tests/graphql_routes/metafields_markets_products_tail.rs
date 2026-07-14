@@ -3754,6 +3754,19 @@ fn market_web_presence_first_create_uses_shop_domain_from_live_preflight() {
             }
         });
 
+    let market = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageMarketBeforeFirstWebPresence($input: MarketCreateInput!) {
+          marketCreate(input: $input) {
+            market { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"name": "Staged before web presence", "regions": [{"countryCode": "CA"}]}}),
+    ));
+    assert_eq!(market.body["data"]["marketCreate"]["userErrors"], json!([]));
+
     let response = proxy.process_request(json_graphql_request(
         r#"
         mutation MarketWebPresenceFirstShopDomain($input: WebPresenceCreateInput!) {
@@ -9140,7 +9153,13 @@ fn catalogs_connection_filters_sorts_paginates_and_counts_staged_catalogs() {
     let first_page_query = r#"
         query CatalogConnectionFirstPage($query: String!) {
           catalogs(first: 1, type: MARKET, query: $query, sortKey: TITLE, reverse: true) {
-            nodes { id title status __typename }
+            nodes {
+              id
+              title
+              status
+              __typename
+              ... on MarketCatalog { markets(first: 2) { nodes { id name } } }
+            }
             edges { cursor node { id title } }
             pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
           }
@@ -9161,7 +9180,13 @@ fn catalogs_connection_filters_sorts_paginates_and_counts_staged_catalogs() {
             "id": beta_id,
             "title": "Beta Market",
             "status": "DRAFT",
-            "__typename": "MarketCatalog"
+            "__typename": "MarketCatalog",
+            "markets": {
+                "nodes": [{
+                    "id": "gid://shopify/Market/2",
+                    "name": "Beta Region"
+                }]
+            }
         }])
     );
     assert_eq!(
@@ -9230,7 +9255,13 @@ fn catalogs_connection_filters_sorts_paginates_and_counts_staged_catalogs() {
             "id": alpha_id,
             "title": "Alpha Market",
             "status": "ACTIVE",
-            "__typename": "MarketCatalog"
+            "__typename": "MarketCatalog",
+            "markets": {
+                "nodes": [{
+                    "id": "gid://shopify/Market/1",
+                    "name": "Alpha Region"
+                }]
+            }
         }])
     );
     assert_eq!(

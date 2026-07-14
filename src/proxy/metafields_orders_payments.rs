@@ -756,8 +756,9 @@ pub(in crate::proxy) fn canonical_app_metafield_namespace(
 pub(in crate::proxy) fn metafields_set_coercion_error(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
+    arguments: &BTreeMap<String, ResolvedValue>,
 ) -> Option<Response> {
-    let inputs = metafields_mutation_inputs(query, variables, "metafieldsSet");
+    let inputs = metafields_mutation_inputs(arguments, variables);
     let mut problems: Vec<(usize, &'static str)> = Vec::new();
     for (index, input) in inputs.iter().enumerate() {
         for field in ["key", "ownerId", "value"] {

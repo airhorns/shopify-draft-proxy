@@ -12,24 +12,6 @@ const TAGGABLE_CUSTOMER_HYDRATE_QUERY: &str =
     include_str!("../../config/parity-requests/customers/taggable-customer-hydrate.graphql");
 const TAGGABLE_ARTICLE_HYDRATE_QUERY: &str = "query TagsArticleHydrate($id: ID!) {\n  article(id: $id) {\n    __typename\n    id\n    title\n    handle\n    tags\n    createdAt\n    updatedAt\n    blog { id }\n  }\n}";
 const TAGGABLE_PRODUCT_HYDRATE_QUERY: &str = "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      availablePublicationsCount { count precision }\n      resourcePublicationsCount { count precision }\n      resourcePublicationsV2(first: 10) { nodes { publication { id } publishDate isPublished } }\n      publications(first: 10) { nodes { isPublished publishDate product { id } } }\n    }\n  }\n}";
-const PRODUCT_PAYLOAD_SHOP_HYDRATE_QUERY: &str = r#"#graphql
-  query ProductPayloadShopHydrate {
-    shop {
-      id
-      name
-      myshopifyDomain
-      url
-      currencyCode
-      primaryDomain {
-        id
-        host
-        url
-        sslEnabled
-      }
-    }
-  }
-"#;
-
 const PRODUCT_VARIANTS_BULK_CREATE_INVENTORY_QUANTITIES_LIMIT: usize = 50_000;
 const PRODUCT_VARIANTS_BULK_CREATE_DEFAULT_LOCATION_LIMIT: usize = 200;
 
@@ -37,35 +19,40 @@ fn normalized_sort_string(value: &str) -> StagedSortValue {
     StagedSortValue::String(value.to_ascii_lowercase())
 }
 
-fn gid_tail_sort_string(id: &str) -> StagedSortValue {
+fn gid_tail_sort_key(id: &str) -> StagedSortKey {
     let tail = resource_id_tail(id);
-    tail.parse::<i64>()
-        .map(StagedSortValue::I64)
-        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+    match tail.parse::<i64>() {
+        Ok(value) => vec![StagedSortValue::I64(1), StagedSortValue::I64(value)],
+        Err(_) => vec![
+            StagedSortValue::I64(0),
+            StagedSortValue::String(tail.to_ascii_lowercase()),
+        ],
+    }
 }
 
 fn product_staged_sort_key(product: &ProductRecord, sort_key: Option<&str>) -> StagedSortKey {
-    let primary = match sort_key {
-        None | Some("CREATED_AT") => StagedSortValue::String(product.created_at.clone()),
-        Some("TITLE") => normalized_sort_string(&product.title),
-        Some("VENDOR") => normalized_sort_string(&product.vendor),
-        Some("PRODUCT_TYPE") => normalized_sort_string(&product.product_type),
-        Some("PUBLISHED_AT") => product
+    let mut primary = match sort_key {
+        None | Some("CREATED_AT") => vec![StagedSortValue::String(product.created_at.clone())],
+        Some("TITLE") => vec![normalized_sort_string(&product.title)],
+        Some("VENDOR") => vec![normalized_sort_string(&product.vendor)],
+        Some("PRODUCT_TYPE") => vec![normalized_sort_string(&product.product_type)],
+        Some("PUBLISHED_AT") => vec![product
             .extra_fields
             .get("publishedAt")
             .and_then(Value::as_str)
             .map(|value| StagedSortValue::String(value.to_string()))
-            .unwrap_or(StagedSortValue::Null),
-        Some("UPDATED_AT") => StagedSortValue::String(product.updated_at.clone()),
-        Some("INVENTORY_TOTAL") => StagedSortValue::I64(product.total_inventory),
-        Some("ID") => gid_tail_sort_string(&product.id),
+            .unwrap_or(StagedSortValue::Null)],
+        Some("UPDATED_AT") => vec![StagedSortValue::String(product.updated_at.clone())],
+        Some("INVENTORY_TOTAL") => vec![StagedSortValue::I64(product.total_inventory)],
+        Some("ID") => gid_tail_sort_key(&product.id),
         // Shopify relevance is a search score. The local staged search adapter
         // only computes match/no-match, so keep a deterministic created-at order
         // instead of letting RELEVANCE disappear into the unknown-key branch.
-        Some("RELEVANCE") => StagedSortValue::String(product.created_at.clone()),
-        Some(_) => gid_tail_sort_string(&product.id),
+        Some("RELEVANCE") => vec![StagedSortValue::String(product.created_at.clone())],
+        Some(_) => gid_tail_sort_key(&product.id),
     };
-    vec![primary, gid_tail_sort_string(&product.id)]
+    primary.extend(gid_tail_sort_key(&product.id));
+    primary
 }
 
 impl DraftProxy {
@@ -536,44 +523,12 @@ impl DraftProxy {
         StagedSearchDecision::from_bool(product_matches_search_query(product, &variants, query))
     }
 
-    fn product_payload_shop_needs_hydration(&self, shop_selection: &[SelectedField]) -> bool {
-        if self.config.read_mode == ReadMode::Snapshot || shop_selection.is_empty() {
-            return false;
-        }
-        let has_default_shop = self
-            .store
-            .base
-            .shop
-            .get("myshopifyDomain")
-            .and_then(Value::as_str)
-            == Some("shopify-draft-proxy.local");
-        has_default_shop
-            || shop_selection
-                .iter()
-                .any(|field| self.store.base.shop.get(&field.name).is_none())
-    }
-
     fn hydrate_product_payload_shop_if_selected(
         &mut self,
         request: &Request,
         payload_selection: &[SelectedField],
     ) {
-        let Some(shop_selection) = selected_child_selection(payload_selection, "shop") else {
-            return;
-        };
-        if !self.product_payload_shop_needs_hydration(&shop_selection) {
-            return;
-        }
-        let response = self.upstream_post(
-            request,
-            json!({
-                "query": PRODUCT_PAYLOAD_SHOP_HYDRATE_QUERY,
-                "variables": {}
-            }),
-        );
-        if (200..300).contains(&response.status) {
-            self.hydrate_shop_state_from_response_data(&response.body["data"]);
-        }
+        self.hydrate_payload_shop_identity_if_selected(request, payload_selection);
     }
 
     fn product_create_user_errors_response_with_shop(
@@ -583,11 +538,13 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         errors: Vec<Value>,
     ) -> Response {
-        let (_, payload_selection) =
-            primary_root_response_selection(query, variables, || "productCreate".to_string());
+        let (response_key, payload_selection) =
+            self.execution_primary_root_response_selection(query, variables, || {
+                "productCreate".to_string()
+            });
         self.hydrate_product_payload_shop_if_selected(request, &payload_selection);
         let shop = self.store.effective_shop();
-        product_create_user_errors_response(query, &shop, errors)
+        product_create_user_errors_response(response_key, &payload_selection, &shop, errors)
     }
 
     fn product_delete_missing_product_response_with_shop(
@@ -596,11 +553,13 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        let (_, payload_selection) =
-            primary_root_response_selection(query, variables, || "productDelete".to_string());
+        let (response_key, payload_selection) =
+            self.execution_primary_root_response_selection(query, variables, || {
+                "productDelete".to_string()
+            });
         self.hydrate_product_payload_shop_if_selected(request, &payload_selection);
         let shop = self.store.effective_shop();
-        product_delete_missing_product(query, &shop)
+        product_delete_missing_product(response_key, &payload_selection, &shop)
     }
 
     pub(in crate::proxy) fn product_create(
@@ -609,10 +568,17 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        if let Some(response) = product_create_status_validation_error(request, query, variables) {
+        let field = self.execution_root_field(query, variables, "productCreate");
+        if let Some(response) = field
+            .as_ref()
+            .and_then(|field| product_create_status_validation_error(request, query, field))
+        {
             return MutationOutcome::response(response);
         }
-        let Some(input) = product_input(query, variables) else {
+        let Some(input) = field
+            .as_ref()
+            .and_then(|field| product_input(&field.arguments))
+        else {
             return MutationOutcome::response(self.product_create_user_errors_response_with_shop(
                 request,
                 query,
@@ -688,7 +654,9 @@ impl DraftProxy {
             ));
         }
 
-        let top_level_media_inputs = product_top_level_media_inputs(query, variables);
+        let top_level_media_inputs = field
+            .as_ref()
+            .and_then(|field| product_top_level_media_inputs(&field.arguments));
         if let Some(media_inputs) = top_level_media_inputs.as_ref() {
             let media_errors = product_top_level_media_user_errors(media_inputs);
             if !media_errors.is_empty() {
@@ -769,7 +737,6 @@ impl DraftProxy {
                         .insert("category".to_string(), category);
                 }
                 None => {
-                    let field = primary_root_field(query, variables);
                     let (response_key, location) = field
                         .as_ref()
                         .map(|field| (field.response_key.as_str(), field.location))
@@ -826,7 +793,9 @@ impl DraftProxy {
         }
 
         let (response_key, payload_selection) =
-            primary_root_response_selection(query, variables, || "productCreate".to_string());
+            self.execution_primary_root_response_selection(query, variables, || {
+                "productCreate".to_string()
+            });
         let product_selection =
             selected_child_selection(&payload_selection, "product").unwrap_or_default();
         let variants = self.store.product_variants_for_product(&product.id);
@@ -993,9 +962,11 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let Some(input) = product_input(query, variables) else {
-            let (response_key, payload_selection) =
-                primary_root_response_selection(query, variables, || "productUpdate".to_string());
+        let (response_key, payload_selection, arguments) = self
+            .execution_primary_root_response_parts(query, variables, || {
+                "productUpdate".to_string()
+            });
+        let Some(input) = product_input(&arguments) else {
             return MutationOutcome::response(ok_json(json!({
                 "data": {
                     response_key: selected_json(&json!({
@@ -1023,14 +994,20 @@ impl DraftProxy {
             }
         }
         let Some(id) = resolved_string_field(&input, "id") else {
-            return MutationOutcome::response(product_update_missing_product(query));
+            return MutationOutcome::response(product_update_missing_product(
+                response_key,
+                &payload_selection,
+            ));
         };
         if self.store.product_by_id(&id).is_none() && self.config.read_mode == ReadMode::LiveHybrid
         {
             self.hydrate_product_nodes_for_observation_with_request(request, vec![id.clone()]);
         }
         let Some(existing) = self.store.product_staged_or_base(&id) else {
-            return MutationOutcome::response(product_update_missing_product(query));
+            return MutationOutcome::response(product_update_missing_product(
+                response_key,
+                &payload_selection,
+            ));
         };
 
         if input.contains_key("title")
@@ -1056,8 +1033,8 @@ impl DraftProxy {
 
         if let Some(tags) = incoming_tags.as_ref() {
             if tags.iter().any(|tag| tag.chars().count() > 255) {
-                let (response_key, payload_selection) =
-                    primary_root_response_selection(query, variables, || {
+                let (response_key, payload_selection) = self
+                    .execution_primary_root_response_selection(query, variables, || {
                         "productUpdate".to_string()
                     });
                 let product_selection =
@@ -1087,7 +1064,7 @@ impl DraftProxy {
             }
         }
 
-        let top_level_media_inputs = product_top_level_media_inputs(query, variables);
+        let top_level_media_inputs = product_top_level_media_inputs(&arguments);
         if let Some(media_inputs) = top_level_media_inputs.as_ref() {
             let media_errors = product_top_level_media_user_errors(media_inputs);
             if !media_errors.is_empty() {
@@ -1102,7 +1079,7 @@ impl DraftProxy {
                     extra_fields.insert("category".to_string(), category);
                 }
                 None => {
-                    let field = primary_root_field(query, variables);
+                    let field = self.execution_root_field(query, variables, "productUpdate");
                     let (response_key, location) = field
                         .as_ref()
                         .map(|field| (field.response_key.as_str(), field.location))
@@ -1159,7 +1136,9 @@ impl DraftProxy {
         response_product.media = response_media;
 
         let (response_key, payload_selection) =
-            primary_root_response_selection(query, variables, || "productUpdate".to_string());
+            self.execution_primary_root_response_selection(query, variables, || {
+                "productUpdate".to_string()
+            });
         let product_selection =
             selected_child_selection(&payload_selection, "product").unwrap_or_default();
         let variants = self.store.product_variants_for_product(&product.id);
@@ -1205,7 +1184,7 @@ impl DraftProxy {
         user_errors: Vec<Value>,
     ) -> MutationOutcome {
         let (response_key, payload_selection) =
-            primary_root_response_selection(query, &BTreeMap::new(), || {
+            self.execution_primary_root_response_selection(query, &BTreeMap::new(), || {
                 "productUpdate".to_string()
             });
         let product_selection =
@@ -1272,7 +1251,9 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
         let (response_key, payload_selection) =
-            primary_root_response_selection(query, variables, || root_field.to_string());
+            self.execution_primary_root_response_selection(query, variables, || {
+                root_field.to_string()
+            });
         let product_id = resolved_string_field(variables, "productId").unwrap_or_default();
         let variant_media = resolved_object_list_field(variables, "variantMedia");
         self.hydrate_product_variant_media_owner_state(request, &product_id, &variant_media);
@@ -1710,7 +1691,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
         let Some(field) =
-            Self::product_variant_bulk_root_field(query, variables, "productVariantsBulkCreate")
+            self.product_variant_bulk_root_field(query, variables, "productVariantsBulkCreate")
         else {
             return MutationOutcome::response(json_error(
                 400,
@@ -1873,7 +1854,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
         let Some(field) =
-            Self::product_variant_bulk_root_field(query, variables, "productVariantsBulkUpdate")
+            self.product_variant_bulk_root_field(query, variables, "productVariantsBulkUpdate")
         else {
             return MutationOutcome::response(json_error(
                 400,
@@ -2061,7 +2042,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
         let Some(field) =
-            Self::product_variant_bulk_root_field(query, variables, "productVariantsBulkDelete")
+            self.product_variant_bulk_root_field(query, variables, "productVariantsBulkDelete")
         else {
             return MutationOutcome::response(json_error(
                 400,
@@ -2142,7 +2123,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
         let Some(field) =
-            Self::product_variant_bulk_root_field(query, variables, "productVariantsBulkReorder")
+            self.product_variant_bulk_root_field(query, variables, "productVariantsBulkReorder")
         else {
             return MutationOutcome::response(json_error(
                 400,
@@ -2376,11 +2357,12 @@ impl DraftProxy {
     }
 
     fn product_variant_bulk_root_field(
+        &self,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         root_field: &str,
     ) -> Option<RootFieldSelection> {
-        root_fields(query, variables)?
+        self.execution_root_fields(query, variables)?
             .into_iter()
             .find(|field| field.name == root_field)
     }
@@ -2671,7 +2653,11 @@ impl DraftProxy {
         if let Some(response) = product_delete_required_id_error(query, variables) {
             return MutationOutcome::response(response);
         }
-        let Some(input) = product_input(query, variables) else {
+        let (response_key, payload_selection, root_arguments) = self
+            .execution_primary_root_response_parts(query, variables, || {
+                "productDelete".to_string()
+            });
+        let Some(input) = product_input(&root_arguments) else {
             return MutationOutcome::response(
                 self.product_delete_missing_product_response_with_shop(request, query, variables),
             );
@@ -2681,8 +2667,6 @@ impl DraftProxy {
                 self.product_delete_missing_product_response_with_shop(request, query, variables),
             );
         };
-        let (response_key, payload_selection, root_arguments) =
-            primary_root_response_parts(query, variables, || "productDelete".to_string());
         let is_async_delete = resolved_bool_field(&root_arguments, "synchronous") == Some(false);
         if is_async_delete
             && self
@@ -2858,7 +2842,9 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> MutationOutcome {
-        let fields = root_fields(query, variables).unwrap_or_default();
+        let fields = self
+            .execution_root_fields(query, variables)
+            .unwrap_or_default();
         let Some(field) = fields.iter().find(|field| field.name == root_field) else {
             return MutationOutcome::response(json_error(
                 400,
@@ -3134,7 +3120,9 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> MutationOutcome {
-        let fields = root_fields(query, variables).unwrap_or_default();
+        let fields = self
+            .execution_root_fields(query, variables)
+            .unwrap_or_default();
         let Some(field) = fields.iter().find(|field| field.name == root_field) else {
             return MutationOutcome::response(json_error(
                 400,
@@ -3375,16 +3363,10 @@ fn tags_not_found_mutation_outcome(
 // root field from the parsed document arguments (covering both inline and
 // `$metafields` variable forms), falling back to the raw top-level variables.
 pub(in crate::proxy) fn metafields_mutation_inputs(
-    query: &str,
+    arguments: &BTreeMap<String, ResolvedValue>,
     variables: &BTreeMap<String, ResolvedValue>,
-    root_name: &str,
 ) -> Vec<BTreeMap<String, ResolvedValue>> {
-    let from_field = root_fields(query, variables)
-        .unwrap_or_default()
-        .into_iter()
-        .find(|field| field.name == root_name)
-        .map(|field| resolved_object_list_field(&field.arguments, "metafields"))
-        .unwrap_or_default();
+    let from_field = resolved_object_list_field(arguments, "metafields");
     if from_field.is_empty() {
         resolved_object_list_field(variables, "metafields")
     } else {

@@ -6,8 +6,12 @@ import {
   requireString,
   type JsonRecord,
 } from './conformance-capture-lib.js';
+import { captureDraftProxyShopPricingHydrate } from './support/shopify/runtime-hydration-capture.js';
 
 const cap = await createConformanceCapture();
+const shopPricingHydrate = await captureDraftProxyShopPricingHydrate((query, variables) =>
+  cap.runGraphqlRequest(query, variables),
+);
 const fixturePath = cap.fixturePath('orders', 'draft-order-invoice-send-created-no-recipient.json');
 
 const createDocument = await cap.readRequest('orders', 'draftOrderInvoiceSend-created-no-recipient-create.graphql');
@@ -121,7 +125,7 @@ try {
     cleanup: {
       draftOrderDelete: cleanup,
     },
-    upstreamCalls: [],
+    upstreamCalls: [shopPricingHydrate],
   });
 
   console.log(

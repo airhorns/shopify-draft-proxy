@@ -129,14 +129,10 @@ pub(in crate::proxy) fn selected_delivery_customization_json(
 }
 
 fn delivery_customization_type_condition_matches(
-    record: &Value,
+    _record: &Value,
     selection: &SelectedField,
 ) -> bool {
-    let Some(condition) = selection.type_condition.as_deref() else {
-        return true;
-    };
-    condition == "DeliveryCustomization"
-        || (condition == "Node" && record.get("id").and_then(Value::as_str).is_some())
+    selected_field_applies_to_type("DeliveryCustomization", selection)
 }
 
 fn selected_delivery_customization_metafield(

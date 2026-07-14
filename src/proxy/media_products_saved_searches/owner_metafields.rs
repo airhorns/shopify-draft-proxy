@@ -291,9 +291,11 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let (response_key, payload_selection) =
-            primary_root_response_selection(query, variables, || "metafieldsSet".to_string());
-        let inputs = metafields_mutation_inputs(query, variables, "metafieldsSet");
+        let (response_key, payload_selection, arguments) = self
+            .execution_primary_root_response_parts(query, variables, || {
+                "metafieldsSet".to_string()
+            });
+        let inputs = metafields_mutation_inputs(&arguments, variables);
         let api_client_id = request_app_namespace_api_client_id(request);
         let fallback_reference_ids = if inputs.len() <= METAFIELDS_SET_INPUT_LIMIT {
             self.hydrate_metafield_reference_ids(
@@ -395,9 +397,11 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let (response_key, payload_selection) =
-            primary_root_response_selection(query, variables, || "metafieldsDelete".to_string());
-        let inputs = metafields_mutation_inputs(query, variables, "metafieldsDelete");
+        let (response_key, payload_selection, arguments) = self
+            .execution_primary_root_response_parts(query, variables, || {
+                "metafieldsDelete".to_string()
+            });
+        let inputs = metafields_mutation_inputs(&arguments, variables);
         let api_client_id = request_app_namespace_api_client_id(request);
         if let Some(index) = inputs.iter().position(|input| {
             app_metafield_namespace_requires_api_client(
@@ -538,7 +542,9 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> bool {
-        let fields = root_fields(query, variables).unwrap_or_default();
+        let fields = self
+            .execution_root_fields(query, variables)
+            .unwrap_or_default();
         let mut has_non_product_owner_read = false;
         let mut needs_live_product_hydration = false;
         for field in fields {
@@ -599,7 +605,9 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        let fields = root_fields(query, variables).unwrap_or_default();
+        let fields = self
+            .execution_root_fields(query, variables)
+            .unwrap_or_default();
         self.hydrate_owner_metafield_read_fields(request, &fields, variables);
         let api_client_id = request_app_namespace_api_client_id(request);
         let data = root_payload_json(&fields, |field| {

@@ -53,9 +53,15 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        let Some(fields) = root_fields(query, variables) else {
+        let Some(fields) = self.execution_root_fields(query, variables) else {
             return json_error(400, "Could not parse GraphQL operation");
         };
+        if fields
+            .iter()
+            .any(|field| selection_contains_any(&field.selection, &["currencyCode"]))
+        {
+            self.hydrate_shop_pricing_state_if_missing(request, true, false);
+        }
         if self.should_forward_cold_discount_read(&fields) {
             let response = (self.upstream_transport)(request.clone());
             self.observe_discount_read_response(&fields, &response);
@@ -258,9 +264,12 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let Some(fields) = root_fields(query, variables) else {
+        let Some(fields) = self.execution_root_fields(query, variables) else {
             return MutationOutcome::response(json_error(400, "Could not parse GraphQL operation"));
         };
+        if discount_mutation_fields_require_shop_currency(&fields) {
+            self.hydrate_shop_pricing_state_if_missing(_request, true, false);
+        }
         if let Some(response) = discount_document_level_error_response(&fields) {
             return MutationOutcome::response(response);
         }
@@ -2373,17 +2382,21 @@ impl DraftProxy {
             return self.discount_free_shipping_summary_for_input(typename, input);
         }
         if typename.contains("Basic") {
-            return self.discount_basic_summary_for_input(input);
+            return self.discount_basic_summary_for_input(typename, input);
         }
         "Discount".to_string()
     }
 
-    fn discount_basic_summary_for_input(&self, input: &BTreeMap<String, ResolvedValue>) -> String {
+    fn discount_basic_summary_for_input(
+        &self,
+        typename: &str,
+        input: &BTreeMap<String, ResolvedValue>,
+    ) -> String {
         discount_summary_with_parts(
             format!(
                 "{} {}",
                 discount_amount_off_summary_value(input),
-                self.discount_basic_scope_for_input(input)
+                self.discount_basic_scope_for_input(typename, input)
             ),
             [discount_minimum_requirement_summary(input)],
         )
@@ -2412,16 +2425,20 @@ impl DraftProxy {
         )
     }
 
-    fn discount_basic_scope_for_input(&self, input: &BTreeMap<String, ResolvedValue>) -> String {
+    fn discount_basic_scope_for_input(
+        &self,
+        typename: &str,
+        input: &BTreeMap<String, ResolvedValue>,
+    ) -> String {
         if let Some(title) = self.discount_product_title_scope(input, &["customerGets", "items"]) {
             return title;
         }
-        discount_purchase_scope_summary(
-            input,
-            &["customerGets"],
-            "entire order",
-            self.shop_sells_subscriptions.unwrap_or(false),
-        )
+        let default_scope = if typename.starts_with("DiscountCode") {
+            "one-time purchase products"
+        } else {
+            "entire order"
+        };
+        discount_purchase_scope_summary(input, &["customerGets"], default_scope, false)
     }
 
     fn discount_product_title_scope(
@@ -2467,6 +2484,27 @@ impl DraftProxy {
         }
         None
     }
+}
+
+fn discount_mutation_fields_require_shop_currency(fields: &[RootFieldSelection]) -> bool {
+    const MONEY_FIELDS: &[&str] = &[
+        "amount",
+        "discountAmount",
+        "greaterThanOrEqualToSubtotal",
+        "maximumShippingPrice",
+    ];
+    fields.iter().any(|field| {
+        let Some(input_arg) = discount_mutation_input_arg(&field.name) else {
+            return false;
+        };
+        let Some(input) = discount_input(field, input_arg) else {
+            return false;
+        };
+        let input = ResolvedValue::Object(input);
+        MONEY_FIELDS
+            .iter()
+            .any(|name| resolved_value_contains_field(&input, name))
+    })
 }
 
 fn backfill_context_names<F>(
@@ -3609,10 +3647,10 @@ fn discount_record_from_input(
         existing_discount_field(existing, "minimumRequirement").unwrap_or(Value::Null)
     };
     let destination_selection = if has_input_path(&["destination"]) {
-        discount_destination_selection_from_input(input)
+        discount_destination_selection_from_input(input, existing.is_some())
     } else {
         existing_discount_field(existing, "destinationSelection")
-            .unwrap_or_else(|| discount_destination_selection_from_input(input))
+            .unwrap_or_else(|| discount_destination_selection_from_input(input, false))
     };
     let maximum_shipping_price = if input.contains_key("maximumShippingPrice") {
         discount_maximum_shipping_price_from_input(input, shop_currency_code)
@@ -3949,23 +3987,55 @@ fn discount_body_scalar_field(record: &Value, field: &str) -> Option<Value> {
 }
 
 fn discount_node_selection_applies(selection: &SelectedField, typename: &str) -> bool {
-    selection.type_condition.as_deref().is_none_or(|condition| {
-        condition == typename || condition == "Node" || condition == "DiscountNode"
-    })
+    selected_field_applies_to_type(typename, selection)
 }
 
 fn discount_body_selection_applies(selection: &SelectedField, typename: &str) -> bool {
-    selection
-        .type_condition
-        .as_deref()
-        .is_none_or(|condition| condition == typename || condition == "Discount")
+    selected_field_applies_to_type(typename, selection)
 }
 
 fn discount_item_selection_applies(selection: &SelectedField, typename: &str) -> bool {
-    selection
-        .type_condition
-        .as_deref()
-        .is_none_or(|condition| condition == typename)
+    selected_field_applies_to_type(typename, selection)
+}
+
+#[cfg(test)]
+mod abstract_selection_tests {
+    use super::*;
+
+    fn conditioned_field(type_condition: &str) -> SelectedField {
+        SelectedField {
+            name: "id".to_string(),
+            response_key: "collision".to_string(),
+            location: SourceLocation { line: 1, column: 1 },
+            arguments: Default::default(),
+            selection: Vec::new(),
+            type_condition: Some(type_condition.to_string()),
+        }
+    }
+
+    #[test]
+    fn discount_projectors_use_schema_membership_for_mutually_exclusive_fragments() {
+        assert!(discount_node_selection_applies(
+            &conditioned_field("Node"),
+            "DiscountAutomaticNode"
+        ));
+        assert!(!discount_node_selection_applies(
+            &conditioned_field("DiscountNode"),
+            "DiscountAutomaticNode"
+        ));
+        assert!(discount_body_selection_applies(
+            &conditioned_field("Discount"),
+            "DiscountAutomaticBasic"
+        ));
+        assert!(discount_item_selection_applies(
+            &conditioned_field("DiscountItems"),
+            "DiscountProducts"
+        ));
+        assert!(!discount_item_selection_applies(
+            &conditioned_field("DiscountCollections"),
+            "DiscountProducts"
+        ));
+    }
 }
 
 fn discount_entitlement_ids(items: &Value, connection_key: &str) -> Vec<String> {
@@ -4751,10 +4821,21 @@ fn discount_minimum_requirement_from_input(
     Value::Null
 }
 
-fn discount_destination_selection_from_input(input: &BTreeMap<String, ResolvedValue>) -> Value {
+fn discount_destination_selection_from_input(
+    input: &BTreeMap<String, ResolvedValue>,
+    update_payload: bool,
+) -> Value {
     let input_value = ResolvedValue::Object(input.clone());
     if resolved_object_path(Some(&input_value), &["destination", "countries"]).is_some() {
-        let countries = resolved_string_list_path(input, &["destination", "countries", "add"]);
+        // Shopify uses the `add` values to derive the mutation summary but does not
+        // echo those delta values through `DiscountCountries.countries` on update
+        // payloads. Subsequent activate/deactivate payloads preserve that observed
+        // empty selection while retaining the summary computed from the input.
+        let countries = if update_payload {
+            Vec::new()
+        } else {
+            resolved_string_list_path(input, &["destination", "countries", "add"])
+        };
         return json!({
             "__typename": "DiscountCountries",
             "countries": countries,

@@ -470,7 +470,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let Some(fields) = root_fields(query, variables) else {
+        let Some(fields) = self.execution_root_fields(query, variables) else {
             return json_error(400, "Invalid fulfillment service mutation");
         };
         let data = root_payload_json(&fields, |field| {
@@ -834,16 +834,9 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let fields = root_fields(query, variables).unwrap_or_default();
-        for field in &fields {
-            if field.name == "carrierServiceCreate" {
-                if let Some(error) =
-                    carrier_service_create_callback_url_coercion_error(query, field)
-                {
-                    return ok_json(json!({ "errors": [error] }));
-                }
-            }
-        }
+        let fields = self
+            .execution_root_fields(query, variables)
+            .unwrap_or_default();
         let data = root_payload_json(&fields, |field| {
             let payload = match field.name.as_str() {
                 "carrierServiceCreate" => {
@@ -1077,9 +1070,8 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let (response_key, arguments) = primary_root_field(query, variables)
-            .map(|field| (field.response_key, field.arguments))
-            .unwrap_or_else(|| (root_field.to_string(), BTreeMap::new()));
+        let (response_key, _, arguments) =
+            self.execution_primary_root_response_parts(query, variables, || root_field.to_string());
         let Some(ResolvedValue::String(id)) = arguments.get("id") else {
             return ok_json(
                 json!({ "data": { response_key: { "userErrors": [user_error_omit_code(["id"], "ID is required", None)] } } }),

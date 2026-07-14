@@ -1066,7 +1066,7 @@ impl DraftProxy {
         if root_field != "refundCreate" {
             return None;
         }
-        let fields = root_fields(query, variables)?;
+        let fields = self.execution_root_fields(query, variables)?;
         if !fields.iter().all(|field| field.name == "refundCreate") {
             return None;
         }
@@ -1271,8 +1271,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
-        let field = root_fields(query, variables)
-            .and_then(|fields| fields.into_iter().find(|field| field.name == root_field));
+        let field = self.execution_root_field(query, variables, root_field);
         match root_field {
             "orderCreate"
                 if field

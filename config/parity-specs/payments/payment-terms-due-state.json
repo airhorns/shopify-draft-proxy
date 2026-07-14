@@ -13,6 +13,9 @@
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-terms-due-state.json"
   ],
   "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
+  "proxyConfig": {
+    "readMode": "live-hybrid"
+  },
   "comparisonMode": "captured-vs-proxy-request",
   "proxyRequest": {
     "documentPath": "config/parity-requests/payments/payment-terms-due-state-draft-create.graphql",

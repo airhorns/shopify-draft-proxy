@@ -1015,16 +1015,14 @@ pub(in crate::proxy) struct ProductTopLevelMediaAppend {
 }
 
 pub(in crate::proxy) fn product_top_level_media_inputs(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
+    arguments: &BTreeMap<String, ResolvedValue>,
 ) -> Option<Vec<BTreeMap<String, ResolvedValue>>> {
-    let mut arguments = root_field_arguments(query, variables)?;
-    match arguments.remove("media") {
+    match arguments.get("media") {
         Some(ResolvedValue::List(items)) => Some(
             items
-                .into_iter()
+                .iter()
                 .filter_map(|item| match item {
-                    ResolvedValue::Object(fields) => Some(fields),
+                    ResolvedValue::Object(fields) => Some(fields.clone()),
                     _ => None,
                 })
                 .collect(),
@@ -1432,15 +1430,6 @@ impl DraftProxy {
     }
 }
 
-pub(in crate::proxy) fn product_operation_selects_shop_currency_money(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    root_fields(query, variables)
-        .as_ref()
-        .is_some_and(|fields| product_root_fields_select_shop_currency_money(fields))
-}
-
 pub(in crate::proxy) fn product_root_fields_select_shop_currency_money(
     fields: &[RootFieldSelection],
 ) -> bool {
@@ -1474,18 +1463,6 @@ fn product_selections_include_names(selections: &[SelectedField], names: &[&str]
             selection.name == *field_name || selection.response_key == *field_name
         }) || product_selections_include_names(&selection.selection, names)
     })
-}
-
-fn resolved_value_contains_field(value: &ResolvedValue, field_name: &str) -> bool {
-    match value {
-        ResolvedValue::Object(fields) => fields.iter().any(|(name, value)| {
-            name == field_name || resolved_value_contains_field(value, field_name)
-        }),
-        ResolvedValue::List(values) => values
-            .iter()
-            .any(|value| resolved_value_contains_field(value, field_name)),
-        _ => false,
-    }
 }
 
 #[derive(Clone, Copy)]
@@ -3258,15 +3235,14 @@ fn variant_weight_error_field(prefix: &[String]) -> Value {
 }
 
 pub(in crate::proxy) fn product_create_user_errors_response(
-    query: &str,
+    response_key: String,
+    payload_selection: &[SelectedField],
     shop: &Value,
     errors: Vec<Value>,
 ) -> Response {
-    let (response_key, payload_selection) =
-        primary_root_response_selection(query, &BTreeMap::new(), || "productCreate".to_string());
     ok_json(json!({
         "data": {
-            response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
+            response_key: selected_payload_json(payload_selection, |selection| match selection.name.as_str() {
                 "product" => Some(Value::Null),
                 "shop" => Some(selected_json(shop, &selection.selection)),
                 "userErrors" => selected_user_errors_field(errors.as_slice(), selection),
@@ -3508,15 +3484,10 @@ pub(in crate::proxy) fn invalid_product_taxonomy_node_id_response(
 }
 
 pub(in crate::proxy) fn product_input(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
+    arguments: &BTreeMap<String, ResolvedValue>,
 ) -> Option<BTreeMap<String, ResolvedValue>> {
-    let mut arguments = root_field_arguments(query, variables)?;
-    match arguments
-        .remove("product")
-        .or_else(|| arguments.remove("input"))
-    {
-        Some(ResolvedValue::Object(input)) => Some(input),
+    match arguments.get("product").or_else(|| arguments.get("input")) {
+        Some(ResolvedValue::Object(input)) => Some(input.clone()),
         _ => None,
     }
 }
@@ -3659,12 +3630,8 @@ fn product_scalar_length_field_label(field: ProductScalarLengthField) -> &'stati
 pub(in crate::proxy) fn product_create_status_validation_error(
     request: &Request,
     query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
+    field: &RootFieldSelection,
 ) -> Option<Response> {
-    let field = root_fields(query, variables)
-        .unwrap_or_default()
-        .into_iter()
-        .find(|field| field.name == "productCreate")?;
     let (argument_name, input_object_type) = if field.raw_arguments.contains_key("product") {
         ("product", "ProductCreateInput")
     } else {
@@ -3674,7 +3641,7 @@ pub(in crate::proxy) fn product_create_status_validation_error(
     product_status_input_field_validation_error(
         request,
         query,
-        &field,
+        field,
         input,
         ProductStatusInputContext {
             argument_name,
@@ -3961,24 +3928,32 @@ pub(in crate::proxy) fn product_delete_required_id_error(
     }
 }
 
-pub(in crate::proxy) fn product_update_missing_product(query: &str) -> Response {
-    product_missing_product_response(query, "productUpdate", "product", None)
+pub(in crate::proxy) fn product_update_missing_product(
+    response_key: String,
+    payload_selection: &[SelectedField],
+) -> Response {
+    product_missing_product_response(response_key, payload_selection, "product", None)
 }
 
-pub(in crate::proxy) fn product_delete_missing_product(query: &str, shop: &Value) -> Response {
-    product_missing_product_response(query, "productDelete", "deletedProductId", Some(shop))
+pub(in crate::proxy) fn product_delete_missing_product(
+    response_key: String,
+    payload_selection: &[SelectedField],
+    shop: &Value,
+) -> Response {
+    product_missing_product_response(
+        response_key,
+        payload_selection,
+        "deletedProductId",
+        Some(shop),
+    )
 }
 
 fn product_missing_product_response(
-    query: &str,
-    default_response_key: &str,
+    response_key: String,
+    payload_selection: &[SelectedField],
     null_payload_field: &str,
     shop: Option<&Value>,
 ) -> Response {
-    let (response_key, payload_selection) =
-        primary_root_response_selection(query, &BTreeMap::new(), || {
-            default_response_key.to_string()
-        });
     let user_errors = [user_error(
         ["id"],
         "Product does not exist",
@@ -3986,7 +3961,7 @@ fn product_missing_product_response(
     )];
     ok_json(json!({
         "data": {
-            response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
+            response_key: selected_payload_json(payload_selection, |selection| match selection.name.as_str() {
                 field if field == null_payload_field => Some(Value::Null),
                 "shop" => shop.map(|shop| selected_json(shop, &selection.selection)),
                 "userErrors" => selected_user_errors_field(&user_errors, selection),
