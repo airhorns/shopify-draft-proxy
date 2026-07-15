@@ -36,6 +36,17 @@ Local staged mutations:
 - `return(id:)` resolves staged return records and returns `null` for missing IDs in snapshot mode. Nested
   `Order.returns` reads are derived from the same staged return records through the order-to-return index, so top-level
   and nested reads observe the same staged status, quantity, shipping-fee, and line-item state.
+- Generic `node(id:)` and `nodes(ids:)` resolve staged `Return`, `ReturnableFulfillment`, `ReturnLineItem`,
+  `UnverifiedReturnLineItem`, `ReverseDelivery`, `ReverseDeliveryLineItem`, `ReverseFulfillmentOrder`, and
+  `ReverseFulfillmentOrderLineItem` records from the order-backed return/reverse-logistics graph. Return creation,
+  close/reopen, reverse delivery create/update, reverse fulfillment disposal, dump/restore, and order deletion are
+  reflected immediately where they affect the selected node. Missing, consumed, or deleted IDs return `null`, and
+  `nodes(ids:)` preserves input order and duplicates.
+- `Order.returnStatus` is derived from the effective return lifecycle attached to the order and is projected consistently
+  through singular `order`, `orders`, generic `node`, and nested mutation-payload order selections. Captured 2026-04
+  behavior maps zero returns to `NO_RETURN`, any `REQUESTED` return to `RETURN_REQUESTED`, otherwise any `OPEN` return
+  to `IN_PROGRESS`, otherwise any `CLOSED` return to `RETURNED`. Declined-only and canceled-only return sets report
+  `NO_RETURN`; a return whose last line is removed is `CLOSED` with `totalQuantity: 0` and contributes `RETURNED`.
 - `returnableFulfillments(orderId:)` derives returnable fulfillment lines from the order's staged fulfillment graph and
   subtracts quantities already claimed by staged returns. For locally staged orders it stays fully local even in
   live-hybrid mode; for cold live-hybrid orders the return hydrator may fetch the order fulfillment graph before
@@ -99,11 +110,9 @@ Local staged mutations:
   message and leave return lines, totals, and reverse fulfillment order work unchanged. Return line removal quantities
   must be positive and no greater than the removable quantity for that return line. Exchange-line removal remains
   explicitly unsupported until exchange fixtures exist.
-- `returnProcess` updates processed quantities for local return line items and closes the return for subsequent reads when
-  all lines are processed. Captured 2026-04 behavior returns the mutation payload with status `OPEN`, then exposes
-  `CLOSED` on immediate downstream `return(id:)` / `Order.returns` reads; local staging mirrors that split. Refund duties,
-  refund shipping, financial transfers, exchange processing, and notification behavior are not emulated beyond local
-  metadata and validation boundaries.
+- `returnProcess` updates processed quantities for local return line items and keeps the return `OPEN` in both mutation
+  payloads and immediate downstream reads. Refund duties, refund shipping, financial transfers, exchange processing, and
+  notification behavior are not emulated beyond local metadata and validation boundaries.
 - `reverseDeliveryCreateWithShipping` builds staged reverse delivery lines from `reverseDeliveryLineItems`. Explicit
   entries preserve input order, quantity, and the requested reverse fulfillment order line item; an empty input follows
   Shopify's documented expansion rule and creates one local reverse delivery line for each reverse fulfillment order line
@@ -146,6 +155,9 @@ Local staged mutations:
   success transitions, idempotent no-op branches, remove-from-closed-return rejection/readback, and processed-return
   cancel rejection in
   `config/parity-specs/orders/returnClose-Reopen-Cancel-state-preconditions.json`.
+- Executable parity covers `Order.returnStatus` aggregation across zero, requested, open, mixed requested/open/declined,
+  closed/reopened, processed, canceled-only, declined-only, and removed-line states in
+  `config/parity-specs/orders/order-return-status-lifecycle.json`.
 - Executable parity covers public 2026-04 `returnCreate` with `ReturnInput.returnShippingFee` and deprecated
   `unprocessed`, plus read-after-write `Return.returnShippingFees` / `Order.returns.returnShippingFees`, in
   `config/parity-specs/orders/return-shipping-fee-recorded.json`. The same fixture records the current public-schema

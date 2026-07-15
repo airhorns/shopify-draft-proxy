@@ -357,8 +357,7 @@ fn draft_proxy_route_and_snapshot_helpers_match_current_behavior() {
 fn records_supported_product_mutations_in_meta_log_with_raw_replay_inputs() {
     let mut proxy = snapshot_proxy().with_base_products(vec![base_product()]);
 
-    let create_query =
-        "mutation { productCreate(product: { title: \"Created product\" }) { product { id } } }";
+    let create_query = "mutation CreateForCommit { productCreate(product: { title: \"Created product\" }) { product { id } } }";
     let create = proxy.process_request(graphql_request(
         &json!({ "query": create_query }).to_string(),
     ));
@@ -552,6 +551,140 @@ fn product_mutation_outcomes_finalize_exactly_one_log_draft() {
         "products",
         json!(["gid://shopify/Product/1?shopify-draft-proxy=synthetic"]),
     );
+}
+
+#[test]
+fn multi_root_mutation_executes_serially_and_logs_each_root_once() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![base_product()]);
+    let query = r#"
+        mutation SerialProductMutations($product: ProductUpdateInput!, $tags: [String!]!) {
+          rename: productUpdate(product: $product) {
+            product { id title tags }
+            userErrors { field message }
+          }
+          tagIt: tagsAdd(id: "gid://shopify/Product/base", tags: $tags) {
+            node { ... on Product { id title tags } }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let variables = json!({
+        "product": {
+            "id": "gid://shopify/Product/base",
+            "title": "Renamed product"
+        },
+        "tags": ["new"]
+    });
+
+    let response = proxy.process_request(graphql_request(
+        &json!({ "query": query, "variables": variables }).to_string(),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["rename"]["product"],
+        json!({
+            "id": "gid://shopify/Product/base",
+            "title": "Renamed product",
+            "tags": ["base"]
+        })
+    );
+    assert_eq!(
+        response.body["data"]["tagIt"]["node"],
+        json!({
+            "id": "gid://shopify/Product/base",
+            "title": "Renamed product",
+            "tags": ["base", "new"]
+        })
+    );
+
+    let log = log_snapshot(&proxy);
+    let entries = log["entries"].as_array().expect("mutation log entries");
+    assert_eq!(entries.len(), 2);
+    assert_eq!(
+        entries
+            .iter()
+            .map(|entry| entry["interpreted"]["primaryRootField"].clone())
+            .collect::<Vec<_>>(),
+        vec![json!("productUpdate"), json!("tagsAdd")]
+    );
+}
+
+#[test]
+fn mixed_supported_unsupported_mutation_only_forwards_unsupported_root() {
+    let forwarded = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured = Arc::clone(&forwarded);
+    let mut proxy = DraftProxy::new(Config {
+        read_mode: ReadMode::LiveHybrid,
+        unsupported_mutation_mode: Some(UnsupportedMutationMode::Passthrough),
+        bulk_operation_run_mutation_max_input_file_size_bytes: None,
+        port: 0,
+        shopify_admin_origin: "https://shopify.com".to_string(),
+        snapshot_path: None,
+    })
+    .with_base_products(vec![base_product()])
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body).expect("upstream body");
+        captured.lock().unwrap().push(body.clone());
+        assert!(body["query"]
+            .as_str()
+            .is_some_and(|query| query.contains("urlRedirectCreate")));
+        assert!(body["query"]
+            .as_str()
+            .is_some_and(|query| !query.contains("productUpdate")));
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "redirect": {
+                        "urlRedirect": { "id": "gid://shopify/UrlRedirect/1" },
+                        "userErrors": []
+                    }
+                }
+            }),
+        }
+    });
+
+    let query = r#"
+        mutation MixedSupportedUnsupported {
+          productUpdate(product: { id: "gid://shopify/Product/base", title: "Safe local update" }) {
+            product { id title }
+            userErrors { field message }
+          }
+          redirect: urlRedirectCreate(urlRedirect: { path: "/old", target: "/new" }) {
+            urlRedirect { id }
+            userErrors { message }
+          }
+        }
+    "#;
+    let response = proxy.process_request(graphql_request(&json!({ "query": query }).to_string()));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["productUpdate"]["product"],
+        json!({
+            "id": "gid://shopify/Product/base",
+            "title": "Safe local update"
+        })
+    );
+    assert_eq!(
+        response.body["data"]["redirect"]["urlRedirect"]["id"],
+        json!("gid://shopify/UrlRedirect/1")
+    );
+
+    let forwarded = forwarded.lock().unwrap();
+    assert_eq!(forwarded.len(), 1);
+
+    let log = log_snapshot(&proxy);
+    let entries = log["entries"].as_array().expect("mutation log entries");
+    assert_eq!(entries.len(), 2);
+    assert_eq!(
+        entries[0]["interpreted"]["primaryRootField"],
+        json!("productUpdate")
+    );
+    assert_eq!(entries[1]["operationName"], json!("urlRedirectCreate"));
+    assert_eq!(entries[1]["status"], json!("proxied"));
 }
 
 #[test]
@@ -782,6 +915,10 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
         .as_object_mut()
         .expect("stagedState is object")
         .remove("collectionJobs");
+    state_body["stagedState"]
+        .as_object_mut()
+        .expect("stagedState is object")
+        .remove("fulfillmentOrderCursors");
     let mut expected: Value = serde_json::from_str(
         r##"
             {
@@ -790,6 +927,12 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "giftCardConfiguration": null,
                     "giftCards": {},
                     "localizationProductIds": [],
+                    "orderCountBaselines": {},
+                    "orderOrder": [],
+                    "orders": {},
+                    "metafieldDefinitionNamespaces": [],
+                    "metafieldDefinitionOwnerCatalogs": [],
+                    "metafieldDefinitions": {},
                     "productOrder": [
                         "gid://shopify/Product/base"
                     ],
@@ -858,7 +1001,9 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "shopPolicies": {},
                     "shopPolicyOrder": [],
                     "deliveryProfileOrder": [],
-                    "deliveryProfiles": {}
+                    "deliveryProfiles": {},
+                    "discountOrder": [],
+                    "discounts": {}
                 },
                 "stagedState": {
                     "abandonments": {},
@@ -875,9 +1020,11 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "customersCountBase": null,
                     "delegatedAccessTokens": {},
                     "deletedCustomerIds": [],
+                    "deletedDeliveryCustomizationIds": [],
                     "deletedDeliveryProfileIds": [],
                     "deletedDiscountIds": [],
                     "deletedLocationIds": [],
+                    "deletedMetafieldDefinitions": [],
                     "deletedOrderIds": [],
                     "deletedOwnerMetafields": [],
                     "deletedProductFeedIds": [],
@@ -888,6 +1035,8 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "deletedSavedSearchIds": [],
                     "deletedShippingPackageIds": {},
                     "deletedShopPolicyIds": [],
+                    "deliveryCustomizationOrder": [],
+                    "deliveryCustomizations": {},
                     "deliveryProfileOrder": [],
                     "deliveryProfiles": {},
                     "discountCodeIndex": {},
@@ -2171,8 +2320,7 @@ fn commit_replays_staged_mutations_in_order_and_marks_entries_committed() {
             ok_transport_response(json!({ "data": { "ok": true } }))
         });
 
-    let create_query =
-        "mutation { productCreate(product: { title: \"Created product\" }) { product { id } } }";
+    let create_query = "mutation CreateForCommit { productCreate(product: { title: \"Created product\" }) { product { id } } }";
     let update_query = "mutation { productUpdate(product: { id: \"gid://shopify/Product/base\", title: \"Updated product\" }) { product { id } } }";
     let create_body =
         json!({ "query": create_query, "operationName": "CreateForCommit" }).to_string();

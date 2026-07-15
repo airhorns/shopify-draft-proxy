@@ -1,6 +1,7 @@
 use super::*;
 
 const DELIVERY_PROFILE_VARIANTS_HYDRATE_QUERY: &str = "query ShippingDeliveryProfileVariantsHydrate($ids: [ID!]!) { nodes(ids: $ids) { ... on ProductVariant { id title product { id title handle } } } }";
+const DELIVERY_PROFILE_LOCATION_NODES_HYDRATE_QUERY: &str = "query ShippingDeliveryProfileLocationNodesHydrate($ids: [ID!]!) { nodes(ids: $ids) { __typename ... on Location { id name isActive isFulfillmentService } } }";
 // Must byte-match the recorded `ShippingDeliveryProfileHydrate` upstream call in
 // the same captures. Issued when removing a profile the proxy has not staged
 // locally, to learn whether the target is the shop's default profile (which
@@ -9,8 +10,40 @@ const DELIVERY_PROFILE_DEFAULT_HYDRATE_QUERY: &str =
     "query ShippingDeliveryProfileHydrate($id: ID!) { deliveryProfile(id: $id) { id name default version } }";
 const DELIVERY_PROFILE_UPDATE_HYDRATE_QUERY: &str = "query ShippingDeliveryProfileUpdateHydrate($id: ID!) { deliveryProfile(id: $id) { id name default version } }";
 const DELIVERY_PROFILE_DEFAULT_REMOVE_MESSAGE: &str = "Cannot delete the default profile.";
-const DELIVERY_PROFILE_LOCATION_CATALOG_HYDRATE_FIRST_VALUES: &[usize] = &[250, 3, 2, 1];
+const DELIVERY_PROFILE_LOCATION_CATALOG_FALLBACK_FIRST_VALUES: &[usize] = &[2, 3, 1];
 const DELIVERY_PROFILE_GID_PREFIX: &str = "gid://shopify/DeliveryProfile/";
+
+struct DeliveryProfileMutationOutcome {
+    payload: Value,
+    staged_ids: Vec<String>,
+    errors: Vec<Value>,
+}
+
+impl DeliveryProfileMutationOutcome {
+    fn staged(payload: Value, staged_ids: Vec<String>) -> Self {
+        Self {
+            payload,
+            staged_ids,
+            errors: Vec::new(),
+        }
+    }
+
+    fn unstaged(payload: Value) -> Self {
+        Self::staged(payload, Vec::new())
+    }
+
+    fn resource_not_found(field: &RootFieldSelection, id: &str) -> Self {
+        Self {
+            payload: Value::Null,
+            staged_ids: Vec::new(),
+            errors: vec![delivery_profile_resource_not_found_error(field, id)],
+        }
+    }
+}
+
+enum DeliveryProfileAssociationError {
+    ResourceNotFound(String),
+}
 
 impl DraftProxy {
     pub(in crate::proxy) fn delivery_profile_read_response(
@@ -128,17 +161,25 @@ impl DraftProxy {
         let Some(fields) = root_fields(query, variables) else {
             return json_error(400, "Invalid delivery profile mutation");
         };
+        let mut errors = Vec::new();
         let data = root_payload_json(&fields, |field| {
-            let (payload, ids) = match field.name.as_str() {
+            let outcome = match field.name.as_str() {
                 "deliveryProfileCreate" => self.delivery_profile_create_payload(field, request),
                 "deliveryProfileUpdate" => self.delivery_profile_update_payload(field, request),
                 "deliveryProfileRemove" => self.delivery_profile_remove_payload(field, request),
                 _ => return None,
             };
-            if !ids.is_empty() {
-                self.record_mutation_log_entry(request, query, variables, &field.name, ids);
+            if !outcome.staged_ids.is_empty() {
+                self.record_mutation_log_entry(
+                    request,
+                    query,
+                    variables,
+                    &field.name,
+                    outcome.staged_ids,
+                );
             }
-            Some(payload)
+            errors.extend(outcome.errors);
+            Some(outcome.payload)
         });
         if data.as_object().is_none_or(serde_json::Map::is_empty) {
             json_error(
@@ -146,7 +187,11 @@ impl DraftProxy {
                 &format!("Unsupported delivery profile mutation {root_field}"),
             )
         } else {
-            ok_json(json!({ "data": data }))
+            let mut body = json!({ "data": data });
+            if !errors.is_empty() {
+                body["errors"] = Value::Array(errors);
+            }
+            ok_json(body)
         }
     }
 
@@ -154,23 +199,34 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
         request: &Request,
-    ) -> (Value, Vec<String>) {
+    ) -> DeliveryProfileMutationOutcome {
         let profile_input = resolved_object_field(&field.arguments, "profile").unwrap_or_default();
+        let location_ids = delivery_profile_location_ids_from_input(&profile_input);
+        self.hydrate_delivery_profile_locations(&location_ids, request);
         let mut location_exists =
-            |location_id: &str| self.delivery_profile_location_exists(location_id, request);
+            |location_id: &str| self.delivery_profile_location_exists(location_id);
         let user_errors = delivery_profile_create_user_errors(&profile_input, &mut location_exists);
         if !user_errors.is_empty() {
-            return (
-                delivery_profile_payload_json(Value::Null, &field.selection, user_errors),
-                Vec::new(),
-            );
+            return DeliveryProfileMutationOutcome::unstaged(delivery_profile_payload_json(
+                Value::Null,
+                &field.selection,
+                user_errors,
+            ));
         }
 
         let id = self.next_proxy_synthetic_gid("DeliveryProfile");
         let mut profile = self.delivery_profile_from_input(&id, &profile_input);
-        self.delivery_profile_apply_associations(&mut profile, &profile_input, true, request);
+        if let Err(error) =
+            self.delivery_profile_apply_associations(&mut profile, &profile_input, true, request)
+        {
+            return match error {
+                DeliveryProfileAssociationError::ResourceNotFound(id) => {
+                    DeliveryProfileMutationOutcome::resource_not_found(field, &id)
+                }
+            };
+        }
         self.stage_delivery_profile(profile.clone());
-        (
+        DeliveryProfileMutationOutcome::staged(
             delivery_profile_payload_json(profile, &field.selection, Vec::new()),
             vec![id],
         )
@@ -180,35 +236,35 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
         request: &Request,
-    ) -> (Value, Vec<String>) {
+    ) -> DeliveryProfileMutationOutcome {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(mut profile) = self
             .delivery_profile_for_read(&id)
             .or_else(|| self.delivery_profile_hydrate_for_update(&id, request))
         else {
-            return (
-                delivery_profile_payload_json(
+            return DeliveryProfileMutationOutcome::unstaged(delivery_profile_payload_json(
+                Value::Null,
+                &field.selection,
+                vec![user_error_omit_code(
                     Value::Null,
-                    &field.selection,
-                    vec![user_error_omit_code(
-                        Value::Null,
-                        "Profile could not be updated.",
-                        None,
-                    )],
-                ),
-                Vec::new(),
-            );
+                    "Profile could not be updated.",
+                    None,
+                )],
+            ));
         };
 
         let profile_input = resolved_object_field(&field.arguments, "profile").unwrap_or_default();
+        let location_ids = delivery_profile_location_ids_from_input(&profile_input);
+        self.hydrate_delivery_profile_locations(&location_ids, request);
         let mut location_exists =
-            |location_id: &str| self.delivery_profile_location_exists(location_id, request);
+            |location_id: &str| self.delivery_profile_location_exists(location_id);
         let user_errors = delivery_profile_update_user_errors(&profile_input, &mut location_exists);
         if !user_errors.is_empty() {
-            return (
-                delivery_profile_payload_json(Value::Null, &field.selection, user_errors),
-                Vec::new(),
-            );
+            return DeliveryProfileMutationOutcome::unstaged(delivery_profile_payload_json(
+                Value::Null,
+                &field.selection,
+                user_errors,
+            ));
         }
 
         if profile["default"].as_bool() != Some(true) {
@@ -219,9 +275,17 @@ impl DraftProxy {
         let version = profile["version"].as_i64().unwrap_or(1) + 1;
         profile["version"] = json!(version);
         self.delivery_profile_apply_update_input(&mut profile, &profile_input);
-        self.delivery_profile_apply_associations(&mut profile, &profile_input, false, request);
+        if let Err(error) =
+            self.delivery_profile_apply_associations(&mut profile, &profile_input, false, request)
+        {
+            return match error {
+                DeliveryProfileAssociationError::ResourceNotFound(id) => {
+                    DeliveryProfileMutationOutcome::resource_not_found(field, &id)
+                }
+            };
+        }
         self.stage_delivery_profile(profile.clone());
-        (
+        DeliveryProfileMutationOutcome::staged(
             delivery_profile_payload_json(profile, &field.selection, Vec::new()),
             vec![id],
         )
@@ -231,7 +295,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
         request: &Request,
-    ) -> (Value, Vec<String>) {
+    ) -> DeliveryProfileMutationOutcome {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let profile = self.delivery_profile_for_read(&id);
         if profile
@@ -240,24 +304,23 @@ impl DraftProxy {
             .and_then(Value::as_bool)
             == Some(true)
         {
-            return delivery_profile_remove_default_payload(&field.selection);
+            let (payload, ids) = delivery_profile_remove_default_payload(&field.selection);
+            return DeliveryProfileMutationOutcome::staged(payload, ids);
         }
         if profile.is_none() {
             if self.delivery_profile_hydrates_as_default(&id, request) {
-                return delivery_profile_remove_default_payload(&field.selection);
+                let (payload, ids) = delivery_profile_remove_default_payload(&field.selection);
+                return DeliveryProfileMutationOutcome::staged(payload, ids);
             }
-            return (
-                delivery_profile_remove_payload_json(
+            return DeliveryProfileMutationOutcome::unstaged(delivery_profile_remove_payload_json(
+                Value::Null,
+                &field.selection,
+                vec![user_error_omit_code(
                     Value::Null,
-                    &field.selection,
-                    vec![user_error_omit_code(
-                        Value::Null,
-                        "The Delivery Profile cannot be found for the shop.",
-                        None,
-                    )],
-                ),
-                Vec::new(),
-            );
+                    "The Delivery Profile cannot be found for the shop.",
+                    None,
+                )],
+            ));
         }
 
         self.store.staged.delivery_profiles.remove(&id);
@@ -266,7 +329,7 @@ impl DraftProxy {
             "id": self.next_proxy_synthetic_gid("Job"),
             "done": false
         });
-        (
+        DeliveryProfileMutationOutcome::staged(
             delivery_profile_remove_payload_json(job, &field.selection, Vec::new()),
             vec![id],
         )
@@ -588,7 +651,7 @@ impl DraftProxy {
         input: &BTreeMap<String, ResolvedValue>,
         create: bool,
         request: &Request,
-    ) {
+    ) -> Result<(), DeliveryProfileAssociationError> {
         let mut variant_ids = profile["profileItems"]
             .as_array()
             .into_iter()
@@ -604,38 +667,80 @@ impl DraftProxy {
             })
             .collect::<Vec<_>>();
         for variant_id in list_string_field(input, "variantsToAssociate") {
+            if !is_shopify_gid_of_type(&variant_id, "ProductVariant") {
+                return Err(DeliveryProfileAssociationError::ResourceNotFound(
+                    variant_id,
+                ));
+            }
             if !variant_ids.contains(&variant_id) {
                 variant_ids.push(variant_id);
             }
         }
         if !create {
-            let removals = list_string_field(input, "variantsToDissociate")
-                .into_iter()
-                .collect::<BTreeSet<_>>();
+            let removals = list_string_field(input, "variantsToDissociate");
+            for variant_id in &removals {
+                if !is_shopify_gid_of_type(variant_id, "ProductVariant") {
+                    return Err(DeliveryProfileAssociationError::ResourceNotFound(
+                        variant_id.clone(),
+                    ));
+                }
+            }
+            let removals = removals.into_iter().collect::<BTreeSet<_>>();
             variant_ids.retain(|variant_id| !removals.contains(variant_id));
         }
-        let hydrated_items = self.delivery_profile_hydrated_variant_items(&variant_ids, request);
+        let mut resolved_items = BTreeMap::new();
+        let unresolved_variant_ids = variant_ids
+            .iter()
+            .filter_map(|variant_id| {
+                match self.delivery_profile_item_for_local_variant(variant_id) {
+                    Some(item) => {
+                        resolved_items.insert(variant_id.clone(), item);
+                        None
+                    }
+                    None => Some(variant_id.clone()),
+                }
+            })
+            .collect::<Vec<_>>();
+        resolved_items.extend(
+            self.delivery_profile_hydrated_variant_items(&unresolved_variant_ids, request)?,
+        );
         profile["profileItems"] = Value::Array(
             variant_ids
                 .into_iter()
-                .map(|variant_id| {
-                    hydrated_items
-                        .get(&variant_id)
-                        .cloned()
-                        .unwrap_or_else(|| delivery_profile_item_for_variant(&variant_id, None))
-                })
+                .filter_map(|variant_id| resolved_items.remove(&variant_id))
                 .collect(),
         );
         refresh_delivery_profile_counts(profile);
+        Ok(())
+    }
+
+    fn delivery_profile_item_for_local_variant(&self, variant_id: &str) -> Option<Value> {
+        if let Some(variant) = self.store.product_variant_by_id(variant_id) {
+            let product = self.store.product_by_id(&variant.product_id)?;
+            return Some(delivery_profile_item_for_resolved_variant(
+                &variant.id,
+                &variant.title,
+                &product.id,
+                &product.title,
+            ));
+        }
+        let (variant, product) = self.store.fixed_price_variant_lookup(variant_id)?;
+        let variant_title = variant.get("title").and_then(Value::as_str)?;
+        Some(delivery_profile_item_for_resolved_variant(
+            variant_id,
+            variant_title,
+            &product.id,
+            &product.title,
+        ))
     }
 
     fn delivery_profile_hydrated_variant_items(
         &mut self,
         variant_ids: &[String],
         request: &Request,
-    ) -> BTreeMap<String, Value> {
-        if variant_ids.is_empty() {
-            return BTreeMap::new();
+    ) -> Result<BTreeMap<String, Value>, DeliveryProfileAssociationError> {
+        if variant_ids.is_empty() || self.config.read_mode != ReadMode::LiveHybrid {
+            return Ok(BTreeMap::new());
         }
         let response = self.upstream_post(
             request,
@@ -644,20 +749,34 @@ impl DraftProxy {
                 "variables": { "ids": variant_ids }
             }),
         );
-        response
+        if !(200..300).contains(&response.status)
+            || response
+                .body
+                .get("errors")
+                .and_then(Value::as_array)
+                .is_some_and(|errors| !errors.is_empty())
+        {
+            return Err(DeliveryProfileAssociationError::ResourceNotFound(
+                variant_ids[0].clone(),
+            ));
+        }
+        let Some(nodes) = response
             .body
             .pointer("/data/nodes")
             .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
+        else {
+            return Err(DeliveryProfileAssociationError::ResourceNotFound(
+                variant_ids[0].clone(),
+            ));
+        };
+        Ok(nodes
+            .iter()
             .filter_map(|node| {
                 let id = node.get("id").and_then(Value::as_str)?.to_string();
-                Some((
-                    id.clone(),
-                    delivery_profile_item_for_variant(&id, Some(node)),
-                ))
+                let item = delivery_profile_item_for_observed_variant(node)?;
+                Some((id, item))
             })
-            .collect()
+            .collect())
     }
 
     fn delivery_profile_hydrates_as_default(&self, id: &str, request: &Request) -> bool {
@@ -777,41 +896,80 @@ impl DraftProxy {
         })
     }
 
-    fn delivery_profile_location_exists(&mut self, id: &str, request: &Request) -> bool {
-        if id.is_empty() {
-            return false;
-        }
-        if self.location_for_read(id).is_some() {
-            return true;
-        }
-        self.hydrate_delivery_profile_location_catalog(request);
-        if self.location_for_read(id).is_some() {
-            return true;
-        }
-        if self.has_observed_delivery_profile_location_catalog()
-            || self.config.read_mode == ReadMode::Snapshot
-        {
-            return self.location_for_read(id).is_some();
-        }
-        self.ensure_location_hydrated(id, request);
-        self.location_for_read(id).is_some()
-    }
-
-    fn has_observed_delivery_profile_location_catalog(&self) -> bool {
-        !self.store.staged.observed_shipping_locations.is_empty()
-    }
-
-    fn hydrate_delivery_profile_location_catalog(&mut self, request: &Request) {
-        if self.config.read_mode == ReadMode::Snapshot
-            || self.has_observed_delivery_profile_location_catalog()
-        {
+    fn hydrate_delivery_profile_locations(&mut self, location_ids: &[String], request: &Request) {
+        if self.config.read_mode == ReadMode::Snapshot {
             return;
         }
-        for first in DELIVERY_PROFILE_LOCATION_CATALOG_HYDRATE_FIRST_VALUES {
+
+        let mut missing_location_ids = Vec::new();
+        for location_id in location_ids {
+            if self.location_for_read(location_id).is_some() {
+                continue;
+            }
+            missing_location_ids.push(location_id.clone());
+        }
+        if missing_location_ids.is_empty() {
+            return;
+        }
+
+        self.hydrate_delivery_profile_location_nodes(&missing_location_ids, request);
+
+        let mut unresolved_location_ids = Vec::new();
+        for location_id in missing_location_ids {
+            if self.location_for_read(&location_id).is_none() {
+                unresolved_location_ids.push(location_id);
+            }
+        }
+        if !unresolved_location_ids.is_empty() {
+            self.hydrate_delivery_profile_location_catalog_fallback(
+                &unresolved_location_ids,
+                request,
+            );
+        }
+    }
+
+    fn hydrate_delivery_profile_location_nodes(
+        &mut self,
+        location_ids: &[String],
+        request: &Request,
+    ) {
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": DELIVERY_PROFILE_LOCATION_NODES_HYDRATE_QUERY,
+                "variables": { "ids": location_ids }
+            }),
+        );
+        if !(200..300).contains(&response.status) {
+            return;
+        }
+        let Some(nodes) = response.body["data"]["nodes"].as_array() else {
+            return;
+        };
+        for node in nodes {
+            if node.get("__typename").and_then(Value::as_str) != Some("Location") {
+                continue;
+            }
+            self.stage_observed_shipping_location(node.clone());
+        }
+    }
+
+    fn hydrate_delivery_profile_location_catalog_fallback(
+        &mut self,
+        location_ids: &[String],
+        request: &Request,
+    ) {
+        for first in delivery_profile_location_catalog_fallback_first_values(location_ids.len()) {
+            if location_ids
+                .iter()
+                .all(|location_id| self.location_for_read(location_id).is_some())
+            {
+                return;
+            }
             let response = self.upstream_post(
                 request,
                 json!({
-                    "query": delivery_profile_locations_hydrate_query(*first),
+                    "query": delivery_profile_locations_hydrate_query(first),
                     "variables": {}
                 }),
             );
@@ -819,8 +977,11 @@ impl DraftProxy {
                 continue;
             }
             self.observe_delivery_profile_locations_response(&response);
-            return;
         }
+    }
+
+    fn delivery_profile_location_exists(&self, id: &str) -> bool {
+        !id.is_empty() && self.location_for_read(id).is_some()
     }
 
     fn delivery_profiles_connection_json(
@@ -968,6 +1129,19 @@ fn delivery_profile_locations_hydrate_query(first: usize) -> String {
     )
 }
 
+fn delivery_profile_location_catalog_fallback_first_values(requested_count: usize) -> Vec<usize> {
+    let mut first_values = Vec::new();
+    if (1..=3).contains(&requested_count) {
+        first_values.push(requested_count);
+    }
+    for first in DELIVERY_PROFILE_LOCATION_CATALOG_FALLBACK_FIRST_VALUES {
+        if !first_values.contains(first) {
+            first_values.push(*first);
+        }
+    }
+    first_values
+}
+
 fn collect_delivery_profile_response_values(value: &Value, profiles: &mut Vec<Value>) {
     if value
         .get("id")
@@ -1002,6 +1176,41 @@ fn collect_delivery_profile_response_values(value: &Value, profiles: &mut Vec<Va
         for item in items {
             collect_delivery_profile_response_values(item, profiles);
         }
+    }
+}
+
+fn delivery_profile_location_ids_from_input(
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Vec<String> {
+    let mut seen = BTreeSet::new();
+    let mut location_ids = Vec::new();
+    for group in resolved_object_list_field(input, "locationGroupsToCreate") {
+        collect_unique_delivery_profile_location_ids(
+            list_string_field(&group, "locations"),
+            &mut seen,
+            &mut location_ids,
+        );
+    }
+    for group in resolved_object_list_field(input, "locationGroupsToUpdate") {
+        collect_unique_delivery_profile_location_ids(
+            list_string_field(&group, "locationsToAdd"),
+            &mut seen,
+            &mut location_ids,
+        );
+    }
+    location_ids
+}
+
+fn collect_unique_delivery_profile_location_ids(
+    ids: Vec<String>,
+    seen: &mut BTreeSet<String>,
+    location_ids: &mut Vec<String>,
+) {
+    for id in ids {
+        if id.is_empty() || !seen.insert(id.clone()) {
+            continue;
+        }
+        location_ids.push(id);
     }
 }
 
@@ -1042,6 +1251,15 @@ fn delivery_profile_remove_default_payload(selections: &[SelectedField]) -> (Val
         ),
         Vec::new(),
     )
+}
+
+fn delivery_profile_resource_not_found_error(field: &RootFieldSelection, id: &str) -> Value {
+    json!({
+        "message": format!("Invalid id: {id}"),
+        "locations": graphql_locations(field.location),
+        "extensions": { "code": "RESOURCE_NOT_FOUND" },
+        "path": [field.response_key.clone()]
+    })
 }
 
 fn delivery_method_description_from_input(input: &BTreeMap<String, ResolvedValue>) -> Value {

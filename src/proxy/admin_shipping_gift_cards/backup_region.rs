@@ -2,6 +2,8 @@ use super::*;
 
 const BACKUP_REGION_ACCESS_SCOPES_QUERY: &str =
     "query BackupRegionAccessScopes { currentAppInstallation { accessScopes { handle } } }";
+const BACKUP_REGION_ACCESS_SCOPES_CACHE_FIELD: &str =
+    "__draftProxyBackupRegionAccessScopesHydrated";
 const BACKUP_REGION_CURRENT_HYDRATE_QUERY: &str = r#"query BackupRegionCurrentHydrate {
   backupRegion {
     __typename
@@ -119,7 +121,6 @@ impl DraftProxy {
             return ok_json(access_denied_body());
         }
         let hydrate_current = Self::hydrate_current_backup_region_from_upstream;
-        let hydrate_markets = Self::hydrate_backup_region_markets_from_upstream;
 
         let region = match country_code.as_deref() {
             None => {
@@ -133,12 +134,15 @@ impl DraftProxy {
                     .then(|| self.store.staged.backup_region.clone())
             }
             Some(code) => {
-                let mut region = self.backup_region_country_for_code(code);
+                let mut region = self
+                    .backup_region_country_for_code(code)
+                    .or_else(|| self.available_backup_region_for_code(code));
                 if region.is_none() && self.config.read_mode != ReadMode::Snapshot {
-                    if self.hydrate_access_denied(request, hydrate_markets) {
+                    let hydrate = self.hydrate_available_backup_regions_from_upstream(request);
+                    if backup_region_response_is_access_denied(&hydrate.body) {
                         return ok_json(access_denied_body());
                     }
-                    region = self.backup_region_country_for_code(code);
+                    region = self.available_backup_region_for_code(code);
                 }
                 if region.is_none() {
                     if self.store.staged.backup_region.is_null()
@@ -213,6 +217,9 @@ impl DraftProxy {
                 return !backup_region_scopes_include_markets(&scopes);
             }
         }
+        if let Some(scopes) = self.cached_backup_region_access_scopes(request) {
+            return !backup_region_scopes_include_markets(&scopes);
+        }
         if self.config.read_mode == ReadMode::Snapshot {
             return false;
         }
@@ -230,7 +237,42 @@ impl DraftProxy {
         let Some(scopes) = current_app_installation_access_scopes(&response.body) else {
             return false;
         };
+        self.observe_current_app_installation_response(request, &response);
+        self.mark_backup_region_access_scopes_cached(request);
         !backup_region_scopes_include_markets(&scopes)
+    }
+
+    fn cached_backup_region_access_scopes(&self, request: &Request) -> Option<Vec<String>> {
+        if request_header(request, ACCESS_SCOPES_HEADER).is_some() {
+            return Some(
+                app_access_scope_handles(&current_app_installation_from_request(request))
+                    .into_iter()
+                    .collect(),
+            );
+        }
+        let request_app_id = request_app_gid(request);
+        let app_id = self.current_app_installation_app_id_for_request(&request_app_id)?;
+        let installation = self.app_installation_for_app(&app_id)?;
+        (installation
+            .get(BACKUP_REGION_ACCESS_SCOPES_CACHE_FIELD)
+            .and_then(Value::as_bool)
+            == Some(true))
+        .then(|| app_access_scope_handles(installation).into_iter().collect())
+    }
+
+    fn mark_backup_region_access_scopes_cached(&mut self, request: &Request) {
+        let request_app_id = request_app_gid(request);
+        let Some(app_id) = self.current_app_installation_app_id_for_request(&request_app_id) else {
+            return;
+        };
+        let Some(Value::Object(installation)) = self.store.staged.installed_apps.get_mut(&app_id)
+        else {
+            return;
+        };
+        installation.insert(
+            BACKUP_REGION_ACCESS_SCOPES_CACHE_FIELD.to_string(),
+            json!(true),
+        );
     }
 
     fn current_backup_region_for_code(&self, country_code: &str) -> Option<Value> {

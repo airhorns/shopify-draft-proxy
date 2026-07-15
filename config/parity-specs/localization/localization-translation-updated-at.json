@@ -2,7 +2,12 @@
   "scenarioId": "localization-translation-updated-at",
   "operationNames": ["productCreate", "shopLocaleEnable", "translationsRegister", "translatableResource"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "downstream-read-parity"],
+  "assertionKinds": [
+    "payload-shape",
+    "downstream-read-parity",
+    "translation-updated-at-ordering",
+    "failed-mutation-timestamp-stability"
+  ],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-translation-updated-at.json"
   ],
@@ -54,8 +59,8 @@
         ]
       },
       {
-        "name": "translations-register-updated-at",
-        "capturePath": "$.register.response.data.translationsRegister",
+        "name": "translations-register-initial-updated-at",
+        "capturePath": "$.initialRegister.response.data.translationsRegister",
         "proxyPath": "$.data.translationsRegister",
         "proxyRequest": {
           "documentPath": "config/parity-requests/localization/localization-translation-updated-at-register.graphql",
@@ -66,7 +71,7 @@
               "path": "$.data.productCreate.product.id"
             },
             "translations": {
-              "fromCapturePath": "$.register.variables.translations"
+              "fromCapturePath": "$.initialRegister.variables.translations"
             }
           }
         },
@@ -79,7 +84,32 @@
         ]
       },
       {
-        "name": "translatable-resource-updated-at-read",
+        "name": "translations-register-update-advances-updated-at",
+        "capturePath": "$.updateRegister.response.data.translationsRegister",
+        "proxyPath": "$.data.translationsRegister",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translation-updated-at-register.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "resourceId": {
+              "fromProxyResponse": "setup-product-create",
+              "path": "$.data.productCreate.product.id"
+            },
+            "translations": {
+              "fromCapturePath": "$.updateRegister.variables.translations"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.translations[0].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy stamp translations at different times; parity requires the field to be present with a DateTime-shaped value. The capture script asserts this timestamp advanced from the initial successful register."
+          }
+        ]
+      },
+      {
+        "name": "translatable-resource-updated-at-read-after-update",
         "capturePath": "$.downstreamRead.response.data.translatableResource",
         "proxyPath": "$.data.translatableResource",
         "proxyRequest": {
@@ -104,8 +134,53 @@
             "reason": "Shopify and the proxy stamp translations at different times; parity requires the downstream row to retain a DateTime-shaped value."
           }
         ]
+      },
+      {
+        "name": "translations-register-rejected-invalid-digest",
+        "capturePath": "$.rejectedRegister.response.data.translationsRegister",
+        "proxyPath": "$.data.translationsRegister",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translation-updated-at-register.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "resourceId": {
+              "fromProxyResponse": "setup-product-create",
+              "path": "$.data.productCreate.product.id"
+            },
+            "translations": {
+              "fromCapturePath": "$.rejectedRegister.variables.translations"
+            }
+          }
+        }
+      },
+      {
+        "name": "translatable-resource-updated-at-read-after-rejected-update",
+        "capturePath": "$.downstreamReadAfterRejected.response.data.translatableResource",
+        "proxyPath": "$.data.translatableResource",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translation-updated-at-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "resourceId": {
+              "fromProxyResponse": "setup-product-create",
+              "path": "$.data.productCreate.product.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.resourceId",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy reads back the synthetic local Product GID while the live capture reads the disposable Shopify Product GID."
+          },
+          {
+            "path": "$.translations[0].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the proxy stamp translations at different times; parity requires the downstream row to retain a DateTime-shaped value. The capture script asserts the rejected stale-digest update left this timestamp unchanged from the successful update."
+          }
+        ]
       }
     ]
   },
-  "notes": "Live Admin GraphQL 2026-04 capture extends the localization digest/known-resource flow: it creates a disposable product, enables French, reads the product title digest, registers a valid title translation while selecting Translation.updatedAt, reads the staged translation back through translatableResource(...).translations, then deletes the product and restores the locale only when the script enabled it."
+  "notes": "Live Admin GraphQL 2026-04 capture extends the localization digest/known-resource flow: it creates a disposable product, enables French, reads the product title digest, registers an initial valid title translation while selecting Translation.updatedAt, waits across Shopify's second-precision timestamp boundary, updates the same title translation, reads it back through translatableResource(...).translations, verifies a rejected stale-digest update leaves the readback timestamp stable, then deletes the product and restores the locale only when the script enabled it. Absolute timestamp values remain volatile in proxy parity; ordering and failed-update stability are enforced by the registered capture script plus runtime clock tests."
 }

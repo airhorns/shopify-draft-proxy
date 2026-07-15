@@ -1,0 +1,13 @@
+query First {
+  shop {
+    id
+  }
+}
+
+query Selected {
+  products(first: 0) {
+    nodes {
+      id
+    }
+  }
+}

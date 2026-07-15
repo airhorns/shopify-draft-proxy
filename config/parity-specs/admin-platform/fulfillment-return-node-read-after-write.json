@@ -1,0 +1,731 @@
+{
+  "scenarioId": "fulfillment-return-node-read-after-write",
+  "operationNames": [
+    "node",
+    "nodes",
+    "orderCreate",
+    "fulfillmentOrderHold",
+    "fulfillmentOrderReleaseHold",
+    "fulfillmentCreate",
+    "fulfillmentEventCreate",
+    "fulfillmentTrackingInfoUpdate",
+    "returnableFulfillments",
+    "returnRequest",
+    "returnApproveRequest",
+    "reverseDeliveryCreateWithShipping",
+    "reverseDeliveryShippingUpdate",
+    "returnClose",
+    "returnReopen"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform/fulfillment-return-node-read-after-write.json"
+  ],
+  "proxyConfig": {
+    "readMode": "snapshot"
+  },
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
+  "proxyRequest": {
+    "documentCapturePath": "$.setup.orderCreate.query",
+    "variablesCapturePath": "$.setup.orderCreate.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Admin GraphQL generic node/nodes evidence for fulfillment, fulfillment-order, return, returnable fulfillment, and reverse-logistics resources after public lifecycle writes. The live schema exposes UnverifiedReturnLineItem as a Node type but no public Return field or input path produced a non-null instance; this scenario captures its missing-node null behavior and the workpad tracks the non-null evidence gap.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.fulfillmentOrderNode.id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.fulfillmentOrderNode.order.id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.fulfillmentOrderNode.fulfillmentHolds[*].id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.fulfillmentOrderNode.lineItems.nodes[*].id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.fulfillmentOrderNode.lineItems.nodes[*].lineItem.id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.fulfillmentHoldNode.id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.fulfillmentOrderLineItemNode.id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.fulfillmentOrderLineItemNode.lineItem.id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.duplicateNodes[*].id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.duplicateNodes[*].reverseFulfillmentOrder.id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.fulfillmentNode.id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.fulfillmentNode.order.id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.fulfillmentNode.events.nodes[*].id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.fulfillmentNode.fulfillmentLineItems.nodes[*].id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.fulfillmentNode.fulfillmentLineItems.nodes[*].lineItem.id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.fulfillmentLineItemNode.id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.fulfillmentLineItemNode.lineItem.id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.fulfillmentEventNode.id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.returnableFulfillmentNode.id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.returnableFulfillmentNode.fulfillment.id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.returnableFulfillmentNode.returnableFulfillmentLineItems.nodes[*].fulfillmentLineItem.id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.returnableFulfillmentNode.returnableFulfillmentLineItems.nodes[*].fulfillmentLineItem.lineItem.id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.returnNode.id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.returnNode.name",
+        "matcher": "non-empty-string",
+        "reason": "Return names include the independently allocated order number."
+      },
+      {
+        "path": "$.returnNode.closedAt",
+        "matcher": "iso-timestamp",
+        "reason": "Close timestamps are generated at live/proxy execution time."
+      },
+      {
+        "path": "$.returnNode.returnLineItems.nodes[*].id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.returnNode.reverseFulfillmentOrders.nodes[*].id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.returnNode.reverseFulfillmentOrders.nodes[*].lineItems.nodes[*].id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.returnNode.reverseFulfillmentOrders.nodes[*].lineItems.nodes[*].fulfillmentLineItem.id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.returnNode.reverseFulfillmentOrders.nodes[*].reverseDeliveries.nodes[*].id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.returnLineItemNode.id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.returnLineItemNode.fulfillmentLineItem.id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.returnLineItemNode.fulfillmentLineItem.lineItem.id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.reverseFulfillmentOrderNode.id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.reverseFulfillmentOrderNode.order.id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.reverseFulfillmentOrderNode.lineItems.nodes[*].id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.reverseFulfillmentOrderNode.lineItems.nodes[*].fulfillmentLineItem.id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.reverseFulfillmentOrderNode.reverseDeliveries.nodes[*].id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.reverseFulfillmentOrderLineItemNode.id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.reverseFulfillmentOrderLineItemNode.fulfillmentLineItem.id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.reverseDeliveryNode.id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.reverseDeliveryNode.reverseFulfillmentOrder.id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.reverseDeliveryNode.reverseDeliveryLineItems.nodes[*].id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.reverseDeliveryNode.reverseDeliveryLineItems.nodes[*].reverseFulfillmentOrderLineItem.id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.reverseDeliveryLineItemNode.id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      },
+      {
+        "path": "$.reverseDeliveryLineItemNode.reverseFulfillmentOrderLineItem.id",
+        "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+        "reason": "Shopify and the proxy allocate independent local IDs."
+      }
+    ],
+    "targets": [
+      {
+        "name": "order-create-setup",
+        "capturePath": "$.setup.orderCreate.response.payload.data.orderCreate",
+        "proxyPath": "$.data.orderCreate",
+        "selectedPaths": [
+          "$.userErrors",
+          "$.order.displayFulfillmentStatus",
+          "$.order.fulfillmentOrders.nodes[0].status",
+          "$.order.fulfillmentOrders.nodes[0].requestStatus",
+          "$.order.fulfillmentOrders.nodes[0].lineItems.nodes[0].totalQuantity",
+          "$.order.fulfillmentOrders.nodes[0].lineItems.nodes[0].remainingQuantity",
+          "$.order.fulfillmentOrders.nodes[0].lineItems.nodes[0].lineItem.title"
+        ]
+      },
+      {
+        "name": "fulfillment-order-hold-setup",
+        "capturePath": "$.setup.fulfillmentOrderHold.response.payload.data.fulfillmentOrderHold",
+        "proxyPath": "$.data.fulfillmentOrderHold",
+        "proxyRequest": {
+          "documentCapturePath": "$.setup.fulfillmentOrderHold.query",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.fulfillmentOrders.nodes[0].id"
+            },
+            "fulfillmentHold": {
+              "fromCapturePath": "$.setup.fulfillmentOrderHold.variables.fulfillmentHold"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": ["$.userErrors", "$.fulfillmentOrder.status", "$.fulfillmentHold.reason"]
+      },
+      {
+        "name": "fulfillment-order-node-after-hold",
+        "capturePath": "$.nodeReads.fulfillmentOrderNodeRead.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentCapturePath": "$.nodeReads.fulfillmentOrderNodeRead.query",
+          "variables": {
+            "fulfillmentOrderId": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.fulfillmentOrders.nodes[0].id"
+            },
+            "holdId": {
+              "fromProxyResponse": "fulfillment-order-hold-setup",
+              "path": "$.data.fulfillmentOrderHold.fulfillmentHold.id"
+            },
+            "lineItemId": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.fulfillmentOrders.nodes[0].lineItems.nodes[0].id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "fulfillment-order-release-hold-setup",
+        "capturePath": "$.setup.fulfillmentOrderReleaseHold.response.payload.data.fulfillmentOrderReleaseHold",
+        "proxyPath": "$.data.fulfillmentOrderReleaseHold",
+        "proxyRequest": {
+          "documentCapturePath": "$.setup.fulfillmentOrderReleaseHold.query",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.fulfillmentOrders.nodes[0].id"
+            },
+            "holdIds": [
+              {
+                "fromProxyResponse": "fulfillment-order-hold-setup",
+                "path": "$.data.fulfillmentOrderHold.fulfillmentHold.id"
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": ["$.userErrors", "$.fulfillmentOrder.status"]
+      },
+      {
+        "name": "released-fulfillment-hold-node-null",
+        "capturePath": "$.nodeReads.releasedHoldNodeRead.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentCapturePath": "$.nodeReads.releasedHoldNodeRead.query",
+          "variables": {
+            "holdId": {
+              "fromProxyResponse": "fulfillment-order-hold-setup",
+              "path": "$.data.fulfillmentOrderHold.fulfillmentHold.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "fulfillment-create-setup",
+        "capturePath": "$.setup.fulfillmentCreate.response.payload.data.fulfillmentCreate",
+        "proxyPath": "$.data.fulfillmentCreate",
+        "proxyRequest": {
+          "documentCapturePath": "$.setup.fulfillmentCreate.query",
+          "variables": {
+            "fulfillment": {
+              "notifyCustomer": {
+                "fromCapturePath": "$.setup.fulfillmentCreate.variables.fulfillment.notifyCustomer"
+              },
+              "trackingInfo": {
+                "fromCapturePath": "$.setup.fulfillmentCreate.variables.fulfillment.trackingInfo"
+              },
+              "lineItemsByFulfillmentOrder": [
+                {
+                  "fulfillmentOrderId": {
+                    "fromPrimaryProxyPath": "$.data.orderCreate.order.fulfillmentOrders.nodes[0].id"
+                  }
+                }
+              ]
+            },
+            "message": {
+              "fromCapturePath": "$.setup.fulfillmentCreate.variables.message"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": ["$.userErrors", "$.fulfillment.status", "$.fulfillment.displayStatus"]
+      },
+      {
+        "name": "fulfillment-event-create-setup",
+        "capturePath": "$.setup.fulfillmentEventCreate.response.payload.data.fulfillmentEventCreate",
+        "proxyPath": "$.data.fulfillmentEventCreate",
+        "proxyRequest": {
+          "documentCapturePath": "$.setup.fulfillmentEventCreate.query",
+          "variables": {
+            "fulfillmentEvent": {
+              "fulfillmentId": {
+                "fromProxyResponse": "fulfillment-create-setup",
+                "path": "$.data.fulfillmentCreate.fulfillment.id"
+              },
+              "status": {
+                "fromCapturePath": "$.setup.fulfillmentEventCreate.variables.fulfillmentEvent.status"
+              },
+              "message": {
+                "fromCapturePath": "$.setup.fulfillmentEventCreate.variables.fulfillmentEvent.message"
+              }
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": ["$.userErrors", "$.fulfillmentEvent.status", "$.fulfillmentEvent.message"]
+      },
+      {
+        "name": "fulfillment-tracking-update-setup",
+        "capturePath": "$.setup.fulfillmentTrackingUpdate.response.payload.data.fulfillmentTrackingInfoUpdate",
+        "proxyPath": "$.data.fulfillmentTrackingInfoUpdate",
+        "proxyRequest": {
+          "documentCapturePath": "$.setup.fulfillmentTrackingUpdate.query",
+          "variables": {
+            "fulfillmentId": {
+              "fromProxyResponse": "fulfillment-create-setup",
+              "path": "$.data.fulfillmentCreate.fulfillment.id"
+            },
+            "notifyCustomer": {
+              "fromCapturePath": "$.setup.fulfillmentTrackingUpdate.variables.notifyCustomer"
+            },
+            "trackingInfoInput": {
+              "fromCapturePath": "$.setup.fulfillmentTrackingUpdate.variables.trackingInfoInput"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": [
+          "$.userErrors",
+          "$.fulfillment.status",
+          "$.fulfillment.trackingInfo[0].number",
+          "$.fulfillment.trackingInfo[0].url",
+          "$.fulfillment.trackingInfo[0].company"
+        ]
+      },
+      {
+        "name": "fulfillment-node-after-tracking",
+        "capturePath": "$.nodeReads.fulfillmentNodeRead.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentCapturePath": "$.nodeReads.fulfillmentNodeRead.query",
+          "variables": {
+            "fulfillmentId": {
+              "fromProxyResponse": "fulfillment-create-setup",
+              "path": "$.data.fulfillmentCreate.fulfillment.id"
+            },
+            "fulfillmentLineItemId": {
+              "fromProxyResponse": "fulfillment-create-setup",
+              "path": "$.data.fulfillmentCreate.fulfillment.fulfillmentLineItems.nodes[0].id"
+            },
+            "fulfillmentEventId": {
+              "fromProxyResponse": "fulfillment-event-create-setup",
+              "path": "$.data.fulfillmentEventCreate.fulfillmentEvent.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "returnable-fulfillments-setup",
+        "capturePath": "$.setup.returnableFulfillments.response.payload.data.returnableFulfillments",
+        "proxyPath": "$.data.returnableFulfillments",
+        "proxyRequest": {
+          "documentCapturePath": "$.setup.returnableFulfillments.query",
+          "variables": {
+            "orderId": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.nodes[*].id",
+            "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+            "reason": "Shopify and the proxy allocate independent local IDs."
+          },
+          {
+            "path": "$.nodes[*].fulfillment.id",
+            "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+            "reason": "Shopify and the proxy allocate independent local IDs."
+          },
+          {
+            "path": "$.nodes[*].returnableFulfillmentLineItems.nodes[*].fulfillmentLineItem.id",
+            "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+            "reason": "Shopify and the proxy allocate independent local IDs."
+          },
+          {
+            "path": "$.nodes[*].returnableFulfillmentLineItems.nodes[*].fulfillmentLineItem.lineItem.id",
+            "matcher": "regex:^gid://shopify/[A-Za-z][A-Za-z0-9]*/.+$",
+            "reason": "Shopify and the proxy allocate independent local IDs."
+          }
+        ]
+      },
+      {
+        "name": "returnable-fulfillment-node-read",
+        "capturePath": "$.nodeReads.returnableFulfillmentNodeRead.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentCapturePath": "$.nodeReads.returnableFulfillmentNodeRead.query",
+          "variables": {
+            "returnableFulfillmentId": {
+              "fromProxyResponse": "returnable-fulfillments-setup",
+              "path": "$.data.returnableFulfillments.nodes[0].id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "return-request-setup",
+        "capturePath": "$.setup.returnRequest.response.payload.data.returnRequest",
+        "proxyPath": "$.data.returnRequest",
+        "proxyRequest": {
+          "documentCapturePath": "$.setup.returnRequest.query",
+          "variables": {
+            "input": {
+              "orderId": {
+                "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+              },
+              "returnLineItems": [
+                {
+                  "fulfillmentLineItemId": {
+                    "fromProxyResponse": "fulfillment-create-setup",
+                    "path": "$.data.fulfillmentCreate.fulfillment.fulfillmentLineItems.nodes[0].id"
+                  },
+                  "quantity": {
+                    "fromCapturePath": "$.setup.returnRequest.variables.input.returnLineItems[0].quantity"
+                  },
+                  "returnReason": {
+                    "fromCapturePath": "$.setup.returnRequest.variables.input.returnLineItems[0].returnReason"
+                  },
+                  "customerNote": {
+                    "fromCapturePath": "$.setup.returnRequest.variables.input.returnLineItems[0].customerNote"
+                  }
+                }
+              ]
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": ["$.userErrors", "$.return.status", "$.return.totalQuantity"]
+      },
+      {
+        "name": "return-approve-setup",
+        "capturePath": "$.setup.returnApproveRequest.response.payload.data.returnApproveRequest",
+        "proxyPath": "$.data.returnApproveRequest",
+        "proxyRequest": {
+          "documentCapturePath": "$.setup.returnApproveRequest.query",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "return-request-setup",
+                "path": "$.data.returnRequest.return.id"
+              }
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": ["$.userErrors", "$.return.status", "$.return.totalQuantity"]
+      },
+      {
+        "name": "reverse-delivery-create-setup",
+        "capturePath": "$.setup.reverseDeliveryCreate.response.payload.data.reverseDeliveryCreateWithShipping",
+        "proxyPath": "$.data.reverseDeliveryCreateWithShipping",
+        "proxyRequest": {
+          "documentCapturePath": "$.setup.reverseDeliveryCreate.query",
+          "variables": {
+            "reverseFulfillmentOrderId": {
+              "fromProxyResponse": "return-approve-setup",
+              "path": "$.data.returnApproveRequest.return.reverseFulfillmentOrders.nodes[0].id"
+            },
+            "reverseDeliveryLineItems": [],
+            "trackingInput": {
+              "fromCapturePath": "$.setup.reverseDeliveryCreate.variables.trackingInput"
+            },
+            "labelInput": {
+              "fromCapturePath": "$.setup.reverseDeliveryCreate.variables.labelInput"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": ["$.userErrors", "$.reverseDelivery.deliverable.__typename"]
+      },
+      {
+        "name": "reverse-delivery-update-setup",
+        "capturePath": "$.setup.reverseDeliveryUpdate.response.payload.data.reverseDeliveryShippingUpdate",
+        "proxyPath": "$.data.reverseDeliveryShippingUpdate",
+        "proxyRequest": {
+          "documentCapturePath": "$.setup.reverseDeliveryUpdate.query",
+          "variables": {
+            "reverseDeliveryId": {
+              "fromProxyResponse": "reverse-delivery-create-setup",
+              "path": "$.data.reverseDeliveryCreateWithShipping.reverseDelivery.id"
+            },
+            "trackingInput": {
+              "fromCapturePath": "$.setup.reverseDeliveryUpdate.variables.trackingInput"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": [
+          "$.userErrors",
+          "$.reverseDelivery.deliverable.__typename",
+          "$.reverseDelivery.deliverable.tracking.number",
+          "$.reverseDelivery.deliverable.tracking.url"
+        ]
+      },
+      {
+        "name": "return-reverse-node-after-update",
+        "capturePath": "$.nodeReads.returnReverseNodeRead.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentCapturePath": "$.nodeReads.returnReverseNodeRead.query",
+          "variables": {
+            "returnId": {
+              "fromProxyResponse": "return-request-setup",
+              "path": "$.data.returnRequest.return.id"
+            },
+            "returnLineItemId": {
+              "fromProxyResponse": "return-request-setup",
+              "path": "$.data.returnRequest.return.returnLineItems.nodes[0].id"
+            },
+            "reverseFulfillmentOrderId": {
+              "fromProxyResponse": "return-approve-setup",
+              "path": "$.data.returnApproveRequest.return.reverseFulfillmentOrders.nodes[0].id"
+            },
+            "reverseFulfillmentOrderLineItemId": {
+              "fromProxyResponse": "return-approve-setup",
+              "path": "$.data.returnApproveRequest.return.reverseFulfillmentOrders.nodes[0].lineItems.nodes[0].id"
+            },
+            "reverseDeliveryId": {
+              "fromProxyResponse": "reverse-delivery-create-setup",
+              "path": "$.data.reverseDeliveryCreateWithShipping.reverseDelivery.id"
+            },
+            "reverseDeliveryLineItemId": {
+              "fromProxyResponse": "reverse-delivery-create-setup",
+              "path": "$.data.reverseDeliveryCreateWithShipping.reverseDelivery.reverseDeliveryLineItems.nodes[0].id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "return-close-setup",
+        "capturePath": "$.setup.returnClose.response.payload.data.returnClose",
+        "proxyPath": "$.data.returnClose",
+        "proxyRequest": {
+          "documentCapturePath": "$.setup.returnClose.query",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "return-request-setup",
+              "path": "$.data.returnRequest.return.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": ["$.userErrors", "$.return.status"],
+        "expectedDifferences": [
+          {
+            "path": "$.return.closedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Close timestamps are generated at live/proxy execution time."
+          }
+        ]
+      },
+      {
+        "name": "return-node-after-close",
+        "capturePath": "$.nodeReads.returnClosedNodeRead.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentCapturePath": "$.nodeReads.returnClosedNodeRead.query",
+          "variables": {
+            "returnId": {
+              "fromProxyResponse": "return-request-setup",
+              "path": "$.data.returnRequest.return.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "return-reopen-setup",
+        "capturePath": "$.setup.returnReopen.response.payload.data.returnReopen",
+        "proxyPath": "$.data.returnReopen",
+        "proxyRequest": {
+          "documentCapturePath": "$.setup.returnReopen.query",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "return-request-setup",
+              "path": "$.data.returnRequest.return.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": ["$.userErrors", "$.return.status", "$.return.closedAt"]
+      },
+      {
+        "name": "return-node-after-reopen",
+        "capturePath": "$.nodeReads.returnReopenedNodeRead.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentCapturePath": "$.nodeReads.returnReopenedNodeRead.query",
+          "variables": {
+            "returnId": {
+              "fromProxyResponse": "return-request-setup",
+              "path": "$.data.returnRequest.return.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "missing-node-nulls",
+        "capturePath": "$.nodeReads.missingNodes.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentCapturePath": "$.nodeReads.missingNodes.query",
+          "variables": {},
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

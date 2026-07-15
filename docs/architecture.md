@@ -56,11 +56,24 @@ App/test harness
             ├─ run version-scoped public Admin GraphQL base validation before domain dispatch
             ├─ parse document/root fields/arguments/selections
             ├─ apply captured Shopify schema input-object validation for covered local roots
-            ├─ classify root through operation registry
+            ├─ classify each root through operation registry and local routing branches
             ├─ supported read -> local state + overlay serializer
             ├─ supported mutation -> local stage + synthesized payload + log
             └─ unsupported/unknown -> passthrough or reject according to mode
 ```
+
+Multi-root Admin GraphQL documents keep Shopify's top-level execution contract:
+each selected root field must be accounted for under its response key. When all
+roots belong to a domain-owned grouped handler, dispatch preserves the original
+document so that shared upstream hydrations, domain-owned synthetic jobs, and
+schema/validation aborts keep their existing Shopify-like behavior. When roots
+would otherwise route through different domains or local routing branches,
+`dispatch_graphql` executes them as single-root public GraphQL requests in
+document order and merges `data` plus top-level `errors` by response key. For
+mixed supported/unsupported mutations, this policy stages registered supported
+roots locally and only forwards the unsupported single-root mutation according
+to `unsupportedMutationMode`; it never forwards a registered stage-locally
+mutation as part of a larger passthrough document.
 
 `DraftProxy` is instance-owned state, not a singleton. A proxy owns its normalized `Store`, mutation log, registry, synthetic ID counters, injectable runtime clock, and injectable upstream/commit transports. Runtime base/staged resource data belongs under the Store rather than as loose `DraftProxy` fields. Do not introduce global mutable proxy state.
 
@@ -78,6 +91,7 @@ App/test harness
 - keep Shopify-like Admin GraphQL route classification and request-body parsing separate from domain handlers
 - run version-scoped base GraphQL validation for captured parse, schema, variable, selection, and argument errors before local domain dispatch
 - run reusable captured-schema input validation before local mutation dispatch when a covered public Admin input object has recorded introspection evidence for the request API version
+- split unsafe multi-root Admin GraphQL documents by parsed top-level roots, execute mutation roots serially, merge response keys/errors, and preserve grouped owner handlers when one domain intentionally owns a mixed root set
 - wrap upstream transports with the stage-locally mutation guard while leaving query hydration and commit replay on their explicit transport paths
 - preserve `with_clock(...)`, `with_upstream_transport(...)`, and `with_commit_transport(...)` test seams so behavior stays deterministic
 
@@ -103,7 +117,7 @@ App/test harness
 - extracts operation type, operation name/path, source locations, and top-level root fields without routing by alias or raw query text
 - preserves raw root-field argument sources separately from resolved values so validators can distinguish omitted arguments, literal nulls, bound variables, and unbound variables
 - resolves root-field arguments from literals, enums, lists, input objects, and variables for existing callers that need the compatibility view
-- extracts selection sets and nested selection paths while preserving response aliases and expanding supported inline/named fragments
+- extracts selection sets and nested selection paths while preserving response aliases, evaluating standard `@skip` / `@include` directives, and expanding supported inline/named fragments
 
 ### `src/operation_registry.rs`
 
@@ -170,7 +184,7 @@ The Python package is not a second proxy implementation and does not spawn the R
 
 The runtime should use normalized state rather than raw GraphQL blobs.
 
-`DraftProxy` owns a typed Rust `Store` for runtime resource state. Products and saved searches use normalized records with shared effective-read helpers, while other staged domain data also lives under `Store::staged` so reset, dump/restore plumbing, and future normalization work have one ownership boundary. Gift-card LiveHybrid hydration also stores known base gift-card records and gift-card configuration in `BaseState` so supported local mutations can overlay real upstream reads without runtime Shopify writes.
+`DraftProxy` owns a typed Rust `Store` for runtime resource state. Products and saved searches use normalized records with shared effective-read helpers, while other staged domain data also lives under `Store::staged` so reset, dump/restore plumbing, and future normalization work have one ownership boundary. Order and gift-card LiveHybrid hydration also stores known base records and related baseline/configuration data in `BaseState` so supported local mutations can overlay real upstream reads without runtime Shopify writes.
 
 The normalized product and saved-search portions currently include:
 

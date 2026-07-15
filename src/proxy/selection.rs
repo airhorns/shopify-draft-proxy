@@ -36,6 +36,22 @@ pub(in crate::proxy) fn selected_json(record: &Value, selections: &[SelectedFiel
     Value::Object(fields)
 }
 
+pub(in crate::proxy) fn selected_typed_json(
+    mut record: Value,
+    type_name: &str,
+    selections: &[SelectedField],
+) -> Value {
+    if record.is_null() {
+        return Value::Null;
+    }
+    if let Some(object) = record.as_object_mut() {
+        object
+            .entry("__typename".to_string())
+            .or_insert_with(|| json!(type_name));
+    }
+    selected_json(&record, selections)
+}
+
 pub(in crate::proxy) fn selected_user_errors(
     errors: &[Value],
     selections: &[SelectedField],
@@ -281,6 +297,7 @@ mod tests {
             response_key: response_key.to_string(),
             location: SourceLocation { line: 1, column: 1 },
             directives: Vec::new(),
+            raw_directives: Vec::new(),
             raw_arguments: Default::default(),
             arguments: Default::default(),
             selection: Vec::new(),

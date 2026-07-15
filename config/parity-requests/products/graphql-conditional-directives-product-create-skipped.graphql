@@ -1,0 +1,13 @@
+mutation ConditionalDirectiveSkippedProductCreate($product: ProductCreateInput!, $skipMutation: Boolean!) {
+  skippedCreate: productCreate(product: $product) @include(if: true) @skip(if: $skipMutation) {
+    product {
+      id
+      title
+      handle
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

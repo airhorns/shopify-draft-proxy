@@ -166,25 +166,16 @@ impl DraftProxy {
         Some(ok_json(Value::Object(response)))
     }
 
-    /// Next publication gid: one past the largest staged publication suffix, so
-    /// id allocation is derived from store state rather than a fixed literal.
-    fn next_publication_id(&self) -> String {
-        // `Publication/1` is Shopify's implicit default (Online Store) channel, so
-        // synthetically-created publications begin at `/2`. Number above the highest
-        // numeric publication id already staged, with that default reserved as the
-        // floor, so the first locally-created publication is `gid://shopify/Publication/2`
-        // regardless of whether the baseline seeded non-numeric publication ids.
-        let max = self
-            .store
-            .staged
-            .publications
-            .keys()
-            .map(|id| resource_id_path_tail(id.as_str()))
-            .filter_map(|suffix| suffix.parse::<u64>().ok())
-            .max()
-            .unwrap_or(0)
-            .max(1);
-        shopify_gid("Publication", max + 1)
+    /// Next publication gid from the proxy-wide synthetic allocator. The loop
+    /// guards restored or observed state where a prior synthetic id is already
+    /// known to this proxy instance.
+    fn next_publication_id(&mut self) -> String {
+        loop {
+            let id = self.next_proxy_synthetic_gid("Publication");
+            if !self.store.has_publication_id(&id) {
+                return id;
+            }
+        }
     }
 
     pub(in crate::proxy) fn product_tail_publication_create(
@@ -230,10 +221,6 @@ impl DraftProxy {
                         .publications
                         .insert(id.clone(), record.clone());
                 }
-                // Materialize the store's default Online Store publication now
-                // that the engine is active, so `channels`/`publicationsCount`
-                // reflect it without a seeded precondition.
-                self.ensure_default_publication();
                 if let Some(catalog_id) = catalog_id.as_deref() {
                     if let Some(catalog) = self.store.staged.catalogs.get_mut(catalog_id) {
                         set_catalog_publication_relation(catalog, Some(id));
@@ -374,13 +361,12 @@ impl DraftProxy {
                 &field.selection,
             );
         };
-        // Only publications staged this scenario can be deleted; the base/default
-        // publication (and any unknown id) cannot be removed.
+        // Only publications created by this proxy session can be deleted. Known
+        // base or observed publications are protected without assuming a global
+        // numeric default id.
         if !self.store.staged.created_publication_ids.contains(&id) {
             self.record_failed_mutation(request, query, variables, "publicationDelete");
-            if id != "gid://shopify/Publication/1"
-                && !self.store.staged.publications.contains_key(&id)
-            {
+            if !self.store.has_publication_id(&id) {
                 return selected_json(
                     &publication_not_found_payload("deletedId"),
                     &field.selection,
@@ -1635,8 +1621,9 @@ fn feedback_generated_at_is_future(generated_at: &str) -> bool {
     generated_at > now.as_secs() as i64
 }
 
+#[allow(dead_code)]
 fn app_granted_access_scopes(request: &Request) -> Vec<String> {
-    request_header(request, "x-shopify-draft-proxy-access-scopes")
+    request_header(request, ACCESS_SCOPES_HEADER)
         .map(|header| {
             header
                 .split(',')
@@ -1650,8 +1637,9 @@ fn app_granted_access_scopes(request: &Request) -> Vec<String> {
 
 fn resource_feedback_scope_is_explicitly_missing(request: &Request) -> bool {
     request_header(request, ACCESS_SCOPES_HEADER).is_some()
-        && !app_access_scope_handles(&current_app_installation_from_request(request))
-            .contains("write_resource_feedbacks")
+        && !app_granted_access_scopes(request)
+            .iter()
+            .any(|scope| scope == "write_resource_feedbacks")
 }
 
 fn product_tail_resource_feedback_access_denied_error(field: &RootFieldSelection) -> Value {
@@ -1763,7 +1751,7 @@ fn publication_create_name(id: &str, catalog: Option<&Value>) -> String {
         .filter(|title| !title.trim().is_empty())
         .map(ToString::to_string)
         .unwrap_or_else(|| {
-            let suffix = resource_id_path_tail(id);
+            let suffix = resource_id_tail(id);
             format!("Publication {suffix}")
         })
 }

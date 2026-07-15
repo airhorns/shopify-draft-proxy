@@ -1281,24 +1281,28 @@ pub(in crate::proxy) fn refresh_delivery_profile_counts(profile: &mut Value) {
     profile["productVariantsCount"] = count_object(variant_count);
 }
 
-pub(in crate::proxy) fn delivery_profile_item_for_variant(
+pub(in crate::proxy) fn delivery_profile_item_for_observed_variant(
+    observed_variant: &Value,
+) -> Option<Value> {
+    let variant_id = observed_variant.get("id").and_then(Value::as_str)?;
+    let variant_title = observed_variant.get("title").and_then(Value::as_str)?;
+    let product = observed_variant.get("product")?;
+    let product_id = product.get("id").and_then(Value::as_str)?;
+    let product_title = product.get("title").and_then(Value::as_str)?;
+    Some(delivery_profile_item_for_resolved_variant(
+        variant_id,
+        variant_title,
+        product_id,
+        product_title,
+    ))
+}
+
+pub(in crate::proxy) fn delivery_profile_item_for_resolved_variant(
     variant_id: &str,
-    observed_variant: Option<&Value>,
+    variant_title: &str,
+    product_id: &str,
+    product_title: &str,
 ) -> Value {
-    let product = observed_variant.and_then(|variant| variant.get("product"));
-    let product_id = product
-        .and_then(|product| product.get("id"))
-        .and_then(Value::as_str)
-        .map(str::to_string)
-        .unwrap_or_else(|| delivery_profile_fallback_product_id(variant_id));
-    let product_title = product
-        .and_then(|product| product.get("title"))
-        .and_then(Value::as_str)
-        .unwrap_or("Delivery profile product");
-    let variant_title = observed_variant
-        .and_then(|variant| variant.get("title"))
-        .and_then(Value::as_str)
-        .unwrap_or("Default Title");
     json!({
         "product": {
             "id": product_id,
@@ -1309,13 +1313,6 @@ pub(in crate::proxy) fn delivery_profile_item_for_variant(
             "title": variant_title
         }]
     })
-}
-
-fn delivery_profile_fallback_product_id(variant_id: &str) -> String {
-    let tail = Some(resource_id_path_tail(variant_id))
-        .filter(|tail| !tail.is_empty())
-        .unwrap_or("local");
-    shopify_gid("Product", format_args!("delivery-profile-{tail}"))
 }
 
 pub(in crate::proxy) fn delivery_profile_countries_from_input(

@@ -1,11 +1,16 @@
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
+import { homedir, tmpdir } from 'node:os';
 import * as path from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // scripts/ is intentionally outside tsconfig's checked sources; runtime coverage here verifies the JS helper.
-import { buildAdminAuthHeaders, getValidConformanceAccessToken } from '../../scripts/shopify-conformance-auth.mjs';
+import {
+  buildAdminAuthHeaders,
+  createConformanceAuthRequest,
+  getValidConformanceAccessToken,
+} from '../../scripts/shopify-conformance-auth.mjs';
+import * as conformanceAuth from '../../scripts/shopify-conformance-auth.mjs';
 
 async function createTempDir(prefix: string): Promise<string> {
   return await mkdtemp(path.join(tmpdir(), prefix));
@@ -13,6 +18,51 @@ async function createTempDir(prefix: string): Promise<string> {
 
 afterEach(() => {
   vi.restoreAllMocks();
+});
+
+describe('Storefront conformance credential separation', () => {
+  it('uses a separate app identity and credential paths from the Admin conformance app', () => {
+    expect(conformanceAuth.STOREFRONT_CONFORMANCE_APP_HANDLE).toBe('hermes-conformance-storefront');
+    expect(conformanceAuth.STOREFRONT_CONFORMANCE_REDIRECT_URI).toBe('http://127.0.0.1:13388/auth/callback');
+    expect(conformanceAuth.SHOPIFY_CONFORMANCE_STOREFRONT_ADMIN_AUTH_PATH).toBe(
+      path.join(homedir(), '.shopify-draft-proxy', 'conformance-storefront-admin-auth.json'),
+    );
+    expect(conformanceAuth.SHOPIFY_CONFORMANCE_STOREFRONT_ADMIN_AUTH_REQUEST_PATH).toBe(
+      path.join(homedir(), '.shopify-draft-proxy', 'conformance-storefront-admin-auth-request.json'),
+    );
+    expect(conformanceAuth.SHOPIFY_CONFORMANCE_STOREFRONT_ADMIN_PKCE_PATH).toBe(
+      path.join(homedir(), '.shopify-draft-proxy', 'conformance-storefront-admin-auth-pkce.json'),
+    );
+  });
+
+  it('returns the isolated app and credential profile used by Storefront workflows', () => {
+    expect(conformanceAuth.getStorefrontConformanceAuthProfile()).toEqual({
+      appHandle: 'hermes-conformance-storefront',
+      redirectUri: 'http://127.0.0.1:13388/auth/callback',
+      credentialPath: path.join(homedir(), '.shopify-draft-proxy', 'conformance-storefront-admin-auth.json'),
+      authRequestPath: path.join(homedir(), '.shopify-draft-proxy', 'conformance-storefront-admin-auth-request.json'),
+      pkcePath: path.join(homedir(), '.shopify-draft-proxy', 'conformance-storefront-admin-auth-pkce.json'),
+    });
+  });
+});
+
+describe('conformance credential file permissions', () => {
+  it('writes OAuth request state with owner-only permissions', async () => {
+    const dir = await createTempDir('shopify-auth-file-mode-');
+    const authRequestPath = path.join(dir, 'request.json');
+    const pkcePath = path.join(dir, 'pkce.json');
+
+    await createConformanceAuthRequest({
+      storeDomain: 'very-big-test-store.myshopify.com',
+      clientId: 'client-id',
+      scopes: ['read_products'],
+      authRequestPath,
+      pkcePath,
+    });
+
+    expect((await stat(authRequestPath)).mode & 0o777).toBe(0o600);
+    expect((await stat(pkcePath)).mode & 0o777).toBe(0o600);
+  });
 });
 
 describe('buildAdminAuthHeaders', () => {

@@ -1,0 +1,23 @@
+mutation ProductDeleteAsyncInlineFalse($input: ProductDeleteInput!) {
+  productDelete(input: $input, synchronous: false) {
+    deletedProductId
+    shop {
+      id
+      name
+      myshopifyDomain
+    }
+    productDeleteOperation {
+      id
+      status
+      deletedProductId
+      userErrors {
+        field
+        message
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

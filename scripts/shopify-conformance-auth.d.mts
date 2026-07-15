@@ -2,6 +2,11 @@ export const SHOPIFY_CONFORMANCE_AUTH_DIR: string;
 export const SHOPIFY_CONFORMANCE_AUTH_PATH: string;
 export const SHOPIFY_CONFORMANCE_PKCE_PATH: string;
 export const SHOPIFY_CONFORMANCE_AUTH_REQUEST_PATH: string;
+export const STOREFRONT_CONFORMANCE_APP_HANDLE: string;
+export const STOREFRONT_CONFORMANCE_REDIRECT_URI: string;
+export const SHOPIFY_CONFORMANCE_STOREFRONT_ADMIN_AUTH_PATH: string;
+export const SHOPIFY_CONFORMANCE_STOREFRONT_ADMIN_PKCE_PATH: string;
+export const SHOPIFY_CONFORMANCE_STOREFRONT_ADMIN_AUTH_REQUEST_PATH: string;
 export const SHOPIFY_CONFORMANCE_STOREFRONT_AUTH_PATH: string;
 
 export type StoredStorefrontAuth = {
@@ -15,8 +20,15 @@ export type StoredStorefrontAuth = {
 
 export function buildAdminAuthHeaders(token: string): Record<string, string>;
 export function buildStorefrontRequestHeaders(storefrontToken: string): Record<string, string>;
-export function resolveDefaultAppRoot(options?: { repoRoot?: string }): string;
-export function resolveDefaultAppEnvPath(options?: { repoRoot?: string }): string;
+export function getStorefrontConformanceAuthProfile(): {
+  appHandle: string;
+  redirectUri: string;
+  credentialPath: string;
+  authRequestPath: string;
+  pkcePath: string;
+};
+export function resolveDefaultAppRoot(options?: { repoRoot?: string; appHandle?: string }): string;
+export function resolveDefaultAppEnvPath(options?: { repoRoot?: string; appHandle?: string }): string;
 
 export function refreshConformanceAccessToken(options?: {
   credentialPath?: string;

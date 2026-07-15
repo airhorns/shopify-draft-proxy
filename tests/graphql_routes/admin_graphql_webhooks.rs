@@ -346,6 +346,154 @@ fn admin_graphql_reports_base_validation_errors_before_dispatch() {
             json!("INVALID_FIELD_ARGUMENTS"),
             "{version} productCreate arity code"
         );
+
+        let directive_missing_if = proxy.process_request(request_with_body(
+            "POST",
+            &path,
+            &json!({ "query": "query { shop { name @skip } }" }).to_string(),
+        ));
+        assert_eq!(
+            directive_missing_if.body,
+            json!({
+                "errors": [{
+                    "message": "Directive 'skip' is missing required arguments: if",
+                    "locations": [{ "line": 1, "column": 21 }],
+                    "path": ["query", "shop", "name"],
+                    "extensions": {
+                        "code": "missingRequiredArguments",
+                        "className": "Directive",
+                        "name": "skip",
+                        "arguments": "if"
+                    }
+                }]
+            }),
+            "{version} missing skip if body"
+        );
+
+        let directive_literal_type = proxy.process_request(request_with_body(
+            "POST",
+            &path,
+            &json!({ "query": "query { shop { name @include(if: null) } }" }).to_string(),
+        ));
+        assert_eq!(
+            directive_literal_type.body,
+            json!({
+                "errors": [{
+                    "message": "Argument 'if' on Directive 'include' has an invalid value (null). Expected type 'Boolean!'.",
+                    "locations": [{ "line": 1, "column": 21 }],
+                    "path": ["query", "shop", "name", "if"],
+                    "extensions": {
+                        "code": "argumentLiteralsIncompatible",
+                        "typeName": "Directive",
+                        "argumentName": "if"
+                    }
+                }]
+            }),
+            "{version} include null if body"
+        );
+
+        let directive_variable_mismatch = proxy.process_request(request_with_body(
+            "POST",
+            &path,
+            &json!({
+                "query": "query($cond: Boolean) { shop { name @skip(if: $cond) } }",
+                "variables": {}
+            })
+            .to_string(),
+        ));
+        assert_eq!(
+            directive_variable_mismatch.body,
+            json!({
+                "errors": [{
+                    "message": "Nullability mismatch on variable $cond and argument if (Boolean / Boolean!)",
+                    "locations": [{ "line": 1, "column": 43 }],
+                    "path": ["query", "shop", "name", "if"],
+                    "extensions": {
+                        "code": "variableMismatch",
+                        "variableName": "cond",
+                        "typeName": "Boolean",
+                        "argumentName": "if",
+                        "errorMessage": "Nullability mismatch"
+                    }
+                }]
+            }),
+            "{version} directive variable mismatch body"
+        );
+
+        let directive_variable_type = proxy.process_request(request_with_body(
+            "POST",
+            &path,
+            &json!({
+                "query": "query($cond: Boolean!) { shop { name @include(if: $cond) } }",
+                "variables": { "cond": "yes" }
+            })
+            .to_string(),
+        ));
+        assert_eq!(
+            directive_variable_type.body,
+            json!({
+                "errors": [{
+                    "message": "Variable $cond of type Boolean! was provided invalid value",
+                    "locations": [{ "line": 1, "column": 7 }],
+                    "extensions": {
+                        "code": "INVALID_VARIABLE",
+                        "value": "yes",
+                        "problems": [{
+                            "path": [],
+                            "explanation": "Could not coerce value \"yes\" to Boolean"
+                        }]
+                    }
+                }]
+            }),
+            "{version} directive variable type body"
+        );
+
+        let directive_undefined_variable = proxy.process_request(request_with_body(
+            "POST",
+            &path,
+            &json!({ "query": "query { shop { name @skip(if: $cond) } }" }).to_string(),
+        ));
+        assert_eq!(
+            directive_undefined_variable.body,
+            json!({
+                "errors": [{
+                    "message": "Variable $cond is used by anonymous query but not declared",
+                    "locations": [{ "line": 1, "column": 31 }],
+                    "path": ["query", "shop", "name", "if"],
+                    "extensions": {
+                        "code": "variableNotDefined",
+                        "variableName": "cond"
+                    }
+                }]
+            }),
+            "{version} directive undefined variable body"
+        );
+
+        let directive_extra_argument = proxy.process_request(request_with_body(
+            "POST",
+            &path,
+            &json!({
+                "query": "query { shop { name @skip(if: true, unless: false) } }"
+            })
+            .to_string(),
+        ));
+        assert_eq!(
+            directive_extra_argument.body,
+            json!({
+                "errors": [{
+                    "message": "Directive 'skip' doesn't accept argument 'unless'",
+                    "locations": [{ "line": 1, "column": 37 }],
+                    "path": ["query", "shop", "name", "unless"],
+                    "extensions": {
+                        "code": "argumentNotAccepted",
+                        "name": "skip",
+                        "typeName": "Directive",
+                        "argumentName": "unless"
+                    }
+                }]
+            }),
+            "{version} directive extra argument body"
+        );
     }
 }
 

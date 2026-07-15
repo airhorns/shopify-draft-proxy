@@ -2,10 +2,10 @@
   "scenarioId": "marketing-activity-source-and-medium",
   "apiVersion": "2025-01",
   "storeDomain": "harry-test-heelo.myshopify.com",
-  "capturedAt": "2026-05-08T11:20:36.210Z",
+  "capturedAt": "2026-07-11T02:02:40.952Z",
   "operations": {
     "createSourceAndMedium": {
-      "query": "mutation MarketingActivitySourceAndMedium(\n  $abandonedCart: MarketingActivityCreateExternalInput!\n  $affiliate: MarketingActivityCreateExternalInput!\n  $loyalty: MarketingActivityCreateExternalInput!\n  $retargetingFacebook: MarketingActivityCreateExternalInput!\n  $retargetingNoDomain: MarketingActivityCreateExternalInput!\n  $messageFacebook: MarketingActivityCreateExternalInput!\n  $messageOther: MarketingActivityCreateExternalInput!\n  $adReferringDomain: MarketingActivityCreateExternalInput!\n  $adNoDomain: MarketingActivityCreateExternalInput!\n) {\n  abandonedCart: marketingActivityCreateExternal(input: $abandonedCart) {\n    marketingActivity {\n      sourceAndMedium\n      marketingEvent {\n        sourceAndMedium\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  affiliate: marketingActivityCreateExternal(input: $affiliate) {\n    marketingActivity {\n      sourceAndMedium\n      marketingEvent {\n        sourceAndMedium\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  loyalty: marketingActivityCreateExternal(input: $loyalty) {\n    marketingActivity {\n      sourceAndMedium\n      marketingEvent {\n        sourceAndMedium\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  retargetingFacebook: marketingActivityCreateExternal(input: $retargetingFacebook) {\n    marketingActivity {\n      sourceAndMedium\n      marketingEvent {\n        sourceAndMedium\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  retargetingNoDomain: marketingActivityCreateExternal(input: $retargetingNoDomain) {\n    marketingActivity {\n      sourceAndMedium\n      marketingEvent {\n        sourceAndMedium\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  messageFacebook: marketingActivityCreateExternal(input: $messageFacebook) {\n    marketingActivity {\n      sourceAndMedium\n      marketingEvent {\n        sourceAndMedium\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  messageOther: marketingActivityCreateExternal(input: $messageOther) {\n    marketingActivity {\n      sourceAndMedium\n      marketingEvent {\n        sourceAndMedium\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  adReferringDomain: marketingActivityCreateExternal(input: $adReferringDomain) {\n    marketingActivity {\n      sourceAndMedium\n      marketingEvent {\n        sourceAndMedium\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  adNoDomain: marketingActivityCreateExternal(input: $adNoDomain) {\n    marketingActivity {\n      sourceAndMedium\n      marketingEvent {\n        sourceAndMedium\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "query": "mutation MarketingActivitySourceAndMedium(\n  $abandonedCart: MarketingActivityCreateExternalInput!\n  $affiliate: MarketingActivityCreateExternalInput!\n  $loyalty: MarketingActivityCreateExternalInput!\n  $retargetingFacebook: MarketingActivityCreateExternalInput!\n  $retargetingNoDomain: MarketingActivityCreateExternalInput!\n  $messageFacebook: MarketingActivityCreateExternalInput!\n  $messageOther: MarketingActivityCreateExternalInput!\n  $adReferringDomain: MarketingActivityCreateExternalInput!\n  $adNoDomain: MarketingActivityCreateExternalInput!\n  $displayAd: MarketingActivityCreateExternalInput!\n  $emailAffiliate: MarketingActivityCreateExternalInput!\n  $searchNewsletter: MarketingActivityCreateExternalInput!\n  $displayInstagramAd: MarketingActivityCreateExternalInput!\n  $customDomainAd: MarketingActivityCreateExternalInput!\n) {\n  abandonedCart: marketingActivityCreateExternal(input: $abandonedCart) {\n    marketingActivity {\n      sourceAndMedium\n      marketingEvent {\n        sourceAndMedium\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  affiliate: marketingActivityCreateExternal(input: $affiliate) {\n    marketingActivity {\n      sourceAndMedium\n      marketingEvent {\n        sourceAndMedium\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  loyalty: marketingActivityCreateExternal(input: $loyalty) {\n    marketingActivity {\n      sourceAndMedium\n      marketingEvent {\n        sourceAndMedium\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  retargetingFacebook: marketingActivityCreateExternal(input: $retargetingFacebook) {\n    marketingActivity {\n      sourceAndMedium\n      marketingEvent {\n        sourceAndMedium\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  retargetingNoDomain: marketingActivityCreateExternal(input: $retargetingNoDomain) {\n    marketingActivity {\n      sourceAndMedium\n      marketingEvent {\n        sourceAndMedium\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  messageFacebook: marketingActivityCreateExternal(input: $messageFacebook) {\n    marketingActivity {\n      sourceAndMedium\n      marketingEvent {\n        sourceAndMedium\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  messageOther: marketingActivityCreateExternal(input: $messageOther) {\n    marketingActivity {\n      sourceAndMedium\n      marketingEvent {\n        sourceAndMedium\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  adReferringDomain: marketingActivityCreateExternal(input: $adReferringDomain) {\n    marketingActivity {\n      sourceAndMedium\n      marketingEvent {\n        sourceAndMedium\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  adNoDomain: marketingActivityCreateExternal(input: $adNoDomain) {\n    marketingActivity {\n      sourceAndMedium\n      marketingEvent {\n        sourceAndMedium\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  displayAd: marketingActivityCreateExternal(input: $displayAd) {\n    marketingActivity {\n      sourceAndMedium\n      marketingEvent {\n        sourceAndMedium\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  emailAffiliate: marketingActivityCreateExternal(input: $emailAffiliate) {\n    marketingActivity {\n      sourceAndMedium\n      marketingEvent {\n        sourceAndMedium\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  searchNewsletter: marketingActivityCreateExternal(input: $searchNewsletter) {\n    marketingActivity {\n      sourceAndMedium\n      marketingEvent {\n        sourceAndMedium\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  displayInstagramAd: marketingActivityCreateExternal(input: $displayInstagramAd) {\n    marketingActivity {\n      sourceAndMedium\n      marketingEvent {\n        sourceAndMedium\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  customDomainAd: marketingActivityCreateExternal(input: $customDomainAd) {\n    marketingActivity {\n      sourceAndMedium\n      marketingEvent {\n        sourceAndMedium\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "abandonedCart": {
           "title": "Source medium abandoned cart",
@@ -127,6 +127,73 @@
             "source": "marketing",
             "medium": "test"
           }
+        },
+        "displayAd": {
+          "title": "Source medium display ad",
+          "remoteId": "source-medium-display-ad",
+          "status": "ACTIVE",
+          "remoteUrl": "https://example.com/source-medium-display-ad",
+          "tactic": "AD",
+          "marketingChannelType": "DISPLAY",
+          "utm": {
+            "campaign": "source-medium-display-ad",
+            "source": "marketing",
+            "medium": "test"
+          }
+        },
+        "emailAffiliate": {
+          "title": "Source medium email affiliate",
+          "remoteId": "source-medium-email-affiliate",
+          "status": "ACTIVE",
+          "remoteUrl": "https://example.com/source-medium-email-affiliate",
+          "tactic": "AFFILIATE",
+          "marketingChannelType": "EMAIL",
+          "utm": {
+            "campaign": "source-medium-email-affiliate",
+            "source": "marketing",
+            "medium": "test"
+          }
+        },
+        "searchNewsletter": {
+          "title": "Source medium search newsletter",
+          "remoteId": "source-medium-search-newsletter",
+          "status": "ACTIVE",
+          "remoteUrl": "https://example.com/source-medium-search-newsletter",
+          "tactic": "NEWSLETTER",
+          "marketingChannelType": "SEARCH",
+          "utm": {
+            "campaign": "source-medium-search-newsletter",
+            "source": "marketing",
+            "medium": "test"
+          }
+        },
+        "displayInstagramAd": {
+          "title": "Source medium display instagram ad",
+          "remoteId": "source-medium-display-instagram-ad",
+          "status": "ACTIVE",
+          "remoteUrl": "https://example.com/source-medium-display-instagram-ad",
+          "tactic": "AD",
+          "marketingChannelType": "DISPLAY",
+          "referringDomain": "instagram.com",
+          "utm": {
+            "campaign": "source-medium-display-instagram-ad",
+            "source": "marketing",
+            "medium": "test"
+          }
+        },
+        "customDomainAd": {
+          "title": "Source medium custom domain ad",
+          "remoteId": "source-medium-custom-domain-ad",
+          "status": "ACTIVE",
+          "remoteUrl": "https://example.com/source-medium-custom-domain-ad",
+          "tactic": "AD",
+          "marketingChannelType": "DISPLAY",
+          "referringDomain": "partner.example",
+          "utm": {
+            "campaign": "source-medium-custom-domain-ad",
+            "source": "marketing",
+            "medium": "test"
+          }
         }
       },
       "response": {
@@ -213,15 +280,60 @@
                 }
               },
               "userErrors": []
+            },
+            "displayAd": {
+              "marketingActivity": {
+                "sourceAndMedium": "Display ad",
+                "marketingEvent": {
+                  "sourceAndMedium": "Display ad"
+                }
+              },
+              "userErrors": []
+            },
+            "emailAffiliate": {
+              "marketingActivity": {
+                "sourceAndMedium": "Affiliate link",
+                "marketingEvent": {
+                  "sourceAndMedium": "Affiliate link"
+                }
+              },
+              "userErrors": []
+            },
+            "searchNewsletter": {
+              "marketingActivity": {
+                "sourceAndMedium": "Search newsletter",
+                "marketingEvent": {
+                  "sourceAndMedium": "Search newsletter"
+                }
+              },
+              "userErrors": []
+            },
+            "displayInstagramAd": {
+              "marketingActivity": {
+                "sourceAndMedium": "Instagram ad",
+                "marketingEvent": {
+                  "sourceAndMedium": "Instagram ad"
+                }
+              },
+              "userErrors": []
+            },
+            "customDomainAd": {
+              "marketingActivity": {
+                "sourceAndMedium": "partner.example ad",
+                "marketingEvent": {
+                  "sourceAndMedium": "partner.example ad"
+                }
+              },
+              "userErrors": []
             }
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 99,
-              "actualQueryCost": 99,
+              "requestedQueryCost": 154,
+              "actualQueryCost": 154,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1901,
+                "currentlyAvailable": 1815,
                 "restoreRate": 100
               }
             }
@@ -239,7 +351,12 @@
     "messageFacebook": "Message via Facebook Messenger",
     "messageOther": "Twitter message",
     "adReferringDomain": "Instagram ad",
-    "adNoDomain": "Search ad"
+    "adNoDomain": "Search ad",
+    "displayAd": "Display ad",
+    "emailAffiliate": "Affiliate link",
+    "searchNewsletter": "Search newsletter",
+    "displayInstagramAd": "Instagram ad",
+    "customDomainAd": "partner.example ad"
   },
   "cleanup": {
     "before": {
@@ -292,7 +409,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
+                "currentlyAvailable": 1989,
                 "restoreRate": 100
               }
             }
@@ -320,7 +437,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
+                "currentlyAvailable": 1987,
                 "restoreRate": 100
               }
             }
@@ -348,7 +465,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
+                "currentlyAvailable": 1986,
                 "restoreRate": 100
               }
             }
@@ -376,7 +493,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1989,
+                "currentlyAvailable": 1986,
                 "restoreRate": 100
               }
             }
@@ -404,7 +521,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1989,
+                "currentlyAvailable": 1984,
                 "restoreRate": 100
               }
             }
@@ -432,7 +549,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
+                "currentlyAvailable": 1983,
                 "restoreRate": 100
               }
             }
@@ -452,168 +569,6 @@
                   "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
                 }
               ]
-            }
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 10,
-              "actualQueryCost": 10,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
-                "restoreRate": 100
-              }
-            }
-          }
-        }
-      },
-      "source-medium-ad-none": {
-        "status": 200,
-        "payload": {
-          "data": {
-            "marketingActivityDeleteExternal": {
-              "deletedMarketingActivityId": null,
-              "userErrors": [
-                {
-                  "field": null,
-                  "message": "Marketing activity does not exist.",
-                  "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
-                }
-              ]
-            }
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 10,
-              "actualQueryCost": 10,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
-                "restoreRate": 100
-              }
-            }
-          }
-        }
-      }
-    },
-    "after": {
-      "source-medium-abandoned-cart": {
-        "status": 200,
-        "payload": {
-          "data": {
-            "marketingActivityDeleteExternal": {
-              "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197091393842",
-              "userErrors": []
-            }
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 10,
-              "actualQueryCost": 10,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1957,
-                "restoreRate": 100
-              }
-            }
-          }
-        }
-      },
-      "source-medium-affiliate": {
-        "status": 200,
-        "payload": {
-          "data": {
-            "marketingActivityDeleteExternal": {
-              "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197091426610",
-              "userErrors": []
-            }
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 10,
-              "actualQueryCost": 10,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1963,
-                "restoreRate": 100
-              }
-            }
-          }
-        }
-      },
-      "source-medium-loyalty": {
-        "status": 200,
-        "payload": {
-          "data": {
-            "marketingActivityDeleteExternal": {
-              "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197091459378",
-              "userErrors": []
-            }
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 10,
-              "actualQueryCost": 10,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1968,
-                "restoreRate": 100
-              }
-            }
-          }
-        }
-      },
-      "source-medium-retargeting-facebook": {
-        "status": 200,
-        "payload": {
-          "data": {
-            "marketingActivityDeleteExternal": {
-              "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197091492146",
-              "userErrors": []
-            }
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 10,
-              "actualQueryCost": 10,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1973,
-                "restoreRate": 100
-              }
-            }
-          }
-        }
-      },
-      "source-medium-retargeting-none": {
-        "status": 200,
-        "payload": {
-          "data": {
-            "marketingActivityDeleteExternal": {
-              "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197091524914",
-              "userErrors": []
-            }
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 10,
-              "actualQueryCost": 10,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1979,
-                "restoreRate": 100
-              }
-            }
-          }
-        }
-      },
-      "source-medium-message-facebook": {
-        "status": 200,
-        "payload": {
-          "data": {
-            "marketingActivityDeleteExternal": {
-              "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197091557682",
-              "userErrors": []
             }
           },
           "extensions": {
@@ -629,12 +584,182 @@
           }
         }
       },
-      "source-medium-message-twitter": {
+      "source-medium-ad-none": {
         "status": 200,
         "payload": {
           "data": {
             "marketingActivityDeleteExternal": {
-              "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197091590450",
+              "deletedMarketingActivityId": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Marketing activity does not exist.",
+                  "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1981,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "source-medium-display-ad": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Marketing activity does not exist.",
+                  "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1979,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "source-medium-email-affiliate": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Marketing activity does not exist.",
+                  "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1979,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "source-medium-search-newsletter": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Marketing activity does not exist.",
+                  "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1963,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "source-medium-display-instagram-ad": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Marketing activity does not exist.",
+                  "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1961,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "source-medium-custom-domain-ad": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Marketing activity does not exist.",
+                  "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1959,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "after": {
+      "source-medium-abandoned-cart": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": "gid://shopify/MarketingActivity/198354993458",
               "userErrors": []
             }
           },
@@ -644,7 +769,139 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1985,
+                "currentlyAvailable": 1877,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "source-medium-affiliate": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": "gid://shopify/MarketingActivity/198355026226",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1880,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "source-medium-loyalty": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": "gid://shopify/MarketingActivity/198355058994",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1885,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "source-medium-retargeting-facebook": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": "gid://shopify/MarketingActivity/198355091762",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1889,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "source-medium-retargeting-none": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": "gid://shopify/MarketingActivity/198355124530",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1891,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "source-medium-message-facebook": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": "gid://shopify/MarketingActivity/198355157298",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1895,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "source-medium-message-twitter": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": "gid://shopify/MarketingActivity/198355190066",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1897,
                 "restoreRate": 100
               }
             }
@@ -656,7 +913,7 @@
         "payload": {
           "data": {
             "marketingActivityDeleteExternal": {
-              "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197091623218",
+              "deletedMarketingActivityId": "gid://shopify/MarketingActivity/198355222834",
               "userErrors": []
             }
           },
@@ -666,7 +923,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1989,
+                "currentlyAvailable": 1901,
                 "restoreRate": 100
               }
             }
@@ -678,7 +935,7 @@
         "payload": {
           "data": {
             "marketingActivityDeleteExternal": {
-              "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197091655986",
+              "deletedMarketingActivityId": "gid://shopify/MarketingActivity/198355255602",
               "userErrors": []
             }
           },
@@ -688,7 +945,117 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
+                "currentlyAvailable": 1888,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "source-medium-display-ad": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": "gid://shopify/MarketingActivity/198355288370",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1883,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "source-medium-email-affiliate": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": "gid://shopify/MarketingActivity/198355321138",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1886,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "source-medium-search-newsletter": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": "gid://shopify/MarketingActivity/198355353906",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1874,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "source-medium-display-instagram-ad": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": "gid://shopify/MarketingActivity/198355386674",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1868,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "source-medium-custom-domain-ad": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityDeleteExternal": {
+              "deletedMarketingActivityId": "gid://shopify/MarketingActivity/198355419442",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1871,
                 "restoreRate": 100
               }
             }

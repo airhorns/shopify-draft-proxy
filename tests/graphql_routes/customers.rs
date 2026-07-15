@@ -55,6 +55,47 @@ fn create_customer_from_input(proxy: &mut DraftProxy, input: Value) -> String {
         .to_string()
 }
 
+fn create_customer_metafield_definition(
+    proxy: &mut DraftProxy,
+    namespace: &str,
+    key: &str,
+    metafield_type: &str,
+    unique_values: Option<bool>,
+) {
+    let mut definition = json!({
+        "ownerType": "CUSTOMER",
+        "namespace": namespace,
+        "key": key,
+        "name": "Customer external id",
+        "type": metafield_type
+    });
+    if let Some(enabled) = unique_values {
+        definition["capabilities"] = json!({ "uniqueValues": { "enabled": enabled } });
+    }
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerMetafieldDefinitionCreate($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition {
+              ownerType
+              namespace
+              key
+              type { name }
+              capabilities { uniqueValues { enabled eligible } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "definition": definition }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["metafieldDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+}
+
 fn create_customer_address(proxy: &mut DraftProxy, customer_id: &str, address1: &str) -> String {
     let response = proxy.process_request(json_graphql_request(
         r#"
@@ -87,6 +128,367 @@ fn create_customer_address(proxy: &mut DraftProxy, customer_id: &str, address1: 
         .to_string()
 }
 
+fn create_customer_draft_order(proxy: &mut DraftProxy, customer_id: &str, email: &str) -> String {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateCustomerDraftOrder($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder {
+              id
+              email
+              status
+              tags
+              customer { id email displayName }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "purchasingEntity": { "customerId": customer_id },
+                "email": email,
+                "tags": ["merge-draft"],
+                "lineItems": [{
+                    "title": "Customer merge draft item",
+                    "quantity": 1,
+                    "originalUnitPrice": "12.00",
+                    "requiresShipping": false,
+                    "taxable": false
+                }]
+            }
+        }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["draftOrderCreate"]["draftOrder"]["id"]
+        .as_str()
+        .expect("draft order id")
+        .to_string()
+}
+
+#[test]
+fn customer_activation_url_and_account_invite_stage_locally() {
+    let mut proxy = snapshot_proxy();
+    let customer_id = create_customer(
+        &mut proxy,
+        "account-lifecycle@example.com",
+        "Account",
+        "Lifecycle",
+        Vec::new(),
+        None,
+    );
+
+    let activation_mutation = r#"
+        mutation GenerateActivation($customerId: ID!) {
+          customerGenerateAccountActivationUrl(customerId: $customerId) {
+            accountActivationUrl
+            userErrors { field message }
+          }
+        }
+    "#;
+    let first_activation = proxy.process_request(json_graphql_request(
+        activation_mutation,
+        json!({ "customerId": customer_id.clone() }),
+    ));
+    assert_eq!(first_activation.status, 200);
+    assert_eq!(
+        first_activation.body["data"]["customerGenerateAccountActivationUrl"]["userErrors"],
+        json!([])
+    );
+    let activation_url = first_activation.body["data"]["customerGenerateAccountActivationUrl"]
+        ["accountActivationUrl"]
+        .as_str()
+        .expect("activation URL")
+        .to_string();
+    assert!(
+        activation_url.starts_with("https://shopify-draft-proxy.local/customer-account/activate/"),
+        "activation URL should be non-deliverable local URL: {activation_url}"
+    );
+
+    let second_activation = proxy.process_request(json_graphql_request(
+        activation_mutation,
+        json!({ "customerId": customer_id.clone() }),
+    ));
+    assert_eq!(
+        second_activation.body["data"]["customerGenerateAccountActivationUrl"]
+            ["accountActivationUrl"],
+        json!(activation_url)
+    );
+
+    let invite = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SendInvite($customerId: ID!) {
+          customerSendAccountInviteEmail(customerId: $customerId) {
+            customer { id state }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "customerId": customer_id.clone() }),
+    ));
+    assert_eq!(invite.status, 200);
+    assert_eq!(
+        invite.body["data"]["customerSendAccountInviteEmail"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        invite.body["data"]["customerSendAccountInviteEmail"]["customer"],
+        json!({ "id": customer_id.clone(), "state": "INVITED" })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadInvitedCustomer($id: ID!) {
+          customer(id: $id) { id state }
+        }
+        "#,
+        json!({ "id": customer_id.clone() }),
+    ));
+    assert_eq!(
+        read.body["data"]["customer"],
+        json!({ "id": customer_id.clone(), "state": "INVITED" })
+    );
+
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().expect("log entries").len(), 4);
+    assert_eq!(
+        log["entries"][1]["interpreted"]["primaryRootField"],
+        json!("customerGenerateAccountActivationUrl")
+    );
+    assert_eq!(
+        log["entries"][3]["interpreted"]["primaryRootField"],
+        json!("customerSendAccountInviteEmail")
+    );
+    assert!(log["entries"][3]["rawBody"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("customerSendAccountInviteEmail"));
+
+    let state = state_snapshot(&proxy);
+    let staged_customer = &state["stagedState"]["customers"][customer_id.as_str()];
+    assert_eq!(staged_customer["state"], json!("INVITED"));
+    assert!(staged_customer["__proxyAccountActivationToken"]
+        .as_str()
+        .unwrap_or_default()
+        .starts_with("sdp-activation-"));
+    assert_eq!(
+        staged_customer["__proxyAccountInvite"]["status"],
+        json!("staged")
+    );
+}
+
+#[test]
+fn customer_invite_validation_failures_do_not_mutate_or_log() {
+    let mut proxy = snapshot_proxy();
+    let customer_id = create_customer(
+        &mut proxy,
+        "invite-validation@example.com",
+        "Invite",
+        "Validation",
+        Vec::new(),
+        None,
+    );
+    let log_len_after_create = log_snapshot(&proxy)["entries"]
+        .as_array()
+        .expect("log entries")
+        .len();
+
+    let invite_mutation = r#"
+        mutation InviteValidation($customerId: ID!, $email: EmailInput) {
+          customerSendAccountInviteEmail(customerId: $customerId, email: $email) {
+            customer { id state }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let cases = [
+        (
+            json!({ "subject": "" }),
+            json!([{ "field": ["email", "subject"], "message": "Subject can't be blank", "code": "INVALID" }]),
+        ),
+        (
+            json!({ "subject": "Account invite", "to": "not-an-email" }),
+            json!([{ "field": ["email", "to"], "message": "To is invalid", "code": "INVALID" }]),
+        ),
+        (
+            json!({ "subject": "Account invite", "from": "not-an-email" }),
+            json!([{ "field": ["email", "from"], "message": "From Sender is invalid", "code": "INVALID" }]),
+        ),
+        (
+            json!({ "subject": "Account invite", "bcc": ["bad", "ok@example.com"] }),
+            json!([{ "field": ["email", "bcc"], "message": "bad is not a valid bcc address and ok@example.com is not a valid bcc address", "code": "INVALID" }]),
+        ),
+        (
+            json!({ "subject": "s".repeat(1001) }),
+            json!([{ "field": ["customerId"], "message": "Error sending account invite to customer.", "code": "INVALID" }]),
+        ),
+        (
+            json!({ "subject": "Account invite", "customMessage": "m".repeat(5001) }),
+            json!([{ "field": ["customerId"], "message": "Error sending account invite to customer.", "code": "INVALID" }]),
+        ),
+        (
+            json!({ "subject": "Account invite", "customMessage": "<script>alert(1)</script>" }),
+            json!([{ "field": ["customerId"], "message": "Error sending account invite to customer.", "code": "INVALID" }]),
+        ),
+    ];
+
+    for (email, expected_errors) in cases {
+        let response = proxy.process_request(json_graphql_request(
+            invite_mutation,
+            json!({ "customerId": customer_id.clone(), "email": email }),
+        ));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["customerSendAccountInviteEmail"]["customer"],
+            Value::Null
+        );
+        assert_eq!(
+            response.body["data"]["customerSendAccountInviteEmail"]["userErrors"],
+            expected_errors
+        );
+        assert_eq!(
+            log_snapshot(&proxy)["entries"]
+                .as_array()
+                .expect("log entries")
+                .len(),
+            log_len_after_create
+        );
+        let read = proxy.process_request(json_graphql_request(
+            r#"query ReadCustomer($id: ID!) { customer(id: $id) { id state } }"#,
+            json!({ "id": customer_id.clone() }),
+        ));
+        assert_eq!(
+            read.body["data"]["customer"],
+            json!({ "id": customer_id.clone(), "state": "DISABLED" })
+        );
+    }
+
+    let unknown_activation = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownActivation($customerId: ID!) {
+          customerGenerateAccountActivationUrl(customerId: $customerId) {
+            accountActivationUrl
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "customerId": "gid://shopify/Customer/999999999999999" }),
+    ));
+    assert_eq!(
+        unknown_activation.body["data"]["customerGenerateAccountActivationUrl"],
+        json!({
+            "accountActivationUrl": null,
+            "userErrors": [{ "field": ["customerId"], "message": "The customer can't be found." }]
+        })
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"]
+            .as_array()
+            .expect("log entries")
+            .len(),
+        log_len_after_create
+    );
+}
+
+#[test]
+fn customer_outbound_lifecycle_live_hybrid_never_forwards_write_mutations() {
+    let customer_id = "gid://shopify/Customer/live-hybrid-invite".to_string();
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured = Arc::clone(&upstream_calls);
+    let hydrated_customer_id = customer_id.clone();
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream JSON body");
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(
+                query.trim_start().starts_with("query"),
+                "outbound lifecycle runtime must not forward write mutations upstream: {query}"
+            );
+            assert_eq!(body["operationName"], json!("CustomerHydrate"));
+            captured.lock().unwrap().push(body.clone());
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "customer": {
+                            "id": hydrated_customer_id,
+                            "firstName": "Live",
+                            "lastName": "Hybrid",
+                            "displayName": "Live Hybrid",
+                            "email": "live-hybrid@example.com",
+                            "phone": null,
+                            "locale": "en",
+                            "note": null,
+                            "canDelete": true,
+                            "verifiedEmail": true,
+                            "dataSaleOptOut": false,
+                            "taxExempt": false,
+                            "taxExemptions": [],
+                            "state": "DISABLED",
+                            "tags": [],
+                            "createdAt": "2026-06-01T00:00:00Z",
+                            "updatedAt": "2026-06-01T00:00:00Z",
+                            "defaultEmailAddress": { "emailAddress": "live-hybrid@example.com" },
+                            "defaultPhoneNumber": null,
+                            "defaultAddress": null,
+                            "addressesV2": { "nodes": [] },
+                            "metafields": { "nodes": [] }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let invite = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LiveHybridInvite($customerId: ID!) {
+          customerSendAccountInviteEmail(customerId: $customerId) {
+            customer { id state }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "customerId": customer_id.clone() }),
+    ));
+    assert_eq!(invite.status, 200);
+    assert_eq!(
+        invite.body["data"]["customerSendAccountInviteEmail"]["customer"],
+        json!({ "id": customer_id.clone(), "state": "INVITED" })
+    );
+    assert_eq!(
+        upstream_calls.lock().unwrap().len(),
+        1,
+        "only query hydration should have reached upstream"
+    );
+
+    let activation = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LiveHybridActivation($customerId: ID!) {
+          customerGenerateAccountActivationUrl(customerId: $customerId) {
+            accountActivationUrl
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "customerId": customer_id.clone() }),
+    ));
+    assert_eq!(activation.status, 200);
+    assert_eq!(
+        activation.body["data"]["customerGenerateAccountActivationUrl"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        upstream_calls.lock().unwrap().len(),
+        1,
+        "staged customer should satisfy activation without another upstream call"
+    );
+}
+
 #[test]
 fn customer_update_and_set_preserve_hydrated_fields_when_input_omits_them() {
     for root in ["customerUpdate", "customerSet"] {
@@ -100,6 +502,11 @@ fn customer_update_and_set_preserve_hydrated_fields_when_input_omits_them() {
                 captured.lock().unwrap().push(body.clone());
                 assert_eq!(body["operationName"], json!("CustomerHydrate"));
                 assert_eq!(body["variables"]["id"], json!(hydrated_customer_id));
+                let query = body["query"].as_str().expect("hydrate query");
+                assert!(
+                    !query.contains("addressesV2(first: 250)"),
+                    "simple update/set hydrates should not fetch the full address window: {query}"
+                );
                 Response {
                     status: 200,
                     headers: Default::default(),
@@ -125,8 +532,7 @@ fn customer_update_and_set_preserve_hydrated_fields_when_input_omits_them() {
                                 "updatedAt": "2026-06-01T00:00:00Z",
                                 "defaultEmailAddress": { "emailAddress": "hydrated-customer@example.com" },
                                 "defaultPhoneNumber": null,
-                                "defaultAddress": null,
-                                "addressesV2": { "nodes": [] }
+                                "defaultAddress": null
                             }
                         }
                     }),
@@ -186,6 +592,105 @@ fn customer_update_and_set_preserve_hydrated_fields_when_input_omits_them() {
         );
         assert_eq!(upstream_calls.lock().unwrap().len(), 1);
     }
+}
+
+#[test]
+fn customer_update_address_input_uses_address_aware_cold_hydrate() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured = Arc::clone(&upstream_calls);
+    let customer_id = "gid://shopify/Customer/address-aware";
+    let address_id = "gid://shopify/MailingAddress/101";
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream JSON body");
+            captured.lock().unwrap().push(body.clone());
+            assert_eq!(body["operationName"], json!("CustomerHydrate"));
+            assert_eq!(body["variables"]["id"], json!(customer_id));
+            let query = body["query"].as_str().expect("hydrate query");
+            assert!(
+                query.contains("addressesV2(first: 250)"),
+                "address edits need the existing address window for ID validation: {query}"
+            );
+            let address = json!({
+                "id": address_id,
+                "firstName": "Hydrated",
+                "lastName": "Address",
+                "address1": "1 Old St",
+                "address2": null,
+                "city": "Ottawa",
+                "company": null,
+                "province": "Ontario",
+                "provinceCode": "ON",
+                "country": "Canada",
+                "countryCodeV2": "CA",
+                "zip": "K1A 0B1",
+                "phone": null,
+                "name": "Hydrated Address",
+                "formattedArea": "Ottawa ON K1A 0B1, Canada"
+            });
+            let mut customer = json!({
+                "id": customer_id,
+                "firstName": "Hydrated",
+                "lastName": "Address",
+                "displayName": "Hydrated Address",
+                "email": "hydrated-address@example.com",
+                "phone": null,
+                "locale": "en",
+                "note": null,
+                "canDelete": true,
+                "verifiedEmail": true,
+                "dataSaleOptOut": false,
+                "taxExempt": false,
+                "taxExemptions": [],
+                "state": "ENABLED",
+                "tags": [],
+                "createdAt": "2026-06-01T00:00:00Z",
+                "updatedAt": "2026-06-01T00:00:00Z",
+                "defaultEmailAddress": { "emailAddress": "hydrated-address@example.com" },
+                "defaultPhoneNumber": null,
+                "defaultAddress": { "id": address_id }
+            });
+            customer["addressesV2"] = json!({ "nodes": [address] });
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "customer": customer } }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AddressAwareHydrate($input: CustomerInput!) {
+          customerUpdate(input: $input) {
+            customer { id addressesV2(first: 3) { nodes { id address1 city } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": customer_id,
+                "addresses": [{
+                    "id": address_id,
+                    "address1": "2 New St",
+                    "city": "Ottawa",
+                    "countryCode": "CA",
+                    "provinceCode": "ON",
+                    "zip": "K1A 0B1"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["customerUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["customerUpdate"]["customer"]["addressesV2"]["nodes"],
+        json!([{ "id": address_id, "address1": "2 New St", "city": "Ottawa" }])
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
 }
 
 #[test]
@@ -692,6 +1197,263 @@ fn assert_merge_survivor(
         .any(|id| id.as_str() == Some(expected_source_id)));
 }
 
+fn upstream_merge_scalar_customer(
+    id: &str,
+    email: &str,
+    first: &str,
+    last: &str,
+    note: &str,
+) -> Value {
+    json!({
+        "id": id,
+        "firstName": first,
+        "lastName": last,
+        "displayName": format!("{first} {last}"),
+        "email": email,
+        "phone": null,
+        "locale": "en",
+        "note": note,
+        "canDelete": true,
+        "verifiedEmail": true,
+        "dataSaleOptOut": false,
+        "taxExempt": false,
+        "taxExemptions": [],
+        "state": "ENABLED",
+        "tags": [],
+        "numberOfOrders": "0",
+        "createdAt": "2026-06-01T00:00:00Z",
+        "updatedAt": "2026-06-01T00:00:00Z",
+        "defaultEmailAddress": { "emailAddress": email },
+        "defaultPhoneNumber": null,
+        "defaultAddress": null,
+        "lastOrder": null
+    })
+}
+
+#[test]
+fn customer_merge_live_hybrid_uses_combined_bounded_cold_hydrates() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured = Arc::clone(&upstream_calls);
+    let one_id = "gid://shopify/Customer/merge-cold-one";
+    let two_id = "gid://shopify/Customer/merge-cold-two";
+    let expected_one = one_id.to_string();
+    let expected_two = two_id.to_string();
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream JSON body");
+            captured.lock().unwrap().push(body.clone());
+            let ids = json!([expected_one.clone(), expected_two.clone()]);
+            assert_eq!(body["variables"]["ids"], ids);
+            let query = body["query"].as_str().expect("merge hydrate query");
+            match body["operationName"].as_str() {
+                Some("CustomerMergeHydrate") => {
+                    assert!(query.contains("nodes(ids: $ids)"));
+                    assert!(!query.contains("addressesV2("));
+                    assert!(!query.contains("metafields("));
+                    assert!(!query.contains("orders("));
+                    Response {
+                        status: 200,
+                        headers: Default::default(),
+                        body: json!({
+                            "data": {
+                                "nodes": [
+                                    upstream_merge_scalar_customer(&expected_one, "merge-one@example.com", "Merge", "One", "one note"),
+                                    upstream_merge_scalar_customer(&expected_two, "merge-two@example.com", "Merge", "Two", "two note")
+                                ]
+                            }
+                        }),
+                    }
+                }
+                Some("CustomerMergeAttachedHydrate") => {
+                    assert!(query.contains("nodes(ids: $ids)"));
+                    assert!(query.contains("addressesV2(first: 5)"));
+                    assert!(query.contains("metafields(first: 5)"));
+                    assert!(query.contains("orders(first: 5"));
+                    assert!(!query.contains("first: 250"));
+                    Response {
+                        status: 200,
+                        headers: Default::default(),
+                        body: json!({
+                            "data": {
+                                "nodes": [
+                                    {
+                                        "id": expected_one.clone(),
+                                        "defaultAddress": null,
+                                        "addressesV2": {
+                                            "nodes": [{
+                                                "id": "gid://shopify/MailingAddress/merge-one",
+                                                "firstName": "Merge",
+                                                "lastName": "One",
+                                                "address1": "1 Source St",
+                                                "address2": null,
+                                                "city": "Ottawa",
+                                                "company": null,
+                                                "province": "Ontario",
+                                                "provinceCode": "ON",
+                                                "country": "Canada",
+                                                "countryCodeV2": "CA",
+                                                "zip": "K1A 0B1",
+                                                "phone": null,
+                                                "name": "Merge One",
+                                                "formattedArea": "Ottawa ON K1A 0B1, Canada"
+                                            }]
+                                        },
+                                        "metafields": {
+                                            "nodes": [{
+                                                "id": "gid://shopify/Metafield/merge-one",
+                                                "namespace": "custom",
+                                                "key": "source",
+                                                "type": "single_line_text_field",
+                                                "value": "yes"
+                                            }]
+                                        },
+                                        "orders": {
+                                            "edges": [{
+                                                "cursor": "source-order-cursor",
+                                                "node": {
+                                                    "id": "gid://shopify/Order/merge-one",
+                                                    "name": "#1001",
+                                                    "email": "merge-one@example.com",
+                                                    "createdAt": "2026-06-02T00:00:00Z"
+                                                }
+                                            }]
+                                        },
+                                        "lastOrder": {
+                                            "id": "gid://shopify/Order/merge-one",
+                                            "name": "#1001",
+                                            "email": "merge-one@example.com",
+                                            "createdAt": "2026-06-02T00:00:00Z"
+                                        }
+                                    },
+                                    {
+                                        "id": expected_two.clone(),
+                                        "defaultAddress": null,
+                                        "addressesV2": { "nodes": [] },
+                                        "metafields": { "nodes": [] },
+                                        "orders": { "edges": [] },
+                                        "lastOrder": null
+                                    }
+                                ]
+                            }
+                        }),
+                    }
+                }
+                other => panic!("unexpected upstream operation: {other:?}"),
+            }
+        });
+
+    let merge = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ColdMerge($one: ID!, $two: ID!) {
+          customerMerge(customerOneId: $one, customerTwoId: $two) {
+            resultingCustomerId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "one": one_id, "two": two_id }),
+    ));
+    assert_eq!(merge.status, 200);
+    assert_eq!(merge.body["data"]["customerMerge"]["userErrors"], json!([]));
+    assert_eq!(
+        merge.body["data"]["customerMerge"]["resultingCustomerId"],
+        json!(two_id)
+    );
+
+    let readback = proxy.process_request(json_graphql_request(
+        r#"
+        query ColdMergeReadback($id: ID!) {
+          customer(id: $id) {
+            addressesV2(first: 5) { nodes { address1 city } }
+            metafields(first: 5) { nodes { namespace key value } }
+            orders(first: 5) { nodes { id name email } }
+          }
+        }
+        "#,
+        json!({ "id": two_id }),
+    ));
+    assert_eq!(
+        readback.body["data"]["customer"]["addressesV2"]["nodes"],
+        json!([{ "address1": "1 Source St", "city": "Ottawa" }])
+    );
+    assert_eq!(
+        readback.body["data"]["customer"]["metafields"]["nodes"],
+        json!([{ "namespace": "custom", "key": "source", "value": "yes" }])
+    );
+    assert_eq!(
+        readback.body["data"]["customer"]["orders"]["nodes"],
+        json!([{
+            "id": "gid://shopify/Order/merge-one",
+            "name": "#1001",
+            "email": "merge-two@example.com"
+        }])
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 2);
+}
+
+#[test]
+fn customer_merge_live_hybrid_validation_skips_attached_hydrate() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured = Arc::clone(&upstream_calls);
+    let one_id = "gid://shopify/Customer/merge-invalid-one";
+    let two_id = "gid://shopify/Customer/merge-invalid-two";
+    let expected_one = one_id.to_string();
+    let expected_two = two_id.to_string();
+    let long_note = "a".repeat(5001);
+    let hydrate_note = long_note.clone();
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream JSON body");
+            captured.lock().unwrap().push(body.clone());
+            assert_eq!(body["operationName"], json!("CustomerMergeHydrate"));
+            let query = body["query"].as_str().expect("merge hydrate query");
+            assert!(!query.contains("addressesV2("));
+            assert!(!query.contains("metafields("));
+            assert!(!query.contains("orders("));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "nodes": [
+                            upstream_merge_scalar_customer(&expected_one, "invalid-one@example.com", "Invalid", "One", &hydrate_note),
+                            upstream_merge_scalar_customer(&expected_two, "invalid-two@example.com", "Invalid", "Two", "")
+                        ]
+                    }
+                }),
+            }
+        });
+
+    let merge = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InvalidColdMerge($one: ID!, $two: ID!) {
+          customerMerge(customerOneId: $one, customerTwoId: $two) {
+            resultingCustomerId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "one": one_id, "two": two_id }),
+    ));
+    assert_eq!(merge.status, 200);
+    assert_eq!(
+        merge.body["data"]["customerMerge"]["userErrors"],
+        json!([
+            {
+                "field": ["customerOneId"],
+                "message": "Customer notes must be 5,000 characters or less.",
+                "code": "INVALID_CUSTOMER"
+            },
+            {
+                "field": ["customerTwoId"],
+                "message": "Customer notes must be 5,000 characters or less.",
+                "code": "INVALID_CUSTOMER"
+            }
+        ])
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+}
+
 #[test]
 fn customer_input_metafields_round_trip_as_owner_metafields() {
     let mut proxy = snapshot_proxy();
@@ -769,6 +1531,457 @@ fn customer_input_metafields_round_trip_as_owner_metafields() {
     assert_eq!(
         read.body["data"]["customer"]["metafields"]["pageInfo"]["hasNextPage"],
         json!(false)
+    );
+}
+
+#[test]
+fn customer_set_custom_id_updates_creates_and_reads_staged_metafield_identity() {
+    let mut proxy = snapshot_proxy();
+    create_customer_metafield_definition(&mut proxy, "custom", "external_id", "id", None);
+    let existing_id = create_customer_from_input(
+        &mut proxy,
+        json!({
+            "email": "custom-id-existing@example.test",
+            "firstName": "Before",
+            "metafields": [{
+                "namespace": "custom",
+                "key": "external_id",
+                "type": "id",
+                "value": "custom-id-existing"
+            }]
+        }),
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerSetCustomIdUpdate($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
+          customerSet(identifier: $identifier, input: $input) {
+            customer {
+              id
+              firstName
+              externalId: metafield(namespace: "custom", key: "external_id") { namespace key type value }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "identifier": {
+                "customId": { "namespace": "custom", "key": "external_id", "value": "custom-id-existing" }
+            },
+            "input": { "firstName": "After" }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(update.body.get("errors"), None);
+    assert_eq!(update.body["data"]["customerSet"]["userErrors"], json!([]));
+    assert_eq!(
+        update.body["data"]["customerSet"]["customer"]["id"],
+        json!(existing_id)
+    );
+    assert_eq!(
+        update.body["data"]["customerSet"]["customer"]["firstName"],
+        json!("After")
+    );
+    assert_eq!(
+        update.body["data"]["customerSet"]["customer"]["externalId"],
+        json!({
+            "namespace": "custom",
+            "key": "external_id",
+            "type": "id",
+            "value": "custom-id-existing"
+        })
+    );
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerSetCustomIdCreate($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
+          customerSet(identifier: $identifier, input: $input) {
+            customer {
+              id
+              firstName
+              externalId: metafield(namespace: "custom", key: "external_id") { namespace key type value }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "identifier": {
+                "customId": { "namespace": "custom", "key": "external_id", "value": "custom-id-created" }
+            },
+            "input": { "firstName": "Created" }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body.get("errors"), None);
+    assert_eq!(create.body["data"]["customerSet"]["userErrors"], json!([]));
+    let created_id = create.body["data"]["customerSet"]["customer"]["id"]
+        .as_str()
+        .expect("created customer id")
+        .to_string();
+    assert_ne!(created_id, existing_id);
+    assert_eq!(
+        create.body["data"]["customerSet"]["customer"]["externalId"],
+        json!({
+            "namespace": "custom",
+            "key": "external_id",
+            "type": "id",
+            "value": "custom-id-created"
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomerSetCustomIdRead($existing: CustomerIdentifierInput!, $created: CustomerIdentifierInput!, $createdId: ID!) {
+          existingByIdentifier: customerByIdentifier(identifier: $existing) {
+            id
+            firstName
+            externalId: metafield(namespace: "custom", key: "external_id") { namespace key type value }
+          }
+          createdByIdentifier: customerByIdentifier(identifier: $created) {
+            id
+            firstName
+            externalId: metafield(namespace: "custom", key: "external_id") { namespace key type value }
+          }
+          createdById: customer(id: $createdId) {
+            id
+            firstName
+            metafields(first: 5) { nodes { namespace key type value } pageInfo { hasNextPage hasPreviousPage } }
+          }
+        }
+        "#,
+        json!({
+            "existing": { "customId": { "namespace": "custom", "key": "external_id", "value": "custom-id-existing" } },
+            "created": { "customId": { "namespace": "custom", "key": "external_id", "value": "custom-id-created" } },
+            "createdId": created_id
+        }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["existingByIdentifier"]["id"],
+        json!(existing_id)
+    );
+    assert_eq!(
+        read.body["data"]["existingByIdentifier"]["firstName"],
+        json!("After")
+    );
+    assert_eq!(
+        read.body["data"]["createdByIdentifier"]["id"],
+        read.body["data"]["createdById"]["id"]
+    );
+    assert_eq!(
+        read.body["data"]["createdByIdentifier"]["externalId"]["value"],
+        json!("custom-id-created")
+    );
+    assert_eq!(
+        read.body["data"]["createdById"]["metafields"]["nodes"],
+        json!([{ "namespace": "custom", "key": "external_id", "type": "id", "value": "custom-id-created" }])
+    );
+}
+
+#[test]
+fn customer_set_custom_id_uses_read_only_live_hybrid_lookup_before_local_update() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream JSON body");
+            captured_calls.lock().unwrap().push(body.clone());
+            match body["operationName"].as_str().unwrap_or_default() {
+                "MetafieldDefinitionsHydrateOwnerCatalog" => Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "metafieldDefinitions": {
+                                "nodes": [],
+                                "pageInfo": { "hasNextPage": false, "endCursor": null }
+                            }
+                        }
+                    }),
+                },
+                "CustomerCustomIdLookup" => Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "customerByIdentifier": { "id": "gid://shopify/Customer/upstream-custom-id" }
+                        }
+                    }),
+                },
+                "CustomerHydrate" => Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "customer": {
+                                "id": "gid://shopify/Customer/upstream-custom-id",
+                                "firstName": "Hydrated",
+                                "lastName": "Customer",
+                                "displayName": "Hydrated Customer",
+                                "email": "upstream-custom-id@example.test",
+                                "locale": "en",
+                                "canDelete": true,
+                                "verifiedEmail": true,
+                                "taxExempt": false,
+                                "taxExemptions": [],
+                                "tags": [],
+                                "state": "DISABLED",
+                                "metafields": {
+                                    "nodes": [{
+                                        "id": "gid://shopify/Metafield/upstream-custom-id",
+                                        "namespace": "custom",
+                                        "key": "external_id",
+                                        "type": "id",
+                                        "value": "upstream-value"
+                                    }]
+                                }
+                            }
+                        }
+                    }),
+                },
+                other => panic!("unexpected upstream operation: {other}"),
+            }
+        });
+    create_customer_metafield_definition(&mut proxy, "custom", "external_id", "id", None);
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerSetCustomIdLiveLookup($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
+          customerSet(identifier: $identifier, input: $input) {
+            customer {
+              id
+              firstName
+              lastName
+              externalId: metafield(namespace: "custom", key: "external_id") {
+                namespace
+                key
+                type
+                value
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "identifier": {
+                "customId": { "namespace": "custom", "key": "external_id", "value": "upstream-value" }
+            },
+            "input": { "firstName": "Updated" }
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body.get("errors"), None);
+    assert_eq!(
+        response.body["data"]["customerSet"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["customerSet"]["customer"]["id"],
+        json!("gid://shopify/Customer/upstream-custom-id")
+    );
+    assert_eq!(
+        response.body["data"]["customerSet"]["customer"]["firstName"],
+        json!("Updated")
+    );
+    assert_eq!(
+        response.body["data"]["customerSet"]["customer"]["lastName"],
+        json!("Customer")
+    );
+    assert_eq!(
+        response.body["data"]["customerSet"]["customer"]["externalId"],
+        json!({
+            "namespace": "custom",
+            "key": "external_id",
+            "type": "id",
+            "value": "upstream-value"
+        })
+    );
+
+    let calls = upstream_calls.lock().unwrap();
+    assert_eq!(calls.len(), 3);
+    assert_eq!(
+        calls[0]["operationName"],
+        json!("MetafieldDefinitionsHydrateOwnerCatalog")
+    );
+    assert_eq!(calls[0]["variables"]["ownerType"], json!("CUSTOMER"));
+    assert_eq!(calls[1]["operationName"], json!("CustomerCustomIdLookup"));
+    assert_eq!(
+        calls[1]["variables"]["identifier"]["customId"],
+        json!({ "namespace": "custom", "key": "external_id", "value": "upstream-value" })
+    );
+    assert_eq!(calls[2]["operationName"], json!("CustomerHydrate"));
+    assert_eq!(
+        calls[2]["variables"]["id"],
+        json!("gid://shopify/Customer/upstream-custom-id")
+    );
+}
+
+#[test]
+fn customer_set_custom_id_validation_guards_do_not_stage() {
+    let mut proxy = snapshot_proxy();
+
+    let missing_definition = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerSetMissingCustomIdDefinition($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
+          customerSet(identifier: $identifier, input: $input) {
+            customer { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "identifier": { "customId": { "namespace": "custom", "key": "missing_external_id", "value": "missing-def" } },
+            "input": { "firstName": "MissingDefinition" }
+        }),
+    ));
+    assert_eq!(missing_definition.status, 200);
+    assert_eq!(missing_definition.body["data"]["customerSet"], Value::Null);
+    assert_eq!(
+        missing_definition.body["errors"][0]["message"],
+        json!("Metafield definition of type 'id' is required when using custom ids.")
+    );
+    assert_eq!(
+        missing_definition.body["errors"][0]["extensions"]["code"],
+        json!("NOT_FOUND")
+    );
+
+    create_customer_metafield_definition(
+        &mut proxy,
+        "custom",
+        "disabled_external_id",
+        "single_line_text_field",
+        Some(false),
+    );
+    let disabled_unique = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerSetDisabledCustomIdDefinition($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
+          customerSet(identifier: $identifier, input: $input) {
+            customer { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "identifier": { "customId": { "namespace": "custom", "key": "disabled_external_id", "value": "disabled-def" } },
+            "input": { "firstName": "DisabledDefinition" }
+        }),
+    ));
+    assert_eq!(disabled_unique.body["data"]["customerSet"], Value::Null);
+    assert_eq!(
+        disabled_unique.body["errors"][0]["extensions"]["code"],
+        json!("NOT_FOUND")
+    );
+
+    create_customer_metafield_definition(&mut proxy, "custom", "guard_external_id", "id", None);
+    let mismatch = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerSetCustomIdMismatch($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
+          customerSet(identifier: $identifier, input: $input) {
+            customer { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "identifier": { "customId": { "namespace": "custom", "key": "guard_external_id", "value": "identifier-value" } },
+            "input": {
+                "firstName": "Mismatch",
+                "metafields": [{ "namespace": "custom", "key": "guard_external_id", "type": "id", "value": "input-value" }]
+            }
+        }),
+    ));
+    assert_eq!(mismatch.body.get("data"), None);
+    assert_eq!(
+        mismatch.body["errors"][0]["message"],
+        json!("Variable $input of type CustomerSetInput! was provided invalid value for metafields (Field is not defined on CustomerSetInput)")
+    );
+    assert_eq!(
+        mismatch.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    assert_eq!(
+        mismatch.body["errors"][0]["extensions"]["problems"][0],
+        json!({
+            "path": ["metafields"],
+            "explanation": "Field is not defined on CustomerSetInput"
+        })
+    );
+
+    create_customer_from_input(
+        &mut proxy,
+        json!({
+            "email": "custom-id-duplicate-one@example.test",
+            "firstName": "Duplicate",
+            "metafields": [{ "namespace": "custom", "key": "guard_external_id", "type": "id", "value": "duplicated-value" }]
+        }),
+    );
+    create_customer_from_input(
+        &mut proxy,
+        json!({
+            "email": "custom-id-duplicate-two@example.test",
+            "firstName": "Duplicate",
+            "metafields": [{ "namespace": "custom", "key": "guard_external_id", "type": "id", "value": "duplicated-value" }]
+        }),
+    );
+    let duplicate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerSetCustomIdDuplicate($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
+          customerSet(identifier: $identifier, input: $input) {
+            customer { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "identifier": { "customId": { "namespace": "custom", "key": "guard_external_id", "value": "duplicated-value" } },
+            "input": { "firstName": "DuplicateTarget" }
+        }),
+    ));
+    assert_eq!(
+        duplicate.body["data"]["customerSet"],
+        json!({
+            "customer": null,
+            "userErrors": [{
+                "field": ["input"],
+                "message": "Value is already assigned to another metafield. Choose a different value to ensure it remains unique.",
+                "code": "TAKEN"
+            }]
+        })
+    );
+
+    let malformed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerSetMalformedCustomId($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
+          customerSet(identifier: $identifier, input: $input) {
+            customer { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "identifier": { "customId": { "namespace": "custom", "value": "missing-key" } },
+            "input": { "firstName": "Malformed" }
+        }),
+    ));
+    assert_eq!(malformed.body.get("data"), None);
+    assert_eq!(
+        malformed.body["errors"][0]["message"],
+        json!("Variable $identifier of type CustomerSetIdentifiers was provided invalid value for customId.key (Expected value to not be null)")
+    );
+    assert_eq!(
+        malformed.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    assert_eq!(
+        malformed.body["errors"][0]["extensions"]["problems"][0],
+        json!({
+            "path": ["customId", "key"],
+            "explanation": "Expected value to not be null"
+        })
     );
 }
 
@@ -1403,6 +2616,8 @@ fn customer_merge_stages_and_downstream_reads_are_operation_name_independent() {
             ]
         }),
     );
+    let draft_order_id =
+        create_customer_draft_order(&mut proxy, &source_id, "merge-source@example.test");
 
     let merge = proxy.process_request(json_graphql_request(
         r#"
@@ -1443,7 +2658,13 @@ fn customer_merge_stages_and_downstream_reads_are_operation_name_independent() {
 
     let downstream = proxy.process_request(json_graphql_request(
         r#"
-        query MergeReadAfterWrite($source: ID!, $result: ID!, $sourceEmail: String!, $resultEmail: String!, $job: ID!) {
+        query MergeReadAfterWrite(
+          $source: ID!
+          $result: ID!
+          $sourceEmail: String!
+          $resultEmail: String!
+          $job: ID!
+        ) {
           source: customer(id: $source) { id email }
           result: customer(id: $result) {
             id
@@ -1541,6 +2762,72 @@ fn customer_merge_stages_and_downstream_reads_are_operation_name_independent() {
             "customerMergeErrors": []
         })
     );
+    let draft_downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query MergeDraftOrderReadAfterWrite($draftOrder: ID!, $sourceDraftQuery: String!, $resultDraftQuery: String!) {
+          draftOrder(id: $draftOrder) {
+            id
+            email
+            status
+            tags
+            customer { id email displayName }
+          }
+          sourceDraftOrders: draftOrders(first: 5, query: $sourceDraftQuery) {
+            nodes { id email status customer { id } }
+          }
+          resultDraftOrders: draftOrders(first: 5, query: $resultDraftQuery) {
+            nodes { id email status tags customer { id email displayName } }
+          }
+          sourceDraftOrdersCount: draftOrdersCount(query: $sourceDraftQuery) { count precision }
+          resultDraftOrdersCount: draftOrdersCount(query: $resultDraftQuery) { count precision }
+        }
+        "#,
+        json!({
+            "draftOrder": draft_order_id,
+            "sourceDraftQuery": format!("customer_id:{source_id}"),
+            "resultDraftQuery": format!("customer_id:{result_id}")
+        }),
+    ));
+    assert_eq!(
+        draft_downstream.body["data"]["draftOrder"],
+        json!({
+            "id": draft_order_id,
+            "email": "merge-result@example.test",
+            "status": "OPEN",
+            "tags": ["merge-draft"],
+            "customer": {
+                "id": result_id,
+                "email": "merge-result@example.test",
+                "displayName": "Merge Result"
+            }
+        })
+    );
+    assert_eq!(
+        draft_downstream.body["data"]["sourceDraftOrders"]["nodes"],
+        json!([])
+    );
+    assert_eq!(
+        draft_downstream.body["data"]["resultDraftOrders"]["nodes"],
+        json!([{
+            "id": draft_order_id,
+            "email": "merge-result@example.test",
+            "status": "OPEN",
+            "tags": ["merge-draft"],
+            "customer": {
+                "id": result_id,
+                "email": "merge-result@example.test",
+                "displayName": "Merge Result"
+            }
+        }])
+    );
+    assert_eq!(
+        draft_downstream.body["data"]["sourceDraftOrdersCount"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+    assert_eq!(
+        draft_downstream.body["data"]["resultDraftOrdersCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
     assert_eq!(downstream.body["data"]["job"]["id"], json!(job_id));
     assert_eq!(downstream.body["data"]["job"]["done"], json!(true));
     assert_eq!(downstream.body["data"]["node"]["id"], json!(job_id));
@@ -1559,12 +2846,21 @@ fn customer_merge_stages_and_downstream_reads_are_operation_name_independent() {
         state["stagedState"]["deletedCustomerIds"],
         json!([source_id])
     );
+    assert_eq!(
+        state["stagedState"]["draftOrders"][draft_order_id.as_str()]["data"]["customer"]["id"],
+        json!(result_id)
+    );
+    assert_eq!(
+        state["stagedState"]["draftOrders"][draft_order_id.as_str()]["data"]["purchasingEntity"]
+            ["customerId"],
+        json!(result_id)
+    );
     let log = log_snapshot(&proxy);
     assert_eq!(
-        log["entries"][2]["interpreted"]["primaryRootField"],
+        log["entries"][3]["interpreted"]["primaryRootField"],
         json!("customerMerge")
     );
-    assert!(log["entries"][2]["rawBody"]
+    assert!(log["entries"][3]["rawBody"]
         .as_str()
         .unwrap()
         .contains("TotallyArbitraryMergeName"));
@@ -1856,6 +3152,8 @@ fn customer_merge_validations_and_blockers_return_shopify_shaped_errors() {
         Vec::new(),
         Some(&"b".repeat(2500)),
     );
+    let note_draft_order =
+        create_customer_draft_order(&mut proxy, &note_one, "merge-note-one@example.test");
     let note_overflow = proxy.process_request(json_graphql_request(
         r#"
         mutation NotesBlockerNameDoesNotMatter($one: ID!, $two: ID!) {
@@ -1883,6 +3181,36 @@ fn customer_merge_validations_and_blockers_return_shopify_shaped_errors() {
             }
         ])
     );
+    let note_draft_read = proxy.process_request(json_graphql_request(
+        r#"
+        query NoteRejectedDraftRead($draftOrder: ID!, $sourceDraftQuery: String!, $resultDraftQuery: String!) {
+          draftOrder(id: $draftOrder) { id customer { id email displayName } }
+          sourceDraftOrders: draftOrders(first: 5, query: $sourceDraftQuery) { nodes { id customer { id } } }
+          resultDraftOrders: draftOrders(first: 5, query: $resultDraftQuery) { nodes { id customer { id } } }
+        }
+        "#,
+        json!({
+            "draftOrder": note_draft_order,
+            "sourceDraftQuery": format!("customer_id:{note_one}"),
+            "resultDraftQuery": format!("customer_id:{note_two}")
+        }),
+    ));
+    assert_eq!(
+        note_draft_read.body["data"]["draftOrder"]["customer"],
+        json!({
+            "id": note_one,
+            "email": "merge-note-one@example.test",
+            "displayName": "Note One"
+        })
+    );
+    assert_eq!(
+        note_draft_read.body["data"]["sourceDraftOrders"]["nodes"][0]["id"],
+        json!(note_draft_order)
+    );
+    assert_eq!(
+        note_draft_read.body["data"]["resultDraftOrders"]["nodes"],
+        json!([])
+    );
 
     assert_eq!(
         state_snapshot(&proxy)["stagedState"]["mergedCustomerIds"],
@@ -1891,6 +3219,16 @@ fn customer_merge_validations_and_blockers_return_shopify_shaped_errors() {
     assert_eq!(
         state_snapshot(&proxy)["stagedState"]["customers"][second_id.as_str()]["email"],
         json!("merge-validation-two@example.test")
+    );
+    assert_eq!(
+        state_snapshot(&proxy)["stagedState"]["draftOrders"][note_draft_order.as_str()]["data"]
+            ["customer"]["id"],
+        json!(note_one)
+    );
+    assert_eq!(
+        state_snapshot(&proxy)["stagedState"]["draftOrders"][note_draft_order.as_str()]["data"]
+            ["purchasingEntity"]["customerId"],
+        json!(note_one)
     );
 }
 

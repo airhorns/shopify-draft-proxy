@@ -19,6 +19,8 @@ arbitrary documents.
 
 The implemented read roots are:
 
+- `deliveryCustomization`
+- `deliveryCustomizations`
 - `locationsAvailableForDeliveryProfilesConnection`
 
 The implemented mutation roots are:
@@ -26,7 +28,12 @@ The implemented mutation roots are:
 - `carrierServiceCreate`
 - `carrierServiceDelete`
 - `carrierServiceUpdate`
+- `deliveryCustomizationActivation`
+- `deliveryCustomizationCreate`
+- `deliveryCustomizationDelete`
+- `deliveryCustomizationUpdate`
 - `fulfillmentEventCreate`
+- `fulfillmentOrderLineItemsPreparedForPickup`
 - `fulfillmentServiceCreate`
 - `fulfillmentServiceDelete`
 - `fulfillmentServiceUpdate`
@@ -52,8 +59,6 @@ The registry-only read roots are:
 - `availableCarrierServices`
 - `carrierService`
 - `carrierServices`
-- `deliveryCustomization`
-- `deliveryCustomizations`
 - `deliveryPromiseParticipants`
 - `deliveryPromiseProvider`
 - `deliveryPromiseSettings`
@@ -70,7 +75,6 @@ The registry-only mutation roots are:
 - `fulfillmentOrderCancel`
 - `fulfillmentOrderClose`
 - `fulfillmentOrderHold`
-- `fulfillmentOrderLineItemsPreparedForPickup`
 - `fulfillmentOrderMove`
 - `fulfillmentOrderOpen`
 - `fulfillmentOrderReleaseHold`
@@ -78,10 +82,6 @@ The registry-only mutation roots are:
 - `fulfillmentOrderReschedule`
 - `fulfillmentOrdersReroute`
 - `fulfillmentOrdersSetFulfillmentDeadline`
-- `deliveryCustomizationActivation`
-- `deliveryCustomizationCreate`
-- `deliveryCustomizationDelete`
-- `deliveryCustomizationUpdate`
 - `deliveryPromiseParticipantsUpdate`
 - `deliveryPromiseProviderUpsert`
 - `deliverySettingUpdate`
@@ -117,6 +117,13 @@ The captured 2026-04 public schema does not expose `permitsSkuSharing`,
 `fulfillmentServiceCreate`; those arguments return top-level
 `argumentNotAccepted` GraphQL errors before resolver execution and do not stage
 or log a service mutation.
+In LiveHybrid, `fulfillmentServiceUpdate` and `fulfillmentServiceDelete` can
+hydrate a real app-owned fulfillment service by ID before applying local
+lifecycle validation, and create/update uniqueness validation hydrates the
+effective `shop.fulfillmentServices` catalog before checking service-name or
+generated-handle conflicts. These hydration reads are query-only; supported
+service mutations still stage locally and keep the original raw mutation for
+commit replay.
 
 Reverse-logistics shipping slices stage `reverseDeliveryCreateWithShipping`
 from the return domain's reverse fulfillment order state. Explicit
@@ -143,6 +150,12 @@ tokens are combined with AND semantics. Unsupported filter fields or bare search
 terms return an empty local connection rather than widening the result set.
 `sortKey: ID`, `CREATED_AT`, and `UPDATED_AT` plus `reverse` are applied before
 cursor windowing.
+In LiveHybrid, `carrierServiceUpdate` and `carrierServiceDelete` can hydrate a
+real app-owned carrier service by ID before staging the lifecycle mutation, and
+`carrierServiceCreate` hydrates the effective carrier-service catalog before
+duplicate-name validation. The runtime does not send those supported mutations
+upstream during staging; only the narrow hydrate queries are issued before local
+validation and mutation-log recording.
 
 Fulfillment and fulfillment-order slices cover fixture-backed top-level reads,
 detail/event reads, hold/release, move, open/report-progress, close,
@@ -179,6 +192,24 @@ fulfillment orders are recomputed from current status and assignment: terminal
 Split fulfillment orders preserve fulfillment-service actions observed on the
 source order, while merge recomputes peer-sensitive actions so `MERGE` is absent
 when no compatible open peer remains.
+`fulfillmentOrderLineItemsPreparedForPickup` stages pickup preparation for
+selected order-backed fulfillment orders that resolve from staged, observed, or
+LiveHybrid-hydrated order state. The local branch validates every requested
+fulfillment order before applying any state change: structurally invalid
+non-fulfillment-order GIDs return Shopify's top-level `invalid id` /
+`RESOURCE_NOT_FOUND` shape, unknown IDs return a payload `userErrors` entry on
+the indexed `fulfillmentOrderId` field with `FULFILLMENT_ORDER_INVALID`, and
+non-pickup, closed, canceled, or zero-remaining fulfillment orders return the
+same payload user-error shape without staging or logging. Successful batches
+move only the requested pickup fulfillment orders to `IN_PROGRESS`, recompute
+their supported actions, mark their line items prepared for pickup, project
+`fulfillableQuantity: 0` while preserving the stored remaining quantities, and
+refresh the parent order's display fulfillment status. The mutation retains the
+original raw request for commit replay, and the staged result is visible through
+`fulfillmentOrder`, `fulfillmentOrders`, `assignedFulfillmentOrders`, and nested
+`Order.fulfillmentOrders` reads. Existing public evidence covers the invalid-ID
+and non-pickup validation branches; successful pickup preparation is covered by
+focused Rust runtime tests until a disposable pickup-order capture is available.
 Locally created order fulfillment orders derive their initial `assignedLocation`
 from the first active observed/staged shop location that fulfills online orders;
 the runtime does not fabricate
@@ -195,6 +226,27 @@ location records; missing or inactive destinations return the local
 `Location not found.` user error, and successful move payloads serialize the
 assigned-location id/name from that stored location rather than from fixture
 constants.
+Top-level fulfillment-order catalogs compute an effective connection from the
+read-only upstream catalog response plus local staged lifecycle records when
+staged fulfillment-order state is present. Matching IDs are overlaid with the
+staged record, unrelated upstream records remain visible, and staged-only
+replacement or split records are appended before local filtering, sorting, and
+cursor windowing. If upstream catalog hydration is unavailable, these roots
+fall back to the staged local set. `fulfillmentOrders` excludes closed or
+cancelled records unless `includeClosed: true` is present and models `id`,
+`status`, `assigned_location_id`, `updated_at`, and free-text query terms.
+`assignedFulfillmentOrders` excludes closed records and applies
+`assignmentStatus` plus `locationIds`; `manualHoldsFulfillmentOrders` narrows to
+held records and applies its modeled order-search terms. The catalog roots
+share local `sortKey: ID` / `UPDATED_AT`, `reverse`, and cursor window
+semantics over that effective set.
+Generic `node(id:)` and `nodes(ids:)` now read order-backed fulfillment and
+fulfillment-order resources from the same normalized order graph as
+`fulfillment(id:)`, `fulfillmentOrder(id:)`, and nested `Order` selections:
+`Fulfillment`, `FulfillmentEvent`, `FulfillmentLineItem`, `FulfillmentOrder`,
+`FulfillmentHold`, and `FulfillmentOrderLineItem` resolve locally, reflect
+staged lifecycle changes immediately, preserve duplicate/order semantics for
+`nodes(ids:)`, and return `null` for missing or deleted IDs.
 
 Delivery settings and delivery promise settings are read-only in snapshot mode
 and return the captured empty/no-feature shape there. Live modes forward those
@@ -215,13 +267,48 @@ selectable on the captured Admin GraphQL 2026-04 `UserError` type. Location
 IDs supplied in delivery-profile location groups must resolve from staged,
 observed, or LiveHybrid-hydrated location state; unknown IDs return the public
 `The Location could not be found for this shop.` userError instead of creating a
-synthetic location. `deliveryProfiles(first/last/after/before/reverse:)` merges
+synthetic location. Delivery-profile `variantsToAssociate` inputs add
+associations only for `ProductVariant` IDs resolved from staged/base product
+state or LiveHybrid `nodes(ids:)` hydration. Nonexistent, inaccessible, or
+wrong-shop variant lookups that hydrate as missing nodes are left unassociated;
+wrong GID types return a top-level `RESOURCE_NOT_FOUND` error and leave profile
+state unchanged. Indeterminate hydration failures, including upstream transport
+failures and malformed hydrate payloads, do not count as existence and do not
+stage associations. Profile item product/variant IDs, titles, and relationships
+derive from the resolved product/variant state instead of placeholder products.
+Captured 2026-04 parity target `delivery-profile-variant-associations` covers a
+valid staged variant, nonexistent association targets, wrong-GID-type failures,
+and downstream reads after invalid update attempts.
+`deliveryProfiles(first/last/after/before/reverse:)` merges
 observed merchant baseline profiles, including the default profile, with staged
 profile creates/updates/removals before computing page windows and `pageInfo`
 boundary cursors instead of returning a canned connection envelope. Captured
 2026-04 parity target `delivery-profile-post-create-catalog-keeps-default`
 creates a disposable profile and then lists `deliveryProfiles`, asserting the
 merchant default profile remains visible alongside the staged create.
+
+Delivery customization slices stage create, update, activation, and delete
+mutations locally without writing to Shopify during normal proxy runtime.
+Successful mutations retain the original raw GraphQL request for commit replay;
+validation failures return `userErrors` and do not stage records or append
+mutation-log entries. The local record model stores the customization id, title,
+enabled state, owning Shopify Function identity, selected Function metadata,
+metafields, and timestamps. Create resolves a Function by handle from the
+current app when needed, rejects missing or ambiguous Function identifiers,
+enforces the active-customization limit, validates required title/enabled input
+and metafield fields, and preserves `$app` metafield namespace behavior for the
+requesting API client. Update preserves Function identity, supports title,
+enabled state, and metafield replacement, and rejects unknown customization IDs
+or attempts to move a customization to another Function. Activation updates
+known IDs idempotently and reports unknown or over-limit inputs through
+Shopify-shaped `userErrors`; delete tombstones known IDs so later detail and
+generic Node reads return null. `deliveryCustomization(id:)` and
+`deliveryCustomizations(first/last/after/before/query/sortKey/reverse:)` read
+from the staged customization store, return Shopify-like null/empty shapes when
+no local data exists, apply selected fields and connection windows, and reflect
+read-after-write state immediately. Generic `node(id:)` and `nodes(ids:)` reads
+resolve staged delivery customizations through the same normalized record,
+preserve `nodes(ids:)` input order, and return null for missing or deleted IDs.
 
 Local pickup mutations stage settings on active local locations and retain the
 original raw GraphQL request for commit replay. `locationLocalPickupEnable`
@@ -255,10 +342,13 @@ with `/endpoints/orders/` and `/endpoints/returns/`.
 
 - Implemented local slices should not be described as broad
   shipping/fulfillments root support beyond their covered request families.
-- Delivery customization and delivery promise mutations are Shopify
-  Function-backed or provider-backed and remain unsupported until function
-  ownership, activation eligibility, metafields, provider state, validation,
-  cleanup, and downstream reads are modeled locally.
+- Delivery promise mutations are provider-backed and remain unsupported until
+  provider state, validation, cleanup, and downstream reads are modeled locally.
+- Delivery customization runtime behavior is covered by local integration tests.
+  Live Shopify parity capture for successful lifecycle writes also requires an
+  installed delivery-customization Shopify Function in the conformance app; when
+  that Function is unavailable, proxy-only runtime tests must not be treated as
+  captured Shopify evidence.
 - Fulfillment constraint rule metadata roots are covered by the Functions
   endpoint group, not by the shipping/fulfillments local slices.
 - Validation-only shipping and fulfillment specs prove guardrail payloads and

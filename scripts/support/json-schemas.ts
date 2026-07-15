@@ -74,9 +74,19 @@ export const operationRegistryEntrySchema = z.strictObject({
 export const operationRegistrySchema = z.array(operationRegistryEntrySchema);
 export type OperationRegistryEntry = z.infer<typeof operationRegistryEntrySchema>;
 
+export const nodeResolverInventoryEntrySchema = z.strictObject({
+  typeName: z.string().min(1),
+  resolver: z.string().min(1),
+  behavior: z.enum(['project-local-record', 'return-known-null']),
+});
+export const nodeResolverInventorySchema = z.array(nodeResolverInventoryEntrySchema);
+export type NodeResolverInventoryEntry = z.infer<typeof nodeResolverInventoryEntrySchema>;
+
 export const parityProxyRequestSpecSchema = z.strictObject({
   documentPath: z.string().nullable().optional(),
   documentCapturePath: z.string().nullable().optional(),
+  operationName: z.string().nullable().optional(),
+  operationNameCapturePath: z.string().nullable().optional(),
   variablesPath: z.string().nullable().optional(),
   variablesCapturePath: z.string().nullable().optional(),
   variables: graphqlVariablesSchema.optional(),

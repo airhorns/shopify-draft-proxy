@@ -1,0 +1,24 @@
+query OrderLiveHybridMixedCatalogRead($existingId: ID!, $query: String!, $first: Int!) {
+    existing: order(id: $existingId) {
+      email
+      note
+      tags
+      processedAt
+    }
+    visible: orders(first: $first, query: $query, sortKey: PROCESSED_AT, reverse: false) {
+      nodes {
+        email
+        note
+        tags
+        processedAt
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+    total: ordersCount(query: $query, limit: null) {
+      count
+      precision
+    }
+  }

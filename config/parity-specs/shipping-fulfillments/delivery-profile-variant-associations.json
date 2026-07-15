@@ -1,0 +1,336 @@
+{
+  "scenarioId": "delivery-profile-variant-associations",
+  "operationNames": ["productCreate", "deliveryProfile", "deliveryProfileCreate", "deliveryProfileUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/delivery-profile-variant-associations.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/delivery-profile-variant-association-product-create.graphql",
+    "variablesCapturePath": "$.setup.productCreate.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL 2026-04 delivery-profile variant association evidence covers a valid staged ProductVariant, nonexistent ProductVariant create/update association targets, and wrong-GID-type create/update targets. The proxy replay creates the product through public GraphQL, associates only verified variants, replays Shopify-backed nodes(ids:) cassettes for missing ProductVariant hydration, and preserves the existing valid association after invalid update attempts.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "product-create-data",
+        "capturePath": "$.setup.productCreate.result.payload.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.productCreate.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy creates a synthetic local product ID while Shopify returns the live dev-store product ID."
+          },
+          {
+            "path": "$.productCreate.product.variants.nodes[0].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "The proxy creates a synthetic local ProductVariant ID while Shopify returns the live dev-store variant ID."
+          }
+        ]
+      },
+      {
+        "name": "valid-variant-create",
+        "capturePath": "$.mutations.validCreate.result.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/delivery-profile-variant-association-create.graphql",
+          "variables": {
+            "profile": {
+              "name": {
+                "fromCapturePath": "$.mutations.validCreate.variables.profile.name"
+              },
+              "variantsToAssociate": [
+                {
+                  "fromPrimaryProxyPath": "$.data.productCreate.product.variants.nodes[0].id"
+                }
+              ]
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deliveryProfileCreate.profile.id",
+            "matcher": "shopify-gid:DeliveryProfile",
+            "reason": "The proxy creates a synthetic local delivery profile ID while Shopify returns the live dev-store profile ID."
+          },
+          {
+            "path": "$.deliveryProfileCreate.profile.profileItems.nodes[0].product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The associated product comes from the proxy-created product, not Shopify's live product ID."
+          },
+          {
+            "path": "$.deliveryProfileCreate.profile.profileItems.nodes[0].variants.nodes[0].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "The associated variant comes from the proxy-created ProductVariant, not Shopify's live variant ID."
+          },
+          {
+            "path": "$.deliveryProfileCreate.profile.profileItems.pageInfo.startCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify returns opaque cursors for one-item delivery-profile item connections while the local connection helper reports null cursors; the association branch is covered by the surrounding id, title, and count assertions."
+          },
+          {
+            "path": "$.deliveryProfileCreate.profile.profileItems.pageInfo.endCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify returns opaque cursors for one-item delivery-profile item connections while the local connection helper reports null cursors; the association branch is covered by the surrounding id, title, and count assertions."
+          },
+          {
+            "path": "$.deliveryProfileCreate.profile.profileItems.nodes[0].variants.pageInfo.startCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify returns opaque cursors for one-item delivery-profile variant connections while the local connection helper reports null cursors; the association branch is covered by the surrounding id, title, and count assertions."
+          },
+          {
+            "path": "$.deliveryProfileCreate.profile.profileItems.nodes[0].variants.pageInfo.endCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify returns opaque cursors for one-item delivery-profile variant connections while the local connection helper reports null cursors; the association branch is covered by the surrounding id, title, and count assertions."
+          }
+        ]
+      },
+      {
+        "name": "missing-variant-create",
+        "capturePath": "$.mutations.missingCreate.result.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/delivery-profile-variant-association-create.graphql",
+          "variablesCapturePath": "$.mutations.missingCreate.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deliveryProfileCreate.profile.id",
+            "matcher": "shopify-gid:DeliveryProfile",
+            "reason": "The profile itself is still created locally with a synthetic ID, while the nonexistent variant is not associated."
+          }
+        ]
+      },
+      {
+        "name": "wrong-type-create-resource-not-found",
+        "capturePath": "$.mutations.wrongTypeCreate.result.payload",
+        "proxyPath": "$",
+        "selectedPaths": ["$.data.deliveryProfileCreate", "$.errors[0].extensions.code", "$.errors[0].path"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/delivery-profile-variant-association-create.graphql",
+          "variables": {
+            "profile": {
+              "name": {
+                "fromCapturePath": "$.mutations.wrongTypeCreate.variables.profile.name"
+              },
+              "variantsToAssociate": [
+                {
+                  "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "missing-variant-update-retains-valid-association",
+        "capturePath": "$.mutations.missingUpdate.result.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/delivery-profile-variant-association-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "valid-variant-create",
+              "path": "$.data.deliveryProfileCreate.profile.id"
+            },
+            "profile": {
+              "name": {
+                "fromCapturePath": "$.mutations.missingUpdate.variables.profile.name"
+              },
+              "variantsToAssociate": [
+                {
+                  "fromCapturePath": "$.mutations.missingUpdate.variables.profile.variantsToAssociate[0]"
+                }
+              ]
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deliveryProfileUpdate.profile.id",
+            "matcher": "shopify-gid:DeliveryProfile",
+            "reason": "The update runs against the proxy-created delivery profile ID."
+          },
+          {
+            "path": "$.deliveryProfileUpdate.profile.profileItems.nodes[0].product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The retained association points at the proxy-created product ID."
+          },
+          {
+            "path": "$.deliveryProfileUpdate.profile.profileItems.nodes[0].variants.nodes[0].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "The retained association points at the proxy-created ProductVariant ID."
+          },
+          {
+            "path": "$.deliveryProfileUpdate.profile.profileItems.pageInfo.startCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify returns opaque cursors for one-item delivery-profile item connections while the local connection helper reports null cursors; the association branch is covered by the surrounding id, title, and count assertions."
+          },
+          {
+            "path": "$.deliveryProfileUpdate.profile.profileItems.pageInfo.endCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify returns opaque cursors for one-item delivery-profile item connections while the local connection helper reports null cursors; the association branch is covered by the surrounding id, title, and count assertions."
+          },
+          {
+            "path": "$.deliveryProfileUpdate.profile.profileItems.nodes[0].variants.pageInfo.startCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify returns opaque cursors for one-item delivery-profile variant connections while the local connection helper reports null cursors; the association branch is covered by the surrounding id, title, and count assertions."
+          },
+          {
+            "path": "$.deliveryProfileUpdate.profile.profileItems.nodes[0].variants.pageInfo.endCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify returns opaque cursors for one-item delivery-profile variant connections while the local connection helper reports null cursors; the association branch is covered by the surrounding id, title, and count assertions."
+          }
+        ]
+      },
+      {
+        "name": "read-after-missing-update-retains-valid-association",
+        "capturePath": "$.mutations.readAfterMissingUpdate.result.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/delivery-profile-variant-association-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "valid-variant-create",
+              "path": "$.data.deliveryProfileCreate.profile.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deliveryProfile.id",
+            "matcher": "shopify-gid:DeliveryProfile",
+            "reason": "The read targets the proxy-created delivery profile ID."
+          },
+          {
+            "path": "$.deliveryProfile.profileItems.nodes[0].product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The retained association points at the proxy-created product ID."
+          },
+          {
+            "path": "$.deliveryProfile.profileItems.nodes[0].variants.nodes[0].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "The retained association points at the proxy-created ProductVariant ID."
+          },
+          {
+            "path": "$.deliveryProfile.profileItems.pageInfo.startCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify returns opaque cursors for one-item delivery-profile item connections while the local connection helper reports null cursors; the association branch is covered by the surrounding id, title, and count assertions."
+          },
+          {
+            "path": "$.deliveryProfile.profileItems.pageInfo.endCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify returns opaque cursors for one-item delivery-profile item connections while the local connection helper reports null cursors; the association branch is covered by the surrounding id, title, and count assertions."
+          },
+          {
+            "path": "$.deliveryProfile.profileItems.nodes[0].variants.pageInfo.startCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify returns opaque cursors for one-item delivery-profile variant connections while the local connection helper reports null cursors; the association branch is covered by the surrounding id, title, and count assertions."
+          },
+          {
+            "path": "$.deliveryProfile.profileItems.nodes[0].variants.pageInfo.endCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify returns opaque cursors for one-item delivery-profile variant connections while the local connection helper reports null cursors; the association branch is covered by the surrounding id, title, and count assertions."
+          }
+        ]
+      },
+      {
+        "name": "wrong-type-update-resource-not-found",
+        "capturePath": "$.mutations.wrongTypeUpdate.result.payload",
+        "proxyPath": "$",
+        "selectedPaths": ["$.data.deliveryProfileUpdate", "$.errors[0].extensions.code", "$.errors[0].path"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/delivery-profile-variant-association-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "valid-variant-create",
+              "path": "$.data.deliveryProfileCreate.profile.id"
+            },
+            "profile": {
+              "name": {
+                "fromCapturePath": "$.mutations.wrongTypeUpdate.variables.profile.name"
+              },
+              "variantsToAssociate": [
+                {
+                  "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "read-after-wrong-type-update-still-retains-valid-association",
+        "capturePath": "$.mutations.readAfterWrongTypeUpdate.result.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/delivery-profile-variant-association-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "valid-variant-create",
+              "path": "$.data.deliveryProfileCreate.profile.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deliveryProfile.id",
+            "matcher": "shopify-gid:DeliveryProfile",
+            "reason": "The read targets the proxy-created delivery profile ID."
+          },
+          {
+            "path": "$.deliveryProfile.profileItems.nodes[0].product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The retained association points at the proxy-created product ID."
+          },
+          {
+            "path": "$.deliveryProfile.profileItems.nodes[0].variants.nodes[0].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "The retained association points at the proxy-created ProductVariant ID."
+          },
+          {
+            "path": "$.deliveryProfile.profileItems.pageInfo.startCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify returns opaque cursors for one-item delivery-profile item connections while the local connection helper reports null cursors; the association branch is covered by the surrounding id, title, and count assertions."
+          },
+          {
+            "path": "$.deliveryProfile.profileItems.pageInfo.endCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify returns opaque cursors for one-item delivery-profile item connections while the local connection helper reports null cursors; the association branch is covered by the surrounding id, title, and count assertions."
+          },
+          {
+            "path": "$.deliveryProfile.profileItems.nodes[0].variants.pageInfo.startCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify returns opaque cursors for one-item delivery-profile variant connections while the local connection helper reports null cursors; the association branch is covered by the surrounding id, title, and count assertions."
+          },
+          {
+            "path": "$.deliveryProfile.profileItems.nodes[0].variants.pageInfo.endCursor",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify returns opaque cursors for one-item delivery-profile variant connections while the local connection helper reports null cursors; the association branch is covered by the surrounding id, title, and count assertions."
+          }
+        ]
+      }
+    ]
+  }
+}

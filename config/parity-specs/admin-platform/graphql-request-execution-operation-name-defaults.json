@@ -1,0 +1,64 @@
+{
+  "scenarioId": "graphql-request-execution-operation-name-defaults",
+  "operationNames": ["shop", "products"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["graphql-execution-parity", "validation-errors-parity", "payload-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform/graphql-request-execution-operation-name-defaults.json"
+  ],
+  "proxyConfig": {
+    "readMode": "snapshot"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "missing-operation-name-error",
+        "capturePath": "$.cases.missingOperationName.response.payload.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/graphql-operation-multiple-queries.graphql",
+          "apiVersion": "2026-04",
+          "operationName": null,
+          "variablesCapturePath": "$.cases.missingOperationName.variables"
+        }
+      },
+      {
+        "name": "unknown-operation-name-error",
+        "capturePath": "$.cases.unknownOperationName.response.payload.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/graphql-operation-multiple-queries.graphql",
+          "apiVersion": "2026-04",
+          "operationNameCapturePath": "$.cases.unknownOperationName.operationName",
+          "variablesCapturePath": "$.cases.unknownOperationName.variables"
+        }
+      },
+      {
+        "name": "selected-operation-products-zero-empty-nodes",
+        "capturePath": "$.cases.selectedOperationName.response.payload.data.products.nodes",
+        "proxyPath": "$.data.products.nodes",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/graphql-operation-selected-products-zero.graphql",
+          "apiVersion": "2026-04",
+          "operationNameCapturePath": "$.cases.selectedOperationName.operationName",
+          "variablesCapturePath": "$.cases.selectedOperationName.variables"
+        }
+      },
+      {
+        "name": "scalar-default-zero-products-empty-nodes",
+        "capturePath": "$.cases.scalarDefault.response.payload.data.products.nodes",
+        "proxyPath": "$.data.products.nodes",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/graphql-variable-default-zero-products.graphql",
+          "apiVersion": "2026-04",
+          "operationName": null,
+          "variablesCapturePath": "$.cases.scalarDefault.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Captured against Shopify Admin GraphQL 2026-04 using raw JSON request bodies to preserve operationName. Targets avoid live catalog identity by comparing operation-selection errors and products(first: 0) empty nodes while replaying the proxy in snapshot mode."
+}

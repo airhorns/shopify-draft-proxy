@@ -186,6 +186,7 @@ impl DraftProxy {
             variant.inventory_quantity = inventory_quantity;
             variant
         });
+        let product = variant.and_then(|variant| self.store.product_by_id(&variant.product_id));
         let product_id = resolved_string_field(variables, "productId").unwrap_or_default();
         let variant_id = resolved_string_field(variables, "variantId")
             .or_else(|| variant.map(|variant| variant.id.clone()))
@@ -194,6 +195,7 @@ impl DraftProxy {
         for selection in selections {
             let value = match selection.name.as_str() {
                 "id" => Some(json!(inventory_item_id)),
+                "__typename" => Some(json!("InventoryItem")),
                 "tracked" => Some(json!(variant
                     .map(|variant| variant.inventory_item.tracked)
                     .unwrap_or(true))),
@@ -201,7 +203,11 @@ impl DraftProxy {
                     .map(|variant| variant.inventory_item.requires_shipping)
                     .unwrap_or(true))),
                 "variant" => Some(match variant_for_payload.as_ref() {
-                    Some(variant) => product_variant_json(variant, None, &selection.selection),
+                    Some(variant) => self.product_variant_json_with_current_publication_context(
+                        variant,
+                        product,
+                        &selection.selection,
+                    ),
                     None => selected_json(
                         &json!({
                             "id": variant_id,
@@ -231,10 +237,8 @@ impl DraftProxy {
                         )
                     }))
                 }
-                "inventoryLevels" => Some(inventory_levels_connection_selected_json(
+                "inventoryLevels" => Some(self.inventory_item_levels_connection_selected_json(
                     inventory_item_id,
-                    &item_levels,
-                    &self.inventory_level_view_state(),
                     &selection.arguments,
                     &selection.selection,
                 )),
@@ -599,6 +603,41 @@ impl DraftProxy {
         )
     }
 
+    pub(super) fn inventory_quantity_by_id_selected_json(
+        &self,
+        id: &str,
+        selections: &[SelectedField],
+    ) -> Value {
+        let Some((inventory_item_id, location_id, name)) = inventory_quantity_parts_from_id(id)
+        else {
+            return Value::Null;
+        };
+        let Some(quantities) = self
+            .store
+            .staged
+            .inventory_levels
+            .get(&(inventory_item_id.clone(), location_id.clone()))
+        else {
+            return Value::Null;
+        };
+        let updated_at = self
+            .store
+            .staged
+            .inventory_quantity_updated_at
+            .get(&(inventory_item_id.clone(), location_id.clone(), name.clone()))
+            .map_or(Value::Null, |value| json!(value));
+        selected_json(
+            &json!({
+                "__typename": "InventoryQuantity",
+                "id": inventory_quantity_id(&inventory_item_id, &location_id, &name),
+                "name": name,
+                "quantity": quantities.get(&name).copied().unwrap_or(0),
+                "updatedAt": updated_at
+            }),
+            selections,
+        )
+    }
+
     fn inventory_levels_for_item(
         &self,
         inventory_item_id: &str,
@@ -633,6 +672,80 @@ impl DraftProxy {
                 .map(|((_, location_id), quantities)| (location_id.clone(), quantities.clone())),
         );
         levels
+    }
+
+    fn inventory_level_records_for_item(
+        &self,
+        inventory_item_id: &str,
+        include_inactive: bool,
+    ) -> Vec<InventoryLocationLevelRecord> {
+        self.inventory_levels_for_item(inventory_item_id)
+            .into_iter()
+            .filter_map(|(location_id, quantities)| {
+                let key = (inventory_item_id.to_string(), location_id.clone());
+                if !include_inactive && self.store.staged.inactive_inventory_levels.contains(&key) {
+                    return None;
+                }
+                Some(InventoryLocationLevelRecord {
+                    inventory_item_id: inventory_item_id.to_string(),
+                    level_id: self.store.staged.inventory_level_ids.get(&key).cloned(),
+                    location_id,
+                    quantities,
+                })
+            })
+            .collect()
+    }
+
+    fn inventory_item_levels_connection_selected_json(
+        &self,
+        inventory_item_id: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        selections: &[SelectedField],
+    ) -> Value {
+        let include_inactive = resolved_bool_field(arguments, "includeInactive").unwrap_or(false);
+        let levels = self.inventory_level_records_for_item(inventory_item_id, include_inactive);
+        selected_staged_connection_with_args(
+            levels,
+            arguments,
+            selections,
+            |level, query| self.inventory_item_level_search_decision(level, query),
+            inventory_location_level_sort_key,
+            |level, node_selection| {
+                self.inventory_level_json_with_item(
+                    &level.inventory_item_id,
+                    &level.location_id,
+                    &level.quantities,
+                    node_selection,
+                )
+            },
+            |level| self.inventory_location_level_cursor(level),
+        )
+    }
+
+    fn inventory_item_level_search_decision(
+        &self,
+        level: &InventoryLocationLevelRecord,
+        query: Option<&str>,
+    ) -> StagedSearchDecision {
+        let Some(query) = query.map(str::trim).filter(|query| !query.is_empty()) else {
+            return StagedSearchDecision::Match;
+        };
+        for term in inventory_search_terms(query) {
+            let term = term.trim();
+            let Some((field, raw_value)) = term.split_once(':') else {
+                continue;
+            };
+            match field.trim().to_ascii_lowercase().as_str() {
+                "inventory_item_id" => {
+                    if !inventory_id_matches_query(&level.inventory_item_id, raw_value) {
+                        return StagedSearchDecision::NoMatch;
+                    }
+                }
+                "id" => return StagedSearchDecision::NoMatch,
+                _ => {}
+            }
+        }
+        StagedSearchDecision::Match
     }
 
     pub(in crate::proxy) fn location_inventory_levels_connection_selected_json(
@@ -1029,7 +1142,7 @@ impl DraftProxy {
     pub(in crate::proxy) fn next_inventory_quantity_timestamp(&mut self) -> String {
         let sequence = self.store.staged.next_inventory_quantity_timestamp;
         self.store.staged.next_inventory_quantity_timestamp += 1;
-        format!("2024-01-01T00:00:{sequence:02}.000Z")
+        inventory_sequence_timestamp(sequence)
     }
 
     pub(super) fn stamp_inventory_quantity(
@@ -1282,29 +1395,33 @@ impl DraftProxy {
                 level.insert("on_hand".to_string(), old_on_hand + delta);
                 level.entry("damaged".to_string()).or_insert(0);
                 self.stamp_inventory_quantity(&item_id, &location_id, "on_hand", &updated_at);
-                on_hand_changes.push(inventory_change_json(
-                    &item_id,
-                    "on_hand",
-                    delta,
-                    None,
-                    &location_id,
-                    &location_name,
-                ));
+                if delta != 0 {
+                    on_hand_changes.push(inventory_change_json(
+                        &item_id,
+                        "on_hand",
+                        delta,
+                        None,
+                        &location_id,
+                        &location_name,
+                    ));
+                }
             }
             if !existed_before {
                 self.store.staged.inventory_level_order.push(key.clone());
                 self.record_inventory_level_id(&item_id, &location_id);
             }
             self.stamp_inventory_quantity(&item_id, &location_id, &name, &updated_at);
-            self.sync_variant_available_quantity(&item_id, &name, true);
-            changes.push(inventory_change_json(
-                &item_id,
-                &name,
-                delta,
-                None,
-                &location_id,
-                &location_name,
-            ));
+            self.sync_variant_available_quantity(&item_id, &name, false);
+            if delta != 0 {
+                changes.push(inventory_change_json(
+                    &item_id,
+                    &name,
+                    delta,
+                    None,
+                    &location_id,
+                    &location_name,
+                ));
+            }
         }
         changes.extend(on_hand_changes);
         MutationFieldOutcome::staged(
@@ -1684,15 +1801,22 @@ impl DraftProxy {
         reference: String,
         changes: Vec<Value>,
     ) -> Value {
+        let id = self.next_proxy_synthetic_gid("InventoryAdjustmentGroup");
+        let group = json!({
+            "__typename": "InventoryAdjustmentGroup",
+            "id": id.clone(),
+            "createdAt": created_at,
+            "reason": reason,
+            "referenceDocumentUri": reference,
+            "changes": changes
+        });
+        self.store
+            .staged
+            .inventory_adjustment_groups
+            .insert(id, group.clone());
         selected_json(
             &json!({
-                "inventoryAdjustmentGroup": {
-                    "id": self.next_proxy_synthetic_gid("InventoryAdjustmentGroup"),
-                    "createdAt": created_at,
-                    "reason": reason,
-                    "referenceDocumentUri": reference,
-                    "changes": changes
-                },
+                "inventoryAdjustmentGroup": group,
                 "userErrors": []
             }),
             selection,
@@ -2466,6 +2590,39 @@ impl DraftProxy {
         value
     }
 
+    pub(in crate::proxy) fn inventory_node_value_by_id(
+        &self,
+        id: &str,
+        selection: &[SelectedField],
+    ) -> Option<Value> {
+        match shopify_gid_resource_type(id)? {
+            "InventoryItem" => Some(if self.inventory_item_exists(id) {
+                self.inventory_item_selected_json(id, &BTreeMap::new(), selection)
+            } else {
+                Value::Null
+            }),
+            "InventoryLevel" => Some(self.inventory_level_by_id_selected_json(id, selection)),
+            "InventoryQuantity" => Some(self.inventory_quantity_by_id_selected_json(id, selection)),
+            "InventoryAdjustmentGroup" => Some(
+                self.store
+                    .staged
+                    .inventory_adjustment_groups
+                    .get(id)
+                    .map(|group| selected_json(group, selection))
+                    .unwrap_or(Value::Null),
+            ),
+            "InventoryTransfer" => Some(self.inventory_transfer_by_id_selected_json(id, selection)),
+            "InventoryTransferLineItem" => {
+                Some(self.inventory_transfer_line_item_by_id_selected_json(id, selection))
+            }
+            "InventoryShipment" => Some(self.inventory_shipment_by_id_selected_json(id, selection)),
+            "InventoryShipmentLineItem" => {
+                Some(self.inventory_shipment_line_item_by_id_selected_json(id, selection))
+            }
+            _ => None,
+        }
+    }
+
     fn inventory_level_item_payload(
         &self,
         inventory_item_id: &str,
@@ -2483,6 +2640,9 @@ impl DraftProxy {
             "id" => Some(json!(inventory_item_id)),
             "tracked" => Some(json!(variant
                 .map(|variant| variant.inventory_item.tracked)
+                .unwrap_or(true))),
+            "requiresShipping" => Some(json!(variant
+                .map(|variant| variant.inventory_item.requires_shipping)
                 .unwrap_or(true))),
             "variant" => variant_for_payload.as_ref().map(|variant| {
                 self.product_variant_json_with_current_publication_context(

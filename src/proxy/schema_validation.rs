@@ -1,6 +1,9 @@
 use super::*;
 
-use crate::graphql::{variable_definition_info, ParsedDocument};
+use crate::graphql::{
+    directive_invocations, parsed_document_unfiltered, variable_definition_info,
+    DirectiveInvocation, ParsedDocument,
+};
 use graphql_parser::query::parse_query;
 use std::sync::OnceLock;
 
@@ -501,7 +504,7 @@ pub(in crate::proxy) fn public_admin_schema_input_errors(
     else {
         return Vec::new();
     };
-    let Some(document) = parsed_document(query, variables) else {
+    let Some(document) = parsed_document_unfiltered(query, variables) else {
         return Vec::new();
     };
     let mut errors = admin_platform_node_global_id_errors(query, raw_body, &document);
@@ -575,14 +578,13 @@ pub(in crate::proxy) fn public_admin_graphql_validation_response(
 ) -> Option<Response> {
     let api_version = api_version.filter(|version| supported_admin_graphql_version(version))?;
 
-    if parse_query::<&str>(query).is_err() {
-        return Some(ok_json(json!({
-            "errors": [parse_error(query)]
-        })));
+    if let Some(response) = public_admin_graphql_parse_error_response(query, Some(api_version)) {
+        return Some(response);
     }
 
-    let document = parsed_document(query, variables)?;
+    let document = parsed_document_unfiltered(query, variables)?;
     let mut errors = missing_required_variable_errors(&document, variables);
+    errors.extend(standard_directive_errors(query, variables, &document));
     errors.extend(undefined_root_field_errors(&document, api_version));
     errors.extend(selection_mismatch_errors(&document, api_version));
     errors.extend(undefined_selection_field_errors(&document, api_version));
@@ -591,6 +593,21 @@ pub(in crate::proxy) fn public_admin_graphql_validation_response(
     }
 
     product_create_argument_arity_response(&document, api_version)
+}
+
+pub(in crate::proxy) fn public_admin_graphql_parse_error_response(
+    query: &str,
+    api_version: Option<&str>,
+) -> Option<Response> {
+    api_version.filter(|version| supported_admin_graphql_version(version))?;
+
+    if parse_query::<&str>(query).is_err() {
+        return Some(ok_json(json!({
+            "errors": [parse_error(query)]
+        })));
+    }
+
+    None
 }
 
 pub(in crate::proxy) fn graphql_locations(location: SourceLocation) -> Value {
@@ -720,6 +737,267 @@ fn missing_required_variable_errors(
             )
         })
         .collect()
+}
+
+fn standard_directive_errors(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+    document: &ParsedDocument,
+) -> Vec<Value> {
+    directive_invocations(query, variables)
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|directive| matches!(directive.name.as_str(), "skip" | "include"))
+        .flat_map(|directive| standard_directive_errors_for_invocation(query, document, directive))
+        .collect()
+}
+
+fn standard_directive_errors_for_invocation(
+    query: &str,
+    document: &ParsedDocument,
+    directive: DirectiveInvocation,
+) -> Vec<Value> {
+    let mut errors = Vec::new();
+    for argument_name in directive.raw_arguments.keys().filter(|name| *name != "if") {
+        errors.push(directive_argument_not_accepted_error(
+            query,
+            &directive,
+            argument_name,
+        ));
+    }
+
+    let Some(if_argument) = directive.raw_arguments.get("if") else {
+        errors.push(directive_missing_if_error(&directive));
+        return errors;
+    };
+
+    match if_argument {
+        RawArgumentValue::Bool(_) => {}
+        RawArgumentValue::Variable { name, value } => {
+            errors.extend(directive_variable_errors(
+                query, document, &directive, name, value,
+            ));
+        }
+        _ => errors.push(directive_literal_incompatible_error(
+            &directive,
+            if_argument,
+        )),
+    }
+
+    errors
+}
+
+fn directive_variable_errors(
+    query: &str,
+    document: &ParsedDocument,
+    directive: &DirectiveInvocation,
+    variable_name: &str,
+    value: &Option<ResolvedValue>,
+) -> Vec<Value> {
+    let Some(definition) = document.variable_definitions.get(variable_name) else {
+        return vec![directive_variable_not_defined_error(
+            query,
+            directive,
+            variable_name,
+        )];
+    };
+
+    if definition.type_display != "Boolean!" {
+        return vec![directive_variable_mismatch_error(
+            query,
+            directive,
+            variable_name,
+            &definition.type_display,
+        )];
+    }
+
+    match value {
+        Some(ResolvedValue::Bool(_)) => Vec::new(),
+        Some(ResolvedValue::Null) | None => Vec::new(),
+        Some(value) => vec![invalid_variable_error_envelope(
+            format!("Variable ${variable_name} of type Boolean! was provided invalid value"),
+            definition.location,
+            resolved_value_json(value),
+            json!([{
+                "path": [],
+                "explanation": format!(
+                    "Could not coerce value {} to Boolean",
+                    resolved_value_json(value)
+                )
+            }]),
+        )],
+    }
+}
+
+fn directive_missing_if_error(directive: &DirectiveInvocation) -> Value {
+    json!({
+        "message": format!("Directive '{}' is missing required arguments: if", directive.name),
+        "locations": graphql_locations(directive.location),
+        "path": directive_path(directive, None),
+        "extensions": {
+            "code": "missingRequiredArguments",
+            "className": "Directive",
+            "name": directive.name,
+            "arguments": "if"
+        }
+    })
+}
+
+fn directive_literal_incompatible_error(
+    directive: &DirectiveInvocation,
+    value: &RawArgumentValue,
+) -> Value {
+    json!({
+        "message": format!(
+            "Argument 'if' on Directive '{}' has an invalid value ({}). Expected type 'Boolean!'.",
+            directive.name,
+            raw_argument_display(value)
+        ),
+        "locations": graphql_locations(directive.location),
+        "path": directive_path(directive, Some("if")),
+        "extensions": {
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "Directive",
+            "argumentName": "if"
+        }
+    })
+}
+
+fn directive_variable_mismatch_error(
+    query: &str,
+    directive: &DirectiveInvocation,
+    variable_name: &str,
+    variable_type: &str,
+) -> Value {
+    json!({
+        "message": format!(
+            "Nullability mismatch on variable ${variable_name} and argument if ({variable_type} / Boolean!)"
+        ),
+        "locations": graphql_locations(
+            directive_argument_location(query, directive, "if")
+                .unwrap_or(directive.owner_location)
+        ),
+        "path": directive_path(directive, Some("if")),
+        "extensions": {
+            "code": "variableMismatch",
+            "variableName": variable_name,
+            "typeName": variable_type,
+            "argumentName": "if",
+            "errorMessage": "Nullability mismatch"
+        }
+    })
+}
+
+fn directive_variable_not_defined_error(
+    query: &str,
+    directive: &DirectiveInvocation,
+    variable_name: &str,
+) -> Value {
+    json!({
+        "message": format!(
+            "Variable ${variable_name} is used by anonymous query but not declared"
+        ),
+        "locations": graphql_locations(
+            directive_variable_location(query, directive, variable_name)
+                .unwrap_or(directive.owner_location)
+        ),
+        "path": directive_path(directive, Some("if")),
+        "extensions": {
+            "code": "variableNotDefined",
+            "variableName": variable_name
+        }
+    })
+}
+
+fn directive_argument_not_accepted_error(
+    query: &str,
+    directive: &DirectiveInvocation,
+    argument_name: &str,
+) -> Value {
+    json!({
+        "message": format!("Directive '{}' doesn't accept argument '{argument_name}'", directive.name),
+        "locations": graphql_locations(
+            directive_argument_location(query, directive, argument_name)
+                .unwrap_or(directive.owner_location)
+        ),
+        "path": directive_path(directive, Some(argument_name)),
+        "extensions": {
+            "code": "argumentNotAccepted",
+            "name": directive.name,
+            "typeName": "Directive",
+            "argumentName": argument_name
+        }
+    })
+}
+
+fn directive_path(directive: &DirectiveInvocation, argument_name: Option<&str>) -> Value {
+    let mut path = directive
+        .path
+        .iter()
+        .map(|part| json!(part))
+        .collect::<Vec<_>>();
+    if let Some(argument_name) = argument_name {
+        path.push(json!(argument_name));
+    }
+    Value::Array(path)
+}
+
+fn directive_variable_location(
+    query: &str,
+    directive: &DirectiveInvocation,
+    variable_name: &str,
+) -> Option<SourceLocation> {
+    source_location_for_query_substring_after(
+        query,
+        &format!("${variable_name}"),
+        directive.location,
+    )
+}
+
+fn directive_argument_location(
+    query: &str,
+    directive: &DirectiveInvocation,
+    argument_name: &str,
+) -> Option<SourceLocation> {
+    source_location_for_query_substring_after(query, argument_name, directive.location)
+}
+
+fn source_location_for_query_substring_after(
+    query: &str,
+    needle: &str,
+    after: SourceLocation,
+) -> Option<SourceLocation> {
+    let offset = byte_offset_for_location(query, after)?;
+    let relative = query.get(offset..)?.find(needle)?;
+    source_location_for_byte_offset(query, offset + relative)
+}
+
+fn raw_argument_display(value: &RawArgumentValue) -> String {
+    match value {
+        RawArgumentValue::String(value) => json!(value).to_string(),
+        RawArgumentValue::Int(value) => value.to_string(),
+        RawArgumentValue::Float(value) => value.to_string(),
+        RawArgumentValue::Bool(value) => value.to_string(),
+        RawArgumentValue::Null => "null".to_string(),
+        RawArgumentValue::Enum(value) => value.clone(),
+        RawArgumentValue::List(values) => format!(
+            "[{}]",
+            values
+                .iter()
+                .map(raw_argument_display)
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        RawArgumentValue::Object(fields) => format!(
+            "{{{}}}",
+            fields
+                .iter()
+                .map(|(name, value)| format!("{name}: {}", raw_argument_display(value)))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        RawArgumentValue::Variable { name, .. } => format!("${name}"),
+    }
 }
 
 fn undefined_root_field_errors(document: &ParsedDocument, api_version: &str) -> Vec<Value> {
@@ -3785,6 +4063,22 @@ fn extend_customer_input_schema(schema: &mut AdminInputSchema) {
         BTreeMap::from([("input".to_string(), mutation_arg(non_null("CustomerInput")))]),
     );
 
+    // customerSet is staged locally, so the proxy owns GraphQL variable
+    // coercion for its public input objects. Keep CustomerInput unregistered
+    // for customerCreate/customerUpdate field-level validation, but enforce the
+    // captured CustomerSetInput/identifier shapes here so unsupported fields
+    // (such as `metafields`) and malformed customId identifiers fail before the
+    // local resolver runs.
+    for input_object_name in [
+        "CustomerSetInput",
+        "CustomerSetIdentifiers",
+        "UniqueMetafieldValueInput",
+    ] {
+        if let Some(fields) = schema.input_objects.get(input_object_name).cloned() {
+            schema.insert_strict_input_object(input_object_name.to_string(), fields);
+        }
+    }
+
     // dataSaleOptOut(email: String!) on Admin API 2026-04. The single `email`
     // argument is non-null, so a missing or explicitly-null email must surface a
     // top-level `missingRequiredArguments` / null-coercion envelope before the
@@ -4096,6 +4390,17 @@ fn extend_orders_input_schema(schema: &mut AdminInputSchema) {
     );
     schema.mutation_fields.insert(
         "fulfillmentTrackingInfoUpdate".to_string(),
+        BTreeMap::from([
+            ("fulfillmentId".to_string(), mutation_arg(non_null("ID"))),
+            (
+                "trackingInfoInput".to_string(),
+                mutation_arg(non_null("FulfillmentTrackingInput")),
+            ),
+            ("notifyCustomer".to_string(), mutation_arg(named("Boolean"))),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "fulfillmentTrackingInfoUpdateV2".to_string(),
         BTreeMap::from([
             ("fulfillmentId".to_string(), mutation_arg(non_null("ID"))),
             (

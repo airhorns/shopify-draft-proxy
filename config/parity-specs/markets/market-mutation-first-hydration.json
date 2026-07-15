@@ -1,0 +1,144 @@
+{
+  "scenarioId": "market-mutation-first-hydration",
+  "operationNames": ["marketUpdate", "marketDelete", "market", "catalog", "webPresences"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "downstream-read-parity",
+    "local-staging",
+    "delete-cascade",
+    "user-errors-parity"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/market-mutation-first-hydration.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/metafields_markets_products_tail.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/market-mutation-first-update.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.mutationFirstUpdate.update.request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Admin GraphQL 2026-04 capture creates disposable non-primary Markets with MarketCatalog and MarketWebPresence relations, records the exact read-only preflight the proxy uses for mutation-first marketUpdate and marketDelete, and verifies downstream market/catalog readback plus unknown Market ID and wrong-resource validation.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "mutation-first-update-payload",
+        "capturePath": "$.mutationFirstUpdate.update.response.payload.data.marketUpdate",
+        "proxyPath": "$.data.marketUpdate"
+      },
+      {
+        "name": "mutation-first-update-market-read",
+        "capturePath": "$.mutationFirstUpdate.downstreamRead.response.payload.data.market",
+        "proxyPath": "$.data.market",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-mutation-first-update-read.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.mutationFirstUpdate.downstreamRead.request.variables"
+        }
+      },
+      {
+        "name": "mutation-first-update-catalog-read",
+        "capturePath": "$.mutationFirstUpdate.downstreamRead.response.payload.data.catalog",
+        "proxyPath": "$.data.catalog",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-mutation-first-update-read.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.mutationFirstUpdate.downstreamRead.request.variables"
+        }
+      },
+      {
+        "name": "mutation-first-delete-payload",
+        "capturePath": "$.mutationFirstDelete.delete.response.payload.data.marketDelete",
+        "proxyPath": "$.data.marketDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-delete-cascade-delete.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.mutationFirstDelete.delete.request.variables"
+        }
+      },
+      {
+        "name": "mutation-first-delete-market-read-null",
+        "capturePath": "$.mutationFirstDelete.downstreamRead.response.payload.data.market",
+        "proxyPath": "$.data.market",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-delete-cascade-read.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.mutationFirstDelete.downstreamRead.request.variables"
+        }
+      },
+      {
+        "name": "mutation-first-delete-catalog-detached",
+        "capturePath": "$.mutationFirstDelete.downstreamRead.response.payload.data.catalog",
+        "proxyPath": "$.data.catalog",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-delete-cascade-read.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.mutationFirstDelete.downstreamRead.request.variables"
+        }
+      },
+      {
+        "name": "unknown-id-market-update",
+        "capturePath": "$.validation.updateUnknown.response.payload.data.marketUpdate",
+        "proxyPath": "$.data.marketUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-update-unknown-id-validation.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.validation.updateUnknown.request.variables"
+        }
+      },
+      {
+        "name": "unknown-id-market-delete",
+        "capturePath": "$.validation.deleteUnknown.response.payload.data.marketDelete",
+        "proxyPath": "$.data.marketDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-delete-unknown-id-validation.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.validation.deleteUnknown.request.variables"
+        }
+      },
+      {
+        "name": "wrong-resource-market-update-errors",
+        "capturePath": "$.validation.updateWrongResource.response.payload.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-mutation-first-update.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.validation.updateWrongResource.request.variables"
+        }
+      },
+      {
+        "name": "wrong-resource-market-update-null-data",
+        "capturePath": "$.validation.updateWrongResource.response.payload.data.marketUpdate",
+        "proxyPath": "$.data.marketUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-mutation-first-update.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.validation.updateWrongResource.request.variables"
+        }
+      },
+      {
+        "name": "wrong-resource-market-delete-errors",
+        "capturePath": "$.validation.deleteWrongResource.response.payload.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-delete-cascade-delete.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.validation.deleteWrongResource.request.variables"
+        }
+      },
+      {
+        "name": "wrong-resource-market-delete-null-data",
+        "capturePath": "$.validation.deleteWrongResource.response.payload.data.marketDelete",
+        "proxyPath": "$.data.marketDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-delete-cascade-delete.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.validation.deleteWrongResource.request.variables"
+        }
+      }
+    ]
+  }
+}

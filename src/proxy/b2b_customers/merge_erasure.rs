@@ -18,17 +18,17 @@ impl DraftProxy {
             .unwrap_or_default();
 
         // Pre-existing customers referenced by a merge are resolved the real way:
-        // forward a hydrate upstream and stage the observed record so both the
-        // existence checks and the merge body read consistent state. Already-staged
-        // or deleted/merged-away customers are left untouched (a deleted source must
-        // still surface DOES_NOT_EXIST rather than be re-hydrated).
-        self.ensure_customer_hydrated_for_merge(request, &one_id);
-        self.ensure_customer_hydrated_for_merge(request, &two_id);
+        // forward one combined scalar hydrate upstream and stage the observed
+        // records so existence checks and merge validation read consistent state.
+        // Attached resources are fetched later, only for the successful branch.
+        let hydrated_ids =
+            self.ensure_customers_hydrated_for_merge(request, &[one_id.clone(), two_id.clone()]);
 
         // Compute the payload generically from staged state. State only mutates on
         // the success branch; each early return mirrors a live customerMerge
         // userError branch (self-merge, unknown customer, merge blockers).
-        let (payload, staged_ids) = self.customer_merge_payload(&arguments, &one_id, &two_id);
+        let (payload, staged_ids) =
+            self.customer_merge_payload(request, &arguments, &one_id, &two_id, &hydrated_ids);
         self.record_mutation_log_entry(request, query, variables, "customerMerge", staged_ids);
         ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
     }
@@ -116,9 +116,11 @@ impl DraftProxy {
 
     fn customer_merge_payload(
         &mut self,
+        request: &Request,
         arguments: &BTreeMap<String, ResolvedValue>,
         one_id: &str,
         two_id: &str,
+        hydrated_ids: &[String],
     ) -> (Value, Vec<String>) {
         if one_id.is_empty() || two_id.is_empty() {
             return (
@@ -168,6 +170,7 @@ impl DraftProxy {
                 Vec::new(),
             );
         }
+        self.hydrate_customer_merge_attached_resources(request, hydrated_ids);
 
         let override_fields =
             resolved_object_field(arguments, "overrideFields").unwrap_or_default();
@@ -214,6 +217,7 @@ impl DraftProxy {
         // the source's orders under the resulting customer's identity.
         let result_email = result["email"].as_str().map(str::to_string);
         let result_metafields = result["metafields"].clone();
+        let result_draft_order_customer = customer_merge_draft_order_customer(&result_id, &result);
 
         self.store
             .staged
@@ -241,6 +245,7 @@ impl DraftProxy {
                 .or_default()
                 .extend(source_orders);
         }
+        self.transfer_customer_draft_orders(&source_id, &result_id, &result_draft_order_customer);
 
         let job_id = self.next_proxy_synthetic_gid("Job");
         let merge_request = customer_merge_request_json(&job_id, &result_id, Vec::new());
@@ -340,6 +345,26 @@ impl DraftProxy {
                 || card["customerId"].as_str() == Some(customer_id)
         })
     }
+
+    fn transfer_customer_draft_orders(
+        &mut self,
+        source_id: &str,
+        result_id: &str,
+        result_customer: &Value,
+    ) {
+        for draft_order in self.store.staged.draft_orders.values_mut() {
+            if !draft_order_belongs_to_customer(draft_order, source_id) {
+                continue;
+            }
+            draft_order["customer"] = result_customer.clone();
+            if let Some(email) = result_customer["email"].as_str() {
+                draft_order["email"] = json!(email);
+            }
+            if draft_order["purchasingEntity"]["customerId"].as_str() == Some(source_id) {
+                draft_order["purchasingEntity"]["customerId"] = json!(result_id);
+            }
+        }
+    }
 }
 
 fn customer_merge_payload_json(
@@ -377,6 +402,19 @@ pub(super) fn customer_merge_job_from_request(request: &Value) -> Value {
         "done": true,
         "query": { "__typename": "QueryRoot" }
     })
+}
+
+fn customer_merge_draft_order_customer(result_id: &str, result: &Value) -> Value {
+    json!({
+        "id": result_id,
+        "email": result["email"].clone(),
+        "displayName": result["displayName"].clone()
+    })
+}
+
+fn draft_order_belongs_to_customer(draft_order: &Value, customer_id: &str) -> bool {
+    draft_order["customer"]["id"].as_str() == Some(customer_id)
+        || draft_order["purchasingEntity"]["customerId"].as_str() == Some(customer_id)
 }
 
 fn customer_data_erasure_payload_json(customer_id: Option<&str>, user_errors: Vec<Value>) -> Value {

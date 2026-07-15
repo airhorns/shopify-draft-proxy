@@ -2,7 +2,13 @@
   "scenarioId": "product-delete-async-operation",
   "operationNames": ["productSet", "productDelete", "productOperation", "product", "node"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "async-operation-parity", "downstream-read-parity", "user-errors-parity"],
+  "assertionKinds": [
+    "payload-shape",
+    "async-operation-parity",
+    "argument-resolution-parity",
+    "downstream-read-parity",
+    "user-errors-parity"
+  ],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-delete-async-operation.json"
   ],
@@ -12,7 +18,7 @@
     "variablesCapturePath": "$.setup.sourceCreate.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Captured async productDelete on a disposable product. Shopify returns a ProductDeleteOperation in CREATED status with null deletedProductId, resolves the operation through productOperation(id:) and node(id:), and rejects a second pending async delete with the public field/message UserError shape. Immediate product visibility is timing-sensitive because the live operation can complete before the follow-up read.",
+  "notes": "Captured async productDelete on disposable products. Shopify returns a ProductDeleteOperation in CREATED status with null deletedProductId for synchronous false whether false is supplied through $synchronous, through a renamed $runSynchronously variable, or inline. The scenario resolves the operation through productOperation(id:) and node(id:), and rejects a second pending async delete with the public field/message UserError shape. Immediate product visibility is timing-sensitive because the live operation can complete before the follow-up read.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -79,7 +85,15 @@
             }
           }
         },
-        "proxyPath": "$.data"
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.product",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Async productDelete immediate product visibility is timing-sensitive in live Shopify; local staging tombstones the product deterministically after the accepted async delete."
+          }
+        ]
       },
       {
         "name": "operation-read-data",
@@ -135,6 +149,196 @@
             "path": "$.node.deletedProductId",
             "matcher": "shopify-gid:Product",
             "reason": "The completed local ProductDeleteOperation points at the replayed setup product GID."
+          },
+          {
+            "path": "$.node.status",
+            "matcher": "any-string",
+            "reason": "The live node read can observe active or complete async operation timing; the local proxy exposes the completed operation deterministically on readback."
+          }
+        ]
+      },
+      {
+        "name": "renamed-variable-source-create-data",
+        "capturePath": "$.renamedVariable.setup.sourceCreate.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productDelete-async-source-create.graphql",
+          "variablesCapturePath": "$.renamedVariable.setup.sourceCreate.variables"
+        },
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.productSet.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The local setup request mints a synthetic product GID while the capture created a disposable live product."
+          }
+        ]
+      },
+      {
+        "name": "renamed-variable-async-delete-mutation-data",
+        "capturePath": "$.renamedVariable.mutation.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productDelete-async-renamed-variable.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "renamed-variable-source-create-data",
+                "path": "$.data.productSet.product.id"
+              }
+            },
+            "runSynchronously": false
+          }
+        },
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.productDelete.productDeleteOperation.id",
+            "matcher": "shopify-gid:ProductDeleteOperation",
+            "reason": "ProductDeleteOperation IDs are allocated independently by Shopify and the local staging identity registry."
+          }
+        ]
+      },
+      {
+        "name": "renamed-variable-immediate-product-read-data",
+        "capturePath": "$.renamedVariable.downstreamRead.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productDelete-async-product-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "renamed-variable-source-create-data",
+              "path": "$.data.productSet.product.id"
+            }
+          }
+        },
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.product",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Async productDelete immediate product visibility is timing-sensitive in live Shopify; local staging tombstones the product deterministically after the accepted async delete."
+          }
+        ]
+      },
+      {
+        "name": "renamed-variable-operation-read-data",
+        "capturePath": "$.renamedVariable.operationRead.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productDelete-operation-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "renamed-variable-async-delete-mutation-data",
+              "path": "$.data.productDelete.productDeleteOperation.id"
+            }
+          }
+        },
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.productOperation.id",
+            "matcher": "shopify-gid:ProductDeleteOperation",
+            "reason": "The downstream proxy read uses the stable local ProductDeleteOperation GID generated by the staged async productDelete response."
+          },
+          {
+            "path": "$.productOperation.deletedProductId",
+            "matcher": "shopify-gid:Product",
+            "reason": "The completed local ProductDeleteOperation points at the replayed setup product GID."
+          },
+          {
+            "path": "$.productOperation.status",
+            "matcher": "any-string",
+            "reason": "The live operation can advance between immediate helper reads; the local proxy exposes the completed operation deterministically on readback."
+          }
+        ]
+      },
+      {
+        "name": "inline-false-source-create-data",
+        "capturePath": "$.inlineFalse.setup.sourceCreate.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productDelete-async-source-create.graphql",
+          "variablesCapturePath": "$.inlineFalse.setup.sourceCreate.variables"
+        },
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.productSet.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The local setup request mints a synthetic product GID while the capture created a disposable live product."
+          }
+        ]
+      },
+      {
+        "name": "inline-false-async-delete-mutation-data",
+        "capturePath": "$.inlineFalse.mutation.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productDelete-async-inline-false.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "inline-false-source-create-data",
+                "path": "$.data.productSet.product.id"
+              }
+            }
+          }
+        },
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.productDelete.productDeleteOperation.id",
+            "matcher": "shopify-gid:ProductDeleteOperation",
+            "reason": "ProductDeleteOperation IDs are allocated independently by Shopify and the local staging identity registry."
+          }
+        ]
+      },
+      {
+        "name": "inline-false-immediate-product-read-data",
+        "capturePath": "$.inlineFalse.downstreamRead.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productDelete-async-product-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "inline-false-source-create-data",
+              "path": "$.data.productSet.product.id"
+            }
+          }
+        },
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.product",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Async productDelete immediate product visibility is timing-sensitive in live Shopify; local staging tombstones the product deterministically after the accepted async delete."
+          }
+        ]
+      },
+      {
+        "name": "inline-false-operation-read-data",
+        "capturePath": "$.inlineFalse.operationRead.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productDelete-operation-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "inline-false-async-delete-mutation-data",
+              "path": "$.data.productDelete.productDeleteOperation.id"
+            }
+          }
+        },
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.productOperation.id",
+            "matcher": "shopify-gid:ProductDeleteOperation",
+            "reason": "The downstream proxy read uses the stable local ProductDeleteOperation GID generated by the staged async productDelete response."
+          },
+          {
+            "path": "$.productOperation.deletedProductId",
+            "matcher": "shopify-gid:Product",
+            "reason": "The completed local ProductDeleteOperation points at the replayed setup product GID."
+          },
+          {
+            "path": "$.productOperation.status",
+            "matcher": "any-string",
+            "reason": "The live operation can advance between immediate helper reads; the local proxy exposes the completed operation deterministically on readback."
           }
         ]
       }

@@ -2,7 +2,8 @@ use std::collections::BTreeMap;
 
 use pretty_assertions::assert_eq;
 use shopify_draft_proxy::graphql::{
-    parsed_document, root_field_arguments, root_fields, RawArgumentValue, ResolvedValue,
+    parse_operation_with_variables, parsed_document, root_field_arguments, root_fields,
+    selected_operation_query, variables_with_operation_defaults, RawArgumentValue, ResolvedValue,
 };
 
 #[test]
@@ -129,6 +130,107 @@ fn parsed_document_preserves_operation_metadata_aliases_fragments_and_locations(
 }
 
 #[test]
+fn parsed_document_applies_conditional_directives_to_roots_fields_and_fragments() {
+    let variables = BTreeMap::from([
+        ("includeProduct".to_string(), ResolvedValue::Bool(true)),
+        ("includeTitle".to_string(), ResolvedValue::Bool(true)),
+        ("includeInline".to_string(), ResolvedValue::Bool(false)),
+        ("includeSpread".to_string(), ResolvedValue::Bool(true)),
+    ]);
+    let document = parsed_document(
+        r#"
+        fragment ProductFields on Product {
+          aliasTitle: title @include(if: $includeTitle)
+          skippedVendor: vendor @skip(if: true)
+        }
+
+        query ConditionalDirectives(
+          $includeProduct: Boolean!,
+          $includeTitle: Boolean!,
+          $includeInline: Boolean!,
+          $includeSpread: Boolean!
+        ) {
+          skippedProducts: products(first: 1) @skip(if: true) {
+            nodes { id }
+          }
+          skippedProduct: product(id: "gid://shopify/Product/2") @include(if: false) {
+            id
+          }
+          product(id: "gid://shopify/Product/1") @include(if: $includeProduct) {
+            id
+            hiddenHandle: handle @include(if: false)
+            ... on Product @include(if: $includeInline) {
+              seo { title }
+            }
+            ...ProductFields @include(if: $includeSpread)
+          }
+        }
+        "#,
+        &variables,
+    )
+    .expect("document should parse");
+
+    assert_eq!(document.root_fields.len(), 1);
+    let product = &document.root_fields[0];
+    assert_eq!(product.name, "product");
+    assert_eq!(
+        product
+            .selection
+            .iter()
+            .map(|field| field.response_key.as_str())
+            .collect::<Vec<_>>(),
+        vec!["id", "aliasTitle"]
+    );
+}
+
+#[test]
+fn parsed_document_applies_conditional_directives_from_parity_documents() {
+    let read_variables = BTreeMap::from([
+        (
+            "id".to_string(),
+            ResolvedValue::String("gid://shopify/Product/1".to_string()),
+        ),
+        ("includeTitle".to_string(), ResolvedValue::Bool(false)),
+        ("skipInline".to_string(), ResolvedValue::Bool(true)),
+        ("includeSpread".to_string(), ResolvedValue::Bool(true)),
+    ]);
+    let document = parsed_document(
+        include_str!("../config/parity-requests/products/graphql-conditional-directives-product-read.graphql"),
+        &read_variables,
+    )
+    .expect("document should parse");
+
+    assert_eq!(document.root_fields.len(), 1);
+    let product = &document.root_fields[0];
+    assert_eq!(product.response_key, "includedProduct");
+    assert_eq!(
+        product
+            .selection
+            .iter()
+            .map(|field| field.response_key.as_str())
+            .collect::<Vec<_>>(),
+        vec!["id", "aliasStatus"]
+    );
+
+    let skipped_mutation_variables = BTreeMap::from([
+        (
+            "product".to_string(),
+            ResolvedValue::Object(BTreeMap::from([(
+                "title".to_string(),
+                ResolvedValue::String("Skipped".to_string()),
+            )])),
+        ),
+        ("skipMutation".to_string(), ResolvedValue::Bool(true)),
+    ]);
+    let operation = parse_operation_with_variables(
+        include_str!("../config/parity-requests/products/graphql-conditional-directives-product-create-skipped.graphql"),
+        &skipped_mutation_variables,
+    )
+    .expect("mutation should parse");
+    assert!(operation.root_fields.is_empty());
+}
+
+#[test]
 fn root_fields_preserve_omitted_null_and_unbound_nested_arguments() {
     let fields = root_fields(
         r#"
@@ -160,4 +262,50 @@ fn root_fields_preserve_omitted_null_and_unbound_nested_arguments() {
             value: None
         })
     );
+}
+
+#[test]
+fn selected_operation_query_filters_non_selected_operations_and_keeps_fragments() {
+    let query = r#"
+        query First($id: ID!) {
+          product(id: $id) { ...ProductFields }
+        }
+
+        fragment ProductFields on Product {
+          id
+        }
+
+        query Second($first: Int = 1) {
+          products(first: $first) { nodes { id } }
+        }
+    "#;
+
+    let selected =
+        selected_operation_query(query, Some("Second")).expect("operation should be selected");
+
+    assert!(selected.contains("query Second"));
+    assert!(selected.contains("fragment ProductFields"));
+    assert!(!selected.contains("query First"));
+    assert!(!selected.contains("product(id: $id)"));
+}
+
+#[test]
+fn selected_operation_variable_defaults_merge_only_omitted_values() {
+    let query = r#"
+        query Defaults($first: Int = 1, $query: String = "snow", $explicit: String = "default") {
+          products(first: $first, query: $query) { nodes { id } }
+          shop { name }
+        }
+    "#;
+    let variables = BTreeMap::from([("explicit".to_string(), ResolvedValue::Null)]);
+
+    let resolved =
+        variables_with_operation_defaults(query, &variables, None).expect("defaults should merge");
+
+    assert_eq!(resolved.get("first"), Some(&ResolvedValue::Int(1)));
+    assert_eq!(
+        resolved.get("query"),
+        Some(&ResolvedValue::String("snow".to_string()))
+    );
+    assert_eq!(resolved.get("explicit"), Some(&ResolvedValue::Null));
 }

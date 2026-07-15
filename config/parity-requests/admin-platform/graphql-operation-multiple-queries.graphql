@@ -1,0 +1,11 @@
+query First {
+  shop {
+    id
+  }
+}
+
+query Second {
+  shop {
+    name
+  }
+}

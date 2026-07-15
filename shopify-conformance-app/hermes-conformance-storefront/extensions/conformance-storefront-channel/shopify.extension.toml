@@ -1,0 +1,6 @@
+[[extensions]]
+type = "channel_config"
+name = "Conformance Storefront Channel"
+description = "Private sales channel for Storefront API conformance recording"
+handle = "conformance-storefront-channel"
+create_legacy_channel_on_app_install = true

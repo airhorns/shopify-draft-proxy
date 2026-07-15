@@ -1,0 +1,22 @@
+mutation AdminNodeCustomerBalanceGiftCardCredit(
+  $id: ID!
+  $creditInput: GiftCardCreditInput!
+) {
+  giftCardCredit(id: $id, creditInput: $creditInput) {
+    giftCardCreditTransaction {
+      id
+      __typename
+      note
+      processedAt
+      amount {
+        amount
+        currencyCode
+      }
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}

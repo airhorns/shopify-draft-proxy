@@ -1,0 +1,793 @@
+{
+  "scenarioId": "functions-live-hybrid-overlay-read",
+  "capturedAt": "2026-07-11T04:19:12.105Z",
+  "source": "live-shopify",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "summary": "Live Functions overlay evidence with one existing validation, one existing cart transform, and one later validation lifecycle.",
+  "shopifyFunctions": {
+    "validation": {
+      "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+      "title": "conformance-validation",
+      "handle": "conformance-validation",
+      "apiType": "cart_checkout_validation",
+      "description": "conformance-validation",
+      "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+      "app": {
+        "__typename": "App",
+        "id": "gid://shopify/App/347082227713",
+        "title": "hermes-conformance-products",
+        "handle": "hermes-conformance-products",
+        "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+      }
+    },
+    "cartTransform": {
+      "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+      "title": "conformance-cart-transform",
+      "handle": "conformance-cart-transform",
+      "apiType": "cart_transform",
+      "description": "conformance-cart-transform",
+      "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+      "app": {
+        "__typename": "App",
+        "id": "gid://shopify/App/347082227713",
+        "title": "hermes-conformance-products",
+        "handle": "hermes-conformance-products",
+        "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+      }
+    }
+  },
+  "cleanupBefore": {
+    "inventory": {
+      "query": "query FunctionsLiveHybridOverlayInventory {\n  validations(first: 100) {\n    nodes {\n      id\n      title\n      shopifyFunction {\n        id\n        handle\n        apiType\n      }\n    }\n  }\n  cartTransforms(first: 100) {\n    nodes {\n      id\n      functionId\n    }\n  }\n}\n",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validations": {
+              "nodes": []
+            },
+            "cartTransforms": {
+              "nodes": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 31,
+              "actualQueryCost": 22,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1978,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "validationDeletes": [],
+    "cartTransformDeletes": []
+  },
+  "baseValidationCreate": {
+    "query": "mutation FunctionsLiveHybridOverlayStage($validation: ValidationCreateInput!) {\n  validationCreate(validation: $validation) {\n    validation {\n      id\n      title\n      enabled\n      blockOnFailure\n      shopifyFunction {\n        id\n        handle\n        apiType\n        app {\n          apiKey\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+    "variables": {
+      "validation": {
+        "functionHandle": "conformance-validation",
+        "title": "Functions overlay disposable base validation",
+        "enable": true,
+        "blockOnFailure": true
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "validationCreate": {
+            "validation": {
+              "id": "gid://shopify/Validation/116064562",
+              "title": "Functions overlay disposable base validation",
+              "enabled": true,
+              "blockOnFailure": true,
+              "shopifyFunction": {
+                "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                "handle": "conformance-validation",
+                "apiType": "cart_checkout_validation",
+                "app": {
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 12,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1975,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "baseCartTransformCreate": {
+    "query": "mutation FunctionsLiveHybridOverlayBaseCartTransform(\n  $functionId: String!\n  $blockOnFailure: Boolean\n  $metafields: [MetafieldInput!]\n) {\n  cartTransformCreate(functionId: $functionId, blockOnFailure: $blockOnFailure, metafields: $metafields) {\n    cartTransform {\n      id\n      functionId\n      blockOnFailure\n      metafield(namespace: \"bundles\", key: \"config\") {\n        namespace\n        key\n        type\n        value\n        ownerType\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+    "variables": {
+      "functionId": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+      "blockOnFailure": false,
+      "metafields": [
+        {
+          "namespace": "bundles",
+          "key": "config",
+          "type": "json",
+          "value": "{\"mode\":\"base\"}"
+        }
+      ]
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "cartTransformCreate": {
+            "cartTransform": {
+              "id": "gid://shopify/CartTransform/131105074",
+              "functionId": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+              "blockOnFailure": false,
+              "metafield": {
+                "namespace": "bundles",
+                "key": "config",
+                "type": "json",
+                "value": "{\"mode\":\"base\"}",
+                "ownerType": "CARTTRANSFORM"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "stagedValidationCreate": {
+    "query": "mutation FunctionsLiveHybridOverlayStage($validation: ValidationCreateInput!) {\n  validationCreate(validation: $validation) {\n    validation {\n      id\n      title\n      enabled\n      blockOnFailure\n      shopifyFunction {\n        id\n        handle\n        apiType\n        app {\n          apiKey\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+    "variables": {
+      "validation": {
+        "functionHandle": "conformance-validation",
+        "title": "Functions overlay disposable staged validation",
+        "enable": true,
+        "blockOnFailure": false
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "validationCreate": {
+            "validation": {
+              "id": "gid://shopify/Validation/116097330",
+              "title": "Functions overlay disposable staged validation",
+              "enabled": true,
+              "blockOnFailure": false,
+              "shopifyFunction": {
+                "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                "handle": "conformance-validation",
+                "apiType": "cart_checkout_validation",
+                "app": {
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 12,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "overlayRead": {
+    "query": "query FunctionsLiveHybridOverlayRead(\n  $stagedValidationId: ID!\n  $baseValidationId: ID!\n  $cartFunctionId: String!\n  $cartFunctionApiType: String!\n) {\n  stagedValidation: validation(id: $stagedValidationId) {\n    id\n    title\n    enabled\n    blockOnFailure\n    shopifyFunction {\n      id\n      handle\n      apiType\n      app {\n        apiKey\n      }\n    }\n  }\n  baseValidation: validation(id: $baseValidationId) {\n    id\n    title\n    enabled\n    blockOnFailure\n    shopifyFunction {\n      id\n      handle\n      apiType\n      app {\n        apiKey\n      }\n    }\n  }\n  validations(first: 5, reverse: true) {\n    nodes {\n      title\n      enabled\n      blockOnFailure\n      shopifyFunction {\n        handle\n        app {\n          apiKey\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n  cartTransforms(first: 5) {\n    nodes {\n      id\n      functionId\n      blockOnFailure\n      metafield(namespace: \"bundles\", key: \"config\") {\n        namespace\n        key\n        type\n        value\n        ownerType\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n  allFunctions: shopifyFunctions(first: 20) {\n    nodes {\n      id\n      handle\n      apiType\n      app {\n        apiKey\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n  cartFunctions: shopifyFunctions(first: 20, apiType: $cartFunctionApiType) {\n    nodes {\n      id\n      handle\n      apiType\n      app {\n        apiKey\n      }\n    }\n  }\n  upstreamCartFunction: shopifyFunction(id: $cartFunctionId) {\n    id\n    handle\n    apiType\n    app {\n      apiKey\n    }\n  }\n}\n",
+    "variables": {
+      "stagedValidationId": "gid://shopify/Validation/116097330",
+      "baseValidationId": "gid://shopify/Validation/116064562",
+      "cartFunctionId": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+      "cartFunctionApiType": "cart_transform"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "stagedValidation": {
+            "id": "gid://shopify/Validation/116097330",
+            "title": "Functions overlay disposable staged validation",
+            "enabled": true,
+            "blockOnFailure": false,
+            "shopifyFunction": {
+              "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+              "handle": "conformance-validation",
+              "apiType": "cart_checkout_validation",
+              "app": {
+                "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+              }
+            }
+          },
+          "baseValidation": {
+            "id": "gid://shopify/Validation/116064562",
+            "title": "Functions overlay disposable base validation",
+            "enabled": true,
+            "blockOnFailure": true,
+            "shopifyFunction": {
+              "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+              "handle": "conformance-validation",
+              "apiType": "cart_checkout_validation",
+              "app": {
+                "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+              }
+            }
+          },
+          "validations": {
+            "nodes": [
+              {
+                "title": "Functions overlay disposable staged validation",
+                "enabled": true,
+                "blockOnFailure": false,
+                "shopifyFunction": {
+                  "handle": "conformance-validation",
+                  "app": {
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                }
+              },
+              {
+                "title": "Functions overlay disposable base validation",
+                "enabled": true,
+                "blockOnFailure": true,
+                "shopifyFunction": {
+                  "handle": "conformance-validation",
+                  "app": {
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false
+            }
+          },
+          "cartTransforms": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CartTransform/131105074",
+                "functionId": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+                "blockOnFailure": false,
+                "metafield": {
+                  "namespace": "bundles",
+                  "key": "config",
+                  "type": "json",
+                  "value": "{\"mode\":\"base\"}",
+                  "ownerType": "CARTTRANSFORM"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false
+            }
+          },
+          "allFunctions": {
+            "nodes": [
+              {
+                "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+                "handle": "conformance-payment-customization",
+                "apiType": "payment_customization",
+                "app": {
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              {
+                "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                "handle": "conformance-validation",
+                "apiType": "cart_checkout_validation",
+                "app": {
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              {
+                "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+                "handle": "conformance-cart-transform",
+                "apiType": "cart_transform",
+                "app": {
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              {
+                "id": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
+                "handle": "conformance-discount",
+                "apiType": "discount",
+                "app": {
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false
+            }
+          },
+          "cartFunctions": {
+            "nodes": [
+              {
+                "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+                "handle": "conformance-cart-transform",
+                "apiType": "cart_transform",
+                "app": {
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              }
+            ]
+          },
+          "upstreamCartFunction": {
+            "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+            "handle": "conformance-cart-transform",
+            "apiType": "cart_transform",
+            "app": {
+              "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 51,
+            "actualQueryCost": 27,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1973,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanupAfter": [
+    {
+      "query": "mutation FunctionsLiveHybridOverlayValidationCleanup($id: ID!) {\n  validationDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Validation/116097330"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationDelete": {
+              "deletedId": "gid://shopify/Validation/116097330",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1978,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation FunctionsLiveHybridOverlayValidationCleanup($id: ID!) {\n  validationDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Validation/116064562"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationDelete": {
+              "deletedId": "gid://shopify/Validation/116064562",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1980,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation FunctionsLiveHybridOverlayCartTransformCleanup($id: ID!) {\n  cartTransformDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/CartTransform/131105074"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "cartTransformDelete": {
+              "deletedId": "gid://shopify/CartTransform/131105074",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "FunctionHydrateByHandle",
+      "variables": {
+        "handle": "conformance-validation",
+        "apiType": "VALIDATION"
+      },
+      "query": "query FunctionHydrateByHandle {\n  shopifyFunctions(first: 100) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shopifyFunctions": {
+              "nodes": [
+                {
+                  "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+                  "title": "conformance-payment-customization",
+                  "handle": "conformance-payment-customization",
+                  "apiType": "payment_customization",
+                  "description": "conformance-payment-customization",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                {
+                  "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                  "title": "conformance-validation",
+                  "handle": "conformance-validation",
+                  "apiType": "cart_checkout_validation",
+                  "description": "conformance-validation",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                {
+                  "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+                  "title": "conformance-cart-transform",
+                  "handle": "conformance-cart-transform",
+                  "apiType": "cart_transform",
+                  "description": "conformance-cart-transform",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                {
+                  "id": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
+                  "title": "conformance-discount",
+                  "handle": "conformance-discount",
+                  "apiType": "discount",
+                  "description": "conformance-discount",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 20,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1993,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "FunctionValidationHydrateById",
+      "variables": {
+        "id": "gid://shopify/Validation/116064562"
+      },
+      "query": "query FunctionValidationHydrateById($id: ID!) {\n  validation(id: $id) {\n    id\n    title\n    enabled\n    blockOnFailure\n    shopifyFunction {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n    metafields(first: 100) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n        updatedAt\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "validation": {
+              "id": "gid://shopify/Validation/116064562",
+              "title": "Functions overlay disposable base validation",
+              "enabled": true,
+              "blockOnFailure": true,
+              "shopifyFunction": {
+                "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                "title": "conformance-validation",
+                "handle": "conformance-validation",
+                "apiType": "cart_checkout_validation",
+                "description": "conformance-validation",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "__typename": "App",
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              "metafields": {
+                "nodes": []
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 14,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "FunctionValidationsHydrate",
+      "variables": {},
+      "query": "query FunctionValidationsHydrate {\n  validations(first: 100) {\n    nodes {\n      id\n      title\n      enabled\n      blockOnFailure\n      shopifyFunction {\n        id\n        title\n        handle\n        apiType\n        description\n        appKey\n        app {\n          __typename\n          id\n          title\n          handle\n          apiKey\n        }\n      }\n      metafields(first: 100) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          updatedAt\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "validations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Validation/116064562",
+                  "title": "Functions overlay disposable base validation",
+                  "enabled": true,
+                  "blockOnFailure": true,
+                  "shopifyFunction": {
+                    "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                    "title": "conformance-validation",
+                    "handle": "conformance-validation",
+                    "apiType": "cart_checkout_validation",
+                    "description": "conformance-validation",
+                    "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                    "app": {
+                      "__typename": "App",
+                      "id": "gid://shopify/App/347082227713",
+                      "title": "hermes-conformance-products",
+                      "handle": "hermes-conformance-products",
+                      "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                    }
+                  },
+                  "metafields": {
+                    "nodes": []
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 128,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "FunctionCartTransformsHydrate",
+      "variables": {},
+      "query": "query FunctionCartTransformsHydrate {\n  cartTransforms(first: 100) {\n    nodes {\n      id\n      functionId\n      blockOnFailure\n      metafields(first: 100) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          ownerType\n          createdAt\n          updatedAt\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "cartTransforms": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CartTransform/131105074",
+                  "functionId": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+                  "blockOnFailure": false,
+                  "metafields": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/Metafield/44978091032882",
+                        "namespace": "bundles",
+                        "key": "config",
+                        "type": "json",
+                        "value": "{\"mode\":\"base\"}",
+                        "compareDigest": "7a0cf6d5eb237d884ca045cbdc0d41fb8288a60698d027123a3126d4d550c10d",
+                        "ownerType": "CARTTRANSFORM",
+                        "createdAt": "2026-07-11T04:19:11Z",
+                        "updatedAt": "2026-07-11T04:19:11Z"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 110,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "FunctionMetadataCatalogHydrate",
+      "variables": {},
+      "query": "query FunctionMetadataCatalogHydrate {\n  shopifyFunctions(first: 100) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shopifyFunctions": {
+              "nodes": [
+                {
+                  "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+                  "title": "conformance-payment-customization",
+                  "handle": "conformance-payment-customization",
+                  "apiType": "payment_customization",
+                  "description": "conformance-payment-customization",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                {
+                  "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                  "title": "conformance-validation",
+                  "handle": "conformance-validation",
+                  "apiType": "cart_checkout_validation",
+                  "description": "conformance-validation",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                {
+                  "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+                  "title": "conformance-cart-transform",
+                  "handle": "conformance-cart-transform",
+                  "apiType": "cart_transform",
+                  "description": "conformance-cart-transform",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                {
+                  "id": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
+                  "title": "conformance-discount",
+                  "handle": "conformance-discount",
+                  "apiType": "discount",
+                  "description": "conformance-discount",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 20,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": {
+    "setup": "The script removes disposable Function resources for the released conformance functions, creates one base validation and one base cart transform, records upstream hydrate cassettes from that base state, then creates the validation lifecycle that the proxy stages locally.",
+    "cleanup": "The finally block deletes the base validation, staged validation, and base cart transform when they were created."
+  }
+}

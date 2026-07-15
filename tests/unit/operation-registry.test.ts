@@ -2,10 +2,39 @@ import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { loadOperationRegistry } from '../../scripts/conformance-scenario-registry.js';
+import { z } from 'zod';
+import { loadNodeResolverInventory, loadOperationRegistry } from '../../scripts/conformance-scenario-registry.js';
+import { parseJsonFileWithSchema } from '../../scripts/support/json-schemas.js';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const operationRegistryEntries = loadOperationRegistry(repoRoot);
+const nodeResolverInventoryEntries = loadNodeResolverInventory(repoRoot);
+
+const capturedMutationSchema = z
+  .strictObject({
+    mutations: z.array(z.strictObject({ name: z.string().min(1) }).passthrough()),
+  })
+  .passthrough();
+
+const capturedNodeInterfaceSchema = z
+  .strictObject({
+    introspection: z
+      .strictObject({
+        nodeInterface: z
+          .strictObject({
+            possibleTypes: z.array(z.strictObject({ name: z.string().min(1) }).passthrough()),
+          })
+          .passthrough(),
+      })
+      .passthrough(),
+  })
+  .passthrough();
+
+const mutationSchemaPath = resolve(repoRoot, 'config/admin-graphql/2026-04/mutation-schema.json');
+const adminPlatformNodeCapturePath = resolve(
+  repoRoot,
+  'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform/admin-platform-utility-roots.json',
+);
 
 function listOperationRegistryEntries() {
   return operationRegistryEntries.map((entry) => ({
@@ -21,6 +50,71 @@ function listImplementedOperationRegistryEntries() {
 
 function listRuntimeTestedOperationRegistryEntries() {
   return listOperationRegistryEntries().filter((entry) => entry.runtimeTests.length > 0);
+}
+
+function sortedStrings(values: Iterable<string>): string[] {
+  return [...values].sort((left, right) => left.localeCompare(right));
+}
+
+function capturedMutationNames() {
+  const schema = parseJsonFileWithSchema(mutationSchemaPath, capturedMutationSchema);
+  return sortedStrings(schema.mutations.map((mutation) => mutation.name));
+}
+
+function adminMutationCoverageAudit() {
+  const schemaMutationNames = capturedMutationNames();
+  const registryMutations = listOperationRegistryEntries().filter((entry) => entry.type === 'mutation');
+  const registryMutationByName = new Map(registryMutations.map((entry) => [entry.name, entry]));
+  const implementedMutationNames = schemaMutationNames.filter(
+    (name) => registryMutationByName.get(name)?.implemented === true,
+  );
+  const implementedWithRuntimeTests = implementedMutationNames.filter(
+    (name) => (registryMutationByName.get(name)?.runtimeTests.length ?? 0) > 0,
+  );
+  const implementedWithoutRuntimeTests = implementedMutationNames.filter(
+    (name) => (registryMutationByName.get(name)?.runtimeTests.length ?? 0) === 0,
+  );
+
+  return {
+    capturedMutationCount: schemaMutationNames.length,
+    registeredMutationCount: schemaMutationNames.filter((name) => registryMutationByName.has(name)).length,
+    implementedMutationCount: implementedMutationNames.length,
+    implementedMutationRuntimeTestEvidence: {
+      withRuntimeTests: implementedWithRuntimeTests.length,
+      withoutRuntimeTests: implementedWithoutRuntimeTests.length,
+    },
+    declaredUnimplemented: schemaMutationNames.filter(
+      (name) => registryMutationByName.has(name) && registryMutationByName.get(name)?.implemented === false,
+    ),
+    unregistered: schemaMutationNames.filter((name) => !registryMutationByName.has(name)),
+    registeredButMissingFromCapturedSchema: sortedStrings(
+      registryMutations.map((entry) => entry.name).filter((name) => !schemaMutationNames.includes(name)),
+    ),
+  };
+}
+
+function capturedNodeImplementorNames() {
+  const capture = parseJsonFileWithSchema(adminPlatformNodeCapturePath, capturedNodeInterfaceSchema);
+  return sortedStrings(capture.introspection.nodeInterface.possibleTypes.map((possibleType) => possibleType.name));
+}
+
+function nodeResolverCoverageAudit() {
+  const capturedTypeNames = capturedNodeImplementorNames();
+  const localResolverTypeNames = sortedStrings(new Set(nodeResolverInventoryEntries.map((entry) => entry.typeName)));
+
+  return {
+    capturedNodeImplementorCount: capturedTypeNames.length,
+    localNodeResolverTypeCount: localResolverTypeNames.length,
+    localResolverBehaviorCounts: {
+      projectLocalRecord: nodeResolverInventoryEntries.filter((entry) => entry.behavior === 'project-local-record')
+        .length,
+      returnKnownNull: nodeResolverInventoryEntries.filter((entry) => entry.behavior === 'return-known-null').length,
+    },
+    unsupported: capturedTypeNames.filter((typeName) => !localResolverTypeNames.includes(typeName)),
+    localInventoryNotInCapturedNodeInterface: localResolverTypeNames.filter(
+      (typeName) => !capturedTypeNames.includes(typeName),
+    ),
+  };
 }
 
 describe('operation registry', () => {
@@ -64,5 +158,273 @@ describe('operation registry', () => {
   it('loads the Rust operation registry as the source of truth', () => {
     expect(listOperationRegistryEntries().length).toBeGreaterThan(0);
     expect(listOperationRegistryEntries().some((entry) => entry.name === 'productCreate')).toBe(true);
+  });
+
+  it('audits captured 2026-04 Admin mutation roots against the Rust registry', () => {
+    expect(adminMutationCoverageAudit()).toEqual({
+      capturedMutationCount: 514,
+      registeredMutationCount: 438,
+      implementedMutationCount: 411,
+      implementedMutationRuntimeTestEvidence: {
+        withRuntimeTests: 136,
+        withoutRuntimeTests: 275,
+      },
+      declaredUnimplemented: [
+        'companyContactSendWelcomeEmail',
+        'consentPolicyUpdate',
+        'customerPaymentMethodSendUpdateEmail',
+        'deliveryPromiseParticipantsUpdate',
+        'deliveryPromiseProviderUpsert',
+        'deliverySettingUpdate',
+        'disputeEvidenceUpdate',
+        'menuCreate',
+        'menuDelete',
+        'menuUpdate',
+        'mobilePlatformApplicationDelete',
+        'orderRiskAssessmentCreate',
+        'privacyFeaturesDisable',
+        'serverPixelDelete',
+        'shopifyPaymentsPayoutAlternateCurrencyCreate',
+        'storefrontAccessTokenDelete',
+        'taxSummaryCreate',
+        'urlRedirectBulkDeleteAll',
+        'urlRedirectBulkDeleteByIds',
+        'urlRedirectBulkDeleteBySavedSearch',
+        'urlRedirectBulkDeleteBySearch',
+        'urlRedirectCreate',
+        'urlRedirectDelete',
+        'urlRedirectImportCreate',
+        'urlRedirectImportSubmit',
+        'urlRedirectUpdate',
+        'webPixelDelete',
+      ],
+      unregistered: [
+        'abandonmentEmailStateUpdate',
+        'cashDrawerCreate',
+        'cashDrawerFindOrCreate',
+        'cashDrawerUpdate',
+        'cashManagementReasonCodeCreate',
+        'cashManagementReasonCodeDelete',
+        'channelCreate',
+        'channelDelete',
+        'channelFullSync',
+        'channelUpdate',
+        'checkoutAndAccountsConfigurationUpdate',
+        'checkoutBrandingUpsert',
+        'collectionDuplicate',
+        'collectionPublish',
+        'collectionUnpublish',
+        'companyLocationAssignTaxExemptions',
+        'companyLocationCreateTaxRegistration',
+        'companyLocationRevokeTaxExemptions',
+        'companyLocationRevokeTaxRegistration',
+        'deliveryShippingOriginAssign',
+        'discountBulkTagsAdd',
+        'discountBulkTagsRemove',
+        'inventorySetScheduledChanges',
+        'inventoryShipmentSetBarcode',
+        'marketCurrencySettingsUpdate',
+        'marketRegionDelete',
+        'marketRegionsCreate',
+        'marketRegionsDelete',
+        'marketWebPresenceCreate',
+        'marketWebPresenceDelete',
+        'marketWebPresenceUpdate',
+        'orderEditRemoveLineItemDiscount',
+        'orderEditUpdateDiscount',
+        'pointOfSaleDeviceAssignToCashDrawer',
+        'pointOfSaleDevicePaymentSessionAdjust',
+        'pointOfSaleDevicePaymentSessionClose',
+        'pointOfSaleDevicePaymentSessionCount',
+        'pointOfSaleDevicePaymentSessionOpen',
+        'returnLineItemRemoveFromReturn',
+        'returnRefund',
+        'stagedUploadTargetGenerate',
+        'stagedUploadTargetsGenerate',
+        'subscriptionBillingAttemptCreate',
+        'subscriptionBillingCycleBulkCharge',
+        'subscriptionBillingCycleBulkSearch',
+        'subscriptionBillingCycleCharge',
+        'subscriptionBillingCycleContractDraftCommit',
+        'subscriptionBillingCycleContractDraftConcatenate',
+        'subscriptionBillingCycleContractEdit',
+        'subscriptionBillingCycleEditDelete',
+        'subscriptionBillingCycleEditsDelete',
+        'subscriptionBillingCycleScheduleEdit',
+        'subscriptionBillingCycleSkip',
+        'subscriptionBillingCycleUnskip',
+        'subscriptionContractActivate',
+        'subscriptionContractAtomicCreate',
+        'subscriptionContractCancel',
+        'subscriptionContractCreate',
+        'subscriptionContractExpire',
+        'subscriptionContractFail',
+        'subscriptionContractPause',
+        'subscriptionContractProductChange',
+        'subscriptionContractSetNextBillingDate',
+        'subscriptionContractUpdate',
+        'subscriptionDraftCommit',
+        'subscriptionDraftDiscountAdd',
+        'subscriptionDraftDiscountCodeApply',
+        'subscriptionDraftDiscountRemove',
+        'subscriptionDraftDiscountUpdate',
+        'subscriptionDraftFreeShippingDiscountAdd',
+        'subscriptionDraftFreeShippingDiscountUpdate',
+        'subscriptionDraftLineAdd',
+        'subscriptionDraftLineRemove',
+        'subscriptionDraftLineUpdate',
+        'subscriptionDraftUpdate',
+        'themeDuplicate',
+      ],
+      registeredButMissingFromCapturedSchema: [
+        'metafieldDelete',
+        'productVariantCreate',
+        'productVariantDelete',
+        'productVariantUpdate',
+      ],
+    });
+  });
+
+  it('audits captured Shopify Node implementors against the explicit Rust resolver inventory', () => {
+    expect(nodeResolverCoverageAudit()).toEqual({
+      capturedNodeImplementorCount: 203,
+      localNodeResolverTypeCount: 76,
+      localResolverBehaviorCounts: {
+        projectLocalRecord: 73,
+        returnKnownNull: 3,
+      },
+      unsupported: [
+        'AbandonedCheckout',
+        'AbandonedCheckoutLineItem',
+        'Abandonment',
+        'AddAllProductsOperation',
+        'AdditionalFee',
+        'AppCatalog',
+        'AppCredit',
+        'AppRevenueAttributionRecord',
+        'BasicEvent',
+        'BulkOperation',
+        'BusinessEntity',
+        'CalculatedOrder',
+        'CashDrawer',
+        'CashManagementCustomReasonCode',
+        'CashManagementDefaultReasonCode',
+        'CashManagementSystemReasonCode',
+        'CashTrackingAdjustment',
+        'CatalogCsvOperation',
+        'Channel',
+        'ChannelDefinition',
+        'ChannelInformation',
+        'CheckoutAndAccountsConfiguration',
+        'CheckoutAndAccountsConfigurationOverride',
+        'CheckoutProfile',
+        'CommentEvent',
+        'CompanyLocationCatalog',
+        'CompanyLocationStaffMemberAssignment',
+        'ConsentPolicy',
+        'CurrencyExchangeAdjustment',
+        'CustomerAccountAppExtensionPage',
+        'CustomerAccountNativePage',
+        'CustomerVisit',
+        'DeliveryCarrierService',
+        'DeliveryCondition',
+        'DeliveryCountry',
+        'DeliveryCustomization',
+        'DeliveryLocationGroup',
+        'DeliveryMethod',
+        'DeliveryMethodDefinition',
+        'DeliveryParticipant',
+        'DeliveryProfile',
+        'DeliveryProfileItem',
+        'DeliveryPromiseParticipant',
+        'DeliveryPromiseProvider',
+        'DeliveryProvince',
+        'DeliveryRateDefinition',
+        'DeliveryZone',
+        'DiscountAutomaticBxgy',
+        'DiscountNode',
+        'DiscountRedeemCodeBulkCreation',
+        'Domain',
+        'DraftOrder',
+        'DraftOrderLineItem',
+        'DraftOrderTag',
+        'Duty',
+        'ExchangeLineItem',
+        'ExchangeV2',
+        'FulfillmentOrderDestination',
+        'FulfillmentOrderMerchantRequest',
+        'InventoryItemMeasurement',
+        'LineItem',
+        'LineItemGroup',
+        'Market',
+        'MarketCatalog',
+        'MarketingActivity',
+        'MarketingEvent',
+        'MarketWebPresence',
+        'Menu',
+        'Metafield',
+        'MetafieldDefinition',
+        'Metaobject',
+        'MetaobjectDefinition',
+        'OnlineStoreTheme',
+        'Order',
+        'OrderAdjustment',
+        'OrderDisputeSummary',
+        'OrderEditSession',
+        'OrderTransaction',
+        'PaymentCustomization',
+        'PaymentMandate',
+        'PaymentSchedule',
+        'PaymentTerms',
+        'PaymentTermsTemplate',
+        'PointOfSaleDevicePaymentSession',
+        'PriceList',
+        'PriceRule',
+        'PriceRuleDiscountCode',
+        'ProductOption',
+        'ProductOptionValue',
+        'ProductTaxonomyNode',
+        'ProductVariantComponent',
+        'Publication',
+        'PublicationResourceOperation',
+        'QuantityPriceBreak',
+        'Refund',
+        'RefundShippingLine',
+        'ReturnReasonDefinition',
+        'ReverseFulfillmentOrderDisposition',
+        'SaleAdditionalFee',
+        'SavedSearch',
+        'ScriptTag',
+        'SellingPlan',
+        'SellingPlanGroup',
+        'ServerPixel',
+        'Shop',
+        'ShopifyPaymentsAccount',
+        'ShopifyPaymentsBalanceTransaction',
+        'ShopifyPaymentsBankAccount',
+        'ShopifyPaymentsDisputeEvidence',
+        'ShopifyPaymentsDisputeFileUpload',
+        'ShopifyPaymentsDisputeFulfillment',
+        'ShopifyPaymentsPayout',
+        'StaffMember',
+        'StandardMetafieldDefinitionTemplate',
+        'StorefrontAccessToken',
+        'SubscriptionBillingAttempt',
+        'SubscriptionContract',
+        'SubscriptionDraft',
+        'TaxonomyAttribute',
+        'TaxonomyCategory',
+        'TaxonomyChoiceListAttribute',
+        'TaxonomyMeasurementAttribute',
+        'TaxonomyValue',
+        'TenderTransaction',
+        'TransactionFee',
+        'UrlRedirect',
+        'UrlRedirectImport',
+        'WebhookSubscription',
+        'WebPixel',
+      ],
+      localInventoryNotInCapturedNodeInterface: ['StoreCreditAccountTransaction', 'TaxAppConfiguration'],
+    });
   });
 });

@@ -1,0 +1,10 @@
+mutation B2BMixedOverlayCompanyDelete($id: ID!) {
+  companyDelete(id: $id) {
+    deletedCompanyId
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
