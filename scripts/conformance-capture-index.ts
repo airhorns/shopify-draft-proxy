@@ -7020,6 +7020,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'online-store',
+    captureId: 'storefront-shop-name-proxy-parity',
+    scriptPath: 'scripts/capture-storefront-shop-name-proxy-conformance.mts',
+    purpose:
+      'Authenticated Storefront API /api/<version>/graphql.json passthrough recording for a safe shop-name query, with non-secret auth-mode metadata and redacted token headers.',
+    requiredAuthScopes: ['stored Storefront access token from corepack pnpm conformance:grant-storefront-token'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}storefront-shop-name-proxy-parity.json`,
+      'config/parity-specs/online-store/storefront-shop-name-proxy-parity.json',
+      'config/parity-requests/online-store/storefront-shop-name.graphql',
+    ],
+    cleanupBehavior: 'Read-only Storefront API request; no Shopify resources are created or mutated.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'online-store',
     captureId: 'online-store-content-lifecycle',
     scriptPath: 'scripts/capture-online-store-content-lifecycle-conformance.ts',
     purpose:

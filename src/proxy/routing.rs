@@ -14,6 +14,7 @@ pub(in crate::proxy) enum Route {
     MetaCommit,
     BulkOperationResult { artifact_id: String },
     Graphql,
+    StorefrontGraphql,
     NotFound,
     MethodNotAllowed,
 }
@@ -40,6 +41,9 @@ pub(in crate::proxy) fn route(request: &Request) -> Route {
         }
         path if admin_graphql_version(path).is_some() => {
             only_method("POST", &method, Route::Graphql)
+        }
+        path if storefront_graphql_version(path).is_some() => {
+            only_method("POST", &method, Route::StorefrontGraphql)
         }
         _ => Route::NotFound,
     }
@@ -77,6 +81,25 @@ fn admin_graphql_path_version(path: &str) -> Option<&str> {
         (Some(""), Some("admin"), Some("api"), Some(version), Some("graphql.json"), None) => {
             Some(version)
         }
+        _ => None,
+    }
+}
+
+pub(in crate::proxy) fn storefront_graphql_version(path: &str) -> Option<&str> {
+    let version = storefront_graphql_path_version(path)?;
+    supported_admin_graphql_version(version).then_some(version)
+}
+
+fn storefront_graphql_path_version(path: &str) -> Option<&str> {
+    let mut parts = path.split('/');
+    match (
+        parts.next(),
+        parts.next(),
+        parts.next(),
+        parts.next(),
+        parts.next(),
+    ) {
+        (Some(""), Some("api"), Some(version), Some("graphql.json"), None) => Some(version),
         _ => None,
     }
 }

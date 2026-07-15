@@ -1,0 +1,88 @@
+{
+  "scenarioId": "storefront-shop-name-proxy-parity",
+  "capturedAt": "2026-07-15T13:40:40.406Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "apiSurface": "storefront",
+  "endpoint": "https://harry-test-heelo.myshopify.com/api/2025-01/graphql.json",
+  "authMode": "storefront-access-token",
+  "storefrontToken": {
+    "id": "gid://shopify/StorefrontAccessToken/130666922290",
+    "title": "hermes-conformance-storefront-recording",
+    "accessScopes": [
+      "unauthenticated_read_checkouts",
+      "unauthenticated_read_content",
+      "unauthenticated_read_customer_tags",
+      "unauthenticated_read_customers",
+      "unauthenticated_read_metaobjects",
+      "unauthenticated_read_product_inventory",
+      "unauthenticated_read_product_listings",
+      "unauthenticated_read_product_pickup_locations",
+      "unauthenticated_read_product_tags",
+      "unauthenticated_read_selling_plans",
+      "unauthenticated_write_checkouts",
+      "unauthenticated_write_customers"
+    ],
+    "obtainedAt": "2026-07-14T23:55:26.161Z"
+  },
+  "primary": {
+    "method": "POST",
+    "apiSurface": "storefront",
+    "apiVersion": "2025-01",
+    "path": "/api/2025-01/graphql.json",
+    "endpoint": "https://harry-test-heelo.myshopify.com/api/2025-01/graphql.json",
+    "authMode": "storefront-access-token",
+    "headers": {
+      "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+    },
+    "operationName": "StorefrontShopNameProxyParity",
+    "query": "query StorefrontShopNameProxyParity {\n  shop {\n    name\n  }\n}\n",
+    "variables": {},
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "shop": {
+            "name": "harry-test-heelo"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2025-01",
+      "path": "/api/2025-01/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2025-01/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontShopNameProxyParity",
+      "query": "query StorefrontShopNameProxyParity {\n  shop {\n    name\n  }\n}\n",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shop": {
+              "name": "harry-test-heelo"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1
+            }
+          }
+        }
+      }
+    }
+  ]
+}

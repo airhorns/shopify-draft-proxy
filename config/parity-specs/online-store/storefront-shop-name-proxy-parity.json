@@ -1,0 +1,29 @@
+{
+  "scenarioId": "storefront-shop-name-proxy-parity",
+  "operationNames": ["shop"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["storefront-api-proxy", "passthrough", "authenticated-read"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store/storefront-shop-name-proxy-parity.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/storefront.rs"],
+  "proxyRequest": {
+    "apiSurface": "storefront",
+    "documentPath": "config/parity-requests/online-store/storefront-shop-name.graphql",
+    "variablesCapturePath": "$.primary.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "storefront-shop-name",
+        "capturePath": "$.primary.response.body",
+        "proxyPath": "$"
+      }
+    ]
+  },
+  "notes": "Authenticated read-only Storefront API proxy parity scenario. The live fixture records the exact Storefront shop-name request, non-secret auth mode, redacted token headers, and /api/<version>/graphql.json cassette metadata so replay proves Storefront traffic uses the Storefront route rather than Admin GraphQL local dispatch."
+}

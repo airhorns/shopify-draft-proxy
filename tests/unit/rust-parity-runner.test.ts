@@ -4,7 +4,13 @@ import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 
 import { diffValues, parseJsonlRecordsForParity, selectPaths } from '../../scripts/parity-run.js';
-import { recordedCallMatchesBody, validateRecordedUpstreamCalls } from '../../scripts/parity-cassette.js';
+import {
+  formatRecordedCallMismatch,
+  recordedCallMatchesBody,
+  recordedCallMatchesRequest,
+  validateRecordedUpstreamCalls,
+} from '../../scripts/parity-cassette.js';
+import { paritySpecSchema } from '../../scripts/support/json-schemas.js';
 
 const repoRoot = new URL('../..', import.meta.url);
 const paritySpecRoot = new URL('../../config/parity-specs/', import.meta.url);
@@ -88,6 +94,40 @@ describe('parity runner JSONL targets', () => {
 });
 
 describe('Rust parity runner cassette matching', () => {
+  it('accepts Storefront API parity requests as first-class captured scenario inputs', () => {
+    expect(
+      paritySpecSchema.parse({
+        scenarioId: 'storefront-shop-name-proxy-parity',
+        operationNames: ['shop'],
+        scenarioStatus: 'captured',
+        assertionKinds: ['storefront-api-proxy'],
+        comparisonMode: 'captured-vs-proxy-request',
+        liveCaptureFiles: [
+          'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store/storefront-shop-name-proxy-parity.json',
+        ],
+        proxyRequest: {
+          apiSurface: 'storefront',
+          apiVersion: '2025-01',
+          documentPath: 'config/parity-requests/online-store/storefront-shop-name.graphql',
+          headers: {
+            'X-Shopify-Storefront-Access-Token': 'shpat_redacted',
+          },
+        },
+        comparison: {
+          mode: 'strict-json',
+          expectedDifferences: [],
+          targets: [
+            {
+              name: 'storefront-shop-name',
+              capturePath: '$.primary.response.body',
+              proxyPath: '$',
+            },
+          ],
+        },
+      }).proxyRequest?.apiSurface,
+    ).toBe('storefront');
+  });
+
   it('matches recorded upstream calls only by exact query text and exact variables', () => {
     const query = `
       query ProductsHydrateNodes($ids: [ID!]!) {
@@ -106,6 +146,102 @@ describe('Rust parity runner cassette matching', () => {
         requestBody,
       ),
     ).toBe(true);
+  });
+
+  it('matches recorded upstream calls by method, API surface path, exact query text, and exact variables', () => {
+    const query = 'query StorefrontShopName { shop { name } }';
+    const body = JSON.stringify({ query, variables: {} });
+    const call = {
+      method: 'POST',
+      apiSurface: 'storefront' as const,
+      path: '/api/2026-04/graphql.json',
+      operationName: 'StorefrontShopName',
+      variables: {},
+      query,
+    };
+
+    expect(
+      recordedCallMatchesRequest(call, {
+        method: 'POST',
+        apiSurface: 'storefront',
+        path: '/api/2026-04/graphql.json',
+        body,
+      }),
+    ).toBe(true);
+    expect(
+      recordedCallMatchesRequest(call, {
+        method: 'POST',
+        apiSurface: 'admin',
+        path: '/admin/api/2026-04/graphql.json',
+        body,
+      }),
+    ).toBe(false);
+    expect(
+      recordedCallMatchesRequest(call, {
+        method: 'POST',
+        apiSurface: 'storefront',
+        path: '/api/2025-01/graphql.json',
+        body,
+      }),
+    ).toBe(false);
+    expect(
+      recordedCallMatchesRequest(call, {
+        method: 'POST',
+        apiSurface: 'storefront',
+        path: '/api/2026-04/graphql.json',
+        body: JSON.stringify({ query, variables: { country: 'CA' } }),
+      }),
+    ).toBe(false);
+  });
+
+  it('does not let legacy Admin cassettes without surface metadata satisfy Storefront requests', () => {
+    const query = 'query SameBody { shop { name } }';
+    const body = JSON.stringify({ query, variables: {} });
+
+    expect(
+      recordedCallMatchesRequest(
+        {
+          operationName: 'SameBody',
+          variables: {},
+          query,
+        },
+        {
+          method: 'POST',
+          apiSurface: 'storefront',
+          path: '/api/2026-04/graphql.json',
+          body,
+        },
+      ),
+    ).toBe(false);
+  });
+
+  it('formats missing cassette diagnostics with method, surface, and path context', () => {
+    const query = 'query StorefrontShopName { shop { name } }';
+    const diagnostic = formatRecordedCallMismatch(
+      {
+        method: 'POST',
+        apiSurface: 'storefront',
+        path: '/api/2026-04/graphql.json',
+        body: JSON.stringify({ query, variables: {} }),
+      },
+      [
+        {
+          method: 'POST',
+          apiSurface: 'admin',
+          path: '/admin/api/2026-04/graphql.json',
+          operationName: 'StorefrontShopName',
+          variables: {},
+          query,
+        },
+      ],
+      new Set(),
+    );
+
+    expect(diagnostic).toContain('Outgoing method: POST');
+    expect(diagnostic).toContain('Outgoing apiSurface: storefront');
+    expect(diagnostic).toContain('Outgoing path: /api/2026-04/graphql.json');
+    expect(diagnostic).toContain('apiSurface: admin');
+    expect(diagnostic).toContain('path: /admin/api/2026-04/graphql.json');
   });
 
   it('does not match synthetic cassette descriptors even when operation name and variables match', () => {
@@ -177,6 +313,42 @@ describe('Rust parity runner cassette matching', () => {
       'upstreamCalls[0].query is not a valid GraphQL document: "sha:hand-synthesized-product-hydrate"',
       'upstreamCalls[1].query is missing or is not a string',
     ]);
+  });
+
+  it('requires Storefront upstream cassettes to carry non-secret method and path metadata', () => {
+    const query = 'query StorefrontShopName { shop { name } }';
+
+    expect(
+      validateRecordedUpstreamCalls([
+        {
+          apiSurface: 'storefront',
+          query,
+          variables: {},
+          headers: {
+            'X-Shopify-Storefront-Access-Token': 'real-token-value',
+          },
+        },
+      ]),
+    ).toEqual([
+      'upstreamCalls[0].method must be POST for Storefront GraphQL calls',
+      'upstreamCalls[0].path is required for Storefront GraphQL calls',
+      'upstreamCalls[0].headers.X-Shopify-Storefront-Access-Token must redact Storefront token values',
+    ]);
+
+    expect(
+      validateRecordedUpstreamCalls([
+        {
+          method: 'POST',
+          apiSurface: 'storefront',
+          path: '/api/2026-04/graphql.json',
+          query,
+          variables: {},
+          headers: {
+            'X-Shopify-Storefront-Access-Token': '<redacted:storefront-access-token>',
+          },
+        },
+      ]),
+    ).toEqual([]);
   });
 });
 

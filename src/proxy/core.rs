@@ -6,8 +6,15 @@ fn format_runtime_timestamp(timestamp: time::OffsetDateTime) -> String {
         .expect("UTC timestamps should format as RFC3339")
 }
 
+#[cfg(test)]
 pub(in crate::proxy) fn guarded_upstream_transport(
     transport: impl Fn(Request) -> Response + Send + Sync + 'static,
+) -> UpstreamTransport {
+    guarded_upstream_transport_from_arc(Arc::new(transport))
+}
+
+pub(in crate::proxy) fn guarded_upstream_transport_from_arc(
+    transport: UpstreamTransport,
 ) -> UpstreamTransport {
     Arc::new(move |request| {
         if let Some(root_field) = registered_stage_locally_mutation_upstream_root(&request) {
@@ -49,6 +56,7 @@ fn upstream_guard_registry() -> &'static [OperationRegistryEntry] {
 
 impl DraftProxy {
     pub fn new(config: Config) -> Self {
+        let upstream_transport: UpstreamTransport = Arc::new(default_upstream_transport);
         Self {
             config,
             log_entries: Vec::new(),
@@ -59,7 +67,10 @@ impl DraftProxy {
             clock: Arc::new(default_runtime_clock),
             last_mutation_timestamp: None,
             commit_transport: Arc::new(default_commit_transport),
-            upstream_transport: guarded_upstream_transport(default_upstream_transport),
+            upstream_transport: guarded_upstream_transport_from_arc(Arc::clone(
+                &upstream_transport,
+            )),
+            storefront_upstream_transport: upstream_transport,
         }
     }
 
@@ -85,7 +96,9 @@ impl DraftProxy {
         mut self,
         transport: impl Fn(Request) -> Response + Send + Sync + 'static,
     ) -> Self {
-        self.upstream_transport = guarded_upstream_transport(transport);
+        let transport: UpstreamTransport = Arc::new(transport);
+        self.upstream_transport = guarded_upstream_transport_from_arc(Arc::clone(&transport));
+        self.storefront_upstream_transport = transport;
         self
     }
 
@@ -180,9 +193,60 @@ impl DraftProxy {
                 self.bulk_operation_result_jsonl(&artifact_id)
             }
             Route::Graphql => self.dispatch_graphql(&request),
+            Route::StorefrontGraphql => self.dispatch_storefront_graphql(&request),
             Route::NotFound => json_error(404, "Not found"),
             Route::MethodNotAllowed => json_error(405, "Method not allowed"),
         }
+    }
+
+    fn dispatch_storefront_graphql(&mut self, request: &Request) -> Response {
+        self.record_storefront_passthrough_log_entry(request);
+        (self.storefront_upstream_transport)(request.clone())
+    }
+
+    fn record_storefront_passthrough_log_entry(&mut self, request: &Request) {
+        let parsed_body = parse_graphql_request_body(&request.body);
+        let parsed_operation = parsed_body
+            .as_ref()
+            .and_then(|body| parse_operation(&body.query));
+        let id = format!("log-{}", self.log_entries.len() + 1);
+        let root_fields = parsed_operation
+            .as_ref()
+            .map(|operation| operation.root_fields.clone())
+            .unwrap_or_default();
+        let primary_root_field = root_fields.first().cloned().unwrap_or_default();
+        let operation_type = parsed_operation
+            .as_ref()
+            .map(|operation| operation.operation_type.keyword())
+            .unwrap_or("unknown");
+        let query = parsed_body
+            .as_ref()
+            .map(|body| json!(body.query.clone()))
+            .unwrap_or(Value::Null);
+        let variables = parsed_body
+            .as_ref()
+            .map(|body| resolved_variables_json(&body.variables))
+            .unwrap_or_else(|| json!({}));
+        self.log_entries.push(json!({
+            "id": id,
+            "operationName": Value::Null,
+            "apiSurface": "storefront",
+            "status": "proxied",
+            "path": request.path,
+            "query": query,
+            "variables": variables,
+            "rawBody": request.body,
+            "interpreted": {
+                "operationType": operation_type,
+                "rootFields": root_fields,
+                "primaryRootField": primary_root_field,
+                "capability": {
+                    "domain": "storefront",
+                    "execution": "passthrough"
+                }
+            },
+            "notes": "Storefront API traffic is passthrough-only; Admin local dispatch is not applied."
+        }));
     }
 
     pub(in crate::proxy) fn config_snapshot(&self) -> Value {
