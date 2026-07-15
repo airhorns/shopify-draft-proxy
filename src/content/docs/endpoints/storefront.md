@@ -1,3 +1,7 @@
+---
+title: 'Storefront API'
+---
+
 # Storefront API
 
 The Storefront API surface covers `/api/<version>/graphql.json` requests. The proxy currently supports a narrow read-only 2026-04 slice for store context roots that can be hydrated from authenticated Storefront reads and, for a few matching fields, shared Admin-observed store state.
