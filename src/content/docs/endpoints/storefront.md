@@ -4,7 +4,7 @@ title: 'Storefront API'
 
 # Storefront API
 
-The Storefront API surface covers `/api/<version>/graphql.json` requests. The proxy supports a read-only 2026-04 slice for store context roots and online-store content roots that can be hydrated from authenticated Storefront reads, shared Admin-observed state, or locally staged Admin content writes.
+The Storefront API surface covers `/api/<version>/graphql.json` requests. The proxy supports a read-only 2026-04 slice for store context roots, online-store content roots, and custom-data roots that can be hydrated from authenticated Storefront reads, shared Admin-observed state, or locally staged Admin content writes.
 
 ## Current support and limitations
 
@@ -25,6 +25,8 @@ Read roots:
 - `page`
 - `pageByHandle`
 - `pages`
+- `metaobject`
+- `metaobjects`
 - `menu`
 - `sitemap`
 - `urlRedirects`
@@ -63,10 +65,22 @@ Projected content fields include the selected handle, title, body/content HTML a
 
 `urlRedirects` projects the staged URL redirect state already modeled by the Admin online-store surface. Empty/no-data queries return an empty connection with Storefront pageInfo shape. Storefront does not create, update, or delete redirects locally.
 
+`metaobject(handle:)`, `metaobject(id:)`, and `metaobjects(type:)` read from the shared normalized Admin metaobject and metaobject definition state. Storefront reads only expose entries whose definition has `access.storefront: PUBLIC_READ`; publishable definitions also require the entry status to be `ACTIVE`. Draft, private, deleted, missing, or unsupported-type entries return `null` through singular roots and are omitted from connections. Storefront field projection uses Storefront shape (`key`, `type`, `value`, `reference`, and `references`) and orders `fields` by key to match captured Storefront output.
+
+Storefront metaobject connections support `first`, `after`, `last`, `before`, `reverse`, and representative string `sortKey` values through the shared staged-connection helpers. Locally staged cursors are deterministic staged-resource cursors; captured Storefront cursors remain opaque in fixtures.
+
+Metaobject reference and list-reference fields resolve through the Storefront-visible node boundary. Visible referenced metaobjects project as Storefront `Metaobject` nodes; draft, private, deleted, missing, or unsupported references resolve to `null` or are omitted from reference connections. Cycles are bounded by the caller selection depth because the proxy only projects the selected nested fields.
+
+`shop.metafield(namespace:, key:)` and `shop.metafields(identifiers:)` expose staged Shop-owned metafields only when the matching metafield definition has `access.storefront: PUBLIC_READ`. Definitions with `NONE`, missing identifiers, and missing records return `null` in the selected Storefront shape. Shop metafield reads can be answered from staged Shop owner-metafield state without hydrating broader Shop fields when the caller selects only `metafield`, `metafields`, and `__typename`.
+
 ### Boundaries
 
 This is not support for every field on `Shop`, `Localization`, `Location`, `PaymentSettings`, content, menu, sitemap, redirect, or related nested types. Fields outside the selected and hydrated boundary return null/empty values when no shared store state has supplied them.
 
 Admin blog/page/article create, update, and delete effects are visible through the Storefront content roots when those Admin operations are locally supported. Admin menu CRUD is not locally modeled, so Storefront menu support is captured Storefront hydration/restored base-state projection only. URL redirect mutation lifecycle is not implemented for Storefront.
+
+Storefront metafields for Product, ProductVariant, Collection, Customer, Article, Blog, Page, and other HasMetafields owners remain deferred until those owner models expose Storefront-visible owner reads. Metaobject-owned metafields are not a separate owner-metafield surface in this slice; metaobject custom fields are supported through `Metaobject.field` and `Metaobject.fields`.
+
+Storefront field `jsonValue` is not selected by the supported Storefront custom-data projection because the live Storefront schema exposes `value`, `reference`, and `references` for these public types. Admin custom-data serializers still expose Admin `jsonValue` where those Admin roots support it.
 
 Theme rendering, Online Store routing, canonical URL generation, storefront policy pages, product/collection content linked from menus, cart, customer, checkout, and Storefront mutation domains remain outside this slice unless another endpoint document names them explicitly.

@@ -314,6 +314,8 @@ fn storefront_root_is_implemented(operation_type: OperationType, name: &str) -> 
                 | "shop"
                 | "sitemap"
                 | "urlRedirects"
+                | "metaobject"
+                | "metaobjects"
         )
 }
 

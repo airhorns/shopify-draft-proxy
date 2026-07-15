@@ -7070,6 +7070,38 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'Menu evidence is read-only Storefront hydration from the conformance shop; Admin menu lifecycle remains out of scope for this recorder.',
   },
   {
+    domain: 'storefront',
+    captureId: 'storefront-custom-data-read-after-admin-setup',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-storefront-custom-data-conformance.mts',
+    purpose:
+      'Authenticated Storefront API custom-data evidence for Storefront-visible metaobjects, metaobject connections, references, and Shop metafields after Admin setup.',
+    requiredAuthScopes: [
+      'read_metaobjects',
+      'write_metaobjects',
+      'read_metaobject_definitions',
+      'write_metaobject_definitions',
+      'read_metafields',
+      'write_metafields',
+      'stored Storefront access token from corepack pnpm conformance:grant-storefront-token',
+    ],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/storefront/storefront-custom-data-read-after-admin-setup.json',
+      'config/parity-specs/storefront/storefront-custom-data-read-after-admin-setup.json',
+      'config/parity-requests/storefront/storefront-custom-data-primary-setup-admin.graphql',
+      'config/parity-requests/storefront/storefront-custom-data-read-after-admin-setup.graphql',
+      'config/parity-requests/storefront/storefront-custom-data-shop-metafields-set-admin.graphql',
+      'config/parity-requests/storefront/storefront-custom-data-source-definition-setup-admin.graphql',
+      'config/parity-requests/storefront/storefront-custom-data-source-entry-setup-admin.graphql',
+      'config/parity-requests/storefront/storefront-custom-data-target-entries-setup-admin.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable metaobject definitions, metaobjects, metafield definitions, and Shop metafields through Admin GraphQL setup calls; polls authenticated Storefront reads until visible; then deletes created entries and definitions during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The Storefront target selects only fields exposed by the live Storefront schema; Storefront field jsonValue is intentionally not selected because the public Storefront schema exposes value/reference(s) instead.',
+  },
+  {
     domain: 'online-store',
     captureId: 'storefront-shop-name-proxy-parity',
     scriptPath: 'scripts/capture-storefront-shop-name-proxy-conformance.mts',
