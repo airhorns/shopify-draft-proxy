@@ -18,6 +18,32 @@ const MEDIA_PRODUCTS_HYDRATE_QUERY: &str = "query MediaProductHydrate($ids: [ID!
 const MEDIA_FILE_REFERENCES_HYDRATE_QUERY: &str = "query MediaFileReferencesHydrate($fileIds: [ID!]!) {\n  nodes(ids: $fileIds) {\n    id\n    __typename\n    ... on MediaImage {\n      alt\n      fileStatus\n      mediaContentType\n      status\n      preview { image { url width height } }\n      image { url width height }\n      references(first: 50) {\n        nodes {\n          ... on Product {\n            id\n            title\n            handle\n            status\n            media(first: 50) {\n              nodes {\n                id\n                __typename\n                alt\n                fileStatus\n                mediaContentType\n                status\n                preview { image { url width height } }\n                ... on MediaImage { image { url width height } }\n              }\n            }\n            variants(first: 50) {\n              nodes {\n                id\n                title\n                media(first: 10) { nodes { id alt mediaContentType } }\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}";
 
 impl DraftProxy {
+    pub(in crate::proxy) fn resolve_media_graphql(
+        &mut self,
+        context: RootResolverContext<'_>,
+    ) -> Response {
+        let RootResolverContext {
+            request,
+            query,
+            variables,
+            root_name,
+            mode,
+            ..
+        } = context;
+        match mode {
+            LocalResolverMode::OverlayRead if root_name == "files" => {
+                self.media_files_read(request, query, variables)
+            }
+            LocalResolverMode::StageLocally => {
+                let outcome = self.media_mutation(root_name, request, query, variables);
+                self.finalize_mutation_outcome(request, query, variables, outcome)
+            }
+            LocalResolverMode::OverlayRead => {
+                Self::unimplemented_resolver_response(mode, root_name)
+            }
+        }
+    }
+
     pub(in crate::proxy) fn media_mutation(
         &mut self,
         root_field: &str,

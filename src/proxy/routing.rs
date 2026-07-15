@@ -64,6 +64,15 @@ pub(in crate::proxy) fn only_method(expected: &str, actual: &str, route: Route) 
     }
 }
 
+/// Preserve the existing wire error for a registered local root whose domain
+/// entry point does not implement the selected request shape yet.
+pub(in crate::proxy) fn unimplemented_root_response(domain: &str, root_field: &str) -> Response {
+    json_error(
+        501,
+        &format!("No Rust {domain} dispatcher implemented for root field: {root_field}"),
+    )
+}
+
 pub(in crate::proxy) fn admin_graphql_version(path: &str) -> Option<&str> {
     let version = admin_graphql_path_version(path)?;
     supported_admin_graphql_version(version).then_some(version)

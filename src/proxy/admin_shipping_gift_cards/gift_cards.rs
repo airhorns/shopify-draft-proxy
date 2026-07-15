@@ -2,39 +2,32 @@ use crate::proxy::*;
 use std::cmp::Ordering;
 
 impl DraftProxy {
-    pub(in crate::proxy) fn dispatch_gift_cards_graphql(
+    pub(in crate::proxy) fn resolve_gift_cards_graphql(
         &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        operation: &crate::graphql::ParsedOperation,
-        root_field: &str,
-        execution: CapabilityExecution,
+        context: RootResolverContext<'_>,
     ) -> Response {
-        match execution {
-            CapabilityExecution::OverlayRead
-                if operation.operation_type == OperationType::Query =>
-            {
+        let RootResolverContext {
+            request,
+            query,
+            variables,
+            root_name: _,
+            mode,
+            ..
+        } = context;
+        match mode {
+            LocalResolverMode::OverlayRead => {
                 let fields = match self.root_fields_or_error(query, variables) {
                     Ok(fields) => fields,
                     Err(response) => return response,
                 };
                 self.gift_card_read_response(request, &fields)
             }
-            CapabilityExecution::StageLocally
-                if operation.operation_type == OperationType::Mutation =>
-            {
+            LocalResolverMode::StageLocally => {
                 let fields = match self.root_fields_or_error(query, variables) {
                     Ok(fields) => fields,
                     Err(response) => return response,
                 };
                 self.gift_card_mutation_response(&fields, request, query, variables)
-            }
-            CapabilityExecution::OverlayRead | CapabilityExecution::StageLocally => {
-                Self::dispatch_capability_fallback(execution, root_field)
-            }
-            CapabilityExecution::Passthrough => {
-                unreachable!("non-unknown passthrough capabilities are not registered")
             }
         }
     }

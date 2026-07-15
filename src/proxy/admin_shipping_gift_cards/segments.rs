@@ -33,6 +33,67 @@ fn segment_staged_sort_key(segment: &Value, sort_key: Option<&str>) -> StagedSor
 }
 
 impl DraftProxy {
+    pub(in crate::proxy) fn resolve_segments_graphql(
+        &mut self,
+        context: RootResolverContext<'_>,
+    ) -> Response {
+        let RootResolverContext {
+            request,
+            query,
+            variables,
+            root_name,
+            mode,
+            ..
+        } = context;
+        match mode {
+            LocalResolverMode::OverlayRead => {
+                let fields = match self.root_fields_or_error(query, variables) {
+                    Ok(fields) => fields,
+                    Err(response) => return response,
+                };
+                if root_name == "customerSegmentMembersQuery" {
+                    ok_json(json!({
+                        "data": self.customer_segment_members_query_read_data(&fields)
+                    }))
+                } else if self.store.staged.segments.is_empty()
+                    && self.store.staged.segment_catalog.is_empty()
+                {
+                    // Shopify owns the cold catalog's opaque cursors, filtering,
+                    // and suggestion taxonomy. Forward until local lifecycle state
+                    // exists, then render the staged catalog below.
+                    (self.upstream_transport)(request.clone())
+                } else {
+                    let upstream_catalog_response = self
+                        .segment_read_needs_upstream_catalog(&fields)
+                        .then(|| (self.upstream_transport)(request.clone()));
+                    let (mut data, mut errors) = self.segment_read_data(&fields);
+                    if let Some(response) = upstream_catalog_response {
+                        if response.status != 200 {
+                            return response;
+                        }
+                        self.merge_upstream_segment_catalog_data(
+                            &mut data,
+                            &mut errors,
+                            &fields,
+                            &response.body,
+                        );
+                    }
+                    if errors.is_empty() {
+                        ok_json(json!({ "data": data }))
+                    } else {
+                        ok_json(json!({ "data": data, "errors": errors }))
+                    }
+                }
+            }
+            LocalResolverMode::StageLocally if root_name == "customerSegmentMembersQueryCreate" => {
+                self.customer_segment_members_query_create(query, variables, request)
+            }
+            LocalResolverMode::StageLocally => {
+                self.segment_mutation(root_name, query, variables, request)
+            }
+        }
+    }
+
     pub(in crate::proxy) fn segment_read_needs_upstream_catalog(
         &self,
         fields: &[RootFieldSelection],

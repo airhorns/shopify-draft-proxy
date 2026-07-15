@@ -8365,6 +8365,59 @@ fn mixed_localization_read_hydrates_only_cold_markets_for_staged_resources() {
 }
 
 #[test]
+fn mixed_localization_read_preserves_staged_resource_when_context_hydration_fails() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("mixed localization body parses");
+            captured_requests.lock().unwrap().push(body);
+            Response {
+                status: 503,
+                headers: Default::default(),
+                body: json!({ "errors": [{ "message": "context hydration unavailable" }] }),
+            }
+        });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductForFailedMixedLocalizationRead($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "product": { "title": "Local translatable product" } }),
+    ));
+    let product_id = create.body["data"]["productCreate"]["product"]["id"].clone();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query MixedLocalTranslationAndFailedContext($resourceId: ID!) {
+          translatableResource(resourceId: $resourceId) {
+            resourceId
+            translations(locale: "es") { key value locale outdated }
+          }
+          markets(first: 10) { nodes { id name handle status type } }
+          allShopLocales: shopLocales { locale name primary published }
+        }
+        "#,
+        json!({ "resourceId": product_id }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body.get("errors"), None);
+    assert_eq!(
+        response.body["data"]["translatableResource"],
+        json!({ "resourceId": product_id, "translations": [] })
+    );
+    assert_eq!(response.body["data"]["markets"]["nodes"], json!([]));
+    assert_eq!(upstream_requests.lock().unwrap().len(), 1);
+}
+
+#[test]
 fn localization_source_read_stages_observed_markets_and_shop_locales_for_translation_replay() {
     let upstream_requests = Arc::new(Mutex::new(Vec::new()));
     let captured_requests = Arc::clone(&upstream_requests);

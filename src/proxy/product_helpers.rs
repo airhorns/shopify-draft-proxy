@@ -11,6 +11,481 @@ pub(in crate::proxy) use self::collections::*;
 pub(in crate::proxy) use self::saved_search::*;
 pub(in crate::proxy) use self::search::*;
 
+fn catalog_search_predicate_requires_full_catalog(predicate: &str) -> bool {
+    let predicate = predicate.to_ascii_lowercase();
+    predicate.contains("inventory_total:")
+        || predicate.contains("variants.price:")
+        || predicate.contains("metafields.")
+}
+
+impl DraftProxy {
+    /// A catalog search over aggregate predicates needs Shopify's complete
+    /// index; a partial observed/staged graph cannot answer it faithfully.
+    fn product_query_needs_upstream_catalog_search(fields: &[RootFieldSelection]) -> bool {
+        fields.iter().any(|field| {
+            matches!(
+                field.name.as_str(),
+                "products" | "productsCount" | "productVariants" | "productVariantsCount"
+            ) && matches!(
+                field.arguments.get("query"),
+                Some(ResolvedValue::String(predicate))
+                    if catalog_search_predicate_requires_full_catalog(predicate)
+            )
+        })
+    }
+
+    fn product_read_needs_upstream(&self, fields: &[RootFieldSelection]) -> bool {
+        if Self::product_query_needs_upstream_catalog_search(fields) {
+            return true;
+        }
+        if self.config.read_mode == ReadMode::Snapshot {
+            return false;
+        }
+        fields
+            .iter()
+            .any(|field| self.live_hybrid_product_field_needs_upstream(field))
+    }
+
+    fn live_hybrid_product_field_needs_upstream(&self, field: &RootFieldSelection) -> bool {
+        match field.name.as_str() {
+            "products" | "productsCount" => true,
+            "product" => {
+                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                id.is_empty()
+                    || (!self.store.has_product(&id) && !self.store.product_is_tombstoned(&id))
+            }
+            "productByIdentifier" => !self.product_identifier_has_local_answer(field),
+            _ => false,
+        }
+    }
+
+    fn product_identifier_has_local_answer(&self, field: &RootFieldSelection) -> bool {
+        let Some(identifier) = resolved_object_field(&field.arguments, "identifier") else {
+            return false;
+        };
+        if let Some(id) = resolved_string_field(&identifier, "id") {
+            return self.store.has_product(&id) || self.store.product_is_tombstoned(&id);
+        }
+        if let Some(handle) = resolved_string_field(&identifier, "handle") {
+            return self.store.product_by_handle(&handle).is_some();
+        }
+        false
+    }
+
+    pub(in crate::proxy) fn products_query_response(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        root_field: &str,
+    ) -> Response {
+        if self.should_route_owner_metafields_read(query, variables) {
+            return self.owner_metafields_read(request, query, variables);
+        }
+        match root_field {
+            "product"
+            | "products"
+            | "productsCount"
+            | "productByIdentifier"
+            | "productOperation"
+            | "productFeed"
+            | "productFeeds"
+            | "productVariant" => {
+                let fields = self
+                    .execution_root_fields(query, variables)
+                    .unwrap_or_default();
+                if self.product_read_needs_upstream(&fields) {
+                    (self.upstream_transport)(request.clone())
+                } else if self.has_product_overlay_state()
+                    || self.config.read_mode == ReadMode::Snapshot
+                {
+                    if product_root_fields_select_shop_currency_money(&fields) {
+                        self.hydrate_shop_pricing_state_if_missing(request, true, false);
+                    }
+                    // An overlay read reproduces staged inventory levels but not the
+                    // opaque pagination cursors Shopify assigns each level edge: the
+                    // node-hydrate warm path selects `inventoryLevels { nodes }`, never
+                    // `edges { cursor }`, so cursors are never observed. When the client
+                    // selects level edge/pageInfo cursors and none have been observed,
+                    // forward this exact read upstream once and observe the real cursors
+                    // before serving, so the overlay read can fill them in for real
+                    // instead of relying on seeded cursor state.
+                    self.hydrate_inventory_level_cursors_for_read(request, query);
+                    let api_client_id = request_app_namespace_api_client_id(request);
+                    ok_json(json!({
+                        "data": self.product_overlay_read_data(&fields, api_client_id.as_deref())
+                    }))
+                } else {
+                    (self.upstream_transport)(request.clone())
+                }
+            }
+            "inventoryItem"
+            | "inventoryItems"
+            | "inventoryLevel"
+            | "inventoryProperties"
+            | "inventoryTransfer"
+            | "inventoryTransfers"
+            | "inventoryShipment" => {
+                let fields = match self.root_fields_or_error(query, variables) {
+                    Ok(fields) => fields,
+                    Err(response) => return response,
+                };
+                ok_json(json!({ "data": self.inventory_query_data(&fields, variables) }))
+            }
+            "sellingPlanGroup" | "sellingPlanGroups" => {
+                let fields = match self.root_fields_or_error(query, variables) {
+                    Ok(fields) => fields,
+                    Err(response) => return response,
+                };
+                self.hydrate_selling_plan_groups_for_read(request, &fields);
+                if product_root_fields_select_shop_currency_money(&fields) {
+                    self.hydrate_shop_pricing_state_if_missing(request, true, false);
+                }
+                ok_json(json!({ "data": self.selling_plan_group_query_data(&fields) }))
+            }
+            "collections" | "collectionsCount" => {
+                if self.config.read_mode == ReadMode::LiveHybrid
+                    && self.store.has_collection_state()
+                {
+                    self.hydrate_collections_for_read(request);
+                }
+                if self.store.has_collection_state() {
+                    let fields = match self.root_fields_or_error(query, variables) {
+                        Ok(fields) => fields,
+                        Err(response) => return response,
+                    };
+                    let api_client_id = request_app_namespace_api_client_id(request);
+                    ok_json(
+                        json!({ "data": self.product_overlay_read_data(&fields, api_client_id.as_deref()) }),
+                    )
+                } else {
+                    (self.upstream_transport)(request.clone())
+                }
+            }
+            "collectionByIdentifier" | "collectionByHandle" => {
+                let fields = match self.root_fields_or_error(query, variables) {
+                    Ok(fields) => fields,
+                    Err(response) => return response,
+                };
+                if self.collection_identifier_read_needs_upstream(&fields) {
+                    let response = (self.upstream_transport)(request.clone());
+                    if response.status < 400 {
+                        self.observe_collections_read_response(&response);
+                    }
+                    response
+                } else {
+                    ok_json(
+                        json!({ "data": self.collection_membership_downstream_read_data(&fields) }),
+                    )
+                }
+            }
+            "publication"
+            | "channel"
+            | "channels"
+            | "publicationsCount"
+            | "publishedProductsCount" => {
+                // Only a scenario that seeded publications is served locally; the
+                // whole multi-root publication read (publication/channel/channels/
+                // counts plus any product/collection publication fields) is
+                // rendered from local state. Otherwise these roots forward upstream
+                // as before.
+                if !self.publication_engine_active() {
+                    (self.upstream_transport)(request.clone())
+                } else {
+                    let fields = match self.root_fields_or_error(query, variables) {
+                        Ok(fields) => fields,
+                        Err(response) => return response,
+                    };
+                    ok_json(json!({ "data": self.publication_roots_read_data(&fields) }))
+                }
+            }
+            _ => unimplemented_root_response("overlay-read", root_field),
+        }
+    }
+}
+
+impl DraftProxy {
+    pub(in crate::proxy) fn resolve_products_graphql(
+        &mut self,
+        context: RootResolverContext<'_>,
+    ) -> Response {
+        let RootResolverContext {
+            request,
+            query,
+            variables,
+            operation,
+            root_name: root_field,
+            mode,
+        } = context;
+        match mode {
+            LocalResolverMode::OverlayRead if operation.operation_type == OperationType::Query => {
+                self.products_query_response(request, query, variables, root_field)
+            }
+            LocalResolverMode::StageLocally
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "publicationCreate"
+                            | "publicationUpdate"
+                            | "publicationDelete"
+                            | "productFeedCreate"
+                            | "productFeedDelete"
+                            | "productFullSync"
+                            | "combinedListingUpdate"
+                            | "productVariantRelationshipBulkUpdate"
+                            | "bulkProductResourceFeedbackCreate"
+                            | "shopResourceFeedbackCreate"
+                    ) =>
+            {
+                self.products_mutation_tail_helper_response(
+                    request,
+                    query,
+                    variables,
+                    operation.operation_type,
+                    &operation.root_fields,
+                )
+                .unwrap_or_else(|| unimplemented_root_response("products", root_field))
+            }
+            LocalResolverMode::StageLocally if root_field == "productCreate" => {
+                let outcome = self.product_create(request, query, variables);
+                self.finalize_mutation_outcome(request, query, variables, outcome)
+            }
+            LocalResolverMode::StageLocally if root_field == "productUpdate" => {
+                let outcome = self.product_update(request, query, variables);
+                self.finalize_mutation_outcome(request, query, variables, outcome)
+            }
+            LocalResolverMode::StageLocally if root_field == "productDelete" => {
+                let outcome = self.product_delete(request, query, variables);
+                self.finalize_mutation_outcome(request, query, variables, outcome)
+            }
+            LocalResolverMode::StageLocally if root_field == "productSet" => {
+                let outcome = self.product_set(request, query, variables);
+                self.finalize_mutation_outcome(request, query, variables, outcome)
+            }
+            LocalResolverMode::StageLocally if root_field == "productDuplicate" => {
+                let outcome = self.product_duplicate(request, query, variables);
+                self.finalize_mutation_outcome(request, query, variables, outcome)
+            }
+            LocalResolverMode::StageLocally
+                if matches!(root_field, "productBundleCreate" | "productBundleUpdate") =>
+            {
+                let outcome = self.product_bundle_mutation(root_field, query, variables);
+                self.finalize_mutation_outcome(request, query, variables, outcome)
+            }
+            LocalResolverMode::StageLocally
+                if matches!(root_field, "productPublish" | "productUnpublish") =>
+            {
+                let outcome =
+                    self.product_publication_mutation(root_field, query, variables, request);
+                self.finalize_mutation_outcome(request, query, variables, outcome)
+            }
+            LocalResolverMode::StageLocally if root_field == "productChangeStatus" => {
+                let outcome = self.product_change_status(request, query, variables);
+                self.finalize_mutation_outcome(request, query, variables, outcome)
+            }
+            LocalResolverMode::StageLocally
+                if matches!(
+                    root_field,
+                    "productCreateMedia"
+                        | "productUpdateMedia"
+                        | "productDeleteMedia"
+                        | "productReorderMedia"
+                ) =>
+            {
+                // Media staging is store-backed: in Snapshot mode (unit tests) no
+                // upstream product has been observed, so there is nothing to stage
+                // media onto. Fail closed exactly like an unrouted mutation rather
+                // than fabricate a baked media payload from empty local state.
+                if self.config.read_mode == ReadMode::Snapshot {
+                    self.dispatch_unknown_passthrough_or_legacy_error(
+                        request,
+                        query,
+                        variables,
+                        operation.operation_type,
+                        &operation.root_fields,
+                        root_field,
+                    )
+                } else {
+                    match self.execution_root_fields(query, variables) {
+                        Some(fields) => match self.product_media_mutation_data(request, &fields) {
+                            Some(data) => {
+                                self.record_mutation_log_entry(
+                                    request,
+                                    query,
+                                    variables,
+                                    root_field,
+                                    Vec::new(),
+                                );
+                                ok_json(json!({ "data": data }))
+                            }
+                            // Error scenarios (e.g. unstaged live products) fall
+                            // through to the real upstream rather than a 501.
+                            None => (self.upstream_transport)(request.clone()),
+                        },
+                        None => (self.upstream_transport)(request.clone()),
+                    }
+                }
+            }
+            LocalResolverMode::StageLocally
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "productVariantAppendMedia" | "productVariantDetachMedia"
+                    ) =>
+            {
+                // Variant media attach/detach is store-backed against the owning
+                // product's staged variants. Snapshot mode has nothing staged, so
+                // fail closed; LiveHybrid stages through the variant mutation path.
+                if self.config.read_mode == ReadMode::Snapshot {
+                    self.dispatch_unknown_passthrough_or_legacy_error(
+                        request,
+                        query,
+                        variables,
+                        operation.operation_type,
+                        &operation.root_fields,
+                        root_field,
+                    )
+                } else {
+                    let outcome =
+                        self.product_variant_mutation(request, root_field, query, variables);
+                    self.finalize_mutation_outcome(request, query, variables, outcome)
+                }
+            }
+            LocalResolverMode::StageLocally
+                if matches!(
+                    root_field,
+                    "collectionCreate"
+                        | "collectionUpdate"
+                        | "collectionDelete"
+                        | "collectionAddProducts"
+                        | "collectionAddProductsV2"
+                        | "collectionRemoveProducts"
+                        | "collectionReorderProducts"
+                ) =>
+            {
+                let outcome = self.collection_mutation(request, root_field, query, variables);
+                self.finalize_mutation_outcome(request, query, variables, outcome)
+            }
+            LocalResolverMode::StageLocally
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "productVariantsBulkCreate"
+                            | "productVariantsBulkUpdate"
+                            | "productVariantsBulkDelete"
+                            | "productVariantsBulkReorder"
+                    ) =>
+            {
+                let outcome = self.product_variant_mutation(request, root_field, query, variables);
+                self.finalize_mutation_outcome(request, query, variables, outcome)
+            }
+            LocalResolverMode::StageLocally
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "sellingPlanGroupCreate"
+                            | "sellingPlanGroupUpdate"
+                            | "sellingPlanGroupDelete"
+                            | "sellingPlanGroupAddProducts"
+                            | "sellingPlanGroupRemoveProducts"
+                            | "sellingPlanGroupAddProductVariants"
+                            | "sellingPlanGroupRemoveProductVariants"
+                            | "productJoinSellingPlanGroups"
+                            | "productLeaveSellingPlanGroups"
+                            | "productVariantJoinSellingPlanGroups"
+                            | "productVariantLeaveSellingPlanGroups"
+                    ) =>
+            {
+                self.hydrate_selling_plan_mutation_targets(request, root_field, query, variables);
+                let outcome = self.selling_plan_group_mutation(root_field, query, variables);
+                self.finalize_mutation_outcome(request, query, variables, outcome)
+            }
+            LocalResolverMode::StageLocally
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "productOptionsCreate"
+                            | "productOptionUpdate"
+                            | "productOptionsDelete"
+                            | "productOptionsReorder"
+                    ) =>
+            {
+                let outcome = self.product_option_mutation(root_field, query, variables);
+                self.finalize_mutation_outcome(request, query, variables, outcome)
+            }
+            LocalResolverMode::StageLocally if matches!(root_field, "tagsAdd" | "tagsRemove") => {
+                let outcome = self.product_tags_mutation(root_field, query, variables, request);
+                self.finalize_mutation_outcome(request, query, variables, outcome)
+            }
+            LocalResolverMode::StageLocally
+                if operation.operation_type == OperationType::Mutation
+                    && root_field == "metafieldsSet" =>
+            {
+                let arguments = self
+                    .execution_root_field(query, variables, root_field)
+                    .map(|field| field.arguments)
+                    .unwrap_or_default();
+                match metafields_set_coercion_error(query, variables, &arguments) {
+                    Some(response) => response,
+                    None => {
+                        let outcome = self.owner_metafields_set(request, query, variables);
+                        self.finalize_mutation_outcome(request, query, variables, outcome)
+                    }
+                }
+            }
+            LocalResolverMode::StageLocally
+                if operation.operation_type == OperationType::Mutation
+                    && root_field == "metafieldsDelete" =>
+            {
+                let outcome = self.owner_metafields_delete(request, query, variables);
+                self.finalize_mutation_outcome(request, query, variables, outcome)
+            }
+            LocalResolverMode::StageLocally
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "inventoryAdjustQuantities"
+                            | "inventorySetQuantities"
+                            | "inventorySetOnHandQuantities"
+                            | "inventoryMoveQuantities"
+                            | "inventoryActivate"
+                            | "inventoryDeactivate"
+                            | "inventoryBulkToggleActivation"
+                            | "inventoryItemUpdate"
+                            | "inventoryTransferCreate"
+                            | "inventoryTransferCreateAsReadyToShip"
+                            | "inventoryTransferMarkAsReadyToShip"
+                            | "inventoryTransferEdit"
+                            | "inventoryTransferSetItems"
+                            | "inventoryTransferRemoveItems"
+                            | "inventoryTransferDuplicate"
+                            | "inventoryTransferCancel"
+                            | "inventoryTransferDelete"
+                            | "inventoryShipmentCreate"
+                            | "inventoryShipmentCreateInTransit"
+                            | "inventoryShipmentAddItems"
+                            | "inventoryShipmentRemoveItems"
+                            | "inventoryShipmentUpdateItemQuantities"
+                            | "inventoryShipmentSetTracking"
+                            | "inventoryShipmentMarkInTransit"
+                            | "inventoryShipmentReceive"
+                            | "inventoryShipmentDelete"
+                    ) =>
+            {
+                let fields = match self.root_fields_or_error(query, variables) {
+                    Ok(fields) => fields,
+                    Err(response) => return response,
+                };
+                let outcome = self.inventory_mutation_data(request, &fields);
+                self.finalize_mutation_outcome(request, query, variables, outcome)
+            }
+            LocalResolverMode::OverlayRead | LocalResolverMode::StageLocally => {
+                Self::unimplemented_resolver_response(mode, root_field)
+            }
+        }
+    }
+}
+
 const PRODUCT_STATUS_BASE_VALUES: &[&str] = &["ACTIVE", "ARCHIVED", "DRAFT"];
 const PRODUCT_SCALAR_MAX_LENGTH: usize = 255;
 const VARIANT_MONEY_UPPER_BOUND: f64 = 1_000_000_000_000_000_000.0;

@@ -18,6 +18,7 @@ use crate::operation_registry::{
     OperationRegistryEntry,
 };
 use crate::resolver_registry::ResolverRegistry;
+pub(in crate::proxy) use crate::resolver_registry::{LocalResolverMode, RootResolverContext};
 
 pub const DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES: u64 = 104_857_600;
 pub(in crate::proxy) const METAFIELDS_SET_INPUT_LIMIT: usize = 25;
@@ -2110,9 +2111,9 @@ mod commit;
 mod connection;
 mod core;
 mod discounts;
-pub(crate) mod dispatch;
 mod functions;
 mod graphql_error_compat;
+mod graphql_runtime;
 mod json_helpers;
 mod localization_markets_catalogs;
 mod market_unsupported_country_regions;
@@ -2149,8 +2150,8 @@ pub(in crate::proxy) use self::app_shipping_helpers::*;
 pub(in crate::proxy) use self::b2b_customers::*;
 pub(in crate::proxy) use self::civil_date::*;
 pub(in crate::proxy) use self::connection::*;
-pub(crate) use self::dispatch::resolver_handler_for_domain;
 pub(in crate::proxy) use self::functions::*;
+pub(crate) use self::graphql_runtime::resolver_handler_for_domain;
 pub(in crate::proxy) use self::json_helpers::*;
 pub(in crate::proxy) use self::localization_markets_catalogs::*;
 pub(in crate::proxy) use self::marketing_webhooks_inventory::*;
@@ -2160,7 +2161,6 @@ pub(in crate::proxy) use self::media_products_saved_searches::*;
 pub(in crate::proxy) use self::metafield_metaobject_definitions::*;
 pub(in crate::proxy) use self::metafields_orders_payments::*;
 pub(in crate::proxy) use self::money::*;
-pub(in crate::proxy) use self::node_registry::*;
 pub(in crate::proxy) use self::orders_payments_fulfillment::*;
 pub(in crate::proxy) use self::phone::*;
 pub(in crate::proxy) use self::product_helpers::*;

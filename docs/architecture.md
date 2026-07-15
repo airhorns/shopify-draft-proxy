@@ -2,7 +2,7 @@
 
 ## Overview
 
-`shopify-draft-proxy` is an embeddable Shopify Admin GraphQL draft proxy. The Rust runtime executes requests through real `async-graphql` schemas built from complete captured Shopify SDL in `config/admin-graphql/<version>/schema.graphql`. `DraftProxy` in `src/proxy.rs` owns the store and runtime services; `src/admin_graphql.rs` owns the executable type system; `src/resolver_registry.rs` maps registered roots to execution capabilities; domain behavior remains under `src/proxy/`; and `src/proxy/commit.rs` owns replay.
+`shopify-draft-proxy` is an embeddable Shopify Admin GraphQL draft proxy. The Rust runtime executes requests through real `async-graphql` schemas built from complete captured Shopify SDL in `config/admin-graphql/<version>/schema.graphql`. `DraftProxy` in `src/proxy.rs` owns the store and runtime services; `src/admin_graphql.rs` owns the executable type system; `src/proxy/graphql_runtime.rs` bridges engine execution to domain resolvers; `src/resolver_registry.rs` maps registered roots to execution capabilities; domain behavior remains under `src/proxy/`; and `src/proxy/commit.rs` owns replay.
 
 The TypeScript package under `js/` is intentionally thin: it starts and owns a Rust HTTP runtime process, forwards public API requests to that process, and exposes the stable JavaScript surface for application tests.
 
@@ -67,7 +67,9 @@ variable/default coercion, selection projection, abstract-type checks, and null
 propagation. Root resolvers are request-scoped and execute serially against the
 same instance-owned proxy. Each invocation receives the engine-coerced root
 arguments and the original selected operation remains available to domain
-handlers; the runtime does not synthesize and reparse an internal one-root
+handlers. A local resolver receives `RootResolverContext`, whose mode can only
+be `OverlayRead` or `StageLocally`; passthrough is decided before domain code is
+entered. The runtime does not synthesize and reparse an internal one-root
 document. Single-root serialization exists only at the upstream transport
 boundary when one root genuinely must be forwarded. A few intentionally grouped
 read paths retain the complete operation to share hydration work. Multi-root
@@ -83,7 +85,8 @@ selected root.
 - Captured custom scalars have explicit codecs. URL, RFC 3339 DateTime, decimal/money, integer, JSON, and string-like scalar families are validated deliberately, and schema construction fails when a new capture introduces an unknown scalar instead of silently treating it as arbitrary JSON.
 - Root fields share one generic resolver bridge. Domain code continues to model Shopify behavior and store effects directly; it does not need a second resolver-shaped copy of every function. Complex lifecycle behavior can remain in rich domain methods, while ordinary output fields are read from the returned typed JSON object by the generic schema resolver.
 - Returning a JSON object is not permission to return arbitrary shape. For every selected nested field, the executable schema validates its type and the generic object resolver reports an explicit `Local resolver did not implement Type.field` execution error when the domain result omits that field. The engine then applies GraphQL null propagation.
-- `ResolverRegistry` is owned by each `DraftProxy` and derives executable callbacks from implemented operation-registry entries. There is no second checked-in root inventory to synchronize. Products, orders, shipping/fulfillment, customers, B2B, saved searches, online store, metaobjects, bulk operations, discounts, and gift cards dispatch directly through registered callbacks into their domain-owned routing methods; `dispatch.rs` remains a compatibility bridge for domains not yet split out, not a GraphQL parser/projector.
+- `ResolverRegistry` is owned by each `DraftProxy` and derives executable callbacks from implemented operation-registry entries. There is no second checked-in root inventory to synchronize. Every implemented capability domain has one distinct domain-owned callback, and a structural test prevents domains from collapsing back into a shared compatibility handler.
+- A domain callback is the only GraphQL-shaped entry point for that domain. It routes the root to existing store-backed lifecycle methods directly; ordinary fields do not acquire a second one-line resolver/service copy.
 - `node(id:)` and `nodes(ids:)` use one type-to-loader inventory in `src/node_resolver_inventory.rs`; each entry carries its executable loader rather than a second loader enum/switch. Loaders return explicit `Found`, `KnownMissing`, `NeedsHydration`, or `UnsupportedType` states. Live-hybrid sends one upstream request for a mixed cold batch, merges staged values and tombstones over the response before caching it, and preserves input ordering/null placeholders. Snapshot mode never hydrates upstream.
 
 `DraftProxy` is instance-owned state, not a singleton. A proxy owns its normalized `Store`, mutation log, registry, synthetic ID counters, injectable runtime clock, and injectable upstream/commit transports. Runtime base/staged resource data belongs under the Store rather than as loose `DraftProxy` fields. Do not introduce global mutable proxy state.
@@ -95,14 +98,14 @@ selected root.
 - owns `DraftProxy`, `Config`, `ReadMode`, the normalized Store, synthetic identity allocation, registry metadata, runtime clock, and injectable transports
 - declares the runtime's domain submodules while keeping proxy state instance-owned instead of global
 
-### `src/proxy/core.rs`, `src/proxy/routing.rs`, `src/proxy/dispatch.rs`, `src/proxy/graphql_error_compat.rs`
+### `src/proxy/core.rs`, `src/proxy/routing.rs`, `src/proxy/graphql_runtime.rs`, `src/proxy/graphql_error_compat.rs`
 
 - expose `process_request(...)` as the central route boundary
 - implement meta routes: health, config, log, state, reset, dump, and restore
 - keep Shopify-like Admin GraphQL route classification and request-body parsing separate from domain handlers
 - execute Admin requests through the route's versioned `async-graphql` schema
-- isolate Shopify-specific parse/validation/coercion envelope translation in `graphql_error_compat.rs`; domain dispatch does not own top-level GraphQL error formatting
-- provide the request-scoped generic root executor that serializes access to the instance-owned proxy, reuses grouped reads where necessary, and bridges into existing store-backed domain handlers
+- isolate Shopify-specific parse/validation/coercion envelope translation in `graphql_error_compat.rs`; domain resolvers do not own top-level GraphQL error formatting
+- provide the request-scoped generic root executor that serializes access to the instance-owned proxy, reuses grouped reads where necessary, and invokes domain-owned callbacks with one local-only context
 - preserve original multi-root mutation documents in the replay log while preventing mixed local/passthrough writes
 - wrap upstream transports with the stage-locally mutation guard while leaving query hydration and commit replay on their explicit transport paths
 - preserve `with_clock(...)`, `with_upstream_transport(...)`, and `with_commit_transport(...)` test seams so behavior stays deterministic
@@ -117,10 +120,11 @@ selected root.
 
 ### `src/resolver_registry.rs`, `src/node_resolver_inventory.rs`, `src/proxy/node_registry.rs`
 
-- derive instance-owned root capabilities from the operation registry instead of maintaining a parallel dispatcher inventory
+- derive instance-owned root capabilities from the operation registry instead of maintaining a parallel root-handler inventory
 - attach executable root callbacks and node-loader function pointers directly to those inventories, avoiding name-to-enum-to-match indirection
 - make locally resolvable `Node` implementors and their loader behavior auditable through one exported inventory
-- route `node` and `nodes` lookups to domain-owned store readers, including Shopify's exceptional `Market/Region/...` identity shape and one-batch live-hybrid hydration
+- keep generic `node` / `nodes` execution, mixed local/upstream merging, observation, and type loaders together in `node_registry.rs`
+- route lookups to domain-owned store readers, including Shopify's exceptional `Market/Region/...` identity shape and one-batch live-hybrid hydration
 
 ### `src/proxy/commit.rs`
 
@@ -133,6 +137,7 @@ selected root.
 ### `src/proxy/*.rs` domain modules
 
 - group supported runtime behavior by commerce area, including products/saved searches, localization/markets/catalogs, marketing/webhooks/inventory, online store, metaobjects, metafields, orders/payments/fulfillment, discounts/gift cards, B2B/customers, and admin/shipping/app helpers
+- own each area's root resolver beside those domain methods; `graphql_runtime.rs` contains no compatibility-domain switch
 - keep local staging, overlay reads, selected-field projection, alias-safe response keys, and live-hybrid passthrough/reject behavior near the domain logic that owns it
 - use shared `Store` effective-get/list/count helpers for migrated product and saved-search read-after-write behavior, with base state, staged state, order arrays, and tombstones dumped/restored consistently
 - use the shared staged-connection query helpers for staged resource lists that need Shopify-like search filtering, sort-key mapping, `reverse`, cursor windows, and filtered counts; resource modules supply predicate and sort adapters while `connection.rs` owns the order of operations

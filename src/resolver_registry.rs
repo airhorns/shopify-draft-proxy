@@ -15,15 +15,41 @@ use crate::{
     proxy::{DraftProxy, Request, Response},
 };
 
-pub(crate) struct ResolverExecution<'a> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum LocalResolverMode {
+    OverlayRead,
+    StageLocally,
+}
+
+impl LocalResolverMode {
+    pub(crate) fn from_execution(execution: CapabilityExecution) -> Self {
+        match execution {
+            CapabilityExecution::OverlayRead => Self::OverlayRead,
+            CapabilityExecution::StageLocally => Self::StageLocally,
+            CapabilityExecution::Passthrough => {
+                panic!("passthrough capabilities cannot register local resolvers")
+            }
+        }
+    }
+
+    pub(crate) fn registry_name(self) -> &'static str {
+        match self {
+            Self::OverlayRead => "overlay-read",
+            Self::StageLocally => "stage-locally",
+        }
+    }
+}
+
+pub(crate) struct RootResolverContext<'a> {
     pub request: &'a Request,
     pub query: &'a str,
     pub variables: &'a BTreeMap<String, ResolvedValue>,
     pub operation: &'a ParsedOperation,
     pub root_name: &'a str,
+    pub mode: LocalResolverMode,
 }
 
-pub(crate) type ResolverHandler = for<'a> fn(&mut DraftProxy, ResolverExecution<'a>) -> Response;
+pub(crate) type ResolverHandler = for<'a> fn(&mut DraftProxy, RootResolverContext<'a>) -> Response;
 
 #[derive(Debug, Clone)]
 pub struct ResolverRegistration {

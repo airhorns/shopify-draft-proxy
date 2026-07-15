@@ -9,39 +9,32 @@ mod search;
 pub(in crate::proxy) use self::online_store_helpers::*;
 
 impl DraftProxy {
-    pub(in crate::proxy) fn dispatch_online_store_graphql(
+    pub(in crate::proxy) fn resolve_online_store_graphql(
         &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        operation: &crate::graphql::ParsedOperation,
-        root_field: &str,
-        execution: CapabilityExecution,
+        context: RootResolverContext<'_>,
     ) -> Response {
-        match execution {
-            CapabilityExecution::OverlayRead
-                if operation.operation_type == OperationType::Query =>
-            {
+        let RootResolverContext {
+            request,
+            query,
+            variables,
+            root_name: _,
+            mode,
+            ..
+        } = context;
+        match mode {
+            LocalResolverMode::OverlayRead => {
                 let fields = match self.root_fields_or_error(query, variables) {
                     Ok(fields) => fields,
                     Err(response) => return response,
                 };
                 self.online_store_query_response(request, &fields)
             }
-            CapabilityExecution::StageLocally
-                if operation.operation_type == OperationType::Mutation =>
-            {
+            LocalResolverMode::StageLocally => {
                 let fields = match self.root_fields_or_error(query, variables) {
                     Ok(fields) => fields,
                     Err(response) => return response,
                 };
                 self.online_store_mutation(&fields, request, query, variables)
-            }
-            CapabilityExecution::OverlayRead | CapabilityExecution::StageLocally => {
-                Self::dispatch_capability_fallback(execution, root_field)
-            }
-            CapabilityExecution::Passthrough => {
-                unreachable!("non-unknown passthrough capabilities are not registered")
             }
         }
     }

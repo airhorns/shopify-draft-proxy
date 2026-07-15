@@ -54,7 +54,7 @@ Use these builders before adding inline `json!` userError objects with `field`, 
 
 Do not use these helpers for top-level GraphQL `errors`/`extensions` envelopes; those are a different response shape.
 
-Top-level parse, validation, variable/scalar coercion, location, path, and extension-code compatibility belongs in `src/proxy/graphql_error_compat.rs`. Keep resolver/business validation in domain modules and payload `userErrors`; do not add Shopify engine-envelope rewriting to `dispatch.rs` or a resource handler.
+Top-level parse, validation, variable/scalar coercion, location, path, and extension-code compatibility belongs in `src/proxy/graphql_error_compat.rs`. Keep resolver/business validation in domain modules and payload `userErrors`; do not add Shopify engine-envelope rewriting to `graphql_runtime.rs` or a resource handler.
 
 ## Selection, Connection, And Count Helpers
 

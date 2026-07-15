@@ -1,4 +1,4 @@
-use super::dispatch::operation_selection_error_response;
+use super::graphql_runtime::operation_selection_error_response;
 use super::*;
 
 fn format_runtime_timestamp(timestamp: time::OffsetDateTime) -> String {
@@ -201,7 +201,7 @@ impl DraftProxy {
             Route::BulkOperationResult { artifact_id } => {
                 self.bulk_operation_result_jsonl(&artifact_id)
             }
-            Route::Graphql => self.dispatch_graphql(&request),
+            Route::Graphql => self.execute_graphql(&request),
             Route::StorefrontGraphql => self.dispatch_storefront_graphql(&request),
             Route::NotFound => json_error(404, "Not found"),
             Route::MethodNotAllowed => json_error(405, "Method not allowed"),

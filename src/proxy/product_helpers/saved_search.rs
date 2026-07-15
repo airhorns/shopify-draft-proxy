@@ -2,35 +2,28 @@ use super::*;
 use crate::proxy::search::split_search_query_terms;
 
 impl DraftProxy {
-    pub(in crate::proxy) fn dispatch_saved_searches_graphql(
+    pub(in crate::proxy) fn resolve_saved_searches_graphql(
         &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        operation: &crate::graphql::ParsedOperation,
-        root_field: &str,
-        execution: CapabilityExecution,
+        context: RootResolverContext<'_>,
     ) -> Response {
-        match execution {
-            CapabilityExecution::OverlayRead
-                if operation.operation_type == OperationType::Query =>
-            {
+        let RootResolverContext {
+            request,
+            query,
+            variables,
+            root_name: _,
+            mode,
+            ..
+        } = context;
+        match mode {
+            LocalResolverMode::OverlayRead => {
                 self.saved_search_overlay_read_response(request, query, variables)
             }
-            CapabilityExecution::StageLocally
-                if operation.operation_type == OperationType::Mutation =>
-            {
+            LocalResolverMode::StageLocally => {
                 if let Some(response) = saved_search_required_input_error(query, variables) {
                     return response;
                 }
                 let outcome = self.saved_search_mutation_fields(request, query, variables);
                 self.finalize_mutation_outcome(request, query, variables, outcome)
-            }
-            CapabilityExecution::OverlayRead | CapabilityExecution::StageLocally => {
-                Self::dispatch_capability_fallback(execution, root_field)
-            }
-            CapabilityExecution::Passthrough => {
-                unreachable!("non-unknown passthrough capabilities are not registered")
             }
         }
     }

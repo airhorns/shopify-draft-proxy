@@ -12,6 +12,74 @@ const FUNCTION_CART_TRANSFORMS_HYDRATE_QUERY: &str = "query FunctionCartTransfor
 const FUNCTION_CART_TRANSFORM_HYDRATE_BY_ID_QUERY: &str = "query FunctionCartTransformHydrateById($id: ID!) {\n  node(id: $id) {\n    ... on CartTransform {\n      id\n      functionId\n      blockOnFailure\n      metafields(first: 100) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          ownerType\n          createdAt\n          updatedAt\n        }\n      }\n    }\n  }\n}\n";
 
 impl DraftProxy {
+    pub(in crate::proxy) fn resolve_functions_graphql(
+        &mut self,
+        context: RootResolverContext<'_>,
+    ) -> Response {
+        let RootResolverContext {
+            request,
+            query,
+            variables,
+            root_name,
+            mode,
+            ..
+        } = context;
+        let fields = match self.root_fields_or_error(query, variables) {
+            Ok(fields) => fields,
+            Err(response) => return response,
+        };
+        match mode {
+            LocalResolverMode::StageLocally => {
+                let (data, errors) = self.functions_metadata_mutation_data(request, &fields);
+                if data
+                    .as_object()
+                    .is_some_and(|fields| fields.values().any(|value| !value.is_null()))
+                {
+                    self.record_mutation_log_entry(
+                        request,
+                        query,
+                        variables,
+                        root_name,
+                        Vec::new(),
+                    );
+                }
+                if errors.is_empty() {
+                    ok_json(json!({ "data": data }))
+                } else {
+                    ok_json(json!({ "data": data, "errors": errors }))
+                }
+            }
+            LocalResolverMode::OverlayRead => {
+                // Cold reads preserve Shopify's installed Function catalog. Once
+                // a requested family intersects observed or staged state, hydrate
+                // that family and render the effective local overlay.
+                if self.config.read_mode != ReadMode::Snapshot
+                    && !self.function_read_has_local_overlay(&fields)
+                {
+                    let response = (self.upstream_transport)(request.clone());
+                    if response.status == 200 {
+                        self.hydrate_function_metadata_from_response_data(&response.body["data"]);
+                        self.mark_function_read_fields_hydrated(&fields);
+                    }
+                    response
+                } else {
+                    let selection_errors =
+                        functions_output_selection_errors(query, variables, &fields);
+                    if selection_errors.is_empty() {
+                        if self.config.read_mode != ReadMode::Snapshot {
+                            self.hydrate_function_read_fields(request, &fields);
+                        }
+                        ok_json(json!({
+                            "data": self.functions_metadata_read_data(request, &fields)
+                        }))
+                    } else {
+                        ok_json(json!({ "errors": selection_errors }))
+                    }
+                }
+            }
+        }
+    }
+
     pub(in crate::proxy) fn functions_metadata_mutation_data(
         &mut self,
         request: &Request,

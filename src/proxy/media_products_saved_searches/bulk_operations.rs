@@ -5,44 +5,33 @@ use super::owner_metafields::{
 use super::*;
 
 impl DraftProxy {
-    pub(in crate::proxy) fn dispatch_bulk_operations_graphql(
+    pub(in crate::proxy) fn resolve_bulk_operations_graphql(
         &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        operation: &crate::graphql::ParsedOperation,
-        root_field: &str,
-        execution: CapabilityExecution,
+        context: RootResolverContext<'_>,
     ) -> Response {
-        match execution {
-            CapabilityExecution::OverlayRead
-                if operation.operation_type == OperationType::Query =>
-            {
-                self.bulk_operation_read_response(request, query, variables, root_field)
+        let RootResolverContext {
+            request,
+            query,
+            variables,
+            root_name,
+            mode,
+            ..
+        } = context;
+        match mode {
+            LocalResolverMode::OverlayRead => {
+                self.bulk_operation_read_response(request, query, variables, root_name)
             }
-            CapabilityExecution::StageLocally
-                if operation.operation_type == OperationType::Mutation
-                    && root_field == "bulkOperationRunQuery" =>
-            {
+            LocalResolverMode::StageLocally if root_name == "bulkOperationRunQuery" => {
                 self.bulk_operation_run_query(request, query, variables)
             }
-            CapabilityExecution::StageLocally
-                if operation.operation_type == OperationType::Mutation
-                    && root_field == "bulkOperationRunMutation" =>
-            {
+            LocalResolverMode::StageLocally if root_name == "bulkOperationRunMutation" => {
                 self.bulk_operation_run_mutation(request, query, variables)
             }
-            CapabilityExecution::StageLocally
-                if operation.operation_type == OperationType::Mutation
-                    && root_field == "bulkOperationCancel" =>
-            {
+            LocalResolverMode::StageLocally if root_name == "bulkOperationCancel" => {
                 self.bulk_operation_cancel(request, query, variables)
             }
-            CapabilityExecution::OverlayRead | CapabilityExecution::StageLocally => {
-                Self::dispatch_capability_fallback(execution, root_field)
-            }
-            CapabilityExecution::Passthrough => {
-                unreachable!("non-unknown passthrough capabilities are not registered")
+            LocalResolverMode::StageLocally => {
+                Self::unimplemented_resolver_response(mode, root_name)
             }
         }
     }

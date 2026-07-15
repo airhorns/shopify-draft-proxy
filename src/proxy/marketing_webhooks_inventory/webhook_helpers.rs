@@ -1,5 +1,40 @@
 use super::*;
 
+impl DraftProxy {
+    pub(in crate::proxy) fn resolve_webhooks_graphql(
+        &mut self,
+        context: RootResolverContext<'_>,
+    ) -> Response {
+        let RootResolverContext {
+            request,
+            query,
+            variables,
+            root_name: _,
+            mode,
+            ..
+        } = context;
+        match mode {
+            LocalResolverMode::OverlayRead => {
+                let Some(document) = parsed_document(query, variables) else {
+                    return json_error(400, "Could not parse GraphQL operation");
+                };
+                let fields = match self.root_fields_or_error(query, variables) {
+                    Ok(fields) => fields,
+                    Err(response) => return response,
+                };
+                if let Some(error) = webhook_subscription_sort_key_validation_error(&document) {
+                    ok_json(json!({ "errors": [error] }))
+                } else {
+                    ok_json(json!({
+                        "data": self.webhook_subscriptions_query_data(&fields)
+                    }))
+                }
+            }
+            LocalResolverMode::StageLocally => self.webhook_mutation(request, query, variables),
+        }
+    }
+}
+
 pub(in crate::proxy) fn webhook_subscription_callback_url(uri: &str) -> Option<&str> {
     if uri.starts_with("arn:aws:events:") || uri.starts_with("pubsub://") {
         // The captured schema keeps this deprecated field non-null even though

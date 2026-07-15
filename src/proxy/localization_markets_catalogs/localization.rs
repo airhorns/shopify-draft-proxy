@@ -1,10 +1,113 @@
 use super::*;
 
 impl DraftProxy {
+    pub(in crate::proxy) fn resolve_localization_graphql(
+        &mut self,
+        context: RootResolverContext<'_>,
+    ) -> Response {
+        let RootResolverContext {
+            request,
+            query,
+            variables,
+            root_name,
+            mode,
+            ..
+        } = context;
+        let fields = match self.root_fields_or_error(query, variables) {
+            Ok(fields) => fields,
+            Err(response) => return response,
+        };
+        match mode {
+            LocalResolverMode::OverlayRead => {
+                let localization_needs_upstream =
+                    self.localization_should_fetch_upstream(root_name);
+                let grouped_markets_need_upstream = fields.len() > 1
+                    && fields.iter().any(|field| field.name == "markets")
+                    && self.markets_should_fetch_upstream(&fields, variables);
+                let grouped_locale_catalog_needs_upstream = fields
+                    .iter()
+                    .any(|field| matches!(field.name.as_str(), "shopLocales" | "availableLocales"));
+                if self.config.read_mode == ReadMode::LiveHybrid
+                    && grouped_markets_need_upstream
+                    && (localization_needs_upstream || grouped_locale_catalog_needs_upstream)
+                {
+                    // One mixed localization/markets request hydrates both stores.
+                    // Render the local graph only when staged localization state
+                    // must overlay the authoritative response.
+                    let response = (self.upstream_transport)(request.clone());
+                    if response.status >= 400 || response.body.get("errors").is_some() {
+                        if localization_needs_upstream {
+                            return response;
+                        }
+                        // Markets and locale-catalog hydration is optional once
+                        // the requested localization resource is already known
+                        // locally. Preserve that staged answer without retrying
+                        // the failed upstream request through the markets field.
+                        return ok_json(json!({
+                            "data": self.localization_query_data_without_upstream_hydration(
+                                &fields, request
+                            )
+                        }));
+                    }
+                    self.hydrate_markets_from_upstream_for_fields(&response.body, &fields);
+                    self.hydrate_localization_from_upstream(&response.body);
+                    if localization_needs_upstream {
+                        return response;
+                    }
+                    return ok_json(json!({
+                        "data": self.localization_query_data(&fields, request)
+                    }));
+                }
+                if self.config.read_mode == ReadMode::LiveHybrid && localization_needs_upstream {
+                    let response = (self.upstream_transport)(request.clone());
+                    if response.status < 400 {
+                        self.hydrate_localization_from_upstream(&response.body);
+                    }
+                    return response;
+                }
+                ok_json(json!({
+                    "data": self.localization_query_data(&fields, request)
+                }))
+            }
+            LocalResolverMode::StageLocally => {
+                self.localization_mutation_preflight(&fields, request);
+                let data = self.localization_mutation_data(&fields);
+                self.record_mutation_log_entry(
+                    request,
+                    query,
+                    variables,
+                    root_name,
+                    fields
+                        .iter()
+                        .map(|field| field.response_key.clone())
+                        .collect(),
+                );
+                ok_json(json!({ "data": data }))
+            }
+        }
+    }
+
     pub(in crate::proxy) fn localization_query_data(
         &mut self,
         fields: &[RootFieldSelection],
         request: &Request,
+    ) -> Value {
+        self.localization_query_data_with_market_hydration(fields, request, true)
+    }
+
+    fn localization_query_data_without_upstream_hydration(
+        &mut self,
+        fields: &[RootFieldSelection],
+        request: &Request,
+    ) -> Value {
+        self.localization_query_data_with_market_hydration(fields, request, false)
+    }
+
+    fn localization_query_data_with_market_hydration(
+        &mut self,
+        fields: &[RootFieldSelection],
+        request: &Request,
+        hydrate_missing_markets: bool,
     ) -> Value {
         root_payload_json(fields, |field| {
             Some(match field.name.as_str() {
@@ -45,7 +148,11 @@ impl DraftProxy {
                 "translatableResourcesByIds" => {
                     self.localization_translatable_resources_by_ids_connection(field)
                 }
-                "markets" => self.localization_markets_connection(field, request),
+                "markets" => self.localization_markets_connection_with_hydration(
+                    field,
+                    request,
+                    hydrate_missing_markets,
+                ),
                 _ => Value::Null,
             })
         })
@@ -1089,6 +1196,15 @@ impl DraftProxy {
         field: &RootFieldSelection,
         request: &Request,
     ) -> Value {
+        self.localization_markets_connection_with_hydration(field, request, true)
+    }
+
+    fn localization_markets_connection_with_hydration(
+        &mut self,
+        field: &RootFieldSelection,
+        request: &Request,
+        hydrate_if_missing: bool,
+    ) -> Value {
         let mut records = self
             .store
             .staged
@@ -1096,7 +1212,7 @@ impl DraftProxy {
             .values()
             .cloned()
             .collect::<Vec<_>>();
-        if records.is_empty() {
+        if records.is_empty() && hydrate_if_missing {
             records = self.hydrate_localization_markets(field, request);
         }
         selected_staged_connection_with_args(

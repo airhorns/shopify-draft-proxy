@@ -22,6 +22,41 @@ const METAFIELD_DEFINITION_HYDRATE_OWNER_CATALOG_QUERY: &str = include_str!(
     "../../config/parity-requests/metafields/metafield-definition-hydrate-owner-catalog.graphql"
 );
 
+impl DraftProxy {
+    pub(in crate::proxy) fn resolve_metafields_graphql(
+        &mut self,
+        context: RootResolverContext<'_>,
+    ) -> Response {
+        let RootResolverContext {
+            request,
+            query,
+            variables,
+            root_name,
+            mode,
+            ..
+        } = context;
+        match mode {
+            LocalResolverMode::OverlayRead => {
+                // Cold LiveHybrid definition reads stay authoritative upstream;
+                // staged definition lifecycles resolve from the local overlay.
+                if self.config.read_mode != ReadMode::Snapshot
+                    && !self.local_has_metafield_definition_state(variables)
+                {
+                    (self.upstream_transport)(request.clone())
+                } else {
+                    self.metafield_definition_pinning_read(request, query, variables)
+                }
+            }
+            LocalResolverMode::StageLocally if root_name == "standardMetafieldDefinitionEnable" => {
+                self.standard_metafield_definition_enable(request, query, variables)
+            }
+            LocalResolverMode::StageLocally => {
+                self.metafield_definition_pinning_mutation(request, query, variables)
+            }
+        }
+    }
+}
+
 fn pinned_definition_limit_message() -> String {
     format!("Limit of {PINNED_DEFINITION_LIMIT} pinned definitions.")
 }

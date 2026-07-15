@@ -2,19 +2,20 @@ use super::*;
 use std::sync::OnceLock;
 
 impl DraftProxy {
-    pub(in crate::proxy) fn dispatch_metaobjects_graphql(
+    pub(in crate::proxy) fn resolve_metaobjects_graphql(
         &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        operation: &crate::graphql::ParsedOperation,
-        root_field: &str,
-        execution: CapabilityExecution,
+        context: RootResolverContext<'_>,
     ) -> Response {
-        match execution {
-            CapabilityExecution::OverlayRead
-                if operation.operation_type == OperationType::Query =>
-            {
+        let RootResolverContext {
+            request,
+            query,
+            variables,
+            root_name: _,
+            mode,
+            ..
+        } = context;
+        match mode {
+            LocalResolverMode::OverlayRead => {
                 let fields = match self.root_fields_or_error(query, variables) {
                     Ok(fields) => fields,
                     Err(response) => return response,
@@ -26,9 +27,7 @@ impl DraftProxy {
                     ok_json(json!({ "data": self.metaobject_query_data(&fields, request) }))
                 }
             }
-            CapabilityExecution::StageLocally
-                if operation.operation_type == OperationType::Mutation =>
-            {
+            LocalResolverMode::StageLocally => {
                 let fields = match self.root_fields_or_error(query, variables) {
                     Ok(fields) => fields,
                     Err(response) => return response,
@@ -40,12 +39,6 @@ impl DraftProxy {
                     // real backend response is replayed instead of a synthetic one.
                     (self.upstream_transport)(request.clone())
                 }
-            }
-            CapabilityExecution::OverlayRead | CapabilityExecution::StageLocally => {
-                Self::dispatch_capability_fallback(execution, root_field)
-            }
-            CapabilityExecution::Passthrough => {
-                unreachable!("non-unknown passthrough capabilities are not registered")
             }
         }
     }

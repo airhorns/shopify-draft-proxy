@@ -1,5 +1,32 @@
 use super::media::media_file_record_from_node;
 use super::*;
+
+impl DraftProxy {
+    pub(in crate::proxy) fn should_route_owner_metafields_read(
+        &self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> bool {
+        self.should_handle_owner_metafields_read(query, variables)
+            && self
+                .execution_root_fields(query, variables)
+                .map(|fields| {
+                    fields.iter().all(|field| {
+                        matches!(
+                            field.name.as_str(),
+                            "product"
+                                | "productVariant"
+                                | "collection"
+                                | "customer"
+                                | "order"
+                                | "company"
+                                | "shop"
+                        )
+                    })
+                })
+                .unwrap_or(false)
+    }
+}
 use base64::Engine as _;
 
 const OWNER_METAFIELD_OBSERVATION_FIELDS: &str =

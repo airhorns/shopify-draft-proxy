@@ -9,32 +9,25 @@ use self::hydrate_queries::*;
 use self::redeem_codes::*;
 
 impl DraftProxy {
-    pub(in crate::proxy) fn dispatch_discounts_graphql(
+    pub(in crate::proxy) fn resolve_discounts_graphql(
         &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        operation: &crate::graphql::ParsedOperation,
-        root_field: &str,
-        execution: CapabilityExecution,
+        context: RootResolverContext<'_>,
     ) -> Response {
-        match execution {
-            CapabilityExecution::OverlayRead
-                if operation.operation_type == OperationType::Query =>
-            {
+        let RootResolverContext {
+            request,
+            query,
+            variables,
+            root_name: _,
+            mode,
+            ..
+        } = context;
+        match mode {
+            LocalResolverMode::OverlayRead => {
                 self.discounts_query_response(request, query, variables)
             }
-            CapabilityExecution::StageLocally
-                if operation.operation_type == OperationType::Mutation =>
-            {
+            LocalResolverMode::StageLocally => {
                 let outcome = self.discounts_mutation(request, query, variables);
                 self.finalize_mutation_outcome(request, query, variables, outcome)
-            }
-            CapabilityExecution::OverlayRead | CapabilityExecution::StageLocally => {
-                Self::dispatch_capability_fallback(execution, root_field)
-            }
-            CapabilityExecution::Passthrough => {
-                unreachable!("non-unknown passthrough capabilities are not registered")
             }
         }
     }
