@@ -23,6 +23,14 @@ struct PreparedStorefrontRootCall {
     field: RootFieldSelection,
 }
 
+#[derive(Debug, Clone)]
+struct StorefrontCustomerAuthLogContext {
+    query: String,
+    variables: BTreeMap<String, ResolvedValue>,
+    fields: Vec<RootFieldSelection>,
+    execution: &'static str,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum StorefrontExecutionMode {
     LocalRead,
@@ -43,14 +51,7 @@ struct StorefrontRootExecutor {
 }
 
 impl StorefrontRootExecutor {
-    fn customer_auth_log_context(
-        &self,
-    ) -> Option<(
-        String,
-        BTreeMap<String, ResolvedValue>,
-        Vec<RootFieldSelection>,
-        &'static str,
-    )> {
+    fn customer_auth_log_context(&self) -> Option<StorefrontCustomerAuthLogContext> {
         if self.calls.is_empty() {
             return None;
         }
@@ -75,12 +76,12 @@ impl StorefrontRootExecutor {
             OperationType::Mutation => "stage-locally",
             _ => "overlay-read",
         };
-        Some((
-            first.query.clone(),
-            first.variables.clone(),
+        Some(StorefrontCustomerAuthLogContext {
+            query: first.query.clone(),
+            variables: first.variables.clone(),
             fields,
             execution,
-        ))
+        })
     }
 
     fn record_execution_once(&self) -> Result<(), String> {
@@ -91,18 +92,18 @@ impl StorefrontRootExecutor {
         if *logged {
             return Ok(());
         }
-        if let Some((query, variables, fields, execution)) = self.customer_auth_log_context() {
+        if let Some(context) = self.customer_auth_log_context() {
             self.proxy
                 .lock()
                 .map_err(|_| "Storefront GraphQL proxy state lock was poisoned".to_string())?
                 .record_storefront_customer_auth_log_entry(
                     &self.original_request,
-                    &query,
-                    &variables,
-                    &fields,
+                    &context.query,
+                    &context.variables,
+                    &context.fields,
                     StorefrontCustomerAuthLogDetails {
                         status: "handled",
-                        execution,
+                        execution: context.execution,
                         notes: "Storefront customer-auth roots were resolved locally without Shopify writes or email delivery.",
                     },
                 );
