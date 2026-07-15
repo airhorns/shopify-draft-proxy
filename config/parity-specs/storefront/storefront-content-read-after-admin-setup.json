@@ -1,0 +1,316 @@
+{
+  "scenarioId": "storefront-content-read-after-admin-setup",
+  "operationNames": [
+    "article",
+    "articles",
+    "blog",
+    "blogByHandle",
+    "blogs",
+    "page",
+    "pageByHandle",
+    "pages",
+    "menu",
+    "sitemap",
+    "urlRedirects"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "downstream-read-parity",
+    "pagination-parity",
+    "search-parity",
+    "storefront-api-local-overlay",
+    "authenticated-read"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/storefront/storefront-content-read-after-admin-setup.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/storefront.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/storefront/storefront-content-setup-admin.graphql",
+    "variablesCapturePath": "$.adminSetup.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "admin-blog-page-setup-stages-locally",
+        "capturePath": "$.adminSetup.response.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.setupBlog.blog.id",
+            "matcher": "shopify-gid:Blog",
+            "reason": "The proxy stages a deterministic synthetic Blog ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.setupPage.page.id",
+            "matcher": "shopify-gid:Page",
+            "reason": "The proxy stages a deterministic synthetic Page ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.setupPage.page.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged pages."
+          },
+          {
+            "path": "$.setupPage.page.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged pages."
+          }
+        ]
+      },
+      {
+        "name": "admin-article-setup-stages-against-proxy-blog",
+        "capturePath": "$.adminArticleSetup.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-content-article-setup-admin.graphql",
+          "variables": {
+            "article": {
+              "title": {
+                "fromCapturePath": "$.adminArticleSetup.request.variables.article.title"
+              },
+              "handle": {
+                "fromCapturePath": "$.adminArticleSetup.request.variables.article.handle"
+              },
+              "body": {
+                "fromCapturePath": "$.adminArticleSetup.request.variables.article.body"
+              },
+              "summary": {
+                "fromCapturePath": "$.adminArticleSetup.request.variables.article.summary"
+              },
+              "tags": {
+                "fromCapturePath": "$.adminArticleSetup.request.variables.article.tags"
+              },
+              "author": {
+                "fromCapturePath": "$.adminArticleSetup.request.variables.article.author"
+              },
+              "isPublished": {
+                "fromCapturePath": "$.adminArticleSetup.request.variables.article.isPublished"
+              },
+              "blogId": {
+                "fromPrimaryProxyPath": "$.data.setupBlog.blog.id"
+              }
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.setupArticle.article.id",
+            "matcher": "shopify-gid:Article",
+            "reason": "The proxy stages a deterministic synthetic Article ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.setupArticle.article.publishedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged articles."
+          },
+          {
+            "path": "$.setupArticle.article.blog.id",
+            "matcher": "shopify-gid:Blog",
+            "reason": "The proxy links the article to the synthetic locally staged Blog ID."
+          }
+        ]
+      },
+      {
+        "name": "storefront-content-read-after-admin-setup-selected-payload",
+        "capturePath": "$.storefrontRead.response.body.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-content-read-after-admin-setup.graphql",
+          "operationName": "StorefrontContentReadAfterAdminSetup",
+          "variables": {
+            "articleHandle": {
+              "fromProxyResponse": "admin-article-setup-stages-against-proxy-blog",
+              "path": "$.data.setupArticle.article.handle"
+            },
+            "articleId": {
+              "fromProxyResponse": "admin-article-setup-stages-against-proxy-blog",
+              "path": "$.data.setupArticle.article.id"
+            },
+            "articleQuery": {
+              "fromCapturePath": "$.storefrontRead.variables.articleQuery"
+            },
+            "blogHandle": {
+              "fromProxyResponse": "admin-article-setup-stages-against-proxy-blog",
+              "path": "$.data.setupArticle.article.blog.handle"
+            },
+            "blogQuery": {
+              "fromCapturePath": "$.storefrontRead.variables.blogQuery"
+            },
+            "menuHandle": {
+              "fromCapturePath": "$.storefrontRead.variables.menuHandle"
+            },
+            "pageHandle": {
+              "fromPrimaryProxyPath": "$.data.setupPage.page.handle"
+            },
+            "pageId": {
+              "fromPrimaryProxyPath": "$.data.setupPage.page.id"
+            },
+            "pageQuery": {
+              "fromCapturePath": "$.storefrontRead.variables.pageQuery"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "excludedPaths": ["$.sitemap.resources.items"],
+        "expectedDifferences": [
+          {
+            "path": "$.article.publishedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy projects the locally staged article publish time from its deterministic clock."
+          },
+          {
+            "path": "$.article.blog.articles.edges[*].cursor",
+            "matcher": "shopify-gid:Article",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable staged-resource cursors."
+          },
+          {
+            "path": "$.article.blog.articles.pageInfo.startCursor",
+            "matcher": "shopify-gid:Article",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable staged-resource cursors."
+          },
+          {
+            "path": "$.article.blog.articles.pageInfo.endCursor",
+            "matcher": "shopify-gid:Article",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable staged-resource cursors."
+          },
+          {
+            "path": "$.articles.edges[*].cursor",
+            "matcher": "shopify-gid:Article",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable staged-resource cursors."
+          },
+          {
+            "path": "$.articles.pageInfo.startCursor",
+            "matcher": "shopify-gid:Article",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable staged-resource cursors."
+          },
+          {
+            "path": "$.articles.pageInfo.endCursor",
+            "matcher": "shopify-gid:Article",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable staged-resource cursors."
+          },
+          {
+            "path": "$.articlesReverse.edges[*].cursor",
+            "matcher": "shopify-gid:Article",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable staged-resource cursors."
+          },
+          {
+            "path": "$.articlesReverse.pageInfo.startCursor",
+            "matcher": "shopify-gid:Article",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable staged-resource cursors."
+          },
+          {
+            "path": "$.articlesReverse.pageInfo.endCursor",
+            "matcher": "shopify-gid:Article",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable staged-resource cursors."
+          },
+          {
+            "path": "$.blogs.edges[*].cursor",
+            "matcher": "shopify-gid:Blog",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable staged-resource cursors."
+          },
+          {
+            "path": "$.blogs.pageInfo.startCursor",
+            "matcher": "shopify-gid:Blog",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable staged-resource cursors."
+          },
+          {
+            "path": "$.blogs.pageInfo.endCursor",
+            "matcher": "shopify-gid:Blog",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable staged-resource cursors."
+          },
+          {
+            "path": "$.pages.edges[*].cursor",
+            "matcher": "shopify-gid:Page",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable staged-resource cursors."
+          },
+          {
+            "path": "$.pages.pageInfo.startCursor",
+            "matcher": "shopify-gid:Page",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable staged-resource cursors."
+          },
+          {
+            "path": "$.pages.pageInfo.endCursor",
+            "matcher": "shopify-gid:Page",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable staged-resource cursors."
+          }
+        ]
+      },
+      {
+        "name": "storefront-sitemap-staged-page-resource",
+        "capturePath": "$.storefrontRead.response.body.data.sitemap.resources.items[2]",
+        "proxyPath": "$.data.sitemap.resources.items[0]",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-content-read-after-admin-setup.graphql",
+          "operationName": "StorefrontContentReadAfterAdminSetup",
+          "variables": {
+            "articleHandle": {
+              "fromProxyResponse": "admin-article-setup-stages-against-proxy-blog",
+              "path": "$.data.setupArticle.article.handle"
+            },
+            "articleId": {
+              "fromProxyResponse": "admin-article-setup-stages-against-proxy-blog",
+              "path": "$.data.setupArticle.article.id"
+            },
+            "articleQuery": {
+              "fromCapturePath": "$.storefrontRead.variables.articleQuery"
+            },
+            "blogHandle": {
+              "fromProxyResponse": "admin-article-setup-stages-against-proxy-blog",
+              "path": "$.data.setupArticle.article.blog.handle"
+            },
+            "blogQuery": {
+              "fromCapturePath": "$.storefrontRead.variables.blogQuery"
+            },
+            "menuHandle": {
+              "fromCapturePath": "$.storefrontRead.variables.menuHandle"
+            },
+            "pageHandle": {
+              "fromPrimaryProxyPath": "$.data.setupPage.page.handle"
+            },
+            "pageId": {
+              "fromPrimaryProxyPath": "$.data.setupPage.page.id"
+            },
+            "pageQuery": {
+              "fromCapturePath": "$.storefrontRead.variables.pageQuery"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy projects the locally staged page update time from its deterministic clock."
+          }
+        ]
+      },
+      {
+        "name": "storefront-menu-hydrates-captured-base-state",
+        "capturePath": "$.menuHydrate.response.body.data.menu.id",
+        "proxyStatePath": "$.baseState.storefrontMenuOrder[0]"
+      },
+      {
+        "name": "storefront-url-redirects-empty-no-data",
+        "capturePath": "$.urlRedirectsEmpty.response.body.data.urlRedirects",
+        "proxyPath": "$.data.urlRedirects",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-url-redirects-empty.graphql",
+          "operationName": "StorefrontUrlRedirectsEmpty",
+          "variablesCapturePath": "$.urlRedirectsEmpty.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Authenticated Storefront 2026-04 content capture. Admin setup and cleanup are exact live Admin calls; Storefront article/blog/page/menu/sitemap/urlRedirects reads are real Storefront requests. The main Storefront target compares selected content/menu/no-data payloads, excluding only live-store sitemap rows unrelated to staged state and proving the staged page sitemap row separately."
+}

@@ -198,6 +198,8 @@ describe('Rust HTTP adapter route surface', () => {
             storefrontLocations: {},
             storefrontLocationOrder: [],
             storefrontLocationCursors: {},
+            storefrontMenus: {},
+            storefrontMenuOrder: [],
             storefrontPublicApiVersions: [],
           },
           // This mirrors the authoritative empty staged-state serialization in

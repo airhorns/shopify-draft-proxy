@@ -1,0 +1,106 @@
+query StorefrontMenuHydrate($handle: String!) {
+  menu(handle: $handle) {
+    id
+    handle
+    title
+    itemsCount
+    items {
+      id
+      title
+      type
+      url
+      resourceId
+      tags
+      items {
+        id
+        title
+        type
+        url
+        resourceId
+        tags
+        items {
+          id
+          title
+          type
+          url
+          resourceId
+          tags
+        }
+        resource {
+          __typename
+          ... on Article {
+            id
+            handle
+            title
+          }
+          ... on Blog {
+            id
+            handle
+            title
+          }
+          ... on Collection {
+            id
+            handle
+            title
+          }
+          ... on Metaobject {
+            id
+            handle
+          }
+          ... on Page {
+            id
+            handle
+            title
+          }
+          ... on Product {
+            id
+            handle
+            title
+          }
+          ... on ShopPolicy {
+            id
+            handle
+            title
+          }
+        }
+      }
+      resource {
+        __typename
+        ... on Article {
+          id
+          handle
+          title
+        }
+        ... on Blog {
+          id
+          handle
+          title
+        }
+        ... on Collection {
+          id
+          handle
+          title
+        }
+        ... on Metaobject {
+          id
+          handle
+        }
+        ... on Page {
+          id
+          handle
+          title
+        }
+        ... on Product {
+          id
+          handle
+          title
+        }
+        ... on ShopPolicy {
+          id
+          handle
+          title
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,682 @@
+{
+  "scenarioId": "storefront-content-read-after-admin-setup",
+  "capturedAt": "2026-07-15T21:21:29.975Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "apiSurface": "storefront",
+  "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+  "authMode": "storefront-access-token",
+  "storefrontToken": {
+    "id": "gid://shopify/StorefrontAccessToken/130666922290",
+    "title": "hermes-conformance-storefront-recording",
+    "accessScopes": [
+      "unauthenticated_read_checkouts",
+      "unauthenticated_read_content",
+      "unauthenticated_read_customer_tags",
+      "unauthenticated_read_customers",
+      "unauthenticated_read_metaobjects",
+      "unauthenticated_read_product_inventory",
+      "unauthenticated_read_product_listings",
+      "unauthenticated_read_product_pickup_locations",
+      "unauthenticated_read_product_tags",
+      "unauthenticated_read_selling_plans",
+      "unauthenticated_write_checkouts",
+      "unauthenticated_write_customers"
+    ],
+    "obtainedAt": "2026-07-14T23:55:26.161Z"
+  },
+  "adminSetup": {
+    "name": "admin-setup",
+    "request": {
+      "query": "mutation StorefrontContentAdminSetup($blog: BlogCreateInput!, $page: PageCreateInput!) {\n  setupBlog: blogCreate(blog: $blog) {\n    blog {\n      id\n      handle\n      title\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  setupPage: pageCreate(page: $page) {\n    page {\n      id\n      handle\n      title\n      body\n      bodySummary\n      isPublished\n      createdAt\n      updatedAt\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "blog": {
+          "title": "Storefront Content Blog 20260715212120",
+          "handle": "storefront-content-blog-20260715212120"
+        },
+        "page": {
+          "title": "Storefront Content Page 20260715212120",
+          "handle": "storefront-content-page-20260715212120",
+          "body": "<p>Storefront content page body 20260715212120</p>",
+          "isPublished": true
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "setupBlog": {
+          "blog": {
+            "id": "gid://shopify/Blog/121851248946",
+            "handle": "storefront-content-blog-20260715212120",
+            "title": "Storefront Content Blog 20260715212120"
+          },
+          "userErrors": []
+        },
+        "setupPage": {
+          "page": {
+            "id": "gid://shopify/Page/161443905842",
+            "handle": "storefront-content-page-20260715212120",
+            "title": "Storefront Content Page 20260715212120",
+            "body": "<p>Storefront content page body 20260715212120</p>",
+            "bodySummary": "Storefront content page body 20260715212120",
+            "isPublished": true,
+            "createdAt": "2026-07-15T21:21:20Z",
+            "updatedAt": "2026-07-15T21:21:20Z"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 20,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1980,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "adminArticleSetup": {
+    "name": "admin-article-setup",
+    "request": {
+      "query": "mutation StorefrontContentArticleSetup($article: ArticleCreateInput!) {\n  setupArticle: articleCreate(article: $article) {\n    article {\n      id\n      handle\n      title\n      body\n      summary\n      tags\n      isPublished\n      publishedAt\n      author {\n        name\n      }\n      blog {\n        id\n        handle\n        title\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "article": {
+          "title": "Storefront Content Article 20260715212120",
+          "handle": "storefront-content-article-20260715212120",
+          "body": "<p>Storefront content article body 20260715212120</p>",
+          "summary": "Storefront content article summary 20260715212120",
+          "tags": ["storefront-content", "storefront-content-20260715212120"],
+          "author": {
+            "name": "Storefront Content Author 20260715212120"
+          },
+          "isPublished": true,
+          "blogId": "gid://shopify/Blog/121851248946"
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "setupArticle": {
+          "article": {
+            "id": "gid://shopify/Article/685019463986",
+            "handle": "storefront-content-article-20260715212120",
+            "title": "Storefront Content Article 20260715212120",
+            "body": "<p>Storefront content article body 20260715212120</p>",
+            "summary": "Storefront content article summary 20260715212120",
+            "tags": ["storefront-content", "storefront-content-20260715212120"],
+            "isPublished": true,
+            "publishedAt": "2026-07-15T21:21:20Z",
+            "author": {
+              "name": "Storefront Content Author 20260715212120"
+            },
+            "blog": {
+              "id": "gid://shopify/Blog/121851248946",
+              "handle": "storefront-content-blog-20260715212120",
+              "title": "Storefront Content Blog 20260715212120"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "storefrontRead": {
+    "name": "storefront-content-read-after-admin-setup",
+    "method": "POST",
+    "apiSurface": "storefront",
+    "apiVersion": "2026-04",
+    "path": "/api/2026-04/graphql.json",
+    "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+    "authMode": "storefront-access-token",
+    "headers": {
+      "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+    },
+    "operationName": "StorefrontContentReadAfterAdminSetup",
+    "query": "query StorefrontContentReadAfterAdminSetup(\n  $articleHandle: String!\n  $articleId: ID!\n  $articleQuery: String!\n  $blogHandle: String!\n  $blogQuery: String!\n  $menuHandle: String!\n  $pageHandle: String!\n  $pageId: ID!\n  $pageQuery: String!\n) {\n  article(id: $articleId) {\n    handle\n    title\n    content\n    contentHtml\n    excerpt\n    excerptHtml\n    tags\n    publishedAt\n    author {\n      name\n    }\n    authorV2 {\n      name\n    }\n    seo {\n      title\n      description\n    }\n    blog {\n      handle\n      title\n      articleByHandle(handle: $articleHandle) {\n        handle\n        title\n      }\n      articles(first: 5, query: $articleQuery, sortKey: TITLE) {\n        nodes {\n          handle\n          title\n        }\n        edges {\n          cursor\n          node {\n            handle\n            title\n          }\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n      authors {\n        name\n      }\n    }\n  }\n  articles(first: 5, query: $articleQuery, sortKey: TITLE) {\n    nodes {\n      handle\n      title\n    }\n    edges {\n      cursor\n      node {\n        handle\n        title\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  articlesReverse: articles(first: 5, query: $articleQuery, sortKey: TITLE, reverse: true) {\n    nodes {\n      handle\n      title\n    }\n    edges {\n      cursor\n      node {\n        handle\n        title\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  blog(handle: $blogHandle) {\n    handle\n    title\n  }\n  blogByHandle(handle: $blogHandle) {\n    handle\n    title\n  }\n  blogs(first: 5, query: $blogQuery, sortKey: TITLE) {\n    nodes {\n      handle\n      title\n    }\n    edges {\n      cursor\n      node {\n        handle\n        title\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  page(id: $pageId) {\n    handle\n    title\n    body\n    bodySummary\n    seo {\n      title\n      description\n    }\n  }\n  pageByHandle(handle: $pageHandle) {\n    handle\n    title\n  }\n  pages(first: 5, query: $pageQuery, sortKey: TITLE) {\n    nodes {\n      handle\n      title\n    }\n    edges {\n      cursor\n      node {\n        handle\n        title\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  menu(handle: $menuHandle) {\n    handle\n    title\n    itemsCount\n    items {\n      title\n      type\n      url\n      resourceId\n      tags\n      items {\n        title\n        type\n        url\n      }\n      resource {\n        __typename\n        ... on Article {\n          handle\n          title\n        }\n        ... on Blog {\n          handle\n          title\n        }\n        ... on Collection {\n          handle\n          title\n        }\n        ... on Page {\n          handle\n          title\n        }\n        ... on Product {\n          handle\n          title\n        }\n        ... on ShopPolicy {\n          handle\n          title\n        }\n      }\n    }\n  }\n  sitemap(type: PAGE) {\n    pagesCount {\n      count\n      precision\n    }\n    resources(page: 1) {\n      hasNextPage\n      items {\n        handle\n        updatedAt\n        ... on SitemapResource {\n          title\n        }\n      }\n    }\n  }\n}\n",
+    "variables": {
+      "articleHandle": "storefront-content-article-20260715212120",
+      "articleId": "gid://shopify/Article/685019463986",
+      "articleQuery": "Storefront Content Article 20260715212120",
+      "blogHandle": "storefront-content-blog-20260715212120",
+      "blogQuery": "Storefront Content Blog 20260715212120",
+      "menuHandle": "main-menu",
+      "pageHandle": "storefront-content-page-20260715212120",
+      "pageId": "gid://shopify/Page/161443905842",
+      "pageQuery": "Storefront Content Page 20260715212120"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "article": {
+            "handle": "storefront-content-article-20260715212120",
+            "title": "Storefront Content Article 20260715212120",
+            "content": "Storefront content article body 20260715212120",
+            "contentHtml": "<p>Storefront content article body 20260715212120</p>",
+            "excerpt": "Storefront content article summary 20260715212120",
+            "excerptHtml": "Storefront content article summary 20260715212120",
+            "tags": ["storefront-content", "storefront-content-20260715212120"],
+            "publishedAt": "2026-07-15T21:21:20Z",
+            "author": {
+              "name": "Storefront Content Author 20260715212120"
+            },
+            "authorV2": {
+              "name": "Storefront Content Author 20260715212120"
+            },
+            "seo": {
+              "title": null,
+              "description": null
+            },
+            "blog": {
+              "handle": "storefront-content-blog-20260715212120",
+              "title": "Storefront Content Blog 20260715212120",
+              "articleByHandle": {
+                "handle": "storefront-content-article-20260715212120",
+                "title": "Storefront Content Article 20260715212120"
+              },
+              "articles": {
+                "nodes": [
+                  {
+                    "handle": "storefront-content-article-20260715212120",
+                    "title": "Storefront Content Article 20260715212120"
+                  }
+                ],
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo2ODUwMTk0NjM5ODYsImxhc3RfdmFsdWUiOiJzdG9yZWZyb250IGNvbnRlbnQgYXJ0aWNsZSAyMDI2MDcxNTIxMjEyMCIsIm9mZnNldCI6MH0=",
+                    "node": {
+                      "handle": "storefront-content-article-20260715212120",
+                      "title": "Storefront Content Article 20260715212120"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo2ODUwMTk0NjM5ODYsImxhc3RfdmFsdWUiOiJzdG9yZWZyb250IGNvbnRlbnQgYXJ0aWNsZSAyMDI2MDcxNTIxMjEyMCIsIm9mZnNldCI6MH0=",
+                  "endCursor": "eyJsYXN0X2lkIjo2ODUwMTk0NjM5ODYsImxhc3RfdmFsdWUiOiJzdG9yZWZyb250IGNvbnRlbnQgYXJ0aWNsZSAyMDI2MDcxNTIxMjEyMCIsIm9mZnNldCI6MH0="
+                }
+              },
+              "authors": [
+                {
+                  "name": "Storefront Content Author 20260715212120"
+                }
+              ]
+            }
+          },
+          "articles": {
+            "nodes": [
+              {
+                "handle": "storefront-content-article-20260715212120",
+                "title": "Storefront Content Article 20260715212120"
+              }
+            ],
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjo2ODUwMTk0NjM5ODYsImxhc3RfdmFsdWUiOiJzdG9yZWZyb250IGNvbnRlbnQgYXJ0aWNsZSAyMDI2MDcxNTIxMjEyMCIsIm9mZnNldCI6MH0=",
+                "node": {
+                  "handle": "storefront-content-article-20260715212120",
+                  "title": "Storefront Content Article 20260715212120"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjo2ODUwMTk0NjM5ODYsImxhc3RfdmFsdWUiOiJzdG9yZWZyb250IGNvbnRlbnQgYXJ0aWNsZSAyMDI2MDcxNTIxMjEyMCIsIm9mZnNldCI6MH0=",
+              "endCursor": "eyJsYXN0X2lkIjo2ODUwMTk0NjM5ODYsImxhc3RfdmFsdWUiOiJzdG9yZWZyb250IGNvbnRlbnQgYXJ0aWNsZSAyMDI2MDcxNTIxMjEyMCIsIm9mZnNldCI6MH0="
+            }
+          },
+          "articlesReverse": {
+            "nodes": [
+              {
+                "handle": "storefront-content-article-20260715212120",
+                "title": "Storefront Content Article 20260715212120"
+              }
+            ],
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjo2ODUwMTk0NjM5ODYsImxhc3RfdmFsdWUiOiJzdG9yZWZyb250IGNvbnRlbnQgYXJ0aWNsZSAyMDI2MDcxNTIxMjEyMCIsIm9mZnNldCI6MH0=",
+                "node": {
+                  "handle": "storefront-content-article-20260715212120",
+                  "title": "Storefront Content Article 20260715212120"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjo2ODUwMTk0NjM5ODYsImxhc3RfdmFsdWUiOiJzdG9yZWZyb250IGNvbnRlbnQgYXJ0aWNsZSAyMDI2MDcxNTIxMjEyMCIsIm9mZnNldCI6MH0=",
+              "endCursor": "eyJsYXN0X2lkIjo2ODUwMTk0NjM5ODYsImxhc3RfdmFsdWUiOiJzdG9yZWZyb250IGNvbnRlbnQgYXJ0aWNsZSAyMDI2MDcxNTIxMjEyMCIsIm9mZnNldCI6MH0="
+            }
+          },
+          "blog": {
+            "handle": "storefront-content-blog-20260715212120",
+            "title": "Storefront Content Blog 20260715212120"
+          },
+          "blogByHandle": {
+            "handle": "storefront-content-blog-20260715212120",
+            "title": "Storefront Content Blog 20260715212120"
+          },
+          "blogs": {
+            "nodes": [
+              {
+                "handle": "storefront-content-blog-20260715212120",
+                "title": "Storefront Content Blog 20260715212120"
+              }
+            ],
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMjE4NTEyNDg5NDYsImxhc3RfdmFsdWUiOiJzdG9yZWZyb250IGNvbnRlbnQgYmxvZyAyMDI2MDcxNTIxMjEyMCIsIm9mZnNldCI6MH0=",
+                "node": {
+                  "handle": "storefront-content-blog-20260715212120",
+                  "title": "Storefront Content Blog 20260715212120"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxMjE4NTEyNDg5NDYsImxhc3RfdmFsdWUiOiJzdG9yZWZyb250IGNvbnRlbnQgYmxvZyAyMDI2MDcxNTIxMjEyMCIsIm9mZnNldCI6MH0=",
+              "endCursor": "eyJsYXN0X2lkIjoxMjE4NTEyNDg5NDYsImxhc3RfdmFsdWUiOiJzdG9yZWZyb250IGNvbnRlbnQgYmxvZyAyMDI2MDcxNTIxMjEyMCIsIm9mZnNldCI6MH0="
+            }
+          },
+          "page": {
+            "handle": "storefront-content-page-20260715212120",
+            "title": "Storefront Content Page 20260715212120",
+            "body": "<p>Storefront content page body 20260715212120</p>",
+            "bodySummary": "Storefront content page body 20260715212120",
+            "seo": {
+              "title": null,
+              "description": null
+            }
+          },
+          "pageByHandle": {
+            "handle": "storefront-content-page-20260715212120",
+            "title": "Storefront Content Page 20260715212120"
+          },
+          "pages": {
+            "nodes": [
+              {
+                "handle": "storefront-content-page-20260715212120",
+                "title": "Storefront Content Page 20260715212120"
+              }
+            ],
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoxNjE0NDM5MDU4NDIsImxhc3RfdmFsdWUiOiJzdG9yZWZyb250IGNvbnRlbnQgcGFnZSAyMDI2MDcxNTIxMjEyMCIsIm9mZnNldCI6MH0=",
+                "node": {
+                  "handle": "storefront-content-page-20260715212120",
+                  "title": "Storefront Content Page 20260715212120"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxNjE0NDM5MDU4NDIsImxhc3RfdmFsdWUiOiJzdG9yZWZyb250IGNvbnRlbnQgcGFnZSAyMDI2MDcxNTIxMjEyMCIsIm9mZnNldCI6MH0=",
+              "endCursor": "eyJsYXN0X2lkIjoxNjE0NDM5MDU4NDIsImxhc3RfdmFsdWUiOiJzdG9yZWZyb250IGNvbnRlbnQgcGFnZSAyMDI2MDcxNTIxMjEyMCIsIm9mZnNldCI6MH0="
+            }
+          },
+          "menu": {
+            "handle": "main-menu",
+            "title": "Main menu",
+            "itemsCount": 3,
+            "items": [
+              {
+                "title": "Home",
+                "type": "FRONTPAGE",
+                "url": "https://harry-test-heelo.myshopify.com/",
+                "resourceId": null,
+                "tags": [],
+                "items": [],
+                "resource": null
+              },
+              {
+                "title": "Catalog",
+                "type": "CATALOG",
+                "url": "https://harry-test-heelo.myshopify.com/collections/all",
+                "resourceId": null,
+                "tags": [],
+                "items": [],
+                "resource": null
+              },
+              {
+                "title": "Contact",
+                "type": "PAGE",
+                "url": "https://harry-test-heelo.myshopify.com/pages/contact",
+                "resourceId": "gid://shopify/Page/148098187570",
+                "tags": [],
+                "items": [],
+                "resource": {
+                  "__typename": "Page",
+                  "handle": "contact",
+                  "title": "Contact"
+                }
+              }
+            ]
+          },
+          "sitemap": {
+            "pagesCount": {
+              "count": 1,
+              "precision": "EXACT"
+            },
+            "resources": {
+              "hasNextPage": false,
+              "items": [
+                {
+                  "handle": "contact",
+                  "updatedAt": "2025-03-26T19:50:42Z",
+                  "title": "Contact"
+                },
+                {
+                  "handle": "data-sharing-opt-out",
+                  "updatedAt": "2026-07-03T18:58:19Z",
+                  "title": "Your Privacy Choices"
+                },
+                {
+                  "handle": "storefront-content-page-20260715212120",
+                  "updatedAt": "2026-07-15T21:21:20Z",
+                  "title": "Storefront Content Page 20260715212120"
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 86
+          }
+        }
+      }
+    }
+  },
+  "menuHydrate": {
+    "name": "storefront-menu-hydrate",
+    "method": "POST",
+    "apiSurface": "storefront",
+    "apiVersion": "2026-04",
+    "path": "/api/2026-04/graphql.json",
+    "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+    "authMode": "storefront-access-token",
+    "headers": {
+      "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+    },
+    "operationName": "StorefrontMenuHydrate",
+    "query": "query StorefrontMenuHydrate($handle: String!) {\n  menu(handle: $handle) {\n    id\n    handle\n    title\n    itemsCount\n    items {\n      id\n      title\n      type\n      url\n      resourceId\n      tags\n      items {\n        id\n        title\n        type\n        url\n        resourceId\n        tags\n        items {\n          id\n          title\n          type\n          url\n          resourceId\n          tags\n        }\n        resource {\n          __typename\n          ... on Article {\n            id\n            handle\n            title\n          }\n          ... on Blog {\n            id\n            handle\n            title\n          }\n          ... on Collection {\n            id\n            handle\n            title\n          }\n          ... on Metaobject {\n            id\n            handle\n          }\n          ... on Page {\n            id\n            handle\n            title\n          }\n          ... on Product {\n            id\n            handle\n            title\n          }\n          ... on ShopPolicy {\n            id\n            handle\n            title\n          }\n        }\n      }\n      resource {\n        __typename\n        ... on Article {\n          id\n          handle\n          title\n        }\n        ... on Blog {\n          id\n          handle\n          title\n        }\n        ... on Collection {\n          id\n          handle\n          title\n        }\n        ... on Metaobject {\n          id\n          handle\n        }\n        ... on Page {\n          id\n          handle\n          title\n        }\n        ... on Product {\n          id\n          handle\n          title\n        }\n        ... on ShopPolicy {\n          id\n          handle\n          title\n        }\n      }\n    }\n  }\n}\n",
+    "variables": {
+      "handle": "main-menu"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "menu": {
+            "id": "gid://shopify/Menu/291567599922",
+            "handle": "main-menu",
+            "title": "Main menu",
+            "itemsCount": 3,
+            "items": [
+              {
+                "id": "gid://shopify/MenuItem/728151228722",
+                "title": "Home",
+                "type": "FRONTPAGE",
+                "url": "https://harry-test-heelo.myshopify.com/",
+                "resourceId": null,
+                "tags": [],
+                "items": [],
+                "resource": null
+              },
+              {
+                "id": "gid://shopify/MenuItem/728151261490",
+                "title": "Catalog",
+                "type": "CATALOG",
+                "url": "https://harry-test-heelo.myshopify.com/collections/all",
+                "resourceId": null,
+                "tags": [],
+                "items": [],
+                "resource": null
+              },
+              {
+                "id": "gid://shopify/MenuItem/728151294258",
+                "title": "Contact",
+                "type": "PAGE",
+                "url": "https://harry-test-heelo.myshopify.com/pages/contact",
+                "resourceId": "gid://shopify/Page/148098187570",
+                "tags": [],
+                "items": [],
+                "resource": {
+                  "__typename": "Page",
+                  "id": "gid://shopify/Page/148098187570",
+                  "handle": "contact",
+                  "title": "Contact"
+                }
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 8
+          }
+        }
+      }
+    }
+  },
+  "urlRedirectsEmpty": {
+    "name": "storefront-url-redirects-empty",
+    "method": "POST",
+    "apiSurface": "storefront",
+    "apiVersion": "2026-04",
+    "path": "/api/2026-04/graphql.json",
+    "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+    "authMode": "storefront-access-token",
+    "headers": {
+      "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+    },
+    "operationName": "StorefrontUrlRedirectsEmpty",
+    "query": "query StorefrontUrlRedirectsEmpty($query: String!) {\n  urlRedirects(first: 5, query: $query) {\n    nodes {\n      path\n      target\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n}\n",
+    "variables": {
+      "query": "path:/__shopify-draft-proxy-missing-20260715212120"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "urlRedirects": {
+            "nodes": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 7
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "name": "articleDelete-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation StorefrontContentArticleCleanup($id: ID!) {\n    articleDelete(id: $id) {\n      deletedArticleId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Article/685019463986"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleDelete": {
+            "deletedArticleId": "gid://shopify/Article/685019463986",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "pageDelete-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation StorefrontContentPageCleanup($id: ID!) {\n    pageDelete(id: $id) {\n      deletedPageId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Page/161443905842"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "pageDelete": {
+            "deletedPageId": "gid://shopify/Page/161443905842",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "blogDelete-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation StorefrontContentBlogCleanup($id: ID!) {\n    blogDelete(id: $id) {\n      deletedBlogId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Blog/121851248946"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "blogDelete": {
+            "deletedBlogId": "gid://shopify/Blog/121851248946",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "name": "storefront-menu-hydrate",
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontMenuHydrate",
+      "query": "query StorefrontMenuHydrate($handle: String!) {\n  menu(handle: $handle) {\n    id\n    handle\n    title\n    itemsCount\n    items {\n      id\n      title\n      type\n      url\n      resourceId\n      tags\n      items {\n        id\n        title\n        type\n        url\n        resourceId\n        tags\n        items {\n          id\n          title\n          type\n          url\n          resourceId\n          tags\n        }\n        resource {\n          __typename\n          ... on Article {\n            id\n            handle\n            title\n          }\n          ... on Blog {\n            id\n            handle\n            title\n          }\n          ... on Collection {\n            id\n            handle\n            title\n          }\n          ... on Metaobject {\n            id\n            handle\n          }\n          ... on Page {\n            id\n            handle\n            title\n          }\n          ... on Product {\n            id\n            handle\n            title\n          }\n          ... on ShopPolicy {\n            id\n            handle\n            title\n          }\n        }\n      }\n      resource {\n        __typename\n        ... on Article {\n          id\n          handle\n          title\n        }\n        ... on Blog {\n          id\n          handle\n          title\n        }\n        ... on Collection {\n          id\n          handle\n          title\n        }\n        ... on Metaobject {\n          id\n          handle\n        }\n        ... on Page {\n          id\n          handle\n          title\n        }\n        ... on Product {\n          id\n          handle\n          title\n        }\n        ... on ShopPolicy {\n          id\n          handle\n          title\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "handle": "main-menu"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "menu": {
+              "id": "gid://shopify/Menu/291567599922",
+              "handle": "main-menu",
+              "title": "Main menu",
+              "itemsCount": 3,
+              "items": [
+                {
+                  "id": "gid://shopify/MenuItem/728151228722",
+                  "title": "Home",
+                  "type": "FRONTPAGE",
+                  "url": "https://harry-test-heelo.myshopify.com/",
+                  "resourceId": null,
+                  "tags": [],
+                  "items": [],
+                  "resource": null
+                },
+                {
+                  "id": "gid://shopify/MenuItem/728151261490",
+                  "title": "Catalog",
+                  "type": "CATALOG",
+                  "url": "https://harry-test-heelo.myshopify.com/collections/all",
+                  "resourceId": null,
+                  "tags": [],
+                  "items": [],
+                  "resource": null
+                },
+                {
+                  "id": "gid://shopify/MenuItem/728151294258",
+                  "title": "Contact",
+                  "type": "PAGE",
+                  "url": "https://harry-test-heelo.myshopify.com/pages/contact",
+                  "resourceId": "gid://shopify/Page/148098187570",
+                  "tags": [],
+                  "items": [],
+                  "resource": {
+                    "__typename": "Page",
+                    "id": "gid://shopify/Page/148098187570",
+                    "handle": "contact",
+                    "title": "Contact"
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 8
+            }
+          }
+        }
+      }
+    }
+  ]
+}

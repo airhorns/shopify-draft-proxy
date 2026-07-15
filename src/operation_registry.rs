@@ -298,7 +298,22 @@ fn storefront_root_is_implemented(operation_type: OperationType, name: &str) -> 
     operation_type == OperationType::Query
         && matches!(
             name,
-            "shop" | "localization" | "locations" | "paymentSettings" | "publicApiVersions"
+            "article"
+                | "articles"
+                | "blog"
+                | "blogByHandle"
+                | "blogs"
+                | "menu"
+                | "page"
+                | "pageByHandle"
+                | "pages"
+                | "paymentSettings"
+                | "publicApiVersions"
+                | "localization"
+                | "locations"
+                | "shop"
+                | "sitemap"
+                | "urlRedirects"
         )
 }
 
