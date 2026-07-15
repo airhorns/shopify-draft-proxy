@@ -124,6 +124,16 @@ const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
         NodeResolverBehavior::ProjectLocalRecord,
     ),
     entry(
+        "DeliveryPromiseParticipant",
+        "DraftProxy::delivery_promise_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
+        "DeliveryPromiseProvider",
+        "DraftProxy::delivery_promise_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+    ),
+    entry(
         "DiscountAutomaticNode",
         "DraftProxy::discount_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,

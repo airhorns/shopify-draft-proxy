@@ -6,6 +6,7 @@ mod backup_region;
 mod carrier_shipping;
 mod delivery_customizations;
 mod delivery_profiles;
+mod delivery_promises;
 mod flow;
 mod fulfillment_orders;
 mod gift_cards;

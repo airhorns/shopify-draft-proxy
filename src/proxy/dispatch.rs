@@ -1016,6 +1016,12 @@ impl DraftProxy {
                 ));
             }
         }
+        if matches!(
+            shopify_gid_resource_type(id),
+            Some("DeliveryPromiseProvider" | "DeliveryPromiseParticipant")
+        ) {
+            return self.delivery_promise_node_value_by_id(id, selection);
+        }
         if shopify_gid_resource_type(id) == Some("ProductFeed") {
             if let Some(value) = self.product_tail_feed_node_value(id, selection) {
                 return Some(value);
@@ -2066,6 +2072,11 @@ impl DraftProxy {
                     ok_json(json!({ "data": self.carrier_service_read_data(&fields) }))
                 } else if matches!(root_field, "deliveryProfile" | "deliveryProfiles") {
                     self.delivery_profile_read_response(request, &fields)
+                } else if matches!(
+                    root_field,
+                    "deliveryPromiseProvider" | "deliveryPromiseParticipants"
+                ) {
+                    self.delivery_promise_read_response(request, &fields)
                 } else if root_field == "availableCarrierServices" {
                     // The shipping-settings availability read combines
                     // `availableCarrierServices` with the shipping-locations
@@ -2122,6 +2133,17 @@ impl DraftProxy {
                 } else {
                     no_dispatcher("shipping-fulfillments", root_field)
                 }
+            }
+            (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && operation.root_fields.iter().all(|field| {
+                        matches!(
+                            field.as_str(),
+                            "deliveryPromiseProviderUpsert" | "deliveryPromiseParticipantsUpdate"
+                        )
+                    }) =>
+            {
+                self.delivery_promise_mutation(query, variables, request)
             }
             (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation

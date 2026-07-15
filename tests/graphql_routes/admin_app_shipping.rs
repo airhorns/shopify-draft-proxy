@@ -9089,6 +9089,595 @@ fn delivery_settings_roots_return_snapshot_defaults_with_aliases_and_selected_fi
     );
 }
 
+fn create_delivery_promise_fulfillment_location(proxy: &mut DraftProxy, name: &str) -> String {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryPromiseFulfillmentLocation($name: String!) {
+          fulfillmentServiceCreate(name: $name, trackingSupport: true, inventoryManagement: true, requiresShippingMethod: true) {
+            fulfillmentService { id location { id name isFulfillmentService } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "name": name }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["fulfillmentServiceCreate"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["fulfillmentServiceCreate"]["fulfillmentService"]["location"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string()
+}
+
+fn create_delivery_promise_variant(proxy: &mut DraftProxy, title: &str, sku: &str) -> String {
+    let product_id = create_bulk_metadata_product(proxy, title);
+    create_legacy_variant(proxy, &product_id, sku, "12.00")["id"]
+        .as_str()
+        .unwrap()
+        .to_string()
+}
+
+#[test]
+fn delivery_promise_provider_upsert_reads_nodes_and_logs_locally() {
+    let mut proxy = snapshot_proxy();
+    let location_id =
+        create_delivery_promise_fulfillment_location(&mut proxy, "Promise Provider FS");
+
+    let upsert_query = r#"
+      mutation DeliveryPromiseProviderUpsert($locationId: ID!) {
+        deliveryPromiseProviderUpsert(
+          locationId: $locationId
+          active: true
+          fulfillmentDelay: 2
+          timeZone: "America/New_York"
+        ) {
+          deliveryPromiseProvider {
+            id
+            active
+            fulfillmentDelay
+            timeZone
+            location { id name isFulfillmentService }
+          }
+          userErrors { __typename field message code }
+        }
+      }
+    "#;
+    let upsert = proxy.process_request(json_graphql_request(
+        upsert_query,
+        json!({ "locationId": location_id }),
+    ));
+    assert_eq!(upsert.status, 200);
+    assert_eq!(
+        upsert.body["data"]["deliveryPromiseProviderUpsert"]["userErrors"],
+        json!([])
+    );
+    let provider = &upsert.body["data"]["deliveryPromiseProviderUpsert"]["deliveryPromiseProvider"];
+    let provider_id = provider["id"].as_str().unwrap().to_string();
+    assert_eq!(provider["active"], json!(true));
+    assert_eq!(provider["fulfillmentDelay"], json!(2));
+    assert_eq!(provider["timeZone"], json!("America/New_York"));
+    assert_eq!(provider["location"]["id"], json!(location_id));
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryPromiseProviderUpdate($locationId: ID!) {
+          deliveryPromiseProviderUpsert(locationId: $locationId, fulfillmentDelay: 5) {
+            deliveryPromiseProvider { id active fulfillmentDelay timeZone }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "locationId": location_id }),
+    ));
+    assert_eq!(
+        update.body["data"]["deliveryPromiseProviderUpsert"]["deliveryPromiseProvider"],
+        json!({
+            "id": provider_id,
+            "active": true,
+            "fulfillmentDelay": 5,
+            "timeZone": "America/New_York"
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query DeliveryPromiseProviderRead($locationId: ID!, $providerId: ID!, $ids: [ID!]!) {
+          aliasProvider: deliveryPromiseProvider(locationId: $locationId) {
+            ...ProviderFields
+          }
+          node(id: $providerId) {
+            __typename
+            ... on DeliveryPromiseProvider {
+              id
+              active
+              location { id name }
+            }
+          }
+          nodes(ids: $ids) {
+            __typename
+            ... on DeliveryPromiseProvider { id fulfillmentDelay }
+          }
+        }
+        fragment ProviderFields on DeliveryPromiseProvider {
+          id
+          active
+          fulfillmentDelay
+          timeZone
+          location { id isFulfillmentService }
+        }
+        "#,
+        json!({
+            "locationId": location_id,
+            "providerId": provider_id,
+            "ids": [provider_id, "gid://shopify/DeliveryPromiseProvider/missing"]
+        }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(read.body["data"]["aliasProvider"]["id"], json!(provider_id));
+    assert_eq!(
+        read.body["data"]["aliasProvider"]["fulfillmentDelay"],
+        json!(5)
+    );
+    assert_eq!(
+        read.body["data"]["node"]["__typename"],
+        json!("DeliveryPromiseProvider")
+    );
+    assert_eq!(read.body["data"]["nodes"][0]["id"], json!(provider_id));
+    assert_eq!(read.body["data"]["nodes"][1], json!(null));
+
+    let log = log_snapshot(&proxy);
+    let provider_entries = log["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|entry| {
+            entry["interpreted"]["primaryRootField"] == json!("deliveryPromiseProviderUpsert")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(provider_entries.len(), 2);
+    assert!(provider_entries[0]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("DeliveryPromiseProviderUpsert"));
+}
+
+#[test]
+fn delivery_promise_participants_update_reads_paginate_nodes_and_remove_locally() {
+    let mut proxy = snapshot_proxy();
+    let variant_a =
+        create_delivery_promise_variant(&mut proxy, "Promise Participant A", "PROMISE-A");
+    let variant_b =
+        create_delivery_promise_variant(&mut proxy, "Promise Participant B", "PROMISE-B");
+    let handle = "same-day";
+
+    let add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryPromiseParticipantsAdd($handle: String!, $owners: [ID!]) {
+          addParticipants: deliveryPromiseParticipantsUpdate(
+            brandedPromiseHandle: $handle
+            ownersToAdd: $owners
+          ) {
+            promiseParticipants {
+              ...ParticipantFields
+            }
+            userErrors { field message }
+          }
+        }
+        fragment ParticipantFields on DeliveryPromiseParticipant {
+          participantId: id
+          brandedPromiseHandle
+          ownerType
+          owner {
+            __typename
+            ... on ProductVariant { id sku }
+          }
+        }
+        "#,
+        json!({ "handle": handle, "owners": [variant_a, variant_a, variant_b] }),
+    ));
+    assert_eq!(add.status, 200);
+    assert_eq!(add.body["data"]["addParticipants"]["userErrors"], json!([]));
+    let participants = add.body["data"]["addParticipants"]["promiseParticipants"]
+        .as_array()
+        .unwrap();
+    assert_eq!(participants.len(), 2);
+    let participant_a_id = participants[0]["participantId"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let participant_b_id = participants[1]["participantId"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(participants[0]["owner"]["id"], json!(variant_a));
+    assert_eq!(participants[0]["owner"]["sku"], json!("PROMISE-A"));
+    assert_eq!(participants[1]["owner"]["id"], json!(variant_b));
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"
+        query DeliveryPromiseParticipantsPage($handle: String!, $ownerIds: [ID!]) {
+          deliveryPromiseParticipants(
+            brandedPromiseHandle: $handle
+            ownerIds: $ownerIds
+            first: 1
+          ) {
+            edges { cursor node { aliasId: id owner { ... on ProductVariant { id } } } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "handle": handle, "ownerIds": [variant_a, variant_b] }),
+    ));
+    assert_eq!(
+        first_page.body["data"]["deliveryPromiseParticipants"]["edges"][0]["node"]["aliasId"],
+        json!(participant_a_id)
+    );
+    assert_eq!(
+        first_page.body["data"]["deliveryPromiseParticipants"]["pageInfo"]["hasNextPage"],
+        json!(true)
+    );
+    let after = first_page.body["data"]["deliveryPromiseParticipants"]["pageInfo"]["endCursor"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"
+        query DeliveryPromiseParticipantsSecondPage($handle: String!, $after: String) {
+          deliveryPromiseParticipants(brandedPromiseHandle: $handle, first: 1, after: $after) {
+            nodes { id ownerType owner { ... on ProductVariant { id sku } } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "handle": handle, "after": after }),
+    ));
+    assert_eq!(
+        second_page.body["data"]["deliveryPromiseParticipants"]["nodes"][0]["id"],
+        json!(participant_b_id)
+    );
+    assert_eq!(
+        second_page.body["data"]["deliveryPromiseParticipants"]["pageInfo"]["hasPreviousPage"],
+        json!(true)
+    );
+
+    let remove = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryPromiseParticipantsRemove($handle: String!, $owners: [ID!]) {
+          deliveryPromiseParticipantsUpdate(
+            brandedPromiseHandle: $handle
+            ownersToRemove: $owners
+          ) {
+            promiseParticipants { id owner { ... on ProductVariant { id } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "handle": handle,
+            "owners": [variant_a, variant_a, "gid://shopify/ProductVariant/does-not-exist"]
+        }),
+    ));
+    assert_eq!(
+        remove.body["data"]["deliveryPromiseParticipantsUpdate"]["promiseParticipants"],
+        json!([{ "id": participant_b_id, "owner": { "id": variant_b } }])
+    );
+
+    let nodes = proxy.process_request(json_graphql_request(
+        r#"
+        query DeliveryPromiseParticipantNodes($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            __typename
+            ... on DeliveryPromiseParticipant {
+              id
+              owner { ... on ProductVariant { id } }
+            }
+          }
+        }
+        "#,
+        json!({ "ids": [participant_b_id, participant_a_id, participant_b_id] }),
+    ));
+    assert_eq!(
+        nodes.body["data"]["nodes"],
+        json!([
+            {
+                "__typename": "DeliveryPromiseParticipant",
+                "id": participant_b_id,
+                "owner": { "id": variant_b }
+            },
+            null,
+            {
+                "__typename": "DeliveryPromiseParticipant",
+                "id": participant_b_id,
+                "owner": { "id": variant_b }
+            }
+        ])
+    );
+}
+
+#[test]
+fn delivery_promise_failures_are_atomic_unlogged_and_report_user_errors() {
+    let mut proxy = snapshot_proxy();
+    let app_location_id =
+        create_delivery_promise_fulfillment_location(&mut proxy, "Promise Atomic FS");
+    let location = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryPromiseOrdinaryLocation($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { id name isFulfillmentService }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Ordinary promise origin",
+                "address": { "countryCode": "US" }
+            }
+        }),
+    ));
+    assert_eq!(
+        location.body["data"]["locationAdd"]["userErrors"],
+        json!([])
+    );
+    let ordinary_location_id = location.body["data"]["locationAdd"]["location"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let before_invalid_log_len = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
+
+    let invalid_provider = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryPromiseProviderInvalid($ordinary: ID!, $missing: ID!, $app: ID!) {
+          nonApp: deliveryPromiseProviderUpsert(locationId: $ordinary) {
+            deliveryPromiseProvider { id }
+            userErrors { field message code }
+          }
+          missing: deliveryPromiseProviderUpsert(locationId: $missing) {
+            deliveryPromiseProvider { id }
+            userErrors { field message code }
+          }
+          badZone: deliveryPromiseProviderUpsert(locationId: $app, timeZone: "Mars") {
+            deliveryPromiseProvider { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "ordinary": ordinary_location_id,
+            "missing": "gid://shopify/Location/missing",
+            "app": app_location_id
+        }),
+    ));
+    assert_eq!(
+        invalid_provider.body["data"]["nonApp"]["userErrors"][0]["code"],
+        json!("MUST_BELONG_TO_APP")
+    );
+    assert_eq!(
+        invalid_provider.body["data"]["missing"]["userErrors"][0]["code"],
+        json!("NOT_FOUND")
+    );
+    assert_eq!(
+        invalid_provider.body["data"]["badZone"]["userErrors"][0]["code"],
+        json!("INVALID_TIME_ZONE")
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        before_invalid_log_len
+    );
+
+    let atomic = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryPromiseAtomic($locationId: ID!, $owner: ID!) {
+          validProvider: deliveryPromiseProviderUpsert(locationId: $locationId, active: true) {
+            deliveryPromiseProvider { id }
+            userErrors { field message code }
+          }
+          invalidParticipants: deliveryPromiseParticipantsUpdate(
+            brandedPromiseHandle: "atomic"
+            ownersToAdd: [$owner]
+          ) {
+            promiseParticipants { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "locationId": app_location_id,
+            "owner": "gid://shopify/ProductVariant/missing"
+        }),
+    ));
+    assert_eq!(
+        atomic.body["data"]["validProvider"],
+        json!({ "deliveryPromiseProvider": null, "userErrors": [] })
+    );
+    assert_eq!(
+        atomic.body["data"]["invalidParticipants"]["userErrors"][0]["field"],
+        json!(["ownersToAdd", 0])
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        before_invalid_log_len
+    );
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query DeliveryPromiseAtomicRead($locationId: ID!) {
+          deliveryPromiseProvider(locationId: $locationId) { id }
+          deliveryPromiseParticipants(brandedPromiseHandle: "atomic", first: 5) { nodes { id } }
+        }
+        "#,
+        json!({ "locationId": app_location_id }),
+    ));
+    assert_eq!(read.body["data"]["deliveryPromiseProvider"], json!(null));
+    assert_eq!(
+        read.body["data"]["deliveryPromiseParticipants"]["nodes"],
+        json!([])
+    );
+}
+
+#[test]
+fn delivery_promise_state_round_trips_through_dump_restore_and_reset() {
+    let mut proxy = snapshot_proxy();
+    let location_id =
+        create_delivery_promise_fulfillment_location(&mut proxy, "Promise Restore FS");
+    let variant_id =
+        create_delivery_promise_variant(&mut proxy, "Promise Restore Product", "PROMISE-R");
+    let provider = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryPromiseRestoreProvider($locationId: ID!) {
+          deliveryPromiseProviderUpsert(locationId: $locationId, active: true) {
+            deliveryPromiseProvider { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "locationId": location_id }),
+    ));
+    let provider_id = provider.body["data"]["deliveryPromiseProviderUpsert"]
+        ["deliveryPromiseProvider"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let participants = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryPromiseRestoreParticipants($handle: String!, $owners: [ID!]) {
+          deliveryPromiseParticipantsUpdate(brandedPromiseHandle: $handle, ownersToAdd: $owners) {
+            promiseParticipants { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "handle": "restore", "owners": [variant_id] }),
+    ));
+    let participant_id = participants.body["data"]["deliveryPromiseParticipantsUpdate"]
+        ["promiseParticipants"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    assert_eq!(
+        dump.body["state"]["stagedState"]["deliveryPromiseProviders"][&provider_id]["id"],
+        json!(provider_id)
+    );
+    assert_eq!(
+        dump.body["state"]["stagedState"]["deliveryPromiseParticipants"][&participant_id]["id"],
+        json!(participant_id)
+    );
+
+    let mut restored_proxy = snapshot_proxy();
+    let restore = restored_proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    let restored_read = restored_proxy.process_request(json_graphql_request(
+        r#"
+        query DeliveryPromiseRestored($locationId: ID!) {
+          deliveryPromiseProvider(locationId: $locationId) { id active }
+          deliveryPromiseParticipants(brandedPromiseHandle: "restore", first: 5) {
+            nodes { id owner { ... on ProductVariant { id } } }
+          }
+        }
+        "#,
+        json!({ "locationId": location_id }),
+    ));
+    assert_eq!(
+        restored_read.body["data"]["deliveryPromiseProvider"],
+        json!({ "id": provider_id, "active": true })
+    );
+    assert_eq!(
+        restored_read.body["data"]["deliveryPromiseParticipants"]["nodes"],
+        json!([{ "id": participant_id, "owner": { "id": variant_id } }])
+    );
+
+    let reset = restored_proxy.process_request(request_with_body("POST", "/__meta/reset", ""));
+    assert_eq!(reset.status, 200);
+    let reset_read = restored_proxy.process_request(json_graphql_request(
+        r#"
+        query DeliveryPromiseReset($locationId: ID!) {
+          deliveryPromiseProvider(locationId: $locationId) { id }
+          deliveryPromiseParticipants(brandedPromiseHandle: "restore", first: 5) { nodes { id } }
+          node(id: "gid://shopify/DeliveryPromiseParticipant/missing") { id }
+        }
+        "#,
+        json!({ "locationId": location_id }),
+    ));
+    assert_eq!(
+        reset_read.body["data"]["deliveryPromiseProvider"],
+        json!(null)
+    );
+    assert_eq!(
+        reset_read.body["data"]["deliveryPromiseParticipants"]["nodes"],
+        json!([])
+    );
+    assert_eq!(reset_read.body["data"]["node"], json!(null));
+}
+
+#[test]
+fn delivery_promise_live_hybrid_cold_reads_forward_but_mutations_stay_local() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
+            captured_calls.lock().unwrap().push(body.clone());
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(
+                !query.contains("deliveryPromiseProviderUpsert"),
+                "provider upsert must not be forwarded upstream"
+            );
+            if query.contains("ShippingFulfillmentServicesHydrate") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": { "shop": { "fulfillmentServices": [] } } }),
+                };
+            }
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "deliveryPromiseProvider": null } }),
+            }
+        });
+
+    let cold_read = proxy.process_request(json_graphql_request(
+        r#"
+        query DeliveryPromiseColdRead($locationId: ID!) {
+          deliveryPromiseProvider(locationId: $locationId) { id }
+        }
+        "#,
+        json!({ "locationId": "gid://shopify/Location/cold" }),
+    ));
+    assert_eq!(cold_read.status, 200);
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+
+    let location_id =
+        create_delivery_promise_fulfillment_location(&mut proxy, "Promise Live Hybrid FS");
+    upstream_calls.lock().unwrap().clear();
+    let upsert = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryPromiseProviderLocal($locationId: ID!) {
+          deliveryPromiseProviderUpsert(locationId: $locationId, active: true) {
+            deliveryPromiseProvider { id active location { id } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "locationId": location_id }),
+    ));
+    assert_eq!(
+        upsert.body["data"]["deliveryPromiseProviderUpsert"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 0);
+}
+
 #[test]
 fn delivery_settings_roots_forward_cold_live_hybrid_reads_upstream() {
     let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
