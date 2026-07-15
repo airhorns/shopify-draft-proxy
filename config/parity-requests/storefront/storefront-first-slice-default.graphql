@@ -1,0 +1,122 @@
+query StorefrontFirstSliceDefault {
+  shop {
+    name
+    description
+    moneyFormat
+    primaryDomain {
+      host
+      url
+      sslEnabled
+    }
+    brand {
+      shortDescription
+      slogan
+      logo {
+        id
+        image {
+          url
+          altText
+          width
+          height
+        }
+      }
+    }
+    privacyPolicy {
+      title
+      handle
+      url
+    }
+    paymentSettings {
+      acceptedCardBrands
+      countryCode
+      currencyCode
+      enabledPresentmentCurrencies
+      supportedDigitalWallets
+    }
+  }
+  localization {
+    country {
+      isoCode
+      name
+      unitSystem
+      currency {
+        isoCode
+        name
+        symbol
+      }
+      defaultLanguage {
+        isoCode
+        name
+        endonymName
+      }
+      availableLanguages {
+        isoCode
+        name
+        endonymName
+      }
+      market {
+        id
+        handle
+      }
+    }
+    language {
+      isoCode
+      name
+      endonymName
+    }
+    market {
+      id
+      handle
+    }
+    availableCountries {
+      isoCode
+      name
+    }
+    availableLanguages {
+      isoCode
+      name
+      endonymName
+    }
+  }
+  locations(first: 5) {
+    edges {
+      cursor
+      node {
+        id
+        name
+        address {
+          city
+          countryCode
+          formatted
+        }
+      }
+    }
+    nodes {
+      id
+      name
+      address {
+        city
+        countryCode
+        formatted
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  paymentSettings {
+    acceptedCardBrands
+    countryCode
+    currencyCode
+    enabledPresentmentCurrencies
+    supportedDigitalWallets
+  }
+  publicApiVersions {
+    handle
+    displayName
+    supported
+  }
+}

@@ -172,13 +172,25 @@ describe('operation registry', () => {
     ).toBe(true);
   });
 
-  it('loads Storefront roots from the captured Storefront root inventory without claiming implementation', () => {
+  it('loads Storefront roots from the captured Storefront root inventory with only the first slice implemented', () => {
     const storefrontEntries = listStorefrontOperationRegistryEntries();
     expect(storefrontEntries.length).toBeGreaterThan(0);
+    for (const root of ['shop', 'localization', 'locations', 'paymentSettings', 'publicApiVersions']) {
+      expect(storefrontEntries).toContainEqual(
+        expect.objectContaining({
+          apiSurface: 'storefront',
+          name: root,
+          type: 'query',
+          domain: 'storefront',
+          implemented: true,
+          runtimeTests: ['tests/graphql_routes/storefront.rs'],
+        }),
+      );
+    }
     expect(storefrontEntries).toContainEqual(
       expect.objectContaining({
         apiSurface: 'storefront',
-        name: 'shop',
+        name: 'products',
         type: 'query',
         domain: 'storefront',
         implemented: false,

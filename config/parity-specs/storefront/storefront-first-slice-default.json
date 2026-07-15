@@ -1,0 +1,41 @@
+{
+  "scenarioId": "storefront-first-slice-default",
+  "operationNames": ["shop", "localization", "locations", "paymentSettings", "publicApiVersions"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "storefront-api-local-overlay", "authenticated-read"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/storefront/storefront-first-slice-default.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/storefront.rs"],
+  "proxyRequest": {
+    "apiSurface": "storefront",
+    "documentPath": "config/parity-requests/storefront/storefront-first-slice-default.graphql",
+    "operationName": "StorefrontFirstSliceDefault",
+    "variablesCapturePath": "$.primary.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "storefront-first-slice-default-selected-payload",
+        "capturePath": "$.primary.response.body",
+        "proxyPath": "$",
+        "excludedPaths": ["$.extensions"]
+      },
+      {
+        "name": "storefront-first-slice-default-hydrates-shop-state",
+        "capturePath": "$.hydrate.response.body.data.shop",
+        "proxyStatePath": "$.baseState.storefrontShop"
+      },
+      {
+        "name": "storefront-first-slice-default-hydrates-localization-state",
+        "capturePath": "$.hydrate.response.body.data.localization",
+        "proxyStatePath": "$.baseState.storefrontLocalizations.country=*;language=*"
+      }
+    ]
+  },
+  "notes": "Authenticated Storefront 2026-04 first-slice default-context capture. The proxy request compares the whole selected response body with only Shopify response extensions excluded, and state targets prove the local handler consumed the recorded Storefront hydration cassette rather than answering from invented defaults."
+}

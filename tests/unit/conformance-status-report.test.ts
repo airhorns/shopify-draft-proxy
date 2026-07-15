@@ -21,19 +21,27 @@ const status = {
       declaredGapOperationNames: ['productUpdate'],
     },
     storefront: {
-      implementedOperations: 0,
-      coveredOperations: 0,
+      implementedOperations: 5,
+      coveredOperations: 5,
       declaredGapOperations: 0,
-      operationCoverageRatio: 0,
-      coveredOperationNames: [],
+      operationCoverageRatio: 1,
+      coveredOperationNames: ['shop', 'localization', 'locations', 'paymentSettings', 'publicApiVersions'],
       declaredGapOperationNames: [],
     },
     aggregate: {
-      implementedOperations: 3,
-      coveredOperations: 2,
+      implementedOperations: 8,
+      coveredOperations: 7,
       declaredGapOperations: 1,
-      operationCoverageRatio: 2 / 3,
-      coveredOperationNames: ['admin:product', 'admin:productCreate'],
+      operationCoverageRatio: 7 / 8,
+      coveredOperationNames: [
+        'admin:product',
+        'admin:productCreate',
+        'storefront:shop',
+        'storefront:localization',
+        'storefront:locations',
+        'storefront:paymentSettings',
+        'storefront:publicApiVersions',
+      ],
       declaredGapOperationNames: ['admin:productUpdate'],
     },
   },
@@ -64,7 +72,7 @@ describe('conformance status reporting', () => {
       captureOnlyScenarios: 1,
       pendingScenarios: 1,
       coveredOperations: 2,
-      implementedOperations: 3,
+      implementedOperations: 8,
       declaredGapOperations: 1,
       regrettableDivergences: 1,
       regrettableDivergenceScenarios: 1,
@@ -129,7 +137,7 @@ describe('conformance status reporting', () => {
       'Regrettable divergences: 1 expected differences across 1 scenarios',
     );
     expect(renderConformanceComment(report)).toContain('Admin covered operations: 2 / 3 (1 declared gaps)');
-    expect(renderConformanceComment(report)).toContain('Storefront covered operations: 0 / 0 (0 declared gaps)');
+    expect(renderConformanceComment(report)).toContain('Storefront covered operations: 5 / 5 (0 declared gaps)');
   });
 
   it('does not alarm when the baseline predates capture-only breakdowns', () => {
@@ -141,9 +149,9 @@ describe('conformance status reporting', () => {
         pendingScenarios: 2,
         conformanceRatio: 1 / 3,
         coveredOperations: 1,
-        implementedOperations: 3,
+        implementedOperations: 8,
         declaredGapOperations: 2,
-        operationCoverageRatio: 1 / 3,
+        operationCoverageRatio: 1 / 4,
         regrettableDivergences: 0,
         regrettableDivergenceScenarios: 0,
         generatedAt: '2026-04-18T00:00:00.000Z',

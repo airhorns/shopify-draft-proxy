@@ -238,6 +238,12 @@ impl DraftProxy {
             return response;
         }
 
+        if let Some(response) =
+            self.dispatch_storefront_local_graphql(request, &query, &variables, api_version)
+        {
+            return response;
+        }
+
         if self.config.read_mode == ReadMode::Snapshot {
             self.record_storefront_log_entry(
                 request,
@@ -257,7 +263,7 @@ impl DraftProxy {
         (self.storefront_upstream_transport)(request.clone())
     }
 
-    fn record_storefront_log_entry(
+    pub(in crate::proxy) fn record_storefront_log_entry(
         &mut self,
         request: &Request,
         status: &str,
@@ -483,6 +489,13 @@ impl DraftProxy {
                 "giftCards": self.store.base.gift_cards.clone(),
                 "giftCardConfiguration": self.store.base.gift_card_configuration.clone().unwrap_or(Value::Null),
                 "shop": self.store.base.shop.clone(),
+                "storefrontShop": self.store.base.storefront_shop.clone(),
+                "storefrontLocalizations": self.store.base.storefront_localizations.clone(),
+                "storefrontPaymentSettings": self.store.base.storefront_payment_settings.clone(),
+                "storefrontLocations": self.store.base.storefront_locations.records.clone(),
+                "storefrontLocationOrder": self.store.base.storefront_locations.order.clone(),
+                "storefrontLocationCursors": self.store.base.storefront_location_cursors.clone(),
+                "storefrontPublicApiVersions": self.store.base.storefront_public_api_versions.clone(),
                 "publicationIds": self.store.base.publication_ids.iter().cloned().collect::<Vec<_>>(),
                 "publicationCount": self.store.base.publication_count,
                 "availableLocales": available_locales,
@@ -1576,6 +1589,52 @@ impl DraftProxy {
             .base
             .shop_policies
             .replace_with_order(base_shop_policies, base_shop_policy_order);
+        self.store.base.storefront_shop = state["baseState"]
+            .get("storefrontShop")
+            .filter(|shop| shop.is_object() || shop.is_null())
+            .cloned()
+            .unwrap_or(Value::Null);
+        self.store.base.storefront_localizations = state["baseState"]
+            .get("storefrontLocalizations")
+            .and_then(Value::as_object)
+            .map(|contexts| {
+                contexts
+                    .iter()
+                    .map(|(key, value)| (key.clone(), value.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.base.storefront_payment_settings = state["baseState"]
+            .get("storefrontPaymentSettings")
+            .filter(|settings| settings.is_object() || settings.is_null())
+            .cloned()
+            .unwrap_or(Value::Null);
+        self.store.base.storefront_locations.replace_with_order(
+            value_map_from_json(state["baseState"].get("storefrontLocations")),
+            state["baseState"]
+                .get("storefrontLocationOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
+        self.store.base.storefront_location_cursors = state["baseState"]
+            .get("storefrontLocationCursors")
+            .and_then(Value::as_object)
+            .map(|cursors| {
+                cursors
+                    .iter()
+                    .filter_map(|(id, cursor)| {
+                        cursor
+                            .as_str()
+                            .map(|cursor| (id.clone(), cursor.to_string()))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.base.storefront_public_api_versions = state["baseState"]
+            .get("storefrontPublicApiVersions")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
         let base_delivery_profiles =
             value_map_from_json(state["baseState"].get("deliveryProfiles"));
         let base_delivery_profile_order = state["baseState"]

@@ -192,6 +192,13 @@ describe('Rust HTTP adapter route surface', () => {
             metafieldDefinitions: {},
             metafieldDefinitionOwnerCatalogs: [],
             metafieldDefinitionNamespaces: [],
+            storefrontShop: null,
+            storefrontLocalizations: {},
+            storefrontPaymentSettings: null,
+            storefrontLocations: {},
+            storefrontLocationOrder: [],
+            storefrontLocationCursors: {},
+            storefrontPublicApiVersions: [],
           },
           // This mirrors the authoritative empty staged-state serialization in
           // src/proxy/core.rs (the `/__meta/state` snapshot, which is also the
