@@ -2021,6 +2021,562 @@ fn customers_count_uses_staged_customers_when_no_baseline_exists() {
 }
 
 #[test]
+fn live_hybrid_customer_overlay_preserves_upstream_catalog_after_staged_create() {
+    let real_customer_id = "gid://shopify/Customer/9001";
+    let real_customer = json!({
+        "id": real_customer_id,
+        "firstName": "Real",
+        "lastName": "Live",
+        "displayName": "Real Live",
+        "email": "real-live@example.test",
+        "phone": null,
+        "locale": "en",
+        "note": null,
+        "canDelete": true,
+        "verifiedEmail": true,
+        "dataSaleOptOut": false,
+        "taxExempt": false,
+        "taxExemptions": [],
+        "state": "ENABLED",
+        "tags": ["real"],
+        "createdAt": "2026-07-01T00:00:00Z",
+        "updatedAt": "2026-07-01T00:00:00Z",
+        "defaultEmailAddress": { "emailAddress": "real-live@example.test" },
+        "defaultPhoneNumber": null,
+        "defaultAddress": null,
+        "addressesV2": { "nodes": [] },
+        "numberOfOrders": "0",
+        "amountSpent": { "amount": "0.0", "currencyCode": "USD" },
+        "lastOrder": null,
+        "orders": { "nodes": [] }
+    });
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream JSON body");
+            captured.lock().unwrap().push(body.clone());
+            let operation_name = body["operationName"].as_str();
+            if operation_name == Some("CustomerDuplicateHydrate") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": { "customers": { "nodes": [] } } }),
+                };
+            }
+            if operation_name == Some("CustomerHydrate") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": { "customer": real_customer.clone() } }),
+                };
+            }
+            if operation_name == Some("CustomerCountHydrate") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "customersCount": { "count": 1, "precision": "EXACT" }
+                        }
+                    }),
+                };
+            }
+            if operation_name == Some("CustomerOverlayCatalogHydrate") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "customers": { "nodes": [real_customer.clone()] }
+                        }
+                    }),
+                };
+            }
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "byRealEmail": real_customer.clone(),
+                        "byStagedEmail": null,
+                        "byMissingEmail": null,
+                        "byOldRealEmail": real_customer.clone(),
+                        "byUpdatedRealEmail": null,
+                        "byDeletedRealEmail": real_customer.clone(),
+                        "catalog": {
+                            "nodes": [real_customer.clone()],
+                            "edges": [{ "cursor": real_customer_id, "node": real_customer.clone() }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": real_customer_id,
+                                "endCursor": real_customer_id
+                            }
+                        },
+                        "firstPage": {
+                            "edges": [{ "cursor": real_customer_id, "node": real_customer.clone() }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": real_customer_id,
+                                "endCursor": real_customer_id
+                            }
+                        },
+                        "matchingCatalog": {
+                            "nodes": [real_customer.clone()],
+                            "edges": [{ "cursor": real_customer_id, "node": real_customer.clone() }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": real_customer_id,
+                                "endCursor": real_customer_id
+                            }
+                        },
+                        "matchingCount": { "count": 1, "precision": "EXACT" },
+                        "totalCount": { "count": 1, "precision": "EXACT" },
+                        "updatedCount": { "count": 0, "precision": "EXACT" },
+                        "afterUpdateCatalog": {
+                            "nodes": [real_customer.clone()],
+                            "edges": [{ "cursor": real_customer_id, "node": real_customer.clone() }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": real_customer_id,
+                                "endCursor": real_customer_id
+                            }
+                        },
+                        "afterDeleteCatalog": {
+                            "nodes": [real_customer.clone()],
+                            "edges": [{ "cursor": real_customer_id, "node": real_customer.clone() }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": real_customer_id,
+                                "endCursor": real_customer_id
+                            }
+                        },
+                        "afterDeleteCount": { "count": 1, "precision": "EXACT" }
+                    }
+                }),
+            }
+        });
+
+    let staged_id = create_customer(
+        &mut proxy,
+        "staged-live@example.test",
+        "Staged",
+        "Live",
+        vec!["staged".to_string()],
+        None,
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query LiveHybridEffectiveCustomerOverlay($query: String!) {
+          byRealEmail: customerByIdentifier(identifier: { emailAddress: "real-live@example.test" }) {
+            id
+            email
+            displayName
+          }
+          byStagedEmail: customerByIdentifier(identifier: { emailAddress: "staged-live@example.test" }) {
+            id
+            email
+            displayName
+          }
+          byMissingEmail: customerByIdentifier(identifier: { emailAddress: "missing-live@example.test" }) {
+            id
+          }
+          catalog: customers(first: 10, sortKey: NAME) {
+            nodes { id email displayName }
+          }
+          firstPage: customers(first: 1, sortKey: NAME) {
+            edges { cursor node { id email displayName } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          matchingCatalog: customers(first: 10, query: $query, sortKey: NAME) {
+            nodes { id email displayName }
+          }
+          matchingCount: customersCount(query: $query) { count precision }
+          totalCount: customersCount { count precision }
+        }
+        "#,
+        json!({ "query": "email:real-live@example.test" }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["byRealEmail"],
+        json!({
+            "id": real_customer_id,
+            "email": "real-live@example.test",
+            "displayName": "Real Live"
+        })
+    );
+    assert_eq!(
+        read.body["data"]["byStagedEmail"],
+        json!({
+            "id": staged_id,
+            "email": "staged-live@example.test",
+            "displayName": "Staged Live"
+        })
+    );
+    assert_eq!(read.body["data"]["byMissingEmail"], Value::Null);
+    assert_eq!(
+        read.body["data"]["catalog"]["nodes"],
+        json!([
+            { "id": real_customer_id, "email": "real-live@example.test", "displayName": "Real Live" },
+            { "id": staged_id, "email": "staged-live@example.test", "displayName": "Staged Live" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["firstPage"]["edges"],
+        json!([{
+            "cursor": real_customer_id,
+            "node": { "id": real_customer_id, "email": "real-live@example.test", "displayName": "Real Live" }
+        }])
+    );
+    assert_eq!(
+        read.body["data"]["firstPage"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": real_customer_id,
+            "endCursor": real_customer_id
+        })
+    );
+    assert_eq!(
+        read.body["data"]["matchingCatalog"]["nodes"],
+        json!([{ "id": real_customer_id, "email": "real-live@example.test", "displayName": "Real Live" }])
+    );
+    assert_eq!(
+        read.body["data"]["matchingCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["totalCount"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateRealCustomer($input: CustomerInput!) {
+          customerUpdate(input: $input) {
+            customer { id email displayName }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": real_customer_id,
+                "email": "updated-real@example.test",
+                "firstName": "Updated",
+                "lastName": "Live"
+            }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["customerUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["customerUpdate"]["customer"],
+        json!({
+            "id": real_customer_id,
+            "email": "updated-real@example.test",
+            "displayName": "Updated Live"
+        })
+    );
+
+    let after_update = proxy.process_request(json_graphql_request(
+        r#"
+        query LiveHybridUpdatedCustomerOverlay($query: String!) {
+          byOldRealEmail: customerByIdentifier(identifier: { emailAddress: "real-live@example.test" }) {
+            id
+            email
+          }
+          byUpdatedRealEmail: customerByIdentifier(identifier: { emailAddress: "updated-real@example.test" }) {
+            id
+            email
+            displayName
+          }
+          afterUpdateCatalog: customers(first: 10, sortKey: NAME) {
+            nodes { id email displayName }
+          }
+          updatedCount: customersCount(query: $query) { count precision }
+        }
+        "#,
+        json!({ "query": "email:updated-real@example.test" }),
+    ));
+    assert_eq!(after_update.status, 200);
+    assert_eq!(after_update.body["data"]["byOldRealEmail"], Value::Null);
+    assert_eq!(
+        after_update.body["data"]["byUpdatedRealEmail"],
+        json!({
+            "id": real_customer_id,
+            "email": "updated-real@example.test",
+            "displayName": "Updated Live"
+        })
+    );
+    assert_eq!(
+        after_update.body["data"]["afterUpdateCatalog"]["nodes"],
+        json!([
+            { "id": staged_id, "email": "staged-live@example.test", "displayName": "Staged Live" },
+            { "id": real_customer_id, "email": "updated-real@example.test", "displayName": "Updated Live" }
+        ])
+    );
+    assert_eq!(
+        after_update.body["data"]["updatedCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteRealCustomer($input: CustomerDeleteInput!) {
+          customerDelete(input: $input) {
+            deletedCustomerId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": real_customer_id } }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["customerDelete"]["deletedCustomerId"],
+        json!(real_customer_id)
+    );
+    assert_eq!(
+        delete.body["data"]["customerDelete"]["userErrors"],
+        json!([])
+    );
+
+    let after_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query LiveHybridDeletedCustomerOverlay($query: String!) {
+          byDeletedRealEmail: customerByIdentifier(identifier: { emailAddress: "real-live@example.test" }) {
+            id
+            email
+          }
+          afterDeleteCatalog: customers(first: 10, sortKey: NAME) {
+            nodes { id email displayName }
+          }
+          afterDeleteCount: customersCount(query: $query) { count precision }
+        }
+        "#,
+        json!({ "query": "email:real-live@example.test" }),
+    ));
+    assert_eq!(after_delete.status, 200);
+    assert_eq!(after_delete.body["data"]["byDeletedRealEmail"], Value::Null);
+    assert_eq!(
+        after_delete.body["data"]["afterDeleteCatalog"]["nodes"],
+        json!([{ "id": staged_id, "email": "staged-live@example.test", "displayName": "Staged Live" }])
+    );
+    assert_eq!(
+        after_delete.body["data"]["afterDeleteCount"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+}
+
+#[test]
+fn live_hybrid_customer_overlay_merges_partial_aliases_without_losing_hydrated_fields() {
+    let real_customer_id = "gid://shopify/Customer/9101";
+    let live_staged_customer_id = "gid://shopify/Customer/9102";
+    let tag = "overlay-regression";
+    let real_customer = json!({
+        "id": real_customer_id,
+        "firstName": "OverlayBase",
+        "lastName": "Live",
+        "displayName": "OverlayBase Live",
+        "email": "overlay-base@example.test",
+        "phone": null,
+        "locale": "en",
+        "note": null,
+        "canDelete": true,
+        "verifiedEmail": true,
+        "dataSaleOptOut": false,
+        "taxExempt": false,
+        "taxExemptions": [],
+        "state": "DISABLED",
+        "tags": [tag],
+        "createdAt": "2026-07-01T00:00:00Z",
+        "updatedAt": "2026-07-01T00:00:00Z",
+        "defaultEmailAddress": { "emailAddress": "overlay-base@example.test" },
+        "defaultPhoneNumber": null,
+        "defaultAddress": null,
+        "addressesV2": { "nodes": [] },
+        "numberOfOrders": "0"
+    });
+    let real_customer_summary = json!({
+        "id": real_customer_id,
+        "email": "overlay-base@example.test",
+        "displayName": "OverlayBase Live",
+        "tags": [tag]
+    });
+    let real_customer_edge_summary = json!({
+        "id": real_customer_id,
+        "email": "overlay-base@example.test",
+        "displayName": "OverlayBase Live"
+    });
+    let live_staged_customer = json!({
+        "id": live_staged_customer_id,
+        "email": "overlay-staged@example.test",
+        "displayName": "OverlayStaged Live",
+        "tags": [tag]
+    });
+
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream JSON body");
+            match body["operationName"].as_str() {
+                Some("CustomerDuplicateHydrate") => Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({ "data": { "customers": { "nodes": [] } } }),
+                },
+                Some("CustomerCountHydrate") => Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "customersCount": { "count": 10, "precision": "EXACT" }
+                        }
+                    }),
+                },
+                Some("CustomerOverlayCatalogHydrate") => {
+                    let query = body["variables"]["query"].as_str();
+                    let nodes = if query == Some("tag:overlay-regression") {
+                        vec![real_customer.clone()]
+                    } else {
+                        Vec::new()
+                    };
+                    Response {
+                        status: 200,
+                        headers: Default::default(),
+                        body: json!({ "data": { "customers": { "nodes": nodes } } }),
+                    }
+                }
+                _ => Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "byStagedEmail": live_staged_customer,
+                            "catalog": {
+                                "nodes": [real_customer_summary, live_staged_customer],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": real_customer_id,
+                                    "endCursor": live_staged_customer_id
+                                }
+                            },
+                            "firstPage": {
+                                "edges": [{ "cursor": real_customer_id, "node": real_customer_edge_summary }],
+                                "pageInfo": {
+                                    "hasNextPage": true,
+                                    "hasPreviousPage": false,
+                                    "startCursor": real_customer_id,
+                                    "endCursor": real_customer_id
+                                }
+                            },
+                            "matchingCatalog": {
+                                "nodes": [live_staged_customer]
+                            },
+                            "matchingCount": { "count": 12, "precision": "EXACT" },
+                            "totalCount": { "count": 12, "precision": "EXACT" }
+                        }
+                    }),
+                },
+            }
+        });
+
+    let staged_id = create_customer(
+        &mut proxy,
+        "overlay-staged@example.test",
+        "OverlayStaged",
+        "Live",
+        vec![tag.to_string()],
+        None,
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query LiveHybridPartialAliasCustomerOverlay($catalogQuery: String!, $stagedQuery: String!) {
+          byStagedEmail: customerByIdentifier(identifier: { emailAddress: "overlay-staged@example.test" }) {
+            id
+            email
+            displayName
+          }
+          catalog: customers(first: 10, query: $catalogQuery, sortKey: NAME) {
+            nodes { id email displayName tags }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          firstPage: customers(first: 1, query: $catalogQuery, sortKey: NAME) {
+            edges { cursor node { id email displayName } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          matchingCatalog: customers(first: 10, query: $stagedQuery, sortKey: NAME) {
+            nodes { id email displayName }
+          }
+          matchingCount: customersCount(query: $stagedQuery) { count precision }
+          totalCount: customersCount { count precision }
+        }
+        "#,
+        json!({
+            "catalogQuery": "tag:overlay-regression",
+            "stagedQuery": "overlay-staged@example.test"
+        }),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["byStagedEmail"],
+        json!({
+            "id": staged_id,
+            "email": "overlay-staged@example.test",
+            "displayName": "OverlayStaged Live"
+        })
+    );
+    assert_eq!(
+        read.body["data"]["catalog"]["nodes"],
+        json!([
+            { "id": real_customer_id, "email": "overlay-base@example.test", "displayName": "OverlayBase Live", "tags": [tag] },
+            { "id": staged_id, "email": "overlay-staged@example.test", "displayName": "OverlayStaged Live", "tags": [tag] }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["firstPage"]["edges"],
+        json!([{
+            "cursor": real_customer_id,
+            "node": { "id": real_customer_id, "email": "overlay-base@example.test", "displayName": "OverlayBase Live" }
+        }])
+    );
+    assert_eq!(
+        read.body["data"]["firstPage"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": real_customer_id,
+            "endCursor": real_customer_id
+        })
+    );
+    assert_eq!(
+        read.body["data"]["matchingCatalog"]["nodes"],
+        json!([{ "id": staged_id, "email": "overlay-staged@example.test", "displayName": "OverlayStaged Live" }])
+    );
+    assert_eq!(
+        read.body["data"]["matchingCount"],
+        json!({ "count": 12, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["totalCount"],
+        json!({ "count": 12, "precision": "EXACT" })
+    );
+}
+
+#[test]
 fn customers_connection_applies_name_sort_and_reverse_before_windowing() {
     let mut proxy = snapshot_proxy();
     create_customer(

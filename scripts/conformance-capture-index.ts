@@ -13999,6 +13999,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'customers',
+    captureId: 'customer-live-hybrid-overlay',
+    scriptPath: 'scripts/capture-customer-live-hybrid-overlay-conformance.ts',
+    purpose:
+      'LiveHybrid customer overlay parity for a base upstream customer plus a locally staged customer across customer, customerByIdentifier, customers, and customersCount reads.',
+    requiredAuthScopes: ['read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-live-hybrid-overlay.json`,
+      'config/parity-specs/customers/customer-live-hybrid-overlay.json',
+      'config/parity-requests/customers/customer-live-hybrid-overlay-create.graphql',
+      'config/parity-requests/customers/customer-live-hybrid-overlay-read.graphql',
+      'config/parity-requests/customers/customer-live-hybrid-overlay-hydrate.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable base customer and one disposable staged-equivalent customer, records base-only upstream cassettes before the staged-equivalent exists, then deletes both customers.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
     captureId: 'customers-keyed-search-filters',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-customer-search-keyed-filters-conformance.mts',
