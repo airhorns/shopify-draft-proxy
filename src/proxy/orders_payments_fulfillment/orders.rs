@@ -2574,6 +2574,7 @@ impl DraftProxy {
             .collect::<Vec<_>>();
         let financial_status = order_create_financial_status(order_input, &transactions, total);
         let order_name = self.next_order_name();
+        let created_at = self.next_mutation_timestamp();
         let mut order = json!({
             "id": order_id,
             "name": order_name,
@@ -2588,7 +2589,7 @@ impl DraftProxy {
             "closedAt": Value::Null,
             "cancelledAt": Value::Null,
             "cancelReason": Value::Null,
-            "createdAt": "2024-01-01T00:00:00.000Z",
+            "createdAt": created_at,
             "updatedAt": "2024-01-01T00:00:00.000Z",
             "processedAt": resolved_string_field(order_input, "processedAt")
                 .unwrap_or_else(|| "2024-01-01T00:00:00.000Z".to_string()),

@@ -4263,7 +4263,7 @@ fn orders_search_common_predicates_share_connection_and_count_semantics() {
             .to_string()
     }
 
-    let mut proxy = snapshot_proxy();
+    let mut proxy = snapshot_proxy().with_clock(|| utc_time(1_704_067_200));
     let alpha_id = create_order(
         &mut proxy,
         "alpha-order-search@example.test",
@@ -4386,45 +4386,51 @@ fn live_hybrid_orders_merge_upstream_catalog_with_staged_create_update_delete() 
         "lineItems": { "nodes": [] }
     });
     let upstream_calls = Arc::new(AtomicUsize::new(0));
-    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
-        let upstream_order = upstream_order.clone();
-        let upstream_calls = Arc::clone(&upstream_calls);
-        move |_request| {
-            upstream_calls.fetch_add(1, Ordering::SeqCst);
-            Response {
-                status: 200,
-                headers: Default::default(),
-                body: json!({
-                    "data": {
-                        "order": upstream_order,
-                        "existing": upstream_order,
-                        "orders": {
-                            "nodes": [upstream_order],
-                            "edges": [{ "cursor": upstream_order_id, "node": upstream_order }],
-                            "pageInfo": {
-                                "hasNextPage": false,
-                                "hasPreviousPage": false,
-                                "startCursor": upstream_order_id,
-                                "endCursor": upstream_order_id
-                            }
-                        },
-                        "visible": {
-                            "nodes": [upstream_order],
-                            "edges": [{ "cursor": upstream_order_id, "node": upstream_order }],
-                            "pageInfo": {
-                                "hasNextPage": false,
-                                "hasPreviousPage": false,
-                                "startCursor": upstream_order_id,
-                                "endCursor": upstream_order_id
-                            }
-                        },
-                        "ordersCount": { "count": 1, "precision": "EXACT" },
-                        "total": { "count": 1, "precision": "EXACT" }
-                    }
-                }),
+    let clock = Arc::new(Mutex::new(utc_time(1_704_240_000)));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_clock({
+            let clock = Arc::clone(&clock);
+            move || *clock.lock().unwrap()
+        })
+        .with_upstream_transport({
+            let upstream_order = upstream_order.clone();
+            let upstream_calls = Arc::clone(&upstream_calls);
+            move |_request| {
+                upstream_calls.fetch_add(1, Ordering::SeqCst);
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "order": upstream_order,
+                            "existing": upstream_order,
+                            "orders": {
+                                "nodes": [upstream_order],
+                                "edges": [{ "cursor": upstream_order_id, "node": upstream_order }],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": upstream_order_id,
+                                    "endCursor": upstream_order_id
+                                }
+                            },
+                            "visible": {
+                                "nodes": [upstream_order],
+                                "edges": [{ "cursor": upstream_order_id, "node": upstream_order }],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": upstream_order_id,
+                                    "endCursor": upstream_order_id
+                                }
+                            },
+                            "ordersCount": { "count": 1, "precision": "EXACT" },
+                            "total": { "count": 1, "precision": "EXACT" }
+                        }
+                    }),
+                }
             }
-        }
-    });
+        });
 
     let catalog_query = r#"
         query LiveHybridMixedOrders($existingId: ID!, $query: String!, $first: Int!) {
@@ -4498,6 +4504,10 @@ fn live_hybrid_orders_merge_upstream_catalog_with_staged_create_update_delete() 
     assert_eq!(create.status, 200);
     assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
     let local_order_id = create.body["data"]["orderCreate"]["order"]["id"].clone();
+    assert_eq!(
+        create.body["data"]["orderCreate"]["order"]["createdAt"],
+        json!("2024-01-03T00:00:00Z")
+    );
 
     let mixed = proxy.process_request(json_graphql_request(
         catalog_query,
@@ -4508,18 +4518,18 @@ fn live_hybrid_orders_merge_upstream_catalog_with_staged_create_update_delete() 
         mixed.body["data"]["visible"]["nodes"],
         json!([
             {
+                "id": local_order_id,
+                "email": "local-live-order@example.test",
+                "note": Value::Null,
+                "tags": ["hybrid"],
+                "createdAt": "2024-01-03T00:00:00Z"
+            },
+            {
                 "id": upstream_order_id,
                 "email": "existing-live-order@example.test",
                 "note": "upstream baseline",
                 "tags": ["hybrid"],
                 "createdAt": "2024-01-02T00:00:00.000Z"
-            },
-            {
-                "id": local_order_id,
-                "email": "local-live-order@example.test",
-                "note": Value::Null,
-                "tags": ["hybrid"],
-                "createdAt": "2024-01-01T00:00:00.000Z"
             }
         ])
     );
@@ -4561,7 +4571,7 @@ fn live_hybrid_orders_merge_upstream_catalog_with_staged_create_update_delete() 
         catalog_variables.clone(),
     ));
     assert_eq!(
-        after_update.body["data"]["visible"]["nodes"][0]["note"],
+        after_update.body["data"]["visible"]["nodes"][1]["note"],
         json!("locally edited upstream order")
     );
     assert_eq!(
@@ -4595,7 +4605,7 @@ fn live_hybrid_orders_merge_upstream_catalog_with_staged_create_update_delete() 
             "email": "local-live-order@example.test",
             "note": Value::Null,
             "tags": ["hybrid"],
-            "createdAt": "2024-01-01T00:00:00.000Z"
+            "createdAt": "2024-01-03T00:00:00Z"
         }])
     );
     assert_eq!(
