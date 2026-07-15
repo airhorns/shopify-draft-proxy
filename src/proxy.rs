@@ -288,6 +288,7 @@ struct BaseState {
     storefront_locations: OrderedRecords<Value>,
     storefront_location_cursors: BTreeMap<String, String>,
     storefront_public_api_versions: Vec<Value>,
+    storefront_menus: OrderedRecords<Value>,
     publication_ids: BTreeSet<String>,
     publication_count: Option<usize>,
     available_locales: BTreeMap<String, String>,

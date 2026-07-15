@@ -1,0 +1,27 @@
+mutation StorefrontContentArticleSetup($article: ArticleCreateInput!) {
+  setupArticle: articleCreate(article: $article) {
+    article {
+      id
+      handle
+      title
+      body
+      summary
+      tags
+      isPublished
+      publishedAt
+      author {
+        name
+      }
+      blog {
+        id
+        handle
+        title
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

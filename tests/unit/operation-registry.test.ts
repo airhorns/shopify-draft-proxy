@@ -172,10 +172,27 @@ describe('operation registry', () => {
     ).toBe(true);
   });
 
-  it('loads Storefront roots from the captured Storefront root inventory with only the first slice implemented', () => {
+  it('loads Storefront roots from the captured Storefront root inventory with promoted content roots implemented', () => {
     const storefrontEntries = listStorefrontOperationRegistryEntries();
     expect(storefrontEntries.length).toBeGreaterThan(0);
-    for (const root of ['shop', 'localization', 'locations', 'paymentSettings', 'publicApiVersions']) {
+    for (const root of [
+      'article',
+      'articles',
+      'blog',
+      'blogByHandle',
+      'blogs',
+      'localization',
+      'locations',
+      'menu',
+      'page',
+      'pageByHandle',
+      'pages',
+      'paymentSettings',
+      'publicApiVersions',
+      'shop',
+      'sitemap',
+      'urlRedirects',
+    ]) {
       expect(storefrontEntries).toContainEqual(
         expect.objectContaining({
           apiSurface: 'storefront',

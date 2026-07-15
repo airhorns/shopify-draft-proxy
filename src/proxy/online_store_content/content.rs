@@ -175,7 +175,7 @@ impl DraftProxy {
         self.observe_online_store_content_node(data, None, None);
     }
 
-    pub(super) fn has_online_store_content_state(&self) -> bool {
+    pub(in crate::proxy) fn has_online_store_content_state(&self) -> bool {
         !self.store.staged.online_store_blogs.is_empty()
             || !self.store.staged.online_store_pages.is_empty()
             || !self.store.staged.online_store_articles.is_empty()

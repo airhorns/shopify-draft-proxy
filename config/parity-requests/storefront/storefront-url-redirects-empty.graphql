@@ -1,0 +1,12 @@
+query StorefrontUrlRedirectsEmpty($query: String!) {
+  urlRedirects(first: 5, query: $query) {
+    nodes {
+      path
+      target
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+}

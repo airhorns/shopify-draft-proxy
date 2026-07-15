@@ -1,0 +1,220 @@
+query StorefrontContentReadAfterAdminSetup(
+  $articleHandle: String!
+  $articleId: ID!
+  $articleQuery: String!
+  $blogHandle: String!
+  $blogQuery: String!
+  $menuHandle: String!
+  $pageHandle: String!
+  $pageId: ID!
+  $pageQuery: String!
+) {
+  article(id: $articleId) {
+    handle
+    title
+    content
+    contentHtml
+    excerpt
+    excerptHtml
+    tags
+    publishedAt
+    author {
+      name
+    }
+    authorV2 {
+      name
+    }
+    seo {
+      title
+      description
+    }
+    blog {
+      handle
+      title
+      articleByHandle(handle: $articleHandle) {
+        handle
+        title
+      }
+      articles(first: 5, query: $articleQuery, sortKey: TITLE) {
+        nodes {
+          handle
+          title
+        }
+        edges {
+          cursor
+          node {
+            handle
+            title
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+      authors {
+        name
+      }
+    }
+  }
+  articles(first: 5, query: $articleQuery, sortKey: TITLE) {
+    nodes {
+      handle
+      title
+    }
+    edges {
+      cursor
+      node {
+        handle
+        title
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  articlesReverse: articles(first: 5, query: $articleQuery, sortKey: TITLE, reverse: true) {
+    nodes {
+      handle
+      title
+    }
+    edges {
+      cursor
+      node {
+        handle
+        title
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  blog(handle: $blogHandle) {
+    handle
+    title
+  }
+  blogByHandle(handle: $blogHandle) {
+    handle
+    title
+  }
+  blogs(first: 5, query: $blogQuery, sortKey: TITLE) {
+    nodes {
+      handle
+      title
+    }
+    edges {
+      cursor
+      node {
+        handle
+        title
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  page(id: $pageId) {
+    handle
+    title
+    body
+    bodySummary
+    seo {
+      title
+      description
+    }
+  }
+  pageByHandle(handle: $pageHandle) {
+    handle
+    title
+  }
+  pages(first: 5, query: $pageQuery, sortKey: TITLE) {
+    nodes {
+      handle
+      title
+    }
+    edges {
+      cursor
+      node {
+        handle
+        title
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  menu(handle: $menuHandle) {
+    handle
+    title
+    itemsCount
+    items {
+      title
+      type
+      url
+      resourceId
+      tags
+      items {
+        title
+        type
+        url
+      }
+      resource {
+        __typename
+        ... on Article {
+          handle
+          title
+        }
+        ... on Blog {
+          handle
+          title
+        }
+        ... on Collection {
+          handle
+          title
+        }
+        ... on Page {
+          handle
+          title
+        }
+        ... on Product {
+          handle
+          title
+        }
+        ... on ShopPolicy {
+          handle
+          title
+        }
+      }
+    }
+  }
+  sitemap(type: PAGE) {
+    pagesCount {
+      count
+      precision
+    }
+    resources(page: 1) {
+      hasNextPage
+      items {
+        handle
+        updatedAt
+        ... on SitemapResource {
+          title
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,31 @@
+mutation StorefrontContentAdminSetup($blog: BlogCreateInput!, $page: PageCreateInput!) {
+  setupBlog: blogCreate(blog: $blog) {
+    blog {
+      id
+      handle
+      title
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  setupPage: pageCreate(page: $page) {
+    page {
+      id
+      handle
+      title
+      body
+      bodySummary
+      isPublished
+      createdAt
+      updatedAt
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
