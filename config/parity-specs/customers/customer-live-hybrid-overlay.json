@@ -1,0 +1,82 @@
+{
+  "scenarioId": "customer-live-hybrid-overlay",
+  "operationNames": ["customerCreate", "customer", "customerByIdentifier", "customers", "customersCount"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["downstream-read-parity", "read-after-write", "search-filter-semantics", "pagination-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-live-hybrid-overlay.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/customers.rs"],
+  "proxyConfig": {
+    "readMode": "live-hybrid"
+  },
+  "proxyRequest": {
+    "apiVersion": "2025-01",
+    "documentPath": "config/parity-requests/customers/customer-live-hybrid-overlay-create.graphql",
+    "variablesCapturePath": "$.proxyVariables.create"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict replay of a Shopify-backed LiveHybrid customer overlay scenario. The recorder creates a disposable real/base customer, records base-only upstream cassettes before the staged-equivalent customer exists, then creates the staged-equivalent customer in Shopify and captures the final read. Proxy replay stages only the second customer locally through public customerCreate and must overlay it with the base upstream catalog without hidden state seeding.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.byStagedEmail.id",
+        "matcher": "shopify-gid:Customer",
+        "reason": "The proxy stages a synthetic customer id while Shopify capture records the materialized live customer id."
+      },
+      {
+        "path": "$.catalog.nodes[1].id",
+        "matcher": "shopify-gid:Customer",
+        "reason": "The staged customer keeps a synthetic id in proxy replay."
+      },
+      {
+        "path": "$.catalog.pageInfo.startCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify returns opaque customer cursors while the staged overlay uses stable local cursors."
+      },
+      {
+        "path": "$.catalog.pageInfo.endCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify returns opaque customer cursors while the staged overlay uses stable local cursors."
+      },
+      {
+        "path": "$.firstPage.edges[0].cursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify returns opaque customer cursors while the staged overlay uses stable local cursors."
+      },
+      {
+        "path": "$.firstPage.pageInfo.startCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify returns opaque customer cursors while the staged overlay uses stable local cursors."
+      },
+      {
+        "path": "$.firstPage.pageInfo.endCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify returns opaque customer cursors while the staged overlay uses stable local cursors."
+      },
+      {
+        "path": "$.matchingCatalog.nodes[0].id",
+        "matcher": "shopify-gid:Customer",
+        "reason": "The staged customer keeps a synthetic id in proxy replay."
+      }
+    ],
+    "targets": [
+      {
+        "name": "stage-create-user-errors",
+        "capturePath": "$.liveStagedCreate.response.body.data.customerCreate.userErrors",
+        "proxyPath": "$.data.customerCreate.userErrors"
+      },
+      {
+        "name": "live-hybrid-overlay-read-data",
+        "capturePath": "$.finalRead.response.body.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiVersion": "2025-01",
+          "documentPath": "config/parity-requests/customers/customer-live-hybrid-overlay-read.graphql",
+          "variablesCapturePath": "$.proxyVariables.read"
+        }
+      }
+    ]
+  }
+}

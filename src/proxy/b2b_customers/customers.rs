@@ -69,6 +69,9 @@ const CUSTOMER_MERGE_ATTACHED_HYDRATE_QUERY: &str = include_str!(
 );
 const CUSTOMER_DELETE_SHOP_HYDRATE_QUERY: &str =
     include_str!("../../../config/parity-requests/customers/customer-delete-shop-hydrate.graphql");
+const CUSTOMER_OVERLAY_CATALOG_HYDRATE_QUERY: &str = include_str!(
+    "../../../config/parity-requests/customers/customer-live-hybrid-overlay-hydrate.graphql"
+);
 const STORE_CREDIT_CUSTOMER_HYDRATE_QUERY: &str = include_str!(
     "../../../config/parity-requests/customers/storeCreditCustomerHydrate-parity.graphql"
 );
@@ -228,15 +231,53 @@ impl DraftProxy {
         })
     }
 
-    pub(in crate::proxy) fn customer_overlay_read_fields(
+    pub(in crate::proxy) fn customer_overlay_upstream_data(
+        &self,
+        request: &Request,
+    ) -> Option<Value> {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return None;
+        }
+        let response = (self.upstream_transport)(request.clone());
+        if !(200..300).contains(&response.status) {
+            return None;
+        }
+        response.body.get("data").cloned()
+    }
+
+    pub(in crate::proxy) fn customer_overlay_needs_upstream_data(
         &self,
         fields: &[RootFieldSelection],
+    ) -> bool {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return false;
+        }
+        fields.iter().any(|field| match field.name.as_str() {
+            "customer" => resolved_string_field(&field.arguments, "id").is_some_and(|id| {
+                !self.store.staged.customers.contains_key(&id)
+                    && !self.store.staged.customers.is_tombstoned(&id)
+            }),
+            "customerByIdentifier" => resolved_object_field(&field.arguments, "identifier")
+                .is_some_and(|identifier| {
+                    self.customer_staged_identifier_match(&identifier).is_none()
+                }),
+            "customers" => true,
+            "customersCount" => field.arguments.contains_key("query"),
+            _ => false,
+        })
+    }
+
+    pub(in crate::proxy) fn customer_overlay_read_fields(
+        &mut self,
+        request: &Request,
+        fields: &[RootFieldSelection],
+        upstream_data: Option<&Value>,
     ) -> Value {
         root_payload_json(fields, |field| match field.name.as_str() {
-            "customer" => Some(self.customer_read_field(field)),
-            "customerByIdentifier" => Some(self.customer_by_identifier_field(field)),
-            "customers" => Some(self.customers_list_field(field)),
-            "customersCount" => Some(self.customers_count_field(field)),
+            "customer" => Some(self.customer_read_field(field, upstream_data)),
+            "customerByIdentifier" => Some(self.customer_by_identifier_field(field, upstream_data)),
+            "customers" => Some(self.customers_list_field(request, field, upstream_data)),
+            "customersCount" => Some(self.customers_count_field(request, field, upstream_data)),
             "customerMergeJobStatus" => Some(self.customer_merge_job_status_field(field)),
             "job" => Some(self.customer_merge_job_node_field(field)),
             "node" if self.customer_merge_job_reference(field) => {
@@ -286,27 +327,89 @@ impl DraftProxy {
             .saturating_sub(deleted_base_customers)
     }
 
-    fn customers_count_field(&self, field: &RootFieldSelection) -> Value {
+    fn customers_count_field(
+        &mut self,
+        request: &Request,
+        field: &RootFieldSelection,
+        upstream_data: Option<&Value>,
+    ) -> Value {
         if field.arguments.contains_key("query") {
             let query = resolved_string_field(&field.arguments, "query");
-            let count = self
-                .store
-                .staged
-                .customers
-                .values()
-                .filter(|customer| {
-                    let id = customer
-                        .get("id")
-                        .and_then(Value::as_str)
-                        .unwrap_or_default();
-                    !self.store.staged.customers.is_tombstoned(id)
-                })
-                .filter(|customer| {
-                    customer_overlay_search_decision(customer, query.as_deref())
-                        == StagedSearchDecision::Match
-                })
-                .count();
-            return selected_json(&count_object(count), &field.selection);
+            let base_count = upstream_count_field(field, upstream_data);
+            let base_records = self.customer_overlay_catalog_records(request, field, upstream_data);
+            let base_matching_ids = customer_matching_record_ids(&base_records, query.as_deref());
+            let mut count = base_count
+                .as_ref()
+                .map(|(count, _)| *count as usize)
+                .unwrap_or_else(|| {
+                    self.effective_customer_records(base_records.clone())
+                        .into_iter()
+                        .filter(|customer| {
+                            customer_overlay_search_decision(customer, query.as_deref())
+                                == StagedSearchDecision::Match
+                        })
+                        .count()
+                });
+
+            if base_count.is_some() {
+                for id in &self.store.staged.customers.tombstones {
+                    if base_matching_ids.contains(id) {
+                        count = count.saturating_sub(1);
+                    }
+                }
+                for (id, customer) in self.store.staged.customers.iter() {
+                    if self.store.staged.customers.is_tombstoned(id) {
+                        continue;
+                    }
+                    let matches = customer_overlay_search_decision(customer, query.as_deref())
+                        == StagedSearchDecision::Match;
+                    if self.store.staged.locally_created_customer_ids.contains(id) {
+                        if matches
+                            && !self
+                                .upstream_data_contains_customer_identity(upstream_data, customer)
+                        {
+                            count = count.saturating_add(1);
+                        }
+                    } else if base_matching_ids.contains(id) {
+                        if !matches {
+                            count = count.saturating_sub(1);
+                        }
+                    } else if matches {
+                        count = count.saturating_add(1);
+                    }
+                }
+            }
+
+            let precision = base_count
+                .as_ref()
+                .map(|(_, precision)| precision.as_str())
+                .unwrap_or("EXACT");
+            return selected_json(
+                &count_object_with_precision(count, precision),
+                &field.selection,
+            );
+        }
+
+        if let Some((base_count, precision)) = upstream_count_field(field, upstream_data) {
+            let mut count = base_count as usize;
+            for id in &self.store.staged.customers.tombstones {
+                if !self.store.staged.locally_created_customer_ids.contains(id) {
+                    count = count.saturating_sub(1);
+                }
+            }
+            for (id, customer) in self.store.staged.customers.iter() {
+                if !self.store.staged.locally_created_customer_ids.contains(id)
+                    || self.store.staged.customers.is_tombstoned(id)
+                    || self.upstream_data_contains_customer_identity(upstream_data, customer)
+                {
+                    continue;
+                }
+                count = count.saturating_add(1);
+            }
+            return selected_json(
+                &count_object_with_precision(count, &precision),
+                &field.selection,
+            );
         }
 
         selected_json(
@@ -363,18 +466,22 @@ impl DraftProxy {
             .is_some_and(|id| self.store.staged.customer_merge_requests.contains_key(id))
     }
 
-    pub(in crate::proxy) fn customer_read_field(&self, field: &RootFieldSelection) -> Value {
+    pub(in crate::proxy) fn customer_read_field(
+        &self,
+        field: &RootFieldSelection,
+        upstream_data: Option<&Value>,
+    ) -> Value {
         let Some(id) = resolved_string_field(&field.arguments, "id") else {
             return Value::Null;
         };
         if self.store.staged.customers.is_tombstoned(&id) {
             return Value::Null;
         }
-        self.store
-            .staged
-            .customers
-            .get(&id)
-            .map(|customer| self.customer_with_order_connection(&id, customer, &field.selection))
+        if let Some(customer) = self.store.staged.customers.get(&id) {
+            return self.customer_with_order_connection(&id, customer, &field.selection);
+        }
+        upstream_root_field(field, upstream_data)
+            .map(|customer| selected_json(&customer, &field.selection))
             .unwrap_or(Value::Null)
     }
 
@@ -1237,21 +1344,17 @@ impl DraftProxy {
     /// each node through the shared customer renderer so nested
     /// `orders`/`addressesV2`/`metafields` connections resolve from store state
     /// exactly as the singular `customer`/`customerByIdentifier` reads do.
-    pub(in crate::proxy) fn customers_list_field(&self, field: &RootFieldSelection) -> Value {
-        let records: Vec<Value> = self
-            .store
-            .staged
-            .customers
-            .values()
-            .filter(|customer| {
-                let id = customer
-                    .get("id")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default();
-                !self.store.staged.customers.is_tombstoned(id)
-            })
-            .cloned()
-            .collect();
+    pub(in crate::proxy) fn customers_list_field(
+        &self,
+        request: &Request,
+        field: &RootFieldSelection,
+        upstream_data: Option<&Value>,
+    ) -> Value {
+        let records = self.effective_customer_records(self.customer_overlay_catalog_records(
+            request,
+            field,
+            upstream_data,
+        ));
         selected_staged_connection_with_args(
             records,
             &field.arguments,
@@ -1269,79 +1372,206 @@ impl DraftProxy {
     pub(in crate::proxy) fn customer_by_identifier_field(
         &self,
         field: &RootFieldSelection,
+        upstream_data: Option<&Value>,
     ) -> Value {
         let Some(identifier) = resolved_object_field(&field.arguments, "identifier") else {
             return Value::Null;
         };
-        // A merged-away / deleted customer must not resolve through identifier
-        // lookups even though its record may briefly linger in the map.
-        let is_live = |customer: &&Value| {
-            customer
-                .get("id")
-                .and_then(Value::as_str)
-                .map(|id| !self.store.staged.customers.is_tombstoned(id))
-                .unwrap_or(true)
+        if let Some(customer) = self.customer_staged_identifier_match(&identifier) {
+            return customer
+                .map(|customer| {
+                    let id = customer["id"].as_str().unwrap_or_default().to_string();
+                    self.customer_with_order_connection(&id, customer, &field.selection)
+                })
+                .unwrap_or(Value::Null);
+        }
+
+        let Some(base_customer) = upstream_root_field(field, upstream_data) else {
+            return Value::Null;
         };
-        let customer = if let Some(raw_email) = resolved_string_field(&identifier, "email")
-            .or_else(|| resolved_string_field(&identifier, "emailAddress"))
+        if base_customer.is_null() {
+            return Value::Null;
+        }
+        let Some(id) = base_customer.get("id").and_then(Value::as_str) else {
+            return selected_json(&base_customer, &field.selection);
+        };
+        if self.store.staged.customers.is_tombstoned(id) {
+            return Value::Null;
+        }
+        if let Some(customer) = self.store.staged.customers.get(id) {
+            return if self.customer_matches_identifier(id, customer, &identifier) {
+                let id = customer["id"].as_str().unwrap_or_default().to_string();
+                self.customer_with_order_connection(&id, customer, &field.selection)
+            } else {
+                Value::Null
+            };
+        }
+        selected_json(&base_customer, &field.selection)
+    }
+
+    fn customer_staged_identifier_match(
+        &self,
+        identifier: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Option<&Value>> {
+        if let Some(id) = resolved_string_field(identifier, "id") {
+            if self.store.staged.customers.is_tombstoned(&id) {
+                return Some(None);
+            }
+            return self.store.staged.customers.get(&id).map(Some);
+        }
+        if let Some(custom_id) = customer_custom_id_from_identifier(identifier, None) {
+            if self.customer_custom_id_has_local_valid_definition(&custom_id) {
+                return self
+                    .customer_ids_matching_custom_id(&custom_id)
+                    .first()
+                    .and_then(|id| self.store.staged.customers.get(id))
+                    .map(Some);
+            }
+            return None;
+        }
+        self.store
+            .staged
+            .customers
+            .iter()
+            .find(|(id, customer)| self.customer_matches_identifier(id, customer, identifier))
+            .map(|(_, customer)| Some(customer))
+    }
+
+    fn customer_matches_identifier(
+        &self,
+        id: &str,
+        customer: &Value,
+        identifier: &BTreeMap<String, ResolvedValue>,
+    ) -> bool {
+        if self.store.staged.customers.is_tombstoned(id) {
+            return false;
+        }
+        if let Some(raw_email) = resolved_string_field(identifier, "email")
+            .or_else(|| resolved_string_field(identifier, "emailAddress"))
         {
-            let needle = normalize_customer_email(&raw_email);
-            self.store.staged.customers.values().find(|customer| {
-                if !is_live(customer) {
-                    return false;
-                }
-                let stored = customer.get("email").and_then(Value::as_str);
-                let stored_default = customer["defaultEmailAddress"]["emailAddress"].as_str();
-                match needle.as_deref() {
-                    Some(needle) => stored == Some(needle) || stored_default == Some(needle),
-                    None => {
-                        stored == Some(raw_email.as_str())
-                            || stored_default == Some(raw_email.as_str())
-                    }
-                }
-            })
-        } else if let Some(id) = resolved_string_field(&identifier, "id") {
-            self.store
+            return customer_matches_identifier_email(customer, &raw_email);
+        }
+        if let Some(identifier_id) = resolved_string_field(identifier, "id") {
+            return id == identifier_id;
+        }
+        if let Some(raw_phone) = resolved_string_field(identifier, "phone")
+            .or_else(|| resolved_string_field(identifier, "phoneNumber"))
+        {
+            return customer_matches_identifier_phone(
+                customer,
+                &raw_phone,
+                shop_country_code(&self.store.base.shop),
+            );
+        }
+        if let Some(custom_id) = customer_custom_id_from_identifier(identifier, None) {
+            return self.customer_custom_id_has_local_valid_definition(&custom_id)
+                && self.customer_matches_custom_id(id, customer, &custom_id);
+        }
+        false
+    }
+
+    fn customer_overlay_catalog_records(
+        &self,
+        request: &Request,
+        field: &RootFieldSelection,
+        upstream_data: Option<&Value>,
+    ) -> Vec<Value> {
+        let mut records = self.customer_overlay_catalog_hydrate_records(request, field);
+        merge_customer_records_from_connection(
+            &mut records,
+            upstream_root_field(field, upstream_data).as_ref(),
+        );
+        records
+    }
+
+    fn customer_overlay_catalog_hydrate_records(
+        &self,
+        request: &Request,
+        field: &RootFieldSelection,
+    ) -> Vec<Value> {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return Vec::new();
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": CUSTOMER_OVERLAY_CATALOG_HYDRATE_QUERY,
+                "operationName": "CustomerOverlayCatalogHydrate",
+                "variables": {
+                    "query": resolved_string_field(&field.arguments, "query"),
+                },
+            }),
+        );
+        if !(200..300).contains(&response.status) {
+            return Vec::new();
+        }
+        connection_nodes(&response.body["data"]["customers"])
+            .into_iter()
+            .map(normalize_hydrated_customer_record)
+            .collect()
+    }
+
+    fn effective_customer_records(&self, base_records: Vec<Value>) -> Vec<Value> {
+        let mut records_by_id = BTreeMap::new();
+        let mut ordered_ids = Vec::new();
+        for record in base_records {
+            let Some(id) = customer_record_id(&record) else {
+                continue;
+            };
+            if self.store.staged.customers.is_tombstoned(&id) {
+                continue;
+            }
+            if self.locally_created_customer_shadows_base_record(&id, &record) {
+                continue;
+            }
+            if !records_by_id.contains_key(&id) {
+                ordered_ids.push(id.clone());
+            }
+            let record = self
+                .store
                 .staged
                 .customers
                 .get(&id)
-                .filter(|_| !self.store.staged.customers.is_tombstoned(&id))
-        } else if let Some(raw_phone) = resolved_string_field(&identifier, "phone")
-            .or_else(|| resolved_string_field(&identifier, "phoneNumber"))
-        {
-            let needle =
-                normalize_customer_phone(&raw_phone, shop_country_code(&self.store.base.shop));
-            self.store.staged.customers.values().find(|customer| {
-                if !is_live(customer) {
-                    return false;
-                }
-                let stored = customer.get("phone").and_then(Value::as_str);
-                let stored_default = customer["defaultPhoneNumber"]["phoneNumber"].as_str();
-                match needle.as_deref() {
-                    Some(needle) => stored == Some(needle) || stored_default == Some(needle),
-                    None => {
-                        stored == Some(raw_phone.as_str())
-                            || stored_default == Some(raw_phone.as_str())
-                    }
-                }
-            })
-        } else if let Some(custom_id) = customer_custom_id_from_identifier(&identifier, None) {
-            if self.customer_custom_id_has_local_valid_definition(&custom_id) {
-                self.customer_ids_matching_custom_id(&custom_id)
-                    .first()
-                    .and_then(|id| self.store.staged.customers.get(id))
-            } else {
-                None
+                .cloned()
+                .unwrap_or(record);
+            records_by_id.insert(id, record);
+        }
+        for (id, customer) in self.store.staged.customers.iter() {
+            if self.store.staged.customers.is_tombstoned(id) {
+                continue;
             }
-        } else {
-            None
-        };
-        customer
-            .map(|customer| {
-                let id = customer["id"].as_str().unwrap_or_default().to_string();
-                self.customer_with_order_connection(&id, customer, &field.selection)
-            })
-            .unwrap_or(Value::Null)
+            if !records_by_id.contains_key(id) {
+                ordered_ids.push(id.clone());
+            }
+            records_by_id.insert(id.clone(), customer.clone());
+        }
+        ordered_ids
+            .into_iter()
+            .filter_map(|id| records_by_id.remove(&id))
+            .collect()
+    }
+
+    fn locally_created_customer_shadows_base_record(&self, base_id: &str, base: &Value) -> bool {
+        let country_code = shop_country_code(&self.store.base.shop);
+        self.store.staged.customers.iter().any(|(id, customer)| {
+            id != base_id
+                && self.store.staged.locally_created_customer_ids.contains(id)
+                && customer_records_share_contact_identity(base, customer, country_code)
+        })
+    }
+
+    fn upstream_data_contains_customer_identity(
+        &self,
+        upstream_data: Option<&Value>,
+        customer: &Value,
+    ) -> bool {
+        upstream_data.is_some_and(|data| {
+            value_contains_customer_identity(
+                data,
+                customer,
+                shop_country_code(&self.store.base.shop),
+            )
+        })
     }
 
     pub(in crate::proxy) fn customer_order_create(
@@ -3929,6 +4159,161 @@ fn customer_value_string<'a>(customer: &'a Value, field: &str) -> &'a str {
         .get(field)
         .and_then(Value::as_str)
         .unwrap_or_default()
+}
+
+fn customer_record_id(customer: &Value) -> Option<String> {
+    customer
+        .get("id")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+}
+
+fn customer_matching_record_ids(customers: &[Value], query: Option<&str>) -> BTreeSet<String> {
+    customers
+        .iter()
+        .filter(|customer| {
+            customer_overlay_search_decision(customer, query) == StagedSearchDecision::Match
+        })
+        .filter_map(customer_record_id)
+        .collect()
+}
+
+fn upstream_root_field(field: &RootFieldSelection, upstream_data: Option<&Value>) -> Option<Value> {
+    upstream_data
+        .and_then(|data| data.get(field.response_key.as_str()))
+        .cloned()
+}
+
+fn upstream_count_field(
+    field: &RootFieldSelection,
+    upstream_data: Option<&Value>,
+) -> Option<(u64, String)> {
+    let value = upstream_data?.get(field.response_key.as_str())?;
+    let count = value.get("count").and_then(Value::as_u64)?;
+    let precision = value
+        .get("precision")
+        .and_then(Value::as_str)
+        .unwrap_or("EXACT")
+        .to_string();
+    Some((count, precision))
+}
+
+fn merge_customer_records_from_connection(records: &mut Vec<Value>, connection: Option<&Value>) {
+    let mut by_id = records
+        .iter()
+        .enumerate()
+        .filter_map(|(index, record)| customer_record_id(record).map(|id| (id, index)))
+        .collect::<BTreeMap<_, _>>();
+    for upstream in connection_nodes(connection.unwrap_or(&Value::Null)) {
+        let Some(id) = customer_record_id(&upstream) else {
+            continue;
+        };
+        if let Some(index) = by_id.get(&id).copied() {
+            merge_customer_record_fields(&mut records[index], &upstream);
+        } else {
+            by_id.insert(id, records.len());
+            records.push(normalize_hydrated_customer_record(upstream));
+        }
+    }
+}
+
+fn merge_customer_record_fields(record: &mut Value, upstream: &Value) {
+    let (Some(record), Some(upstream)) = (record.as_object_mut(), upstream.as_object()) else {
+        return;
+    };
+    for (key, value) in upstream {
+        record.insert(key.clone(), value.clone());
+    }
+}
+
+fn customer_matches_identifier_email(customer: &Value, raw_email: &str) -> bool {
+    let needle = normalize_customer_email(raw_email);
+    let stored = customer.get("email").and_then(Value::as_str);
+    let stored_default = customer["defaultEmailAddress"]["emailAddress"].as_str();
+    match needle.as_deref() {
+        Some(needle) => stored == Some(needle) || stored_default == Some(needle),
+        None => stored == Some(raw_email) || stored_default == Some(raw_email),
+    }
+}
+
+fn customer_matches_identifier_phone(
+    customer: &Value,
+    raw_phone: &str,
+    shop_country_code: Option<&str>,
+) -> bool {
+    let needle = normalize_customer_phone(raw_phone, shop_country_code);
+    let stored = customer.get("phone").and_then(Value::as_str);
+    let stored_default = customer["defaultPhoneNumber"]["phoneNumber"].as_str();
+    match needle.as_deref() {
+        Some(needle) => stored == Some(needle) || stored_default == Some(needle),
+        None => stored == Some(raw_phone) || stored_default == Some(raw_phone),
+    }
+}
+
+fn customer_records_share_contact_identity(
+    base: &Value,
+    staged: &Value,
+    shop_country_code: Option<&str>,
+) -> bool {
+    customer_primary_email(base)
+        .is_some_and(|email| customer_matches_identifier_email(staged, email))
+        || customer_primary_email(staged)
+            .is_some_and(|email| customer_matches_identifier_email(base, email))
+        || customer_primary_phone(base).is_some_and(|phone| {
+            customer_matches_identifier_phone(staged, phone, shop_country_code)
+        })
+        || customer_primary_phone(staged)
+            .is_some_and(|phone| customer_matches_identifier_phone(base, phone, shop_country_code))
+}
+
+fn value_contains_customer_identity(
+    value: &Value,
+    customer: &Value,
+    shop_country_code: Option<&str>,
+) -> bool {
+    let value_id = customer_record_id(value);
+    let customer_id = customer_record_id(customer);
+    if customer_id.is_some() && value_id == customer_id {
+        return true;
+    }
+    if value.is_object()
+        && customer_records_share_contact_identity(value, customer, shop_country_code)
+    {
+        return true;
+    }
+    match value {
+        Value::Array(values) => values
+            .iter()
+            .any(|entry| value_contains_customer_identity(entry, customer, shop_country_code)),
+        Value::Object(object) => object
+            .values()
+            .any(|entry| value_contains_customer_identity(entry, customer, shop_country_code)),
+        _ => false,
+    }
+}
+
+fn customer_primary_email(customer: &Value) -> Option<&str> {
+    customer
+        .get("email")
+        .and_then(Value::as_str)
+        .filter(|email| !email.trim().is_empty())
+        .or_else(|| {
+            customer["defaultEmailAddress"]["emailAddress"]
+                .as_str()
+                .filter(|email| !email.trim().is_empty())
+        })
+}
+
+fn customer_primary_phone(customer: &Value) -> Option<&str> {
+    customer
+        .get("phone")
+        .and_then(Value::as_str)
+        .filter(|phone| !phone.trim().is_empty())
+        .or_else(|| {
+            customer["defaultPhoneNumber"]["phoneNumber"]
+                .as_str()
+                .filter(|phone| !phone.trim().is_empty())
+        })
 }
 
 fn customer_normalized_string(customer: &Value, field: &str) -> StagedSortValue {

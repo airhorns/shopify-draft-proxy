@@ -2321,11 +2321,17 @@ impl DraftProxy {
                     if handle_customers && self.customer_read_selects_amount_spent(&fields) {
                         self.hydrate_shop_pricing_state_if_missing(request, true, false);
                     }
+                    let customer_upstream_data = (handle_customers
+                        && self.customer_overlay_needs_upstream_data(&fields))
+                    .then(|| self.customer_overlay_upstream_data(request))
+                    .flatten();
                     let data = root_payload_json(&fields, |field| {
                         if handle_customers {
-                            if let Value::Object(object) =
-                                self.customer_overlay_read_fields(std::slice::from_ref(field))
-                            {
+                            if let Value::Object(object) = self.customer_overlay_read_fields(
+                                request,
+                                std::slice::from_ref(field),
+                                customer_upstream_data.as_ref(),
+                            ) {
                                 if let Some(value) = object.get(field.response_key.as_str()) {
                                     return Some(value.clone());
                                 }

@@ -464,10 +464,31 @@ describe('conformance scenario discovery', () => {
 
   it('builds conformance status from discovered parity specs', () => {
     const status = buildConformanceStatusDocument(repoRoot);
+    const implementedStorefrontRoots = [
+      'article',
+      'articles',
+      'blog',
+      'blogByHandle',
+      'blogs',
+      'localization',
+      'locations',
+      'menu',
+      'page',
+      'pageByHandle',
+      'pages',
+      'paymentSettings',
+      'publicApiVersions',
+      'shop',
+      'sitemap',
+      'urlRedirects',
+    ];
 
     expect(status.implementedOperations.length).toBeGreaterThan(0);
     expect(status.apiSurfaceSummaries.admin.implementedOperations).toBeGreaterThan(0);
-    expect(status.apiSurfaceSummaries.storefront.implementedOperations).toBe(5);
+    expect(status.apiSurfaceSummaries.storefront.implementedOperations).toBe(implementedStorefrontRoots.length);
+    expect(status.apiSurfaceSummaries.storefront.coveredOperationNames).toEqual(
+      expect.arrayContaining(implementedStorefrontRoots),
+    );
     expect(status.apiSurfaceSummaries.aggregate.implementedOperations).toBe(status.implementedOperations.length);
     expect(status.capturedScenarioIds).toContain('product-create-live-parity');
     expect(status.capturedScenarioIds).toContain('product-duplicate-live-parity');

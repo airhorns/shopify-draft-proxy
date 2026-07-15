@@ -10,6 +10,29 @@ const STOREFRONT_FIRST_SLICE_ROOTS: &[&str] = &[
     "paymentSettings",
     "publicApiVersions",
 ];
+const STOREFRONT_CONTENT_ROOTS: &[&str] = &[
+    "article",
+    "articles",
+    "blog",
+    "blogByHandle",
+    "blogs",
+    "page",
+    "pageByHandle",
+    "pages",
+];
+const STOREFRONT_LOCAL_CONTENT_ROOTS: &[&str] = &[
+    "article",
+    "articles",
+    "blog",
+    "blogByHandle",
+    "blogs",
+    "menu",
+    "page",
+    "pageByHandle",
+    "pages",
+    "sitemap",
+    "urlRedirects",
+];
 const STOREFRONT_DEFAULT_CONTEXT_KEY: &str = "country=*;language=*";
 
 const STOREFRONT_FIRST_SLICE_HYDRATE_QUERY: &str =
@@ -17,6 +40,15 @@ const STOREFRONT_FIRST_SLICE_HYDRATE_QUERY: &str =
 const STOREFRONT_FIRST_SLICE_CONTEXT_HYDRATE_QUERY: &str = include_str!(
     "../../config/parity-requests/storefront/storefront-first-slice-hydrate-context.graphql"
 );
+const STOREFRONT_MENU_HYDRATE_QUERY: &str =
+    include_str!("../../config/parity-requests/storefront/storefront-content-menu-hydrate.graphql");
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum StorefrontContentKind {
+    Blog,
+    Page,
+    Article,
+}
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(in crate::proxy) struct StorefrontRequestContext {
@@ -69,21 +101,25 @@ impl DraftProxy {
         {
             self.hydrate_storefront_first_slice(request, &context);
         }
+        if self.config.read_mode == ReadMode::LiveHybrid {
+            self.hydrate_storefront_menus_for_fields(request, &fields);
+        }
 
         self.record_storefront_log_entry(
             request,
             "handled",
             "overlay-read",
-            "Storefront first-slice roots were resolved locally from shared proxy store state.",
+            "Storefront roots were resolved locally from shared proxy store state.",
         );
         Some(ok_json(json!({
-            "data": self.storefront_first_slice_query_data(&fields, &context)
+            "data": self.storefront_local_query_data(&fields, &context)
         })))
     }
 
     fn storefront_fields_are_local(&self, fields: &[RootFieldSelection]) -> bool {
         fields.iter().all(|field| {
-            STOREFRONT_FIRST_SLICE_ROOTS.contains(&field.name.as_str())
+            self.storefront_root_is_promoted(&field.name)
+                && self.storefront_root_has_local_backing(field)
                 && operation_capability_for_surface(
                     &self.registry,
                     ApiSurface::Storefront,
@@ -93,6 +129,28 @@ impl DraftProxy {
                 .domain
                     == CapabilityDomain::Storefront
         })
+    }
+
+    fn storefront_root_is_promoted(&self, root: &str) -> bool {
+        STOREFRONT_FIRST_SLICE_ROOTS.contains(&root)
+            || STOREFRONT_LOCAL_CONTENT_ROOTS.contains(&root)
+    }
+
+    fn storefront_root_has_local_backing(&self, field: &RootFieldSelection) -> bool {
+        if self.config.read_mode == ReadMode::Snapshot
+            || STOREFRONT_FIRST_SLICE_ROOTS.contains(&field.name.as_str())
+        {
+            return true;
+        }
+        match field.name.as_str() {
+            root if STOREFRONT_CONTENT_ROOTS.contains(&root) => {
+                self.has_online_store_content_state()
+            }
+            "sitemap" => self.has_online_store_content_state(),
+            "urlRedirects" => self.has_staged_url_redirects(),
+            "menu" => true,
+            _ => false,
+        }
     }
 
     fn storefront_first_slice_needs_hydration(
@@ -257,7 +315,48 @@ impl DraftProxy {
         }
     }
 
-    fn storefront_first_slice_query_data(
+    fn hydrate_storefront_menus_for_fields(
+        &mut self,
+        request: &Request,
+        fields: &[RootFieldSelection],
+    ) {
+        for field in fields.iter().filter(|field| field.name == "menu") {
+            let Some(handle) = resolved_string_field(&field.arguments, "handle") else {
+                continue;
+            };
+            if self.storefront_menu_by_handle(&handle).is_some() {
+                continue;
+            }
+            self.hydrate_storefront_menu(request, &handle);
+        }
+    }
+
+    fn hydrate_storefront_menu(&mut self, request: &Request, handle: &str) {
+        let response = self.storefront_upstream_post(
+            request,
+            json!({
+                "query": STOREFRONT_MENU_HYDRATE_QUERY,
+                "variables": { "handle": handle }
+            }),
+        );
+        if !(200..300).contains(&response.status) {
+            return;
+        }
+        let Some(menu) = response
+            .body
+            .pointer("/data/menu")
+            .filter(|menu| menu.is_object())
+            .cloned()
+        else {
+            return;
+        };
+        let Some(id) = menu.get("id").and_then(Value::as_str).map(str::to_string) else {
+            return;
+        };
+        self.store.base.storefront_menus.insert(id, menu);
+    }
+
+    fn storefront_local_query_data(
         &self,
         fields: &[RootFieldSelection],
         context: &StorefrontRequestContext,
@@ -278,6 +377,36 @@ impl DraftProxy {
                         .map(|version| selected_json(version, &field.selection))
                         .collect(),
                 ),
+                "article" => self.storefront_article_root(field),
+                "articles" => self.storefront_content_connection(
+                    StorefrontContentKind::Article,
+                    self.storefront_article_records(),
+                    &field.arguments,
+                    &field.selection,
+                ),
+                "blog" => self.storefront_blog_root(field),
+                "blogByHandle" => self.storefront_blog_by_handle_root(field),
+                "blogs" => self.storefront_content_connection(
+                    StorefrontContentKind::Blog,
+                    self.storefront_blog_records(),
+                    &field.arguments,
+                    &field.selection,
+                ),
+                "page" => self.storefront_page_root(field),
+                "pageByHandle" => self.storefront_page_by_handle_root(field),
+                "pages" => self.storefront_content_connection(
+                    StorefrontContentKind::Page,
+                    self.storefront_page_records(),
+                    &field.arguments,
+                    &field.selection,
+                ),
+                "menu" => self.storefront_menu_root(field),
+                "sitemap" => self.storefront_sitemap_root(field),
+                "urlRedirects" => self
+                    .url_redirect_query_data(std::slice::from_ref(field))
+                    .get(&field.response_key)
+                    .cloned()
+                    .unwrap_or(Value::Null),
                 _ => Value::Null,
             })
         })
@@ -500,6 +629,669 @@ impl DraftProxy {
             })
             .collect()
     }
+
+    fn storefront_article_root(&self, field: &RootFieldSelection) -> Value {
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        self.storefront_content_by_id(StorefrontContentKind::Article, &id)
+            .map(|article| self.selected_storefront_article(&article, &field.selection))
+            .unwrap_or(Value::Null)
+    }
+
+    fn storefront_blog_root(&self, field: &RootFieldSelection) -> Value {
+        let record = resolved_string_field(&field.arguments, "id")
+            .and_then(|id| self.storefront_content_by_id(StorefrontContentKind::Blog, &id))
+            .or_else(|| {
+                resolved_string_field(&field.arguments, "handle").and_then(|handle| {
+                    self.storefront_content_by_handle(StorefrontContentKind::Blog, &handle)
+                })
+            });
+        record
+            .map(|blog| self.selected_storefront_blog(&blog, &field.selection))
+            .unwrap_or(Value::Null)
+    }
+
+    fn storefront_blog_by_handle_root(&self, field: &RootFieldSelection) -> Value {
+        let handle = resolved_string_field(&field.arguments, "handle").unwrap_or_default();
+        self.storefront_content_by_handle(StorefrontContentKind::Blog, &handle)
+            .map(|blog| self.selected_storefront_blog(&blog, &field.selection))
+            .unwrap_or(Value::Null)
+    }
+
+    fn storefront_page_root(&self, field: &RootFieldSelection) -> Value {
+        let record = resolved_string_field(&field.arguments, "id")
+            .and_then(|id| self.storefront_content_by_id(StorefrontContentKind::Page, &id))
+            .or_else(|| {
+                resolved_string_field(&field.arguments, "handle").and_then(|handle| {
+                    self.storefront_content_by_handle(StorefrontContentKind::Page, &handle)
+                })
+            });
+        record
+            .map(|page| self.selected_storefront_page(&page, &field.selection))
+            .unwrap_or(Value::Null)
+    }
+
+    fn storefront_page_by_handle_root(&self, field: &RootFieldSelection) -> Value {
+        let handle = resolved_string_field(&field.arguments, "handle").unwrap_or_default();
+        self.storefront_content_by_handle(StorefrontContentKind::Page, &handle)
+            .map(|page| self.selected_storefront_page(&page, &field.selection))
+            .unwrap_or(Value::Null)
+    }
+
+    fn storefront_content_by_id(&self, kind: StorefrontContentKind, id: &str) -> Option<Value> {
+        self.storefront_content_records(kind)
+            .into_iter()
+            .find(|record| record.get("id").and_then(Value::as_str) == Some(id))
+    }
+
+    fn storefront_content_by_handle(
+        &self,
+        kind: StorefrontContentKind,
+        handle: &str,
+    ) -> Option<Value> {
+        self.storefront_content_records(kind)
+            .into_iter()
+            .find(|record| record.get("handle").and_then(Value::as_str) == Some(handle))
+    }
+
+    fn storefront_content_records(&self, kind: StorefrontContentKind) -> Vec<Value> {
+        match kind {
+            StorefrontContentKind::Blog => self.storefront_blog_records(),
+            StorefrontContentKind::Page => self.storefront_page_records(),
+            StorefrontContentKind::Article => self.storefront_article_records(),
+        }
+    }
+
+    fn storefront_blog_records(&self) -> Vec<Value> {
+        self.store
+            .staged
+            .online_store_blog_order
+            .iter()
+            .filter(|id| {
+                !self
+                    .store
+                    .staged
+                    .deleted_online_store_blog_ids
+                    .contains(*id)
+            })
+            .filter_map(|id| self.store.staged.online_store_blogs.get(id))
+            .map(storefront_blog_record_from_admin)
+            .collect()
+    }
+
+    fn storefront_page_records(&self) -> Vec<Value> {
+        self.store
+            .staged
+            .online_store_page_order
+            .iter()
+            .filter(|id| {
+                !self
+                    .store
+                    .staged
+                    .deleted_online_store_page_ids
+                    .contains(*id)
+            })
+            .filter_map(|id| self.store.staged.online_store_pages.get(id))
+            .filter(|page| storefront_content_is_visible(page))
+            .map(storefront_page_record_from_admin)
+            .collect()
+    }
+
+    fn storefront_article_records(&self) -> Vec<Value> {
+        self.store
+            .staged
+            .online_store_article_order
+            .iter()
+            .filter(|id| {
+                !self
+                    .store
+                    .staged
+                    .deleted_online_store_article_ids
+                    .contains(*id)
+            })
+            .filter_map(|id| self.store.staged.online_store_articles.get(id))
+            .filter(|article| storefront_content_is_visible(article))
+            .filter(|article| {
+                article
+                    .get("blogId")
+                    .and_then(Value::as_str)
+                    .and_then(|blog_id| {
+                        self.storefront_content_by_id(StorefrontContentKind::Blog, blog_id)
+                    })
+                    .is_some()
+            })
+            .map(storefront_article_record_from_admin)
+            .collect()
+    }
+
+    fn storefront_articles_for_blog(&self, blog_id: &str) -> Vec<Value> {
+        self.storefront_article_records()
+            .into_iter()
+            .filter(|article| article.get("blogId").and_then(Value::as_str) == Some(blog_id))
+            .collect()
+    }
+
+    fn selected_storefront_blog(&self, blog: &Value, selection: &[SelectedField]) -> Value {
+        let blog_id = blog.get("id").and_then(Value::as_str).unwrap_or_default();
+        selected_payload_json(selection, |field| match field.name.as_str() {
+            "articleByHandle" => {
+                let handle = resolved_string_field(&field.arguments, "handle").unwrap_or_default();
+                self.storefront_articles_for_blog(blog_id)
+                    .into_iter()
+                    .find(|article| article.get("handle").and_then(Value::as_str) == Some(&handle))
+                    .map(|article| self.selected_storefront_article(&article, &field.selection))
+                    .or(Some(Value::Null))
+            }
+            "articles" => Some(self.storefront_content_connection(
+                StorefrontContentKind::Article,
+                self.storefront_articles_for_blog(blog_id),
+                &field.arguments,
+                &field.selection,
+            )),
+            "authors" => {
+                let mut seen = BTreeSet::new();
+                let authors = self
+                    .storefront_articles_for_blog(blog_id)
+                    .into_iter()
+                    .filter_map(|article| article.get("author").cloned())
+                    .filter(|author| {
+                        let name = author
+                            .get("name")
+                            .and_then(Value::as_str)
+                            .unwrap_or_default();
+                        !name.is_empty() && seen.insert(name.to_string())
+                    })
+                    .map(|author| selected_json(&author, &field.selection))
+                    .collect::<Vec<_>>();
+                Some(Value::Array(authors))
+            }
+            "metafield" => Some(Value::Null),
+            "metafields" => Some(storefront_metafields_list(
+                &field.arguments,
+                &field.selection,
+            )),
+            "onlineStoreUrl" => Some(Value::Null),
+            "seo" => Some(selected_json(&storefront_default_seo(), &field.selection)),
+            _ => selected_field_json(blog, field).or(Some(Value::Null)),
+        })
+    }
+
+    fn selected_storefront_article(&self, article: &Value, selection: &[SelectedField]) -> Value {
+        selected_payload_json(selection, |field| match field.name.as_str() {
+            "author" | "authorV2" => article
+                .get("author")
+                .map(|author| selected_json(author, &field.selection))
+                .or(Some(Value::Null)),
+            "blog" => article
+                .get("blogId")
+                .and_then(Value::as_str)
+                .and_then(|blog_id| {
+                    self.storefront_content_by_id(StorefrontContentKind::Blog, blog_id)
+                })
+                .map(|blog| self.selected_storefront_blog(&blog, &field.selection)),
+            "comments" => Some(selected_empty_connection_json(&field.selection)),
+            "content" => Some(json!(storefront_truncated_text(
+                article
+                    .get("content")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default(),
+                &field.arguments,
+            ))),
+            "contentHtml" => selected_field_json(article, field).or(Some(json!(""))),
+            "excerpt" => Some(
+                article
+                    .get("excerpt")
+                    .and_then(Value::as_str)
+                    .map(|excerpt| json!(storefront_truncated_text(excerpt, &field.arguments)))
+                    .unwrap_or(Value::Null),
+            ),
+            "excerptHtml" => selected_field_json(article, field).or(Some(Value::Null)),
+            "metafield" => Some(Value::Null),
+            "metafields" => Some(storefront_metafields_list(
+                &field.arguments,
+                &field.selection,
+            )),
+            "onlineStoreUrl" | "trackingParameters" => Some(Value::Null),
+            "seo" => Some(selected_json(&storefront_default_seo(), &field.selection)),
+            _ => selected_field_json(article, field).or(Some(Value::Null)),
+        })
+    }
+
+    fn selected_storefront_page(&self, page: &Value, selection: &[SelectedField]) -> Value {
+        selected_payload_json(selection, |field| match field.name.as_str() {
+            "metafield" => Some(Value::Null),
+            "metafields" => Some(storefront_metafields_list(
+                &field.arguments,
+                &field.selection,
+            )),
+            "onlineStoreUrl" | "trackingParameters" => Some(Value::Null),
+            "seo" => Some(selected_json(&storefront_default_seo(), &field.selection)),
+            _ => selected_field_json(page, field).or(Some(Value::Null)),
+        })
+    }
+
+    fn storefront_content_connection(
+        &self,
+        kind: StorefrontContentKind,
+        records: Vec<Value>,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        selection: &[SelectedField],
+    ) -> Value {
+        let result = staged_connection_query(
+            records,
+            arguments,
+            |record, query| storefront_content_search_decision(kind, record, query),
+            |record, sort_key| storefront_content_sort_key(kind, record, sort_key),
+            value_id_cursor,
+        );
+        selected_typed_connection_with_page_info(
+            &result.records,
+            selection,
+            |record, selection| match kind {
+                StorefrontContentKind::Blog => self.selected_storefront_blog(record, selection),
+                StorefrontContentKind::Page => self.selected_storefront_page(record, selection),
+                StorefrontContentKind::Article => {
+                    self.selected_storefront_article(record, selection)
+                }
+            },
+            value_id_cursor,
+            result.page_info,
+        )
+    }
+
+    fn storefront_menu_root(&self, field: &RootFieldSelection) -> Value {
+        let handle = resolved_string_field(&field.arguments, "handle").unwrap_or_default();
+        self.storefront_menu_by_handle(&handle)
+            .map(|menu| selected_json(&menu, &field.selection))
+            .unwrap_or(Value::Null)
+    }
+
+    fn storefront_menu_by_handle(&self, handle: &str) -> Option<Value> {
+        self.store
+            .base
+            .storefront_menus
+            .ordered_values()
+            .into_iter()
+            .find(|menu| menu.get("handle").and_then(Value::as_str) == Some(handle))
+            .cloned()
+    }
+
+    fn storefront_sitemap_root(&self, field: &RootFieldSelection) -> Value {
+        let sitemap_type = resolved_string_field(&field.arguments, "type").unwrap_or_default();
+        let resources = self.storefront_sitemap_resources(&sitemap_type);
+        selected_payload_json(&field.selection, |selection| {
+            match selection.name.as_str() {
+                "pagesCount" => Some(selected_json(
+                    &count_object(resources.len()),
+                    &selection.selection,
+                )),
+                "resources" => Some(storefront_selected_sitemap_resources(
+                    &resources,
+                    &selection.arguments,
+                    &selection.selection,
+                )),
+                _ => None,
+            }
+        })
+    }
+
+    fn storefront_sitemap_resources(&self, sitemap_type: &str) -> Vec<Value> {
+        let records = match sitemap_type {
+            "ARTICLE" => self.storefront_article_records(),
+            "BLOG" => self.storefront_blog_records(),
+            "PAGE" => self.storefront_page_records(),
+            _ => Vec::new(),
+        };
+        records
+            .into_iter()
+            .map(|record| {
+                json!({
+                    "__typename": "SitemapResource",
+                    "handle": record.get("handle").cloned().unwrap_or(Value::Null),
+                    "title": record.get("title").cloned().unwrap_or(Value::Null),
+                    "updatedAt": record
+                        .get("updatedAt")
+                        .or_else(|| record.get("publishedAt"))
+                        .cloned()
+                        .unwrap_or(Value::Null),
+                    "image": record.get("image").cloned().unwrap_or(Value::Null)
+                })
+            })
+            .collect()
+    }
+}
+
+fn storefront_blog_record_from_admin(record: &Value) -> Value {
+    json!({
+        "__typename": "Blog",
+        "id": record.get("id").cloned().unwrap_or(Value::Null),
+        "handle": record.get("handle").cloned().unwrap_or(Value::Null),
+        "title": record.get("title").cloned().unwrap_or(Value::Null),
+    })
+}
+
+fn storefront_page_record_from_admin(record: &Value) -> Value {
+    let body = record
+        .get("body")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    json!({
+        "__typename": "Page",
+        "id": record.get("id").cloned().unwrap_or(Value::Null),
+        "handle": record.get("handle").cloned().unwrap_or(Value::Null),
+        "title": record.get("title").cloned().unwrap_or(Value::Null),
+        "body": body,
+        "bodySummary": record
+            .get("bodySummary")
+            .cloned()
+            .unwrap_or_else(|| json!(storefront_strip_html(body))),
+        "createdAt": record.get("createdAt").cloned().unwrap_or(Value::Null),
+        "updatedAt": record.get("updatedAt").cloned().unwrap_or(Value::Null),
+    })
+}
+
+fn storefront_article_record_from_admin(record: &Value) -> Value {
+    let body_html = record
+        .get("body")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let excerpt_html = record.get("summary").cloned().unwrap_or(Value::Null);
+    json!({
+        "__typename": "Article",
+        "id": record.get("id").cloned().unwrap_or(Value::Null),
+        "blogId": record.get("blogId").cloned().unwrap_or(Value::Null),
+        "handle": record.get("handle").cloned().unwrap_or(Value::Null),
+        "title": record.get("title").cloned().unwrap_or(Value::Null),
+        "content": storefront_strip_html(body_html),
+        "contentHtml": body_html,
+        "excerpt": excerpt_html
+            .as_str()
+            .map(storefront_strip_html)
+            .map(Value::String)
+            .unwrap_or(Value::Null),
+        "excerptHtml": excerpt_html,
+        "tags": record.get("tags").cloned().unwrap_or_else(|| json!([])),
+        "publishedAt": record
+            .get("publishedAt")
+            .cloned()
+            .or_else(|| record.get("createdAt").cloned())
+            .unwrap_or(Value::Null),
+        "author": storefront_article_author(record.get("author")),
+        "image": record.get("image").cloned().unwrap_or(Value::Null),
+    })
+}
+
+fn storefront_article_author(author: Option<&Value>) -> Value {
+    let name = author
+        .and_then(|author| author.get("name"))
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    json!({ "name": name })
+}
+
+fn storefront_content_is_visible(record: &Value) -> bool {
+    record
+        .get("isPublished")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+}
+
+fn storefront_default_seo() -> Value {
+    json!({
+        "title": Value::Null,
+        "description": Value::Null,
+    })
+}
+
+fn storefront_metafields_list(
+    arguments: &BTreeMap<String, ResolvedValue>,
+    selection: &[SelectedField],
+) -> Value {
+    let count = match arguments.get("identifiers") {
+        Some(ResolvedValue::List(values)) => values.len(),
+        _ => 0,
+    };
+    Value::Array(
+        std::iter::repeat_with(|| nullable_selected_json(&Value::Null, selection))
+            .take(count)
+            .collect(),
+    )
+}
+
+fn storefront_truncated_text(value: &str, arguments: &BTreeMap<String, ResolvedValue>) -> String {
+    let Some(limit) = resolved_int_field(arguments, "truncateAt")
+        .and_then(|limit| (limit >= 0).then_some(limit as usize))
+    else {
+        return value.to_string();
+    };
+    value.chars().take(limit).collect()
+}
+
+fn storefront_strip_html(value: &str) -> String {
+    let mut output = String::new();
+    let mut in_tag = false;
+    for character in value.chars() {
+        match character {
+            '<' => in_tag = true,
+            '>' => in_tag = false,
+            _ if !in_tag => output.push(character),
+            _ => {}
+        }
+    }
+    output.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn storefront_content_search_decision(
+    kind: StorefrontContentKind,
+    record: &Value,
+    query: Option<&str>,
+) -> StagedSearchDecision {
+    let Some(query) = query.map(str::trim).filter(|query| !query.is_empty()) else {
+        return StagedSearchDecision::Match;
+    };
+    for token in storefront_query_tokens(query) {
+        if token.eq_ignore_ascii_case("AND") {
+            continue;
+        }
+        if !storefront_content_matches_token(kind, record, &token) {
+            return StagedSearchDecision::NoMatch;
+        }
+    }
+    StagedSearchDecision::Match
+}
+
+fn storefront_query_tokens(query: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let mut current = String::new();
+    let mut quote = None;
+    for character in query.chars() {
+        match quote {
+            Some(active_quote) if character == active_quote => {
+                quote = None;
+                current.push(character);
+            }
+            Some(_) => current.push(character),
+            None if matches!(character, '"' | '\'') => {
+                quote = Some(character);
+                current.push(character);
+            }
+            None if character.is_whitespace() => {
+                storefront_push_query_token(&mut tokens, &mut current);
+            }
+            None => current.push(character),
+        }
+    }
+    storefront_push_query_token(&mut tokens, &mut current);
+    tokens
+}
+
+fn storefront_push_query_token(tokens: &mut Vec<String>, current: &mut String) {
+    let token = current.trim();
+    if !token.is_empty() {
+        tokens.push(token.to_string());
+    }
+    current.clear();
+}
+
+fn storefront_content_matches_token(
+    kind: StorefrontContentKind,
+    record: &Value,
+    token: &str,
+) -> bool {
+    let token = token
+        .trim()
+        .trim_matches(|character: char| matches!(character, '(' | ')' | ','))
+        .trim_matches('"')
+        .trim_matches('\'');
+    let (field, value) = token
+        .split_once(':')
+        .map(|(field, value)| {
+            (
+                Some(field.trim().trim_start_matches('-').to_ascii_lowercase()),
+                value
+                    .trim()
+                    .trim_matches('"')
+                    .trim_matches('\'')
+                    .to_string(),
+            )
+        })
+        .unwrap_or_else(|| (None, token.to_string()));
+    let value = value.trim();
+    if value.is_empty() {
+        return true;
+    }
+    match field.as_deref() {
+        Some("id") => storefront_string_matches(record.get("id").and_then(Value::as_str), value),
+        Some("handle") => {
+            storefront_string_matches(record.get("handle").and_then(Value::as_str), value)
+        }
+        Some("title") => {
+            storefront_string_matches(record.get("title").and_then(Value::as_str), value)
+        }
+        Some("author") if kind == StorefrontContentKind::Article => storefront_string_matches(
+            record
+                .get("author")
+                .and_then(|author| author.get("name"))
+                .and_then(Value::as_str),
+            value,
+        ),
+        Some("tag") if kind == StorefrontContentKind::Article => record
+            .get("tags")
+            .and_then(Value::as_array)
+            .map(|tags| {
+                tags.iter()
+                    .any(|tag| storefront_string_matches(tag.as_str(), value))
+            })
+            .unwrap_or(false),
+        Some("tag_not") if kind == StorefrontContentKind::Article => record
+            .get("tags")
+            .and_then(Value::as_array)
+            .map(|tags| {
+                !tags
+                    .iter()
+                    .any(|tag| storefront_string_matches(tag.as_str(), value))
+            })
+            .unwrap_or(true),
+        Some("blog_title") if kind == StorefrontContentKind::Article => false,
+        Some("created_at" | "updated_at") => true,
+        Some(_) => false,
+        None => storefront_content_free_text_matches(kind, record, value),
+    }
+}
+
+fn storefront_content_free_text_matches(
+    kind: StorefrontContentKind,
+    record: &Value,
+    value: &str,
+) -> bool {
+    let fields = match kind {
+        StorefrontContentKind::Blog => vec!["title", "handle"],
+        StorefrontContentKind::Page => vec!["title", "handle", "body", "bodySummary"],
+        StorefrontContentKind::Article => vec!["title", "handle", "content", "excerpt"],
+    };
+    fields
+        .iter()
+        .any(|field| storefront_string_matches(record.get(*field).and_then(Value::as_str), value))
+}
+
+fn storefront_string_matches(actual: Option<&str>, expected: &str) -> bool {
+    let expected = expected.trim().to_ascii_lowercase();
+    if expected.is_empty() {
+        return true;
+    }
+    let actual = actual.unwrap_or_default().to_ascii_lowercase();
+    if let Some(prefix) = expected.strip_suffix('*') {
+        return actual
+            .split(|character: char| !character.is_ascii_alphanumeric())
+            .any(|part| part.starts_with(prefix));
+    }
+    actual.contains(&expected)
+}
+
+fn storefront_content_sort_key(
+    kind: StorefrontContentKind,
+    record: &Value,
+    sort_key: Option<&str>,
+) -> StagedSortKey {
+    let normalized = sort_key.unwrap_or("ID").to_ascii_uppercase();
+    let primary = match normalized.as_str() {
+        "TITLE" => storefront_sort_string(record, "title"),
+        "HANDLE" => storefront_sort_string(record, "handle"),
+        "AUTHOR" if kind == StorefrontContentKind::Article => record
+            .get("author")
+            .and_then(|author| author.get("name"))
+            .and_then(Value::as_str)
+            .map(|value| StagedSortValue::String(value.to_ascii_lowercase()))
+            .unwrap_or(StagedSortValue::Null),
+        "PUBLISHED_AT" if kind == StorefrontContentKind::Article => {
+            storefront_sort_string(record, "publishedAt")
+        }
+        "UPDATED_AT" => storefront_sort_string(record, "updatedAt"),
+        _ => storefront_gid_tail_sort_value(record),
+    };
+    vec![primary, storefront_gid_tail_sort_value(record)]
+}
+
+fn storefront_sort_string(record: &Value, field: &str) -> StagedSortValue {
+    record
+        .get(field)
+        .and_then(Value::as_str)
+        .map(|value| StagedSortValue::String(value.to_ascii_lowercase()))
+        .unwrap_or(StagedSortValue::Null)
+}
+
+fn storefront_gid_tail_sort_value(record: &Value) -> StagedSortValue {
+    let id = record.get("id").and_then(Value::as_str).unwrap_or_default();
+    let tail = resource_id_tail(id);
+    tail.parse::<i64>()
+        .map(StagedSortValue::I64)
+        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+}
+
+fn storefront_selected_sitemap_resources(
+    resources: &[Value],
+    arguments: &BTreeMap<String, ResolvedValue>,
+    selection: &[SelectedField],
+) -> Value {
+    let page = resolved_int_field(arguments, "page")
+        .and_then(|page| (page > 0).then_some(page as usize))
+        .unwrap_or(1);
+    let start = (page - 1) * 250;
+    let end = (start + 250).min(resources.len());
+    let window = if start < resources.len() {
+        &resources[start..end]
+    } else {
+        &[]
+    };
+    selected_payload_json(selection, |field| match field.name.as_str() {
+        "hasNextPage" => Some(json!(end < resources.len())),
+        "items" => Some(Value::Array(
+            window
+                .iter()
+                .map(|resource| selected_json(resource, &field.selection))
+                .collect(),
+        )),
+        _ => None,
+    })
 }
 
 fn storefront_request_context(

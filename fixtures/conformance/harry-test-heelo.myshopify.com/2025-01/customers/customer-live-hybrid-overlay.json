@@ -1,0 +1,1023 @@
+{
+  "scenarioId": "customer-live-hybrid-overlay",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "proxyVariables": {
+    "create": {
+      "input": {
+        "email": "live-overlay-staged-mrmm6s3u@example.com",
+        "firstName": "OverlayStagedmrmm6s3u",
+        "lastName": "Live",
+        "tags": ["livehybridoverlaymrmm6s3u"]
+      }
+    },
+    "read": {
+      "realId": "gid://shopify/Customer/10964975419698",
+      "realEmail": "live-overlay-base-mrmm6s3u@example.com",
+      "stagedEmail": "live-overlay-staged-mrmm6s3u@example.com",
+      "missingEmail": "live-overlay-missing-mrmm6s3u@example.com",
+      "catalogQuery": "tag:livehybridoverlaymrmm6s3u",
+      "stagedQuery": "live-overlay-staged-mrmm6s3u@example.com"
+    }
+  },
+  "setup": {
+    "baseCreate": {
+      "operationName": "CustomerLiveHybridOverlayBaseCreate",
+      "query": "mutation CustomerLiveHybridOverlayCreate($input: CustomerInput!) {\n  customerCreate(input: $input) {\n    customer {\n      id\n      email\n      firstName\n      lastName\n      displayName\n      state\n      tags\n      defaultEmailAddress {\n        emailAddress\n      }\n      defaultPhoneNumber {\n        phoneNumber\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "email": "live-overlay-base-mrmm6s3u@example.com",
+          "firstName": "OverlayBasemrmm6s3u",
+          "lastName": "Live",
+          "tags": ["livehybridoverlaymrmm6s3u"]
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerCreate": {
+              "customer": {
+                "id": "gid://shopify/Customer/10964975419698",
+                "email": "live-overlay-base-mrmm6s3u@example.com",
+                "firstName": "OverlayBasemrmm6s3u",
+                "lastName": "Live",
+                "displayName": "OverlayBasemrmm6s3u Live",
+                "state": "DISABLED",
+                "tags": ["livehybridoverlaymrmm6s3u"],
+                "defaultEmailAddress": {
+                  "emailAddress": "live-overlay-base-mrmm6s3u@example.com"
+                },
+                "defaultPhoneNumber": null
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "duplicateHydrate": {
+      "operationName": "CustomerDuplicateHydrate",
+      "query": "\nquery CustomerDuplicateHydrate($query: String!) {\n  customers(first: 1, query: $query) {\n    nodes { id }\n  }\n}\n",
+      "variables": {
+        "query": "email:live-overlay-staged-mrmm6s3u@example.com"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customers": {
+              "nodes": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "countHydrate": {
+      "operationName": "CustomerCountHydrate",
+      "query": "query CustomerCountHydrate { customersCount { count precision } }\n",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customersCount": {
+              "count": 1447,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "baseRead": {
+      "operationName": "CustomerLiveHybridOverlayRead",
+      "query": "query CustomerLiveHybridOverlayRead(\n  $realId: ID!\n  $realEmail: String!\n  $stagedEmail: String!\n  $missingEmail: String!\n  $catalogQuery: String!\n  $stagedQuery: String!\n) {\n  byRealId: customer(id: $realId) {\n    id\n    email\n    displayName\n  }\n  byRealEmail: customerByIdentifier(identifier: { emailAddress: $realEmail }) {\n    id\n    email\n    displayName\n  }\n  byStagedEmail: customerByIdentifier(identifier: { emailAddress: $stagedEmail }) {\n    id\n    email\n    displayName\n  }\n  byMissingEmail: customerByIdentifier(identifier: { emailAddress: $missingEmail }) {\n    id\n    email\n  }\n  catalog: customers(first: 10, query: $catalogQuery, sortKey: NAME) {\n    nodes {\n      id\n      email\n      displayName\n      tags\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  firstPage: customers(first: 1, query: $catalogQuery, sortKey: NAME) {\n    edges {\n      cursor\n      node {\n        id\n        email\n        displayName\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  matchingCatalog: customers(first: 10, query: $stagedQuery, sortKey: NAME) {\n    nodes {\n      id\n      email\n      displayName\n    }\n  }\n  matchingCount: customersCount(query: $stagedQuery) {\n    count\n    precision\n  }\n  totalCount: customersCount {\n    count\n    precision\n  }\n}\n",
+      "variables": {
+        "realId": "gid://shopify/Customer/10964975419698",
+        "realEmail": "live-overlay-base-mrmm6s3u@example.com",
+        "stagedEmail": "live-overlay-staged-mrmm6s3u@example.com",
+        "missingEmail": "live-overlay-missing-mrmm6s3u@example.com",
+        "catalogQuery": "tag:livehybridoverlaymrmm6s3u",
+        "stagedQuery": "live-overlay-staged-mrmm6s3u@example.com"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "byRealId": {
+              "id": "gid://shopify/Customer/10964975419698",
+              "email": "live-overlay-base-mrmm6s3u@example.com",
+              "displayName": "OverlayBasemrmm6s3u Live"
+            },
+            "byRealEmail": {
+              "id": "gid://shopify/Customer/10964975419698",
+              "email": "live-overlay-base-mrmm6s3u@example.com",
+              "displayName": "OverlayBasemrmm6s3u Live"
+            },
+            "byStagedEmail": null,
+            "byMissingEmail": null,
+            "catalog": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Customer/10964975419698",
+                  "email": "live-overlay-base-mrmm6s3u@example.com",
+                  "displayName": "OverlayBasemrmm6s3u Live",
+                  "tags": ["livehybridoverlaymrmm6s3u"]
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMDk2NDk3NTQxOTY5OCwibGFzdF92YWx1ZSI6ImxpdmUsIG92ZXJsYXliYXNlbXJtbTZzM3UifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxMDk2NDk3NTQxOTY5OCwibGFzdF92YWx1ZSI6ImxpdmUsIG92ZXJsYXliYXNlbXJtbTZzM3UifQ=="
+              }
+            },
+            "firstPage": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMDk2NDk3NTQxOTY5OCwibGFzdF92YWx1ZSI6ImxpdmUsIG92ZXJsYXliYXNlbXJtbTZzM3UifQ==",
+                  "node": {
+                    "id": "gid://shopify/Customer/10964975419698",
+                    "email": "live-overlay-base-mrmm6s3u@example.com",
+                    "displayName": "OverlayBasemrmm6s3u Live"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMDk2NDk3NTQxOTY5OCwibGFzdF92YWx1ZSI6ImxpdmUsIG92ZXJsYXliYXNlbXJtbTZzM3UifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxMDk2NDk3NTQxOTY5OCwibGFzdF92YWx1ZSI6ImxpdmUsIG92ZXJsYXliYXNlbXJtbTZzM3UifQ=="
+              }
+            },
+            "matchingCatalog": {
+              "nodes": []
+            },
+            "matchingCount": {
+              "count": 1448,
+              "precision": "EXACT"
+            },
+            "totalCount": {
+              "count": 1448,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 39,
+              "actualQueryCost": 36,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1964,
+                "restoreRate": 100
+              }
+            },
+            "search": [
+              {
+                "path": ["matchingCount"],
+                "query": "live-overlay-staged-mrmm6s3u@example.com",
+                "parsed": {
+                  "field": "default",
+                  "match_all": "live-overlay-staged-mrmm6s3u@example.com"
+                },
+                "warnings": [
+                  {
+                    "field": "default",
+                    "message": "Input must use named search fields in this query.",
+                    "code": "missing_named_field"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    "catalogHydrate": {
+      "operationName": "CustomerOverlayCatalogHydrate",
+      "query": "query CustomerOverlayCatalogHydrate($query: String) {\n  customers(first: 250, query: $query) {\n    nodes {\n      id\n      firstName\n      lastName\n      displayName\n      email\n      phone\n      legacyResourceId\n      locale\n      note\n      canDelete\n      verifiedEmail\n      dataSaleOptOut\n      taxExempt\n      taxExemptions\n      state\n      tags\n      numberOfOrders\n      createdAt\n      updatedAt\n      defaultEmailAddress {\n        emailAddress\n        marketingState\n        marketingOptInLevel\n        marketingUpdatedAt\n      }\n      defaultPhoneNumber {\n        phoneNumber\n        marketingState\n        marketingOptInLevel\n        marketingUpdatedAt\n        marketingCollectedFrom\n      }\n      emailMarketingConsent {\n        marketingState\n        marketingOptInLevel\n        consentUpdatedAt\n      }\n      defaultAddress {\n        id\n        firstName\n        lastName\n        address1\n        address2\n        city\n        company\n        province\n        provinceCode\n        country\n        countryCodeV2\n        zip\n        phone\n        name\n        formattedArea\n      }\n      addressesV2(first: 250) {\n        nodes {\n          id\n          firstName\n          lastName\n          address1\n          address2\n          city\n          company\n          province\n          provinceCode\n          country\n          countryCodeV2\n          zip\n          phone\n          name\n          formattedArea\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "query": "tag:livehybridoverlaymrmm6s3u"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customers": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Customer/10964975419698",
+                  "firstName": "OverlayBasemrmm6s3u",
+                  "lastName": "Live",
+                  "displayName": "OverlayBasemrmm6s3u Live",
+                  "email": "live-overlay-base-mrmm6s3u@example.com",
+                  "phone": null,
+                  "legacyResourceId": "10964975419698",
+                  "locale": "en",
+                  "note": null,
+                  "canDelete": true,
+                  "verifiedEmail": true,
+                  "dataSaleOptOut": false,
+                  "taxExempt": false,
+                  "taxExemptions": [],
+                  "state": "DISABLED",
+                  "tags": ["livehybridoverlaymrmm6s3u"],
+                  "numberOfOrders": "0",
+                  "createdAt": "2026-07-15T21:50:57Z",
+                  "updatedAt": "2026-07-15T21:50:57Z",
+                  "defaultEmailAddress": {
+                    "emailAddress": "live-overlay-base-mrmm6s3u@example.com",
+                    "marketingState": "NOT_SUBSCRIBED",
+                    "marketingOptInLevel": "SINGLE_OPT_IN",
+                    "marketingUpdatedAt": null
+                  },
+                  "defaultPhoneNumber": null,
+                  "emailMarketingConsent": {
+                    "marketingState": "NOT_SUBSCRIBED",
+                    "marketingOptInLevel": "SINGLE_OPT_IN",
+                    "consentUpdatedAt": null
+                  },
+                  "defaultAddress": null,
+                  "addressesV2": {
+                    "nodes": []
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 178,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1979,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "firstPageHydrate": {
+      "operationName": "CustomerOverlayCatalogHydrate",
+      "query": "query CustomerOverlayCatalogHydrate($query: String) {\n  customers(first: 250, query: $query) {\n    nodes {\n      id\n      firstName\n      lastName\n      displayName\n      email\n      phone\n      legacyResourceId\n      locale\n      note\n      canDelete\n      verifiedEmail\n      dataSaleOptOut\n      taxExempt\n      taxExemptions\n      state\n      tags\n      numberOfOrders\n      createdAt\n      updatedAt\n      defaultEmailAddress {\n        emailAddress\n        marketingState\n        marketingOptInLevel\n        marketingUpdatedAt\n      }\n      defaultPhoneNumber {\n        phoneNumber\n        marketingState\n        marketingOptInLevel\n        marketingUpdatedAt\n        marketingCollectedFrom\n      }\n      emailMarketingConsent {\n        marketingState\n        marketingOptInLevel\n        consentUpdatedAt\n      }\n      defaultAddress {\n        id\n        firstName\n        lastName\n        address1\n        address2\n        city\n        company\n        province\n        provinceCode\n        country\n        countryCodeV2\n        zip\n        phone\n        name\n        formattedArea\n      }\n      addressesV2(first: 250) {\n        nodes {\n          id\n          firstName\n          lastName\n          address1\n          address2\n          city\n          company\n          province\n          provinceCode\n          country\n          countryCodeV2\n          zip\n          phone\n          name\n          formattedArea\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "query": "tag:livehybridoverlaymrmm6s3u"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customers": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Customer/10964975419698",
+                  "firstName": "OverlayBasemrmm6s3u",
+                  "lastName": "Live",
+                  "displayName": "OverlayBasemrmm6s3u Live",
+                  "email": "live-overlay-base-mrmm6s3u@example.com",
+                  "phone": null,
+                  "legacyResourceId": "10964975419698",
+                  "locale": "en",
+                  "note": null,
+                  "canDelete": true,
+                  "verifiedEmail": true,
+                  "dataSaleOptOut": false,
+                  "taxExempt": false,
+                  "taxExemptions": [],
+                  "state": "DISABLED",
+                  "tags": ["livehybridoverlaymrmm6s3u"],
+                  "numberOfOrders": "0",
+                  "createdAt": "2026-07-15T21:50:57Z",
+                  "updatedAt": "2026-07-15T21:50:57Z",
+                  "defaultEmailAddress": {
+                    "emailAddress": "live-overlay-base-mrmm6s3u@example.com",
+                    "marketingState": "NOT_SUBSCRIBED",
+                    "marketingOptInLevel": "SINGLE_OPT_IN",
+                    "marketingUpdatedAt": null
+                  },
+                  "defaultPhoneNumber": null,
+                  "emailMarketingConsent": {
+                    "marketingState": "NOT_SUBSCRIBED",
+                    "marketingOptInLevel": "SINGLE_OPT_IN",
+                    "consentUpdatedAt": null
+                  },
+                  "defaultAddress": null,
+                  "addressesV2": {
+                    "nodes": []
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 178,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1993,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "matchingCatalogHydrate": {
+      "operationName": "CustomerOverlayCatalogHydrate",
+      "query": "query CustomerOverlayCatalogHydrate($query: String) {\n  customers(first: 250, query: $query) {\n    nodes {\n      id\n      firstName\n      lastName\n      displayName\n      email\n      phone\n      legacyResourceId\n      locale\n      note\n      canDelete\n      verifiedEmail\n      dataSaleOptOut\n      taxExempt\n      taxExemptions\n      state\n      tags\n      numberOfOrders\n      createdAt\n      updatedAt\n      defaultEmailAddress {\n        emailAddress\n        marketingState\n        marketingOptInLevel\n        marketingUpdatedAt\n      }\n      defaultPhoneNumber {\n        phoneNumber\n        marketingState\n        marketingOptInLevel\n        marketingUpdatedAt\n        marketingCollectedFrom\n      }\n      emailMarketingConsent {\n        marketingState\n        marketingOptInLevel\n        consentUpdatedAt\n      }\n      defaultAddress {\n        id\n        firstName\n        lastName\n        address1\n        address2\n        city\n        company\n        province\n        provinceCode\n        country\n        countryCodeV2\n        zip\n        phone\n        name\n        formattedArea\n      }\n      addressesV2(first: 250) {\n        nodes {\n          id\n          firstName\n          lastName\n          address1\n          address2\n          city\n          company\n          province\n          provinceCode\n          country\n          countryCodeV2\n          zip\n          phone\n          name\n          formattedArea\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "query": "live-overlay-staged-mrmm6s3u@example.com"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customers": {
+              "nodes": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 178,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "matchingCountHydrate": {
+      "operationName": "CustomerOverlayCatalogHydrate",
+      "query": "query CustomerOverlayCatalogHydrate($query: String) {\n  customers(first: 250, query: $query) {\n    nodes {\n      id\n      firstName\n      lastName\n      displayName\n      email\n      phone\n      legacyResourceId\n      locale\n      note\n      canDelete\n      verifiedEmail\n      dataSaleOptOut\n      taxExempt\n      taxExemptions\n      state\n      tags\n      numberOfOrders\n      createdAt\n      updatedAt\n      defaultEmailAddress {\n        emailAddress\n        marketingState\n        marketingOptInLevel\n        marketingUpdatedAt\n      }\n      defaultPhoneNumber {\n        phoneNumber\n        marketingState\n        marketingOptInLevel\n        marketingUpdatedAt\n        marketingCollectedFrom\n      }\n      emailMarketingConsent {\n        marketingState\n        marketingOptInLevel\n        consentUpdatedAt\n      }\n      defaultAddress {\n        id\n        firstName\n        lastName\n        address1\n        address2\n        city\n        company\n        province\n        provinceCode\n        country\n        countryCodeV2\n        zip\n        phone\n        name\n        formattedArea\n      }\n      addressesV2(first: 250) {\n        nodes {\n          id\n          firstName\n          lastName\n          address1\n          address2\n          city\n          company\n          province\n          provinceCode\n          country\n          countryCodeV2\n          zip\n          phone\n          name\n          formattedArea\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "query": "live-overlay-staged-mrmm6s3u@example.com"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customers": {
+              "nodes": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 178,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "liveStagedCreate": {
+    "operationName": "CustomerLiveHybridOverlayCreate",
+    "query": "mutation CustomerLiveHybridOverlayCreate($input: CustomerInput!) {\n  customerCreate(input: $input) {\n    customer {\n      id\n      email\n      firstName\n      lastName\n      displayName\n      state\n      tags\n      defaultEmailAddress {\n        emailAddress\n      }\n      defaultPhoneNumber {\n        phoneNumber\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "input": {
+        "email": "live-overlay-staged-mrmm6s3u@example.com",
+        "firstName": "OverlayStagedmrmm6s3u",
+        "lastName": "Live",
+        "tags": ["livehybridoverlaymrmm6s3u"]
+      }
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "customerCreate": {
+            "customer": {
+              "id": "gid://shopify/Customer/10964975649074",
+              "email": "live-overlay-staged-mrmm6s3u@example.com",
+              "firstName": "OverlayStagedmrmm6s3u",
+              "lastName": "Live",
+              "displayName": "OverlayStagedmrmm6s3u Live",
+              "state": "DISABLED",
+              "tags": ["livehybridoverlaymrmm6s3u"],
+              "defaultEmailAddress": {
+                "emailAddress": "live-overlay-staged-mrmm6s3u@example.com"
+              },
+              "defaultPhoneNumber": null
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 12,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1982,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "finalRead": {
+    "operationName": "CustomerLiveHybridOverlayRead",
+    "query": "query CustomerLiveHybridOverlayRead(\n  $realId: ID!\n  $realEmail: String!\n  $stagedEmail: String!\n  $missingEmail: String!\n  $catalogQuery: String!\n  $stagedQuery: String!\n) {\n  byRealId: customer(id: $realId) {\n    id\n    email\n    displayName\n  }\n  byRealEmail: customerByIdentifier(identifier: { emailAddress: $realEmail }) {\n    id\n    email\n    displayName\n  }\n  byStagedEmail: customerByIdentifier(identifier: { emailAddress: $stagedEmail }) {\n    id\n    email\n    displayName\n  }\n  byMissingEmail: customerByIdentifier(identifier: { emailAddress: $missingEmail }) {\n    id\n    email\n  }\n  catalog: customers(first: 10, query: $catalogQuery, sortKey: NAME) {\n    nodes {\n      id\n      email\n      displayName\n      tags\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  firstPage: customers(first: 1, query: $catalogQuery, sortKey: NAME) {\n    edges {\n      cursor\n      node {\n        id\n        email\n        displayName\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  matchingCatalog: customers(first: 10, query: $stagedQuery, sortKey: NAME) {\n    nodes {\n      id\n      email\n      displayName\n    }\n  }\n  matchingCount: customersCount(query: $stagedQuery) {\n    count\n    precision\n  }\n  totalCount: customersCount {\n    count\n    precision\n  }\n}\n",
+    "variables": {
+      "realId": "gid://shopify/Customer/10964975419698",
+      "realEmail": "live-overlay-base-mrmm6s3u@example.com",
+      "stagedEmail": "live-overlay-staged-mrmm6s3u@example.com",
+      "missingEmail": "live-overlay-missing-mrmm6s3u@example.com",
+      "catalogQuery": "tag:livehybridoverlaymrmm6s3u",
+      "stagedQuery": "live-overlay-staged-mrmm6s3u@example.com"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "byRealId": {
+            "id": "gid://shopify/Customer/10964975419698",
+            "email": "live-overlay-base-mrmm6s3u@example.com",
+            "displayName": "OverlayBasemrmm6s3u Live"
+          },
+          "byRealEmail": {
+            "id": "gid://shopify/Customer/10964975419698",
+            "email": "live-overlay-base-mrmm6s3u@example.com",
+            "displayName": "OverlayBasemrmm6s3u Live"
+          },
+          "byStagedEmail": {
+            "id": "gid://shopify/Customer/10964975649074",
+            "email": "live-overlay-staged-mrmm6s3u@example.com",
+            "displayName": "OverlayStagedmrmm6s3u Live"
+          },
+          "byMissingEmail": null,
+          "catalog": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Customer/10964975419698",
+                "email": "live-overlay-base-mrmm6s3u@example.com",
+                "displayName": "OverlayBasemrmm6s3u Live",
+                "tags": ["livehybridoverlaymrmm6s3u"]
+              },
+              {
+                "id": "gid://shopify/Customer/10964975649074",
+                "email": "live-overlay-staged-mrmm6s3u@example.com",
+                "displayName": "OverlayStagedmrmm6s3u Live",
+                "tags": ["livehybridoverlaymrmm6s3u"]
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxMDk2NDk3NTQxOTY5OCwibGFzdF92YWx1ZSI6ImxpdmUsIG92ZXJsYXliYXNlbXJtbTZzM3UifQ==",
+              "endCursor": "eyJsYXN0X2lkIjoxMDk2NDk3NTY0OTA3NCwibGFzdF92YWx1ZSI6ImxpdmUsIG92ZXJsYXlzdGFnZWRtcm1tNnMzdSJ9"
+            }
+          },
+          "firstPage": {
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMDk2NDk3NTQxOTY5OCwibGFzdF92YWx1ZSI6ImxpdmUsIG92ZXJsYXliYXNlbXJtbTZzM3UifQ==",
+                "node": {
+                  "id": "gid://shopify/Customer/10964975419698",
+                  "email": "live-overlay-base-mrmm6s3u@example.com",
+                  "displayName": "OverlayBasemrmm6s3u Live"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": true,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxMDk2NDk3NTQxOTY5OCwibGFzdF92YWx1ZSI6ImxpdmUsIG92ZXJsYXliYXNlbXJtbTZzM3UifQ==",
+              "endCursor": "eyJsYXN0X2lkIjoxMDk2NDk3NTQxOTY5OCwibGFzdF92YWx1ZSI6ImxpdmUsIG92ZXJsYXliYXNlbXJtbTZzM3UifQ=="
+            }
+          },
+          "matchingCatalog": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Customer/10964975649074",
+                "email": "live-overlay-staged-mrmm6s3u@example.com",
+                "displayName": "OverlayStagedmrmm6s3u Live"
+              }
+            ]
+          },
+          "matchingCount": {
+            "count": 1449,
+            "precision": "EXACT"
+          },
+          "totalCount": {
+            "count": 1449,
+            "precision": "EXACT"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 39,
+            "actualQueryCost": 34,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1966,
+              "restoreRate": 100
+            }
+          },
+          "search": [
+            {
+              "path": ["matchingCount"],
+              "query": "live-overlay-staged-mrmm6s3u@example.com",
+              "parsed": {
+                "field": "default",
+                "match_all": "live-overlay-staged-mrmm6s3u@example.com"
+              },
+              "warnings": [
+                {
+                  "field": "default",
+                  "message": "Input must use named search fields in this query.",
+                  "code": "missing_named_field"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "staged": {
+      "query": "#graphql\nmutation CustomerLiveHybridOverlayCleanup($input: CustomerDeleteInput!) {\n  customerDelete(input: $input) {\n    deletedCustomerId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10964975649074"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerDelete": {
+              "deletedCustomerId": "gid://shopify/Customer/10964975649074",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1974,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "base": {
+      "query": "#graphql\nmutation CustomerLiveHybridOverlayCleanup($input: CustomerDeleteInput!) {\n  customerDelete(input: $input) {\n    deletedCustomerId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10964975419698"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerDelete": {
+              "deletedCustomerId": "gid://shopify/Customer/10964975419698",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1982,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "method": "POST",
+      "path": "/admin/api/2025-01/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "operationName": "CustomerDuplicateHydrate",
+      "variables": {
+        "query": "email:live-overlay-staged-mrmm6s3u@example.com"
+      },
+      "query": "\nquery CustomerDuplicateHydrate($query: String!) {\n  customers(first: 1, query: $query) {\n    nodes { id }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customers": {
+              "nodes": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2025-01/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "operationName": "CustomerCountHydrate",
+      "variables": {},
+      "query": "query CustomerCountHydrate { customersCount { count precision } }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customersCount": {
+              "count": 1447,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2025-01/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "operationName": "CustomerLiveHybridOverlayRead",
+      "variables": {
+        "realId": "gid://shopify/Customer/10964975419698",
+        "realEmail": "live-overlay-base-mrmm6s3u@example.com",
+        "stagedEmail": "live-overlay-staged-mrmm6s3u@example.com",
+        "missingEmail": "live-overlay-missing-mrmm6s3u@example.com",
+        "catalogQuery": "tag:livehybridoverlaymrmm6s3u",
+        "stagedQuery": "live-overlay-staged-mrmm6s3u@example.com"
+      },
+      "query": "query CustomerLiveHybridOverlayRead(\n  $realId: ID!\n  $realEmail: String!\n  $stagedEmail: String!\n  $missingEmail: String!\n  $catalogQuery: String!\n  $stagedQuery: String!\n) {\n  byRealId: customer(id: $realId) {\n    id\n    email\n    displayName\n  }\n  byRealEmail: customerByIdentifier(identifier: { emailAddress: $realEmail }) {\n    id\n    email\n    displayName\n  }\n  byStagedEmail: customerByIdentifier(identifier: { emailAddress: $stagedEmail }) {\n    id\n    email\n    displayName\n  }\n  byMissingEmail: customerByIdentifier(identifier: { emailAddress: $missingEmail }) {\n    id\n    email\n  }\n  catalog: customers(first: 10, query: $catalogQuery, sortKey: NAME) {\n    nodes {\n      id\n      email\n      displayName\n      tags\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  firstPage: customers(first: 1, query: $catalogQuery, sortKey: NAME) {\n    edges {\n      cursor\n      node {\n        id\n        email\n        displayName\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  matchingCatalog: customers(first: 10, query: $stagedQuery, sortKey: NAME) {\n    nodes {\n      id\n      email\n      displayName\n    }\n  }\n  matchingCount: customersCount(query: $stagedQuery) {\n    count\n    precision\n  }\n  totalCount: customersCount {\n    count\n    precision\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "byRealId": {
+              "id": "gid://shopify/Customer/10964975419698",
+              "email": "live-overlay-base-mrmm6s3u@example.com",
+              "displayName": "OverlayBasemrmm6s3u Live"
+            },
+            "byRealEmail": {
+              "id": "gid://shopify/Customer/10964975419698",
+              "email": "live-overlay-base-mrmm6s3u@example.com",
+              "displayName": "OverlayBasemrmm6s3u Live"
+            },
+            "byStagedEmail": null,
+            "byMissingEmail": null,
+            "catalog": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Customer/10964975419698",
+                  "email": "live-overlay-base-mrmm6s3u@example.com",
+                  "displayName": "OverlayBasemrmm6s3u Live",
+                  "tags": ["livehybridoverlaymrmm6s3u"]
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMDk2NDk3NTQxOTY5OCwibGFzdF92YWx1ZSI6ImxpdmUsIG92ZXJsYXliYXNlbXJtbTZzM3UifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxMDk2NDk3NTQxOTY5OCwibGFzdF92YWx1ZSI6ImxpdmUsIG92ZXJsYXliYXNlbXJtbTZzM3UifQ=="
+              }
+            },
+            "firstPage": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMDk2NDk3NTQxOTY5OCwibGFzdF92YWx1ZSI6ImxpdmUsIG92ZXJsYXliYXNlbXJtbTZzM3UifQ==",
+                  "node": {
+                    "id": "gid://shopify/Customer/10964975419698",
+                    "email": "live-overlay-base-mrmm6s3u@example.com",
+                    "displayName": "OverlayBasemrmm6s3u Live"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMDk2NDk3NTQxOTY5OCwibGFzdF92YWx1ZSI6ImxpdmUsIG92ZXJsYXliYXNlbXJtbTZzM3UifQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxMDk2NDk3NTQxOTY5OCwibGFzdF92YWx1ZSI6ImxpdmUsIG92ZXJsYXliYXNlbXJtbTZzM3UifQ=="
+              }
+            },
+            "matchingCatalog": {
+              "nodes": []
+            },
+            "matchingCount": {
+              "count": 1448,
+              "precision": "EXACT"
+            },
+            "totalCount": {
+              "count": 1448,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 39,
+              "actualQueryCost": 36,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1964,
+                "restoreRate": 100
+              }
+            },
+            "search": [
+              {
+                "path": ["matchingCount"],
+                "query": "live-overlay-staged-mrmm6s3u@example.com",
+                "parsed": {
+                  "field": "default",
+                  "match_all": "live-overlay-staged-mrmm6s3u@example.com"
+                },
+                "warnings": [
+                  {
+                    "field": "default",
+                    "message": "Input must use named search fields in this query.",
+                    "code": "missing_named_field"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2025-01/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "operationName": "CustomerOverlayCatalogHydrate",
+      "variables": {
+        "query": "tag:livehybridoverlaymrmm6s3u"
+      },
+      "query": "query CustomerOverlayCatalogHydrate($query: String) {\n  customers(first: 250, query: $query) {\n    nodes {\n      id\n      firstName\n      lastName\n      displayName\n      email\n      phone\n      legacyResourceId\n      locale\n      note\n      canDelete\n      verifiedEmail\n      dataSaleOptOut\n      taxExempt\n      taxExemptions\n      state\n      tags\n      numberOfOrders\n      createdAt\n      updatedAt\n      defaultEmailAddress {\n        emailAddress\n        marketingState\n        marketingOptInLevel\n        marketingUpdatedAt\n      }\n      defaultPhoneNumber {\n        phoneNumber\n        marketingState\n        marketingOptInLevel\n        marketingUpdatedAt\n        marketingCollectedFrom\n      }\n      emailMarketingConsent {\n        marketingState\n        marketingOptInLevel\n        consentUpdatedAt\n      }\n      defaultAddress {\n        id\n        firstName\n        lastName\n        address1\n        address2\n        city\n        company\n        province\n        provinceCode\n        country\n        countryCodeV2\n        zip\n        phone\n        name\n        formattedArea\n      }\n      addressesV2(first: 250) {\n        nodes {\n          id\n          firstName\n          lastName\n          address1\n          address2\n          city\n          company\n          province\n          provinceCode\n          country\n          countryCodeV2\n          zip\n          phone\n          name\n          formattedArea\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customers": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Customer/10964975419698",
+                  "firstName": "OverlayBasemrmm6s3u",
+                  "lastName": "Live",
+                  "displayName": "OverlayBasemrmm6s3u Live",
+                  "email": "live-overlay-base-mrmm6s3u@example.com",
+                  "phone": null,
+                  "legacyResourceId": "10964975419698",
+                  "locale": "en",
+                  "note": null,
+                  "canDelete": true,
+                  "verifiedEmail": true,
+                  "dataSaleOptOut": false,
+                  "taxExempt": false,
+                  "taxExemptions": [],
+                  "state": "DISABLED",
+                  "tags": ["livehybridoverlaymrmm6s3u"],
+                  "numberOfOrders": "0",
+                  "createdAt": "2026-07-15T21:50:57Z",
+                  "updatedAt": "2026-07-15T21:50:57Z",
+                  "defaultEmailAddress": {
+                    "emailAddress": "live-overlay-base-mrmm6s3u@example.com",
+                    "marketingState": "NOT_SUBSCRIBED",
+                    "marketingOptInLevel": "SINGLE_OPT_IN",
+                    "marketingUpdatedAt": null
+                  },
+                  "defaultPhoneNumber": null,
+                  "emailMarketingConsent": {
+                    "marketingState": "NOT_SUBSCRIBED",
+                    "marketingOptInLevel": "SINGLE_OPT_IN",
+                    "consentUpdatedAt": null
+                  },
+                  "defaultAddress": null,
+                  "addressesV2": {
+                    "nodes": []
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 178,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1979,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2025-01/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "operationName": "CustomerOverlayCatalogHydrate",
+      "variables": {
+        "query": "tag:livehybridoverlaymrmm6s3u"
+      },
+      "query": "query CustomerOverlayCatalogHydrate($query: String) {\n  customers(first: 250, query: $query) {\n    nodes {\n      id\n      firstName\n      lastName\n      displayName\n      email\n      phone\n      legacyResourceId\n      locale\n      note\n      canDelete\n      verifiedEmail\n      dataSaleOptOut\n      taxExempt\n      taxExemptions\n      state\n      tags\n      numberOfOrders\n      createdAt\n      updatedAt\n      defaultEmailAddress {\n        emailAddress\n        marketingState\n        marketingOptInLevel\n        marketingUpdatedAt\n      }\n      defaultPhoneNumber {\n        phoneNumber\n        marketingState\n        marketingOptInLevel\n        marketingUpdatedAt\n        marketingCollectedFrom\n      }\n      emailMarketingConsent {\n        marketingState\n        marketingOptInLevel\n        consentUpdatedAt\n      }\n      defaultAddress {\n        id\n        firstName\n        lastName\n        address1\n        address2\n        city\n        company\n        province\n        provinceCode\n        country\n        countryCodeV2\n        zip\n        phone\n        name\n        formattedArea\n      }\n      addressesV2(first: 250) {\n        nodes {\n          id\n          firstName\n          lastName\n          address1\n          address2\n          city\n          company\n          province\n          provinceCode\n          country\n          countryCodeV2\n          zip\n          phone\n          name\n          formattedArea\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customers": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Customer/10964975419698",
+                  "firstName": "OverlayBasemrmm6s3u",
+                  "lastName": "Live",
+                  "displayName": "OverlayBasemrmm6s3u Live",
+                  "email": "live-overlay-base-mrmm6s3u@example.com",
+                  "phone": null,
+                  "legacyResourceId": "10964975419698",
+                  "locale": "en",
+                  "note": null,
+                  "canDelete": true,
+                  "verifiedEmail": true,
+                  "dataSaleOptOut": false,
+                  "taxExempt": false,
+                  "taxExemptions": [],
+                  "state": "DISABLED",
+                  "tags": ["livehybridoverlaymrmm6s3u"],
+                  "numberOfOrders": "0",
+                  "createdAt": "2026-07-15T21:50:57Z",
+                  "updatedAt": "2026-07-15T21:50:57Z",
+                  "defaultEmailAddress": {
+                    "emailAddress": "live-overlay-base-mrmm6s3u@example.com",
+                    "marketingState": "NOT_SUBSCRIBED",
+                    "marketingOptInLevel": "SINGLE_OPT_IN",
+                    "marketingUpdatedAt": null
+                  },
+                  "defaultPhoneNumber": null,
+                  "emailMarketingConsent": {
+                    "marketingState": "NOT_SUBSCRIBED",
+                    "marketingOptInLevel": "SINGLE_OPT_IN",
+                    "consentUpdatedAt": null
+                  },
+                  "defaultAddress": null,
+                  "addressesV2": {
+                    "nodes": []
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 178,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1993,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2025-01/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "operationName": "CustomerOverlayCatalogHydrate",
+      "variables": {
+        "query": "live-overlay-staged-mrmm6s3u@example.com"
+      },
+      "query": "query CustomerOverlayCatalogHydrate($query: String) {\n  customers(first: 250, query: $query) {\n    nodes {\n      id\n      firstName\n      lastName\n      displayName\n      email\n      phone\n      legacyResourceId\n      locale\n      note\n      canDelete\n      verifiedEmail\n      dataSaleOptOut\n      taxExempt\n      taxExemptions\n      state\n      tags\n      numberOfOrders\n      createdAt\n      updatedAt\n      defaultEmailAddress {\n        emailAddress\n        marketingState\n        marketingOptInLevel\n        marketingUpdatedAt\n      }\n      defaultPhoneNumber {\n        phoneNumber\n        marketingState\n        marketingOptInLevel\n        marketingUpdatedAt\n        marketingCollectedFrom\n      }\n      emailMarketingConsent {\n        marketingState\n        marketingOptInLevel\n        consentUpdatedAt\n      }\n      defaultAddress {\n        id\n        firstName\n        lastName\n        address1\n        address2\n        city\n        company\n        province\n        provinceCode\n        country\n        countryCodeV2\n        zip\n        phone\n        name\n        formattedArea\n      }\n      addressesV2(first: 250) {\n        nodes {\n          id\n          firstName\n          lastName\n          address1\n          address2\n          city\n          company\n          province\n          provinceCode\n          country\n          countryCodeV2\n          zip\n          phone\n          name\n          formattedArea\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customers": {
+              "nodes": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 178,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/admin/api/2025-01/graphql.json",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "operationName": "CustomerOverlayCatalogHydrate",
+      "variables": {
+        "query": "live-overlay-staged-mrmm6s3u@example.com"
+      },
+      "query": "query CustomerOverlayCatalogHydrate($query: String) {\n  customers(first: 250, query: $query) {\n    nodes {\n      id\n      firstName\n      lastName\n      displayName\n      email\n      phone\n      legacyResourceId\n      locale\n      note\n      canDelete\n      verifiedEmail\n      dataSaleOptOut\n      taxExempt\n      taxExemptions\n      state\n      tags\n      numberOfOrders\n      createdAt\n      updatedAt\n      defaultEmailAddress {\n        emailAddress\n        marketingState\n        marketingOptInLevel\n        marketingUpdatedAt\n      }\n      defaultPhoneNumber {\n        phoneNumber\n        marketingState\n        marketingOptInLevel\n        marketingUpdatedAt\n        marketingCollectedFrom\n      }\n      emailMarketingConsent {\n        marketingState\n        marketingOptInLevel\n        consentUpdatedAt\n      }\n      defaultAddress {\n        id\n        firstName\n        lastName\n        address1\n        address2\n        city\n        company\n        province\n        provinceCode\n        country\n        countryCodeV2\n        zip\n        phone\n        name\n        formattedArea\n      }\n      addressesV2(first: 250) {\n        nodes {\n          id\n          firstName\n          lastName\n          address1\n          address2\n          city\n          company\n          province\n          provinceCode\n          country\n          countryCodeV2\n          zip\n          phone\n          name\n          formattedArea\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customers": {
+              "nodes": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 178,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

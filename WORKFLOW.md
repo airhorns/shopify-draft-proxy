@@ -116,6 +116,8 @@ Implementation guidance:
 - Add tests for every supported operation you touch.
 - Keep runtime behavior Shopify-like rather than papering over mismatches.
 - If live credentials are required beyond `.env.example`, only treat that as a blocker after exhausting local/snapshot/conformance-fixture paths documented in the repo.
+- Live-conformance credential topology is host-managed: shared grants live under `~/.shopify-draft-proxy/`, and a freshly-created Symphony workspace receives `SHOPIFY_CONFORMANCE_APP_ENV_PATH` in its root `.env`. Use `corepack pnpm conformance:probe` as the credential preflight; the canonical helper will use that path to refresh the shared Admin grant when needed.
+- Do not search the home directory broadly, copy app secrets between workspaces, or run `shopify app env pull` as normal workspace bootstrap. If the configured app-env path is absent or unreadable, record the precise host-configuration blocker after the probe. Never print `.env` contents, token suffixes, or Shopify CLI env-pull output.
 - If the ticket requires recording or re-recording conformance evidence and the
   live Shopify credential cannot be made valid in-session through the documented
   auth/probe paths, stop before code handoff: update the workpad with the

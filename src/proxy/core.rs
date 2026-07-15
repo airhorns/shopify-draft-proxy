@@ -500,6 +500,8 @@ impl DraftProxy {
                 "storefrontLocationOrder": self.store.base.storefront_locations.order.clone(),
                 "storefrontLocationCursors": self.store.base.storefront_location_cursors.clone(),
                 "storefrontPublicApiVersions": self.store.base.storefront_public_api_versions.clone(),
+                "storefrontMenus": self.store.base.storefront_menus.records.clone(),
+                "storefrontMenuOrder": self.store.base.storefront_menus.order.clone(),
                 "publicationIds": self.store.base.publication_ids.iter().cloned().collect::<Vec<_>>(),
                 "publicationCount": self.store.base.publication_count,
                 "availableLocales": available_locales,
@@ -1645,6 +1647,13 @@ impl DraftProxy {
             .and_then(Value::as_array)
             .cloned()
             .unwrap_or_default();
+        self.store.base.storefront_menus.replace_with_order(
+            value_map_from_json(state["baseState"].get("storefrontMenus")),
+            state["baseState"]
+                .get("storefrontMenuOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
         let base_delivery_profiles =
             value_map_from_json(state["baseState"].get("deliveryProfiles"));
         let base_delivery_profile_order = state["baseState"]

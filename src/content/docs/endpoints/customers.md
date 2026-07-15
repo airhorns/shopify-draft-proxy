@@ -79,6 +79,12 @@ Local staged mutations:
   identifier metafield when a valid CUSTOMER `id` definition exists. The
   metafields connection uses shared cursor windowing and honors `reverse`.
 - `customerByIdentifier(identifier:)` resolves from the same effective normalized customer graph as `customer(id:)` and `customers`, including staged customer creates/updates and hydrated live-hybrid customers.
+- In LiveHybrid mode, staged customer reads hydrate the relevant upstream/base
+  customer slice and overlay staged customer records instead of replacing the
+  live catalog with staged-only data. Staged records win by ID, customer
+  tombstones suppress matching upstream rows, singular/identifier misses can
+  still resolve from upstream, and list/count reads compute search, sort,
+  reverse, cursor windows, and count payloads from the effective customer set.
 - `Customer.orders` reads from the staged per-customer order index when local order writes or customer merge/order-customer changes affect the relationship. That staged connection applies the supported local order `query:`, `sortKey`, `reverse`, and cursor windowing before projection; hydrated inline order pages remain projected from their captured page when no staged order relationship exists.
 - For locally staged overlay reads, `customers(query:)` and `customersCount(query:)`
   share the same staged predicate semantics for the supported local search slice.

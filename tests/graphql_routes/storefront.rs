@@ -786,3 +786,346 @@ fn storefront_graphql_passthrough_does_not_enter_admin_staging_or_commit() {
     assert_eq!(commit.body["attempts"], json!([]));
     assert!(commit_requests.lock().unwrap().is_empty());
 }
+
+#[test]
+fn storefront_content_roots_project_staged_admin_content() {
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(|request| {
+        if request.path.starts_with("/api/") {
+            panic!("staged Storefront content should not call Storefront upstream");
+        }
+        Response {
+            status: 599,
+            headers: Default::default(),
+            body: json!({ "errors": [{ "message": "unexpected upstream call" }] }),
+        }
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageStorefrontContent($blog: BlogCreateInput!, $page: PageCreateInput!) {
+          madeBlog: blogCreate(blog: $blog) { blog { id handle title } userErrors { field message code } }
+          madePage: pageCreate(page: $page) { page { id handle title body bodySummary isPublished createdAt updatedAt } userErrors { field message code } }
+        }
+        "#,
+        json!({
+            "blog": { "title": "Storefront Content Blog", "handle": "storefront-content-blog" },
+            "page": { "title": "Storefront Content Page", "handle": "storefront-content-page", "body": "<p>Visible page body</p>", "isPublished": true }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["madeBlog"]["userErrors"], json!([]));
+    assert_eq!(create.body["data"]["madePage"]["userErrors"], json!([]));
+    let blog_id = create.body["data"]["madeBlog"]["blog"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let page_id = create.body["data"]["madePage"]["page"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let article = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageStorefrontArticle($article: ArticleCreateInput!) {
+          madeArticle: articleCreate(article: $article) {
+            article { id handle title body summary tags isPublished publishedAt author { name } blog { id handle title } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "article": {
+            "title": "Storefront Content Article",
+            "handle": "storefront-content-article",
+            "body": "<p>Visible article body</p>",
+            "summary": "Visible article summary",
+            "tags": ["sf-content", "read-after-write"],
+            "author": { "name": "Storefront Author" },
+            "blogId": blog_id,
+            "isPublished": true
+        }}),
+    ));
+    assert_eq!(article.status, 200);
+    assert_eq!(article.body["data"]["madeArticle"]["userErrors"], json!([]));
+    let article_id = article.body["data"]["madeArticle"]["article"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let storefront = proxy.process_request(storefront_graphql_request(
+        r#"
+        query StorefrontContentRead($blogHandle: String!, $pageId: ID!, $pageHandle: String!, $articleId: ID!, $articleHandle: String!) {
+          byId: article(id: $articleId) {
+            ...ArticleFields
+            blog {
+              id
+              handle
+              title
+              articleByHandle(handle: $articleHandle) { id title handle }
+              articles(first: 2, query: "tag:sf-content", sortKey: TITLE) {
+                nodes { id title handle }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+              authors { name }
+            }
+          }
+          allArticles: articles(first: 1, query: "author:Storefront", sortKey: TITLE) {
+            edges { cursor node { id title handle } }
+            nodes { id title }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          byBlog: blog(handle: $blogHandle) { id handle title }
+          oldBlog: blogByHandle(handle: $blogHandle) { id handle title }
+          blogs(first: 2, query: "handle:storefront-content-blog") { nodes { id handle title } }
+          byPage: page(id: $pageId) { id handle title body bodySummary seo { title description } }
+          oldPage: pageByHandle(handle: $pageHandle) { id handle title }
+          pages(first: 2, query: "title:Storefront") { nodes { id handle title } }
+          sitemap(type: PAGE) {
+            pagesCount { count precision }
+            resources(page: 1) { hasNextPage items { handle updatedAt ... on SitemapResource { title } } }
+          }
+        }
+
+        fragment ArticleFields on Article {
+          id
+          handle
+          title
+          content
+          contentHtml
+          excerpt
+          excerptHtml
+          tags
+          publishedAt
+          author { name }
+          authorV2 { name }
+          seo { title description }
+        }
+        "#,
+        json!({
+            "blogHandle": "storefront-content-blog",
+            "pageId": page_id,
+            "pageHandle": "storefront-content-page",
+            "articleId": article_id,
+            "articleHandle": "storefront-content-article"
+        }),
+    ));
+
+    assert_eq!(storefront.status, 200);
+    assert_eq!(storefront.body["errors"], Value::Null);
+    assert_eq!(storefront.body["data"]["byId"]["id"], json!(article_id));
+    assert_eq!(
+        storefront.body["data"]["byId"]["content"],
+        json!("Visible article body")
+    );
+    assert_eq!(
+        storefront.body["data"]["byId"]["contentHtml"],
+        json!("<p>Visible article body</p>")
+    );
+    assert_eq!(
+        storefront.body["data"]["byId"]["excerpt"],
+        json!("Visible article summary")
+    );
+    assert_eq!(
+        storefront.body["data"]["byId"]["blog"]["articleByHandle"]["id"],
+        json!(article_id)
+    );
+    assert_eq!(
+        storefront.body["data"]["allArticles"]["nodes"],
+        json!([{ "id": article_id, "title": "Storefront Content Article" }])
+    );
+    assert_eq!(storefront.body["data"]["byBlog"]["id"], json!(blog_id));
+    assert_eq!(storefront.body["data"]["oldBlog"]["id"], json!(blog_id));
+    assert_eq!(
+        storefront.body["data"]["blogs"]["nodes"][0]["handle"],
+        json!("storefront-content-blog")
+    );
+    assert_eq!(storefront.body["data"]["byPage"]["id"], json!(page_id));
+    assert_eq!(
+        storefront.body["data"]["byPage"]["bodySummary"],
+        json!("Visible page body")
+    );
+    assert_eq!(
+        storefront.body["data"]["oldPage"]["handle"],
+        json!("storefront-content-page")
+    );
+    assert_eq!(
+        storefront.body["data"]["sitemap"]["pagesCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        storefront.body["data"]["sitemap"]["resources"]["items"][0]["handle"],
+        json!("storefront-content-page")
+    );
+}
+
+#[test]
+fn storefront_content_visibility_delete_and_redirect_boundaries_use_staged_state() {
+    let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|_| panic!("snapshot Storefront content should stay local"));
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageStorefrontVisibility {
+          blogCreate(blog: { title: "Visibility Blog" }) { blog { id } userErrors { field message code } }
+          visible: pageCreate(page: { title: "Visible Storefront Page", body: "<p>visible</p>", isPublished: true }) { page { id handle } userErrors { field message code } }
+          hidden: pageCreate(page: { title: "Hidden Storefront Page", body: "<p>hidden</p>", isPublished: false }) { page { id handle } userErrors { field message code } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(create.status, 200);
+    let visible_page_id = create.body["data"]["visible"]["page"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let hidden_page_handle = create.body["data"]["hidden"]["page"]["handle"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let before_delete = proxy.process_request(storefront_graphql_request(
+        r#"
+        query StorefrontVisibility($visibleId: ID!, $hiddenHandle: String!) {
+          visible: page(id: $visibleId) { id handle title }
+          hidden: pageByHandle(handle: $hiddenHandle) { id handle title }
+          pages(first: 10) { nodes { id title } }
+        }
+        "#,
+        json!({ "visibleId": visible_page_id, "hiddenHandle": hidden_page_handle }),
+    ));
+    assert_eq!(
+        before_delete.body["data"]["visible"]["id"],
+        json!(visible_page_id)
+    );
+    assert_eq!(before_delete.body["data"]["hidden"], Value::Null);
+    assert_eq!(
+        before_delete.body["data"]["pages"]["nodes"],
+        json!([{ "id": visible_page_id, "title": "Visible Storefront Page" }])
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteVisiblePage($id: ID!) {
+          pageDelete(id: $id) { deletedPageId userErrors { field message code } }
+        }
+        "#,
+        json!({ "id": visible_page_id }),
+    ));
+    assert_eq!(
+        delete.body["data"]["pageDelete"]["deletedPageId"],
+        json!(visible_page_id)
+    );
+
+    let after_delete = proxy.process_request(storefront_graphql_request(
+        r#"
+        query StorefrontVisibilityAfterDelete($visibleId: ID!) {
+          visible: page(id: $visibleId) { id handle title }
+          pages(first: 10) { nodes { id title } pageInfo { hasNextPage hasPreviousPage } }
+          urlRedirects(first: 2, query: "path:/pages/old") {
+            nodes { id path target }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "visibleId": visible_page_id }),
+    ));
+    assert_eq!(after_delete.body["data"]["visible"], Value::Null);
+    assert_eq!(after_delete.body["data"]["pages"]["nodes"], json!([]));
+    assert_eq!(
+        after_delete.body["data"]["urlRedirects"]["nodes"],
+        json!([])
+    );
+}
+
+#[test]
+fn storefront_menu_projects_restored_captured_base_state_without_snapshot_fabrication() {
+    let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|_| panic!("snapshot Storefront menu should not call upstream"));
+
+    let empty = proxy.process_request(storefront_graphql_request(
+        r#"
+        query MissingMenu {
+          menu(handle: "main-menu") { id handle title itemsCount items { id title } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(empty.status, 200);
+    assert_eq!(empty.body["data"]["menu"], Value::Null);
+
+    restore_state_with(&mut proxy, |state| {
+        state["baseState"]["storefrontMenus"] = json!({
+            "gid://shopify/Menu/main": {
+                "id": "gid://shopify/Menu/main",
+                "handle": "main-menu",
+                "title": "Main menu",
+                "itemsCount": 1,
+                "items": [{
+                    "id": "gid://shopify/MenuItem/main-1",
+                    "title": "Visible page",
+                    "type": "PAGE",
+                    "url": "/pages/visible-page",
+                    "resourceId": "gid://shopify/Page/visible",
+                    "tags": [],
+                    "items": [],
+                    "resource": {
+                        "__typename": "Page",
+                        "id": "gid://shopify/Page/visible",
+                        "handle": "visible-page",
+                        "title": "Visible page"
+                    }
+                }]
+            }
+        });
+        state["baseState"]["storefrontMenuOrder"] = json!(["gid://shopify/Menu/main"]);
+    });
+
+    let response = proxy.process_request(storefront_graphql_request(
+        r#"
+        query CapturedMenu {
+          menu(handle: "main-menu") {
+            id
+            handle
+            title
+            itemsCount
+            items {
+              id
+              title
+              type
+              url
+              resourceId
+              tags
+              items { id title }
+              resource { __typename ... on Page { id handle title } }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body["data"]["menu"]["handle"], json!("main-menu"));
+    assert_eq!(response.body["data"]["menu"]["itemsCount"], json!(1));
+    assert_eq!(
+        response.body["data"]["menu"]["items"][0]["resource"],
+        json!({
+            "__typename": "Page",
+            "id": "gid://shopify/Page/visible",
+            "handle": "visible-page",
+            "title": "Visible page"
+        })
+    );
+}
+
+fn storefront_graphql_request(query: &str, variables: serde_json::Value) -> Request {
+    Request {
+        method: "POST".to_string(),
+        path: "/api/2026-04/graphql.json".to_string(),
+        headers: Default::default(),
+        body: json!({ "query": query, "variables": variables }).to_string(),
+    }
+}

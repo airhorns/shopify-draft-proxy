@@ -7043,6 +7043,33 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'The conformance shop enables the US/EN Storefront context; the default Storefront context remains CA/EN, so the context capture asserts country and market changes without requiring Admin setup.',
   },
   {
+    domain: 'storefront',
+    captureId: 'storefront-content-read-after-admin-setup',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-storefront-content-conformance.mts',
+    purpose:
+      'Authenticated Storefront API content evidence for article/blog/page read-after-Admin-setup, content connections, menu hydration, sitemap rows, and urlRedirects no-data behavior.',
+    requiredAuthScopes: [
+      'read_content',
+      'write_content',
+      'stored Storefront access token from corepack pnpm conformance:grant-storefront-token',
+    ],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/storefront/storefront-content-read-after-admin-setup.json',
+      'config/parity-specs/storefront/storefront-content-read-after-admin-setup.json',
+      'config/parity-requests/storefront/storefront-content-article-setup-admin.graphql',
+      'config/parity-requests/storefront/storefront-content-menu-hydrate.graphql',
+      'config/parity-requests/storefront/storefront-content-read-after-admin-setup.graphql',
+      'config/parity-requests/storefront/storefront-content-setup-admin.graphql',
+      'config/parity-requests/storefront/storefront-url-redirects-empty.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable blog, page, and article through Admin GraphQL setup calls; polls authenticated Storefront reads until visible; then deletes the article, page, and blog during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Menu evidence is read-only Storefront hydration from the conformance shop; Admin menu lifecycle remains out of scope for this recorder.',
+  },
+  {
     domain: 'online-store',
     captureId: 'storefront-shop-name-proxy-parity',
     scriptPath: 'scripts/capture-storefront-shop-name-proxy-conformance.mts',
@@ -13927,6 +13954,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/customers/customer-delete-shop-hydrate.graphql',
     ],
     cleanupBehavior: 'Creates disposable customers and deletes them in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
+    captureId: 'customer-live-hybrid-overlay',
+    scriptPath: 'scripts/capture-customer-live-hybrid-overlay-conformance.ts',
+    purpose:
+      'LiveHybrid customer overlay parity for a base upstream customer plus a locally staged customer across customer, customerByIdentifier, customers, and customersCount reads.',
+    requiredAuthScopes: ['read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-live-hybrid-overlay.json`,
+      'config/parity-specs/customers/customer-live-hybrid-overlay.json',
+      'config/parity-requests/customers/customer-live-hybrid-overlay-create.graphql',
+      'config/parity-requests/customers/customer-live-hybrid-overlay-read.graphql',
+      'config/parity-requests/customers/customer-live-hybrid-overlay-hydrate.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable base customer and one disposable staged-equivalent customer, records base-only upstream cassettes before the staged-equivalent exists, then deletes both customers.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
