@@ -33,6 +33,7 @@ export function parseJsonFileWithSchema<T>(filePath: string, schema: ZodType<T>)
 }
 
 export const graphqlVariablesSchema = z.record(z.string(), z.unknown());
+export const apiSurfaceSchema = z.enum(['admin', 'storefront']);
 
 export const operationRegistryEntrySchema = z.strictObject({
   name: z.string().min(1),
@@ -90,7 +91,7 @@ export const parityProxyRequestSpecSchema = z.strictObject({
   variablesPath: z.string().nullable().optional(),
   variablesCapturePath: z.string().nullable().optional(),
   variables: graphqlVariablesSchema.optional(),
-  apiSurface: z.enum(['admin', 'storefront']).optional(),
+  apiSurface: apiSurfaceSchema.optional(),
   apiVersion: z
     .string()
     .regex(/^\d{4}-\d{2}$/u)
@@ -99,6 +100,30 @@ export const parityProxyRequestSpecSchema = z.strictObject({
   waitBeforeMs: z.number().int().nonnegative().optional(),
 });
 export type ProxyRequestSpec = z.infer<typeof parityProxyRequestSpecSchema>;
+
+export const recordedUpstreamCallSchema = z
+  .object({
+    method: z.string().min(1).optional(),
+    apiSurface: apiSurfaceSchema.optional(),
+    apiVersion: z
+      .string()
+      .regex(/^\d{4}-\d{2}$/u)
+      .optional(),
+    path: z.string().min(1).optional(),
+    endpoint: z.string().url().optional(),
+    headers: z.record(z.string(), z.string()).optional(),
+    operationName: z.string().optional(),
+    query: z.string().optional(),
+    variables: z.unknown().optional(),
+    response: z
+      .strictObject({
+        status: z.number().int().optional(),
+        body: z.unknown().optional(),
+      })
+      .optional(),
+  })
+  .passthrough();
+export type RecordedUpstreamCallSchema = z.infer<typeof recordedUpstreamCallSchema>;
 
 export const parityProxyUploadSpecSchema = z.strictObject({
   method: z.string().min(1),

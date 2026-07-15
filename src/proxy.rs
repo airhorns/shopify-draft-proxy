@@ -2106,6 +2106,7 @@ pub struct DraftProxy {
     last_mutation_timestamp: Option<time::OffsetDateTime>,
     commit_transport: CommitTransport,
     upstream_transport: UpstreamTransport,
+    storefront_upstream_transport: UpstreamTransport,
 }
 
 mod admin_shipping_gift_cards;

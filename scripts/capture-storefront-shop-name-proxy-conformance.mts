@@ -4,13 +4,16 @@ import 'dotenv/config';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import { runStorefrontGraphqlRequest } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
+import { buildStorefrontRequestHeaders, getStoredStorefrontAccessToken } from './shopify-conformance-auth.mjs';
 
 const scenarioId = 'storefront-shop-name-proxy-parity';
 const operationName = 'StorefrontShopNameProxyParity';
 const { storeDomain, apiVersion } = readConformanceScriptConfig({
   defaultApiVersion: '2026-04',
   exitOnMissing: true,
+  requireAdminOrigin: false,
 });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'online-store');
 const outputPath = path.join(outputDir, `${scenarioId}.json`);
@@ -18,29 +21,43 @@ const documentPath = path.join('config', 'parity-requests', 'online-store', 'sto
 const document = await readFile(documentPath, 'utf8');
 const variables: Record<string, never> = {};
 const endpoint = `https://${storeDomain}/api/${apiVersion}/graphql.json`;
-
-const response = await fetch(endpoint, {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({ query: document, variables }),
-});
-const responseText = await response.text();
-let body: unknown = responseText;
-try {
-  body = responseText.length > 0 ? (JSON.parse(responseText) as unknown) : null;
-} catch {
-  // Keep the raw text body; the fixture should represent the exact Storefront response shape.
+const pathName = `/api/${apiVersion}/graphql.json`;
+const storedAuth = await getStoredStorefrontAccessToken();
+if (storedAuth.shop && storedAuth.shop !== storeDomain) {
+  throw new Error(
+    `Stored Storefront token is for ${storedAuth.shop}, but SHOPIFY_CONFORMANCE_STORE_DOMAIN is ${storeDomain}. ` +
+      'Run `corepack pnpm conformance:grant-storefront-token` for the target store.',
+  );
 }
 
+const authHeaders = buildStorefrontRequestHeaders(storedAuth.storefront_access_token);
+const result = await runStorefrontGraphqlRequest(
+  {
+    storeOrigin: `https://${storeDomain}`,
+    apiVersion,
+    storefrontAccessToken: storedAuth.storefront_access_token,
+  },
+  document,
+  variables,
+);
+const redactedHeaders = Object.fromEntries(
+  Object.keys(authHeaders).map((name) => [name, '<redacted:storefront-access-token>']),
+);
+
 const recordedRequest = {
+  method: 'POST',
+  apiSurface: 'storefront',
+  apiVersion,
+  path: pathName,
+  endpoint,
+  authMode: 'storefront-access-token',
+  headers: redactedHeaders,
   operationName,
   query: document,
   variables,
   response: {
-    status: response.status,
-    body,
+    status: result.status,
+    body: result.payload,
   },
 };
 
@@ -55,7 +72,13 @@ await writeFile(
       apiVersion,
       apiSurface: 'storefront',
       endpoint,
-      authMode: 'no-storefront-token',
+      authMode: 'storefront-access-token',
+      storefrontToken: {
+        id: storedAuth.storefront_token_id || '<unknown>',
+        title: storedAuth.storefront_token_title || '<unknown>',
+        accessScopes: storedAuth.storefront_access_scopes,
+        obtainedAt: storedAuth.obtained_at || '<unknown>',
+      },
       primary: recordedRequest,
       upstreamCalls: [recordedRequest],
     },
@@ -66,4 +89,4 @@ await writeFile(
 );
 
 console.log(`Wrote ${outputPath}`);
-console.log(`Captured Storefront status ${response.status} for ${operationName}`);
+console.log(`Captured authenticated Storefront status ${result.status} for ${operationName}`);

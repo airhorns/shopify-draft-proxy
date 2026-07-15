@@ -12,8 +12,11 @@ import {
   type ReadMode,
 } from '../js/src/index.js';
 import {
+  apiSurfaceFromGraphqlPath,
+  type ApiSurface,
+  type OutgoingGraphqlRequest,
   type RecordedUpstreamCall,
-  recordedCallMatchesBody,
+  recordedCallMatchesRequest,
   formatRecordedCallMismatch,
   stableJson,
 } from './parity-cassette.js';
@@ -34,7 +37,7 @@ type ProxyRequestSpec = {
   variables?: Record<string, unknown>;
   variablesPath?: string;
   variablesCapturePath?: string;
-  apiSurface?: 'admin' | 'storefront';
+  apiSurface?: ApiSurface;
   apiVersion?: string;
   headers?: Record<string, string>;
 };
@@ -486,12 +489,14 @@ async function hydrateInventoryNodes(
     variables: Record<string, unknown>;
     headers: Record<string, string>;
     path: string;
+    apiSurface: ApiSurface;
   },
 ): Promise<void> {
   const ids = [...collectHydratableInventoryIds(request.variables)].sort();
   if (ids.length === 0) return;
   await sendProxyRequest(proxy, {
     path: request.path,
+    apiSurface: request.apiSurface,
     headers: request.headers,
     query:
       'query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on InventoryItem { id tracked requiresShipping countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode measurement { weight { value unit } } variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: ["available", "on_hand", "committed", "incoming", "reserved"]) { name quantity updatedAt } } } } ... on InventoryLevel { id isActive location { id name } quantities(names: ["available", "on_hand", "committed", "incoming", "reserved"]) { name quantity updatedAt } item { id tracked requiresShipping variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: ["available", "on_hand", "committed", "incoming", "reserved"]) { name quantity updatedAt } } } } } } }',
@@ -516,6 +521,7 @@ async function hydrateCapturedProductDomainNodes(
   const query = await readFile(productsHydrateNodesObservationPath, 'utf8');
   const hydrateRequest: LoadedProxyRequest = {
     path: request.path,
+    apiSurface: request.apiSurface,
     headers: request.headers,
     query,
     variables: { ids },
@@ -554,6 +560,7 @@ async function loadRequest(
   variables: Record<string, unknown>;
   headers: Record<string, string>;
   path: string;
+  apiSurface: ApiSurface;
 } | null> {
   if (!request || (!request.documentPath && !request.documentCapturePath)) return null;
   let query: string;
@@ -591,17 +598,27 @@ async function loadRequest(
     string,
     unknown
   >;
+  const apiSurface = request.apiSurface ?? 'admin';
+  const headers = { ...request.headers };
+  if (apiSurface === 'storefront') {
+    const hasStorefrontToken = Object.keys(headers).some((name) => /storefront.*token/iu.test(name));
+    if (!hasStorefrontToken) {
+      headers['X-Shopify-Storefront-Access-Token'] = '<redacted:storefront-access-token>';
+    }
+  }
   const loadedRequest: {
     query: string;
     operationName?: string | null;
     variables: Record<string, unknown>;
     headers: Record<string, string>;
     path: string;
+    apiSurface: ApiSurface;
   } = {
     query,
     variables,
-    headers: request.headers ?? {},
+    headers,
     path: proxyGraphqlPath(request),
+    apiSurface,
   };
   if (operationName !== undefined) loadedRequest.operationName = operationName;
   return loadedRequest;
@@ -613,6 +630,7 @@ type LoadedProxyRequest = {
   variables: Record<string, unknown>;
   headers: Record<string, string>;
   path: string;
+  apiSurface: ApiSurface;
 };
 
 type CassetteServer = {
@@ -641,8 +659,16 @@ async function startCassetteServer(): Promise<CassetteServer> {
           /* diagnostic only */
         }
       }
+      const requestPath = request.url ? new URL(request.url, 'http://127.0.0.1').pathname : '/';
+      const outgoingRequest: OutgoingGraphqlRequest = {
+        method: request.method ?? 'GET',
+        path: requestPath,
+        body,
+      };
+      const inferredApiSurface = apiSurfaceFromGraphqlPath(requestPath);
+      if (inferredApiSurface !== null) outgoingRequest.apiSurface = inferredApiSurface;
       const matchedIndex = calls.findIndex(
-        (call, callIndex) => !consumedCalls.has(callIndex) && recordedCallMatchesBody(call, body),
+        (call, callIndex) => !consumedCalls.has(callIndex) && recordedCallMatchesRequest(call, outgoingRequest),
       );
       if (matchedIndex >= 0) {
         const call = calls[matchedIndex];
@@ -661,7 +687,7 @@ async function startCassetteServer(): Promise<CassetteServer> {
         response.end(JSON.stringify(responseBody));
         return;
       }
-      if (fallbackResponse !== null && recordedCallMatchesBody(fallbackResponse.call, body)) {
+      if (fallbackResponse !== null && recordedCallMatchesRequest(fallbackResponse.call, outgoingRequest)) {
         fallbackCount += 1;
         response.statusCode = fallbackResponse.response.status;
         response.setHeader('content-type', 'application/json');
@@ -670,7 +696,9 @@ async function startCassetteServer(): Promise<CassetteServer> {
       }
       response.statusCode = 500;
       response.setHeader('content-type', 'application/json');
-      response.end(JSON.stringify({ errors: [{ message: formatRecordedCallMismatch(body, calls, consumedCalls) }] }));
+      response.end(
+        JSON.stringify({ errors: [{ message: formatRecordedCallMismatch(outgoingRequest, calls, consumedCalls) }] }),
+      );
     });
   });
   await new Promise<void>((resolveListen) => server.listen(0, '127.0.0.1', resolveListen));
@@ -686,7 +714,18 @@ async function startCassetteServer(): Promise<CassetteServer> {
     },
     setFallbackResponse: (response: ProxyResponse | null, request?: LoadedProxyRequest | null) => {
       fallbackResponse =
-        response && request ? { response, call: { query: request.query, variables: request.variables } } : null;
+        response && request
+          ? {
+              response,
+              call: {
+                method: 'POST',
+                path: request.path,
+                apiSurface: request.apiSurface,
+                query: request.query,
+                variables: request.variables,
+              },
+            }
+          : null;
     },
     consumed: () => consumedCalls.size,
     expected: () => calls.length + fallbackCount,

@@ -62,6 +62,12 @@ corepack pnpm parity:record --all
 
 The parity recorder boots a Rust `DraftProxy` in live-hybrid mode against real Shopify, plays the spec's primary and target requests through it, intercepts every upstream call the operation handlers issue, and writes the result back into the capture file's `upstreamCalls` field. CI never re-records — that is a human/agent-driven action backed by the same OAuth credentials the capture scripts use.
 
+Every recorded GraphQL request should identify its API surface. Admin calls use
+`apiSurface: "admin"` and `/admin/api/<version>/graphql.json`; Storefront calls
+use `apiSurface: "storefront"` and `/api/<version>/graphql.json`. Storefront
+fixtures may record auth mode and redacted token-header metadata, but must never
+store live token values.
+
 See `docs/parity-runner.md` for the cassette schema and parity model.
 Never hand-author `seedX` keys in capture files; that pattern is
 banned.

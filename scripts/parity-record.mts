@@ -32,6 +32,11 @@ const repoRoot = resolve(here, '..');
 const shimEntrypoint = resolve(repoRoot, 'js/src/index.ts');
 
 type RecordedCall = {
+  method?: string;
+  apiSurface?: 'admin' | 'storefront';
+  apiVersion?: string;
+  path?: string;
+  headers?: Record<string, string>;
   operationName: string;
   variables: unknown;
   query: string;
@@ -154,6 +159,7 @@ function loadDocumentVariablesAndHeaders(
   variables: Record<string, unknown>;
   headers: Record<string, string>;
   apiVersion?: string;
+  apiSurface: 'admin' | 'storefront';
   path: string;
 } | null {
   if (!request || (!request.documentPath && !request.documentCapturePath)) return null;
@@ -184,11 +190,21 @@ function loadDocumentVariablesAndHeaders(
   } else if (request.variables) {
     variables = request.variables;
   }
+  const apiSurface = request.apiSurface ?? 'admin';
+  const headers = { ...request.headers };
+  if (apiSurface === 'storefront') {
+    const hasStorefrontToken = Object.keys(headers).some((name) => /storefront.*token/iu.test(name));
+    if (!hasStorefrontToken) {
+      headers['X-Shopify-Storefront-Access-Token'] = '<redacted:storefront-access-token>';
+    }
+  }
+
   return {
     document,
     variables,
-    headers: request.headers ?? {},
+    headers,
     apiVersion: request.apiVersion,
+    apiSurface,
     path: proxyGraphqlPath(request, defaultApiVersion),
   };
 }

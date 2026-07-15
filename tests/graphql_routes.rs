@@ -30,7 +30,7 @@ mod products_intro;
 mod products_saved_searches;
 #[path = "graphql_routes/selling_plans.rs"]
 mod selling_plans;
-#[path = "graphql_routes/storefront.rs"]
-mod storefront;
 #[path = "graphql_routes/store_state.rs"]
 mod store_state;
+#[path = "graphql_routes/storefront.rs"]
+mod storefront;

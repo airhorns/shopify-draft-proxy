@@ -207,6 +207,7 @@ Effective reads merge base state and staged state through shared Store helpers, 
 The Rust HTTP bridge serves:
 
 - `POST /admin/api/:version/graphql.json`
+- `POST /api/:version/graphql.json` for Storefront GraphQL passthrough only
 - `GET /__meta/health`
 - `GET /__meta/config`
 - `GET /__meta/log`
@@ -218,7 +219,10 @@ The Rust HTTP bridge serves:
 - `POST` / `PUT /staged-uploads/:target/:filename`
 - `GET /__meta/bulk-operations/:encoded_id/result.jsonl`
 
-Keep Shopify-like versioned Admin API paths even when tests use local/snapshot mode.
+Keep Shopify-like versioned Admin API paths even when tests use local/snapshot
+mode. Storefront GraphQL traffic stays on the Storefront route, forwards through
+the upstream transport with Storefront headers preserved, and does not enter
+Admin local dispatch or staged commit replay.
 
 ## Development rules
 

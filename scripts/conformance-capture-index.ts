@@ -7021,11 +7021,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   {
     domain: 'online-store',
     captureId: 'storefront-shop-name-proxy-parity',
-    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-storefront-shop-name-proxy-conformance.mts',
     purpose:
-      "Storefront API /api/<version>/graphql.json passthrough recording for a safe shop-name query; current conformance shop captures Shopify's locked Online Store channel error without a Storefront token.",
-    requiredAuthScopes: ['none: no-token Storefront locked-channel probe'],
+      'Authenticated Storefront API /api/<version>/graphql.json passthrough recording for a safe shop-name query, with non-secret auth-mode metadata and redacted token headers.',
+    requiredAuthScopes: ['stored Storefront access token from corepack pnpm conformance:grant-storefront-token'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}storefront-shop-name-proxy-parity.json`,
       'config/parity-specs/online-store/storefront-shop-name-proxy-parity.json',
