@@ -116,6 +116,10 @@ Snapshot/local empty reads return Shopify-like `null` for missing singular roots
 
 The local model preserves original raw mutations in the meta log for eventual commit replay. Sensitive generated storefront token values are not exposed through `GET /__meta/state`; the original request body is still retained so commit replay can send the merchant-authored mutation in original order.
 
+### Storefront API conformance credentials
+
+Storefront API live recording uses the separate public sales-channel app at `shopify-conformance-app/hermes-conformance-storefront/`; it does not replace the Admin conformance app. The app's `channel_config` extension and unauthenticated Storefront scopes are deployed before authorizing it on the disposable shop. The paired local-only credentials are kept outside the repository at `~/.shopify-draft-proxy/conformance-storefront-admin-auth.json` (the app's Admin credential) and `~/.shopify-draft-proxy/conformance-storefront-auth.json` (the provisioned Storefront token). Generate/complete its dedicated grant with `conformance:storefront-auth-link` and `conformance:exchange-storefront-auth`, provision the token with `conformance:grant-storefront-token`, and validate it using `conformance:probe-storefront`. The probe performs a real Storefront query for product IDs, titles, and tags; it is credential validation only and does not count as checked-in Shopify parity evidence.
+
 ### Captured quirks
 
 The 2025-01 live captures showed `comment(id:)` with an unknown synthetic ID, and with a just-destroyed comment ID after `commentDelete`, returning a Shopify internal error, while unknown-id `commentApprove`, `commentSpam`, `commentNotSpam`, and `commentDelete` returned normal `userErrors` with `field: ["id"]` and message `Comment does not exist`. The proxy does not emulate the internal-error branch for local snapshot reads; local missing comments return `null` to preserve stable no-data behavior.
