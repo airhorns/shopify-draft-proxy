@@ -494,6 +494,125 @@ impl DraftProxy {
         )
     }
 
+    /// Renders the session's staged, not-yet-live products (`staged_products`)
+    /// as a `products` connection value shaped by `field`'s selection and
+    /// arguments — search `query:`, `sortKey`, `reverse`, and `first/after`
+    /// pagination — reusing the exact same overlay node rendering a snapshot read
+    /// uses. Used to splice staged creates into a live-hybrid catalog page: those
+    /// products have no live counterpart, so the upstream page alone omits them
+    /// and a read-after-write would wrongly report them missing. Only the `nodes`
+    /// and `edges` arrays of the returned value are spliced into the upstream
+    /// connection by the caller; the local `pageInfo`/`totalCount` describe the
+    /// staged subset alone and are not authoritative for the merged page.
+    pub(in crate::proxy) fn staged_products_overlay_connection(
+        &self,
+        field: &RootFieldSelection,
+        staged_products: Vec<ProductRecord>,
+    ) -> Value {
+        selected_staged_connection_with_args(
+            staged_products,
+            &field.arguments,
+            &field.selection,
+            |product, query| self.product_search_decision(product, query),
+            product_staged_sort_key,
+            |product, selections| {
+                let variants = self.store.product_variants_for_product(&product.id);
+                self.product_owner_json_with_store_currency(product, &variants, selections)
+            },
+            |product| product_cursor(product).to_string(),
+        )
+    }
+
+    /// Count of staged, not-yet-live products matching `field`'s search `query:`
+    /// (pre-pagination, matching Shopify's `productsCount`), added to the upstream
+    /// live count when overlaying a live-hybrid `productsCount` read.
+    pub(in crate::proxy) fn staged_products_overlay_match_count(
+        &self,
+        field: &RootFieldSelection,
+        staged_products: Vec<ProductRecord>,
+    ) -> usize {
+        staged_connection_query(
+            staged_products,
+            &field.arguments,
+            |product, query| self.product_search_decision(product, query),
+            product_staged_sort_key,
+            |product| product_cursor(product).to_string(),
+        )
+        .total_count
+    }
+
+    /// Replaces upstream `products` connection items whose id matches a product
+    /// this session updated (`updated`) with that product's staged render, so a
+    /// live-hybrid page reflects the edited fields. Only items already present
+    /// upstream are replaced — an update never injects a row the live page did not
+    /// return — and item order, cursors, and `pageInfo` stay the upstream page's.
+    /// Each node is rendered against the field's own `nodes` / `edges { node }`
+    /// selection using the same product renderer a snapshot read uses.
+    pub(in crate::proxy) fn overlay_updated_products_onto_connection(
+        &self,
+        connection: &mut Value,
+        field: &RootFieldSelection,
+        updated: &[ProductRecord],
+    ) {
+        if updated.is_empty() {
+            return;
+        }
+        let by_id: BTreeMap<&str, &ProductRecord> = updated
+            .iter()
+            .map(|product| (product.id.as_str(), product))
+            .collect();
+        let Some(connection) = connection.as_object_mut() else {
+            return;
+        };
+        for selection in &field.selection {
+            let is_edges = match selection.name.as_str() {
+                "nodes" => false,
+                "edges" => true,
+                _ => continue,
+            };
+            let node_selection = if is_edges {
+                nested_selected_fields(&field.selection, &["edges", "node"])
+            } else {
+                nested_selected_fields(&field.selection, &["nodes"])
+            };
+            let Some(items) = connection
+                .get_mut(selection.response_key.as_str())
+                .and_then(Value::as_array_mut)
+            else {
+                continue;
+            };
+            for item in items.iter_mut() {
+                let node_ref = if is_edges {
+                    item.get("node")
+                } else {
+                    Some(&*item)
+                };
+                let Some(id) = node_ref
+                    .and_then(|node| node.get("id"))
+                    .and_then(Value::as_str)
+                else {
+                    continue;
+                };
+                let Some(product) = by_id.get(id).copied() else {
+                    continue;
+                };
+                let variants = self.store.product_variants_for_product(&product.id);
+                let node = self.product_owner_json_with_store_currency(
+                    product,
+                    &variants,
+                    &node_selection,
+                );
+                if is_edges {
+                    if let Some(object) = item.as_object_mut() {
+                        object.insert("node".to_string(), node);
+                    }
+                } else {
+                    *item = node;
+                }
+            }
+        }
+    }
+
     pub(in crate::proxy) fn products_count_field(&self, field: &RootFieldSelection) -> Value {
         let count = if field.arguments.contains_key("query") {
             staged_connection_query(

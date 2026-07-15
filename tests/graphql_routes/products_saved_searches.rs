@@ -10275,6 +10275,323 @@ fn variant_price_catalog_search_forwards_to_upstream() {
     assert_eq!(*calls.lock().unwrap(), 1);
 }
 
+// A live-hybrid catalog read forwards upstream for the authoritative live set,
+// but a product staged (created) in this session has no live row yet, so it must
+// be overlaid onto the upstream page — otherwise a read-after-write reports the
+// just-created product as missing. Regression guard for the draft read-after-write
+// break introduced when catalog reads began forwarding verbatim.
+#[test]
+fn live_hybrid_catalog_read_overlays_staged_created_products() {
+    let upstream = json!({
+        "data": {
+            "products": {
+                "nodes": [
+                    { "id": "gid://shopify/Product/live-1", "title": "Live Widget" }
+                ]
+            },
+            "productsCount": { "count": 1, "precision": "EXACT" }
+        }
+    });
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream = upstream.clone();
+        move |_request| Response {
+            status: 200,
+            headers: Default::default(),
+            body: upstream.clone(),
+        }
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateStagedCatalogProduct($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id title status }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "product": { "title": "Sample Product 10", "status": "DRAFT" } }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let staged_id = create.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(
+        staged_id.contains("shopify-draft-proxy=synthetic"),
+        "create stages a synthetic product, not a live write: {staged_id}"
+    );
+
+    // A plain catalog list must surface both the authoritative live product and
+    // the staged create, and the count must include the staged create.
+    let list = proxy.process_request(json_graphql_request(
+        r#"
+        query CatalogList {
+          products(first: 50) { nodes { id title } }
+          productsCount { count precision }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(list.status, 200);
+    let list_titles = product_node_titles(&list.body["data"]["products"]);
+    assert!(
+        list_titles.contains(&"Live Widget".to_string()),
+        "live products are still returned: {list_titles:?}"
+    );
+    assert!(
+        list_titles.contains(&"Sample Product 10".to_string()),
+        "staged create is overlaid onto the live catalog page: {list_titles:?}"
+    );
+    assert_eq!(
+        list.body["data"]["productsCount"]["count"],
+        json!(2),
+        "productsCount includes the staged create"
+    );
+    assert_eq!(
+        list.body["data"]["productsCount"]["precision"],
+        json!("EXACT"),
+        "upstream precision is preserved"
+    );
+
+    // A title search that matches the staged create finds it.
+    let matching = proxy.process_request(json_graphql_request(
+        r#"
+        query CatalogSearch($q: String!) {
+          products(first: 50, query: $q) { nodes { id title } }
+        }
+        "#,
+        json!({ "q": "title:Sample Product 10" }),
+    ));
+    assert_eq!(matching.status, 200);
+    assert!(
+        product_node_titles(&matching.body["data"]["products"])
+            .contains(&"Sample Product 10".to_string()),
+        "a matching title search surfaces the staged create"
+    );
+
+    // A search that does not match the staged create must not fabricate it — the
+    // staged overlay honors the same search predicate as a local read.
+    let non_matching = proxy.process_request(json_graphql_request(
+        r#"
+        query CatalogSearchMiss($q: String!) {
+          products(first: 50, query: $q) { nodes { id title } }
+        }
+        "#,
+        json!({ "q": "title:Totally Different Name" }),
+    ));
+    assert_eq!(non_matching.status, 200);
+    assert!(
+        !product_node_titles(&non_matching.body["data"]["products"])
+            .contains(&"Sample Product 10".to_string()),
+        "a non-matching search does not inject the staged create"
+    );
+}
+
+// A product deleted in this session is still live upstream, so a live-hybrid
+// catalog read must drop the tombstoned row from the upstream page.
+#[test]
+fn live_hybrid_catalog_read_drops_staged_deleted_products() {
+    let upstream = json!({
+        "data": {
+            "products": {
+                "nodes": [
+                    { "id": "gid://shopify/Product/live-1", "title": "Live Widget" },
+                    { "id": "gid://shopify/Product/live-2", "title": "Keeper Widget" }
+                ]
+            }
+        }
+    });
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![seed_product("gid://shopify/Product/live-1")])
+        .with_upstream_transport({
+            let upstream = upstream.clone();
+            move |_request| Response {
+                status: 200,
+                headers: Default::default(),
+                body: upstream.clone(),
+            }
+        });
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteStagedCatalogProduct($input: ProductDeleteInput!) {
+          productDelete(input: $input) {
+            deletedProductId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": "gid://shopify/Product/live-1" } }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["productDelete"]["userErrors"],
+        json!([])
+    );
+
+    let list = proxy.process_request(json_graphql_request(
+        r#"
+        query CatalogAfterDelete {
+          products(first: 50) { nodes { id title } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(list.status, 200);
+    let titles = product_node_titles(&list.body["data"]["products"]);
+    assert!(
+        !titles.contains(&"Live Widget".to_string()),
+        "the tombstoned product is dropped from the live catalog page: {titles:?}"
+    );
+    assert!(
+        titles.contains(&"Keeper Widget".to_string()),
+        "other live products are unaffected: {titles:?}"
+    );
+}
+
+// A product updated in this session is still returned by the live catalog page,
+// but carrying its stale pre-edit fields; a live-hybrid read must re-render that
+// upstream row from the staged update so the edited fields show.
+#[test]
+fn live_hybrid_catalog_read_overlays_staged_updated_products() {
+    let upstream = json!({
+        "data": {
+            "products": {
+                "nodes": [
+                    { "id": "gid://shopify/Product/live-1", "title": "Stale Title" },
+                    { "id": "gid://shopify/Product/live-2", "title": "Untouched Widget" }
+                ]
+            }
+        }
+    });
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![seed_product("gid://shopify/Product/live-1")])
+        .with_upstream_transport({
+            let upstream = upstream.clone();
+            move |_request| Response {
+                status: 200,
+                headers: Default::default(),
+                body: upstream.clone(),
+            }
+        });
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateStagedCatalogProduct($product: ProductUpdateInput!) {
+          productUpdate(product: $product) {
+            product { id title }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "product": { "id": "gid://shopify/Product/live-1", "title": "Fresh Title" } }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["productUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let list = proxy.process_request(json_graphql_request(
+        r#"
+        query CatalogAfterUpdate {
+          products(first: 50) { nodes { id title } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(list.status, 200);
+    let titles = product_node_titles(&list.body["data"]["products"]);
+    assert!(
+        titles.contains(&"Fresh Title".to_string()),
+        "the updated product's edited fields are re-rendered onto the live page: {titles:?}"
+    );
+    assert!(
+        !titles.contains(&"Stale Title".to_string()),
+        "the stale upstream fields are replaced, not kept: {titles:?}"
+    );
+    assert!(
+        titles.contains(&"Untouched Widget".to_string()),
+        "other live products pass through unchanged: {titles:?}"
+    );
+}
+
+// A live product deleted this session was counted in the upstream productsCount,
+// so a query-less count must subtract it — mirroring the connection overlay that
+// drops the tombstoned row.
+#[test]
+fn live_hybrid_catalog_count_subtracts_staged_deletes() {
+    let upstream = json!({
+        "data": {
+            "productsCount": { "count": 3, "precision": "EXACT" }
+        }
+    });
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![seed_product("gid://shopify/Product/live-1")])
+        .with_upstream_transport({
+            let upstream = upstream.clone();
+            move |_request| Response {
+                status: 200,
+                headers: Default::default(),
+                body: upstream.clone(),
+            }
+        });
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteStagedCatalogProduct($input: ProductDeleteInput!) {
+          productDelete(input: $input) {
+            deletedProductId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": "gid://shopify/Product/live-1" } }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["productDelete"]["userErrors"],
+        json!([])
+    );
+
+    let count = proxy.process_request(json_graphql_request(
+        r#"
+        query CountAfterDelete {
+          productsCount { count precision }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(count.status, 200);
+    assert_eq!(
+        count.body["data"]["productsCount"]["count"],
+        json!(2),
+        "a query-less count subtracts the deleted live product"
+    );
+    assert_eq!(
+        count.body["data"]["productsCount"]["precision"],
+        json!("EXACT"),
+        "upstream precision is preserved"
+    );
+}
+
+fn product_node_titles(connection: &Value) -> Vec<String> {
+    connection["nodes"]
+        .as_array()
+        .map(|nodes| {
+            nodes
+                .iter()
+                .filter_map(|node| node["title"].as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 #[test]
 fn products_connection_sorts_filtered_lowercase_status_queries_before_cursor_windows() {
     let mut zulu = seed_product("gid://shopify/Product/30");

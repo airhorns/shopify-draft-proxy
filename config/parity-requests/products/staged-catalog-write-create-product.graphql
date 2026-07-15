@@ -1,0 +1,16 @@
+mutation StagedCatalogWriteCreateProduct($product: ProductCreateInput!) {
+  productCreate(product: $product) {
+    product {
+      id
+      title
+      handle
+      status
+      vendor
+      productType
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

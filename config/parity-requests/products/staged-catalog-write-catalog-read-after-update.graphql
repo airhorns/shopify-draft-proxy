@@ -1,0 +1,14 @@
+query StagedCatalogWriteCatalogReadAfterUpdate($first: Int!) {
+  productsCount {
+    count
+    precision
+  }
+  products(first: $first, sortKey: UPDATED_AT, reverse: true) {
+    nodes {
+      id
+      title
+      handle
+      status
+    }
+  }
+}

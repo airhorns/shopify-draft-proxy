@@ -1,0 +1,2170 @@
+{
+  "scenarioId": "staged-catalog-write-overlay-read",
+  "capturedAt": "2026-07-06T15:23:59.226Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "createdProduct": {
+    "id": "gid://shopify/Product/10232875385138",
+    "title": "Staged Catalog Write 1783351437828",
+    "handle": "staged-catalog-write-1783351437828",
+    "status": "ACTIVE",
+    "vendor": "Conformance",
+    "productType": "Overlay"
+  },
+  "updatedTitle": "Staged Catalog Write Updated 1783351437828",
+  "create": {
+    "query": "mutation StagedCatalogWriteCreateProduct($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      handle\n      status\n      vendor\n      productType\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "product": {
+        "title": "Staged Catalog Write 1783351437828",
+        "status": "ACTIVE",
+        "vendor": "Conformance",
+        "productType": "Overlay"
+      }
+    },
+    "response": {
+      "data": {
+        "productCreate": {
+          "product": {
+            "id": "gid://shopify/Product/10232875385138",
+            "title": "Staged Catalog Write 1783351437828",
+            "handle": "staged-catalog-write-1783351437828",
+            "status": "ACTIVE",
+            "vendor": "Conformance",
+            "productType": "Overlay"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1980,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "catalogAfterCreate": {
+    "query": "query StagedCatalogWriteCatalogRead($first: Int!) {\n  productsCount {\n    count\n    precision\n  }\n  products(first: $first, sortKey: UPDATED_AT, reverse: true) {\n    nodes {\n      id\n      title\n      handle\n      status\n    }\n  }\n}\n",
+    "variables": {
+      "first": 50
+    },
+    "response": {
+      "data": {
+        "productsCount": {
+          "count": 1459,
+          "precision": "EXACT"
+        },
+        "products": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Product/10232875385138",
+              "title": "Staged Catalog Write 1783351437828",
+              "handle": "staged-catalog-write-1783351437828",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/10231543136562",
+              "title": "Inventory connection 1783176639366",
+              "handle": "inventory-connection-1783176639366",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899732336946",
+              "title": "Test Product - 3580",
+              "handle": "test-product-3580",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899731583282",
+              "title": "Test Product - 4375",
+              "handle": "test-product-4376",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899730075954",
+              "title": "Test Product - 1398",
+              "handle": "test-product-1398",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899727814962",
+              "title": "Test Product - 5428",
+              "handle": "test-product-5428",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899735351602",
+              "title": "Test Product - 6437",
+              "handle": "test-product-6437",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899734597938",
+              "title": "Test Product - 995",
+              "handle": "test-product-995",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899733090610",
+              "title": "Test Product - 669",
+              "handle": "test-product-669",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899729322290",
+              "title": "Test Product - 4807",
+              "handle": "test-product-4807",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899727061298",
+              "title": "Test Product - 9768",
+              "handle": "test-product-9768",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899722539314",
+              "title": "Test Product - 4529",
+              "handle": "test-product-4529",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899716510002",
+              "title": "Test Product - 3936",
+              "handle": "test-product-3936",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899715756338",
+              "title": "Test Product - 8919",
+              "handle": "test-product-8919",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899708219698",
+              "title": "Test Product - 7812",
+              "handle": "test-product-7812",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899728568626",
+              "title": "Test Product - 2055",
+              "handle": "test-product-2055",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899723292978",
+              "title": "Test Product - 3204",
+              "handle": "test-product-3204",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899721785650",
+              "title": "Test Product - 7486",
+              "handle": "test-product-7486",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899721031986",
+              "title": "Test Product - 9884",
+              "handle": "test-product-9884",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899720278322",
+              "title": "Test Product - 8253",
+              "handle": "test-product-8253",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899718017330",
+              "title": "Test Product - 6343",
+              "handle": "test-product-6343",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899707466034",
+              "title": "Test Product - 9696",
+              "handle": "test-product-9696",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899701436722",
+              "title": "Test Product - 7964",
+              "handle": "test-product-7964",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899700683058",
+              "title": "Test Product - 8373",
+              "handle": "test-product-8373",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899735482674",
+              "title": "Test Product - 191",
+              "handle": "test-product-191",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899734729010",
+              "title": "Test Product - 5091",
+              "handle": "test-product-5091",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899734696242",
+              "title": "Test Product - 3864",
+              "handle": "test-product-3864",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899726438706",
+              "title": "Test Product - 3061",
+              "handle": "test-product-3061",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899726307634",
+              "title": "Test Product - 8968",
+              "handle": "test-product-8968",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899721163058",
+              "title": "Test Product - 5335",
+              "handle": "test-product-5335",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899720409394",
+              "title": "Test Product - 7024",
+              "handle": "test-product-7025",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899719524658",
+              "title": "Test Product - 7321",
+              "handle": "test-product-7321",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899718770994",
+              "title": "Test Product - 3224",
+              "handle": "test-product-3224",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899717263666",
+              "title": "Test Product - 3112",
+              "handle": "test-product-3112",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899715002674",
+              "title": "Test Product - 182",
+              "handle": "test-product-183",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899714249010",
+              "title": "Test Product - 654",
+              "handle": "test-product-654",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899713495346",
+              "title": "Test Product - 4148",
+              "handle": "test-product-4148",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9885518987570",
+              "title": "Lezyne Patch/Lever Kit",
+              "handle": "lezyne-patch-lever-kit",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/10177906016562",
+              "title": "bundle-validation-1778031388626 Quantity Zero Success",
+              "handle": "bundle-validation-1778031388626-quantity-zero-success",
+              "status": "DRAFT"
+            },
+            {
+              "id": "gid://shopify/Product/10172162375986",
+              "title": "HAR407 Async Copy 1777353419781",
+              "handle": "har407-async-copy-1777353419781",
+              "status": "DRAFT"
+            },
+            {
+              "id": "gid://shopify/Product/10172065906994",
+              "title": "Hermes Product Publication Conformance 1777340418713",
+              "handle": "hermes-product-publication-conformance-1777340418713",
+              "status": "DRAFT"
+            },
+            {
+              "id": "gid://shopify/Product/9899735417138",
+              "title": "Test Product - 1595",
+              "handle": "test-product-1595",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899733975346",
+              "title": "Test Product - 9608",
+              "handle": "test-product-9608",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899733942578",
+              "title": "Test Product - 3074",
+              "handle": "test-product-3074",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899731714354",
+              "title": "Test Product - 3187",
+              "handle": "test-product-3187",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899731681586",
+              "title": "Test Product - 6192",
+              "handle": "test-product-6192",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899729453362",
+              "title": "Test Product - 8361",
+              "handle": "test-product-8361",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899729420594",
+              "title": "Test Product - 9297",
+              "handle": "test-product-9297",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899727192370",
+              "title": "Test Product - 3728",
+              "handle": "test-product-3728",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899726471474",
+              "title": "Test Product - 8088",
+              "handle": "test-product-8088",
+              "status": "ACTIVE"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 19,
+          "actualQueryCost": 19,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1981,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "update": {
+    "query": "mutation StagedCatalogWriteUpdateProduct($product: ProductUpdateInput!) {\n  productUpdate(product: $product) {\n    product {\n      id\n      title\n      handle\n      status\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "product": {
+        "id": "gid://shopify/Product/10232875385138",
+        "title": "Staged Catalog Write Updated 1783351437828"
+      }
+    },
+    "response": {
+      "data": {
+        "productUpdate": {
+          "product": {
+            "id": "gid://shopify/Product/10232875385138",
+            "title": "Staged Catalog Write Updated 1783351437828",
+            "handle": "staged-catalog-write-1783351437828",
+            "status": "ACTIVE"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1980,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "catalogAfterUpdate": {
+    "query": "query StagedCatalogWriteCatalogReadAfterUpdate($first: Int!) {\n  productsCount {\n    count\n    precision\n  }\n  products(first: $first, sortKey: UPDATED_AT, reverse: true) {\n    nodes {\n      id\n      title\n      handle\n      status\n    }\n  }\n}\n",
+    "variables": {
+      "first": 50
+    },
+    "response": {
+      "data": {
+        "productsCount": {
+          "count": 1459,
+          "precision": "EXACT"
+        },
+        "products": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Product/10232875385138",
+              "title": "Staged Catalog Write Updated 1783351437828",
+              "handle": "staged-catalog-write-1783351437828",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/10231543136562",
+              "title": "Inventory connection 1783176639366",
+              "handle": "inventory-connection-1783176639366",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899732336946",
+              "title": "Test Product - 3580",
+              "handle": "test-product-3580",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899731583282",
+              "title": "Test Product - 4375",
+              "handle": "test-product-4376",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899730075954",
+              "title": "Test Product - 1398",
+              "handle": "test-product-1398",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899727814962",
+              "title": "Test Product - 5428",
+              "handle": "test-product-5428",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899735351602",
+              "title": "Test Product - 6437",
+              "handle": "test-product-6437",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899734597938",
+              "title": "Test Product - 995",
+              "handle": "test-product-995",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899733090610",
+              "title": "Test Product - 669",
+              "handle": "test-product-669",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899729322290",
+              "title": "Test Product - 4807",
+              "handle": "test-product-4807",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899727061298",
+              "title": "Test Product - 9768",
+              "handle": "test-product-9768",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899722539314",
+              "title": "Test Product - 4529",
+              "handle": "test-product-4529",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899716510002",
+              "title": "Test Product - 3936",
+              "handle": "test-product-3936",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899715756338",
+              "title": "Test Product - 8919",
+              "handle": "test-product-8919",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899708219698",
+              "title": "Test Product - 7812",
+              "handle": "test-product-7812",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899728568626",
+              "title": "Test Product - 2055",
+              "handle": "test-product-2055",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899723292978",
+              "title": "Test Product - 3204",
+              "handle": "test-product-3204",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899721785650",
+              "title": "Test Product - 7486",
+              "handle": "test-product-7486",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899721031986",
+              "title": "Test Product - 9884",
+              "handle": "test-product-9884",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899720278322",
+              "title": "Test Product - 8253",
+              "handle": "test-product-8253",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899718017330",
+              "title": "Test Product - 6343",
+              "handle": "test-product-6343",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899707466034",
+              "title": "Test Product - 9696",
+              "handle": "test-product-9696",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899701436722",
+              "title": "Test Product - 7964",
+              "handle": "test-product-7964",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899700683058",
+              "title": "Test Product - 8373",
+              "handle": "test-product-8373",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899735482674",
+              "title": "Test Product - 191",
+              "handle": "test-product-191",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899734729010",
+              "title": "Test Product - 5091",
+              "handle": "test-product-5091",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899734696242",
+              "title": "Test Product - 3864",
+              "handle": "test-product-3864",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899726438706",
+              "title": "Test Product - 3061",
+              "handle": "test-product-3061",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899726307634",
+              "title": "Test Product - 8968",
+              "handle": "test-product-8968",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899721163058",
+              "title": "Test Product - 5335",
+              "handle": "test-product-5335",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899720409394",
+              "title": "Test Product - 7024",
+              "handle": "test-product-7025",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899719524658",
+              "title": "Test Product - 7321",
+              "handle": "test-product-7321",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899718770994",
+              "title": "Test Product - 3224",
+              "handle": "test-product-3224",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899717263666",
+              "title": "Test Product - 3112",
+              "handle": "test-product-3112",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899715002674",
+              "title": "Test Product - 182",
+              "handle": "test-product-183",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899714249010",
+              "title": "Test Product - 654",
+              "handle": "test-product-654",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899713495346",
+              "title": "Test Product - 4148",
+              "handle": "test-product-4148",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9885518987570",
+              "title": "Lezyne Patch/Lever Kit",
+              "handle": "lezyne-patch-lever-kit",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/10177906016562",
+              "title": "bundle-validation-1778031388626 Quantity Zero Success",
+              "handle": "bundle-validation-1778031388626-quantity-zero-success",
+              "status": "DRAFT"
+            },
+            {
+              "id": "gid://shopify/Product/10172162375986",
+              "title": "HAR407 Async Copy 1777353419781",
+              "handle": "har407-async-copy-1777353419781",
+              "status": "DRAFT"
+            },
+            {
+              "id": "gid://shopify/Product/10172065906994",
+              "title": "Hermes Product Publication Conformance 1777340418713",
+              "handle": "hermes-product-publication-conformance-1777340418713",
+              "status": "DRAFT"
+            },
+            {
+              "id": "gid://shopify/Product/9899735417138",
+              "title": "Test Product - 1595",
+              "handle": "test-product-1595",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899733975346",
+              "title": "Test Product - 9608",
+              "handle": "test-product-9608",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899733942578",
+              "title": "Test Product - 3074",
+              "handle": "test-product-3074",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899731714354",
+              "title": "Test Product - 3187",
+              "handle": "test-product-3187",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899731681586",
+              "title": "Test Product - 6192",
+              "handle": "test-product-6192",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899729453362",
+              "title": "Test Product - 8361",
+              "handle": "test-product-8361",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899729420594",
+              "title": "Test Product - 9297",
+              "handle": "test-product-9297",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899727192370",
+              "title": "Test Product - 3728",
+              "handle": "test-product-3728",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899726471474",
+              "title": "Test Product - 8088",
+              "handle": "test-product-8088",
+              "status": "ACTIVE"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 19,
+          "actualQueryCost": 19,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1981,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "del": {
+    "query": "mutation StagedCatalogWriteDeleteProduct($input: ProductDeleteInput!) {\n  productDelete(input: $input) {\n    deletedProductId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/Product/10232875385138"
+      }
+    },
+    "response": {
+      "data": {
+        "productDelete": {
+          "deletedProductId": "gid://shopify/Product/10232875385138",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1981,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "catalogAfterDelete": {
+    "query": "query StagedCatalogWriteCatalogReadAfterDelete($first: Int!) {\n  productsCount {\n    count\n    precision\n  }\n  products(first: $first, sortKey: UPDATED_AT, reverse: true) {\n    nodes {\n      id\n      title\n      handle\n      status\n    }\n  }\n}\n",
+    "variables": {
+      "first": 50
+    },
+    "response": {
+      "data": {
+        "productsCount": {
+          "count": 1458,
+          "precision": "EXACT"
+        },
+        "products": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Product/10231543136562",
+              "title": "Inventory connection 1783176639366",
+              "handle": "inventory-connection-1783176639366",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899732336946",
+              "title": "Test Product - 3580",
+              "handle": "test-product-3580",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899731583282",
+              "title": "Test Product - 4375",
+              "handle": "test-product-4376",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899730075954",
+              "title": "Test Product - 1398",
+              "handle": "test-product-1398",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899727814962",
+              "title": "Test Product - 5428",
+              "handle": "test-product-5428",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899735351602",
+              "title": "Test Product - 6437",
+              "handle": "test-product-6437",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899734597938",
+              "title": "Test Product - 995",
+              "handle": "test-product-995",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899733090610",
+              "title": "Test Product - 669",
+              "handle": "test-product-669",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899729322290",
+              "title": "Test Product - 4807",
+              "handle": "test-product-4807",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899727061298",
+              "title": "Test Product - 9768",
+              "handle": "test-product-9768",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899722539314",
+              "title": "Test Product - 4529",
+              "handle": "test-product-4529",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899716510002",
+              "title": "Test Product - 3936",
+              "handle": "test-product-3936",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899715756338",
+              "title": "Test Product - 8919",
+              "handle": "test-product-8919",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899708219698",
+              "title": "Test Product - 7812",
+              "handle": "test-product-7812",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899728568626",
+              "title": "Test Product - 2055",
+              "handle": "test-product-2055",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899723292978",
+              "title": "Test Product - 3204",
+              "handle": "test-product-3204",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899721785650",
+              "title": "Test Product - 7486",
+              "handle": "test-product-7486",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899721031986",
+              "title": "Test Product - 9884",
+              "handle": "test-product-9884",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899720278322",
+              "title": "Test Product - 8253",
+              "handle": "test-product-8253",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899718017330",
+              "title": "Test Product - 6343",
+              "handle": "test-product-6343",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899707466034",
+              "title": "Test Product - 9696",
+              "handle": "test-product-9696",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899701436722",
+              "title": "Test Product - 7964",
+              "handle": "test-product-7964",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899700683058",
+              "title": "Test Product - 8373",
+              "handle": "test-product-8373",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899735482674",
+              "title": "Test Product - 191",
+              "handle": "test-product-191",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899734729010",
+              "title": "Test Product - 5091",
+              "handle": "test-product-5091",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899734696242",
+              "title": "Test Product - 3864",
+              "handle": "test-product-3864",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899726438706",
+              "title": "Test Product - 3061",
+              "handle": "test-product-3061",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899726307634",
+              "title": "Test Product - 8968",
+              "handle": "test-product-8968",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899721163058",
+              "title": "Test Product - 5335",
+              "handle": "test-product-5335",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899720409394",
+              "title": "Test Product - 7024",
+              "handle": "test-product-7025",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899719524658",
+              "title": "Test Product - 7321",
+              "handle": "test-product-7321",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899718770994",
+              "title": "Test Product - 3224",
+              "handle": "test-product-3224",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899717263666",
+              "title": "Test Product - 3112",
+              "handle": "test-product-3112",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899715002674",
+              "title": "Test Product - 182",
+              "handle": "test-product-183",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899714249010",
+              "title": "Test Product - 654",
+              "handle": "test-product-654",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899713495346",
+              "title": "Test Product - 4148",
+              "handle": "test-product-4148",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9885518987570",
+              "title": "Lezyne Patch/Lever Kit",
+              "handle": "lezyne-patch-lever-kit",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/10177906016562",
+              "title": "bundle-validation-1778031388626 Quantity Zero Success",
+              "handle": "bundle-validation-1778031388626-quantity-zero-success",
+              "status": "DRAFT"
+            },
+            {
+              "id": "gid://shopify/Product/10172162375986",
+              "title": "HAR407 Async Copy 1777353419781",
+              "handle": "har407-async-copy-1777353419781",
+              "status": "DRAFT"
+            },
+            {
+              "id": "gid://shopify/Product/10172065906994",
+              "title": "Hermes Product Publication Conformance 1777340418713",
+              "handle": "hermes-product-publication-conformance-1777340418713",
+              "status": "DRAFT"
+            },
+            {
+              "id": "gid://shopify/Product/9899735417138",
+              "title": "Test Product - 1595",
+              "handle": "test-product-1595",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899733975346",
+              "title": "Test Product - 9608",
+              "handle": "test-product-9608",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899733942578",
+              "title": "Test Product - 3074",
+              "handle": "test-product-3074",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899731714354",
+              "title": "Test Product - 3187",
+              "handle": "test-product-3187",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899731681586",
+              "title": "Test Product - 6192",
+              "handle": "test-product-6192",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899729453362",
+              "title": "Test Product - 8361",
+              "handle": "test-product-8361",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899729420594",
+              "title": "Test Product - 9297",
+              "handle": "test-product-9297",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899727192370",
+              "title": "Test Product - 3728",
+              "handle": "test-product-3728",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899726471474",
+              "title": "Test Product - 8088",
+              "handle": "test-product-8088",
+              "status": "ACTIVE"
+            },
+            {
+              "id": "gid://shopify/Product/9899721851186",
+              "title": "Test Product - 5160",
+              "handle": "test-product-5160",
+              "status": "ACTIVE"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 19,
+          "actualQueryCost": 19,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1981,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": [
+          "gid://shopify/Product/10232875385138"
+        ]
+      },
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10232875385138",
+                "title": "Staged Catalog Write Updated 1783351437828",
+                "handle": "staged-catalog-write-1783351437828",
+                "status": "ACTIVE",
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51431022362930",
+                      "title": "Default Title",
+                      "sku": null,
+                      "barcode": null,
+                      "price": "0.00",
+                      "compareAtPrice": null,
+                      "taxable": true,
+                      "inventoryPolicy": "DENY",
+                      "inventoryQuantity": 0,
+                      "selectedOptions": [
+                        {
+                          "name": "Title",
+                          "value": "Default Title"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53536140722482",
+                        "tracked": false,
+                        "requiresShipping": true
+                      }
+                    }
+                  ]
+                },
+                "collections": {
+                  "nodes": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 21,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1980,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "StagedCatalogWriteCatalogRead",
+      "variables": {
+        "first": 50
+      },
+      "query": "query StagedCatalogWriteCatalogRead($first: Int!) {\n  productsCount {\n    count\n    precision\n  }\n  products(first: $first, sortKey: UPDATED_AT, reverse: true) {\n    nodes {\n      id\n      title\n      handle\n      status\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "productsCount": {
+              "count": 1458,
+              "precision": "EXACT"
+            },
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/10231543136562",
+                  "title": "Inventory connection 1783176639366",
+                  "handle": "inventory-connection-1783176639366",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899732336946",
+                  "title": "Test Product - 3580",
+                  "handle": "test-product-3580",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899731583282",
+                  "title": "Test Product - 4375",
+                  "handle": "test-product-4376",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899730075954",
+                  "title": "Test Product - 1398",
+                  "handle": "test-product-1398",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899727814962",
+                  "title": "Test Product - 5428",
+                  "handle": "test-product-5428",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899735351602",
+                  "title": "Test Product - 6437",
+                  "handle": "test-product-6437",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899734597938",
+                  "title": "Test Product - 995",
+                  "handle": "test-product-995",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899733090610",
+                  "title": "Test Product - 669",
+                  "handle": "test-product-669",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899729322290",
+                  "title": "Test Product - 4807",
+                  "handle": "test-product-4807",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899727061298",
+                  "title": "Test Product - 9768",
+                  "handle": "test-product-9768",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899722539314",
+                  "title": "Test Product - 4529",
+                  "handle": "test-product-4529",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899716510002",
+                  "title": "Test Product - 3936",
+                  "handle": "test-product-3936",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899715756338",
+                  "title": "Test Product - 8919",
+                  "handle": "test-product-8919",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899708219698",
+                  "title": "Test Product - 7812",
+                  "handle": "test-product-7812",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899728568626",
+                  "title": "Test Product - 2055",
+                  "handle": "test-product-2055",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899723292978",
+                  "title": "Test Product - 3204",
+                  "handle": "test-product-3204",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899721785650",
+                  "title": "Test Product - 7486",
+                  "handle": "test-product-7486",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899721031986",
+                  "title": "Test Product - 9884",
+                  "handle": "test-product-9884",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899720278322",
+                  "title": "Test Product - 8253",
+                  "handle": "test-product-8253",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899718017330",
+                  "title": "Test Product - 6343",
+                  "handle": "test-product-6343",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899707466034",
+                  "title": "Test Product - 9696",
+                  "handle": "test-product-9696",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899701436722",
+                  "title": "Test Product - 7964",
+                  "handle": "test-product-7964",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899700683058",
+                  "title": "Test Product - 8373",
+                  "handle": "test-product-8373",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899735482674",
+                  "title": "Test Product - 191",
+                  "handle": "test-product-191",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899734729010",
+                  "title": "Test Product - 5091",
+                  "handle": "test-product-5091",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899734696242",
+                  "title": "Test Product - 3864",
+                  "handle": "test-product-3864",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899726438706",
+                  "title": "Test Product - 3061",
+                  "handle": "test-product-3061",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899726307634",
+                  "title": "Test Product - 8968",
+                  "handle": "test-product-8968",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899721163058",
+                  "title": "Test Product - 5335",
+                  "handle": "test-product-5335",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899720409394",
+                  "title": "Test Product - 7024",
+                  "handle": "test-product-7025",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899719524658",
+                  "title": "Test Product - 7321",
+                  "handle": "test-product-7321",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899718770994",
+                  "title": "Test Product - 3224",
+                  "handle": "test-product-3224",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899717263666",
+                  "title": "Test Product - 3112",
+                  "handle": "test-product-3112",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899715002674",
+                  "title": "Test Product - 182",
+                  "handle": "test-product-183",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899714249010",
+                  "title": "Test Product - 654",
+                  "handle": "test-product-654",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899713495346",
+                  "title": "Test Product - 4148",
+                  "handle": "test-product-4148",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9885518987570",
+                  "title": "Lezyne Patch/Lever Kit",
+                  "handle": "lezyne-patch-lever-kit",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/10177906016562",
+                  "title": "bundle-validation-1778031388626 Quantity Zero Success",
+                  "handle": "bundle-validation-1778031388626-quantity-zero-success",
+                  "status": "DRAFT"
+                },
+                {
+                  "id": "gid://shopify/Product/10172162375986",
+                  "title": "HAR407 Async Copy 1777353419781",
+                  "handle": "har407-async-copy-1777353419781",
+                  "status": "DRAFT"
+                },
+                {
+                  "id": "gid://shopify/Product/10172065906994",
+                  "title": "Hermes Product Publication Conformance 1777340418713",
+                  "handle": "hermes-product-publication-conformance-1777340418713",
+                  "status": "DRAFT"
+                },
+                {
+                  "id": "gid://shopify/Product/9899735417138",
+                  "title": "Test Product - 1595",
+                  "handle": "test-product-1595",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899733975346",
+                  "title": "Test Product - 9608",
+                  "handle": "test-product-9608",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899733942578",
+                  "title": "Test Product - 3074",
+                  "handle": "test-product-3074",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899731714354",
+                  "title": "Test Product - 3187",
+                  "handle": "test-product-3187",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899731681586",
+                  "title": "Test Product - 6192",
+                  "handle": "test-product-6192",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899729453362",
+                  "title": "Test Product - 8361",
+                  "handle": "test-product-8361",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899729420594",
+                  "title": "Test Product - 9297",
+                  "handle": "test-product-9297",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899727192370",
+                  "title": "Test Product - 3728",
+                  "handle": "test-product-3728",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899726471474",
+                  "title": "Test Product - 8088",
+                  "handle": "test-product-8088",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899721851186",
+                  "title": "Test Product - 5160",
+                  "handle": "test-product-5160",
+                  "status": "ACTIVE"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 19,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1981,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "StagedCatalogWriteCatalogReadAfterUpdate",
+      "variables": {
+        "first": 50
+      },
+      "query": "query StagedCatalogWriteCatalogReadAfterUpdate($first: Int!) {\n  productsCount {\n    count\n    precision\n  }\n  products(first: $first, sortKey: UPDATED_AT, reverse: true) {\n    nodes {\n      id\n      title\n      handle\n      status\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "productsCount": {
+              "count": 1459,
+              "precision": "EXACT"
+            },
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/10232875385138",
+                  "title": "Staged Catalog Write 1783351437828",
+                  "handle": "staged-catalog-write-1783351437828",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/10231543136562",
+                  "title": "Inventory connection 1783176639366",
+                  "handle": "inventory-connection-1783176639366",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899732336946",
+                  "title": "Test Product - 3580",
+                  "handle": "test-product-3580",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899731583282",
+                  "title": "Test Product - 4375",
+                  "handle": "test-product-4376",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899730075954",
+                  "title": "Test Product - 1398",
+                  "handle": "test-product-1398",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899727814962",
+                  "title": "Test Product - 5428",
+                  "handle": "test-product-5428",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899735351602",
+                  "title": "Test Product - 6437",
+                  "handle": "test-product-6437",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899734597938",
+                  "title": "Test Product - 995",
+                  "handle": "test-product-995",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899733090610",
+                  "title": "Test Product - 669",
+                  "handle": "test-product-669",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899729322290",
+                  "title": "Test Product - 4807",
+                  "handle": "test-product-4807",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899727061298",
+                  "title": "Test Product - 9768",
+                  "handle": "test-product-9768",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899722539314",
+                  "title": "Test Product - 4529",
+                  "handle": "test-product-4529",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899716510002",
+                  "title": "Test Product - 3936",
+                  "handle": "test-product-3936",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899715756338",
+                  "title": "Test Product - 8919",
+                  "handle": "test-product-8919",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899708219698",
+                  "title": "Test Product - 7812",
+                  "handle": "test-product-7812",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899728568626",
+                  "title": "Test Product - 2055",
+                  "handle": "test-product-2055",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899723292978",
+                  "title": "Test Product - 3204",
+                  "handle": "test-product-3204",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899721785650",
+                  "title": "Test Product - 7486",
+                  "handle": "test-product-7486",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899721031986",
+                  "title": "Test Product - 9884",
+                  "handle": "test-product-9884",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899720278322",
+                  "title": "Test Product - 8253",
+                  "handle": "test-product-8253",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899718017330",
+                  "title": "Test Product - 6343",
+                  "handle": "test-product-6343",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899707466034",
+                  "title": "Test Product - 9696",
+                  "handle": "test-product-9696",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899701436722",
+                  "title": "Test Product - 7964",
+                  "handle": "test-product-7964",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899700683058",
+                  "title": "Test Product - 8373",
+                  "handle": "test-product-8373",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899735482674",
+                  "title": "Test Product - 191",
+                  "handle": "test-product-191",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899734729010",
+                  "title": "Test Product - 5091",
+                  "handle": "test-product-5091",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899734696242",
+                  "title": "Test Product - 3864",
+                  "handle": "test-product-3864",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899726438706",
+                  "title": "Test Product - 3061",
+                  "handle": "test-product-3061",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899726307634",
+                  "title": "Test Product - 8968",
+                  "handle": "test-product-8968",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899721163058",
+                  "title": "Test Product - 5335",
+                  "handle": "test-product-5335",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899720409394",
+                  "title": "Test Product - 7024",
+                  "handle": "test-product-7025",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899719524658",
+                  "title": "Test Product - 7321",
+                  "handle": "test-product-7321",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899718770994",
+                  "title": "Test Product - 3224",
+                  "handle": "test-product-3224",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899717263666",
+                  "title": "Test Product - 3112",
+                  "handle": "test-product-3112",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899715002674",
+                  "title": "Test Product - 182",
+                  "handle": "test-product-183",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899714249010",
+                  "title": "Test Product - 654",
+                  "handle": "test-product-654",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899713495346",
+                  "title": "Test Product - 4148",
+                  "handle": "test-product-4148",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9885518987570",
+                  "title": "Lezyne Patch/Lever Kit",
+                  "handle": "lezyne-patch-lever-kit",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/10177906016562",
+                  "title": "bundle-validation-1778031388626 Quantity Zero Success",
+                  "handle": "bundle-validation-1778031388626-quantity-zero-success",
+                  "status": "DRAFT"
+                },
+                {
+                  "id": "gid://shopify/Product/10172162375986",
+                  "title": "HAR407 Async Copy 1777353419781",
+                  "handle": "har407-async-copy-1777353419781",
+                  "status": "DRAFT"
+                },
+                {
+                  "id": "gid://shopify/Product/10172065906994",
+                  "title": "Hermes Product Publication Conformance 1777340418713",
+                  "handle": "hermes-product-publication-conformance-1777340418713",
+                  "status": "DRAFT"
+                },
+                {
+                  "id": "gid://shopify/Product/9899735417138",
+                  "title": "Test Product - 1595",
+                  "handle": "test-product-1595",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899733975346",
+                  "title": "Test Product - 9608",
+                  "handle": "test-product-9608",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899733942578",
+                  "title": "Test Product - 3074",
+                  "handle": "test-product-3074",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899731714354",
+                  "title": "Test Product - 3187",
+                  "handle": "test-product-3187",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899731681586",
+                  "title": "Test Product - 6192",
+                  "handle": "test-product-6192",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899729453362",
+                  "title": "Test Product - 8361",
+                  "handle": "test-product-8361",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899729420594",
+                  "title": "Test Product - 9297",
+                  "handle": "test-product-9297",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899727192370",
+                  "title": "Test Product - 3728",
+                  "handle": "test-product-3728",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899726471474",
+                  "title": "Test Product - 8088",
+                  "handle": "test-product-8088",
+                  "status": "ACTIVE"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 19,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1981,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "StagedCatalogWriteCatalogReadAfterDelete",
+      "variables": {
+        "first": 50
+      },
+      "query": "query StagedCatalogWriteCatalogReadAfterDelete($first: Int!) {\n  productsCount {\n    count\n    precision\n  }\n  products(first: $first, sortKey: UPDATED_AT, reverse: true) {\n    nodes {\n      id\n      title\n      handle\n      status\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "productsCount": {
+              "count": 1459,
+              "precision": "EXACT"
+            },
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/10232875385138",
+                  "title": "Staged Catalog Write Updated 1783351437828",
+                  "handle": "staged-catalog-write-1783351437828",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/10231543136562",
+                  "title": "Inventory connection 1783176639366",
+                  "handle": "inventory-connection-1783176639366",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899732336946",
+                  "title": "Test Product - 3580",
+                  "handle": "test-product-3580",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899731583282",
+                  "title": "Test Product - 4375",
+                  "handle": "test-product-4376",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899730075954",
+                  "title": "Test Product - 1398",
+                  "handle": "test-product-1398",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899727814962",
+                  "title": "Test Product - 5428",
+                  "handle": "test-product-5428",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899735351602",
+                  "title": "Test Product - 6437",
+                  "handle": "test-product-6437",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899734597938",
+                  "title": "Test Product - 995",
+                  "handle": "test-product-995",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899733090610",
+                  "title": "Test Product - 669",
+                  "handle": "test-product-669",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899729322290",
+                  "title": "Test Product - 4807",
+                  "handle": "test-product-4807",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899727061298",
+                  "title": "Test Product - 9768",
+                  "handle": "test-product-9768",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899722539314",
+                  "title": "Test Product - 4529",
+                  "handle": "test-product-4529",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899716510002",
+                  "title": "Test Product - 3936",
+                  "handle": "test-product-3936",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899715756338",
+                  "title": "Test Product - 8919",
+                  "handle": "test-product-8919",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899708219698",
+                  "title": "Test Product - 7812",
+                  "handle": "test-product-7812",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899728568626",
+                  "title": "Test Product - 2055",
+                  "handle": "test-product-2055",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899723292978",
+                  "title": "Test Product - 3204",
+                  "handle": "test-product-3204",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899721785650",
+                  "title": "Test Product - 7486",
+                  "handle": "test-product-7486",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899721031986",
+                  "title": "Test Product - 9884",
+                  "handle": "test-product-9884",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899720278322",
+                  "title": "Test Product - 8253",
+                  "handle": "test-product-8253",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899718017330",
+                  "title": "Test Product - 6343",
+                  "handle": "test-product-6343",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899707466034",
+                  "title": "Test Product - 9696",
+                  "handle": "test-product-9696",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899701436722",
+                  "title": "Test Product - 7964",
+                  "handle": "test-product-7964",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899700683058",
+                  "title": "Test Product - 8373",
+                  "handle": "test-product-8373",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899735482674",
+                  "title": "Test Product - 191",
+                  "handle": "test-product-191",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899734729010",
+                  "title": "Test Product - 5091",
+                  "handle": "test-product-5091",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899734696242",
+                  "title": "Test Product - 3864",
+                  "handle": "test-product-3864",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899726438706",
+                  "title": "Test Product - 3061",
+                  "handle": "test-product-3061",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899726307634",
+                  "title": "Test Product - 8968",
+                  "handle": "test-product-8968",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899721163058",
+                  "title": "Test Product - 5335",
+                  "handle": "test-product-5335",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899720409394",
+                  "title": "Test Product - 7024",
+                  "handle": "test-product-7025",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899719524658",
+                  "title": "Test Product - 7321",
+                  "handle": "test-product-7321",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899718770994",
+                  "title": "Test Product - 3224",
+                  "handle": "test-product-3224",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899717263666",
+                  "title": "Test Product - 3112",
+                  "handle": "test-product-3112",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899715002674",
+                  "title": "Test Product - 182",
+                  "handle": "test-product-183",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899714249010",
+                  "title": "Test Product - 654",
+                  "handle": "test-product-654",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899713495346",
+                  "title": "Test Product - 4148",
+                  "handle": "test-product-4148",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9885518987570",
+                  "title": "Lezyne Patch/Lever Kit",
+                  "handle": "lezyne-patch-lever-kit",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/10177906016562",
+                  "title": "bundle-validation-1778031388626 Quantity Zero Success",
+                  "handle": "bundle-validation-1778031388626-quantity-zero-success",
+                  "status": "DRAFT"
+                },
+                {
+                  "id": "gid://shopify/Product/10172162375986",
+                  "title": "HAR407 Async Copy 1777353419781",
+                  "handle": "har407-async-copy-1777353419781",
+                  "status": "DRAFT"
+                },
+                {
+                  "id": "gid://shopify/Product/10172065906994",
+                  "title": "Hermes Product Publication Conformance 1777340418713",
+                  "handle": "hermes-product-publication-conformance-1777340418713",
+                  "status": "DRAFT"
+                },
+                {
+                  "id": "gid://shopify/Product/9899735417138",
+                  "title": "Test Product - 1595",
+                  "handle": "test-product-1595",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899733975346",
+                  "title": "Test Product - 9608",
+                  "handle": "test-product-9608",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899733942578",
+                  "title": "Test Product - 3074",
+                  "handle": "test-product-3074",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899731714354",
+                  "title": "Test Product - 3187",
+                  "handle": "test-product-3187",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899731681586",
+                  "title": "Test Product - 6192",
+                  "handle": "test-product-6192",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899729453362",
+                  "title": "Test Product - 8361",
+                  "handle": "test-product-8361",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899729420594",
+                  "title": "Test Product - 9297",
+                  "handle": "test-product-9297",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899727192370",
+                  "title": "Test Product - 3728",
+                  "handle": "test-product-3728",
+                  "status": "ACTIVE"
+                },
+                {
+                  "id": "gid://shopify/Product/9899726471474",
+                  "title": "Test Product - 8088",
+                  "handle": "test-product-8088",
+                  "status": "ACTIVE"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 19,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1981,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

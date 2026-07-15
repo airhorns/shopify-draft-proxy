@@ -1326,6 +1326,58 @@ impl Store {
             || !self.staged.products.tombstones.is_empty()
     }
 
+    /// Products this session *created* — their id carries the synthetic-gid marker
+    /// because a `productCreate` mints a synthetic id (the real backend has never
+    /// heard of them). These are exactly the products a live catalog page cannot
+    /// surface on its own, so a live-hybrid `products`/`productsCount` read overlays
+    /// them onto the upstream response. Observed live products are mirrored into the
+    /// same staged layer with their *real* gids, and a staged *update* to an
+    /// already-live product keeps its real gid too; both are excluded here because
+    /// the upstream page still lists them, so nothing needs to be injected.
+    fn staged_created_products(&self) -> Vec<ProductRecord> {
+        self.staged
+            .products
+            .records
+            .values()
+            .filter(|product| is_synthetic_gid(&product.id))
+            .cloned()
+            .collect()
+    }
+
+    /// Ids tombstoned (deleted) in this session's staged layer, so a live-hybrid
+    /// catalog read can drop them from the upstream page.
+    fn staged_product_tombstones(&self) -> &BTreeSet<String> {
+        &self.staged.products.tombstones
+    }
+
+    /// The staged record for a product id, if this session has one (a create, an
+    /// observed mirror, or an update). Used to re-render an updated live product
+    /// onto a live-hybrid catalog page.
+    fn product_record(&self, id: &str) -> Option<ProductRecord> {
+        self.staged.products.records.get(id).cloned()
+    }
+
+    /// Whether the session staged a product create or a delete of a live product
+    /// that a live catalog read must reflect. A create is a synthetic staged record;
+    /// a meaningful delete is a tombstone of a *real* (non-synthetic) gid — the
+    /// upstream page lists that product, so the overlay must drop it. A pure update
+    /// to an already-live product (real gid, still upstream) and a
+    /// created-then-deleted synthetic (tombstoned, never upstream) both leave the
+    /// upstream body unchanged, so the overlay stays a no-op and it passes through.
+    fn has_staged_product_catalog_writes(&self) -> bool {
+        self.staged
+            .products
+            .tombstones
+            .iter()
+            .any(|id| !is_synthetic_gid(id))
+            || self
+                .staged
+                .products
+                .records
+                .keys()
+                .any(|id| is_synthetic_gid(id))
+    }
+
     fn has_collection_state(&self) -> bool {
         !self.staged.collections.is_empty() || !self.staged.collection_jobs.is_empty()
     }

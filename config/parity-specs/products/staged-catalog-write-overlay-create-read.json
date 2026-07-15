@@ -1,0 +1,51 @@
+{
+  "scenarioId": "staged-catalog-write-overlay-create-read",
+  "operationNames": ["productCreate", "products", "productsCount"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/staged-catalog-write-overlay-read.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/staged-catalog-write-create-product.graphql",
+    "apiVersion": "2025-01",
+    "variablesCapturePath": "$.create.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Proves a live-hybrid products/productsCount read overlays a session-staged productCreate onto the authoritative upstream catalog page. Without the overlay, a read-after-create would report the just-created product as missing (the upstream page does not list it yet) and the count would be stale. The capture creates a disposable product on Shopify, records the baseline catalog (without the product) as the upstream cassette, and records the catalog with the product as the comparison target. The proxy stages the create locally (synthetic gid), forwards the catalog read upstream (cassette returns the baseline), then overlays the synthetic created product — the count must include it and the product must appear in the nodes.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.productCreate.product.id",
+        "matcher": "shopify-gid:Product",
+        "reason": "The proxy allocates a stable synthetic product GID for staged productCreate."
+      },
+      {
+        "path": "$.productCreate.product.handle",
+        "matcher": "non-empty-string",
+        "reason": "The proxy derives its own handle for the staged product, independent of Shopify's handle allocation."
+      }
+    ],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.create.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "catalog-count-after-create",
+        "capturePath": "$.catalogAfterCreate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/staged-catalog-write-catalog-read.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.catalogAfterCreate.variables"
+        },
+        "selectedPaths": ["$.productsCount"],
+        "expectedDifferences": []
+      }
+    ]
+  }
+}
