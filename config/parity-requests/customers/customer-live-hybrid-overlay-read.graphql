@@ -1,0 +1,73 @@
+query CustomerLiveHybridOverlayRead(
+  $realId: ID!
+  $realEmail: String!
+  $stagedEmail: String!
+  $missingEmail: String!
+  $catalogQuery: String!
+  $stagedQuery: String!
+) {
+  byRealId: customer(id: $realId) {
+    id
+    email
+    displayName
+  }
+  byRealEmail: customerByIdentifier(identifier: { emailAddress: $realEmail }) {
+    id
+    email
+    displayName
+  }
+  byStagedEmail: customerByIdentifier(identifier: { emailAddress: $stagedEmail }) {
+    id
+    email
+    displayName
+  }
+  byMissingEmail: customerByIdentifier(identifier: { emailAddress: $missingEmail }) {
+    id
+    email
+  }
+  catalog: customers(first: 10, query: $catalogQuery, sortKey: NAME) {
+    nodes {
+      id
+      email
+      displayName
+      tags
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  firstPage: customers(first: 1, query: $catalogQuery, sortKey: NAME) {
+    edges {
+      cursor
+      node {
+        id
+        email
+        displayName
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  matchingCatalog: customers(first: 10, query: $stagedQuery, sortKey: NAME) {
+    nodes {
+      id
+      email
+      displayName
+    }
+  }
+  matchingCount: customersCount(query: $stagedQuery) {
+    count
+    precision
+  }
+  totalCount: customersCount {
+    count
+    precision
+  }
+}
