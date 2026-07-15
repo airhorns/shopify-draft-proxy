@@ -10603,6 +10603,124 @@ fn product_tag_mutations_keep_product_search_filters_in_sync_with_effective_tags
 }
 
 #[test]
+fn commit_replay_rewrites_canonical_alias_from_later_staged_mutation() {
+    const CANONICAL_PRODUCT_ID: &str = "gid://shopify/Product/1";
+    const SYNTHETIC_PRODUCT_ID: &str = "gid://shopify/Product/1?shopify-draft-proxy=synthetic";
+    const AUTHORITATIVE_PRODUCT_ID: &str = "gid://shopify/Product/9000000001";
+
+    let replayed = Arc::new(Mutex::new(Vec::new()));
+    let replayed_for_transport = Arc::clone(&replayed);
+    let mut proxy = snapshot_proxy()
+        .with_base_products(vec![seed_product(CANONICAL_PRODUCT_ID)])
+        .with_commit_transport(move |request| {
+            replayed_for_transport
+                .lock()
+                .unwrap()
+                .push(request.body.clone());
+            let body = if request.body.contains("productCreate") {
+                json!({
+                    "data": {
+                        "productCreate": {
+                            "product": { "id": AUTHORITATIVE_PRODUCT_ID },
+                            "userErrors": []
+                        }
+                    }
+                })
+            } else {
+                json!({
+                    "data": {
+                        "tagsAdd": {
+                            "node": { "id": AUTHORITATIVE_PRODUCT_ID },
+                            "userErrors": []
+                        }
+                    }
+                })
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body,
+            }
+        });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateSyntheticForCommitAlias {
+          productCreate(product: { title: "Commit alias source" }) {
+            product { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productCreate"]["product"]["id"],
+        json!(SYNTHETIC_PRODUCT_ID)
+    );
+
+    let add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageCanonicalAlias($id: ID!, $tags: [String!]!) {
+          tagsAdd(id: $id, tags: $tags) {
+            node { ... on Product { id tags } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": CANONICAL_PRODUCT_ID,
+            "tags": ["commit-alias"]
+        }),
+    ));
+    assert_eq!(add.status, 200);
+    assert_eq!(add.body["data"]["tagsAdd"]["userErrors"], json!([]));
+    assert_eq!(
+        add.body["data"]["tagsAdd"]["node"]["id"],
+        json!(CANONICAL_PRODUCT_ID)
+    );
+
+    let commit = proxy.process_request(request_with_body("POST", "/__meta/commit", ""));
+    assert_eq!(commit.status, 200);
+    assert_eq!(commit.body["ok"], json!(true));
+    assert_eq!(commit.body["committed"], json!(2));
+    assert_eq!(commit.body["failed"], json!(0));
+    assert_eq!(commit.body["stopIndex"], Value::Null);
+    assert_eq!(commit.body["attempts"][0]["status"], json!("committed"));
+    assert_eq!(commit.body["attempts"][1]["status"], json!("committed"));
+    assert_eq!(
+        commit.body["attempts"][0]["mappedIds"][SYNTHETIC_PRODUCT_ID],
+        json!(AUTHORITATIVE_PRODUCT_ID)
+    );
+
+    let replayed = replayed.lock().unwrap();
+    assert_eq!(replayed.len(), 2);
+    let second_replay =
+        serde_json::from_str::<Value>(&replayed[1]).expect("second replay body should parse");
+    assert_eq!(
+        second_replay["variables"]["id"],
+        json!(AUTHORITATIVE_PRODUCT_ID)
+    );
+    assert!(
+        !replayed[1].contains(&format!("\"{CANONICAL_PRODUCT_ID}\"")),
+        "canonical alias should not be sent upstream in second replay: {}",
+        replayed[1]
+    );
+
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"][0]["status"], json!("committed"));
+    assert_eq!(log["entries"][1]["status"], json!("committed"));
+    assert!(
+        log["entries"][1]["rawBody"]
+            .as_str()
+            .unwrap_or_default()
+            .contains(CANONICAL_PRODUCT_ID),
+        "raw mutation log should remain original"
+    );
+}
+
+#[test]
 fn products_connection_applies_first_limit_after_overlaying_state() {
     let mut proxy = snapshot_proxy().with_base_products(vec![
         ProductRecord {

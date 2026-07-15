@@ -121,9 +121,214 @@ fn replay_body(entry: &Value, id_map: &BTreeMap<String, String>) -> String {
             let variables = entry.get("variables").cloned().unwrap_or_else(|| json!({}));
             json!({ "query": query, "variables": variables }).to_string()
         });
-    id_map.iter().fold(raw_body, |body, (synthetic, upstream)| {
+    let marked_rewritten = id_map.iter().fold(raw_body, |body, (synthetic, upstream)| {
         body.replace(synthetic, upstream)
-    })
+    });
+    replay_canonical_aliases(&marked_rewritten, id_map)
+}
+
+fn replay_canonical_aliases(body: &str, id_map: &BTreeMap<String, String>) -> String {
+    let aliases = canonical_alias_map(id_map);
+    if aliases.is_empty() {
+        return body.to_string();
+    }
+
+    let Ok(mut value) = serde_json::from_str::<Value>(body) else {
+        return body.to_string();
+    };
+    let mut changed = false;
+    if let Some(rewritten_query) = value
+        .get("query")
+        .and_then(Value::as_str)
+        .and_then(|query| rewrite_graphql_string_literals(query, &aliases))
+    {
+        value["query"] = json!(rewritten_query);
+        changed = true;
+    }
+    if let Some(variables) = value.get_mut("variables") {
+        rewrite_json_string_values(variables, &aliases, &mut changed);
+    }
+
+    if changed {
+        value.to_string()
+    } else {
+        body.to_string()
+    }
+}
+
+fn canonical_alias_map(id_map: &BTreeMap<String, String>) -> BTreeMap<String, String> {
+    id_map
+        .iter()
+        .filter_map(|(synthetic, upstream)| {
+            canonical_synthetic_gid_alias(synthetic).map(|alias| (alias, upstream.clone()))
+        })
+        .collect()
+}
+
+fn canonical_synthetic_gid_alias(synthetic: &str) -> Option<String> {
+    if !is_synthetic_gid(synthetic) {
+        return None;
+    }
+    let resource_type = shopify_gid_resource_type(synthetic)?;
+    let tail = resource_id_tail(synthetic);
+    if tail.is_empty() {
+        return None;
+    }
+    let alias = shopify_gid(resource_type, tail);
+    (alias != synthetic).then_some(alias)
+}
+
+fn rewrite_json_string_values(
+    value: &mut Value,
+    aliases: &BTreeMap<String, String>,
+    changed: &mut bool,
+) {
+    match value {
+        Value::String(value) => {
+            if let Some(replacement) = aliases.get(value.as_str()) {
+                *value = replacement.clone();
+                *changed = true;
+            }
+        }
+        Value::Array(values) => {
+            for value in values {
+                rewrite_json_string_values(value, aliases, changed);
+            }
+        }
+        Value::Object(fields) => {
+            for value in fields.values_mut() {
+                rewrite_json_string_values(value, aliases, changed);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn rewrite_graphql_string_literals(
+    query: &str,
+    aliases: &BTreeMap<String, String>,
+) -> Option<String> {
+    let bytes = query.as_bytes();
+    let mut output = String::with_capacity(query.len());
+    let mut index = 0usize;
+    let mut segment_start = 0usize;
+    let mut changed = false;
+
+    while index < bytes.len() {
+        if bytes[index] != b'"' {
+            index += 1;
+            continue;
+        }
+
+        if query[index..].starts_with("\"\"\"") {
+            let content_start = index + 3;
+            if let Some(relative_end) = query[content_start..].find("\"\"\"") {
+                let content_end = content_start + relative_end;
+                let content = &query[content_start..content_end];
+                output.push_str(&query[segment_start..index]);
+                output.push_str("\"\"\"");
+                if let Some(replacement) = aliases.get(content) {
+                    output.push_str(replacement);
+                    changed = true;
+                } else {
+                    output.push_str(content);
+                }
+                output.push_str("\"\"\"");
+                index = content_end + 3;
+                segment_start = index;
+                continue;
+            }
+            break;
+        }
+
+        let literal_start = index;
+        index += 1;
+        let content_start = index;
+        let mut escaped = false;
+        while index < bytes.len() {
+            let byte = bytes[index];
+            if escaped {
+                escaped = false;
+                index += 1;
+                continue;
+            }
+            match byte {
+                b'\\' => {
+                    escaped = true;
+                    index += 1;
+                }
+                b'"' => break,
+                _ => index += 1,
+            }
+        }
+        if index >= bytes.len() {
+            break;
+        }
+
+        let content = &query[content_start..index];
+        output.push_str(&query[segment_start..literal_start]);
+        output.push('"');
+        if let Some(decoded) = decode_graphql_string_literal_content(content) {
+            if let Some(replacement) = aliases.get(decoded.as_str()) {
+                output.push_str(&escape_graphql_string_literal_content(replacement));
+                changed = true;
+            } else {
+                output.push_str(content);
+            }
+        } else {
+            output.push_str(content);
+        }
+        output.push('"');
+        index += 1;
+        segment_start = index;
+    }
+
+    output.push_str(&query[segment_start..]);
+    changed.then_some(output)
+}
+
+fn decode_graphql_string_literal_content(content: &str) -> Option<String> {
+    if !content.contains('\\') {
+        return Some(content.to_string());
+    }
+    let mut decoded = String::with_capacity(content.len());
+    let mut chars = content.chars();
+    while let Some(ch) = chars.next() {
+        if ch != '\\' {
+            decoded.push(ch);
+            continue;
+        }
+        let escaped = chars.next()?;
+        match escaped {
+            '"' => decoded.push('"'),
+            '\\' => decoded.push('\\'),
+            '/' => decoded.push('/'),
+            'b' => decoded.push('\u{0008}'),
+            'f' => decoded.push('\u{000c}'),
+            'n' => decoded.push('\n'),
+            'r' => decoded.push('\r'),
+            't' => decoded.push('\t'),
+            _ => return None,
+        }
+    }
+    Some(decoded)
+}
+
+fn escape_graphql_string_literal_content(content: &str) -> String {
+    let mut escaped = String::with_capacity(content.len());
+    for ch in content.chars() {
+        match ch {
+            '"' => escaped.push_str("\\\""),
+            '\\' => escaped.push_str("\\\\"),
+            '\u{0008}' => escaped.push_str("\\b"),
+            '\u{000c}' => escaped.push_str("\\f"),
+            '\n' => escaped.push_str("\\n"),
+            '\r' => escaped.push_str("\\r"),
+            '\t' => escaped.push_str("\\t"),
+            _ => escaped.push(ch),
+        }
+    }
+    escaped
 }
 
 fn commit_failure_reason(response: &Response, log_id: &str) -> Option<String> {
@@ -210,6 +415,8 @@ mod tests {
 
     const SYNTHETIC_ONE: &str = "gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic";
     const SYNTHETIC_TWO: &str = "gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic";
+    const CANONICAL_ONE: &str = "gid://shopify/SavedSearch/1";
+    const CANONICAL_TWO: &str = "gid://shopify/SavedSearch/2";
     const AUTHORITATIVE_ONE: &str = "gid://shopify/SavedSearch/12345";
     const AUTHORITATIVE_TWO: &str = "gid://shopify/SavedSearch/67890";
 
@@ -235,6 +442,111 @@ mod tests {
         assert!(!body.contains(SYNTHETIC_ONE));
         assert!(!body.contains(SYNTHETIC_TWO));
         assert!(!body.contains("ignored"));
+    }
+
+    #[test]
+    fn commit_replay_body_rewrites_canonical_aliases_in_variables_and_inline_literals() {
+        let query = format!(
+            r#"
+            mutation {{
+              # GraphQL text should keep {CANONICAL_ONE}
+              savedSearchUpdate(input: {{ id: "{CANONICAL_ONE}", name: "Updated", query: "status:open" }}) {{
+                savedSearch {{ id }}
+                userErrors {{ field message }}
+              }}
+              second: savedSearchUpdate(input: {{ id: "{CANONICAL_TWO}", name: "Updated two", query: "status:closed" }}) {{
+                savedSearch {{ id }}
+                userErrors {{ field message }}
+              }}
+            }}
+            "#
+        );
+        let entry = json!({
+            "rawBody": json!({
+                "query": query,
+                "variables": {
+                    "id": CANONICAL_ONE,
+                    "nested": {
+                        "ids": [CANONICAL_TWO, SYNTHETIC_ONE],
+                        "text": format!("note mentions {CANONICAL_ONE} but is not an ID value")
+                    }
+                }
+            }).to_string()
+        });
+        let id_map = BTreeMap::from([
+            (SYNTHETIC_ONE.to_string(), AUTHORITATIVE_ONE.to_string()),
+            (SYNTHETIC_TWO.to_string(), AUTHORITATIVE_TWO.to_string()),
+        ]);
+
+        let body = replay_body(&entry, &id_map);
+        let parsed = serde_json::from_str::<Value>(&body).expect("replayed body should be JSON");
+        let query = parsed["query"].as_str().expect("query should be preserved");
+
+        assert!(query.contains(&format!(
+            "savedSearchUpdate(input: {{ id: \"{AUTHORITATIVE_ONE}\""
+        )));
+        assert!(query.contains(&format!(
+            "second: savedSearchUpdate(input: {{ id: \"{AUTHORITATIVE_TWO}\""
+        )));
+        assert!(query.contains(&format!("# GraphQL text should keep {CANONICAL_ONE}")));
+        assert_eq!(parsed["variables"]["id"], json!(AUTHORITATIVE_ONE));
+        assert_eq!(
+            parsed["variables"]["nested"]["ids"],
+            json!([AUTHORITATIVE_TWO, AUTHORITATIVE_ONE])
+        );
+        assert_eq!(
+            parsed["variables"]["nested"]["text"],
+            json!(format!(
+                "note mentions {CANONICAL_ONE} but is not an ID value"
+            ))
+        );
+    }
+
+    #[test]
+    fn commit_replay_body_preserves_nonmatching_canonical_type_and_tail_values() {
+        let wrong_type_same_tail = "gid://shopify/Product/1";
+        let same_type_wrong_tail = "gid://shopify/SavedSearch/10";
+        let query = format!(
+            r#"
+            mutation {{
+              wrongType: savedSearchUpdate(input: {{ id: "{wrong_type_same_tail}", name: "Wrong type" }}) {{ savedSearch {{ id }} }}
+              wrongTail: savedSearchUpdate(input: {{ id: "{same_type_wrong_tail}", name: "Wrong tail" }}) {{ savedSearch {{ id }} }}
+              longer: savedSearchUpdate(input: {{ id: "{CANONICAL_ONE}0", name: "Longer tail" }}) {{ savedSearch {{ id }} }}
+            }}
+            "#
+        );
+        let entry = json!({
+            "rawBody": json!({
+                "query": query,
+                "variables": {
+                    "wrongType": wrong_type_same_tail,
+                    "wrongTail": same_type_wrong_tail,
+                    "longer": format!("{CANONICAL_ONE}0")
+                }
+            }).to_string()
+        });
+        let id_map = BTreeMap::from([(SYNTHETIC_ONE.to_string(), AUTHORITATIVE_ONE.to_string())]);
+
+        let body = replay_body(&entry, &id_map);
+        let parsed = serde_json::from_str::<Value>(&body).expect("replayed body should be JSON");
+        let query = parsed["query"].as_str().expect("query should be preserved");
+
+        assert!(query.contains(wrong_type_same_tail));
+        assert!(query.contains(same_type_wrong_tail));
+        assert!(query.contains(&format!("{CANONICAL_ONE}0")));
+        assert_eq!(
+            parsed["variables"]["wrongType"],
+            json!(wrong_type_same_tail)
+        );
+        assert_eq!(
+            parsed["variables"]["wrongTail"],
+            json!(same_type_wrong_tail)
+        );
+        assert_eq!(
+            parsed["variables"]["longer"],
+            json!(format!("{CANONICAL_ONE}0"))
+        );
+        assert!(!body.contains(AUTHORITATIVE_ONE));
     }
 
     #[test]
