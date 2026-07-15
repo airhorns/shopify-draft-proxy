@@ -1,0 +1,23 @@
+mutation CustomerLiveHybridOverlayCreate($input: CustomerInput!) {
+  customerCreate(input: $input) {
+    customer {
+      id
+      email
+      firstName
+      lastName
+      displayName
+      state
+      tags
+      defaultEmailAddress {
+        emailAddress
+      }
+      defaultPhoneNumber {
+        phoneNumber
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
