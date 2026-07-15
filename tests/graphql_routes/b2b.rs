@@ -538,7 +538,7 @@ fn b2b_location_buyer_experience_configuration_update_tail_helpers_cover_current
         mutation RustB2BLocationBuyerExperienceConfigurationUpdate($locationId: ID!) {
           companyLocationUpdate(companyLocationId: $locationId, input: { buyerExperienceConfiguration: {} }) {
             companyLocation { id }
-            userErrors { field message code detail }
+            userErrors { field message code }
           }
         }
         "#,
@@ -552,8 +552,7 @@ fn b2b_location_buyer_experience_configuration_update_tail_helpers_cover_current
             "userErrors": [{
                 "field": ["input", "buyerExperienceConfiguration"],
                 "message": "Invalid input.",
-                "code": "INVALID_INPUT",
-                "detail": "buyer_experience_configuration_empty"
+                "code": "INVALID_INPUT"
             }]
         })
     );
@@ -563,7 +562,7 @@ fn b2b_location_buyer_experience_configuration_update_tail_helpers_cover_current
         mutation RustB2BLocationBuyerExperienceConfigurationUpdate($locationId: ID!) {
           companyLocationUpdate(companyLocationId: $locationId, input: { buyerExperienceConfiguration: { deposit: { percentage: 50.0 } } }) {
             companyLocation { id }
-            userErrors { field message code detail }
+            userErrors { field message code }
           }
         }
         "#,
@@ -577,8 +576,7 @@ fn b2b_location_buyer_experience_configuration_update_tail_helpers_cover_current
             "userErrors": [{
                 "field": ["input", "buyerExperienceConfiguration", "deposit"],
                 "message": "Deposit requires a payment terms template.",
-                "code": "INVALID",
-                "detail": "deposit_without_payment_terms"
+                "code": "INVALID"
             }]
         })
     );
@@ -588,7 +586,7 @@ fn b2b_location_buyer_experience_configuration_update_tail_helpers_cover_current
         mutation RustB2BLocationBuyerExperienceConfigurationDepositDisabled($locationId: ID!) {
           companyLocationUpdate(companyLocationId: $locationId, input: { buyerExperienceConfiguration: { paymentTermsTemplateId: "gid://shopify/PaymentTermsTemplate/4", deposit: { percentage: 50.0 } } }) {
             companyLocation { id }
-            userErrors { field message code detail }
+            userErrors { field message code }
           }
         }
         "#,
@@ -602,8 +600,7 @@ fn b2b_location_buyer_experience_configuration_update_tail_helpers_cover_current
             "userErrors": [{
                 "field": ["input", "buyerExperienceConfiguration", "deposit"],
                 "message": "Deposits are not enabled for this shop.",
-                "code": "INVALID",
-                "detail": "deposit_not_enabled"
+                "code": "INVALID"
             }]
         })
     );
@@ -754,7 +751,7 @@ fn b2b_contact_location_defaults_use_shop_and_customer_context() {
                 }
               }
             }
-            userErrors { field message code detail }
+            userErrors { field message code }
           }
         }
         "#,
@@ -1003,7 +1000,7 @@ fn b2b_company_identity_validation_tail_helpers_cover_current_behavior() {
         mutation RustB2BCompanyNameValidation($company: CompanyInput!) {
           companyCreate(input: { company: $company }) {
             company { id name }
-            userErrors { field message code detail }
+            userErrors { field message code }
           }
         }
         "#,
@@ -1017,8 +1014,7 @@ fn b2b_company_identity_validation_tail_helpers_cover_current_behavior() {
             "userErrors": [{
                 "field": ["input", "company", "name"],
                 "message": "Name is too long (maximum is 255 characters)",
-                "code": "TOO_LONG",
-                "detail": Value::Null
+                "code": "TOO_LONG"
             }]
         })
     );
@@ -1052,7 +1048,7 @@ fn b2b_company_identity_validation_tail_helpers_cover_current_behavior() {
         mutation RustB2BCompanyExternalIdCreateValidation($company: CompanyInput!) {
           companyCreate(input: { company: $company }) {
             company { id externalId }
-            userErrors { field message code detail }
+            userErrors { field message code }
           }
         }
         "#,
@@ -1066,8 +1062,7 @@ fn b2b_company_identity_validation_tail_helpers_cover_current_behavior() {
             "userErrors": [{
                 "field": ["input", "company", "externalId"],
                 "message": "External Id must be 64 characters or less.",
-                "code": "TOO_LONG",
-                "detail": Value::Null
+                "code": "TOO_LONG"
             }]
         })
     );
@@ -1077,7 +1072,7 @@ fn b2b_company_identity_validation_tail_helpers_cover_current_behavior() {
         mutation RustB2BCompanyExternalIdCreateValidation($company: CompanyInput!) {
           companyCreate(input: { company: $company }) {
             company { id externalId }
-            userErrors { field message code detail }
+            userErrors { field message code }
           }
         }
         "#,
@@ -1091,8 +1086,7 @@ fn b2b_company_identity_validation_tail_helpers_cover_current_behavior() {
             "userErrors": [{
                 "field": ["input", "company", "externalId"],
                 "message": r#"External Id can only contain numbers, letters, and some special characters, including !@#$%^&*(){}[]\/?<>_-~,.;:'`""#,
-                "code": "INVALID",
-                "detail": "external_id_contains_invalid_chars"
+                "code": "INVALID"
             }]
         })
     );
@@ -1102,7 +1096,7 @@ fn b2b_company_identity_validation_tail_helpers_cover_current_behavior() {
         mutation RustB2BCompanyExternalIdCreateValidation($company: CompanyInput!) {
           companyCreate(input: { company: $company }) {
             company { id externalId }
-            userErrors { field message code detail }
+            userErrors { field message code }
           }
         }
         "#,
@@ -1116,7 +1110,7 @@ fn b2b_company_identity_validation_tail_helpers_cover_current_behavior() {
         mutation RustB2BCompanyExternalIdCreateValidation($company: CompanyInput!) {
           companyCreate(input: { company: $company }) {
             company { id externalId }
-            userErrors { field message code detail }
+            userErrors { field message code }
           }
         }
         "#,
@@ -1129,8 +1123,7 @@ fn b2b_company_identity_validation_tail_helpers_cover_current_behavior() {
             "userErrors": [{
                 "field": ["input", "company", "externalId"],
                 "message": "External id has already been taken.",
-                "code": "TAKEN",
-                "detail": "duplicate_external_id"
+                "code": "TAKEN"
             }]
         })
     );
@@ -1140,7 +1133,7 @@ fn b2b_company_identity_validation_tail_helpers_cover_current_behavior() {
         mutation RustB2BCompanyExternalIdCreateValidation($company: CompanyInput!) {
           companyCreate(input: { company: $company }) {
             company { id externalId }
-            userErrors { field message code detail }
+            userErrors { field message code }
           }
         }
         "#,
@@ -1150,10 +1143,10 @@ fn b2b_company_identity_validation_tail_helpers_cover_current_behavior() {
 
     let self_update = proxy.process_request(json_graphql_request(
         r#"
-        mutation RustB2BCompanyExternalIdUpdateValidation($id: ID!, $input: CompanyUpdateInput!) {
+        mutation RustB2BCompanyExternalIdUpdateValidation($id: ID!, $input: CompanyInput!) {
           companyUpdate(companyId: $id, input: $input) {
             company { id externalId }
-            userErrors { field message code detail }
+            userErrors { field message code }
           }
         }
         "#,
@@ -1166,10 +1159,10 @@ fn b2b_company_identity_validation_tail_helpers_cover_current_behavior() {
 
     let duplicate_update = proxy.process_request(json_graphql_request(
         r#"
-        mutation RustB2BCompanyExternalIdUpdateValidation($id: ID!, $input: CompanyUpdateInput!) {
+        mutation RustB2BCompanyExternalIdUpdateValidation($id: ID!, $input: CompanyInput!) {
           companyUpdate(companyId: $id, input: $input) {
             company { id externalId }
-            userErrors { field message code detail }
+            userErrors { field message code }
           }
         }
         "#,
@@ -1182,8 +1175,7 @@ fn b2b_company_identity_validation_tail_helpers_cover_current_behavior() {
             "userErrors": [{
                 "field": ["input", "externalId"],
                 "message": "External id has already been taken.",
-                "code": "TAKEN",
-                "detail": "duplicate_external_id"
+                "code": "TAKEN"
             }]
         })
     );
@@ -1345,6 +1337,10 @@ fn b2b_companies_delete_mixes_blocked_deleted_and_unknown_ids() {
         json!({ "company": { "name": "Blocked" } }),
     ));
     let blocked_id = blocked.body["data"]["companyCreate"]["company"]["id"].clone();
+    let blocked_location_id =
+        read_b2b_company_location_ids(&mut proxy, blocked_id.as_str().expect("blocked company id"))
+            [0]
+        .clone();
 
     let ok = proxy.process_request(json_graphql_request(
         r#"
@@ -1367,9 +1363,7 @@ fn b2b_companies_delete_mixes_blocked_deleted_and_unknown_ids() {
         "#,
         json!({ "order": {
             "email": "b2b-company-delete-blocker@example.test",
-            "purchasingEntity": {
-                "purchasingCompany": { "companyId": blocked_id }
-            },
+            "companyLocationId": blocked_location_id,
             "lineItems": [{ "title": "Blocker", "quantity": 1 }]
         }}),
     ));
@@ -1453,7 +1447,7 @@ fn b2b_company_update_immutable_and_note_validation_tail_helpers_cover_current_b
 
     let customer_since_only = proxy.process_request(json_graphql_request(
         r#"
-        mutation RustB2BCompanyCustomerSinceUpdate($id: ID!, $input: CompanyUpdateInput!) {
+        mutation RustB2BCompanyCustomerSinceUpdate($id: ID!, $input: CompanyInput!) {
           companyUpdate(companyId: $id, input: $input) {
             company { id name customerSince }
             userErrors { field message code }
@@ -1489,7 +1483,7 @@ fn b2b_company_update_immutable_and_note_validation_tail_helpers_cover_current_b
 
     let mixed_reject = proxy.process_request(json_graphql_request(
         r#"
-        mutation RustB2BCompanyCustomerSinceUpdate($id: ID!, $input: CompanyUpdateInput!) {
+        mutation RustB2BCompanyCustomerSinceUpdate($id: ID!, $input: CompanyInput!) {
           companyUpdate(companyId: $id, input: $input) {
             company { id name customerSince }
             userErrors { field message code }
@@ -1522,7 +1516,7 @@ fn b2b_company_update_immutable_and_note_validation_tail_helpers_cover_current_b
 
     let null_reject = proxy.process_request(json_graphql_request(
         r#"
-        mutation RustB2BCompanyCustomerSinceUpdate($id: ID!, $input: CompanyUpdateInput!) {
+        mutation RustB2BCompanyCustomerSinceUpdate($id: ID!, $input: CompanyInput!) {
           companyUpdate(companyId: $id, input: $input) {
             company { id name customerSince }
             userErrors { field message code }
@@ -1542,10 +1536,10 @@ fn b2b_company_update_immutable_and_note_validation_tail_helpers_cover_current_b
 
     let html_note = proxy.process_request(json_graphql_request(
         r#"
-        mutation RustB2BCompanyNoteValidation($id: ID!, $input: CompanyUpdateInput!) {
+        mutation RustB2BCompanyNoteValidation($id: ID!, $input: CompanyInput!) {
           companyUpdate(companyId: $id, input: $input) {
             company { id note }
-            userErrors { field message code detail }
+            userErrors { field message code }
           }
         }
         "#,
@@ -1576,10 +1570,10 @@ fn b2b_company_update_immutable_and_note_validation_tail_helpers_cover_current_b
     let invalid_note = format!("<script>{}</script>", "x".repeat(6000));
     let note_reject = proxy.process_request(json_graphql_request(
         r#"
-        mutation RustB2BCompanyNoteValidation($id: ID!, $input: CompanyUpdateInput!) {
+        mutation RustB2BCompanyNoteValidation($id: ID!, $input: CompanyInput!) {
           companyUpdate(companyId: $id, input: $input) {
             company { id note }
-            userErrors { field message code detail }
+            userErrors { field message code }
           }
         }
         "#,
@@ -1594,8 +1588,7 @@ fn b2b_company_update_immutable_and_note_validation_tail_helpers_cover_current_b
         json!([{
             "field": ["input", "notes"],
             "message": "Notes is too long (maximum is 5000 characters)",
-            "code": "TOO_LONG",
-            "detail": Value::Null
+            "code": "TOO_LONG"
         }])
     );
 }
@@ -1952,7 +1945,7 @@ fn b2b_live_hybrid_merges_upstream_catalog_with_staged_company_and_location() {
             }
             pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
           }
-          companiesCount(query: $companyQuery, limit: 10) { count precision }
+          companiesCount(limit: 10) { count precision }
           companyLocations(first: 10, query: $locationQuery, sortKey: NAME) {
             nodes { id name externalId company { id name } }
             pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
@@ -2029,7 +2022,7 @@ fn b2b_live_hybrid_merges_upstream_catalog_with_staged_company_and_location() {
     let calls = captured.lock().expect("captured upstream");
     assert_eq!(calls.len(), 1);
     assert!(calls[0].body.contains("query B2BMixedCatalog"));
-    assert!(!calls[0].body.contains("mutation"));
+    assert!(calls.iter().all(|call| !call.body.contains("mutation")));
 }
 
 #[test]
@@ -3973,10 +3966,6 @@ fn b2b_contact_revoke_role_singular_stages_and_reads_back() {
             companyContactRoleAssignmentId: $companyContactRoleAssignmentId
           ) {
             revokedCompanyContactRoleAssignmentId
-            companyContact {
-              id
-              roleAssignments(first: 5) { nodes { id } }
-            }
             userErrors { field message code }
           }
         }
@@ -3990,15 +3979,6 @@ fn b2b_contact_revoke_role_singular_stages_and_reads_back() {
     assert_eq!(
         revoke.body["data"]["companyContactRevokeRole"]["revokedCompanyContactRoleAssignmentId"],
         assignment_id
-    );
-    assert_eq!(
-        revoke.body["data"]["companyContactRevokeRole"]["companyContact"]["id"],
-        contact_id
-    );
-    assert_eq!(
-        revoke.body["data"]["companyContactRevokeRole"]["companyContact"]["roleAssignments"]
-            ["nodes"],
-        json!([])
     );
     assert_eq!(
         revoke.body["data"]["companyContactRevokeRole"]["userErrors"],
@@ -4040,7 +4020,7 @@ fn b2b_company_location_lifecycle_stages_and_reads_back() {
             company {
               id
               name
-              locations(first: 5) { nodes { id name billingSameAsShipping shippingAddress { id address1 } billingAddress { id address1 } } }
+              locations(first: 5) { nodes { id name shippingAddress { id address1 } billingAddress { id address1 } } }
             }
             userErrors { field message code }
           }
@@ -4065,7 +4045,6 @@ fn b2b_company_location_lifecycle_stages_and_reads_back() {
     let company_id = company["id"].as_str().expect("company id").to_string();
     let first_location = &company["locations"]["nodes"][0];
     assert_eq!(first_location["name"], json!("Acme B2B"));
-    assert_eq!(first_location["billingSameAsShipping"], json!(true));
     assert_eq!(
         first_location["shippingAddress"]["id"],
         first_location["billingAddress"]["id"]
@@ -4207,7 +4186,6 @@ fn b2b_company_and_location_aggregate_fields_project_from_staged_orders() {
                   currency
                   ordersCount { count precision }
                   orderCount
-                  market { id name }
                   catalogs(first: 5) { nodes { id title } }
                 }
               }
@@ -4261,7 +4239,6 @@ fn b2b_company_and_location_aggregate_fields_project_from_staged_orders() {
         json!({ "count": 0, "precision": "EXACT" })
     );
     assert_eq!(company["locations"]["nodes"][0]["orderCount"], json!(0));
-    assert_eq!(company["locations"]["nodes"][0]["market"], Value::Null);
     assert_eq!(
         company["locations"]["nodes"][0]["catalogs"]["nodes"],
         json!([])
@@ -4282,16 +4259,11 @@ fn b2b_company_and_location_aggregate_fields_project_from_staged_orders() {
                 "email": "aggregate-buyer@example.test",
                 "currency": "USD",
                 "financialStatus": "PENDING",
-                "purchasingEntity": {
-                    "purchasingCompany": {
-                        "companyId": company_id,
-                        "companyLocationId": location_id
-                    }
-                },
+                "companyLocationId": location_id,
                 "lineItems": [{
                     "title": "Aggregate item",
                     "quantity": 2,
-                    "priceSet": { "amount": "12.50", "currencyCode": "USD" }
+                    "priceSet": { "shopMoney": { "amount": "12.50", "currencyCode": "USD" } }
                 }]
             }
         }),
@@ -4352,7 +4324,6 @@ fn b2b_company_and_location_aggregate_fields_project_from_staged_orders() {
             ordersCount { count precision }
             orderSummary: ordersCount { total: count precision }
             orderCount
-            market { id name }
             catalogs(first: 5) { nodes { id title } }
           }
           companyNode: node(id: $companyId) {
@@ -4419,7 +4390,6 @@ fn b2b_company_and_location_aggregate_fields_project_from_staged_orders() {
         json!({ "total": 1, "precision": "EXACT" })
     );
     assert_eq!(read.body["data"]["companyLocation"]["orderCount"], json!(1));
-    assert_eq!(read.body["data"]["companyLocation"]["market"], Value::Null);
     assert_eq!(
         read.body["data"]["companyLocation"]["catalogs"]["nodes"],
         json!([{ "id": catalog_id, "title": "Aggregate Catalog" }])
@@ -4622,6 +4592,14 @@ fn b2b_company_location_aggregate_currency_uses_location_country_for_draft_order
               order {
                 id
                 currentTotalPriceSet { shopMoney { amount currencyCode } }
+                purchasingEntity {
+                  __typename
+                  ... on PurchasingCompany {
+                    company { id }
+                    contact { id }
+                    location { id }
+                  }
+                }
               }
             }
             userErrors { field message }
@@ -4639,6 +4617,15 @@ fn b2b_company_location_aggregate_currency_uses_location_country_for_draft_order
         complete.body["data"]["draftOrderComplete"]["draftOrder"]["order"]["currentTotalPriceSet"]
             ["shopMoney"],
         json!({ "amount": "25.0", "currencyCode": "CAD" })
+    );
+    assert_eq!(
+        complete.body["data"]["draftOrderComplete"]["draftOrder"]["order"]["purchasingEntity"],
+        json!({
+            "__typename": "PurchasingCompany",
+            "company": { "id": company_id },
+            "contact": { "id": contact_id },
+            "location": { "id": location_id }
+        })
     );
 
     let read = proxy.process_request(json_graphql_request(
@@ -4683,6 +4670,7 @@ fn b2b_company_location_aggregate_currency_uses_location_country_for_draft_order
 #[test]
 fn b2b_company_and_location_order_sub_connections_are_state_backed() {
     let mut proxy = snapshot_proxy();
+    restore_shop_currency(&mut proxy, "USD");
 
     let create_company = proxy.process_request(json_graphql_request(
         r#"
@@ -4742,16 +4730,11 @@ fn b2b_company_and_location_order_sub_connections_are_state_backed() {
                 "order": {
                     "email": "connection-order@example.test",
                     "currency": "USD",
-                    "purchasingEntity": {
-                        "purchasingCompany": {
-                            "companyId": company_id,
-                            "companyLocationId": location_id
-                        }
-                    },
+                    "companyLocationId": location_id,
                     "lineItems": [{
                         "title": title,
                         "quantity": 1,
-                        "priceSet": { "amount": amount, "currencyCode": "USD" }
+                        "priceSet": { "shopMoney": { "amount": amount, "currencyCode": "USD" } }
                     }]
                 }
             }),
@@ -4796,6 +4779,7 @@ fn b2b_company_and_location_order_sub_connections_are_state_backed() {
             "#,
             json!({
                 "input": {
+                    "presentmentCurrencyCode": "USD",
                     "purchasingEntity": {
                         "purchasingCompany": {
                             "companyId": company_id,
@@ -5533,7 +5517,6 @@ fn b2b_location_address_assignment_preserves_ids_and_delete_cascades_shared_addr
         query B2BSharedAddressRead($id: ID!) {
           companyLocation(id: $id) {
             id
-            billingSameAsShipping
             shippingAddress { id address1 }
             billingAddress { id address1 }
           }
@@ -5570,7 +5553,6 @@ fn b2b_location_address_assignment_preserves_ids_and_delete_cascades_shared_addr
         r#"
         query B2BSharedAddressReadAfterDelete($id: ID!) {
           companyLocation(id: $id) {
-            billingSameAsShipping
             shippingAddress { id }
             billingAddress { id }
           }
@@ -5581,7 +5563,6 @@ fn b2b_location_address_assignment_preserves_ids_and_delete_cascades_shared_addr
     assert_eq!(
         read_after_delete.body["data"]["companyLocation"],
         json!({
-            "billingSameAsShipping": false,
             "shippingAddress": Value::Null,
             "billingAddress": Value::Null
         })
@@ -6109,7 +6090,6 @@ fn b2b_contact_revoke_role_validates_contact_before_assignment_scope() {
             companyContactRoleAssignmentId: $companyContactRoleAssignmentId
           ) {
             revokedCompanyContactRoleAssignmentId
-            companyContact { id }
             userErrors { field message code }
           }
         }
@@ -6123,7 +6103,6 @@ fn b2b_contact_revoke_role_validates_contact_before_assignment_scope() {
         revoke.body["data"]["companyContactRevokeRole"],
         json!({
             "revokedCompanyContactRoleAssignmentId": Value::Null,
-            "companyContact": Value::Null,
             "userErrors": [{
                 "field": ["companyContactId"],
                 "message": "Resource requested does not exist.",
@@ -6309,7 +6288,7 @@ fn b2b_location_role_assign_revoke_validates_per_index() {
 
     let assign = proxy.process_request(json_graphql_request(
         r#"
-        mutation B2BAssignRoles($locationId: ID!, $roles: [CompanyLocationAssignRolesInput!]!) {
+        mutation B2BAssignRoles($locationId: ID!, $roles: [CompanyLocationRoleAssign!]!) {
           companyLocationAssignRoles(companyLocationId: $locationId, rolesToAssign: $roles) {
             roleAssignments {
               id
@@ -6529,7 +6508,7 @@ fn b2b_bulk_action_size_cap_rejects_oversized_inputs_before_validation() {
         r#"
         mutation B2BBulkLimitLocationAssignRoles(
           $companyLocationId: ID!
-          $roles: [CompanyLocationAssignRolesInput!]!
+          $roles: [CompanyLocationRoleAssign!]!
         ) {
           companyLocationAssignRoles(companyLocationId: $companyLocationId, rolesToAssign: $roles) {
             roleAssignments { id }
@@ -6567,7 +6546,7 @@ fn b2b_bulk_action_size_cap_rejects_oversized_inputs_before_validation() {
         mutation B2BBulkLimitLocationRevokeRoles($companyLocationId: ID!, $ids: [ID!]!) {
           companyLocationRevokeRoles(companyLocationId: $companyLocationId, rolesToRevoke: $ids) {
             revokedRoleAssignmentIds
-            revokedCompanyContactRoleAssignmentIds
+            revokedRoleAssignmentIds
             userErrors { field message code }
           }
         }
@@ -6578,10 +6557,7 @@ fn b2b_bulk_action_size_cap_rejects_oversized_inputs_before_validation() {
         }),
         "companyLocationRevokeRoles",
         "rolesToRevoke",
-        &[
-            "revokedRoleAssignmentIds",
-            "revokedCompanyContactRoleAssignmentIds",
-        ],
+        &["revokedRoleAssignmentIds", "revokedRoleAssignmentIds"],
     );
     assert_b2b_bulk_limit_response(
         r#"
@@ -6783,7 +6759,6 @@ fn create_b2b_company_with_contact_and_role(proxy: &mut DraftProxy) -> String {
           companyCreate(input: {
             company: { name: "Role Co" },
             companyContact: { title: "Buyer", email: "role-buyer@example.com" },
-            companyContactRole: { name: "Location admin" }
           }) {
             company { id }
             userErrors { field message code }

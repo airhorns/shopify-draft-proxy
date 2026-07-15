@@ -2,15 +2,15 @@
   "scenarioId": "draftOrderCreate-magic-title-not-canned",
   "apiVersion": "2025-01",
   "storeDomain": "harry-test-heelo.myshopify.com",
-  "recordedAt": "2026-07-05T00:27:10.413Z",
+  "recordedAt": "2026-07-14T14:00:30.206Z",
   "source": "live-shopify-admin-graphql",
   "safetyPolicy": "Creates one disposable draft order whose first custom line title is the formerly magic audit value, records Shopify create/read behavior, then deletes the draft order during cleanup.",
   "create": {
     "document": "mutation DraftOrderCreateMagicTitle($input: DraftOrderInput!) {\n  draftOrderCreate(input: $input) {\n    draftOrder {\n      id\n      name\n      status\n      ready\n      email\n      tags\n      invoiceUrl\n      customAttributes {\n        key\n        value\n      }\n      subtotalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      totalDiscountsSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      totalShippingPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      totalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      totalQuantityOfLineItems\n      lineItems(first: 5) {\n        nodes {\n          id\n          title\n          name\n          quantity\n          sku\n          custom\n          requiresShipping\n          taxable\n          customAttributes {\n            key\n            value\n          }\n          originalUnitPriceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n          originalTotalSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n          discountedTotalSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n          totalDiscountSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
     "variables": {
       "input": {
-        "email": "draft-order-magic-title-20260705002709@example.com",
-        "tags": ["draft-proxy-capture", "magic-title-not-canned", "20260705002709"],
+        "email": "draft-order-magic-title-20260714140029@example.com",
+        "tags": ["draft-proxy-capture", "magic-title-not-canned", "20260714140029"],
         "customAttributes": [
           {
             "key": "capture",
@@ -42,13 +42,13 @@
       "data": {
         "draftOrderCreate": {
           "draftOrder": {
-            "id": "gid://shopify/DraftOrder/1275904622898",
-            "name": "#D309",
+            "id": "gid://shopify/DraftOrder/1280992313650",
+            "name": "#D345",
             "status": "OPEN",
             "ready": true,
-            "email": "draft-order-magic-title-20260705002709@example.com",
-            "tags": ["20260705002709", "draft-proxy-capture", "magic-title-not-canned"],
-            "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/6e9b7002c3fe96f6fcfa7389bd1cce96",
+            "email": "draft-order-magic-title-20260714140029@example.com",
+            "tags": ["20260714140029", "draft-proxy-capture", "magic-title-not-canned"],
+            "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/41fee4991d15e4e345c56029702b4b48",
             "customAttributes": [
               {
                 "key": "capture",
@@ -83,7 +83,7 @@
             "lineItems": {
               "nodes": [
                 {
-                  "id": "gid://shopify/DraftOrderLineItem/58629024481586",
+                  "id": "gid://shopify/DraftOrderLineItem/58636738593074",
                   "title": "Invoice error parity item",
                   "name": "Invoice error parity item",
                   "quantity": 2,
@@ -144,18 +144,18 @@
   "downstreamRead": {
     "document": "query DraftOrderCreateMagicTitleRead($id: ID!) {\n  draftOrder(id: $id) {\n    id\n    name\n    status\n    ready\n    email\n    tags\n    invoiceUrl\n    customAttributes {\n      key\n      value\n    }\n    subtotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalDiscountsSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalShippingPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalQuantityOfLineItems\n    lineItems(first: 5) {\n      nodes {\n        id\n        title\n        name\n        quantity\n        sku\n        custom\n        requiresShipping\n        taxable\n        customAttributes {\n          key\n          value\n        }\n        originalUnitPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n        originalTotalSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n        discountedTotalSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n        totalDiscountSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n  }\n}\n",
     "variables": {
-      "id": "gid://shopify/DraftOrder/1275904622898"
+      "id": "gid://shopify/DraftOrder/1280992313650"
     },
     "response": {
       "data": {
         "draftOrder": {
-          "id": "gid://shopify/DraftOrder/1275904622898",
-          "name": "#D309",
+          "id": "gid://shopify/DraftOrder/1280992313650",
+          "name": "#D345",
           "status": "OPEN",
           "ready": true,
-          "email": "draft-order-magic-title-20260705002709@example.com",
-          "tags": ["20260705002709", "draft-proxy-capture", "magic-title-not-canned"],
-          "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/6e9b7002c3fe96f6fcfa7389bd1cce96",
+          "email": "draft-order-magic-title-20260714140029@example.com",
+          "tags": ["20260714140029", "draft-proxy-capture", "magic-title-not-canned"],
+          "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/41fee4991d15e4e345c56029702b4b48",
           "customAttributes": [
             {
               "key": "capture",
@@ -190,7 +190,7 @@
           "lineItems": {
             "nodes": [
               {
-                "id": "gid://shopify/DraftOrderLineItem/58629024481586",
+                "id": "gid://shopify/DraftOrderLineItem/58636738593074",
                 "title": "Invoice error parity item",
                 "name": "Invoice error parity item",
                 "quantity": 2,
@@ -250,14 +250,14 @@
     "draftOrderDelete": {
       "variables": {
         "input": {
-          "id": "gid://shopify/DraftOrder/1275904622898"
+          "id": "gid://shopify/DraftOrder/1280992313650"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "draftOrderDelete": {
-            "deletedId": "gid://shopify/DraftOrder/1275904622898",
+            "deletedId": "gid://shopify/DraftOrder/1280992313650",
             "userErrors": []
           }
         },
@@ -275,5 +275,34 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "DraftProxyShopPricingHydrate",
+      "variables": {},
+      "query": "query DraftProxyShopPricingHydrate { shop { currencyCode taxesIncluded taxShipping } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shop": {
+              "currencyCode": "CAD",
+              "taxesIncluded": false,
+              "taxShipping": false
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

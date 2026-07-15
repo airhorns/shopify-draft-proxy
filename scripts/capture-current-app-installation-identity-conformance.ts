@@ -33,6 +33,24 @@ const destroyDelegateTokenMutation = await readFile(
   'utf8',
 );
 
+const shopIdentityHydrateQuery = `#graphql
+  query ProductPayloadShopHydrate {
+    shop {
+      id
+      name
+      myshopifyDomain
+      url
+      currencyCode
+      primaryDomain {
+        id
+        host
+        url
+        sslEnabled
+      }
+    }
+  }
+`;
+
 const customAppBillingProbeMutation = `#graphql
   mutation CustomAppBillingProbe(
     $name: String!
@@ -195,6 +213,8 @@ try {
   delegateToken = createdDelegateToken(scenarios['createDelegateToken'].response);
   scenarios['createDelegateToken'].response = redactDelegateTokenPayload(scenarios['createDelegateToken'].response);
 
+  scenarios['shopIdentityHydrate'] = await capture('shopIdentityHydrate', shopIdentityHydrateQuery);
+
   scenarios['readAfterCreate'] = await capture('readAfterCreate', readCurrentInstallationQuery);
   readbackIdentity = currentInstallationIdentity(scenarios['readAfterCreate'].response);
   assertSameIdentity(observedIdentity, readbackIdentity);
@@ -233,13 +253,24 @@ await writeFile(
         'Captures the installed app identity returned by currentAppInstallation before and after a real delegateAccessTokenCreate call.',
         'The conformance app is a custom app, so the fixture records Shopify rejecting appSubscriptionCreate with "Custom apps cannot use the Billing API" and uses delegateAccessTokenCreate as the real app-domain mutation that this app can execute.',
         'The capture asserts Shopify keeps currentAppInstallation.id and app identity stable across the app mutation. The created delegate token is destroyed in cleanup when Shopify returns a token.',
+        'The upstreamCalls cassette records the exact ProductPayloadShopHydrate query used when the local delegateAccessTokenCreate payload selects shop identity fields.',
       ],
       observedIdentity,
       readbackIdentity,
       delegateTokenDestroyed,
       scenarios,
       cleanup,
-      upstreamCalls: [],
+      upstreamCalls: [
+        {
+          operationName: 'ProductPayloadShopHydrate',
+          variables: {},
+          query: shopIdentityHydrateQuery,
+          response: {
+            status: scenarios['shopIdentityHydrate'].status,
+            body: scenarios['shopIdentityHydrate'].response,
+          },
+        },
+      ],
     },
     null,
     2,

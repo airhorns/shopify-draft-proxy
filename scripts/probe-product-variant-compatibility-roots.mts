@@ -117,7 +117,7 @@ function buildBlockerNote(blockers) {
     '',
     '## Why this blocks closure',
     '',
-    'The repo still implements `productVariantCreate`, `productVariantUpdate`, and `productVariantDelete` as compatibility roots, but the current 2025-01 live schema on the conformance store does not expose those mutation fields. Without direct live roots, this family cannot be promoted from declared-gap to covered via first-party mutation capture on the current store/api-version pair.',
+    'The captured Admin schemas do not expose `productVariantCreate`, `productVariantUpdate`, or `productVariantDelete`, so the executable proxy schema rejects those retired compatibility roots. Historical comparison metadata remains, but this family cannot be promoted via first-party mutation capture on the current store/api-version pair.',
     '',
     '## What was completed anyway',
     '',

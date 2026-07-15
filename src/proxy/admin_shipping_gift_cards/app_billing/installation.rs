@@ -139,8 +139,8 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let (response_key, payload_selection, arguments) =
-            primary_root_response_parts(query, variables, || "appUninstall".to_string());
+        let (response_key, payload_selection, arguments) = self
+            .execution_primary_root_response_parts(query, variables, || "appUninstall".to_string());
         let app_selection = selected_child_selection(&payload_selection, "app").unwrap_or_default();
         let requested_id = resolved_object_field(&arguments, "input")
             .and_then(|input| resolved_string_field(&input, "id"));

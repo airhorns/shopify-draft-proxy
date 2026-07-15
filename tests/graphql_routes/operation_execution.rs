@@ -1,17 +1,13 @@
 use super::common::*;
 
 #[test]
-fn operation_name_selects_query_and_ignores_non_selected_operations() {
+fn operation_name_selects_query_and_does_not_execute_other_operations() {
     let mut proxy = snapshot_proxy();
     let query = r#"
-        query InvalidFirst($id: ID!) {
+        query ValidButUnselectedFirst($id: ID!) {
           product(id: $id) {
-            ...InvalidProductFields
+            id
           }
-        }
-
-        fragment InvalidProductFields on Product {
-          definitelyNotAProductField
         }
 
         query SelectedSecond($first: Int = 1) {
@@ -155,6 +151,73 @@ fn operation_name_selects_mutation_logs_selected_root_and_preserves_raw_body_for
         serde_json::from_str::<Value>(&replayed[0]).unwrap(),
         serde_json::from_str::<Value>(&body).unwrap()
     );
+}
+
+#[test]
+fn cost_bearing_upstream_responses_preserve_omitted_selected_nested_fields() {
+    let upstream_body = json!({
+        "data": {
+            "orders": {
+                "nodes": [{
+                    "id": "gid://shopify/Order/omitted-note",
+                    "tags": ["authoritative"]
+                }]
+            }
+        },
+        "extensions": {
+            "cost": {
+                "requestedQueryCost": 2,
+                "actualQueryCost": 2
+            }
+        }
+    });
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_body = upstream_body.clone();
+        move |_| Response {
+            status: 200,
+            headers: Default::default(),
+            body: upstream_body.clone(),
+        }
+    });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query AuthoritativeOrderOmission {
+          orders(first: 1) {
+            nodes { id note tags }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body, upstream_body);
+
+    let mut untrusted =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|_| Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "orders": {
+                        "nodes": [{
+                            "id": "gid://shopify/Order/local-gap",
+                            "tags": []
+                        }]
+                    }
+                }
+            }),
+        });
+    let response = untrusted.process_request(json_graphql_request(
+        r#"query UntrustedOrderOmission { orders(first: 1) { nodes { id note tags } } }"#,
+        json!({}),
+    ));
+    assert!(response.body["errors"].as_array().is_some_and(|errors| {
+        errors
+            .iter()
+            .any(|error| error["message"] == json!("Local resolver did not implement `Order.note`"))
+    }));
 }
 
 #[test]

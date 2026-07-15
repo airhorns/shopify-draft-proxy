@@ -8,6 +8,10 @@ import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './confo
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { assertDiscountConformanceScopes, probeDiscountConformanceScopes } from './discount-conformance-lib.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
+import {
+  captureDiscountContextRefsHydrate,
+  captureDraftProxyShopPricingHydrate,
+} from './support/shopify/runtime-hydration-capture.js';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -51,23 +55,15 @@ const adminOptions = {
   headers: buildAdminAuthHeaders(adminAccessToken),
 };
 const { runGraphqlRaw } = createAdminGraphqlClient(adminOptions);
+const shopPricingHydrate = await captureDraftProxyShopPricingHydrate((query, variables) =>
+  runGraphqlRaw(query, variables),
+);
 
-// Shared verbatim with the Rust proxy so the recorded cassette calls byte-match
-// what the de-seeded create/update path forwards upstream to resolve buyer-context
-// member names the real way (the cassette matcher is strict on query text +
-// variables). `CustomerHydrate` stages the customer's displayName, the segment
-// hydrate stages the segment's name, and `DiscountUniquenessCheck` resolves the
-// code uniqueness probe the code-discount create forwards.
-const customerHydrateQuery = await readFile(
-  'config/parity-requests/customers/customer-mutation-hydrate.graphql',
-  'utf8',
-);
-const segmentHydrateQuery = await readFile(
-  'config/parity-requests/discounts/discount-context-segment-hydrate.graphql',
-  'utf8',
-);
+// The uniqueness request remains a checked-in replay document. Buyer-context
+// hydration uses the shared production-query capture helper so the cassette
+// cannot drift from the runtime's batched `nodes(ids:)` request.
 const uniquenessQuery = await readFile('config/parity-requests/discounts/discount-uniqueness-check.graphql', 'utf8');
-const upstreamCalls: unknown[] = [];
+const upstreamCalls: unknown[] = [shopPricingHydrate];
 
 await mkdir(outputDir, { recursive: true });
 
@@ -394,23 +390,8 @@ try {
   // create). Each is issued against the live store while the disposable customer /
   // segment still exist, and stored in the cassette entry shape so parity replays
   // them byte-for-byte.
-  const customerHydrate = await runGraphqlRaw(customerHydrateQuery, { id: customerId });
-  assertSuccess(customerHydrate, 'customer hydrate forward');
-  upstreamCalls.push({
-    operationName: 'CustomerHydrate',
-    variables: { id: customerId },
-    query: customerHydrateQuery,
-    response: { status: customerHydrate.status, body: customerHydrate.payload },
-  });
-
-  const segmentHydrate = await runGraphqlRaw(segmentHydrateQuery, { id: segmentId });
-  assertSuccess(segmentHydrate, 'segment hydrate forward');
-  upstreamCalls.push({
-    operationName: 'DiscountContextSegmentHydrate',
-    variables: { id: segmentId },
-    query: segmentHydrateQuery,
-    response: { status: segmentHydrate.status, body: segmentHydrate.payload },
-  });
+  upstreamCalls.push(await captureDiscountContextRefsHydrate(runGraphqlRaw, [customerId]));
+  upstreamCalls.push(await captureDiscountContextRefsHydrate(runGraphqlRaw, [segmentId]));
 
   const uniquenessCheck = await runGraphqlRaw(uniquenessQuery, { code: initialCode });
   assertSuccess(uniquenessCheck, 'code uniqueness forward');

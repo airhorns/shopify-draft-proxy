@@ -1,7 +1,7 @@
 /* oxlint-disable no-console -- CLI capture script intentionally writes progress to stdio. */
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './conformance-graphql-client.js';
@@ -26,6 +26,7 @@ const fixturePath = path.join(
   'orders',
   'orderUpdate-localization-and-staff.json',
 );
+const orderHydrateQuery = await readFile('config/parity-requests/orders/order-hydrate-pageable.graphql', 'utf8');
 
 const orderSelection = `
   id
@@ -339,6 +340,9 @@ assertEmptyUserErrors('orderCreate setup', createResult, 'orderCreate');
 const createdOrderId = orderIdFromCreate(createResult);
 const beforeRead = await runGraphqlRequest(orderReadQuery, { id: createdOrderId });
 assertNoTopLevelErrors('pre-update order read', beforeRead);
+const hydrateBeforeUpdateVariables = { id: createdOrderId, lineItemsAfter: null };
+const hydrateBeforeUpdate = await runGraphqlRequest(orderHydrateQuery, hydrateBeforeUpdateVariables);
+assertNoTopLevelErrors('orderUpdate runtime hydrate', hydrateBeforeUpdate);
 
 const variables = localizedFieldsVariables(createdOrderId);
 const mutationResult = await runGraphqlRequest(orderUpdateLocalizationMutation, variables);
@@ -452,34 +456,15 @@ await writeJson(fixturePath, {
     notes:
       'The configured public 2026-04 Admin schema rejects OrderInput.staffMemberId before resolver execution; focused runtime tests cover the internal staffMemberId NOT_FOUND branch.',
   },
-  localRuntimeStaffUnknown: {
-    expected: {
-      data: {
-        orderUpdate: {
-          userErrors: [
-            {
-              field: ['input', 'staffMemberId'],
-              message: 'Staff member does not exist',
-            },
-          ],
-        },
-      },
-    },
-  },
   cleanup,
   upstreamCalls: [
     {
       operationName: 'OrdersOrderHydrate',
-      variables: { id: createdOrderId },
-      query:
-        'hand-synthesized from checked-in setup.beforeRead order response for orderUpdate localization/staff hydration',
+      variables: hydrateBeforeUpdateVariables,
+      query: orderHydrateQuery,
       response: {
-        status: 200,
-        body: {
-          data: {
-            order: readObject(beforeRead.payload.data)?.['order'],
-          },
-        },
+        status: hydrateBeforeUpdate.status,
+        body: hydrateBeforeUpdate.payload,
       },
     },
   ],

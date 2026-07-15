@@ -7,11 +7,12 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let (response_key, payload_selection) = primary_root_field(query, variables)
-            .map(|field| (field.response_key, field.selection))
-            .unwrap_or_else(|| ("quantityPricingByVariantUpdate".to_string(), Vec::new()));
-        let input = resolved_object_field(variables, "input").unwrap_or_default();
-        let price_list_id = resolved_string_field(variables, "priceListId").unwrap_or_default();
+        let (response_key, payload_selection, arguments) = self
+            .execution_primary_root_response_parts(query, variables, || {
+                "quantityPricingByVariantUpdate".to_string()
+            });
+        let input = resolved_object_field(&arguments, "input").unwrap_or_default();
+        let price_list_id = resolved_string_field(&arguments, "priceListId").unwrap_or_default();
         let mut product_variant_ids = quantity_pricing_variant_ids_from_input(&input);
         let user_errors = quantity_pricing_by_variant_errors(&self.store, &price_list_id, &input);
         let product_variants_value = if user_errors.is_empty() {

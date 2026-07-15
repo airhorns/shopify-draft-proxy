@@ -162,7 +162,7 @@ fn delivery_customization_lifecycle_reads_nodes_state_and_logs_are_local() {
           metafield(namespace: "$app:shipping", key: "config") { namespace key type value jsonValue compareDigest ownerType }
           metafields(first: 5) { nodes { namespace key type value createdAt updatedAt } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
         }
-        deliveryCustomizations(first: 5, query: $query, sortKey: TITLE, reverse: true) {
+        deliveryCustomizations(first: 5, query: $query, reverse: true) {
           edges { cursor node { id title enabled functionId } }
           nodes { id title enabled }
           pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
@@ -591,7 +591,7 @@ fn delivery_customization_active_limit_rejects_without_staging_or_logging() {
         overflow.body["data"]["deliveryCustomizationCreate"]["userErrors"],
         json!([{
             "field": ["deliveryCustomization", "enabled"],
-            "code": "MAXIMUM_DELIVERY_CUSTOMIZATIONS",
+            "code": "MAXIMUM_ACTIVE_DELIVERY_CUSTOMIZATIONS",
             "message": "Cannot have more than 25 active delivery customizations."
         }])
     );
@@ -669,7 +669,7 @@ fn delivery_customization_active_limit_rejects_without_staging_or_logging() {
         limit_activation.body["data"]["deliveryCustomizationActivation"]["userErrors"],
         json!([{
             "field": ["deliveryCustomization", "enabled"],
-            "code": "MAXIMUM_DELIVERY_CUSTOMIZATIONS",
+            "code": "MAXIMUM_ACTIVE_DELIVERY_CUSTOMIZATIONS",
             "message": "Cannot have more than 25 active delivery customizations."
         }])
     );
@@ -3516,7 +3516,7 @@ fn customer_mutations_are_operation_name_independent_and_store_backed() {
           customerByIdentifier(identifier: $identifier) { id email phone }
         }
         "#,
-        json!({ "id": id, "identifier": { "email": "alice@example.com" } }),
+        json!({ "id": id, "identifier": { "emailAddress": "alice@example.com" } }),
     ));
     assert_eq!(read.body["data"]["customer"]["id"], json!(id));
     assert_eq!(read.body["data"]["customerByIdentifier"]["id"], json!(id));
@@ -4019,7 +4019,6 @@ fn customer_update_rejects_inline_marketing_consent_without_mutating_customer() 
           customerUpdate(input: $input) {
             customer { id firstName lastName displayName tags }
             userErrors { field message }
-            customerUpdateUserErrors { field message }
           }
         }
         "#,
@@ -4047,11 +4046,6 @@ fn customer_update_rejects_inline_marketing_consent_without_mutating_customer() 
         email_rejection.body["data"]["customerUpdate"]["userErrors"],
         email_errors
     );
-    assert_eq!(
-        email_rejection.body["data"]["customerUpdate"]["customerUpdateUserErrors"],
-        email_errors
-    );
-
     let inline_literal_rejection = proxy.process_request(json_graphql_request(
         r#"
         mutation {
@@ -4081,7 +4075,6 @@ fn customer_update_rejects_inline_marketing_consent_without_mutating_customer() 
           customerUpdate(input: $input) {
             customer { id }
             userErrors { field message }
-            customerUpdateUserErrors { field message }
           }
         }
         "#,
@@ -4106,90 +4099,12 @@ fn customer_update_rejects_inline_marketing_consent_without_mutating_customer() 
         sms_rejection_unknown_customer.body["data"]["customerUpdate"]["userErrors"],
         sms_errors
     );
-    assert_eq!(
-        sms_rejection_unknown_customer.body["data"]["customerUpdate"]["customerUpdateUserErrors"],
-        sms_errors
-    );
-
-    let whatsapp_rejection = proxy.process_request(json_graphql_request(
-        r#"
-        mutation CustomerUpdateInlineWhatsAppConsent($input: CustomerInput!) {
-          customerUpdate(input: $input) {
-            customer { id firstName lastName displayName tags }
-            userErrors { field message }
-            customerUpdateUserErrors { field message }
-          }
-        }
-        "#,
-        json!({
-            "input": {
-                "id": id,
-                "firstName": "ShouldNot",
-                "lastName": "Apply",
-                "tags": ["mutated"],
-                "whatsAppMarketingConsent": {
-                    "marketingState": "SUBSCRIBED"
-                }
-            }
-        }),
-    ));
-    let whatsapp_errors = json!([{
-        "field": ["whatsAppMarketingConsent"],
-        "message": "To update whatsAppMarketingConsent, please use the customerWhatsAppMarketingConsentUpdate Mutation instead"
-    }]);
-    assert_eq!(
-        whatsapp_rejection.body["data"]["customerUpdate"]["customer"],
-        Value::Null
-    );
-    assert_eq!(
-        whatsapp_rejection.body["data"]["customerUpdate"]["userErrors"],
-        whatsapp_errors
-    );
-    assert_eq!(
-        whatsapp_rejection.body["data"]["customerUpdate"]["customerUpdateUserErrors"],
-        whatsapp_errors
-    );
-
-    let whatsapp_rejection_unknown_customer = proxy.process_request(json_graphql_request(
-        r#"
-        mutation CustomerUpdateInlineWhatsAppConsentUnknownCustomer($input: CustomerInput!) {
-          customerUpdate(input: $input) {
-            customer { id }
-            userErrors { field message }
-            customerUpdateUserErrors { field message }
-          }
-        }
-        "#,
-        json!({
-            "input": {
-                "id": "gid://shopify/Customer/999999999999999",
-                "whatsAppMarketingConsent": {
-                    "marketingState": "SUBSCRIBED"
-                }
-            }
-        }),
-    ));
-    assert_eq!(
-        whatsapp_rejection_unknown_customer.body["data"]["customerUpdate"]["customer"],
-        Value::Null
-    );
-    assert_eq!(
-        whatsapp_rejection_unknown_customer.body["data"]["customerUpdate"]["userErrors"],
-        whatsapp_errors
-    );
-    assert_eq!(
-        whatsapp_rejection_unknown_customer.body["data"]["customerUpdate"]
-            ["customerUpdateUserErrors"],
-        whatsapp_errors
-    );
-
     let both_rejection = proxy.process_request(json_graphql_request(
         r#"
         mutation CustomerUpdateInlineConsentBoth($input: CustomerInput!) {
           customerUpdate(input: $input) {
             customer { id }
             userErrors { field message }
-            customerUpdateUserErrors { field message }
           }
         }
         "#,
@@ -4223,11 +4138,6 @@ fn customer_update_rejects_inline_marketing_consent_without_mutating_customer() 
         both_rejection.body["data"]["customerUpdate"]["userErrors"],
         both_errors
     );
-    assert_eq!(
-        both_rejection.body["data"]["customerUpdate"]["customerUpdateUserErrors"],
-        both_errors
-    );
-
     let downstream = proxy.process_request(json_graphql_request(
         r#"
         query CustomerUpdateInlineConsentDownstream($id: ID!, $identifier: CustomerIdentifierInput!) {
@@ -4544,7 +4454,6 @@ fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycl
         mutation DelegateAccessTokenDestroyCodes($token: String!) {
           delegateAccessTokenDestroy(accessToken: $token) {
             status
-            shop { id name }
             userErrors { field message code }
           }
         }
@@ -4555,7 +4464,6 @@ fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycl
         missing.body["data"]["delegateAccessTokenDestroy"],
         json!({
             "status": false,
-            "shop": {},
             "userErrors": [{ "field": null, "message": "Access token does not exist.", "code": "ACCESS_TOKEN_NOT_FOUND" }]
         })
     );
@@ -4565,17 +4473,12 @@ fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycl
         mutation DelegateAccessTokenCreateShopPayload {
           delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: 300 }) {
             delegateAccessToken { accessToken }
-            shop { id myshopifyDomain currencyCode }
             userErrors { field message code }
           }
         }
         "#,
         json!({}),
     ));
-    assert_eq!(
-        create.body["data"]["delegateAccessTokenCreate"]["shop"],
-        json!({})
-    );
     assert_eq!(
         create.body["data"]["delegateAccessTokenCreate"]["userErrors"],
         json!([])
@@ -4590,7 +4493,6 @@ fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycl
         r#"
         mutation DelegateAccessTokenDestroyShopPayload($token: String!) {
           delegateAccessTokenDestroy(accessToken: $token) {
-            shop { id }
             status
             userErrors { field message code }
           }
@@ -4601,7 +4503,6 @@ fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycl
     assert_eq!(
         destroy.body["data"]["delegateAccessTokenDestroy"],
         json!({
-            "shop": {},
             "status": true,
             "userErrors": []
         })
@@ -4611,7 +4512,6 @@ fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycl
         r#"
         mutation DelegateAccessTokenDestroyShopPayloadUnknown {
           delegateAccessTokenDestroy(accessToken: "shpat_unknown") {
-            shop { id }
             status
             userErrors { field message code }
           }
@@ -4622,7 +4522,6 @@ fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycl
     assert_eq!(
         repeat.body["data"]["delegateAccessTokenDestroy"],
         json!({
-            "shop": {},
             "status": false,
             "userErrors": [{ "field": null, "message": "Access token does not exist.", "code": "ACCESS_TOKEN_NOT_FOUND" }]
         })
@@ -4633,7 +4532,6 @@ fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycl
         mutation DelegateAccessTokenDestroyCodes($token: String!) {
           delegateAccessTokenDestroy(accessToken: $token) {
             status
-            shop { id name }
             userErrors { field message code }
           }
         }
@@ -5444,16 +5342,15 @@ fn customer_create_rejects_inline_whatsapp_marketing_consent_validation_failures
             }
         }),
     ));
-    assert_eq!(no_phone.body.get("errors"), None);
     assert_eq!(
-        no_phone.body["data"]["customerCreate"]["customer"],
-        Value::Null
+        no_phone.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
     );
     assert_eq!(
-        no_phone.body["data"]["customerCreate"]["userErrors"],
+        no_phone.body["errors"][0]["extensions"]["problems"],
         json!([{
-            "field": ["whatsAppMarketingConsent"],
-            "message": "A phone number is required to set the WhatsApp consent state."
+            "path": ["whatsAppMarketingConsent"],
+            "explanation": "Field is not defined on CustomerInput"
         }])
     );
     assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
@@ -5480,14 +5377,9 @@ fn customer_create_rejects_inline_whatsapp_marketing_consent_validation_failures
             }
         }),
     ));
-    assert_eq!(redacted.body["data"]["customerCreate"], Value::Null);
     assert_eq!(
-        redacted.body["errors"],
-        json!([{
-            "message": "Cannot specify REDACTED as a marketing state input",
-            "path": ["customerCreate"],
-            "extensions": { "code": "INVALID" }
-        }])
+        redacted.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
     );
     assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
     assert_eq!(
@@ -5514,16 +5406,8 @@ fn customer_create_rejects_inline_whatsapp_marketing_consent_validation_failures
         }),
     ));
     assert_eq!(
-        public_shape_redacted.body["data"]["customerCreate"],
-        Value::Null
-    );
-    assert_eq!(
-        public_shape_redacted.body["errors"],
-        json!([{
-            "message": "Cannot specify REDACTED as a marketing state input",
-            "path": ["customerCreate"],
-            "extensions": { "code": "INVALID" }
-        }])
+        public_shape_redacted.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
     );
     assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
     assert_eq!(
@@ -7175,11 +7059,7 @@ fn fulfillment_service_requires_shipping_method_uses_shopify_default_on_omission
 
 #[test]
 fn fulfillment_service_create_rejects_removed_public_schema_arguments_before_staging() {
-    for removed_argument in [
-        "permitsSkuSharing",
-        "inventorySyncEnabled",
-        "fulfillmentOrdersOptIn",
-    ] {
+    for removed_argument in ["permitsSkuSharing", "inventorySyncEnabled"] {
         let mut proxy = snapshot_proxy();
         let mutation = format!(
             "mutation FulfillmentServiceRemovedArgumentValidation($name: String!) {{\n  fulfillmentServiceCreate(\n    name: $name\n    {removed_argument}: false\n    trackingSupport: true\n    inventoryManagement: true\n    requiresShippingMethod: true\n  ) {{\n    fulfillmentService {{\n      id\n      serviceName\n      inventoryManagement\n      requiresShippingMethod\n      trackingSupport\n    }}\n    userErrors {{ field message }}\n  }}\n}}\n"
@@ -9055,7 +8935,7 @@ fn carrier_services_connection_combines_filters_and_honors_sort_reverse() {
 #[test]
 fn delivery_settings_roots_return_snapshot_defaults_with_aliases_and_selected_fields() {
     let mut proxy = snapshot_proxy();
-    let response = proxy.process_request(json_graphql_request(
+    let mut request = json_graphql_request(
         r#"
         query DeliverySettingsRead {
           deliverySettingsAlias: deliverySettings {
@@ -9069,7 +8949,9 @@ fn delivery_settings_roots_return_snapshot_defaults_with_aliases_and_selected_fi
         }
         "#,
         json!({}),
-    ));
+    );
+    request.path = "/admin/api/2026-01/graphql.json".to_string();
+    let response = proxy.process_request(request);
 
     assert_eq!(response.status, 200);
     assert_eq!(
@@ -9099,8 +8981,8 @@ fn delivery_settings_roots_forward_cold_live_hybrid_reads_upstream() {
             captured_calls.lock().unwrap().push(body.clone());
             assert_eq!(body["variables"], json!({}));
             let query = body["query"].as_str().unwrap_or_default();
-            assert!(query.contains("deliverySettings"));
-            assert!(query.contains("deliveryPromiseSettings"));
+            assert!(query.contains("deliverySettingsAlias:"));
+            assert!(query.contains("deliveryPromiseSettingsAlias:"));
             Response {
                 status: 200,
                 headers: Default::default(),
@@ -9110,7 +8992,7 @@ fn delivery_settings_roots_forward_cold_live_hybrid_reads_upstream() {
                             "legacyModeProfiles": true,
                             "legacyModeBlocked": {
                                 "blocked": true,
-                                "reasons": ["NO_MARKETS"]
+                                "reasons": ["NO_LOCATIONS_FULFILLING_ONLINE_ORDERS"]
                             }
                         },
                         "deliveryPromiseSettingsAlias": {
@@ -9125,7 +9007,7 @@ fn delivery_settings_roots_forward_cold_live_hybrid_reads_upstream() {
             }
         });
 
-    let response = proxy.process_request(json_graphql_request(
+    let mut request = json_graphql_request(
         r#"
         query DeliverySettingsRead {
           deliverySettingsAlias: deliverySettings {
@@ -9139,7 +9021,9 @@ fn delivery_settings_roots_forward_cold_live_hybrid_reads_upstream() {
         }
         "#,
         json!({}),
-    ));
+    );
+    request.path = "/admin/api/2026-01/graphql.json".to_string();
+    let response = proxy.process_request(request);
 
     assert_eq!(response.status, 200);
     assert_eq!(
@@ -9150,7 +9034,7 @@ fn delivery_settings_roots_forward_cold_live_hybrid_reads_upstream() {
                     "legacyModeProfiles": true,
                     "legacyModeBlocked": {
                         "blocked": true,
-                        "reasons": ["NO_MARKETS"]
+                        "reasons": ["NO_LOCATIONS_FULFILLING_ONLINE_ORDERS"]
                     }
                 },
                 "deliveryPromiseSettingsAlias": {
@@ -11818,8 +11702,7 @@ fn shipping_package_update_rejects_observed_flat_rate_packages_without_overwriti
         json!({
             "userErrors": [{
                 "field": ["shippingPackage"],
-                "message": "Custom shipping box is not updatable",
-                "code": "CUSTOM_SHIPPING_BOX_NOT_UPDATABLE"
+                "message": "Custom shipping box is not updatable"
             }]
         })
     );
@@ -11843,7 +11726,7 @@ fn store_credit_credit_debit_stage_account_transactions_and_readbacks() {
               amount { amount currencyCode }
               balanceAfterTransaction { amount currencyCode }
               event
-              origin
+              origin { __typename }
               account {
                 id
                 balance { amount currencyCode }
@@ -11896,7 +11779,7 @@ fn store_credit_credit_debit_stage_account_transactions_and_readbacks() {
                 id
                 balance { amount currencyCode }
                 transactions(first: 5) {
-                  nodes { id amount { amount currencyCode } balanceAfterTransaction { amount currencyCode } }
+                  nodes { amount { amount currencyCode } balanceAfterTransaction { amount currencyCode } }
                   pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
                 }
               }

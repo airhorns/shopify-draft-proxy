@@ -7,6 +7,7 @@ import path from 'node:path';
 import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
+import { captureProductPayloadShopHydrate } from './support/shopify/runtime-hydration-capture.js';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -17,6 +18,9 @@ const { runGraphqlRequest } = createAdminGraphqlClient({
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
 });
+const shopIdentityHydrate = await captureProductPayloadShopHydrate((query, variables) =>
+  runGraphqlRequest(query, variables),
+);
 
 const productsDir = path.join('config', 'parity-requests', 'products');
 const specsDir = path.join('config', 'parity-specs', 'products');
@@ -217,6 +221,7 @@ try {
           response: downstreamRead.payload,
         },
         upstreamCalls: [
+          shopIdentityHydrate,
           {
             operationName: 'ProductsHydrateNodes',
             variables: { ids: [successVariables.input.id] },
@@ -238,7 +243,7 @@ try {
         ],
         notes: [
           'Live public Admin GraphQL 2026-04 returns a non-null CollectionDeletePayload.shop on both success and not-found userError branches.',
-          'The upstreamCalls entries are real live ProductsHydrateNodes reads captured before replay so parity can hydrate collection existence without writing to Shopify.',
+          'The upstreamCalls entries are real live ProductPayloadShopHydrate and ProductsHydrateNodes reads captured before replay so parity can hydrate shop identity and collection existence without writing to Shopify.',
         ],
       },
       null,

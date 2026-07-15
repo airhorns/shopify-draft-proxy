@@ -2,19 +2,19 @@
   "scenarioId": "order-edit-commit-derived-statuses",
   "apiVersion": "2026-04",
   "storeDomain": "harry-test-heelo.myshopify.com",
-  "recordedAt": "2026-07-05T05:03:52.420Z",
+  "recordedAt": "2026-07-14T14:01:11.492Z",
   "source": "live-shopify-admin-graphql",
   "notes": "Live draftOrderCreate -> draftOrderComplete -> orderEditBegin -> orderEditAddCustomItem -> orderEditCommit capture proving a paid editable order becomes partially paid after adding an unpaid custom item; post-edit display statuses, totalOutstandingSet, totalPriceSet, and currentTotalPriceSet are asserted from the commit payload and downstream order read.",
   "draftCreate": {
     "query": "mutation OrderEditCommitDerivedStatusesDraftCreate($input: DraftOrderInput!) {\n  draftOrderCreate(input: $input) {\n    draftOrder {\n      id\n      status\n      totalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
     "variables": {
       "input": {
-        "email": "order-edit-derived-statuses-20260705050349@example.com",
-        "note": "order edit derived statuses capture 20260705050349",
-        "tags": ["order-edit-derived-statuses", "20260705050349"],
+        "email": "order-edit-derived-statuses-20260714140106@example.com",
+        "note": "order edit derived statuses capture 20260714140106",
+        "tags": ["order-edit-derived-statuses", "20260714140106"],
         "lineItems": [
           {
-            "title": "Original paid editable line 20260705050349",
+            "title": "Original paid editable line 20260714140106",
             "quantity": 1,
             "originalUnitPriceWithCurrency": {
               "amount": "10.00",
@@ -39,7 +39,7 @@
       "data": {
         "draftOrderCreate": {
           "draftOrder": {
-            "id": "gid://shopify/DraftOrder/1275997815090",
+            "id": "gid://shopify/DraftOrder/1280992674098",
             "status": "OPEN",
             "totalPriceSet": {
               "shopMoney": {
@@ -67,17 +67,17 @@
   "draftComplete": {
     "query": "mutation OrderEditCommitDerivedStatusesDraftComplete($id: ID!, $paymentPending: Boolean) {\n  draftOrderComplete(id: $id, paymentPending: $paymentPending) {\n    draftOrder {\n      id\n      status\n      order {\n        id\n        displayFinancialStatus\n        displayFulfillmentStatus\n        currentTotalPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n        transactions {\n          kind\n          status\n          gateway\n          amountSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
     "variables": {
-      "id": "gid://shopify/DraftOrder/1275997815090",
+      "id": "gid://shopify/DraftOrder/1280992674098",
       "paymentPending": false
     },
     "response": {
       "data": {
         "draftOrderComplete": {
           "draftOrder": {
-            "id": "gid://shopify/DraftOrder/1275997815090",
+            "id": "gid://shopify/DraftOrder/1280992674098",
             "status": "COMPLETED",
             "order": {
-              "id": "gid://shopify/Order/8891798749490",
+              "id": "gid://shopify/Order/8951185277234",
               "displayFinancialStatus": "PAID",
               "displayFulfillmentStatus": "UNFULFILLED",
               "currentTotalPriceSet": {
@@ -120,15 +120,15 @@
   "begin": {
     "query": "mutation OrderEditCommitDerivedStatusesBegin($id: ID!) {\n  orderEditBegin(id: $id) {\n    calculatedOrder {\n      id\n      originalOrder {\n        id\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
     "variables": {
-      "id": "gid://shopify/Order/8891798749490"
+      "id": "gid://shopify/Order/8951185277234"
     },
     "response": {
       "data": {
         "orderEditBegin": {
           "calculatedOrder": {
-            "id": "gid://shopify/CalculatedOrder/113922048306",
+            "id": "gid://shopify/CalculatedOrder/117027766578",
             "originalOrder": {
-              "id": "gid://shopify/Order/8891798749490"
+              "id": "gid://shopify/Order/8951185277234"
             }
           },
           "userErrors": []
@@ -150,7 +150,7 @@
   "addCustomItem": {
     "query": "mutation OrderEditCommitDerivedStatusesAddCustomItem($id: ID!, $title: String!, $quantity: Int!, $price: MoneyInput!) {\n  orderEditAddCustomItem(id: $id, title: $title, quantity: $quantity, price: $price) {\n    calculatedOrder {\n      id\n      totalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      addedLineItems(first: 5) {\n        nodes {\n          id\n          title\n          quantity\n        }\n      }\n    }\n    calculatedLineItem {\n      id\n      title\n      quantity\n      originalUnitPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
     "variables": {
-      "id": "gid://shopify/CalculatedOrder/113922048306",
+      "id": "gid://shopify/CalculatedOrder/117027766578",
       "title": "Added unpaid item",
       "quantity": 1,
       "price": {
@@ -162,7 +162,7 @@
       "data": {
         "orderEditAddCustomItem": {
           "calculatedOrder": {
-            "id": "gid://shopify/CalculatedOrder/113922048306",
+            "id": "gid://shopify/CalculatedOrder/117027766578",
             "totalPriceSet": {
               "shopMoney": {
                 "amount": "15.0",
@@ -172,7 +172,7 @@
             "addedLineItems": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CalculatedLineItem/f9e4a38a-8d61-4628-a282-d49c90a85451",
+                  "id": "gid://shopify/CalculatedLineItem/15a340b9-4c5e-4aeb-a1ba-38ba9709620a",
                   "title": "Added unpaid item",
                   "quantity": 1
                 }
@@ -180,7 +180,7 @@
             }
           },
           "calculatedLineItem": {
-            "id": "gid://shopify/CalculatedLineItem/f9e4a38a-8d61-4628-a282-d49c90a85451",
+            "id": "gid://shopify/CalculatedLineItem/15a340b9-4c5e-4aeb-a1ba-38ba9709620a",
             "title": "Added unpaid item",
             "quantity": 1,
             "originalUnitPriceSet": {
@@ -209,7 +209,7 @@
   "commit": {
     "query": "mutation OrderEditCommitDerivedStatusesCommit($id: ID!, $notifyCustomer: Boolean, $staffNote: String) {\n  orderEditCommit(id: $id, notifyCustomer: $notifyCustomer, staffNote: $staffNote) {\n    order {\n      id\n      displayFinancialStatus\n      displayFulfillmentStatus\n      totalOutstandingSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      totalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      currentTotalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    successMessages\n    userErrors {\n      field\n      message\n    }\n  }\n}",
     "variables": {
-      "id": "gid://shopify/CalculatedOrder/113922048306",
+      "id": "gid://shopify/CalculatedOrder/117027766578",
       "notifyCustomer": false,
       "staffNote": "order edit derived statuses capture"
     },
@@ -217,7 +217,7 @@
       "data": {
         "orderEditCommit": {
           "order": {
-            "id": "gid://shopify/Order/8891798749490",
+            "id": "gid://shopify/Order/8951185277234",
             "displayFinancialStatus": "PARTIALLY_PAID",
             "displayFulfillmentStatus": "UNFULFILLED",
             "totalOutstandingSet": {
@@ -259,12 +259,12 @@
   "downstreamRead": {
     "query": "query OrderEditCommitDerivedStatusesRead($id: ID!) {\n  order(id: $id) {\n    id\n    displayFinancialStatus\n    displayFulfillmentStatus\n    totalOutstandingSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n  }\n}",
     "variables": {
-      "id": "gid://shopify/Order/8891798749490"
+      "id": "gid://shopify/Order/8951185277234"
     },
     "response": {
       "data": {
         "order": {
-          "id": "gid://shopify/Order/8891798749490",
+          "id": "gid://shopify/Order/8951185277234",
           "displayFinancialStatus": "PARTIALLY_PAID",
           "displayFulfillmentStatus": "UNFULFILLED",
           "totalOutstandingSet": {
@@ -303,7 +303,7 @@
   "cleanup": {
     "query": "#graphql\n  mutation OrderEditCommitDerivedStatusesCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n    $refund: Boolean!\n  ) {\n    orderCancel(\n      orderId: $orderId\n      reason: $reason\n      notifyCustomer: $notifyCustomer\n      restock: $restock\n      refund: $refund\n    ) {\n      job {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
     "variables": {
-      "orderId": "gid://shopify/Order/8891798749490",
+      "orderId": "gid://shopify/Order/8951185277234",
       "reason": "OTHER",
       "notifyCustomer": false,
       "restock": true,
@@ -314,7 +314,7 @@
       "data": {
         "orderCancel": {
           "job": {
-            "id": "gid://shopify/Job/b0294797-75a0-4e64-8678-27d7b155726e"
+            "id": "gid://shopify/Job/98a09ed0-beee-43bf-8abe-a60ee01ef0cf"
           },
           "userErrors": []
         }
@@ -332,5 +332,34 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "DraftProxyShopPricingHydrate",
+      "variables": {},
+      "query": "query DraftProxyShopPricingHydrate { shop { currencyCode taxesIncluded taxShipping } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shop": {
+              "currencyCode": "CAD",
+              "taxesIncluded": false,
+              "taxShipping": false
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

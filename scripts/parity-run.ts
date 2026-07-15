@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { readFile, readdir } from 'node:fs/promises';
+import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { existsSync, appendFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -20,11 +20,14 @@ import {
   formatRecordedCallMismatch,
   stableJson,
 } from './parity-cassette.js';
+import { DEFAULT_ADMIN_API_VERSION, EXECUTABLE_ADMIN_API_VERSIONS } from './support/shopify/api-version.js';
 
 type CliArgs = {
   all: boolean;
+  allowFailures: boolean;
   debug: boolean;
   dryRun: boolean;
+  outputJsonPath?: string;
   scenarioIds: string[];
   specPaths: string[];
 };
@@ -103,7 +106,8 @@ type ProxyResponse = { status: number; body: unknown };
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..');
 const paritySpecRoot = path.join(repoRoot, 'config', 'parity-specs');
-const defaultAdminApiVersion = '2026-04';
+const defaultAdminApiVersion = DEFAULT_ADMIN_API_VERSION;
+const executableAdminApiVersions = new Set(EXECUTABLE_ADMIN_API_VERSIONS);
 const defaultReadMode: ReadMode = 'live-hybrid';
 const productsHydrateNodesObservationPath = path.join(
   repoRoot,
@@ -123,14 +127,27 @@ function logError(message: string): void {
 }
 
 function parseArgs(argv: string[]): CliArgs {
-  const args: CliArgs = { all: false, debug: false, dryRun: false, scenarioIds: [], specPaths: [] };
+  const args: CliArgs = {
+    all: false,
+    allowFailures: false,
+    debug: false,
+    dryRun: false,
+    scenarioIds: [],
+    specPaths: [],
+  };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index] ?? '';
     if (arg === '--') continue;
     if (arg === '--all') args.all = true;
+    else if (arg === '--allow-failures') args.allowFailures = true;
     else if (arg === '--debug') args.debug = true;
     else if (arg === '--dry-run') args.dryRun = true;
-    else if (arg === '--spec') {
+    else if (arg === '--output-json') {
+      const next = argv[index + 1];
+      if (!next || next.startsWith('-')) throw new Error('--output-json requires a path argument');
+      args.outputJsonPath = next;
+      index += 1;
+    } else if (arg === '--spec') {
       const next = argv[index + 1];
       if (!next || next.startsWith('-')) throw new Error('--spec requires a path argument');
       args.specPaths.push(next);
@@ -540,8 +557,8 @@ async function hydrateCapturedProductDomainNodes(
   await sendProxyRequest(proxy, hydrateRequest);
 }
 
-function proxyGraphqlPath(request: ProxyRequestSpec | undefined): string {
-  const apiVersion = request?.apiVersion ?? defaultAdminApiVersion;
+function proxyGraphqlPath(request: ProxyRequestSpec | undefined, defaultApiVersion = defaultAdminApiVersion): string {
+  const apiVersion = request?.apiVersion ?? defaultApiVersion;
   if (request?.apiSurface === 'storefront') {
     return `/api/${apiVersion}/graphql.json`;
   }
@@ -554,6 +571,7 @@ async function loadRequest(
   primaryResponse: ProxyResponse | null,
   previousResponse: ProxyResponse | null,
   namedResponses: Map<string, ProxyResponse>,
+  defaultApiVersion: string,
 ): Promise<{
   query: string;
   operationName?: string | null;
@@ -617,7 +635,7 @@ async function loadRequest(
     query,
     variables,
     headers,
-    path: proxyGraphqlPath(request),
+    path: proxyGraphqlPath(request, defaultApiVersion),
     apiSurface,
   };
   if (operationName !== undefined) loadedRequest.operationName = operationName;
@@ -632,6 +650,24 @@ type LoadedProxyRequest = {
   path: string;
   apiSurface: ApiSurface;
 };
+
+export function defaultApiVersionForCapture(capturePath: string, capture: Record<string, unknown>): string {
+  const declared = capture['apiVersion'];
+  if (typeof declared === 'string') {
+    if (executableAdminApiVersions.has(declared)) return declared;
+    throw new Error(
+      `Capture declares Admin API ${declared}, but the proxy has executable schemas only for ${EXECUTABLE_ADMIN_API_VERSIONS.join(', ')}`,
+    );
+  }
+  const versionSegment = capturePath.split(/[\\/]/u).find((segment) => /^\d{4}-(?:01|04|07|10)$/u.test(segment));
+  if (versionSegment && !executableAdminApiVersions.has(versionSegment)) {
+    throw new Error(
+      `Capture path uses Admin API ${versionSegment}, but the proxy has executable schemas only for ${EXECUTABLE_ADMIN_API_VERSIONS.join(', ')}`,
+    );
+  }
+  const pathVersion = versionSegment && executableAdminApiVersions.has(versionSegment) ? versionSegment : undefined;
+  return pathVersion ?? defaultAdminApiVersion;
+}
 
 type CassetteServer = {
   origin: string;
@@ -1000,6 +1036,7 @@ async function runSpec(
   const capturePath = spec.liveCaptureFiles?.[0];
   if (!capturePath) return [`${relativeSpecPath}: spec has no liveCaptureFiles[0]`];
   const capture = await readJsonFile<Record<string, unknown>>(path.resolve(repoRoot, capturePath));
+  const defaultApiVersion = defaultApiVersionForCapture(capturePath, capture);
   const upstreamCalls = (capture['upstreamCalls'] ?? []) as RecordedUpstreamCall[];
   cassette.setCalls(upstreamCalls);
   proxy.restoreState(cleanState);
@@ -1009,7 +1046,7 @@ async function runSpec(
   let previousResponse: ProxyResponse | null = null;
   const namedResponses = new Map<string, ProxyResponse>();
   try {
-    const primaryRequest = await loadRequest(spec.proxyRequest, capture, null, null, namedResponses);
+    const primaryRequest = await loadRequest(spec.proxyRequest, capture, null, null, namedResponses, defaultApiVersion);
     if (primaryRequest !== null) {
       const primaryFallbackTarget =
         spec.comparison?.targets?.find(
@@ -1028,6 +1065,11 @@ async function runSpec(
       await hydrateInventoryNodes(proxy, primaryRequest);
       primaryResponse = await sendProxyRequest(proxy, primaryRequest);
       previousResponse = primaryResponse;
+      if (debug) {
+        log(
+          `[parity-debug] ${relativeSpecPath} [primary] proxy response ${JSON.stringify(primaryResponse.body).slice(0, 1000)}`,
+        );
+      }
     }
     let mainState = proxy.dumpState('1970-01-01T00:00:00.000Z');
 
@@ -1061,6 +1103,7 @@ async function runSpec(
           primaryResponse,
           previousResponse,
           namedResponses,
+          defaultApiVersion,
         );
         if (request === null) throw new Error(`${target.name}: target proxyRequest did not resolve to a request`);
         await hydrateCapturedProductDomainNodes(proxy, cassette, capture, request);
@@ -1139,12 +1182,16 @@ async function main(): Promise<void> {
     args = parseArgs(process.argv.slice(2));
   } catch (error) {
     logError((error as Error).message);
-    logError('Usage: pnpm parity <scenario-id> | --spec <path> | --all [--debug] [--dry-run]');
+    logError(
+      'Usage: pnpm parity <scenario-id> | --spec <path> | --all [--debug] [--dry-run] [--output-json <path>] [--allow-failures]',
+    );
     process.exit(2);
     return;
   }
   if (!args.all && args.scenarioIds.length === 0 && args.specPaths.length === 0) {
-    logError('Usage: pnpm parity <scenario-id> | --spec <path> | --all [--debug] [--dry-run]');
+    logError(
+      'Usage: pnpm parity <scenario-id> | --spec <path> | --all [--debug] [--dry-run] [--output-json <path>] [--allow-failures]',
+    );
     process.exit(2);
     return;
   }
@@ -1163,26 +1210,49 @@ async function main(): Promise<void> {
     return context;
   }
 
-  let failures = 0;
+  const failedSpecs: Array<{ specPath: string; errors: string[] }> = [];
+  const passedSpecs: string[] = [];
   try {
     for (const specPath of specPaths) {
       const spec = await readJsonFile<ParitySpec>(specPath);
       const readMode = spec.proxyConfig?.readMode ?? defaultReadMode;
       const { proxy, cleanState } = proxyContextFor(readMode);
       const errors = await runSpec(specPath, args.debug, proxy, cassette, cleanState);
+      const relativeSpecPath = path.relative(repoRoot, specPath);
       if (errors.length > 0) {
-        failures += 1;
+        failedSpecs.push({ specPath: relativeSpecPath, errors });
         for (const error of errors) logError(`[parity] ${error}`);
       } else {
-        log(`[parity] ${path.relative(repoRoot, specPath)} passed`);
+        passedSpecs.push(relativeSpecPath);
+        log(`[parity] ${relativeSpecPath} passed`);
       }
     }
   } finally {
     for (const { proxy } of proxyContexts.values()) proxy.dispose();
     await cassette.close();
   }
-  if (failures > 0) {
-    logError(`[parity] ${failures}/${specPaths.length} spec(s) failed`);
+  if (args.outputJsonPath) {
+    const outputPath = path.resolve(repoRoot, args.outputJsonPath);
+    await mkdir(path.dirname(outputPath), { recursive: true });
+    await writeFile(
+      outputPath,
+      `${JSON.stringify(
+        {
+          schemaVersion: 1,
+          selectedSpecs: specPaths.map((specPath) => path.relative(repoRoot, specPath)),
+          passedSpecs,
+          failedSpecs,
+        },
+        null,
+        2,
+      )}\n`,
+      'utf8',
+    );
+  }
+  if (failedSpecs.length > 0) {
+    logError(`[parity] ${failedSpecs.length}/${specPaths.length} spec(s) failed`);
+  }
+  if (failedSpecs.length > 0 && !args.allowFailures) {
     process.exit(1);
   }
 }

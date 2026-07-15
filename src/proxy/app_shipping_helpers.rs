@@ -281,9 +281,20 @@ fn access_scope_values_from_header(header: &str) -> Vec<Value> {
 }
 
 pub(in crate::proxy) fn access_scope_json(handle: &str, description: Option<&str>) -> Value {
+    let captured_description = match handle {
+        "read_markets" => Some("Read access for Shopify Markets API"),
+        "write_markets" => Some("Write access for Shopify Markets API"),
+        "read_orders" => Some("Read orders, transactions, and fulfillments"),
+        "read_products" => Some("Read products, variants, and collections"),
+        "write_products" => Some("Modify products, variants, and collections"),
+        _ => None,
+    };
     json!({
         "handle": handle,
-        "description": description.map(Value::from).unwrap_or(Value::Null)
+        "description": description
+            .or(captured_description)
+            .map(Value::from)
+            .unwrap_or(Value::Null)
     })
 }
 
@@ -364,7 +375,7 @@ pub(in crate::proxy) fn app_uninstall_payload_json(
         "app",
         app,
         app_selection,
-        "AppUninstallError",
+        "AppUninstallAppUninstallError",
         payload_selection,
         user_errors,
         |_| None,
@@ -389,7 +400,7 @@ pub(in crate::proxy) fn app_revoke_access_scopes_payload_json(
             }),
             "userErrors" => Some(app_user_errors_json(
                 user_errors.clone(),
-                "AppRevokeScopeError",
+                "AppRevokeAccessScopesAppRevokeScopeError",
                 &selection.selection,
             )),
             _ => None,
@@ -1657,78 +1668,6 @@ pub(in crate::proxy) fn carrier_service_callback_url_error(
         ));
     }
     None
-}
-
-pub(in crate::proxy) fn carrier_service_create_callback_url_coercion_error(
-    query: &str,
-    field: &RootFieldSelection,
-) -> Option<Value> {
-    let RawArgumentValue::Variable {
-        name: variable_name,
-        value: Some(ResolvedValue::Object(input)),
-    } = field.raw_arguments.get("input")?
-    else {
-        return None;
-    };
-
-    // Shopify coerces `DeliveryCarrierServiceCreateInput!` as a single variable, so a
-    // create that omits more than one required field surfaces one INVALID_VARIABLE error
-    // whose message and `problems` list every offending field in input-field order
-    // (callbackUrl, supportsServiceDiscovery, active).
-    let mut message_parts: Vec<String> = Vec::new();
-    let mut problems: Vec<Value> = Vec::new();
-
-    match input.get("callbackUrl") {
-        None | Some(ResolvedValue::Null) => {
-            let explanation = "Expected value to not be null";
-            message_parts.push(format!("callbackUrl ({explanation})"));
-            problems.push(json!({ "path": ["callbackUrl"], "explanation": explanation }));
-        }
-        Some(ResolvedValue::String(value)) if value.is_empty() || !value.contains("://") => {
-            let message = format!("Invalid url '{value}', missing scheme");
-            message_parts.push(format!("callbackUrl ({message})"));
-            problems.push(json!({
-                "path": ["callbackUrl"],
-                "explanation": message,
-                "message": message
-            }));
-        }
-        _ => {}
-    }
-
-    for required in ["supportsServiceDiscovery", "active"] {
-        if matches!(input.get(required), None | Some(ResolvedValue::Null)) {
-            let explanation = "Expected value to not be null";
-            message_parts.push(format!("{required} ({explanation})"));
-            problems.push(json!({ "path": [required], "explanation": explanation }));
-        }
-    }
-
-    if problems.is_empty() {
-        return None;
-    }
-
-    let definition = variable_definition_info(query, variable_name);
-    let type_display = definition
-        .as_ref()
-        .map(|definition| definition.type_display.clone())
-        .unwrap_or_else(|| "DeliveryCarrierServiceCreateInput!".to_string());
-    let location = definition
-        .map(|definition| json!({ "line": definition.location.line, "column": definition.location.column }))
-        .unwrap_or_else(|| json!({ "line": 1, "column": 1 }));
-    let value = resolved_value_json(&ResolvedValue::Object(input.clone()));
-    Some(json!({
-        "message": format!(
-            "Variable ${variable_name} of type {type_display} was provided invalid value for {}",
-            message_parts.join(", ")
-        ),
-        "locations": [location],
-        "extensions": {
-            "code": "INVALID_VARIABLE",
-            "value": value,
-            "problems": problems
-        }
-    }))
 }
 
 pub(in crate::proxy) fn carrier_service_https_callback_host(callback_url: &str) -> Option<String> {

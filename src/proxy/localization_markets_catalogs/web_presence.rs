@@ -38,8 +38,14 @@ impl DraftProxy {
         selected_json(&payload, &field.selection)
     }
 
-    pub(in crate::proxy) fn web_presence_helper_query(&self, query: &str) -> Response {
-        let fields = root_fields(query, &BTreeMap::new()).unwrap_or_default();
+    pub(in crate::proxy) fn web_presence_helper_query(
+        &self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Response {
+        let fields = self
+            .execution_root_fields(query, variables)
+            .unwrap_or_default();
         let mut data = serde_json::Map::new();
         for field in fields {
             if field.name == "webPresences" {
@@ -79,10 +85,26 @@ impl DraftProxy {
         _variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) {
-        self.cold_markets_preflight(
-            WEB_PRESENCE_PREFLIGHT_QUERY,
-            json!({ "first": WEB_PRESENCE_PREFLIGHT_FIRST }),
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return;
+        }
+        let shop_domain_missing = web_presence_shop_domain(&self.store).is_none();
+        let web_presence_baseline_unknown = self.store.staged.web_presences.is_empty()
+            && !self
+                .store
+                .staged
+                .markets_dirty_families
+                .contains("webPresences");
+        if !shop_domain_missing && !web_presence_baseline_unknown {
+            return;
+        }
+        self.run_markets_preflight(
             request,
+            json!({
+                "query": WEB_PRESENCE_PREFLIGHT_QUERY,
+                "variables": { "first": WEB_PRESENCE_PREFLIGHT_FIRST },
+                "operationName": "MarketsMutationPreflightHydrate",
+            }),
             Self::stage_web_presence_preflight,
         );
     }
@@ -113,7 +135,7 @@ impl DraftProxy {
         request: &Request,
     ) -> Response {
         let (response_key, payload_selection, arguments) =
-            primary_root_response_parts(query, variables, || root_field.to_string());
+            self.execution_primary_root_response_parts(query, variables, || root_field.to_string());
         let payload = match root_field {
             "webPresenceCreate" => {
                 let input = resolved_object_field(&arguments, "input").unwrap_or_default();
@@ -310,7 +332,7 @@ fn web_presence_domain_context_unavailable_payload() -> Value {
         market_user_error(
             vec!["input", "subfolderSuffix"],
             "Shop domain context is unavailable for subfolder web presence URL generation.",
-            json!("UNSUPPORTED_IN_PROXY"),
+            json!("GENERIC_ERROR"),
         ),
     )
 }

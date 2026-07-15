@@ -59,7 +59,7 @@ impl DraftProxy {
         operation_type: OperationType,
         _parsed_root_fields: &[String],
     ) -> Option<Response> {
-        let fields = root_fields(query, variables)?;
+        let fields = self.execution_root_fields(query, variables)?;
         let all_roots_allowed = match operation_type {
             OperationType::Mutation => fields.iter().all(|field| {
                 matches!(
@@ -680,7 +680,6 @@ impl DraftProxy {
             product_tail_failed_outcome(json!({
                 "__typename": "ProductFullSyncPayload",
                 "id": null,
-                "job": null,
                 "userErrors": [user_error(["id"], "ProductFeed does not exist", None)]
             }))
         } else if product_full_sync_updated_at_range_invalid(
@@ -690,7 +689,6 @@ impl DraftProxy {
             product_tail_failed_outcome(json!({
                 "__typename": "ProductFullSyncPayload",
                 "id": null,
-                "job": null,
                 "userErrors": [user_error(
                     ["updatedAtSince"],
                     "updatedAtSince must be before beforeUpdatedAt",
@@ -698,28 +696,13 @@ impl DraftProxy {
                 )]
             }))
         } else {
-            let operation_id = self.next_proxy_synthetic_gid("ProductFullSyncOperation");
-            let job_id = self.next_synthetic_gid("Job");
-            let job = json!({
-                "__typename": "Job",
-                "id": job_id.clone(),
-                "done": false,
-                "query": { "__typename": "QueryRoot" },
-            });
-            if let Some(job_id) = job.get("id").and_then(Value::as_str) {
-                self.store
-                    .staged
-                    .collection_jobs
-                    .insert(job_id.to_string(), job.clone());
-            }
             (
                 json!({
                     "__typename": "ProductFullSyncPayload",
                     "id": id,
-                    "job": job,
                     "userErrors": []
                 }),
-                vec![id, operation_id, job_id],
+                vec![id],
                 "staged",
             )
         };
@@ -1487,7 +1470,7 @@ pub(in crate::proxy) fn product_tail_resource_feedback_payload(
             "userErrors": [{
                 "field": ["feedback"],
                 "message": "Feedback cannot contain more than 50 entries",
-                "code": "TOO_LONG"
+                "code": "MAXIMUM_FEEDBACK_LIMIT_EXCEEDED"
             }]
         })
     } else {
@@ -1574,10 +1557,14 @@ fn resource_feedback_validation_error(
         .iter()
         .position(|message| message.chars().count() > 100)
         .map(|message_index| {
-            length_user_error(
+            user_error(
                 feedback_field_path(feedback_index, "messages", Some(message_index)),
-                "Message",
-                LengthUserErrorBound::TooLong { maximum: 100 },
+                "Message is too long (maximum is 100 characters)",
+                Some(if feedback_index.is_some() {
+                    "LESS_THAN_OR_EQUAL_TO"
+                } else {
+                    "INVALID"
+                }),
             )
         })
 }
@@ -1817,9 +1804,9 @@ fn product_full_sync_updated_at_range_invalid(
 fn is_valid_product_feed_country(api_version: &str, code: &str) -> bool {
     // Shopify exposes ZZ in some CountryCode schemas for generic unknown-region use, but
     // productFeedCreate rejects it as an invalid feed country.
-    code != "ZZ" && public_admin_enum_value_allowed(api_version, "CountryCode", code)
+    code != "ZZ" && crate::admin_graphql::enum_value_allowed(api_version, "CountryCode", code)
 }
 
 fn is_valid_product_feed_language(api_version: &str, code: &str) -> bool {
-    public_admin_enum_value_allowed(api_version, "LanguageCode", code)
+    crate::admin_graphql::enum_value_allowed(api_version, "LanguageCode", code)
 }

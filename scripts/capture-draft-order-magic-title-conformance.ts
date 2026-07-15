@@ -3,9 +3,13 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createConformanceCapture, readRecord, requireString, type JsonRecord } from './conformance-capture-lib.js';
+import { captureDraftProxyShopPricingHydrate } from './support/shopify/runtime-hydration-capture.js';
 
 const scenarioId = 'draftOrderCreate-magic-title-not-canned';
 const cap = await createConformanceCapture();
+const shopPricingHydrate = await captureDraftProxyShopPricingHydrate((query, variables) =>
+  cap.runGraphqlRequest(query, variables),
+);
 
 const fixturePath = cap.fixturePath('orders', 'draft-order-create-magic-title-not-canned.json');
 const specPath = path.join('config', 'parity-specs', 'orders', `${scenarioId}.json`);
@@ -205,7 +209,7 @@ try {
     cleanup: {
       draftOrderDelete: cleanup,
     },
-    upstreamCalls: [],
+    upstreamCalls: [shopPricingHydrate],
   });
   await writeJson(specPath, paritySpec());
 

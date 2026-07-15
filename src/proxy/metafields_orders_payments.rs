@@ -14,10 +14,167 @@ mod quantity_rules;
 mod returns;
 
 pub(in crate::proxy) use self::delivery_settings::*;
-pub(in crate::proxy) use self::events::*;
 pub(in crate::proxy) use self::payment_customizations::*;
 pub(in crate::proxy) use self::payment_terms::*;
 pub(in crate::proxy) use self::quantity_rules::*;
+
+impl DraftProxy {
+    pub(in crate::proxy) fn resolve_payments_graphql(
+        &mut self,
+        context: RootResolverContext<'_>,
+    ) -> Response {
+        let RootResolverContext {
+            request,
+            query,
+            variables,
+            operation,
+            root_name,
+            mode,
+        } = context;
+        let fields = match self.root_fields_or_error(query, variables) {
+            Ok(fields) => fields,
+            Err(response) => return response,
+        };
+        match mode {
+            LocalResolverMode::OverlayRead => {
+                if root_name == "customerPaymentMethod" {
+                    if let Some(data) =
+                        self.customer_payment_method_local_data(request, query, variables)
+                    {
+                        ok_json(data)
+                    } else {
+                        ok_json(json!({ "data": finance_risk_no_data_read_data(&fields) }))
+                    }
+                } else if operation.root_fields.iter().all(|field| {
+                    matches!(
+                        field.as_str(),
+                        "paymentCustomization" | "paymentCustomizations"
+                    )
+                }) {
+                    ok_json(json!({
+                        "data": self.payment_customization_query_data(request, &fields)
+                    }))
+                } else if root_name == "paymentTermsTemplates" {
+                    ok_json(json!({ "data": payment_terms_templates_query_data(&fields) }))
+                } else {
+                    ok_json(json!({ "data": finance_risk_no_data_read_data(&fields) }))
+                }
+            }
+            LocalResolverMode::StageLocally => {
+                if matches!(
+                    root_name,
+                    "customerPaymentMethodCreditCardCreate"
+                        | "customerPaymentMethodCreditCardUpdate"
+                        | "customerPaymentMethodCreateFromDuplicationData"
+                        | "customerPaymentMethodGetDuplicationData"
+                        | "customerPaymentMethodGetUpdateUrl"
+                        | "customerPaymentMethodPaypalBillingAgreementCreate"
+                        | "customerPaymentMethodPaypalBillingAgreementUpdate"
+                        | "customerPaymentMethodRemoteCreate"
+                        | "customerPaymentMethodRevoke"
+                        | "paymentReminderSend"
+                ) {
+                    let payment_reminder = fields
+                        .iter()
+                        .any(|field| field.name == "paymentReminderSend")
+                        .then(|| self.payment_reminder_local_data(request, query, variables))
+                        .flatten();
+                    if root_name == "paymentReminderSend" {
+                        if let Some(data) = payment_reminder {
+                            return ok_json(data);
+                        }
+                    }
+                    if let Some(reminder) = &payment_reminder {
+                        if reminder.get("errors").is_some() {
+                            return ok_json(reminder.clone());
+                        }
+                    }
+                    if let Some(data) =
+                        self.customer_payment_method_local_data(request, query, variables)
+                    {
+                        let mut data = data;
+                        if let Some(reminder) = payment_reminder {
+                            if let (Some(data), Some(reminder)) = (
+                                data.get_mut("data").and_then(Value::as_object_mut),
+                                reminder.get("data").and_then(Value::as_object),
+                            ) {
+                                data.extend(reminder.clone());
+                            }
+                        }
+                        return ok_json(data);
+                    }
+                    return Self::unimplemented_resolver_response(mode, root_name);
+                }
+                if matches!(
+                    root_name,
+                    "paymentTermsCreate" | "paymentTermsUpdate" | "paymentTermsDelete"
+                ) {
+                    if let Some(data) = self.payment_terms_local_data(request, query, variables) {
+                        return ok_json(data);
+                    }
+                    return Self::unimplemented_resolver_response(mode, root_name);
+                }
+                if matches!(
+                    root_name,
+                    "orderCapture" | "transactionVoid" | "orderCreateMandatePayment"
+                ) {
+                    if let Some(data) = self
+                        .order_payment_transaction_local_data(request, root_name, query, variables)
+                    {
+                        return ok_json(data);
+                    }
+                    return Self::unimplemented_resolver_response(mode, root_name);
+                }
+                if operation.root_fields.iter().all(|field| {
+                    matches!(
+                        field.as_str(),
+                        "paymentCustomizationActivation"
+                            | "paymentCustomizationCreate"
+                            | "paymentCustomizationDelete"
+                            | "paymentCustomizationUpdate"
+                    )
+                }) {
+                    let data = self.payment_customization_mutation_data(request, &fields);
+                    let staged_ids = fields
+                        .iter()
+                        .filter_map(|field| {
+                            data[field.response_key.as_str()]["paymentCustomization"]["id"]
+                                .as_str()
+                                .map(ToString::to_string)
+                                .or_else(|| {
+                                    data[field.response_key.as_str()]["deletedId"]
+                                        .as_str()
+                                        .map(ToString::to_string)
+                                })
+                        })
+                        .collect();
+                    self.record_mutation_log_entry(
+                        request, query, variables, root_name, staged_ids,
+                    );
+                    ok_json(json!({ "data": data }))
+                } else {
+                    Self::unimplemented_resolver_response(mode, root_name)
+                }
+            }
+        }
+    }
+}
+
+fn finance_risk_no_data_read_data(fields: &[RootFieldSelection]) -> Value {
+    root_payload_json(fields, |field| {
+        Some(match field.name.as_str() {
+            "cashTrackingSession"
+            | "pointOfSaleDevice"
+            | "dispute"
+            | "disputeEvidence"
+            | "shopPayPaymentRequestReceipt" => Value::Null,
+            "cashTrackingSessions" | "disputes" | "shopPayPaymentRequestReceipts" => {
+                selected_empty_connection_json(&field.selection)
+            }
+            _ => Value::Null,
+        })
+    })
+}
 
 pub(in crate::proxy) fn metafield_compare_digest(value: &str) -> String {
     let mut hasher = Sha256::new();
@@ -756,8 +913,9 @@ pub(in crate::proxy) fn canonical_app_metafield_namespace(
 pub(in crate::proxy) fn metafields_set_coercion_error(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
+    arguments: &BTreeMap<String, ResolvedValue>,
 ) -> Option<Response> {
-    let inputs = metafields_mutation_inputs(query, variables, "metafieldsSet");
+    let inputs = metafields_mutation_inputs(arguments, variables);
     let mut problems: Vec<(usize, &'static str)> = Vec::new();
     for (index, input) in inputs.iter().enumerate() {
         for field in ["key", "ownerId", "value"] {
@@ -856,7 +1014,7 @@ fn metafields_set_input_shape_error(
     if shopify_gid_resource_type(&owner_id).is_none() {
         Some(metafields_set_path_user_error(
             vec!["metafields", &index, "ownerId"],
-            "INVALID_OWNER",
+            "INVALID",
             "Owner is invalid",
         ))
     } else if let Some(error) = metafields_set_namespace_key_validation(&namespace, &key) {

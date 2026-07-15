@@ -116,7 +116,7 @@ pub struct OperationSelection {
     pub requires_filtered_document: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum OperationType {
     Query,
     Mutation,

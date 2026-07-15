@@ -1,6 +1,147 @@
 use super::*;
 
 impl DraftProxy {
+    pub(in crate::proxy) fn resolve_markets_graphql(
+        &mut self,
+        context: RootResolverContext<'_>,
+    ) -> Response {
+        let RootResolverContext {
+            request,
+            query,
+            variables,
+            operation,
+            root_name,
+            mode,
+        } = context;
+        let fields = match self.root_fields_or_error(query, variables) {
+            Ok(fields) => fields,
+            Err(response) => return response,
+        };
+        match mode {
+            LocalResolverMode::OverlayRead => {
+                // Cold LiveHybrid reads hydrate every selected markets family.
+                // Existing staged state is then rendered over that base graph.
+                if self.config.read_mode == ReadMode::LiveHybrid
+                    && self.markets_should_fetch_upstream(&fields, variables)
+                {
+                    let had_markets_overlay_state = self.has_markets_overlay_state();
+                    let response = (self.upstream_transport)(request.clone());
+                    if response.status < 400 {
+                        self.hydrate_markets_from_upstream_for_fields(&response.body, &fields);
+                        self.hydrate_localization_from_upstream(&response.body);
+                    }
+                    if !had_markets_overlay_state {
+                        return response;
+                    }
+                }
+                if operation
+                    .root_fields
+                    .iter()
+                    .all(|field| field == "webPresences")
+                {
+                    return self.web_presence_helper_query(query, variables);
+                }
+                self.hydrate_markets_resolved_values_pricing_if_selected(request, &fields);
+                let data = if operation.root_fields.iter().any(|field| {
+                    matches!(
+                        field.as_str(),
+                        "marketLocalizableResource"
+                            | "marketLocalizableResources"
+                            | "marketLocalizableResourcesByIds"
+                    )
+                }) {
+                    self.market_localization_query_data(&fields, request)
+                } else {
+                    self.markets_overlay_query_data(&fields)
+                };
+                ok_json(json!({ "data": data }))
+            }
+            LocalResolverMode::StageLocally => {
+                self.hydrate_market_currency_defaults_if_needed(request, &fields);
+                if let Some(response) = self.market_mutation_wrong_resource_response(&fields) {
+                    return response;
+                }
+                let data = if operation.root_fields.iter().all(|field| {
+                    matches!(
+                        field.as_str(),
+                        "marketLocalizationsRegister" | "marketLocalizationsRemove"
+                    )
+                }) {
+                    self.market_localization_mutation_preflight(variables, request);
+                    self.market_localization_mutation_data(&fields)
+                } else if operation.root_fields.iter().all(|field| {
+                    matches!(
+                        field.as_str(),
+                        "webPresenceCreate" | "webPresenceUpdate" | "webPresenceDelete"
+                    )
+                }) {
+                    self.web_presence_mutation_preflight(variables, request);
+                    return self.web_presence_helper_mutation(root_name, query, variables, request);
+                } else if operation
+                    .root_fields
+                    .iter()
+                    .all(|field| field == "quantityPricingByVariantUpdate")
+                {
+                    self.quantity_pricing_rules_mutation_preflight(request, variables);
+                    return self
+                        .quantity_pricing_by_variant_update_response(query, variables, request);
+                } else if operation.root_fields.iter().all(|field| {
+                    matches!(field.as_str(), "quantityRulesAdd" | "quantityRulesDelete")
+                }) {
+                    self.quantity_pricing_rules_mutation_preflight(request, variables);
+                    return self
+                        .quantity_rules_mutation_response(root_name, query, variables, request);
+                } else if operation.root_fields.iter().any(|field| {
+                    matches!(
+                        field.as_str(),
+                        "priceListCreate"
+                            | "priceListUpdate"
+                            | "priceListDelete"
+                            | "priceListFixedPricesByProductUpdate"
+                            | "priceListFixedPricesAdd"
+                            | "priceListFixedPricesUpdate"
+                            | "priceListFixedPricesDelete"
+                    )
+                }) {
+                    return ok_json(
+                        self.price_list_mutation_data(&fields, request, query, variables),
+                    );
+                } else if operation.root_fields.iter().any(|field| {
+                    matches!(
+                        field.as_str(),
+                        "catalogCreate"
+                            | "catalogUpdate"
+                            | "catalogDelete"
+                            | "catalogContextUpdate"
+                    )
+                }) {
+                    self.catalog_mutation_data(&fields, request, query, variables)
+                } else {
+                    self.market_mutation_target_preflight(&fields, request);
+                    self.market_create_mutation_data(&fields, request, query, variables)
+                };
+                if operation.root_fields.iter().all(|field| {
+                    matches!(
+                        field.as_str(),
+                        "marketLocalizationsRegister" | "marketLocalizationsRemove"
+                    )
+                }) {
+                    self.record_mutation_log_entry(
+                        request,
+                        query,
+                        variables,
+                        root_name,
+                        fields
+                            .iter()
+                            .map(|field| field.response_key.clone())
+                            .collect(),
+                    );
+                }
+                ok_json(json!({ "data": data }))
+            }
+        }
+    }
+
     /// Unified Markets overlay read. A single GraphQL query can select several
     /// markets-domain root fields at once (e.g. the delete-cascade downstream
     /// read selects `webPresences`, `market`, and `catalog` together). Routing
@@ -188,17 +329,9 @@ impl DraftProxy {
     }
 
     fn selected_catalog_json(&self, catalog: &Value, selections: &[SelectedField]) -> Value {
-        let market_ids = catalog_market_ids(catalog);
         selected_record_with_connections(catalog, selections, |selection| {
             match selection.name.as_str() {
-                "markets" => {
-                    let ids = market_ids.iter().rev().cloned().collect::<Vec<_>>();
-                    Some(self.selected_markets_by_ids_connection(
-                        ids,
-                        &selection.arguments,
-                        &selection.selection,
-                    ))
-                }
+                "markets" => Some(self.selected_catalog_markets_connection(catalog, selection)),
                 "priceList" => {
                     let price_list_id = catalog_relation_id(catalog, "priceListId", "priceList");
                     price_list_id
@@ -221,6 +354,43 @@ impl DraftProxy {
                 _ => None,
             }
         })
+    }
+
+    fn selected_catalog_markets_connection(
+        &self,
+        catalog: &Value,
+        selection: &SelectedField,
+    ) -> Value {
+        let embedded = catalog["markets"]["nodes"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|market| {
+                market["id"]
+                    .as_str()
+                    .map(|id| (id.to_string(), market.clone()))
+            })
+            .collect::<BTreeMap<_, _>>();
+        let records = catalog_market_ids(catalog)
+            .into_iter()
+            .rev()
+            .map(|id| {
+                self.store
+                    .staged
+                    .markets
+                    .get(&id)
+                    .cloned()
+                    .or_else(|| embedded.get(&id).cloned())
+                    .unwrap_or_else(|| json!({ "id": id }))
+            })
+            .collect::<Vec<_>>();
+        selected_typed_connection_with_args(
+            &records,
+            &selection.arguments,
+            &selection.selection,
+            |market, node_selection| self.selected_market_json(market, node_selection),
+            value_id_cursor,
+        )
     }
 
     pub(in crate::proxy) fn selected_catalog_payload(
@@ -248,10 +418,8 @@ impl DraftProxy {
         }
         let mut record = serde_json::Map::new();
         for field in selection {
-            if let Some(type_condition) = field.type_condition.as_deref() {
-                if !matches!(type_condition, "PriceList" | "Node") {
-                    continue;
-                }
+            if !selected_field_applies_to_type("PriceList", field) {
+                continue;
             }
             let value = match field.name.as_str() {
                 "prices" => Some(selected_price_list_prices(
@@ -696,7 +864,7 @@ impl DraftProxy {
                 field,
                 vec!["input", "handle"],
                 "Generated handle has already been taken",
-                json!("GENERATED_DUPLICATED_HANDLE"),
+                json!("TAKEN"),
             );
         }
         if explicit_handle.is_none() {
@@ -852,6 +1020,7 @@ impl DraftProxy {
         market_id: &str,
         shop_currency_code: &str,
     ) {
+        let existing_region_codes = market_record_country_codes(market);
         let Some(object) = market.as_object_mut() else {
             return;
         };
@@ -903,7 +1072,26 @@ impl DraftProxy {
             object.insert("priceInclusions".to_string(), price_inclusions);
         }
         if market_update_region_input_present(input) {
-            let region_codes = market_region_country_codes(input);
+            let mut region_codes = existing_region_codes;
+            if input.contains_key("regions")
+                || resolved_object_field(input, "conditions")
+                    .is_some_and(|conditions| conditions.contains_key("regionsCondition"))
+            {
+                region_codes = market_region_country_codes(input);
+            }
+            if let Some(conditions) = resolved_object_field(input, "conditions") {
+                if let Some(to_delete) = resolved_object_field(&conditions, "conditionsToDelete") {
+                    let deleted = market_region_country_codes(&to_delete);
+                    region_codes.retain(|code| !deleted.contains(code));
+                }
+                if let Some(to_add) = resolved_object_field(&conditions, "conditionsToAdd") {
+                    for code in market_region_country_codes(&to_add) {
+                        if !region_codes.contains(&code) {
+                            region_codes.push(code);
+                        }
+                    }
+                }
+            }
             let region_nodes = market_region_country_nodes(market_id, &region_codes);
             object.insert("regionCodes".to_string(), json!(region_codes));
             object.insert(

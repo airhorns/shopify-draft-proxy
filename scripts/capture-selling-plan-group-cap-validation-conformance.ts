@@ -7,6 +7,7 @@ import path from 'node:path';
 import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
+import { captureProductPayloadShopHydrate } from './support/shopify/runtime-hydration-capture.js';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -43,6 +44,9 @@ const { runGraphqlRaw } = createAdminGraphqlClient({
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
 });
+const shopIdentityHydrate = await captureProductPayloadShopHydrate((query, variables) =>
+  runGraphqlRaw(query, variables),
+);
 
 const productCreateMutation = `#graphql
   mutation ProductCreateParityPlan($product: ProductCreateInput!) {
@@ -304,6 +308,9 @@ function paritySpec(): JsonRecord {
     assertionKinds: ['user-errors-parity', 'mutation-lifecycle'],
     liveCaptureFiles: [outputPath],
     runtimeTestFiles: ['tests/graphql_routes/selling_plans.rs'],
+    proxyConfig: {
+      readMode: 'live-hybrid',
+    },
     proxyRequest: {
       documentPath: 'config/parity-requests/products/productCreate-parity-plan.graphql',
       variablesCapturePath: '$.scenarios.productSetup.request.variables',
@@ -535,6 +542,7 @@ await writeFile(
         joinThirtyOneGroups,
         joinThirtyTwoGroups,
       },
+      upstreamCalls: [shopIdentityHydrate],
       cleanup,
     },
     null,

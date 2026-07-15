@@ -735,7 +735,8 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
-        let field = root_fields(query, variables)?
+        let field = self
+            .execution_root_fields(query, variables)?
             .into_iter()
             .find(|field| field.name == root_field)?;
         let payload = match root_field {
