@@ -124,7 +124,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let Some(fields) = root_fields(query, variables) else {
+        let Some(fields) = self.execution_root_fields(query, variables) else {
             return json_error(400, "Could not parse GraphQL operation");
         };
         let mut errors = Vec::new();

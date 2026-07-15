@@ -22,6 +22,41 @@ const METAFIELD_DEFINITION_HYDRATE_OWNER_CATALOG_QUERY: &str = include_str!(
     "../../config/parity-requests/metafields/metafield-definition-hydrate-owner-catalog.graphql"
 );
 
+impl DraftProxy {
+    pub(in crate::proxy) fn resolve_metafields_graphql(
+        &mut self,
+        context: RootResolverContext<'_>,
+    ) -> Response {
+        let RootResolverContext {
+            request,
+            query,
+            variables,
+            root_name,
+            mode,
+            ..
+        } = context;
+        match mode {
+            LocalResolverMode::OverlayRead => {
+                // Cold LiveHybrid definition reads stay authoritative upstream;
+                // staged definition lifecycles resolve from the local overlay.
+                if self.config.read_mode != ReadMode::Snapshot
+                    && !self.local_has_metafield_definition_state(variables)
+                {
+                    (self.upstream_transport)(request.clone())
+                } else {
+                    self.metafield_definition_pinning_read(request, query, variables)
+                }
+            }
+            LocalResolverMode::StageLocally if root_name == "standardMetafieldDefinitionEnable" => {
+                self.standard_metafield_definition_enable(request, query, variables)
+            }
+            LocalResolverMode::StageLocally => {
+                self.metafield_definition_pinning_mutation(request, query, variables)
+            }
+        }
+    }
+}
+
 fn pinned_definition_limit_message() -> String {
     format!("Limit of {PINNED_DEFINITION_LIMIT} pinned definitions.")
 }
@@ -77,7 +112,6 @@ fn metafield_access_grants_errors(
                     operation_path: &document.operation_path,
                     response_key: &field.response_key,
                     field_location: field.location,
-                    raw_body: "",
                 };
                 vec![input_object_argument_not_accepted_error(
                     "MetafieldAccessInput",
@@ -200,7 +234,10 @@ impl DraftProxy {
         let mut data = serde_json::Map::new();
         let mut staged_ids = Vec::new();
         let mut primary_staged_root: Option<String> = None;
-        for field in root_fields(query, variables).unwrap_or_default() {
+        for field in self
+            .execution_root_fields(query, variables)
+            .unwrap_or_default()
+        {
             let root_name = field.name.clone();
             let mut track_staged_id_from_payload = true;
             let payload = match field.name.as_str() {
@@ -1030,11 +1067,16 @@ impl DraftProxy {
             )]);
         }
         if self.metafield_definition_pin_count(owner_type) >= PINNED_DEFINITION_LIMIT {
+            let code = if typename == "StandardMetafieldDefinitionEnableUserError" {
+                "LIMIT_EXCEEDED"
+            } else {
+                "PINNED_LIMIT_REACHED"
+            };
             return Some(vec![metafield_definition_user_error(
                 typename,
                 field_path,
                 &pinned_definition_limit_message(),
-                "PINNED_LIMIT_REACHED",
+                code,
             )]);
         }
         None
@@ -1424,7 +1466,10 @@ impl DraftProxy {
     ) -> Response {
         let api_client_id = request_app_namespace_api_client_id(request);
         let mut data = serde_json::Map::new();
-        for field in root_fields(query, variables).unwrap_or_default() {
+        for field in self
+            .execution_root_fields(query, variables)
+            .unwrap_or_default()
+        {
             match field.name.as_str() {
                 "metafieldDefinition" => {
                     let identifier =
@@ -1593,7 +1638,10 @@ impl DraftProxy {
     ) -> Response {
         let mut data = serde_json::Map::new();
         let mut staged_ids = Vec::new();
-        for field in root_fields(query, variables).unwrap_or_default() {
+        for field in self
+            .execution_root_fields(query, variables)
+            .unwrap_or_default()
+        {
             if field.name != "standardMetafieldDefinitionEnable" {
                 continue;
             }
@@ -2340,7 +2388,7 @@ fn metafield_definition_create_errors_for_namespace(
             "MetafieldDefinitionCreateUserError",
             json!(["definition", "namespace"]),
             &format!("Namespace {namespace} is reserved."),
-            "RESERVED",
+            "RESERVED_NAMESPACE_KEY",
         ));
     }
     if let Some(error) = key_length_error {
@@ -3377,7 +3425,7 @@ mod tests {
             r#"
             mutation SetMetafield($metafields: [MetafieldsSetInput!]!) {
               metafieldsSet(metafields: $metafields) {
-                metafields { id namespace key ownerType type value owner { __typename id } }
+                metafields { id namespace key ownerType type value owner { __typename ... on Node { id } } }
                 userErrors { field message code }
               }
             }
@@ -3562,7 +3610,7 @@ mod tests {
                     ownerType
                     type
                     value
-                    owner { __typename id }
+                    owner { __typename ... on Node { id } }
                     definition { id namespace key ownerType }
                   }
                   edges { cursor node { id value } }

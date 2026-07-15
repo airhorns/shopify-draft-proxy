@@ -1,7 +1,11 @@
 /* oxlint-disable no-console -- CLI capture script intentionally writes progress to stdio. */
 import { createConformanceCapture, readRecord, requireString, type JsonRecord } from './conformance-capture-lib.js';
+import { captureDraftProxyShopPricingHydrate } from './support/shopify/runtime-hydration-capture.js';
 
 const cap = await createConformanceCapture();
+const shopPricingHydrate = await captureDraftProxyShopPricingHydrate((query, variables) =>
+  cap.runGraphqlRequest(query, variables),
+);
 
 const draftCreateDocument = await cap.readRequest('orders', 'orderEditCommit-derived-statuses-draftCreate.graphql');
 const draftCompleteDocument = await cap.readRequest('orders', 'orderEditCommit-derived-statuses-draftComplete.graphql');
@@ -168,7 +172,7 @@ await cap.writeJson(fixturePath, {
     status: cleanup.status,
     response: cleanup.payload,
   },
-  upstreamCalls: [],
+  upstreamCalls: [shopPricingHydrate],
 });
 
 await cap.writeJson(specPath, {

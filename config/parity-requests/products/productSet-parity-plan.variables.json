@@ -1,7 +1,7 @@
 {
   "synchronous": true,
   "input": {
-    "title": "Hermes Product Graph 1783702678932",
+    "title": "Hermes Product Graph 1784036357996",
     "status": "DRAFT",
     "vendor": "HERMES",
     "productType": "SNOWBOARD",
@@ -9,7 +9,7 @@
     "tags": [
       "conformance",
       "product-graph",
-      "1783702678932"
+      "1784036357996"
     ],
     "productOptions": [
       {
@@ -33,7 +33,7 @@
             "name": "Blue"
           }
         ],
-        "sku": "GRAPH-BLUE-1783702678932",
+        "sku": "GRAPH-BLUE-1784036357996",
         "price": "79.99",
         "inventoryQuantities": [
           {
@@ -43,7 +43,7 @@
           },
           {
             "quantity": 5,
-            "locationId": "gid://shopify/Location/106318430514",
+            "locationId": "gid://shopify/Location/113884102962",
             "name": "available"
           }
         ],
@@ -59,7 +59,7 @@
             "name": "Black"
           }
         ],
-        "sku": "GRAPH-BLACK-1783702678932",
+        "sku": "GRAPH-BLACK-1784036357996",
         "price": "69.99",
         "inventoryQuantities": [
           {

@@ -208,28 +208,28 @@ pub(super) fn create_legacy_variant(
 ) -> Value {
     let response = proxy.process_request(json_graphql_request(
         r#"
-        mutation CreateLegacyVariantForTest($input: ProductVariantInput!) {
-          productVariantCreate(input: $input) {
-            productVariant { id sku price inventoryItem { id } }
+        mutation CreateVariantForTest($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+          productVariantsBulkCreate(productId: $productId, variants: $variants) {
+            productVariants { id sku price inventoryItem { id } }
             userErrors { field message }
           }
         }
         "#,
         json!({
-            "input": {
-                "productId": product_id,
-                "title": sku,
-                "sku": sku,
+            "productId": product_id,
+            "variants": [{
+                "inventoryItem": { "sku": sku },
+                "optionValues": [{ "optionName": "Title", "name": sku }],
                 "price": price
-            }
+            }]
         }),
     ));
     assert_eq!(response.status, 200);
     assert_eq!(
-        response.body["data"]["productVariantCreate"]["userErrors"],
+        response.body["data"]["productVariantsBulkCreate"]["userErrors"],
         json!([])
     );
-    response.body["data"]["productVariantCreate"]["productVariant"].clone()
+    response.body["data"]["productVariantsBulkCreate"]["productVariants"][0].clone()
 }
 
 pub(super) fn registry_entry(

@@ -8,6 +8,10 @@ import { createAdminGraphqlClient } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { assertDiscountConformanceScopes, probeDiscountConformanceScopes } from './discount-conformance-lib.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
+import {
+  captureDiscountUniquenessCheck,
+  captureDraftProxyShopPricingHydrate,
+} from './support/shopify/runtime-hydration-capture.js';
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
   defaultApiVersion: '2026-04',
@@ -23,6 +27,9 @@ const adminOptions = {
   headers: buildAdminAuthHeaders(adminAccessToken),
 };
 const { runGraphqlRaw } = createAdminGraphqlClient(adminOptions);
+const shopPricingHydrate = await captureDraftProxyShopPricingHydrate((query, variables) =>
+  runGraphqlRaw(query, variables),
+);
 
 await mkdir(outputDir, { recursive: true });
 
@@ -221,6 +228,7 @@ const createVariables = {
   },
 };
 
+const initialCodeUniqueness = await captureDiscountUniquenessCheck(runGraphqlRaw, initialCode);
 const create = await runGraphqlRaw(createDocument, createVariables);
 const discountId = (
   create.payload as {
@@ -257,6 +265,7 @@ const updateVariables = {
   },
 };
 
+const updatedCodeUniqueness = await captureDiscountUniquenessCheck(runGraphqlRaw, updatedCode);
 const update = await runGraphqlRaw(updateDocument, updateVariables);
 const readAfterUpdate = await runGraphqlRaw(readDocument, { id: discountId, code: updatedCode });
 const deactivate = await runGraphqlRaw(deactivateDocument, { id: discountId });
@@ -267,6 +276,9 @@ const cleanup = await runGraphqlRaw(deleteDocument, { id: discountId });
 const readAfterDelete = await runGraphqlRaw(readDocument, { id: discountId, code: updatedCode });
 
 const output = {
+  capturedAt: new Date().toISOString(),
+  storeDomain,
+  apiVersion,
   variables: {
     id: discountId,
     initialCode,
@@ -281,6 +293,7 @@ const output = {
     read: { query: readDocument },
   },
   scopeProbe,
+  upstreamCalls: [shopPricingHydrate, initialCodeUniqueness, updatedCodeUniqueness],
   create,
   update,
   readAfterUpdate,

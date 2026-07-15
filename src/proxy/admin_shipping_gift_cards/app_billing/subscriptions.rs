@@ -9,8 +9,10 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let (response_key, payload_selection, arguments) =
-            primary_root_response_parts(query, variables, || "appSubscriptionCreate".to_string());
+        let (response_key, payload_selection, arguments) = self
+            .execution_primary_root_response_parts(query, variables, || {
+                "appSubscriptionCreate".to_string()
+            });
         let subscription_selection =
             selected_child_selection(&payload_selection, "appSubscription").unwrap_or_default();
         let id = self.next_proxy_synthetic_gid("AppSubscription");
@@ -112,8 +114,10 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let (response_key, payload_selection, arguments) =
-            primary_root_response_parts(query, variables, || "appSubscriptionCancel".to_string());
+        let (response_key, payload_selection, arguments) = self
+            .execution_primary_root_response_parts(query, variables, || {
+                "appSubscriptionCancel".to_string()
+            });
         let subscription_selection =
             selected_child_selection(&payload_selection, "appSubscription").unwrap_or_default();
         let id = resolved_string_field(&arguments, "id").unwrap_or_default();
@@ -169,8 +173,8 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let (response_key, payload_selection, arguments) =
-            primary_root_response_parts(query, variables, || {
+        let (response_key, payload_selection, arguments) = self
+            .execution_primary_root_response_parts(query, variables, || {
                 "appSubscriptionTrialExtend".to_string()
             });
         let subscription_selection =
@@ -260,7 +264,8 @@ impl DraftProxy {
         request: &Request,
     ) -> Response {
         let mut data = serde_json::Map::new();
-        for root in root_fields(query, variables)
+        for root in self
+            .execution_root_fields(query, variables)
             .unwrap_or_default()
             .into_iter()
             .filter(|root| root.name == "appSubscriptionLineItemUpdate")
@@ -443,8 +448,10 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let (response_key, payload_selection, arguments) =
-            primary_root_response_parts(query, variables, || "appUsageRecordCreate".to_string());
+        let (response_key, payload_selection, arguments) = self
+            .execution_primary_root_response_parts(query, variables, || {
+                "appUsageRecordCreate".to_string()
+            });
         let usage_record_selection =
             selected_child_selection(&payload_selection, "appUsageRecord").unwrap_or_default();
         let line_item_id =

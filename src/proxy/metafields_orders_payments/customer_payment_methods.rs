@@ -25,7 +25,7 @@ pub(in crate::proxy) fn customer_payment_method_billing_address(
         "address1": resolved_string_field(input, "address1").map(Value::String).unwrap_or(Value::Null),
         "city": resolved_string_field(input, "city").map(Value::String).unwrap_or(Value::Null),
         "zip": resolved_string_field(input, "zip").map(Value::String).unwrap_or(Value::Null),
-        "countryCodeV2": resolved_string_field(input, "countryCode")
+        "countryCode": resolved_string_field(input, "countryCode")
             .or_else(|| resolved_string_field(input, "countryCodeV2"))
             .or_else(|| resolved_string_field(input, "country"))
             .map(Value::String)
@@ -93,7 +93,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
-        let fields = root_fields(query, variables)?;
+        let fields = self.execution_root_fields(query, variables)?;
         let customer_fields = fields
             .iter()
             .filter(|field| field.name != "paymentReminderSend");
@@ -234,7 +234,7 @@ impl DraftProxy {
                     "address1": "123 Main St",
                     "city": "Ottawa",
                     "zip": "K1A0B1",
-                    "countryCodeV2": "CA",
+                    "countryCode": "CA",
                     "provinceCode": "ON"
                 }
             }),
@@ -286,7 +286,7 @@ impl DraftProxy {
             }),
         );
         already_revoked["revokedAt"] = json!("2026-05-01T00:00:00.000Z");
-        already_revoked["revokedReason"] = json!("CUSTOMER_REVOKED");
+        already_revoked["revokedReason"] = json!("MANUALLY_REVOKED");
         for record in [
             base_card,
             base_paypal,
@@ -585,7 +585,7 @@ impl DraftProxy {
                 "customerId",
                 ["remote_reference", "stripe_payment_method", "customer_id"],
                 "customer_id",
-                "STRIPE_CUSTOMER_ID_BLANK",
+                "INVALID",
             ) {
                 return (
                     self.customer_payment_method_payload(
@@ -800,7 +800,13 @@ impl DraftProxy {
         let customer_id = resolved_string_field(&field.arguments, "customerId").unwrap_or_default();
         let billing_address =
             resolved_object_field(&field.arguments, "billingAddress").unwrap_or_default();
-        let errors = customer_payment_method_billing_address_blank_errors(&billing_address);
+        let mut errors = customer_payment_method_billing_address_blank_errors(&billing_address);
+        // The current mutation-specific error enum no longer exposes the old
+        // `BLANK` member. Preserve the captured field/message detail while
+        // returning the schema-valid nullable code.
+        for error in &mut errors {
+            error["code"] = Value::Null;
+        }
         if !errors.is_empty() {
             return (
                 self.customer_payment_method_payload(&field.selection, Value::Null, None, errors),
@@ -921,7 +927,7 @@ impl DraftProxy {
         }
         if record["revokedAt"].is_null() {
             record["revokedAt"] = json!("2024-01-01T00:00:02.000Z");
-            record["revokedReason"] = json!("CUSTOMER_REVOKED");
+            record["revokedReason"] = json!("MANUALLY_REVOKED");
         }
         (
             selected_json(

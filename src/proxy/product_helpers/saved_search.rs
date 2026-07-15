@@ -1,6 +1,34 @@
 use super::*;
 use crate::proxy::search::split_search_query_terms;
 
+impl DraftProxy {
+    pub(in crate::proxy) fn resolve_saved_searches_graphql(
+        &mut self,
+        context: RootResolverContext<'_>,
+    ) -> Response {
+        let RootResolverContext {
+            request,
+            query,
+            variables,
+            root_name: _,
+            mode,
+            ..
+        } = context;
+        match mode {
+            LocalResolverMode::OverlayRead => {
+                self.saved_search_overlay_read_response(request, query, variables)
+            }
+            LocalResolverMode::StageLocally => {
+                if let Some(response) = saved_search_required_input_error(query, variables) {
+                    return response;
+                }
+                let outcome = self.saved_search_mutation_fields(request, query, variables);
+                self.finalize_mutation_outcome(request, query, variables, outcome)
+            }
+        }
+    }
+}
+
 pub(in crate::proxy) fn saved_search_connection_json(
     records: &[SavedSearchRecord],
     root_selection: &[SelectedField],
@@ -656,8 +684,8 @@ pub(in crate::proxy) fn is_saved_search_root(root: &str) -> bool {
 
 pub(in crate::proxy) fn saved_search_resource_type(root: &str) -> &'static str {
     match root {
-        "automaticDiscountSavedSearches" => "DISCOUNT",
-        "codeDiscountSavedSearches" => "DISCOUNT",
+        "automaticDiscountSavedSearches" => "PRICE_RULE",
+        "codeDiscountSavedSearches" => "PRICE_RULE",
         "collectionSavedSearches" => "COLLECTION",
         "customerSavedSearches" => "CUSTOMER",
         "discountRedeemCodeSavedSearches" => "DISCOUNT_REDEEM_CODE",
@@ -851,7 +879,9 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        let fields = root_fields(query, variables).unwrap_or_default();
+        let fields = self
+            .execution_root_fields(query, variables)
+            .unwrap_or_default();
         if self.config.read_mode == ReadMode::LiveHybrid
             && fields.iter().any(|field| is_saved_search_root(&field.name))
         {
@@ -1039,7 +1069,9 @@ impl DraftProxy {
     ) -> MutationOutcome {
         let api_client_id = saved_search_request_api_client_id(request);
         let mut log_drafts = Vec::new();
-        let fields = root_fields(query, variables).unwrap_or_default();
+        let fields = self
+            .execution_root_fields(query, variables)
+            .unwrap_or_default();
         let data = root_payload_json(&fields, |field| {
             let outcome = match field.name.as_str() {
                 "savedSearchCreate" => self.saved_search_create_field(field, &api_client_id),

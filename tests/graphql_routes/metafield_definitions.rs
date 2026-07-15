@@ -889,7 +889,7 @@ fn standard_enable_pin(proxy: &mut DraftProxy) -> Value {
         r#"
         mutation StandardMetafieldDefinitionEnablePinLimit($ownerType: MetafieldOwnerType!, $id: ID!) {
           standardMetafieldDefinitionEnable(ownerType: $ownerType, id: $id, pin: true) {
-            createdDefinition { id namespace key pinnedPosition __shopifyDraftProxyStandardTemplateId }
+            createdDefinition { id namespace key pinnedPosition }
             userErrors { field message code }
           }
         }
@@ -1418,7 +1418,7 @@ fn metafield_definition_pin_limit_is_twenty_for_pin_create_update_and_standard_e
     );
     assert_eq!(
         over_cap_standard["userErrors"][0]["code"],
-        json!("PINNED_LIMIT_REACHED")
+        json!("LIMIT_EXCEEDED")
     );
 }
 
@@ -2043,17 +2043,12 @@ fn standard_metafield_definition_enable_public_hidden_arguments_match_live_branc
         json!({}),
     ));
     assert_eq!(
-        legacy_admin_filter.body["data"]["standardMetafieldDefinitionEnable"],
+        legacy_admin_filter.body["errors"][0]["extensions"],
         json!({
-            "createdDefinition": {
-                "namespace": "facts",
-                "key": "isbn",
-                "access": { "storefront": "NONE" },
-                "capabilities": {
-                    "adminFilterable": { "enabled": true, "eligible": true, "status": "FILTERABLE" }
-                }
-            },
-            "userErrors": []
+            "code": "argumentNotAccepted",
+            "name": "standardMetafieldDefinitionEnable",
+            "typeName": "Field",
+            "argumentName": "useAsAdminFilter"
         })
     );
 
@@ -2097,14 +2092,12 @@ fn standard_metafield_definition_enable_public_hidden_arguments_match_live_branc
         json!({}),
     ));
     assert_eq!(
-        force_false.body["data"]["standardMetafieldDefinitionEnable"],
+        force_false.body["errors"][0]["extensions"],
         json!({
-            "createdDefinition": null,
-            "userErrors": [{
-                "field": null,
-                "message": "Unstructured metafields already exist for this owner type, namespace, and key.",
-                "code": "UNSTRUCTURED_ALREADY_EXISTS"
-            }]
+            "code": "argumentNotAccepted",
+            "name": "standardMetafieldDefinitionEnable",
+            "typeName": "Field",
+            "argumentName": "forceEnable"
         })
     );
 }
@@ -2293,7 +2286,7 @@ fn metafield_definition_create_input_validation_matches_live_branches_and_runtim
             json!([{
                 "field": ["definition", "namespace"],
                 "message": format!("Namespace {namespace} is reserved."),
-                "code": "RESERVED"
+                "code": "RESERVED_NAMESPACE_KEY"
             }])
         );
     }

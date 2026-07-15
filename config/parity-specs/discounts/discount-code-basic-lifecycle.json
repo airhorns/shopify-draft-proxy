@@ -18,6 +18,9 @@
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-code-basic-lifecycle.json"
   ],
   "runtimeTestFiles": ["tests/integration/discount-code-basic-lifecycle-flow.test.ts"],
+  "proxyConfig": {
+    "readMode": "live-hybrid"
+  },
   "proxyRequest": {
     "documentPath": "config/parity-requests/discounts/discount-code-basic-lifecycle-create.graphql",
     "variablesCapturePath": "$.requests.create.variables"

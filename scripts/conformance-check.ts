@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 
 const conformanceTestFiles = [
+  'tests/unit/admin-graphql-schema.test.ts',
   'tests/unit/conformance-scenario-discovery.test.ts',
   'tests/unit/operation-registry.test.ts',
 ];

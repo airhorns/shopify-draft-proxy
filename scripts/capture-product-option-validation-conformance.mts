@@ -7,15 +7,19 @@ import path from 'node:path';
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
+import { captureProductPayloadShopHydrate } from './support/shopify/runtime-hydration-capture.js';
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'products');
-const { runGraphql } = createAdminGraphqlClient({
+const { runGraphql, runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
 });
+const shopIdentityHydrate = await captureProductPayloadShopHydrate((query, variables) =>
+  runGraphqlRequest(query, variables),
+);
 
 const createProductMutation = `#graphql
   mutation ProductOptionValidationCreateProduct($product: ProductCreateInput!) {
@@ -240,7 +244,7 @@ try {
       setupLargeVariants,
       tooManyVariantsCreated,
     },
-    upstreamCalls: [],
+    upstreamCalls: [shopIdentityHydrate],
   };
 
   const filename = 'product-options-create-limits-and-duplicates-parity.json';

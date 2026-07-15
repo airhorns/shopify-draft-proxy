@@ -219,7 +219,8 @@ fn storefront_graphql_route_rejects_roots_missing_from_storefront_schema_before_
 }
 
 #[test]
-fn storefront_graphql_snapshot_mode_returns_schema_shaped_empty_query_data() {
+fn storefront_graphql_snapshot_mode_returns_schema_shaped_empty_connections_and_enforces_nullability(
+) {
     let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
         .with_upstream_transport(|_| panic!("snapshot Storefront reads should not call upstream"));
 
@@ -228,7 +229,7 @@ fn storefront_graphql_snapshot_mode_returns_schema_shaped_empty_query_data() {
         path: "/api/2026-04/graphql.json".to_string(),
         headers: Default::default(),
         body: json!({
-            "query": "query StorefrontSnapshot { products(first: 1) { nodes { id } pageInfo { hasNextPage hasPreviousPage } } shop { name } }",
+            "query": "query StorefrontSnapshot { products(first: 1) { nodes { id } pageInfo { hasNextPage hasPreviousPage } } }",
             "variables": {}
         })
         .to_string(),
@@ -240,7 +241,19 @@ fn storefront_graphql_snapshot_mode_returns_schema_shaped_empty_query_data() {
         response.body["data"]["products"]["pageInfo"],
         json!({ "hasNextPage": false, "hasPreviousPage": false })
     );
-    assert_eq!(response.body["data"]["shop"], Value::Null);
+
+    let missing_shop = proxy.process_request(Request {
+        method: "POST".to_string(),
+        path: "/api/2026-04/graphql.json".to_string(),
+        headers: Default::default(),
+        body: json!({ "query": "query MissingSnapshotShop { shop { name } }" }).to_string(),
+    });
+    assert_eq!(missing_shop.status, 200);
+    assert_eq!(missing_shop.body["data"], Value::Null);
+    assert_eq!(
+        missing_shop.body["errors"][0]["message"],
+        json!("Storefront snapshot has no value for non-null root `QueryRoot.shop`")
+    );
 }
 
 #[test]
@@ -570,7 +583,7 @@ fn storefront_first_slice_hydrates_and_projects_local_roots_with_context() {
 }
 
 #[test]
-fn storefront_first_slice_snapshot_returns_no_data_without_invented_context() {
+fn storefront_first_slice_snapshot_returns_empty_non_null_collections_without_invented_context() {
     let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
         .with_upstream_transport(|_| {
             panic!("snapshot Storefront first-slice reads should not call upstream")
@@ -582,14 +595,11 @@ fn storefront_first_slice_snapshot_returns_no_data_without_invented_context() {
         headers: Default::default(),
         body: json!({
             "query": r#"
-                query StorefrontFirstSliceEmpty {
-                  shop { name primaryDomain { host } }
-                  localization { country { isoCode } language { isoCode } market { id } }
+                query StorefrontFirstSliceEmptyCollections {
                   locations(first: 2) {
                     nodes { id name }
                     pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
                   }
-                  paymentSettings { currencyCode supportedDigitalWallets }
                   publicApiVersions { handle displayName supported }
                 }
             "#,
@@ -599,9 +609,6 @@ fn storefront_first_slice_snapshot_returns_no_data_without_invented_context() {
     });
 
     assert_eq!(response.status, 200);
-    assert_eq!(response.body["data"]["shop"], Value::Null);
-    assert_eq!(response.body["data"]["localization"], Value::Null);
-    assert_eq!(response.body["data"]["paymentSettings"], Value::Null);
     assert_eq!(response.body["data"]["publicApiVersions"], json!([]));
     assert_eq!(response.body["data"]["locations"]["nodes"], json!([]));
     assert_eq!(
@@ -1524,7 +1531,7 @@ fn storefront_menu_projects_restored_captured_base_state_without_snapshot_fabric
                     "id": "gid://shopify/MenuItem/main-1",
                     "title": "Visible page",
                     "type": "PAGE",
-                    "url": "/pages/visible-page",
+                    "url": "https://example.myshopify.com/pages/visible-page",
                     "resourceId": "gid://shopify/Page/visible",
                     "tags": [],
                     "items": [],

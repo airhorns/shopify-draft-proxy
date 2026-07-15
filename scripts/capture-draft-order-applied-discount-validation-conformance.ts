@@ -1,4 +1,5 @@
 import { createConformanceCapture, readArray, readRecord, type JsonRecord } from './conformance-capture-lib.js';
+import { captureDraftProxyShopPricingHydrate } from './support/shopify/runtime-hydration-capture.js';
 
 type CaptureEntry = {
   variables: JsonRecord;
@@ -6,6 +7,9 @@ type CaptureEntry = {
 };
 
 const cap = await createConformanceCapture();
+const shopPricingHydrate = await captureDraftProxyShopPricingHydrate((query, variables) =>
+  cap.runGraphqlRequest(query, variables),
+);
 
 function discount(value: number, valueType?: 'PERCENTAGE' | 'FIXED_AMOUNT'): JsonRecord {
   const appliedDiscount: JsonRecord = {
@@ -200,7 +204,7 @@ try {
     updateValidation,
     calculateValidation,
     missingValueTypeValidation,
-    upstreamCalls: [],
+    upstreamCalls: [shopPricingHydrate],
   });
 
   process.stdout.write(`${JSON.stringify({ fixturePath }, null, 2)}\n`);

@@ -8,6 +8,38 @@ mod search;
 
 pub(in crate::proxy) use self::online_store_helpers::*;
 
+impl DraftProxy {
+    pub(in crate::proxy) fn resolve_online_store_graphql(
+        &mut self,
+        context: RootResolverContext<'_>,
+    ) -> Response {
+        let RootResolverContext {
+            request,
+            query,
+            variables,
+            root_name: _,
+            mode,
+            ..
+        } = context;
+        match mode {
+            LocalResolverMode::OverlayRead => {
+                let fields = match self.root_fields_or_error(query, variables) {
+                    Ok(fields) => fields,
+                    Err(response) => return response,
+                };
+                self.online_store_query_response(request, &fields)
+            }
+            LocalResolverMode::StageLocally => {
+                let fields = match self.root_fields_or_error(query, variables) {
+                    Ok(fields) => fields,
+                    Err(response) => return response,
+                };
+                self.online_store_mutation(&fields, request, query, variables)
+            }
+        }
+    }
+}
+
 const ONLINE_STORE_TITLE_MAX_CHARS: usize = 255;
 const ONLINE_STORE_HANDLE_MAX_CHARS: usize = 255;
 const ONLINE_STORE_ARTICLE_HANDLE_MAX_CHARS: usize = 265;

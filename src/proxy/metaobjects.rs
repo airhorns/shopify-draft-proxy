@@ -1,6 +1,48 @@
 use super::*;
 use std::sync::OnceLock;
 
+impl DraftProxy {
+    pub(in crate::proxy) fn resolve_metaobjects_graphql(
+        &mut self,
+        context: RootResolverContext<'_>,
+    ) -> Response {
+        let RootResolverContext {
+            request,
+            query,
+            variables,
+            root_name: _,
+            mode,
+            ..
+        } = context;
+        match mode {
+            LocalResolverMode::OverlayRead => {
+                let fields = match self.root_fields_or_error(query, variables) {
+                    Ok(fields) => fields,
+                    Err(response) => return response,
+                };
+                if self.config.read_mode != ReadMode::Snapshot {
+                    self.metaobject_live_hybrid_read(request, &fields)
+                } else {
+                    ok_json(json!({ "data": self.metaobject_query_data(&fields, request) }))
+                }
+            }
+            LocalResolverMode::StageLocally => {
+                let fields = match self.root_fields_or_error(query, variables) {
+                    Ok(fields) => fields,
+                    Err(response) => return response,
+                };
+                if self.metaobject_mutation_is_local(&fields) {
+                    self.metaobject_mutation(&fields, request, query, variables)
+                } else {
+                    // Target lives upstream (seeded/live-captured): forward so the
+                    // real backend response is replayed instead of a synthetic one.
+                    (self.upstream_transport)(request.clone())
+                }
+            }
+        }
+    }
+}
+
 const STANDARD_METAOBJECT_TEMPLATES_FIXTURE: &str = include_str!(
     "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/standard-metaobject-templates.json"
 );
@@ -349,18 +391,15 @@ fn metaobject_definition_capabilities(input: &BTreeMap<String, ResolvedValue>) -
 }
 
 /// Normalises an onlineStore capability `data` input into its stored shape. The
-/// admin API accepts `createRedirects` on input but echoes it back as
-/// `canCreateRedirects`, so we translate the field name here. Captured
-/// definition-create behavior defaults omitted `createRedirects` to true when
-/// online-store data is present.
+/// `canCreateRedirects` describes current redirect capacity; it is not the
+/// echoed value of the input-only `createRedirects` switch. The local model has
+/// capacity when online-store data is present (the update path separately reads
+/// `createRedirects` to decide whether to stage redirects).
 fn metaobject_online_store_capability_data(data: &BTreeMap<String, ResolvedValue>) -> Value {
-    let can_create_redirects = resolved_bool_field(data, "createRedirects")
-        .or_else(|| resolved_bool_field(data, "canCreateRedirects"))
-        .unwrap_or(true);
     json!({
         "urlHandle": resolved_string_field(data, "urlHandle")
             .map_or(Value::Null, |url_handle| json!(url_handle)),
-        "canCreateRedirects": can_create_redirects
+        "canCreateRedirects": true
     })
 }
 
@@ -4488,7 +4527,7 @@ impl DraftProxy {
         })
     }
 
-    fn selected_metaobject_definition_enable_payload(
+    fn selected_metaobject_definition_payload(
         &self,
         payload: &Value,
         selection: &[SelectedField],
@@ -4701,7 +4740,7 @@ impl DraftProxy {
             .tombstones
             .remove(&id);
         staged_ids.push(id);
-        selected_json(
+        self.selected_metaobject_definition_payload(
             &json!({"metaobjectDefinition": definition, "userErrors": []}),
             &field.selection,
         )
@@ -4738,7 +4777,7 @@ impl DraftProxy {
             );
         };
         let Some(definition_input) = resolved_object_field(&field.arguments, "definition") else {
-            return selected_json(
+            return self.selected_metaobject_definition_payload(
                 &json!({"metaobjectDefinition": definition, "userErrors": []}),
                 &field.selection,
             );
@@ -4835,7 +4874,7 @@ impl DraftProxy {
             self.stage_url_redirect(path, target);
         }
         staged_ids.push(storage_id);
-        selected_json(
+        self.selected_metaobject_definition_payload(
             &json!({"metaobjectDefinition": updated, "userErrors": []}),
             &field.selection,
         )
@@ -4905,14 +4944,14 @@ impl DraftProxy {
         let meta_type = resolved_string_field(&field.arguments, "type").unwrap_or_default();
         if let Some(definition) = self.metaobject_definition_by_type(&meta_type) {
             *log_successful_noop = true;
-            return self.selected_metaobject_definition_enable_payload(
+            return self.selected_metaobject_definition_payload(
                 &json!({"metaobjectDefinition": definition, "userErrors": []}),
                 &field.selection,
             );
         }
 
         let Some(template) = standard_metaobject_definition_template(&meta_type) else {
-            return self.selected_metaobject_definition_enable_payload(
+            return self.selected_metaobject_definition_payload(
                 &json!({
                     "metaobjectDefinition": null,
                     "userErrors": [metaobject_field_error(vec!["type"], "Record not found", "RECORD_NOT_FOUND")]
@@ -4934,7 +4973,7 @@ impl DraftProxy {
             .tombstones
             .remove(&id);
         staged_ids.push(id);
-        self.selected_metaobject_definition_enable_payload(
+        self.selected_metaobject_definition_payload(
             &json!({"metaobjectDefinition": definition, "userErrors": []}),
             &field.selection,
         )
@@ -5260,7 +5299,12 @@ mod tests {
             r#"
             mutation CreateDefinition($definition: MetaobjectDefinitionCreateInput!) {
               metaobjectDefinitionCreate(definition: $definition) {
-                metaobjectDefinition { id type metaobjectsCount }
+                metaobjectDefinition {
+                  id
+                  type
+                  metaobjectsCount
+                  metaobjects(first: 1) { nodes { id } }
+                }
                 userErrors { field message code elementKey elementIndex }
               }
             }
@@ -5278,6 +5322,11 @@ mod tests {
         assert_eq!(response.status, 200);
         assert_eq!(
             response.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+            json!([])
+        );
+        assert_eq!(
+            response.body["data"]["metaobjectDefinitionCreate"]["metaobjectDefinition"]
+                ["metaobjects"]["nodes"],
             json!([])
         );
         response.body["data"]["metaobjectDefinitionCreate"]["metaobjectDefinition"].clone()

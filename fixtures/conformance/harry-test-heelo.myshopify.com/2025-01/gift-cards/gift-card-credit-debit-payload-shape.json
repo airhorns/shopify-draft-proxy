@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-06-24T15:23:35.859Z",
+  "capturedAt": "2026-07-14T15:53:31.725Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "notes": [
@@ -12,12 +12,12 @@
     "create": {
       "input": {
         "initialValue": "20.00",
-        "code": "PAYLOADMQS83QHV",
+        "code": "PAYLOADMRKTZ9CC",
         "note": "Disposable gift-card payload shape capture card."
       }
     },
     "credit": {
-      "id": "gid://shopify/GiftCard/661391802674",
+      "id": "gid://shopify/GiftCard/663920116018",
       "input": {
         "creditAmount": {
           "amount": "2.00",
@@ -26,7 +26,7 @@
       }
     },
     "debit": {
-      "id": "gid://shopify/GiftCard/661391802674",
+      "id": "gid://shopify/GiftCard/663920116018",
       "input": {
         "debitAmount": {
           "amount": "1.00",
@@ -42,7 +42,7 @@
       "variables": {
         "input": {
           "initialValue": "20.00",
-          "code": "PAYLOADMQS83QHV",
+          "code": "PAYLOADMRKTZ9CC",
           "note": "Disposable gift-card payload shape capture card."
         }
       },
@@ -52,7 +52,7 @@
           "data": {
             "giftCardCreate": {
               "giftCard": {
-                "id": "gid://shopify/GiftCard/661391802674",
+                "id": "gid://shopify/GiftCard/663920116018",
                 "balance": {
                   "amount": "20.0",
                   "currencyCode": "CAD"
@@ -81,7 +81,7 @@
       "label": "validCredit",
       "query": "#graphql\n  mutation GiftCardCreditPayloadShape($id: ID!, $input: GiftCardCreditInput!) {\n    giftCardCredit(id: $id, creditInput: $input) {\n      giftCardCreditTransaction {\n        id\n        __typename\n        note\n        amount {\n          amount\n          currencyCode\n        }\n      }\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/GiftCard/661391802674",
+        "id": "gid://shopify/GiftCard/663920116018",
         "input": {
           "creditAmount": {
             "amount": "2.00",
@@ -95,7 +95,7 @@
           "data": {
             "giftCardCredit": {
               "giftCardCreditTransaction": {
-                "id": "gid://shopify/GiftCardCreditTransaction/246896656690",
+                "id": "gid://shopify/GiftCardCreditTransaction/247047979314",
                 "__typename": "GiftCardCreditTransaction",
                 "note": null,
                 "amount": {
@@ -124,7 +124,7 @@
       "label": "validDebit",
       "query": "#graphql\n  mutation GiftCardDebitPayloadShape($id: ID!, $input: GiftCardDebitInput!) {\n    giftCardDebit(id: $id, debitInput: $input) {\n      giftCardDebitTransaction {\n        id\n        __typename\n        note\n        amount {\n          amount\n          currencyCode\n        }\n      }\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/GiftCard/661391802674",
+        "id": "gid://shopify/GiftCard/663920116018",
         "input": {
           "debitAmount": {
             "amount": "1.00",
@@ -138,7 +138,7 @@
           "data": {
             "giftCardDebit": {
               "giftCardDebitTransaction": {
-                "id": "gid://shopify/GiftCardDebitTransaction/246896689458",
+                "id": "gid://shopify/GiftCardDebitTransaction/247048044850",
                 "__typename": "GiftCardDebitTransaction",
                 "note": null,
                 "amount": {
@@ -167,7 +167,7 @@
       "label": "invalidCreditGiftCard",
       "query": "#graphql\n  mutation GiftCardCreditPayloadGiftCardRejected($id: ID!, $input: GiftCardCreditInput!) {\n    giftCardCredit(id: $id, creditInput: $input) {\n      giftCardCreditTransaction {\n        id\n      }\n      giftCard {\n        id\n        balance {\n          amount\n          currencyCode\n        }\n      }\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/GiftCard/661391802674",
+        "id": "gid://shopify/GiftCard/663920116018",
         "input": {
           "creditAmount": {
             "amount": "2.00",
@@ -202,7 +202,7 @@
       "label": "invalidDebitGiftCard",
       "query": "#graphql\n  mutation GiftCardDebitPayloadGiftCardRejected($id: ID!, $input: GiftCardDebitInput!) {\n    giftCardDebit(id: $id, debitInput: $input) {\n      giftCardDebitTransaction {\n        id\n      }\n      giftCard {\n        id\n        balance {\n          amount\n          currencyCode\n        }\n      }\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/GiftCard/661391802674",
+        "id": "gid://shopify/GiftCard/663920116018",
         "input": {
           "debitAmount": {
             "amount": "1.00",
@@ -239,7 +239,7 @@
       "label": "cleanupDeactivate:payloadShapeCard",
       "query": "#graphql\n      mutation GiftCardPayloadShapeDeactivate($id: ID!) {\n        giftCardDeactivate(id: $id) {\n          giftCard {\n            id\n            enabled\n            deactivatedAt\n          }\n          userErrors {\n            field\n            code\n            message\n          }\n        }\n      }\n    ",
       "variables": {
-        "id": "gid://shopify/GiftCard/661391802674"
+        "id": "gid://shopify/GiftCard/663920116018"
       },
       "response": {
         "status": 200,
@@ -247,9 +247,9 @@
           "data": {
             "giftCardDeactivate": {
               "giftCard": {
-                "id": "gid://shopify/GiftCard/661391802674",
+                "id": "gid://shopify/GiftCard/663920116018",
                 "enabled": false,
-                "deactivatedAt": "2026-06-24T15:23:35Z"
+                "deactivatedAt": "2026-07-14T15:53:31Z"
               },
               "userErrors": []
             }
@@ -269,5 +269,39 @@
       }
     }
   ],
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "GiftCardCreateConfiguration",
+      "variables": {},
+      "query": "#graphql\n  query GiftCardCreateConfiguration {\n    giftCardConfiguration {\n      issueLimit { amount currencyCode }\n      purchaseLimit { amount currencyCode }\n    }\n  }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "giftCardConfiguration": {
+              "issueLimit": {
+                "amount": "3000.0",
+                "currencyCode": "CAD"
+              },
+              "purchaseLimit": {
+                "amount": "14000.0",
+                "currencyCode": "CAD"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

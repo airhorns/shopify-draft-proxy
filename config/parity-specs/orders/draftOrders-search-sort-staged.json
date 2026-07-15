@@ -51,7 +51,7 @@
               "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
             },
             "input": {
-              "note": "Alpha touched for updatedAt sort 20260704093710"
+              "note": "Alpha touched for updatedAt sort 20260714140051"
             }
           },
           "apiVersion": "2025-01"
@@ -152,7 +152,7 @@
               "fromProxyResponse": "first-page-window",
               "path": "$.data.draftOrders.pageInfo.endCursor"
             },
-            "query": "tag:draftsort20260704093710",
+            "query": "tag:draftsort20260714140051",
             "sortKey": "ID",
             "reverse": false
           },

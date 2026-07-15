@@ -1,6 +1,7 @@
 /* oxlint-disable no-console -- CLI scripts intentionally write status output to stdio. */
 import 'dotenv/config';
 
+import { randomBytes } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { setTimeout } from 'node:timers/promises';
@@ -8,6 +9,7 @@ import { setTimeout } from 'node:timers/promises';
 import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
+import { captureGiftCardCreateConfiguration } from './support/shopify/runtime-hydration-capture.js';
 
 type CapturedRequest = {
   label: string;
@@ -67,6 +69,9 @@ const { runGraphqlRequest } = createAdminGraphqlClient({
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
 });
+const giftCardCreateConfigurationHydrate = await captureGiftCardCreateConfiguration((query, variables) =>
+  runGraphqlRequest(query, variables),
+);
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -975,7 +980,27 @@ if (createdId !== null) {
   );
 
   const connectionRunToken = Date.now().toString(36).toUpperCase();
-  const connectionSearchToken = connectionRunToken.slice(-3).padStart(3, 'X');
+  let connectionSearchToken = '';
+  let connectionBaseline: CapturedRequest | null = null;
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const candidate = randomBytes(2).toString('hex').slice(0, 3).toUpperCase();
+    const candidateBaseline = await capture('connectionBaseline', connectionFirstPageQuery, {
+      query: candidate,
+    });
+    const candidateCount = readNumberPath(
+      candidateBaseline.response.payload,
+      ['data', 'countLimit', 'count'],
+      'connection baseline count',
+    );
+    if (candidateCount === 0) {
+      connectionSearchToken = candidate;
+      connectionBaseline = candidateBaseline;
+      break;
+    }
+  }
+  if (connectionBaseline === null) {
+    throw new Error('Could not find an unused visible gift-card search token after 12 live probes.');
+  }
   const connectionSetupVariables = {
     firstCode: `GCM${connectionRunToken}${connectionSearchToken}A`,
     secondCode: `GCM${connectionRunToken}${connectionSearchToken}B`,
@@ -1205,6 +1230,7 @@ if (createdId !== null) {
           'Credit/debit transaction mutations and transaction-node reads are captured with read_gift_card_transactions and write_gift_card_transactions.',
           'HAR-464 extends the fixture with a disposable customer-backed gift card and populated-data search filters for date/range, customer_id, recipient_id, source, and initial_value behavior.',
           'The lifecycle proxy replay hydrates the newly created card through a recorded narrow GiftCardHydrate before ordinary update staging, then through GiftCardTransactionHydrate when transaction state is needed for credit/debit handling.',
+          'The connection replay records a real empty giftCards/giftCardsCount baseline for its run-unique search token before setup; LiveHybrid treats that zero count as catalog completeness for the token and composes later windows from locally staged cards.',
           'Connection mechanics evidence creates three disposable gift cards with a shared searchable code fragment, captures first/reverse pages, cursor windows, giftCardsCount(limit:) precision, then deactivates two cards to capture DISABLED_AT ordering and cursor windows before deactivating the remaining card.',
           'Notification roots are intentionally not executed by this capture script because they are customer-visible side effects.',
         ],
@@ -1271,7 +1297,20 @@ if (createdId !== null) {
             initialValueQuery: `${giftCardIdQuery} AND initial_value:>=5`,
           },
         },
-        upstreamCalls: [narrowHydrateAfterCreate, transactionHydrateAfterCreate],
+        upstreamCalls: [
+          giftCardCreateConfigurationHydrate,
+          {
+            operationName: 'GiftCardConnectionFirstPage',
+            variables: connectionBaseline.variables,
+            query: connectionBaseline.query,
+            response: {
+              status: connectionBaseline.response.status,
+              body: connectionBaseline.response.payload,
+            },
+          },
+          narrowHydrateAfterCreate,
+          transactionHydrateAfterCreate,
+        ],
         operations: {
           schemaAndAccess,
           emptyRead,
@@ -1280,6 +1319,7 @@ if (createdId !== null) {
           configurationRead,
           customerCreate,
           create,
+          connectionBaseline,
           ...operations,
         },
         schemaAndAccess,
@@ -1343,6 +1383,7 @@ await writeFile(
       emptyRead,
       filteredEmptyRead,
       configurationRead,
+      upstreamCalls: [giftCardCreateConfigurationHydrate],
       customerCreate,
       create,
       lifecycle,
