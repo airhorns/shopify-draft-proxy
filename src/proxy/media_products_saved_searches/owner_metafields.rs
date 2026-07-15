@@ -971,10 +971,7 @@ impl DraftProxy {
                     && !self.store.staged.orders.is_tombstoned(id)
             }
             Some("Company") => self.store.staged.b2b_companies.contains_key(id),
-            Some("Metaobject") => {
-                self.store.staged.metaobjects.contains_key(id)
-                    && !self.store.staged.metaobjects.is_tombstoned(id)
-            }
+            Some("Metaobject") => self.metaobject_by_id(id).is_some(),
             Some("MediaImage" | "Video" | "ExternalVideo" | "Model3d" | "GenericFile") => {
                 self.store.staged.media_files.contains_key(id)
                     && !self.store.staged.media_files.is_tombstoned(id)

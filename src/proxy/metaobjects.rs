@@ -2906,7 +2906,7 @@ impl DraftProxy {
     ) -> bool {
         fields.iter().all(|field| match field.name.as_str() {
             "metaobjectUpdate" => resolved_string_field(&field.arguments, "id")
-                .map(|id| self.metaobject_by_id(&id).is_some())
+                .map(|id| self.metaobject_staged_key_by_id(&id).is_some())
                 .unwrap_or(false),
             "metaobjectUpsert" => match resolved_object_field(&field.arguments, "handle") {
                 Some(handle) => resolved_string_field(&handle, "type")
@@ -2915,7 +2915,7 @@ impl DraftProxy {
                 _ => false,
             },
             "metaobjectDefinitionUpdate" => resolved_string_field(&field.arguments, "id")
-                .map(|id| self.metaobject_definition_by_id(&id).is_some())
+                .map(|id| self.metaobject_definition_staged_key_by_id(&id).is_some())
                 .unwrap_or(false),
             // Creates and deletes are always emulated locally.
             _ => true,
@@ -3102,30 +3102,47 @@ impl DraftProxy {
     ) -> Option<Value> {
         match shopify_gid_resource_type(id) {
             Some("Metaobject") => {
-                if self.store.staged.metaobjects.is_tombstoned(id) {
+                let key = self.metaobject_staged_key_by_id(id)?;
+                if self.store.staged.metaobjects.is_tombstoned(&key) {
                     return Some(Value::Null);
                 }
-                self.metaobject_by_id(id).map(|record| {
-                    let mut record = self.project_metaobject_against_definition(&record);
-                    record["__typename"] = json!("Metaobject");
-                    self.selected_metaobject(&record, selection)
-                })
+                self.store
+                    .staged
+                    .metaobjects
+                    .get(&key)
+                    .cloned()
+                    .map(|record| {
+                        let mut record = self.project_metaobject_against_definition(&record);
+                        record["__typename"] = json!("Metaobject");
+                        self.selected_metaobject(&record, selection)
+                    })
             }
             Some("MetaobjectDefinition") => {
-                if self.store.staged.metaobject_definitions.is_tombstoned(id) {
+                let key = self.metaobject_definition_staged_key_by_id(id)?;
+                if self.store.staged.metaobject_definitions.is_tombstoned(&key) {
                     return Some(Value::Null);
                 }
-                self.metaobject_definition_by_id(id).map(|mut definition| {
-                    definition["__typename"] = json!("MetaobjectDefinition");
-                    self.selected_metaobject_definition(&definition, selection)
-                })
+                self.store
+                    .staged
+                    .metaobject_definitions
+                    .get(&key)
+                    .cloned()
+                    .map(|mut definition| {
+                        definition["__typename"] = json!("MetaobjectDefinition");
+                        self.selected_metaobject_definition(&definition, selection)
+                    })
             }
             _ => None,
         }
     }
 
+    fn metaobject_staged_key_by_id(&self, id: &str) -> Option<String> {
+        staged_record_key_for_shopify_gid(&self.store.staged.metaobjects, id, "Metaobject")
+    }
+
     pub(in crate::proxy) fn metaobject_by_id(&self, id: &str) -> Option<Value> {
-        self.store.staged.metaobjects.get(id).cloned()
+        let key = self.metaobject_staged_key_by_id(id)?;
+        self.store.staged.metaobjects.get(&key).cloned()
     }
 
     /// Resolve a linked metaobject reference (the gid stored in a product option's
@@ -3933,9 +3950,11 @@ impl DraftProxy {
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        if self.metaobject_by_id(&id).is_none()
-            && self.hydrate_metaobject_by_id(request, &id).is_none()
+        let submitted_id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        if self.metaobject_by_id(&submitted_id).is_none()
+            && self
+                .hydrate_metaobject_by_id(request, &submitted_id)
+                .is_none()
         {
             return selected_json(
                 &json!({
@@ -3951,15 +3970,24 @@ impl DraftProxy {
                 &field.selection,
             );
         }
-        let record = self.metaobject_by_id(&id).unwrap_or(Value::Null);
-        self.store.staged.metaobjects.remove(&id);
-        self.store.staged.metaobjects.tombstone(id.clone());
+        let storage_id = self
+            .metaobject_staged_key_by_id(&submitted_id)
+            .unwrap_or_else(|| submitted_id.clone());
+        let record = self
+            .store
+            .staged
+            .metaobjects
+            .get(&storage_id)
+            .cloned()
+            .unwrap_or(Value::Null);
+        self.store.staged.metaobjects.remove(&storage_id);
+        self.store.staged.metaobjects.tombstone(storage_id.clone());
         if let Some(meta_type) = record.get("type").and_then(Value::as_str) {
             self.increment_metaobject_definition_count(meta_type, -1);
         }
-        staged_ids.push(id.clone());
+        staged_ids.push(storage_id);
         selected_json(
-            &json!({"deletedId": id, "userErrors": []}),
+            &json!({"deletedId": submitted_id, "userErrors": []}),
             &field.selection,
         )
     }
@@ -3999,8 +4027,7 @@ impl DraftProxy {
             let mut ids_to_hydrate = Vec::new();
             for id in &ids {
                 if !id.is_empty()
-                    && self.metaobject_by_id(id).is_none()
-                    && !self.store.staged.metaobjects.is_tombstoned(id)
+                    && self.metaobject_staged_key_by_id(id).is_none()
                     && !ids_to_hydrate
                         .iter()
                         .any(|existing_id: &String| existing_id == id)
@@ -4010,14 +4037,17 @@ impl DraftProxy {
             }
             self.hydrate_metaobjects_by_ids(request, &ids_to_hydrate);
             for id in ids {
-                let record = self.metaobject_by_id(&id);
+                let Some(storage_id) = self.metaobject_staged_key_by_id(&id) else {
+                    continue;
+                };
+                let record = self.store.staged.metaobjects.get(&storage_id).cloned();
                 if let Some(record) = record {
-                    self.store.staged.metaobjects.remove(&id);
-                    self.store.staged.metaobjects.tombstone(id.clone());
+                    self.store.staged.metaobjects.remove(&storage_id);
+                    self.store.staged.metaobjects.tombstone(storage_id.clone());
                     if let Some(meta_type) = record.get("type").and_then(Value::as_str) {
                         self.increment_metaobject_definition_count(meta_type, -1);
                     }
-                    touched_ids.push(id);
+                    touched_ids.push(storage_id);
                 }
             }
         } else if let Some(meta_type) = meta_type {
@@ -4377,8 +4407,23 @@ impl DraftProxy {
         field: &RootFieldSelection,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let Some(definition) = self.metaobject_definition_by_id(&id) else {
+        let submitted_id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        let Some(storage_id) = self.metaobject_definition_staged_key_by_id(&submitted_id) else {
+            return selected_json(
+                &json!({
+                    "metaobjectDefinition": null,
+                    "userErrors": [metaobject_field_error(vec!["id"], "Record not found", "RECORD_NOT_FOUND")]
+                }),
+                &field.selection,
+            );
+        };
+        let Some(definition) = self
+            .store
+            .staged
+            .metaobject_definitions
+            .get(&storage_id)
+            .cloned()
+        else {
             return selected_json(
                 &json!({
                     "metaobjectDefinition": null,
@@ -4408,7 +4453,7 @@ impl DraftProxy {
             .store
             .staged
             .product_option_linked_metaobject_definition_ids
-            .contains(&id)
+            .contains(&storage_id)
         {
             let current_display_name_key = definition.get("displayNameKey").and_then(Value::as_str);
             let changes_display_name_key =
@@ -4480,11 +4525,11 @@ impl DraftProxy {
         self.store
             .staged
             .metaobject_definitions
-            .insert(id.clone(), updated.clone());
+            .insert(storage_id.clone(), updated.clone());
         for (path, target) in redirect_paths {
             self.stage_url_redirect(path, target);
         }
-        staged_ids.push(id);
+        staged_ids.push(storage_id);
         selected_json(
             &json!({"metaobjectDefinition": updated, "userErrors": []}),
             &field.selection,
@@ -4496,8 +4541,23 @@ impl DraftProxy {
         field: &RootFieldSelection,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let Some(definition) = self.metaobject_definition_by_id(&id) else {
+        let submitted_id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        let Some(storage_id) = self.metaobject_definition_staged_key_by_id(&submitted_id) else {
+            return selected_json(
+                &json!({
+                    "deletedId": null,
+                    "userErrors": [metaobject_field_error(vec!["id"], "Record not found", "RECORD_NOT_FOUND")]
+                }),
+                &field.selection,
+            );
+        };
+        let Some(definition) = self
+            .store
+            .staged
+            .metaobject_definitions
+            .get(&storage_id)
+            .cloned()
+        else {
             return selected_json(
                 &json!({
                     "deletedId": null,
@@ -4519,14 +4579,14 @@ impl DraftProxy {
             self.store.staged.metaobjects.remove(&metaobject_id);
             self.store.staged.metaobjects.tombstone(metaobject_id);
         }
-        self.store.staged.metaobject_definitions.remove(&id);
+        self.store.staged.metaobject_definitions.remove(&storage_id);
         self.store
             .staged
             .metaobject_definitions
-            .tombstone(id.clone());
-        staged_ids.push(id.clone());
+            .tombstone(storage_id.clone());
+        staged_ids.push(storage_id);
         selected_json(
-            &json!({"deletedId": id, "userErrors": []}),
+            &json!({"deletedId": submitted_id, "userErrors": []}),
             &field.selection,
         )
     }
@@ -4575,8 +4635,17 @@ impl DraftProxy {
         )
     }
 
+    fn metaobject_definition_staged_key_by_id(&self, id: &str) -> Option<String> {
+        staged_record_key_for_shopify_gid(
+            &self.store.staged.metaobject_definitions,
+            id,
+            "MetaobjectDefinition",
+        )
+    }
+
     fn metaobject_definition_by_id(&self, id: &str) -> Option<Value> {
-        self.store.staged.metaobject_definitions.get(id).cloned()
+        let key = self.metaobject_definition_staged_key_by_id(id)?;
+        self.store.staged.metaobject_definitions.get(&key).cloned()
     }
 
     fn metaobject_definition_by_type(&self, meta_type: &str) -> Option<Value> {
@@ -4939,6 +5008,289 @@ mod tests {
             json!([])
         );
         response.body["data"]["metaobjectCreate"]["metaobject"].clone()
+    }
+
+    fn canonical_gid(id: &Value) -> String {
+        id.as_str().unwrap().split('?').next().unwrap().to_string()
+    }
+
+    #[test]
+    fn canonical_metaobject_id_resolves_staged_synthetic_lifecycle() {
+        let mut proxy = test_proxy();
+        let meta_type = "canonical_gid_article";
+        create_metaobject_definition(&mut proxy, meta_type);
+        let entry = create_metaobject(&mut proxy, meta_type, "canonical-entry", "Canonical Entry");
+        let synthetic_id = entry["id"].as_str().unwrap().to_string();
+        let canonical_id = canonical_gid(&entry["id"]);
+        assert_ne!(synthetic_id, canonical_id);
+
+        let read_query = r#"
+            query ReadCanonicalMetaobject($id: ID!) {
+              direct: metaobject(id: $id) { id handle type displayName }
+              relay: node(id: $id) {
+                __typename
+                ... on Metaobject { id handle type displayName }
+              }
+            }
+            "#;
+        let canonical_read =
+            proxy.process_request(graphql_request(read_query, json!({"id": canonical_id})));
+        assert_eq!(canonical_read.status, 200);
+        assert_eq!(
+            canonical_read.body["data"]["direct"]["id"],
+            json!(synthetic_id)
+        );
+        assert_eq!(
+            canonical_read.body["data"]["relay"]["__typename"],
+            json!("Metaobject")
+        );
+
+        let synthetic_read =
+            proxy.process_request(graphql_request(read_query, json!({"id": synthetic_id})));
+        assert_eq!(synthetic_read.status, 200);
+        assert_eq!(
+            synthetic_read.body["data"]["direct"]["handle"],
+            json!("canonical-entry")
+        );
+
+        let metafields_set = proxy.process_request(graphql_request(
+            r#"
+            mutation SetCanonicalMetaobjectReference($metafields: [MetafieldsSetInput!]!) {
+              metafieldsSet(metafields: $metafields) {
+                metafields { namespace key type value }
+                userErrors { field message code elementIndex }
+              }
+            }
+            "#,
+            json!({"metafields": [{
+                "ownerId": "gid://shopify/Product/10173064872245",
+                "namespace": "canonical_reference",
+                "key": "linked",
+                "type": "metaobject_reference",
+                "value": canonical_id
+            }]}),
+        ));
+        assert_eq!(
+            metafields_set.body["data"]["metafieldsSet"]["userErrors"],
+            json!([])
+        );
+        assert_eq!(
+            metafields_set.body["data"]["metafieldsSet"]["metafields"][0]["value"],
+            json!(canonical_id)
+        );
+
+        let update = proxy.process_request(graphql_request(
+            r#"
+            mutation UpdateCanonicalMetaobject($id: ID!, $metaobject: MetaobjectUpdateInput!) {
+              metaobjectUpdate(id: $id, metaobject: $metaobject) {
+                metaobject { id handle displayName fields { key value } }
+                userErrors { field message code elementKey elementIndex }
+              }
+            }
+            "#,
+            json!({
+                "id": canonical_id,
+                "metaobject": {
+                    "handle": "canonical-entry-updated",
+                    "fields": [{"key": "title", "value": "Canonical Entry Updated"}]
+                }
+            }),
+        ));
+        assert_eq!(
+            update.body["data"]["metaobjectUpdate"]["userErrors"],
+            json!([])
+        );
+        assert_eq!(
+            update.body["data"]["metaobjectUpdate"]["metaobject"]["id"],
+            json!(synthetic_id)
+        );
+        assert_eq!(proxy.store.staged.metaobjects.len(), 1);
+        assert!(proxy
+            .store
+            .staged
+            .metaobjects
+            .contains_staged(&synthetic_id));
+        assert!(!proxy
+            .store
+            .staged
+            .metaobjects
+            .contains_staged(&canonical_id));
+
+        let bulk_entry =
+            create_metaobject(&mut proxy, meta_type, "canonical-bulk-entry", "Bulk Entry");
+        let bulk_synthetic_id = bulk_entry["id"].as_str().unwrap().to_string();
+        let bulk_canonical_id = canonical_gid(&bulk_entry["id"]);
+        let bulk_delete = proxy.process_request(graphql_request(
+            r#"
+            mutation BulkDeleteCanonicalMetaobject($ids: [ID!]!) {
+              metaobjectBulkDelete(where: {ids: $ids}) {
+                job { id done }
+                userErrors { field message code elementKey elementIndex }
+              }
+            }
+            "#,
+            json!({"ids": [bulk_canonical_id]}),
+        ));
+        assert_eq!(
+            bulk_delete.body["data"]["metaobjectBulkDelete"]["userErrors"],
+            json!([])
+        );
+        assert!(bulk_delete.body["data"]["metaobjectBulkDelete"]["job"].is_object());
+        assert_eq!(proxy.store.staged.metaobjects.len(), 1);
+        assert!(proxy
+            .store
+            .staged
+            .metaobjects
+            .is_tombstoned(&bulk_synthetic_id));
+
+        let delete = proxy.process_request(graphql_request(
+            r#"
+            mutation DeleteCanonicalMetaobject($id: ID!) {
+              metaobjectDelete(id: $id) {
+                deletedId
+                userErrors { field message code elementKey elementIndex }
+              }
+            }
+            "#,
+            json!({"id": canonical_id}),
+        ));
+        assert_eq!(
+            delete.body["data"]["metaobjectDelete"]["userErrors"],
+            json!([])
+        );
+        assert_eq!(
+            delete.body["data"]["metaobjectDelete"]["deletedId"],
+            json!(canonical_id)
+        );
+        assert!(proxy.store.staged.metaobjects.is_tombstoned(&synthetic_id));
+
+        let post_delete = proxy.process_request(graphql_request(
+            r#"
+            query ReadDeletedCanonicalMetaobject($canonicalId: ID!, $syntheticId: ID!) {
+              canonical: metaobject(id: $canonicalId) { id }
+              synthetic: metaobject(id: $syntheticId) { id }
+              canonicalNode: node(id: $canonicalId) { __typename id }
+              syntheticNode: node(id: $syntheticId) { __typename id }
+            }
+            "#,
+            json!({"canonicalId": canonical_id, "syntheticId": synthetic_id}),
+        ));
+        assert_eq!(post_delete.status, 200);
+        assert_eq!(post_delete.body["data"]["canonical"], Value::Null);
+        assert_eq!(post_delete.body["data"]["synthetic"], Value::Null);
+        assert_eq!(post_delete.body["data"]["canonicalNode"], Value::Null);
+        assert_eq!(post_delete.body["data"]["syntheticNode"], Value::Null);
+    }
+
+    #[test]
+    fn canonical_metaobject_definition_id_resolves_staged_synthetic_lifecycle() {
+        let mut proxy = test_proxy();
+        let meta_type = "canonical_definition_article";
+        let definition = create_metaobject_definition(&mut proxy, meta_type);
+        let synthetic_id = definition["id"].as_str().unwrap().to_string();
+        let canonical_id = canonical_gid(&definition["id"]);
+        assert_ne!(synthetic_id, canonical_id);
+
+        let read_query = r#"
+            query ReadCanonicalDefinition($id: ID!) {
+              direct: metaobjectDefinition(id: $id) { id type name }
+              relay: node(id: $id) {
+                __typename
+                ... on MetaobjectDefinition { id type name }
+              }
+            }
+            "#;
+        let canonical_read =
+            proxy.process_request(graphql_request(read_query, json!({"id": canonical_id})));
+        assert_eq!(canonical_read.status, 200);
+        assert_eq!(
+            canonical_read.body["data"]["direct"]["id"],
+            json!(synthetic_id)
+        );
+        assert_eq!(
+            canonical_read.body["data"]["relay"]["__typename"],
+            json!("MetaobjectDefinition")
+        );
+
+        let update = proxy.process_request(graphql_request(
+            r#"
+            mutation UpdateCanonicalDefinition($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {
+              metaobjectDefinitionUpdate(id: $id, definition: $definition) {
+                metaobjectDefinition { id type name description }
+                userErrors { field message code elementKey elementIndex }
+              }
+            }
+            "#,
+            json!({
+                "id": canonical_id,
+                "definition": {
+                    "name": "Canonical Definition Updated",
+                    "description": "Updated by canonical id"
+                }
+            }),
+        ));
+        assert_eq!(
+            update.body["data"]["metaobjectDefinitionUpdate"]["userErrors"],
+            json!([])
+        );
+        assert_eq!(
+            update.body["data"]["metaobjectDefinitionUpdate"]["metaobjectDefinition"]["id"],
+            json!(synthetic_id)
+        );
+        assert_eq!(proxy.store.staged.metaobject_definitions.len(), 1);
+        assert!(proxy
+            .store
+            .staged
+            .metaobject_definitions
+            .contains_staged(&synthetic_id));
+        assert!(!proxy
+            .store
+            .staged
+            .metaobject_definitions
+            .contains_staged(&canonical_id));
+
+        let delete = proxy.process_request(graphql_request(
+            r#"
+            mutation DeleteCanonicalDefinition($id: ID!) {
+              metaobjectDefinitionDelete(id: $id) {
+                deletedId
+                userErrors { field message code elementKey elementIndex }
+              }
+            }
+            "#,
+            json!({"id": canonical_id}),
+        ));
+        assert_eq!(
+            delete.body["data"]["metaobjectDefinitionDelete"]["userErrors"],
+            json!([])
+        );
+        assert_eq!(
+            delete.body["data"]["metaobjectDefinitionDelete"]["deletedId"],
+            json!(canonical_id)
+        );
+        assert_eq!(proxy.store.staged.metaobject_definitions.len(), 0);
+        assert!(proxy
+            .store
+            .staged
+            .metaobject_definitions
+            .is_tombstoned(&synthetic_id));
+
+        let post_delete = proxy.process_request(graphql_request(
+            r#"
+            query ReadDeletedCanonicalDefinition($canonicalId: ID!, $syntheticId: ID!) {
+              canonical: metaobjectDefinition(id: $canonicalId) { id }
+              synthetic: metaobjectDefinition(id: $syntheticId) { id }
+              canonicalNode: node(id: $canonicalId) { __typename id }
+              syntheticNode: node(id: $syntheticId) { __typename id }
+            }
+            "#,
+            json!({"canonicalId": canonical_id, "syntheticId": synthetic_id}),
+        ));
+        assert_eq!(post_delete.status, 200);
+        assert_eq!(post_delete.body["data"]["canonical"], Value::Null);
+        assert_eq!(post_delete.body["data"]["synthetic"], Value::Null);
+        assert_eq!(post_delete.body["data"]["canonicalNode"], Value::Null);
+        assert_eq!(post_delete.body["data"]["syntheticNode"], Value::Null);
     }
 
     #[test]

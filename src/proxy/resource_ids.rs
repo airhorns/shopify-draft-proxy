@@ -1,4 +1,4 @@
-use super::{DraftProxy, StagedSortValue};
+use super::{DraftProxy, StagedRecords, StagedSortValue};
 
 pub(in crate::proxy) const SYNTHETIC_MARKER: &str = "shopify-draft-proxy=synthetic";
 const SHOPIFY_GID_PREFIX: &str = "gid://shopify/";
@@ -50,6 +50,35 @@ pub(in crate::proxy) fn shopify_gid_resource_type(id: &str) -> Option<&str> {
     (!resource_type.is_empty() && !resource_id.is_empty()).then_some(resource_type)
 }
 
+pub(in crate::proxy) fn staged_record_key_for_shopify_gid<T>(
+    records: &StagedRecords<T>,
+    submitted_id: &str,
+    resource_type: &str,
+) -> Option<String> {
+    if records.records.contains_key(submitted_id) || records.tombstones.contains(submitted_id) {
+        return Some(submitted_id.to_string());
+    }
+
+    let tail = unmarked_shopify_gid_tail_for_type(submitted_id, resource_type)?;
+    records
+        .records
+        .keys()
+        .chain(records.tombstones.iter())
+        .find(|candidate| staged_synthetic_key_matches_tail(candidate, resource_type, tail))
+        .cloned()
+}
+
+fn unmarked_shopify_gid_tail_for_type<'a>(id: &'a str, resource_type: &str) -> Option<&'a str> {
+    let tail = typed_shopify_gid_tail(id, resource_type)?;
+    (!tail.is_empty() && !tail.contains('/') && !tail.contains('?')).then_some(tail)
+}
+
+fn staged_synthetic_key_matches_tail(candidate: &str, resource_type: &str, tail: &str) -> bool {
+    is_synthetic_gid(candidate)
+        && shopify_gid_tail_for_type(candidate, resource_type)
+            .is_some_and(|candidate_tail| resource_id_tail(candidate_tail) == tail)
+}
+
 fn typed_shopify_gid_tail<'a>(id: &'a str, resource_type: &str) -> Option<&'a str> {
     let rest = id.strip_prefix(SHOPIFY_GID_PREFIX)?;
     let (candidate_type, tail) = rest.split_once('/')?;
@@ -97,6 +126,7 @@ impl DraftProxy {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::{json, Value};
 
     #[test]
     fn builds_plain_and_synthetic_shopify_gids() {
@@ -216,5 +246,108 @@ mod tests {
             "Unknown"
         );
         assert_eq!(metafield_owner_gid_resource_type("not-a-gid"), "not-a-gid");
+    }
+
+    fn staged_records_with_ids(ids: &[&str]) -> StagedRecords<Value> {
+        let mut records = StagedRecords::default();
+        for id in ids {
+            records.insert((*id).to_string(), json!({"id": id}));
+        }
+        records
+    }
+
+    #[test]
+    fn resolves_exact_staged_keys_before_canonical_synthetic_fallback() {
+        let synthetic = synthetic_shopify_gid("Metaobject", 42);
+        let canonical = shopify_gid("Metaobject", 42);
+        let records = staged_records_with_ids(&[&synthetic, &canonical]);
+
+        assert_eq!(
+            staged_record_key_for_shopify_gid(&records, &synthetic, "Metaobject"),
+            Some(synthetic.clone())
+        );
+        assert_eq!(
+            staged_record_key_for_shopify_gid(&records, &canonical, "Metaobject"),
+            Some(canonical)
+        );
+    }
+
+    #[test]
+    fn resolves_unmarked_canonical_gid_to_staged_synthetic_key() {
+        let synthetic = synthetic_shopify_gid("Metaobject", 42);
+        let canonical = shopify_gid("Metaobject", 42);
+        let records = staged_records_with_ids(&[&synthetic]);
+
+        assert_eq!(
+            staged_record_key_for_shopify_gid(&records, &canonical, "Metaobject"),
+            Some(synthetic)
+        );
+    }
+
+    #[test]
+    fn resolves_unmarked_canonical_gid_to_synthetic_tombstone_key() {
+        let synthetic = synthetic_shopify_gid("Metaobject", 42);
+        let canonical = shopify_gid("Metaobject", 42);
+        let mut records = staged_records_with_ids(&[&synthetic]);
+        records.remove(&synthetic);
+        records.tombstone(synthetic.clone());
+
+        assert_eq!(
+            staged_record_key_for_shopify_gid(&records, &canonical, "Metaobject"),
+            Some(synthetic)
+        );
+    }
+
+    #[test]
+    fn resolves_exact_tombstone_before_canonical_synthetic_fallback() {
+        let synthetic = synthetic_shopify_gid("Metaobject", 42);
+        let canonical = shopify_gid("Metaobject", 42);
+        let mut records = staged_records_with_ids(&[&synthetic]);
+        records.tombstone(canonical.clone());
+
+        assert_eq!(
+            staged_record_key_for_shopify_gid(&records, &canonical, "Metaobject"),
+            Some(canonical)
+        );
+    }
+
+    #[test]
+    fn rejects_noncanonical_or_wrong_type_staged_key_fallbacks() {
+        let synthetic = synthetic_shopify_gid("Metaobject", 42);
+        let definition_synthetic = synthetic_shopify_gid("MetaobjectDefinition", 42);
+        let records = staged_records_with_ids(&[&synthetic, &definition_synthetic]);
+
+        for rejected in [
+            "gid://shopify/Metaobject/43?shopify-draft-proxy=synthetic",
+            "gid://shopify/Metaobject/42?other=query",
+            "gid://shopify/Metaobject/",
+            "gid://shopify/Metaobject/42/extra",
+            "gid://shopify/Product/42",
+            "42",
+            "not-a-gid",
+            "gid://shopify/",
+        ] {
+            assert_eq!(
+                staged_record_key_for_shopify_gid(&records, rejected, "Metaobject"),
+                None,
+                "{rejected} should not resolve by fallback"
+            );
+        }
+        assert_eq!(
+            staged_record_key_for_shopify_gid(
+                &records,
+                "gid://shopify/Metaobject/43",
+                "Metaobject"
+            ),
+            None
+        );
+        assert_eq!(
+            staged_record_key_for_shopify_gid(
+                &records,
+                "gid://shopify/Metaobject/42",
+                "MetaobjectDefinition",
+            ),
+            None
+        );
     }
 }
