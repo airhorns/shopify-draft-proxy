@@ -2663,6 +2663,81 @@ fn metaobject_staged_sort_key(record: &Value, sort_key: Option<&str>) -> StagedS
     vec![primary, metaobject_id_sort_value(record)]
 }
 
+fn metaobject_connection_node_key(node: &Value) -> Option<String> {
+    let meta_type = node.get("type").and_then(Value::as_str).unwrap_or_default();
+    let handle = node
+        .get("handle")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    if !meta_type.is_empty() && !handle.is_empty() {
+        return Some(format!("type:{meta_type}:handle:{handle}"));
+    }
+    node.get("id")
+        .and_then(Value::as_str)
+        .filter(|id| !id.is_empty())
+        .map(|id| format!("id:{id}"))
+}
+
+fn metaobject_definition_connection_node_key(node: &Value) -> Option<String> {
+    node.get("type")
+        .and_then(Value::as_str)
+        .filter(|meta_type| !meta_type.is_empty())
+        .map(|meta_type| format!("type:{meta_type}"))
+        .or_else(|| {
+            node.get("id")
+                .and_then(Value::as_str)
+                .filter(|id| !id.is_empty())
+                .map(|id| format!("id:{id}"))
+        })
+}
+
+fn normalize_connection_page_info(connection: &mut Value) {
+    let edge_cursors = connection
+        .get("edges")
+        .and_then(Value::as_array)
+        .map(|edges| {
+            edges
+                .iter()
+                .filter_map(|edge| edge.get("cursor").and_then(Value::as_str))
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let node_count = connection
+        .get("nodes")
+        .and_then(Value::as_array)
+        .map(Vec::len)
+        .unwrap_or(edge_cursors.len());
+    let Some(page_info) = connection
+        .get_mut("pageInfo")
+        .and_then(Value::as_object_mut)
+    else {
+        return;
+    };
+    if node_count == 0 && edge_cursors.is_empty() {
+        page_info.insert("startCursor".to_string(), Value::Null);
+        page_info.insert("endCursor".to_string(), Value::Null);
+        return;
+    }
+    if let Some(first) = edge_cursors.first() {
+        page_info.insert("startCursor".to_string(), json!(first));
+    }
+    if let Some(last) = edge_cursors.last() {
+        page_info.insert("endCursor".to_string(), json!(last));
+    }
+}
+
+fn upstream_response_id<'a>(
+    upstream_data: &'a serde_json::Map<String, Value>,
+    response_key: &str,
+) -> Option<&'a str> {
+    upstream_data
+        .get(response_key)?
+        .get("id")
+        .and_then(Value::as_str)
+        .filter(|id| !id.is_empty())
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum MetaobjectSearchOperator {
     Eq,
@@ -3022,7 +3097,237 @@ impl DraftProxy {
                 data.insert(response_key.clone(), value.clone());
             }
         }
+        for field in fields {
+            if let Some(value) = self.metaobject_live_hybrid_overlay_value(field, request, data) {
+                data.insert(field.response_key.clone(), value);
+            }
+        }
         response
+    }
+
+    fn metaobject_live_hybrid_overlay_value(
+        &self,
+        field: &RootFieldSelection,
+        request: &Request,
+        upstream_data: &serde_json::Map<String, Value>,
+    ) -> Option<Value> {
+        match field.name.as_str() {
+            "metaobject" => {
+                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                if self.store.staged.metaobjects.is_tombstoned(&id) {
+                    return Some(Value::Null);
+                }
+                self.metaobject_by_id(&id)
+                    .map(|record| self.project_metaobject_against_definition(&record))
+                    .map(|record| self.selected_metaobject(&record, &field.selection))
+            }
+            "metaobjectByHandle" => {
+                let Some(ResolvedValue::Object(handle)) = field.arguments.get("handle") else {
+                    return None;
+                };
+                let meta_type = resolved_string_field(handle, "type").unwrap_or_default();
+                let meta_handle = resolved_string_field(handle, "handle").unwrap_or_default();
+                if let Some(record) = self.metaobject_by_type_and_handle(&meta_type, &meta_handle) {
+                    return Some(self.selected_metaobject(
+                        &self.project_metaobject_against_definition(&record),
+                        &field.selection,
+                    ));
+                }
+                if upstream_response_id(upstream_data, &field.response_key)
+                    .is_some_and(|id| self.store.staged.metaobjects.is_tombstoned(id))
+                {
+                    return Some(Value::Null);
+                }
+                None
+            }
+            "metaobjectDefinition" => {
+                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                if self.store.staged.metaobject_definitions.is_tombstoned(&id) {
+                    return Some(Value::Null);
+                }
+                self.metaobject_definition_by_id(&id).map(|definition| {
+                    self.selected_metaobject_definition(&definition, &field.selection)
+                })
+            }
+            "metaobjectDefinitionByType" => {
+                let meta_type =
+                    resolved_metaobject_definition_type_arg(field.arguments.get("type"), request);
+                if let Some(definition) = self.metaobject_definition_by_type(&meta_type) {
+                    return Some(
+                        self.selected_metaobject_definition(&definition, &field.selection),
+                    );
+                }
+                if upstream_response_id(upstream_data, &field.response_key)
+                    .is_some_and(|id| self.store.staged.metaobject_definitions.is_tombstoned(id))
+                {
+                    return Some(Value::Null);
+                }
+                None
+            }
+            "metaobjects" => {
+                if !self.has_local_metaobject_state() {
+                    return None;
+                }
+                let local = self.metaobject_connection(field);
+                Some(self.merge_metaobject_connection_overlay(
+                    upstream_data.get(&field.response_key),
+                    local,
+                    field,
+                    metaobject_connection_node_key,
+                    |id| self.store.staged.metaobjects.is_tombstoned(id),
+                ))
+            }
+            "metaobjectDefinitions" => {
+                if !self.has_local_metaobject_state() {
+                    return None;
+                }
+                let local = self.metaobject_definition_connection(field);
+                Some(self.merge_metaobject_connection_overlay(
+                    upstream_data.get(&field.response_key),
+                    local,
+                    field,
+                    metaobject_definition_connection_node_key,
+                    |id| self.store.staged.metaobject_definitions.is_tombstoned(id),
+                ))
+            }
+            _ => None,
+        }
+    }
+
+    fn merge_metaobject_connection_overlay<F, T>(
+        &self,
+        upstream: Option<&Value>,
+        local: Value,
+        field: &RootFieldSelection,
+        node_key: F,
+        is_tombstoned: T,
+    ) -> Value
+    where
+        F: Fn(&Value) -> Option<String>,
+        T: Fn(&str) -> bool,
+    {
+        let Some(upstream) = upstream.filter(|value| value.is_object()) else {
+            return local;
+        };
+        let mut merged = upstream.clone();
+        let local_nodes = local
+            .get("nodes")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let local_edges = local
+            .get("edges")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let mut local_by_key = BTreeMap::new();
+        for node in &local_nodes {
+            if let Some(key) = node_key(node) {
+                local_by_key.insert(key, node.clone());
+            }
+        }
+        for edge in &local_edges {
+            if let Some(key) = edge.get("node").and_then(&node_key) {
+                local_by_key
+                    .entry(key)
+                    .or_insert_with(|| edge.get("node").cloned().unwrap_or(Value::Null));
+            }
+        }
+
+        let mut tombstoned_keys = BTreeSet::new();
+        let mut represented_node_keys = BTreeSet::new();
+        if let Some(nodes) = merged.get_mut("nodes").and_then(Value::as_array_mut) {
+            let mut filtered = Vec::new();
+            for node in nodes.drain(..) {
+                let id = node.get("id").and_then(Value::as_str).unwrap_or_default();
+                if !id.is_empty() && is_tombstoned(id) {
+                    if let Some(key) = node_key(&node) {
+                        tombstoned_keys.insert(key);
+                    }
+                    continue;
+                }
+                if let Some(key) = node_key(&node) {
+                    represented_node_keys.insert(key.clone());
+                    filtered.push(local_by_key.get(&key).cloned().unwrap_or(node));
+                } else {
+                    filtered.push(node);
+                }
+            }
+            *nodes = filtered;
+        }
+        let mut represented_edge_keys = BTreeSet::new();
+        if let Some(edges) = merged.get_mut("edges").and_then(Value::as_array_mut) {
+            let mut filtered = Vec::new();
+            for mut edge in edges.drain(..) {
+                let node = edge.get("node").cloned().unwrap_or(Value::Null);
+                let id = node.get("id").and_then(Value::as_str).unwrap_or_default();
+                if !id.is_empty() && is_tombstoned(id) {
+                    if let Some(key) = node_key(&node) {
+                        tombstoned_keys.insert(key);
+                    }
+                    continue;
+                }
+                if let Some(key) = node_key(&node) {
+                    represented_edge_keys.insert(key.clone());
+                    if let Some(local_node) = local_by_key.get(&key) {
+                        if let Some(edge_object) = edge.as_object_mut() {
+                            edge_object.insert("node".to_string(), local_node.clone());
+                        }
+                    }
+                }
+                filtered.push(edge);
+            }
+            *edges = filtered;
+        }
+
+        for key in tombstoned_keys {
+            represented_node_keys.insert(key.clone());
+            represented_edge_keys.insert(key);
+        }
+
+        let first_limit = resolved_int_field(&field.arguments, "first")
+            .and_then(|value| usize::try_from(value).ok())
+            .unwrap_or(usize::MAX);
+        if let Some(nodes) = merged.get_mut("nodes").and_then(Value::as_array_mut) {
+            let mut remaining = first_limit.saturating_sub(nodes.len());
+            if remaining > 0 {
+                for node in &local_nodes {
+                    let Some(key) = node_key(node) else {
+                        continue;
+                    };
+                    if represented_node_keys.contains(&key) {
+                        continue;
+                    }
+                    nodes.push(node.clone());
+                    represented_node_keys.insert(key);
+                    remaining = remaining.saturating_sub(1);
+                    if remaining == 0 {
+                        break;
+                    }
+                }
+            }
+        }
+        if let Some(edges) = merged.get_mut("edges").and_then(Value::as_array_mut) {
+            let mut remaining = first_limit.saturating_sub(edges.len());
+            if remaining > 0 {
+                for edge in &local_edges {
+                    let Some(key) = edge.get("node").and_then(&node_key) else {
+                        continue;
+                    };
+                    if represented_edge_keys.contains(&key) {
+                        continue;
+                    }
+                    edges.push(edge.clone());
+                    represented_edge_keys.insert(key);
+                    remaining = remaining.saturating_sub(1);
+                    if remaining == 0 {
+                        break;
+                    }
+                }
+            }
+        }
+        normalize_connection_page_info(&mut merged);
+        merged
     }
 
     pub(in crate::proxy) fn metaobject_mutation(

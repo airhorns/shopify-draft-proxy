@@ -862,6 +862,270 @@ fn metaobject_definition_create_accepts_current_custom_data_field_types() {
 }
 
 #[test]
+fn metaobject_definition_live_hybrid_read_overlays_staged_definition_on_upstream_catalog() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let upstream_catalog = json!({
+        "nodes": [
+            {
+                "id": "gid://shopify/MetaobjectDefinition/9001",
+                "type": "upstream_color",
+                "name": "Upstream color"
+            },
+            {
+                "id": "gid://shopify/MetaobjectDefinition/9002",
+                "type": "upstream_size",
+                "name": "Upstream size"
+            }
+        ],
+        "edges": [
+            {
+                "cursor": "opaque-upstream-definition-9001",
+                "node": {
+                    "id": "gid://shopify/MetaobjectDefinition/9001",
+                    "type": "upstream_color",
+                    "name": "Upstream color"
+                }
+            },
+            {
+                "cursor": "opaque-upstream-definition-9002",
+                "node": {
+                    "id": "gid://shopify/MetaobjectDefinition/9002",
+                    "type": "upstream_size",
+                    "name": "Upstream size"
+                }
+            }
+        ],
+        "pageInfo": {
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "opaque-upstream-definition-9001",
+            "endCursor": "opaque-upstream-definition-9002"
+        }
+    });
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            let is_deleted_read = body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("ReadDeletedDefinitionOverlay"));
+            let response_body = if is_deleted_read {
+                let id = body["variables"]["id"].as_str().unwrap_or_default();
+                json!({
+                    "data": {
+                        "byId": {"id": id},
+                        "byType": {"id": id},
+                        "catalog": upstream_catalog.clone()
+                    }
+                })
+            } else {
+                json!({
+                    "data": {
+                        "byId": null,
+                        "byType": null,
+                        "catalog": upstream_catalog.clone()
+                    }
+                })
+            };
+            captured_requests.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: response_body,
+            }
+        });
+
+    let created = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition { id type name displayNameKey fieldDefinitions { key } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"definition": {
+            "type": "live_hybrid_overlay_definition",
+            "name": "Live hybrid overlay definition",
+            "displayNameKey": "title",
+            "fieldDefinitions": [
+                {"key": "title", "name": "Title", "type": "single_line_text_field", "required": true},
+                {"key": "body", "name": "Body", "type": "multi_line_text_field", "required": false}
+            ]
+        }}),
+    ));
+    assert_eq!(
+        created.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        upstream_requests.lock().unwrap().len(),
+        0,
+        "supported definition create should stage locally"
+    );
+    let definition_id = created.body["data"]["metaobjectDefinitionCreate"]["metaobjectDefinition"]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let updated = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateDefinition($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {
+          metaobjectDefinitionUpdate(id: $id, definition: $definition) {
+            metaobjectDefinition { id type name displayNameKey fieldDefinitions { key } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": definition_id,
+            "definition": {
+                "name": "Updated overlay definition",
+                "displayNameKey": "body",
+                "fieldDefinitions": [
+                    {"update": {"key": "body", "required": true}},
+                    {"create": {"key": "summary", "name": "Summary", "type": "single_line_text_field", "required": false}}
+                ]
+            }
+        }),
+    ));
+    assert_eq!(
+        updated.body["data"]["metaobjectDefinitionUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        upstream_requests.lock().unwrap().len(),
+        0,
+        "supported definition update should stage locally"
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadDefinitionOverlay($id: ID!, $type: String!) {
+          byId: metaobjectDefinition(id: $id) {
+            id
+            type
+            name
+            displayNameKey
+            fieldDefinitions { key }
+          }
+          byType: metaobjectDefinitionByType(type: $type) {
+            id
+            type
+            name
+            displayNameKey
+            fieldDefinitions { key }
+          }
+          catalog: metaobjectDefinitions(first: 3) {
+            nodes { id type name }
+            edges { cursor node { id type name } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"id": definition_id, "type": "live_hybrid_overlay_definition"}),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        upstream_requests.lock().unwrap().len(),
+        1,
+        "LiveHybrid definition read should use upstream as the catalog base"
+    );
+    assert_eq!(read.body["data"]["byId"]["id"], json!(definition_id));
+    assert_eq!(
+        read.body["data"]["byId"]["name"],
+        json!("Updated overlay definition")
+    );
+    assert_eq!(
+        read.body["data"]["byId"]["fieldDefinitions"],
+        json!([{"key": "title"}, {"key": "body"}, {"key": "summary"}])
+    );
+    assert_eq!(read.body["data"]["byType"], read.body["data"]["byId"]);
+    assert_eq!(
+        read.body["data"]["catalog"]["nodes"],
+        json!([
+            {
+                "id": "gid://shopify/MetaobjectDefinition/9001",
+                "type": "upstream_color",
+                "name": "Upstream color"
+            },
+            {
+                "id": "gid://shopify/MetaobjectDefinition/9002",
+                "type": "upstream_size",
+                "name": "Upstream size"
+            },
+            {
+                "id": definition_id,
+                "type": "live_hybrid_overlay_definition",
+                "name": "Updated overlay definition"
+            }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["catalog"]["edges"][2]["node"],
+        json!({
+            "id": definition_id,
+            "type": "live_hybrid_overlay_definition",
+            "name": "Updated overlay definition"
+        })
+    );
+    assert_eq!(
+        read.body["data"]["catalog"]["pageInfo"]["endCursor"],
+        json!(format!("cursor:{definition_id}"))
+    );
+
+    let deleted = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteDefinition($id: ID!) {
+          metaobjectDefinitionDelete(id: $id) {
+            deletedId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": definition_id}),
+    ));
+    assert_eq!(
+        deleted.body["data"]["metaobjectDefinitionDelete"],
+        json!({"deletedId": definition_id, "userErrors": []})
+    );
+
+    let post_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadDeletedDefinitionOverlay($id: ID!, $type: String!) {
+          byId: metaobjectDefinition(id: $id) { id }
+          byType: metaobjectDefinitionByType(type: $type) { id }
+          catalog: metaobjectDefinitions(first: 2) { nodes { id type name } }
+        }
+        "#,
+        json!({"id": definition_id, "type": "live_hybrid_overlay_definition"}),
+    ));
+    assert_eq!(post_delete.body["data"]["byId"], Value::Null);
+    assert_eq!(post_delete.body["data"]["byType"], Value::Null);
+    assert_eq!(
+        post_delete.body["data"]["catalog"]["nodes"],
+        json!([
+            {
+                "id": "gid://shopify/MetaobjectDefinition/9001",
+                "type": "upstream_color",
+                "name": "Upstream color"
+            },
+            {
+                "id": "gid://shopify/MetaobjectDefinition/9002",
+                "type": "upstream_size",
+                "name": "Upstream size"
+            }
+        ])
+    );
+    assert_eq!(
+        upstream_requests.lock().unwrap().len(),
+        2,
+        "only the two LiveHybrid reads should call upstream"
+    );
+}
+
+#[test]
 fn marketing_empty_reads_keep_shopify_connection_shapes() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(

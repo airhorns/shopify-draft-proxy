@@ -26,7 +26,7 @@ The supported fields are limited to the captured 2026-04 definition payload:
 
 Snapshot mode reads these roots from the normalized `metaobjectDefinitions` state bucket and returns `null` for absent singular ID/type lookups. Empty catalogs and definition-scoped child connections return non-null connections with empty `edges` / `nodes`, `hasNextPage: false`, `hasPreviousPage: false`, and null cursors. Definition `metaobjectsCount` is derived from the same staged child set as the definition-scoped connection.
 
-Live-hybrid mode uses cassette-backed passthrough for cold definition reads. When local staged, deleted, or hydrated definition state exists, the proxy serves definitions from local state so supported mutations preserve read-after-write behavior; when no local definition exists, upstream no-data/null responses are returned unchanged rather than replaced with fabricated definitions.
+Live-hybrid definition reads use Shopify's upstream response as the base catalog and overlay local staged, deleted, or hydrated definition state onto it. Staged singular definitions replace matching upstream or null responses, local definition tombstones return `null`, and `metaobjectDefinitions` preserves unrelated upstream nodes while replacing matching definitions by type/id and hiding tombstoned definitions. If Shopify returns no usable connection payload, the proxy falls back to the local snapshot-style connection rather than fabricating upstream records.
 
 Local catalog cursors use the proxy's stable `cursor:<definition gid>` form. Shopify's captured live catalog cursors are opaque and should not be treated as client-visible semantics.
 
@@ -52,7 +52,7 @@ Snapshot mode reads entries from normalized `metaobjects` state and returns `nul
 
 `metaobjects(type:, first:, after:, before:, last:, reverse:, sortKey:, query:)` is type-scoped and never invents entries outside normalized state. Local catalog cursors use stable `cursor:<metaobject gid>` values. Supported local sort keys are `id`, `type`, `updated_at`, and `display_name`; `reverse` flips the sorted list before cursor windowing. Query filtering supports general text search, `display_name:`, `handle:`, `fields.{key}:` against normalized field `value` / `jsonValue` data, and exact or range comparisons for `id:` and `updated_at:`. Unknown keyed filters are treated as unsupported staged-search terms and produce no local matches instead of failing open.
 
-Live-hybrid mode uses cassette-backed passthrough for cold entry reads. Once local staged, deleted, or hydrated entry state exists, reads stay local so supported mutations preserve read-after-write and read-after-delete behavior; when no local entry exists, upstream no-data/null responses are returned unchanged.
+Live-hybrid entry reads also use Shopify's upstream response as the base and overlay local staged, deleted, or hydrated entry state. Staged singular entries replace matching upstream or null responses, local entry tombstones return `null`, and `metaobjects(type:)` preserves unrelated upstream rows while replacing matching rows by type/handle or id and hiding tombstoned rows. When no local entry state exists, upstream no-data/null responses are returned unchanged.
 
 ### Reference relationship behavior
 
