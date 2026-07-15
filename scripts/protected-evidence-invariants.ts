@@ -5,7 +5,12 @@ import path from 'node:path';
 import { conformanceCaptureIndex } from './conformance-capture-index.js';
 import { validateRecordedUpstreamCalls, type RecordedUpstreamCall } from './parity-cassette.js';
 
-export const protectedPaths = ['config/parity-specs', 'config/parity-requests', 'fixtures/conformance'];
+export const protectedPaths = [
+  'config/parity-specs',
+  'config/parity-requests',
+  'config/storefront-graphql',
+  'fixtures/conformance',
+];
 
 type ParitySpecEvidence = {
   scenarioStatus?: unknown;

@@ -1,5 +1,5 @@
 use crate::graphql::OperationType;
-use crate::operation_registry::{CapabilityDomain, OperationRegistryEntry};
+use crate::operation_registry::{ApiSurface, CapabilityDomain, OperationRegistryEntry};
 
 macro_rules! entry {
     (
@@ -790,6 +790,7 @@ fn registry_entry_with_match_names(
     runtime_tests: &[&str],
 ) -> OperationRegistryEntry {
     OperationRegistryEntry {
+        api_surface: ApiSurface::Admin,
         name: name.to_string(),
         operation_type,
         domain,

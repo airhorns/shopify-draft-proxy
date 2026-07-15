@@ -12,9 +12,11 @@ import {
   type NodeResolverInventoryEntry,
   type OperationRegistryEntry,
   type ParitySpec,
+  type ProxyRequestSpec,
 } from './support/json-schemas.js';
 
 export const defaultRepoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+type ApiSurface = OperationRegistryEntry['apiSurface'];
 
 const paritySpecDirectory = path.join('config', 'parity-specs');
 const overrideConfigPath = path.join('config', 'conformance-scenario-overrides.json');
@@ -23,6 +25,7 @@ const nodeResolverInventoryCache = new Map<string, NodeResolverInventoryEntry[]>
 
 export type ConformanceScenario = {
   id: string;
+  apiSurface: ApiSurface;
   operationNames: string[];
   status: string;
   assertionKinds: string[];
@@ -35,6 +38,7 @@ export type ConformanceScenario = {
 export type ConformanceStatusDocument = {
   generatedAt: string;
   implementedOperations: Array<{
+    apiSurface: ApiSurface;
     name: string;
     type: string;
     execution: string;
@@ -42,6 +46,17 @@ export type ConformanceStatusDocument = {
     scenarioIds: string[];
     reason: string | null;
   }>;
+  apiSurfaceSummaries: Record<
+    ApiSurface | 'aggregate',
+    {
+      implementedOperations: number;
+      coveredOperations: number;
+      declaredGapOperations: number;
+      operationCoverageRatio: number;
+      coveredOperationNames: string[];
+      declaredGapOperationNames: string[];
+    }
+  >;
   coveredOperationNames: string[];
   declaredGapOperationNames: string[];
   capturedScenarioIds: string[];
@@ -102,9 +117,11 @@ export function loadConformanceScenarios(repoRoot = defaultRepoRoot): Conformanc
     const scenarioId = typeof paritySpec.scenarioId === 'string' ? paritySpec.scenarioId : '';
     const override = overrides.get(scenarioId) ?? {};
     const notes = override.notes ?? paritySpec.notes;
+    const apiSurface = scenarioApiSurface(paritySpec.proxyRequest);
 
     return {
       id: scenarioId,
+      apiSurface,
       operationNames: override.operationNames ?? stringArray(paritySpec.operationNames),
       status: override.status ?? (typeof paritySpec.scenarioStatus === 'string' ? paritySpec.scenarioStatus : ''),
       assertionKinds: override.assertionKinds ?? stringArray(paritySpec.assertionKinds),
@@ -114,6 +131,10 @@ export function loadConformanceScenarios(repoRoot = defaultRepoRoot): Conformanc
       ...(notes ? { notes } : {}),
     };
   });
+}
+
+function scenarioApiSurface(proxyRequest: ProxyRequestSpec | undefined): ApiSurface {
+  return proxyRequest?.apiSurface ?? 'admin';
 }
 
 export function loadOperationRegistry(repoRoot = defaultRepoRoot): OperationRegistryEntry[] {
@@ -217,14 +238,14 @@ function stderrFromExecError(error: unknown): string | null {
 
 function addScenarioForOperation(
   result: Map<string, ConformanceScenario[]>,
-  operationName: string,
+  operationKey: string,
   scenario: ConformanceScenario,
 ): void {
-  const scenariosForOperation = result.get(operationName) ?? [];
+  const scenariosForOperation = result.get(operationKey) ?? [];
   if (!scenariosForOperation.includes(scenario)) {
     scenariosForOperation.push(scenario);
   }
-  result.set(operationName, scenariosForOperation);
+  result.set(operationKey, scenariosForOperation);
 }
 
 function runtimeTestCoveredOperationNames(
@@ -238,7 +259,12 @@ function runtimeTestCoveredOperationNames(
 
   return registryEntries
     .filter((entry) => entry.runtimeTests.some((runtimeTestFile) => scenarioRuntimeTests.has(runtimeTestFile)))
+    .filter((entry) => entry.apiSurface === scenario.apiSurface)
     .map((entry) => entry.name);
+}
+
+function operationKey(apiSurface: ApiSurface, operationName: string): string {
+  return `${apiSurface}:${operationName}`;
 }
 
 export function groupScenariosByOperation(
@@ -248,10 +274,10 @@ export function groupScenariosByOperation(
   const result = new Map<string, ConformanceScenario[]>();
   for (const scenario of scenarios) {
     for (const operationName of scenario.operationNames) {
-      addScenarioForOperation(result, operationName, scenario);
+      addScenarioForOperation(result, operationKey(scenario.apiSurface, operationName), scenario);
     }
     for (const operationName of runtimeTestCoveredOperationNames(scenario, registryEntries)) {
-      addScenarioForOperation(result, operationName, scenario);
+      addScenarioForOperation(result, operationKey(scenario.apiSurface, operationName), scenario);
     }
   }
 
@@ -328,17 +354,21 @@ export function buildConformanceStatusDocument(repoRoot = defaultRepoRoot): Conf
   );
   const scenariosByOperation = groupScenariosByOperation(scenarios, conformanceTrackedEntries);
   const coveredEntries = conformanceTrackedEntries.filter((entry) => {
-    return (scenariosByOperation.get(entry.name) ?? []).some((scenario) => scenario.status === 'captured');
+    return (scenariosByOperation.get(operationKey(entry.apiSurface, entry.name)) ?? []).some(
+      (scenario) => scenario.status === 'captured',
+    );
   });
   const gapEntries = conformanceTrackedEntries.filter((entry) => !coveredEntries.includes(entry));
+  const apiSurfaceSummaries = buildApiSurfaceSummaries(conformanceTrackedEntries, coveredEntries, gapEntries);
 
   return {
     generatedAt: new Date().toISOString(),
     implementedOperations: conformanceTrackedEntries.map((entry) => {
-      const operationScenarios = scenariosByOperation.get(entry.name) ?? [];
+      const operationScenarios = scenariosByOperation.get(operationKey(entry.apiSurface, entry.name)) ?? [];
       const isCovered = coveredEntries.includes(entry);
 
       return {
+        apiSurface: entry.apiSurface,
         name: entry.name,
         type: entry.type,
         execution: entry.execution,
@@ -349,6 +379,7 @@ export function buildConformanceStatusDocument(repoRoot = defaultRepoRoot): Conf
           : 'No captured conformance scenario has been promoted for this implemented operation yet.',
       };
     }),
+    apiSurfaceSummaries,
     coveredOperationNames: coveredEntries.map((entry) => entry.name),
     declaredGapOperationNames: gapEntries.map((entry) => entry.name),
     capturedScenarioIds: capturedScenarios.map((scenario) => scenario.id),
@@ -357,5 +388,38 @@ export function buildConformanceStatusDocument(repoRoot = defaultRepoRoot): Conf
     captureOnlyScenarioIds: captureOnlyScenarios.map((scenario) => scenario.id),
     plannedScenarioIds: scenarios.filter((scenario) => scenario.status === 'planned').map((scenario) => scenario.id),
     regrettableDivergences: listRegrettableDivergences(repoRoot, scenarios),
+  };
+}
+
+function buildApiSurfaceSummaries(
+  trackedEntries: OperationRegistryEntry[],
+  coveredEntries: OperationRegistryEntry[],
+  gapEntries: OperationRegistryEntry[],
+): ConformanceStatusDocument['apiSurfaceSummaries'] {
+  const summaryForSurface = (apiSurface: ApiSurface) => {
+    const implemented = trackedEntries.filter((entry) => entry.apiSurface === apiSurface);
+    const covered = coveredEntries.filter((entry) => entry.apiSurface === apiSurface);
+    const gaps = gapEntries.filter((entry) => entry.apiSurface === apiSurface);
+    return {
+      implementedOperations: implemented.length,
+      coveredOperations: covered.length,
+      declaredGapOperations: gaps.length,
+      operationCoverageRatio: implemented.length === 0 ? 0 : covered.length / implemented.length,
+      coveredOperationNames: covered.map((entry) => entry.name),
+      declaredGapOperationNames: gaps.map((entry) => entry.name),
+    };
+  };
+  const aggregate = {
+    implementedOperations: trackedEntries.length,
+    coveredOperations: coveredEntries.length,
+    declaredGapOperations: gapEntries.length,
+    operationCoverageRatio: trackedEntries.length === 0 ? 0 : coveredEntries.length / trackedEntries.length,
+    coveredOperationNames: coveredEntries.map((entry) => `${entry.apiSurface}:${entry.name}`),
+    declaredGapOperationNames: gapEntries.map((entry) => `${entry.apiSurface}:${entry.name}`),
+  };
+  return {
+    admin: summaryForSurface('admin'),
+    storefront: summaryForSurface('storefront'),
+    aggregate,
   };
 }

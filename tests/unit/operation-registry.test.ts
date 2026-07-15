@@ -52,6 +52,14 @@ function listRuntimeTestedOperationRegistryEntries() {
   return listOperationRegistryEntries().filter((entry) => entry.runtimeTests.length > 0);
 }
 
+function listAdminOperationRegistryEntries() {
+  return listOperationRegistryEntries().filter((entry) => entry.apiSurface === 'admin');
+}
+
+function listStorefrontOperationRegistryEntries() {
+  return listOperationRegistryEntries().filter((entry) => entry.apiSurface === 'storefront');
+}
+
 function sortedStrings(values: Iterable<string>): string[] {
   return [...values].sort((left, right) => left.localeCompare(right));
 }
@@ -63,7 +71,7 @@ function capturedMutationNames() {
 
 function adminMutationCoverageAudit() {
   const schemaMutationNames = capturedMutationNames();
-  const registryMutations = listOperationRegistryEntries().filter((entry) => entry.type === 'mutation');
+  const registryMutations = listAdminOperationRegistryEntries().filter((entry) => entry.type === 'mutation');
   const registryMutationByName = new Map(registryMutations.map((entry) => [entry.name, entry]));
   const implementedMutationNames = schemaMutationNames.filter(
     (name) => registryMutationByName.get(name)?.implemented === true,
@@ -118,9 +126,11 @@ function nodeResolverCoverageAudit() {
 }
 
 describe('operation registry', () => {
-  it('keeps implemented capability names unique', () => {
-    const implementedNames = listImplementedOperationRegistryEntries().map((entry) => entry.name);
-    expect(new Set(implementedNames).size).toBe(implementedNames.length);
+  it('keeps implemented capability identities unique by API surface, type, and name', () => {
+    const implementedIdentities = listImplementedOperationRegistryEntries().map(
+      (entry) => `${entry.apiSurface}:${entry.type}:${entry.name}`,
+    );
+    expect(new Set(implementedIdentities).size).toBe(implementedIdentities.length);
   });
 
   it('treats every runtime-tested operation as implemented', () => {
@@ -157,7 +167,42 @@ describe('operation registry', () => {
 
   it('loads the Rust operation registry as the source of truth', () => {
     expect(listOperationRegistryEntries().length).toBeGreaterThan(0);
-    expect(listOperationRegistryEntries().some((entry) => entry.name === 'productCreate')).toBe(true);
+    expect(
+      listOperationRegistryEntries().some((entry) => entry.apiSurface === 'admin' && entry.name === 'productCreate'),
+    ).toBe(true);
+  });
+
+  it('loads Storefront roots from the captured Storefront root inventory without claiming implementation', () => {
+    const storefrontEntries = listStorefrontOperationRegistryEntries();
+    expect(storefrontEntries.length).toBeGreaterThan(0);
+    expect(storefrontEntries).toContainEqual(
+      expect.objectContaining({
+        apiSurface: 'storefront',
+        name: 'shop',
+        type: 'query',
+        domain: 'storefront',
+        implemented: false,
+        runtimeTests: [],
+      }),
+    );
+    expect(storefrontEntries).toContainEqual(
+      expect.objectContaining({
+        apiSurface: 'storefront',
+        name: 'customerCreate',
+        type: 'mutation',
+        domain: 'storefront',
+        implemented: false,
+        runtimeTests: [],
+      }),
+    );
+    expect(listOperationRegistryEntries()).toContainEqual(
+      expect.objectContaining({
+        apiSurface: 'admin',
+        name: 'customerCreate',
+        type: 'mutation',
+        implemented: true,
+      }),
+    );
   });
 
   it('audits captured 2026-04 Admin mutation roots against the Rust registry', () => {

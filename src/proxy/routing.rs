@@ -1,6 +1,7 @@
 use super::*;
 
 const SUPPORTED_ADMIN_GRAPHQL_VERSIONS: &[&str] = &["2025-01", "2025-10", "2026-01", "2026-04"];
+const SUPPORTED_STOREFRONT_GRAPHQL_VERSIONS: &[&str] = &["2025-01", "2026-04"];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::proxy) enum Route {
@@ -87,7 +88,7 @@ fn admin_graphql_path_version(path: &str) -> Option<&str> {
 
 pub(in crate::proxy) fn storefront_graphql_version(path: &str) -> Option<&str> {
     let version = storefront_graphql_path_version(path)?;
-    supported_admin_graphql_version(version).then_some(version)
+    supported_storefront_graphql_version(version).then_some(version)
 }
 
 fn storefront_graphql_path_version(path: &str) -> Option<&str> {
@@ -106,6 +107,10 @@ fn storefront_graphql_path_version(path: &str) -> Option<&str> {
 
 pub(in crate::proxy) fn supported_admin_graphql_version(version: &str) -> bool {
     SUPPORTED_ADMIN_GRAPHQL_VERSIONS.contains(&version)
+}
+
+pub(in crate::proxy) fn supported_storefront_graphql_version(version: &str) -> bool {
+    SUPPORTED_STOREFRONT_GRAPHQL_VERSIONS.contains(&version)
 }
 
 pub(in crate::proxy) fn latest_supported_admin_graphql_version() -> Option<&'static str> {

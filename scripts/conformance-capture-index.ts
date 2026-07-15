@@ -34,6 +34,7 @@ const domainSchema = z.enum([
   'shipping-fulfillments',
   'selling-plans',
   'store-properties',
+  'storefront',
   'webhooks',
 ]);
 
@@ -8060,6 +8061,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     cleanupBehavior:
       'Creates/deletes disposable customer records for opt-out probes; invalid-format capture requires no setup and deletes any unexpectedly created customer before failing; strict residual capture deletes the quoted-local success customer.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'storefront',
+    captureId: 'storefront-graphql-schema',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-storefront-graphql-schema.mts',
+    purpose:
+      'Authenticated Storefront GraphQL 2026-04 schema introspection plus derived query/mutation root inventory for surface-aware coverage metadata.',
+    requiredAuthScopes: [
+      'active Storefront API token with unauthenticated catalog, content, cart, customer, metaobject, localization, and Shop Pay access',
+    ],
+    fixtureOutputs: [
+      'config/storefront-graphql/2026-04/schema.json',
+      'config/storefront-graphql/2026-04/root-inventory.json',
+    ],
+    cleanupBehavior: 'Read-only Storefront schema introspection; no Shopify data is created, updated, or deleted.',
+    expectedStatusChecks: ['conformance:check', 'conformance:status'],
   },
   {
     domain: 'admin-platform',

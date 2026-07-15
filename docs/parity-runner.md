@@ -162,6 +162,17 @@ deterministic `X-Shopify-Storefront-Access-Token:
 already declare a Storefront token header; the cassette server still matches on
 method, path, document, and variables, not on secret header values.
 
+Scenario coverage is also API-surface keyed. A scenario with
+`proxyRequest.apiSurface: "storefront"` groups its `operationNames` under
+Storefront coverage, while scenarios that omit `apiSurface` default to Admin
+coverage for backward compatibility. Do not rely on a bare root name such as
+`shop`, `product`, `products`, `collection`, `node`, or `nodes` to imply a
+surface; the conformance status identity is the surface plus the root name.
+Storefront root inventory comes from
+`config/storefront-graphql/<api-version>/root-inventory.json`, which is derived
+from live Storefront schema introspection and does not mark those roots
+implemented.
+
 A request that misses every cassette entry is a **hard failure** —
 `commit.CommitTransportError("cassette miss: operation=<name> variables=
 <json>")` so tests name exactly which call wasn't recorded. Re-record

@@ -15,7 +15,7 @@ use crate::graphql::{
     SourceLocation,
 };
 use crate::operation_registry::{
-    default_registry, operation_capability, CapabilityDomain, CapabilityExecution,
+    default_registry, operation_capability, ApiSurface, CapabilityDomain, CapabilityExecution,
     OperationRegistryEntry,
 };
 

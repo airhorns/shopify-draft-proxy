@@ -11,6 +11,32 @@ import {
 const status = {
   generatedAt: '2026-04-19T00:00:00.000Z',
   implementedOperations: [{ name: 'product' }, { name: 'productCreate' }, { name: 'productUpdate' }],
+  apiSurfaceSummaries: {
+    admin: {
+      implementedOperations: 3,
+      coveredOperations: 2,
+      declaredGapOperations: 1,
+      operationCoverageRatio: 2 / 3,
+      coveredOperationNames: ['product', 'productCreate'],
+      declaredGapOperationNames: ['productUpdate'],
+    },
+    storefront: {
+      implementedOperations: 0,
+      coveredOperations: 0,
+      declaredGapOperations: 0,
+      operationCoverageRatio: 0,
+      coveredOperationNames: [],
+      declaredGapOperationNames: [],
+    },
+    aggregate: {
+      implementedOperations: 3,
+      coveredOperations: 2,
+      declaredGapOperations: 1,
+      operationCoverageRatio: 2 / 3,
+      coveredOperationNames: ['admin:product', 'admin:productCreate'],
+      declaredGapOperationNames: ['admin:productUpdate'],
+    },
+  },
   coveredOperationNames: ['product', 'productCreate'],
   declaredGapOperationNames: ['productUpdate'],
   capturedScenarioIds: ['product-detail-read', 'product-create-live-parity'],
@@ -102,6 +128,8 @@ describe('conformance status reporting', () => {
     expect(renderConformanceComment(report)).toContain(
       'Regrettable divergences: 1 expected differences across 1 scenarios',
     );
+    expect(renderConformanceComment(report)).toContain('Admin covered operations: 2 / 3 (1 declared gaps)');
+    expect(renderConformanceComment(report)).toContain('Storefront covered operations: 0 / 0 (0 declared gaps)');
   });
 
   it('does not alarm when the baseline predates capture-only breakdowns', () => {

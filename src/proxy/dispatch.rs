@@ -29,7 +29,9 @@ fn no_dispatcher(domain: &str, root_field: &str) -> Response {
     )
 }
 
-fn operation_selection_error_response(error: OperationSelectionError) -> Response {
+pub(in crate::proxy) fn operation_selection_error_response(
+    error: OperationSelectionError,
+) -> Response {
     match error {
         OperationSelectionError::MultipleOperationsRequireOperationName => ok_json(json!({
             "errors": [{ "message": "An operation name is required" }]

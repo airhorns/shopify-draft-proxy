@@ -80,6 +80,14 @@ fn storefront_graphql_route_rejects_wrong_method_and_unsupported_version() {
         body: json!({ "query": "{ shop { name } }" }).to_string(),
     });
     assert_eq!(unsupported_version.status, 404);
+
+    let admin_only_version = proxy.process_request(Request {
+        method: "POST".to_string(),
+        path: "/api/2025-10/graphql.json".to_string(),
+        headers: Default::default(),
+        body: json!({ "query": "{ shop { name } }" }).to_string(),
+    });
+    assert_eq!(admin_only_version.status, 404);
 }
 
 #[test]
@@ -146,6 +154,121 @@ fn storefront_graphql_route_preserves_private_and_public_storefront_headers() {
 }
 
 #[test]
+fn storefront_graphql_route_uses_storefront_schema_validation_not_admin_validation() {
+    let observed_requests = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let observed_for_proxy = Arc::clone(&observed_requests);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        observed_for_proxy.lock().unwrap().push(request);
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({ "data": { "cart": null } }),
+        }
+    });
+
+    let response = proxy.process_request(Request {
+        method: "POST".to_string(),
+        path: "/api/2026-04/graphql.json".to_string(),
+        headers: Default::default(),
+        body: json!({
+            "query": "query StorefrontCart { cart(id: \"gid://shopify/Cart/1\") { id } }",
+            "variables": {}
+        })
+        .to_string(),
+    });
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body["data"]["cart"], Value::Null);
+    assert_eq!(observed_requests.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn storefront_graphql_route_rejects_roots_missing_from_storefront_schema_before_upstream() {
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(|_| {
+        panic!("Storefront schema validation should fail before upstream")
+    });
+
+    let response = proxy.process_request(Request {
+        method: "POST".to_string(),
+        path: "/api/2026-04/graphql.json".to_string(),
+        headers: Default::default(),
+        body: json!({
+            "query": "query AdminOnlyRoot { productsCount { count } }",
+            "variables": {}
+        })
+        .to_string(),
+    });
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["errors"][0]["extensions"]["code"],
+        json!("undefinedField")
+    );
+    assert_eq!(
+        response.body["errors"][0]["extensions"]["fieldName"],
+        json!("productsCount")
+    );
+}
+
+#[test]
+fn storefront_graphql_snapshot_mode_returns_schema_shaped_empty_query_data() {
+    let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|_| panic!("snapshot Storefront reads should not call upstream"));
+
+    let response = proxy.process_request(Request {
+        method: "POST".to_string(),
+        path: "/api/2026-04/graphql.json".to_string(),
+        headers: Default::default(),
+        body: json!({
+            "query": "query StorefrontSnapshot { products(first: 1) { nodes { id } pageInfo { hasNextPage hasPreviousPage } } shop { name } }",
+            "variables": {}
+        })
+        .to_string(),
+    });
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body["data"]["products"]["nodes"], json!([]));
+    assert_eq!(
+        response.body["data"]["products"]["pageInfo"],
+        json!({ "hasNextPage": false, "hasPreviousPage": false })
+    );
+    assert_eq!(response.body["data"]["shop"], Value::Null);
+}
+
+#[test]
+fn storefront_graphql_snapshot_mode_rejects_mutations_without_upstream() {
+    let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|_| {
+            panic!("snapshot Storefront mutations should not call upstream")
+        });
+
+    let response = proxy.process_request(Request {
+        method: "POST".to_string(),
+        path: "/api/2026-04/graphql.json".to_string(),
+        headers: Default::default(),
+        body: json!({
+            "query": "mutation StorefrontCartCreate { cartCreate { cart { id } } }",
+            "variables": {}
+        })
+        .to_string(),
+    });
+
+    assert_eq!(response.status, 501);
+    assert_eq!(
+        response.body,
+        json!({ "errors": [{ "message": "Storefront API mutations are not locally implemented in snapshot mode" }] })
+    );
+}
+
+#[test]
 fn storefront_graphql_passthrough_does_not_enter_admin_staging_or_commit() {
     let observed_requests = Arc::new(Mutex::new(Vec::<Request>::new()));
     let observed_for_proxy = Arc::clone(&observed_requests);
@@ -160,7 +283,7 @@ fn storefront_graphql_passthrough_does_not_enter_admin_staging_or_commit() {
         Response {
             status: 200,
             headers: Default::default(),
-            body: json!({ "data": { "productCreate": null } }),
+            body: json!({ "data": { "cartCreate": { "cart": { "id": "gid://shopify/Cart/1" } } } }),
         }
     })
     .with_commit_transport(move |request| {
@@ -173,7 +296,7 @@ fn storefront_graphql_passthrough_does_not_enter_admin_staging_or_commit() {
     });
 
     let body = json!({
-        "query": "mutation StorefrontMutationShape { productCreate(input: {title: \"Storefront\"}) { product { id } } }",
+        "query": "mutation StorefrontMutationShape { cartCreate { cart { id } } }",
         "variables": {}
     })
     .to_string();

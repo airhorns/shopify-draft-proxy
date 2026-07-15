@@ -4,7 +4,7 @@ This document exists so future agents and developers can preserve the original g
 
 ## What we are trying to build
 
-We are building a **man-in-the-middle proxy** for the **Shopify Admin GraphQL API** that sits between Shopify apps and the real Shopify backend.
+We are building a **man-in-the-middle proxy** for Shopify GraphQL APIs that sits between Shopify apps and the real Shopify backend. The deepest local emulation target remains the **Shopify Admin GraphQL API**. The **Storefront GraphQL API** is also a first-class routed surface for authenticated passthrough, schema evidence, and coverage accounting so overlapping root names do not collide with Admin behavior.
 
 At runtime, the proxy should let the app behave as if it is talking to Shopify directly.
 
@@ -14,6 +14,7 @@ At runtime, the proxy should let the app behave as if it is talking to Shopify d
 - The proxy forwards the app's existing auth headers unchanged.
 - Read requests proxy through to Shopify by default unless snapshot-only mode is enabled.
 - If no local staged effects are relevant, the response should be the same as Shopify's response.
+- Storefront GraphQL traffic stays on `/api/<version>/graphql.json`; it must not enter Admin local dispatch, Admin schema validation, or staged commit replay.
 
 ### Mutation behavior
 
@@ -88,7 +89,7 @@ That means:
 - reproduce derived read behavior after staged writes
 - aim for domain-specific realism, not generic GraphQL stubbing
 
-The system should grow toward high-fidelity coverage across the Shopify Admin GraphQL API. Individual domains should still be implemented deeply enough to preserve lifecycle behavior and read-after-write effects before they are marked supported.
+The system should grow toward high-fidelity coverage across Shopify's Admin and Storefront GraphQL surfaces while preserving their different schemas and semantics. Admin domains should still be implemented deeply enough to preserve lifecycle behavior and read-after-write effects before they are marked supported. Storefront roots may be inventoried and schema-validated before they are implemented, but they are not supported until local runtime behavior and captured Storefront parity prove that surface.
 
 ## Development strategy
 
@@ -99,7 +100,8 @@ We are **not** trying to support every domain on day one. We are trying to:
 1. build a durable architecture
 2. create an exhaustive coverage map
 3. implement each supported Admin API domain with credible local lifecycle fidelity
-4. use conformance testing against a real Shopify dev store to drive fidelity forward
+4. keep Storefront coverage keyed separately from Admin coverage, even when root names overlap
+5. use conformance testing against a real Shopify dev store to drive fidelity forward
 
 ## Conformance testing is a first-class goal
 
@@ -134,7 +136,8 @@ These are deliberate for v1:
 - pnpm package manager
 - in-memory state only
 - no parallel test-session isolation yet
-- Admin GraphQL only
+- Admin GraphQL local staging is the current high-fidelity implementation focus
+- Storefront GraphQL is route-, schema-, and evidence-aware, but remains passthrough/no-data unless a root is explicitly promoted with runtime tests and captured Storefront parity
 - no webhooks yet
 - original raw mutations should be retained for eventual commit
 

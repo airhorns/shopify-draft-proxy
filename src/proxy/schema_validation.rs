@@ -186,6 +186,14 @@ fn public_admin_schema_json(api_version: &str, kind: AdminSchemaKind) -> Value {
     serde_json::from_str(raw).expect("checked-in Admin GraphQL schema should be valid JSON")
 }
 
+fn public_storefront_schema_json(api_version: &str) -> Value {
+    let raw = match api_version {
+        "2026-04" => include_str!("../../config/storefront-graphql/2026-04/schema.json"),
+        _ => panic!("unsupported Storefront API version has no captured schema: {api_version}"),
+    };
+    serde_json::from_str(raw).expect("checked-in Storefront GraphQL schema should be valid JSON")
+}
+
 #[derive(Debug, Clone, Copy)]
 pub(in crate::proxy) struct ValidationContext<'a> {
     pub(in crate::proxy) query: &'a str,
@@ -586,8 +594,17 @@ pub(in crate::proxy) fn public_admin_graphql_validation_response(
     let mut errors = missing_required_variable_errors(&document, variables);
     errors.extend(standard_directive_errors(query, variables, &document));
     errors.extend(undefined_root_field_errors(&document, api_version));
-    errors.extend(selection_mismatch_errors(&document, api_version));
-    errors.extend(undefined_selection_field_errors(&document, api_version));
+    let output_schema = public_admin_output_schema(api_version)
+        .expect("supported Admin API version should have captured output schema");
+    errors.extend(selection_mismatch_errors_for_schema(
+        &document,
+        output_schema,
+    ));
+    errors.extend(undefined_selection_field_errors_for_schema(
+        &document,
+        output_schema,
+        UndefinedSelectionMode::AdminMutationUserErrors,
+    ));
     if !errors.is_empty() {
         return Some(ok_json(json!({ "errors": errors })));
     }
@@ -595,11 +612,63 @@ pub(in crate::proxy) fn public_admin_graphql_validation_response(
     product_create_argument_arity_response(&document, api_version)
 }
 
+pub(in crate::proxy) fn public_storefront_graphql_validation_response(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+    api_version: Option<&str>,
+) -> Option<Response> {
+    let api_version =
+        api_version.filter(|version| supported_storefront_graphql_version(version))?;
+    let output_schema = public_storefront_output_schema(api_version)?;
+
+    if let Some(response) = public_storefront_graphql_parse_error_response(query, Some(api_version))
+    {
+        return Some(response);
+    }
+
+    let document = parsed_document_unfiltered(query, variables)?;
+    let mut errors = missing_required_variable_errors(&document, variables);
+    errors.extend(standard_directive_errors(query, variables, &document));
+    errors.extend(storefront_undefined_root_field_errors(
+        &document,
+        output_schema,
+    ));
+    errors.extend(selection_mismatch_errors_for_schema(
+        &document,
+        output_schema,
+    ));
+    errors.extend(undefined_selection_field_errors_for_schema(
+        &document,
+        output_schema,
+        UndefinedSelectionMode::AllFields,
+    ));
+    if errors.is_empty() {
+        None
+    } else {
+        Some(ok_json(json!({ "errors": errors })))
+    }
+}
+
 pub(in crate::proxy) fn public_admin_graphql_parse_error_response(
     query: &str,
     api_version: Option<&str>,
 ) -> Option<Response> {
     api_version.filter(|version| supported_admin_graphql_version(version))?;
+
+    if parse_query::<&str>(query).is_err() {
+        return Some(ok_json(json!({
+            "errors": [parse_error(query)]
+        })));
+    }
+
+    None
+}
+
+pub(in crate::proxy) fn public_storefront_graphql_parse_error_response(
+    query: &str,
+    api_version: Option<&str>,
+) -> Option<Response> {
+    api_version.filter(|version| supported_storefront_graphql_version(version))?;
 
     if parse_query::<&str>(query).is_err() {
         return Some(ok_json(json!({
@@ -1033,6 +1102,36 @@ fn undefined_root_field_errors(document: &ParsedDocument, api_version: &str) -> 
         .collect()
 }
 
+fn storefront_undefined_root_field_errors(
+    document: &ParsedDocument,
+    output_schema: &AdminOutputSchema,
+) -> Vec<Value> {
+    document
+        .root_fields
+        .iter()
+        .filter_map(|field| {
+            let parent_type = match document.operation_type {
+                OperationType::Query => {
+                    (!output_schema.query_root_fields.contains_key(&field.name))
+                        .then_some("QueryRoot")
+                }
+                OperationType::Mutation => {
+                    (!output_schema.mutation_root_fields.contains_key(&field.name))
+                        .then_some("Mutation")
+                }
+                OperationType::Subscription => None,
+            }?;
+            Some(undefined_field_error(
+                document,
+                field.location,
+                parent_type,
+                &field.name,
+                vec![json!(document.operation_path), json!(field.response_key)],
+            ))
+        })
+        .collect()
+}
+
 fn local_implemented_query_root_names() -> &'static BTreeSet<String> {
     static QUERY_ROOT_NAMES: OnceLock<BTreeSet<String>> = OnceLock::new();
     QUERY_ROOT_NAMES.get_or_init(|| local_implemented_root_names(OperationType::Query))
@@ -1045,22 +1144,24 @@ fn local_implemented_mutation_root_names() -> &'static BTreeSet<String> {
 
 fn local_implemented_root_names(operation_type: OperationType) -> BTreeSet<String> {
     let mut roots = BTreeSet::new();
-    for entry in default_registry()
-        .into_iter()
-        .filter(|entry| entry.implemented && entry.operation_type == operation_type)
-    {
+    for entry in default_registry().into_iter().filter(|entry| {
+        entry.api_surface == ApiSurface::Admin
+            && entry.implemented
+            && entry.operation_type == operation_type
+    }) {
         roots.insert(entry.name);
         roots.extend(entry.match_names);
     }
     roots
 }
 
-fn selection_mismatch_errors(document: &ParsedDocument, api_version: &str) -> Vec<Value> {
+fn selection_mismatch_errors_for_schema(
+    document: &ParsedDocument,
+    output_schema: &AdminOutputSchema,
+) -> Vec<Value> {
     if document.operation_type != OperationType::Query {
         return Vec::new();
     }
-    let output_schema = public_admin_output_schema(api_version)
-        .expect("supported Admin API version should have captured output schema");
     document
         .root_fields
         .iter()
@@ -1087,10 +1188,12 @@ fn selection_mismatch_errors(document: &ParsedDocument, api_version: &str) -> Ve
         .collect()
 }
 
-fn undefined_selection_field_errors(document: &ParsedDocument, api_version: &str) -> Vec<Value> {
+fn undefined_selection_field_errors_for_schema(
+    document: &ParsedDocument,
+    schema: &AdminOutputSchema,
+    mutation_mode: UndefinedSelectionMode,
+) -> Vec<Value> {
     let mut errors = Vec::new();
-    let schema = public_admin_output_schema(api_version)
-        .expect("supported Admin API version should have captured output schema");
     for field in &document.root_fields {
         let Some(output_type) = (match document.operation_type {
             OperationType::Query => schema.query_root_fields.get(&field.name),
@@ -1101,9 +1204,7 @@ fn undefined_selection_field_errors(document: &ParsedDocument, api_version: &str
         };
         let mode = match document.operation_type {
             OperationType::Query => UndefinedSelectionMode::AllFields,
-            OperationType::Mutation => {
-                UndefinedSelectionMode::PlainUserErrorCodeOnlyAndStrictParents
-            }
+            OperationType::Mutation => mutation_mode,
             OperationType::Subscription => continue,
         };
         collect_undefined_selection_field_errors(
@@ -1122,7 +1223,7 @@ fn undefined_selection_field_errors(document: &ParsedDocument, api_version: &str
 #[derive(Clone, Copy)]
 enum UndefinedSelectionMode {
     AllFields,
-    PlainUserErrorCodeOnlyAndStrictParents,
+    AdminMutationUserErrors,
 }
 
 const STRICT_MUTATION_SELECTION_PARENT_TYPES: &[&str] = &["WebPixel"];
@@ -1163,7 +1264,7 @@ fn collect_undefined_selection_field_errors(
         } else if schema_fields.is_some() {
             let should_report = match mode {
                 UndefinedSelectionMode::AllFields => true,
-                UndefinedSelectionMode::PlainUserErrorCodeOnlyAndStrictParents => {
+                UndefinedSelectionMode::AdminMutationUserErrors => {
                     (selected_parent_type == "UserError" && selection.name == "code")
                         || STRICT_MUTATION_SELECTION_PARENT_TYPES.contains(&selected_parent_type)
                 }
@@ -1310,6 +1411,83 @@ fn public_admin_output_schema(api_version: &str) -> Option<&'static AdminOutputS
     }))
 }
 
+fn public_storefront_output_schema(api_version: &str) -> Option<&'static AdminOutputSchema> {
+    static OUTPUT_SCHEMA_2026_04: OnceLock<AdminOutputSchema> = OnceLock::new();
+    let cache = match api_version {
+        "2026-04" => &OUTPUT_SCHEMA_2026_04,
+        _ => return None,
+    };
+    Some(cache.get_or_init(|| {
+        let parsed = public_storefront_schema_json(api_version);
+        let schema_json = parsed
+            .get("schema")
+            .expect("checked-in Storefront schema should contain schema object");
+        let query_root_type = schema_json
+            .pointer("/queryType/name")
+            .and_then(Value::as_str)
+            .unwrap_or("QueryRoot");
+        let mutation_root_type = schema_json
+            .pointer("/mutationType/name")
+            .and_then(Value::as_str)
+            .unwrap_or("Mutation");
+        let schema_types = schema_json
+            .get("types")
+            .and_then(Value::as_array)
+            .expect("checked-in Storefront schema should contain types array");
+        let types_by_name: BTreeMap<String, &Value> = schema_types
+            .iter()
+            .filter_map(|schema_type| {
+                schema_type
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .map(|name| (name.to_string(), schema_type))
+            })
+            .collect();
+        let mut schema = AdminOutputSchema::default();
+        for schema_type in schema_types {
+            let Some(parent_type) = schema_type.get("name").and_then(Value::as_str) else {
+                continue;
+            };
+            let Some(fields) = schema_type.get("fields").and_then(Value::as_array) else {
+                continue;
+            };
+            let parent_kind = schema_type.get("kind").and_then(Value::as_str);
+            if !matches!(parent_kind, Some("OBJECT" | "INTERFACE")) {
+                continue;
+            }
+            for field in fields {
+                let Some(name) = field.get("name").and_then(Value::as_str) else {
+                    continue;
+                };
+                let Some(type_ref) = field.get("type") else {
+                    continue;
+                };
+                let Some(output_type) =
+                    output_field_type_from_introspection(&types_by_name, type_ref)
+                else {
+                    continue;
+                };
+                if parent_type == query_root_type {
+                    schema
+                        .query_root_fields
+                        .insert(name.to_string(), output_type.clone());
+                }
+                if parent_type == mutation_root_type {
+                    schema
+                        .mutation_root_fields
+                        .insert(name.to_string(), output_type.clone());
+                }
+                schema
+                    .fields_by_parent
+                    .entry(parent_type.to_string())
+                    .or_default()
+                    .insert(name.to_string(), output_type);
+            }
+        }
+        schema
+    }))
+}
+
 fn output_field_type(field: &Value) -> Option<OutputFieldType> {
     let kind = field.get("kind")?;
     let (named_type, composite) = match kind.get("type").and_then(Value::as_str)? {
@@ -1337,6 +1515,33 @@ fn output_field_type(field: &Value) -> Option<OutputFieldType> {
     })
 }
 
+fn output_field_type_from_introspection(
+    types_by_name: &BTreeMap<String, &Value>,
+    type_ref: &Value,
+) -> Option<OutputFieldType> {
+    let named_type = type_ref_named_type(type_ref)?.to_string();
+    let leaf_kind = types_by_name
+        .get(&named_type)
+        .and_then(|schema_type| schema_type.get("kind"))
+        .and_then(Value::as_str);
+    let composite = matches!(leaf_kind, Some("OBJECT" | "INTERFACE" | "UNION"));
+    if composite || matches!(leaf_kind, Some("SCALAR" | "ENUM")) {
+        Some(OutputFieldType {
+            named_type,
+            composite,
+        })
+    } else {
+        None
+    }
+}
+
+fn type_ref_named_type(type_ref: &Value) -> Option<&str> {
+    type_ref
+        .get("name")
+        .and_then(Value::as_str)
+        .or_else(|| type_ref.get("ofType").and_then(type_ref_named_type))
+}
+
 pub(in crate::proxy) fn public_admin_output_field_named_type(
     api_version: &str,
     parent_type: &str,
@@ -1347,6 +1552,21 @@ pub(in crate::proxy) fn public_admin_output_field_named_type(
         .get(parent_type)?
         .get(field_name)
         .map(|field_type| field_type.named_type.as_str())
+}
+
+pub(in crate::proxy) fn public_storefront_root_field_named_type(
+    api_version: &str,
+    operation_type: OperationType,
+    field_name: &str,
+) -> Option<&'static str> {
+    let schema = public_storefront_output_schema(api_version)?;
+    match operation_type {
+        OperationType::Query => &schema.query_root_fields,
+        OperationType::Mutation => &schema.mutation_root_fields,
+        OperationType::Subscription => return None,
+    }
+    .get(field_name)
+    .map(|field_type| field_type.named_type.as_str())
 }
 
 fn enum_values_label(values: &[String]) -> String {
