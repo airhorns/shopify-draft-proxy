@@ -23,6 +23,20 @@ const PUBLISHABLE_SHOP_HYDRATE_QUERY: &str = r#"#graphql
     }
   }
 "#;
+const PUBLISHABLE_PUBLICATION_CATALOG_HYDRATE_QUERY: &str = r#"#graphql
+  query StorePropertiesPublishableInputValidationHydrate {
+    shop {
+      publicationCount
+      currencyCode
+    }
+    publications(first: 20) {
+      nodes {
+        id
+        name
+      }
+    }
+  }
+"#;
 // Must byte-match the recorded upstream location hydrate query in the
 // store-properties lifecycle captures (strict cassette compares query text +
 // variables). Issued to replay the real baseline location through the cassette
@@ -106,7 +120,13 @@ impl DraftProxy {
                     self.store.has_known_publication_ids(),
                 )
             {
-                self.hydrate_publishable_payload_shop(&resource_id, request);
+                if admin_graphql_version(&request.path)
+                    .is_some_and(|version| version_at_least(version, 2026, 4))
+                {
+                    self.hydrate_publishable_publication_catalog(request);
+                } else {
+                    self.hydrate_publishable_payload_shop(&resource_id, request);
+                }
             }
             user_errors.extend(
                 self.publishable_publication_input_errors(field.arguments.get("input"), to_current),
@@ -131,19 +151,26 @@ impl DraftProxy {
                 } else {
                     publishable_input_publication_ids(&field.arguments)
                 };
+                let published_at = self.next_product_timestamp();
                 let set = self
                     .store
                     .staged
                     .resource_publications
                     .entry(resource_id.clone())
                     .or_default();
-                for publication_id in publication_ids {
+                for publication_id in &publication_ids {
                     if publish {
-                        set.insert(publication_id);
+                        set.insert(publication_id.clone());
                     } else {
-                        set.remove(&publication_id);
+                        set.remove(publication_id);
                     }
                 }
+                self.sync_product_publication_entries(
+                    &resource_id,
+                    &publication_ids,
+                    publish,
+                    &published_at,
+                );
                 self.record_mutation_log_entry(request, query, variables, root_field, vec![]);
             }
 
@@ -217,6 +244,62 @@ impl DraftProxy {
                 .or_default();
         }
         self.hydrate_shop_state_from_response_data(&response.body["data"]);
+    }
+
+    fn hydrate_publishable_publication_catalog(&mut self, request: &Request) {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": PUBLISHABLE_PUBLICATION_CATALOG_HYDRATE_QUERY,
+                "variables": {}
+            }),
+        );
+        if !(200..300).contains(&response.status) {
+            return;
+        }
+        self.hydrate_shop_state_from_response_data(&response.body["data"]);
+    }
+
+    pub(in crate::proxy) fn sync_product_publication_entries(
+        &mut self,
+        resource_id: &str,
+        publication_ids: &[String],
+        publish: bool,
+        published_at: &str,
+    ) {
+        if !is_shopify_gid_of_type(resource_id, "Product") || publication_ids.is_empty() {
+            return;
+        }
+        let Some(mut product) = self.store.product_by_id(resource_id).cloned() else {
+            return;
+        };
+        let publication_ids = publication_ids.iter().cloned().collect::<BTreeSet<_>>();
+        let mut entries = product_publication_entries(&product);
+        if publish {
+            for publication_id in &publication_ids {
+                if let Some(entry) = entries
+                    .iter_mut()
+                    .find(|entry| entry.publication_id == *publication_id)
+                {
+                    if entry.published_at.is_none() && entry.publish_date.is_none() {
+                        entry.published_at = Some(published_at.to_string());
+                    }
+                } else {
+                    entries.push(ProductPublicationEntry {
+                        publication_id: publication_id.clone(),
+                        publish_date: None,
+                        published_at: Some(published_at.to_string()),
+                    });
+                }
+            }
+        } else {
+            entries.retain(|entry| !publication_ids.contains(&entry.publication_id));
+        }
+        set_product_publication_entries(&mut product, entries);
+        self.store.stage_product(product);
     }
 
     pub(in crate::proxy) fn hydrate_shop_state_from_response_data(&mut self, data: &Value) {

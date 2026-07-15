@@ -73,8 +73,9 @@ App/test harness
        └─ Storefront GraphQL route
             ├─ run Storefront-route version and captured Storefront schema validation
             ├─ preserve Storefront auth headers and request body
-            ├─ live-hybrid/passthrough -> upstream Storefront endpoint
-            └─ snapshot -> schema-shaped null/empty query data or explicit mutation rejection
+            ├─ supported read -> Storefront projection from shared store state
+            ├─ live-hybrid/passthrough for unsupported or cold Storefront reads
+            └─ snapshot unsupported roots -> schema-shaped null/empty query data or explicit mutation rejection
 ```
 
 Multi-root Admin GraphQL documents keep Shopify's top-level execution contract:
@@ -228,7 +229,7 @@ Effective reads merge base state and staged state through shared Store helpers, 
 The Rust HTTP bridge serves:
 
 - `POST /admin/api/:version/graphql.json`
-- `POST /api/:version/graphql.json` for Storefront GraphQL passthrough only
+- `POST /api/:version/graphql.json` for Storefront GraphQL passthrough plus explicitly supported local Storefront reads
 - `GET /__meta/health`
 - `GET /__meta/config`
 - `GET /__meta/log`
@@ -243,12 +244,12 @@ The Rust HTTP bridge serves:
 Keep Shopify-like versioned Admin and Storefront API paths even when tests use
 local/snapshot mode. Admin and Storefront supported-version policies are split
 so one surface can move without implying support for the other. Storefront
-GraphQL traffic stays on the Storefront route, forwards through the upstream
-transport with Storefront headers preserved in live-hybrid/passthrough modes,
-and does not enter Admin local dispatch or staged commit replay. In snapshot
-mode Storefront query roots return schema-shaped no-data responses, while
-Storefront mutations reject explicitly until a local Storefront lifecycle model
-exists.
+GraphQL traffic stays on the Storefront route, uses supported local Storefront
+read projections where modeled, forwards unsupported or cold live-hybrid reads
+through the upstream transport with Storefront headers preserved, and does not
+enter Admin local dispatch or staged commit replay. In snapshot mode unsupported
+Storefront query roots return schema-shaped no-data responses, while Storefront
+mutations reject explicitly until a local Storefront lifecycle model exists.
 
 ## Development rules
 

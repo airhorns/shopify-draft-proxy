@@ -1,0 +1,216 @@
+query StorefrontCatalogReadAfterAdminSetup(
+  $id: ID!
+  $handle: String!
+  $query: String!
+  $selectedOptions: [SelectedOptionInput!]!
+) {
+  byId: product(id: $id) {
+    ...StorefrontCatalogProductFields
+  }
+  byHandle: productByHandle(handle: $handle) {
+    id
+    title
+    handle
+  }
+  products(first: 2, query: $query, sortKey: PRICE) {
+    edges {
+      cursor
+      node {
+        id
+        title
+        handle
+        availableForSale
+        totalInventory
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  productsReverse: products(first: 1, query: $query, sortKey: TITLE, reverse: true) {
+    nodes {
+      id
+      title
+      handle
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  emptyProducts: products(first: 3, query: "__shopify_draft_proxy_missing_catalog_product__") {
+    nodes {
+      id
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}
+
+fragment StorefrontCatalogProductFields on Product {
+  __typename
+  id
+  title
+  handle
+  createdAt
+  updatedAt
+  description
+  descriptionHtml
+  vendor
+  productType
+  tags
+  seo {
+    title
+    description
+  }
+  publishedAt
+  availableForSale
+  totalInventory
+  featuredImage {
+    id
+    url
+    altText
+    width
+    height
+  }
+  images(first: 1) {
+    nodes {
+      id
+      url
+      altText
+      width
+      height
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  options(first: 3) {
+    name
+    values
+    optionValues {
+      name
+    }
+  }
+  variantsCount {
+    count
+    precision
+  }
+  variants(first: 3, sortKey: POSITION) {
+    edges {
+      cursor
+      node {
+        __typename
+        id
+        title
+        sku
+        barcode
+        availableForSale
+        currentlyNotInStock
+        quantityAvailable
+        requiresShipping
+        price {
+          amount
+          currencyCode
+        }
+        compareAtPrice {
+          amount
+          currencyCode
+        }
+        selectedOptions {
+          name
+          value
+        }
+        quantityRule {
+          increment
+          minimum
+          maximum
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  variantsReverse: variants(first: 1, sortKey: TITLE, reverse: true) {
+    nodes {
+      id
+      sku
+      title
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  priceRange {
+    minVariantPrice {
+      amount
+      currencyCode
+    }
+    maxVariantPrice {
+      amount
+      currencyCode
+    }
+  }
+  compareAtPriceRange {
+    minVariantPrice {
+      amount
+      currencyCode
+    }
+    maxVariantPrice {
+      amount
+      currencyCode
+    }
+  }
+  selectedOrFirstAvailableVariant {
+    id
+    title
+    sku
+    barcode
+    quantityAvailable
+    price {
+      amount
+      currencyCode
+    }
+    selectedOptions {
+      name
+      value
+    }
+  }
+  variantBySelectedOptions(selectedOptions: $selectedOptions) {
+    id
+    title
+    sku
+    barcode
+    quantityAvailable
+    price {
+      amount
+      currencyCode
+    }
+    selectedOptions {
+      name
+      value
+    }
+  }
+  metafield(namespace: "custom", key: "missing") {
+    id
+  }
+}

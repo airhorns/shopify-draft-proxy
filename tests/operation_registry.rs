@@ -211,6 +211,9 @@ fn default_registry_classifies_core_local_targets_without_runtime_io() {
         "locations",
         "paymentSettings",
         "publicApiVersions",
+        "product",
+        "productByHandle",
+        "products",
     ] {
         let capability = operation_capability_for_surface(
             &registry,

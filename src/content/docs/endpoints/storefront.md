@@ -4,7 +4,7 @@ title: 'Storefront API'
 
 # Storefront API
 
-The Storefront API surface covers `/api/<version>/graphql.json` requests. The proxy supports a read-only 2026-04 slice for store context roots and online-store content roots that can be hydrated from authenticated Storefront reads, shared Admin-observed state, or locally staged Admin content writes.
+The Storefront API surface covers `/api/<version>/graphql.json` requests. The proxy supports a read-only 2026-04 slice for store context roots, core catalog product reads, and online-store content roots that can be hydrated from authenticated Storefront reads, shared Admin-observed state, or locally staged Admin writes.
 
 ## Current support and limitations
 
@@ -16,6 +16,9 @@ Read roots:
 - `localization`
 - `locations`
 - `paymentSettings`
+- `product`
+- `productByHandle`
+- `products`
 - `publicApiVersions`
 - `article`
 - `articles`
@@ -36,6 +39,8 @@ Mutation roots remain unsupported for local Storefront execution. In snapshot mo
 Storefront local roots dispatch only for Storefront API version `2026-04`. Dispatch is keyed by the Storefront surface plus parsed root fields, so Admin roots with the same names stay isolated from Storefront handling. Selection aliases, fragments, built-in directives, GraphQL validation, and the selected API version are preserved by the Storefront route before local projection runs.
 
 Live-hybrid reads hydrate missing first-slice base state through explicit Storefront upstream calls, then answer the caller from the instance-owned store. The hydrated state includes Storefront shop fields, context-keyed localization, payment settings, locations with captured cursors, and public API versions. Snapshot reads do not invent shop, localization, payment, location, market, or API-version values; empty state returns null objects or empty connections/lists according to the local no-data boundary.
+
+Storefront catalog reads dispatch locally only when the proxy has shared product state and explicit publication visibility context in live-hybrid mode: either the current-channel publication is resolved or the store has a known publication catalog with staged product membership. Without that local catalog basis, live-hybrid product reads continue through the Storefront passthrough path. Snapshot mode answers from the local state only: unknown, draft, unpublished, deleted, or publication-unresolved products return `null` for `product` / `productByHandle` and are omitted from `products(...)`.
 
 `@inContext(country:, language:)` is parsed into a reusable Storefront request context. The current context model stores country and language values and leaves room for later buyer, company, and location context without adding a separate dispatcher.
 
@@ -63,10 +68,14 @@ Projected content fields include the selected handle, title, body/content HTML a
 
 `urlRedirects` projects the staged URL redirect state already modeled by the Admin online-store surface. Empty/no-data queries return an empty connection with Storefront pageInfo shape. Storefront does not create, update, or delete redirects locally.
 
+`product(id:|handle:)`, `productByHandle(handle:)`, and `products(...)` project the Storefront `Product` shape from the shared normalized product records. Supported fields include core identity, title, handle, description/HTML description, vendor, product type, tags, SEO, publication timestamp, availability, total inventory, images/media derived from product media, option values, variant connections, variant selected options, SKU, barcode, price, compare-at price, quantity availability, and basic connection `pageInfo`/cursor behavior.
+
+`products(...)` filters the visible local catalog through the shared product search helper, then applies Storefront sort keys `TITLE`, `PRODUCT_TYPE`, `VENDOR`, `UPDATED_AT`, `CREATED_AT`, `BEST_SELLING`, `PRICE`, `ID`, and `RELEVANCE`, followed by `reverse` and cursor windowing through the shared connection helpers. Opaque Shopify relevance scoring and sales velocity are not reconstructed; those sort keys use deterministic local ordering.
+
 ### Boundaries
 
-This is not support for every field on `Shop`, `Localization`, `Location`, `PaymentSettings`, content, menu, sitemap, redirect, or related nested types. Fields outside the selected and hydrated boundary return null/empty values when no shared store state has supplied them.
+This is not support for every field on `Shop`, `Localization`, `Location`, `PaymentSettings`, content, menu, sitemap, redirect, `Product`, `ProductVariant`, or related nested types. Fields outside the selected and hydrated boundary return null/empty values when no shared store state has supplied them.
 
 Admin blog/page/article create, update, and delete effects are visible through the Storefront content roots when those Admin operations are locally supported. Admin menu CRUD is not locally modeled, so Storefront menu support is captured Storefront hydration/restored base-state projection only. URL redirect mutation lifecycle is not implemented for Storefront.
 
-Theme rendering, Online Store routing, canonical URL generation, storefront policy pages, product/collection content linked from menus, cart, customer, checkout, and Storefront mutation domains remain outside this slice unless another endpoint document names them explicitly.
+Storefront contextual pricing, selling plan allocations, bundle component/grouping details, store availability, quantity price breaks/rules beyond the default minimum/increment shape, product recommendations, theme rendering, Online Store routing, canonical URL generation, storefront policy pages, product/collection content linked from menus, cart, customer, checkout, metaobject, and Storefront mutation domains remain outside this slice unless another endpoint document names them explicitly.

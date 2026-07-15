@@ -1166,19 +1166,26 @@ impl DraftProxy {
                 } else {
                     publishable_input_publication_ids(&field.arguments)
                 };
+                let published_at = self.next_product_timestamp();
                 let set = self
                     .store
                     .staged
                     .resource_publications
                     .entry(resource_id.clone())
                     .or_default();
-                for publication_id in publication_ids {
+                for publication_id in &publication_ids {
                     if publish {
-                        set.insert(publication_id);
+                        set.insert(publication_id.clone());
                     } else {
-                        set.remove(&publication_id);
+                        set.remove(publication_id);
                     }
                 }
+                self.sync_product_publication_entries(
+                    &resource_id,
+                    &publication_ids,
+                    publish,
+                    &published_at,
+                );
                 self.record_mutation_log_entry(request, query, variables, root_field, vec![]);
             }
             // When the payload selects `shop { publicationCount }` and the shop

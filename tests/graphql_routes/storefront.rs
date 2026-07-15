@@ -1,6 +1,123 @@
 use super::common::*;
 use shopify_draft_proxy::proxy::UnsupportedMutationMode;
 
+fn storefront_graphql_request(query: &str, variables: Value) -> Request {
+    request_with_body(
+        "POST",
+        "/api/2026-04/graphql.json",
+        &json!({
+            "query": query,
+            "variables": variables
+        })
+        .to_string(),
+    )
+}
+
+fn storefront_product_fixture(
+    id: &str,
+    title: &str,
+    handle: &str,
+    publication_id: Option<&str>,
+) -> ProductRecord {
+    let mut product = ProductRecord {
+        id: id.to_string(),
+        created_at: "2024-01-01T00:00:00.000Z".to_string(),
+        updated_at: "2024-01-02T00:00:00.000Z".to_string(),
+        title: title.to_string(),
+        handle: handle.to_string(),
+        status: "ACTIVE".to_string(),
+        description_html: format!("<p>{title} description</p>"),
+        vendor: "Hermes".to_string(),
+        product_type: "Accessory".to_string(),
+        tags: vec!["storefront".to_string(), "catalog".to_string()],
+        seo_title: format!("{title} SEO"),
+        seo_description: format!("{title} SEO description"),
+        total_inventory: 7,
+        tracks_inventory: true,
+        ..ProductRecord::default()
+    };
+    if let Some(publication_id) = publication_id {
+        product.extra_fields.insert(
+            "productPublications".to_string(),
+            json!([{ "publicationId": publication_id, "publishedAt": "2024-01-03T00:00:00.000Z" }]),
+        );
+        product
+            .extra_fields
+            .insert("publishedAt".to_string(), json!("2024-01-03T00:00:00.000Z"));
+    }
+    product
+}
+
+fn restore_storefront_current_publication(proxy: &mut DraftProxy, publication_id: &str) {
+    restore_state_with(proxy, |state| {
+        state["baseState"]["publicationIds"] = json!([publication_id]);
+        state["baseState"]["publicationCount"] = json!(1);
+        state["stagedState"]["currentChannelPublicationId"] = json!(publication_id);
+        state["stagedState"]["currentChannelPublicationResolved"] = json!(true);
+    });
+}
+
+fn publish_to_current_storefront_channel(proxy: &mut DraftProxy, product_id: &str) {
+    let publish = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PublishToCurrentStorefrontChannel($id: ID!) {
+          publishablePublishToCurrentChannel(id: $id) {
+            publishable { ... on Product { id } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": product_id }),
+    ));
+    assert_eq!(publish.status, 200);
+    assert_eq!(
+        publish.body["data"]["publishablePublishToCurrentChannel"]["userErrors"],
+        json!([])
+    );
+}
+
+fn unpublish_from_current_storefront_channel(proxy: &mut DraftProxy, product_id: &str) {
+    let unpublish = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnpublishFromCurrentStorefrontChannel($id: ID!) {
+          publishableUnpublishToCurrentChannel(id: $id) {
+            publishable { ... on Product { id } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": product_id }),
+    ));
+    assert_eq!(unpublish.status, 200);
+    assert_eq!(
+        unpublish.body["data"]["publishableUnpublishToCurrentChannel"]["userErrors"],
+        json!([])
+    );
+}
+
+fn add_storefront_inventory_location(proxy: &mut DraftProxy) -> String {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AddStorefrontInventoryLocation($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "name": "Storefront inventory", "address": { "countryCode": "US" } } }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["locationAdd"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["locationAdd"]["location"]["id"]
+        .as_str()
+        .expect("location add should return id")
+        .to_string()
+}
+
 #[test]
 fn storefront_graphql_route_proxies_request_with_storefront_token_header() {
     let observed_requests = Arc::new(Mutex::new(Vec::<Request>::new()));
@@ -187,6 +304,52 @@ fn storefront_graphql_route_uses_storefront_schema_validation_not_admin_validati
 }
 
 #[test]
+fn storefront_catalog_live_hybrid_without_local_catalog_state_stays_passthrough() {
+    let observed_requests = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let observed_for_proxy = Arc::clone(&observed_requests);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        observed_for_proxy.lock().unwrap().push(request);
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "product": {
+                        "id": "gid://shopify/Product/upstream",
+                        "title": "Upstream Storefront Product"
+                    }
+                }
+            }),
+        }
+    });
+
+    let body = json!({
+        "query": "query StorefrontProductPassthrough { product(id: \"gid://shopify/Product/upstream\") { id title } }",
+        "variables": {}
+    })
+    .to_string();
+    let response = proxy.process_request(Request {
+        method: "POST".to_string(),
+        path: "/api/2026-04/graphql.json".to_string(),
+        headers: Default::default(),
+        body: body.clone(),
+    });
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["product"]["title"],
+        json!("Upstream Storefront Product")
+    );
+    let observed = observed_requests.lock().unwrap();
+    assert_eq!(observed.len(), 1);
+    assert_eq!(observed[0].body, body);
+}
+
+#[test]
 fn storefront_graphql_route_rejects_roots_missing_from_storefront_schema_before_upstream() {
     let mut proxy = configured_proxy(
         ReadMode::LiveHybrid,
@@ -265,6 +428,698 @@ fn storefront_graphql_snapshot_mode_rejects_mutations_without_upstream() {
     assert_eq!(
         response.body,
         json!({ "errors": [{ "message": "Storefront API mutations are not locally implemented in snapshot mode" }] })
+    );
+}
+
+#[test]
+fn storefront_catalog_roots_read_visible_products_from_shared_state() {
+    let current_publication_id = "gid://shopify/Publication/current-storefront";
+    let visible_product_id = "gid://shopify/Product/visible-storefront";
+    let unpublished_product_id = "gid://shopify/Product/unpublished-storefront";
+    let draft_product_id = "gid://shopify/Product/draft-storefront";
+    let mut draft_product = storefront_product_fixture(
+        draft_product_id,
+        "Draft Storefront Product",
+        "draft-storefront-product",
+        Some(current_publication_id),
+    );
+    draft_product.status = "DRAFT".to_string();
+    let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|_| panic!("snapshot Storefront catalog should not call upstream"))
+        .with_base_products(vec![
+            storefront_product_fixture(
+                visible_product_id,
+                "Visible Storefront Product",
+                "visible-storefront-product",
+                Some(current_publication_id),
+            ),
+            storefront_product_fixture(
+                unpublished_product_id,
+                "Unpublished Storefront Product",
+                "unpublished-storefront-product",
+                None,
+            ),
+            draft_product,
+        ]);
+    restore_state_with(&mut proxy, |state| {
+        state["baseState"]["publicationIds"] = json!([current_publication_id]);
+        state["baseState"]["publicationCount"] = json!(1);
+        state["stagedState"]["currentChannelPublicationId"] = json!(current_publication_id);
+        state["stagedState"]["currentChannelPublicationResolved"] = json!(true);
+    });
+
+    let response = proxy.process_request(storefront_graphql_request(
+        r#"
+        query StorefrontCatalogCore($id: ID!, $handle: String!) {
+          byId: product(id: $id) {
+            id
+            title
+            handle
+            description
+            descriptionHtml
+            availableForSale
+            totalInventory
+            vendor
+            productType
+            tags
+            publishedAt
+            seo { title description }
+          }
+          byHandle: productByHandle(handle: $handle) {
+            id
+            title
+            handle
+          }
+          products(first: 10, sortKey: TITLE) {
+            nodes {
+              id
+              title
+              handle
+            }
+            pageInfo { hasNextPage hasPreviousPage }
+          }
+        }
+        "#,
+        json!({
+            "id": visible_product_id,
+            "handle": "visible-storefront-product"
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"],
+        json!({
+            "byId": {
+                "id": visible_product_id,
+                "title": "Visible Storefront Product",
+                "handle": "visible-storefront-product",
+                "description": "Visible Storefront Product description",
+                "descriptionHtml": "<p>Visible Storefront Product description</p>",
+                "availableForSale": true,
+                "totalInventory": 7,
+                "vendor": "Hermes",
+                "productType": "Accessory",
+                "tags": ["storefront", "catalog"],
+                "publishedAt": "2024-01-03T00:00:00.000Z",
+                "seo": {
+                    "title": "Visible Storefront Product SEO",
+                    "description": "Visible Storefront Product SEO description"
+                }
+            },
+            "byHandle": {
+                "id": visible_product_id,
+                "title": "Visible Storefront Product",
+                "handle": "visible-storefront-product"
+            },
+            "products": {
+                "nodes": [{
+                    "id": visible_product_id,
+                    "title": "Visible Storefront Product",
+                    "handle": "visible-storefront-product"
+                }],
+                "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                }
+            }
+        })
+    );
+}
+
+#[test]
+fn storefront_catalog_reflects_admin_staged_lifecycle_and_variant_inventory() {
+    let current_publication_id = "gid://shopify/Publication/current-storefront";
+    let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|_| {
+            panic!("snapshot Storefront catalog should not call upstream")
+        });
+    restore_storefront_current_publication(&mut proxy, current_publication_id);
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StorefrontCatalogCreate($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id title handle }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "title": "Stage Storefront Tee",
+                "handle": "stage-storefront-tee",
+                "status": "ACTIVE",
+                "descriptionHtml": "<p>Stage catalog body</p>",
+                "vendor": "Hermes",
+                "productType": "Tee",
+                "tags": ["new", "storefront"]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let product_id = create.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .expect("productCreate should return id")
+        .to_string();
+    publish_to_current_storefront_channel(&mut proxy, &product_id);
+
+    let variant = create_legacy_variant(&mut proxy, &product_id, "STAGE-TEE", "12.50");
+    let variant_id = variant["id"]
+        .as_str()
+        .expect("variant create should return id")
+        .to_string();
+    let inventory_item_id = variant["inventoryItem"]["id"]
+        .as_str()
+        .expect("variant create should return inventory item id")
+        .to_string();
+
+    let update_variant = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StorefrontVariantUpdate($input: ProductVariantInput!) {
+          productVariantUpdate(input: $input) {
+            productVariant { id sku barcode price compareAtPrice selectedOptions { name value } inventoryItem { tracked requiresShipping } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": variant_id,
+                "title": "Storefront Red",
+                "sku": "STAGE-RED",
+                "barcode": "stage-barcode",
+                "price": "14.25",
+                "compareAtPrice": "18.00",
+                "selectedOptions": [{ "name": "Color", "value": "Red" }],
+                "inventoryItem": {
+                    "tracked": true,
+                    "requiresShipping": false
+                }
+            }
+        }),
+    ));
+    assert_eq!(update_variant.status, 200);
+    assert_eq!(
+        update_variant.body["data"]["productVariantUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let location_id = add_storefront_inventory_location(&mut proxy);
+    let set_inventory = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StorefrontInventorySet($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) {
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "available",
+                "reason": "correction",
+                "ignoreCompareQuantity": true,
+                "quantities": [{
+                    "inventoryItemId": inventory_item_id,
+                    "locationId": location_id,
+                    "quantity": 5
+                }]
+            }
+        }),
+    ));
+    assert_eq!(set_inventory.status, 200);
+    assert_eq!(
+        set_inventory.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let storefront = proxy.process_request(storefront_graphql_request(
+        r#"
+        query StorefrontCatalogAfterAdminWrites($handle: String!) {
+          productByHandle(handle: $handle) {
+            id
+            title
+            handle
+            availableForSale
+            priceRange { minVariantPrice { amount currencyCode } maxVariantPrice { amount currencyCode } }
+            compareAtPriceRange { minVariantPrice { amount currencyCode } maxVariantPrice { amount currencyCode } }
+            variants(first: 5) {
+              nodes {
+                id
+                title
+                sku
+                barcode
+                availableForSale
+                quantityAvailable
+                requiresShipping
+                price { amount currencyCode }
+                compareAtPrice { amount currencyCode }
+                selectedOptions { name value }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "handle": "stage-storefront-tee" }),
+    ));
+    assert_eq!(storefront.status, 200);
+    assert_eq!(
+        storefront.body["data"]["productByHandle"],
+        json!({
+            "id": product_id,
+            "title": "Stage Storefront Tee",
+            "handle": "stage-storefront-tee",
+            "availableForSale": true,
+            "priceRange": {
+                "minVariantPrice": { "amount": "14.25", "currencyCode": "USD" },
+                "maxVariantPrice": { "amount": "14.25", "currencyCode": "USD" }
+            },
+            "compareAtPriceRange": {
+                "minVariantPrice": { "amount": "18.0", "currencyCode": "USD" },
+                "maxVariantPrice": { "amount": "18.0", "currencyCode": "USD" }
+            },
+            "variants": {
+                "nodes": [{
+                    "id": variant_id,
+                    "title": "Storefront Red",
+                    "sku": "STAGE-RED",
+                    "barcode": "stage-barcode",
+                    "availableForSale": true,
+                    "quantityAvailable": 5,
+                    "requiresShipping": false,
+                    "price": { "amount": "14.25", "currencyCode": "USD" },
+                    "compareAtPrice": { "amount": "18.0", "currencyCode": "USD" },
+                    "selectedOptions": [{ "name": "Color", "value": "Red" }]
+                }]
+            }
+        })
+    );
+
+    let update_product = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StorefrontCatalogUpdate($product: ProductUpdateInput!) {
+          productUpdate(product: $product) {
+            product { id title handle }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "product": { "id": product_id, "title": "Updated Storefront Tee", "handle": "updated-storefront-tee" } }),
+    ));
+    assert_eq!(update_product.status, 200);
+    assert_eq!(
+        update_product.body["data"]["productUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let updated = proxy.process_request(storefront_graphql_request(
+        r#"
+        query StorefrontUpdatedHandle($oldHandle: String!, $newHandle: String!) {
+          old: productByHandle(handle: $oldHandle) { id }
+          new: productByHandle(handle: $newHandle) { id title handle }
+        }
+        "#,
+        json!({
+            "oldHandle": "stage-storefront-tee",
+            "newHandle": "updated-storefront-tee"
+        }),
+    ));
+    assert_eq!(updated.status, 200);
+    assert_eq!(updated.body["data"]["old"], Value::Null);
+    assert_eq!(
+        updated.body["data"]["new"],
+        json!({
+            "id": product_id,
+            "title": "Updated Storefront Tee",
+            "handle": "updated-storefront-tee"
+        })
+    );
+
+    unpublish_from_current_storefront_channel(&mut proxy, &product_id);
+    let unpublished = proxy.process_request(storefront_graphql_request(
+        r#"
+        query StorefrontUnpublishedProduct($id: ID!) {
+          product(id: $id) { id }
+          products(first: 10) { nodes { id } }
+        }
+        "#,
+        json!({ "id": product_id }),
+    ));
+    assert_eq!(unpublished.status, 200);
+    assert_eq!(unpublished.body["data"]["product"], Value::Null);
+    assert_eq!(unpublished.body["data"]["products"]["nodes"], json!([]));
+
+    publish_to_current_storefront_channel(&mut proxy, &product_id);
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StorefrontCatalogDelete($id: ID!) {
+          productDelete(input: { id: $id }) {
+            deletedProductId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": product_id }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["productDelete"]["userErrors"],
+        json!([])
+    );
+
+    let deleted = proxy.process_request(storefront_graphql_request(
+        r#"
+        query StorefrontDeletedProduct($id: ID!) {
+          product(id: $id) { id }
+          products(first: 10) { nodes { id } }
+        }
+        "#,
+        json!({ "id": product_id }),
+    ));
+    assert_eq!(deleted.status, 200);
+    assert_eq!(deleted.body["data"]["product"], Value::Null);
+    assert_eq!(deleted.body["data"]["products"]["nodes"], json!([]));
+}
+
+#[test]
+fn storefront_catalog_uses_explicit_known_publication_when_current_context_unresolved() {
+    let publication_id = "gid://shopify/Publication/online-store";
+    let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|_| {
+            panic!("snapshot Storefront catalog should not call upstream")
+        });
+    restore_state_with(&mut proxy, |state| {
+        state["baseState"]["publicationIds"] = json!([publication_id]);
+        state["baseState"]["publicationCount"] = json!(1);
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StorefrontExplicitPublicationCreate($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id title handle }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "title": "Explicit Storefront Product",
+                "handle": "explicit-storefront-product",
+                "status": "ACTIVE"
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let product_id = create.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .expect("productCreate should return id")
+        .to_string();
+
+    let hidden_before_publish = proxy.process_request(storefront_graphql_request(
+        r#"
+        query StorefrontExplicitPublicationHidden($handle: String!) {
+          productByHandle(handle: $handle) { id }
+        }
+        "#,
+        json!({ "handle": "explicit-storefront-product" }),
+    ));
+    assert_eq!(hidden_before_publish.status, 200);
+    assert_eq!(
+        hidden_before_publish.body["data"]["productByHandle"],
+        Value::Null
+    );
+
+    let publish = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StorefrontExplicitPublicationPublish($id: ID!, $input: [PublicationInput!]!) {
+          publishablePublish(id: $id, input: $input) {
+            publishable { ... on Product { id } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": product_id,
+            "input": [{ "publicationId": publication_id }]
+        }),
+    ));
+    assert_eq!(publish.status, 200);
+    assert_eq!(
+        publish.body["data"]["publishablePublish"]["userErrors"],
+        json!([])
+    );
+
+    let visible = proxy.process_request(storefront_graphql_request(
+        r#"
+        query StorefrontExplicitPublicationVisible($handle: String!) {
+          productByHandle(handle: $handle) {
+            id
+            title
+            handle
+          }
+          products(first: 5) { nodes { id } }
+        }
+        "#,
+        json!({ "handle": "explicit-storefront-product" }),
+    ));
+    assert_eq!(visible.status, 200);
+    assert_eq!(
+        visible.body["data"]["productByHandle"],
+        json!({
+            "id": product_id,
+            "title": "Explicit Storefront Product",
+            "handle": "explicit-storefront-product"
+        })
+    );
+    assert_eq!(
+        visible.body["data"]["products"]["nodes"],
+        json!([{ "id": product_id }])
+    );
+
+    let unpublish = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StorefrontExplicitPublicationUnpublish($id: ID!, $input: [PublicationInput!]!) {
+          publishableUnpublish(id: $id, input: $input) {
+            publishable { ... on Product { id } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": product_id,
+            "input": [{ "publicationId": publication_id }]
+        }),
+    ));
+    assert_eq!(unpublish.status, 200);
+    assert_eq!(
+        unpublish.body["data"]["publishableUnpublish"]["userErrors"],
+        json!([])
+    );
+
+    let hidden_after_unpublish = proxy.process_request(storefront_graphql_request(
+        r#"
+        query StorefrontExplicitPublicationUnpublished($handle: String!) {
+          productByHandle(handle: $handle) { id }
+          products(first: 5) { nodes { id } }
+        }
+        "#,
+        json!({ "handle": "explicit-storefront-product" }),
+    ));
+    assert_eq!(hidden_after_unpublish.status, 200);
+    assert_eq!(
+        hidden_after_unpublish.body["data"]["productByHandle"],
+        Value::Null
+    );
+    assert_eq!(
+        hidden_after_unpublish.body["data"]["products"]["nodes"],
+        json!([])
+    );
+}
+
+#[test]
+fn storefront_products_connection_search_sort_window_and_fragments_use_visible_catalog() {
+    let current_publication_id = "gid://shopify/Publication/current-storefront";
+    let mut alpha = storefront_product_fixture(
+        "gid://shopify/Product/alpha-storefront",
+        "Alpha Jacket",
+        "alpha-jacket",
+        Some(current_publication_id),
+    );
+    alpha.vendor = "Northwind".to_string();
+    alpha.product_type = "Jackets".to_string();
+    alpha.created_at = "2024-01-01T00:00:00.000Z".to_string();
+    alpha.updated_at = "2024-01-03T00:00:00.000Z".to_string();
+    let mut beta = storefront_product_fixture(
+        "gid://shopify/Product/beta-storefront",
+        "Beta Jacket",
+        "beta-jacket",
+        Some(current_publication_id),
+    );
+    beta.vendor = "Southwind".to_string();
+    beta.product_type = "Jackets".to_string();
+    beta.created_at = "2024-01-02T00:00:00.000Z".to_string();
+    beta.updated_at = "2024-01-02T00:00:00.000Z".to_string();
+    let mut gamma = storefront_product_fixture(
+        "gid://shopify/Product/gamma-storefront",
+        "Gamma Shirt",
+        "gamma-shirt",
+        Some(current_publication_id),
+    );
+    gamma.vendor = "Northwind".to_string();
+    gamma.product_type = "Shirts".to_string();
+    gamma.created_at = "2024-01-03T00:00:00.000Z".to_string();
+    gamma.updated_at = "2024-01-01T00:00:00.000Z".to_string();
+    let draft = {
+        let mut product = storefront_product_fixture(
+            "gid://shopify/Product/draft-filter-storefront",
+            "Draft Northwind",
+            "draft-northwind",
+            Some(current_publication_id),
+        );
+        product.status = "DRAFT".to_string();
+        product
+    };
+    let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_base_products(vec![alpha, beta, gamma, draft])
+        .with_upstream_transport(|_| {
+            panic!("snapshot Storefront catalog should not call upstream")
+        });
+    restore_storefront_current_publication(&mut proxy, current_publication_id);
+    create_legacy_variant(
+        &mut proxy,
+        "gid://shopify/Product/alpha-storefront",
+        "ALPHA-PRICE",
+        "30.00",
+    );
+    create_legacy_variant(
+        &mut proxy,
+        "gid://shopify/Product/beta-storefront",
+        "BETA-PRICE",
+        "10.00",
+    );
+    create_legacy_variant(
+        &mut proxy,
+        "gid://shopify/Product/gamma-storefront",
+        "GAMMA-PRICE",
+        "20.00",
+    );
+
+    let response = proxy.process_request(storefront_graphql_request(
+        r#"
+        query StorefrontConnectionWindows($query: String!, $after: String!) {
+          northwind: products(first: 2, query: $query, sortKey: TITLE, reverse: true) {
+            nodes {
+              ...ProductCard
+            }
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          pageAfterAlpha: products(first: 2, sortKey: TITLE, after: $after) {
+            nodes { id title }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          priceSorted: products(first: 3, sortKey: PRICE) {
+            nodes {
+              handle
+              priceRange { minVariantPrice { amount } }
+            }
+          }
+          byId: product(id: "gid://shopify/Product/alpha-storefront") {
+            ... on Product {
+              aliasTitle: title
+              handle
+            }
+          }
+        }
+
+        fragment ProductCard on Product {
+          id
+          title
+          handle
+          vendor
+        }
+        "#,
+        json!({
+            "query": "vendor:Northwind",
+            "after": "gid://shopify/Product/alpha-storefront"
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["northwind"]["nodes"],
+        json!([
+            {
+                "id": "gid://shopify/Product/gamma-storefront",
+                "title": "Gamma Shirt",
+                "handle": "gamma-shirt",
+                "vendor": "Northwind"
+            },
+            {
+                "id": "gid://shopify/Product/alpha-storefront",
+                "title": "Alpha Jacket",
+                "handle": "alpha-jacket",
+                "vendor": "Northwind"
+            }
+        ])
+    );
+    assert_eq!(
+        response.body["data"]["northwind"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "gid://shopify/Product/gamma-storefront",
+            "endCursor": "gid://shopify/Product/alpha-storefront"
+        })
+    );
+    assert_eq!(
+        response.body["data"]["pageAfterAlpha"]["nodes"],
+        json!([
+            { "id": "gid://shopify/Product/beta-storefront", "title": "Beta Jacket" },
+            { "id": "gid://shopify/Product/gamma-storefront", "title": "Gamma Shirt" }
+        ])
+    );
+    assert_eq!(
+        response.body["data"]["pageAfterAlpha"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": true,
+            "startCursor": "gid://shopify/Product/beta-storefront",
+            "endCursor": "gid://shopify/Product/gamma-storefront"
+        })
+    );
+    assert_eq!(
+        response.body["data"]["priceSorted"]["nodes"],
+        json!([
+            {
+                "handle": "beta-jacket",
+                "priceRange": { "minVariantPrice": { "amount": "10.0" } }
+            },
+            {
+                "handle": "gamma-shirt",
+                "priceRange": { "minVariantPrice": { "amount": "20.0" } }
+            },
+            {
+                "handle": "alpha-jacket",
+                "priceRange": { "minVariantPrice": { "amount": "30.0" } }
+            }
+        ])
+    );
+    assert_eq!(
+        response.body["data"]["byId"],
+        json!({
+            "aliasTitle": "Alpha Jacket",
+            "handle": "alpha-jacket"
+        })
     );
 }
 
@@ -1119,13 +1974,4 @@ fn storefront_menu_projects_restored_captured_base_state_without_snapshot_fabric
             "title": "Visible page"
         })
     );
-}
-
-fn storefront_graphql_request(query: &str, variables: serde_json::Value) -> Request {
-    Request {
-        method: "POST".to_string(),
-        path: "/api/2026-04/graphql.json".to_string(),
-        headers: Default::default(),
-        body: json!({ "query": query, "variables": variables }).to_string(),
-    }
 }
