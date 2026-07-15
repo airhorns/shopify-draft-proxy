@@ -2,7 +2,7 @@ import 'dotenv/config';
 
 import { randomBytes, createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { access, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { access, chmod, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
 
@@ -11,12 +11,26 @@ import { z } from 'zod';
 import { DEFAULT_ADMIN_API_VERSION } from './support/shopify/api-version.js';
 import { runAdminGraphqlRequest } from './conformance-graphql-client.js';
 
+export const SHOPIFY_CONFORMANCE_AUTH_DIR = path.join(homedir(), '.shopify-draft-proxy');
+export const STOREFRONT_CONFORMANCE_APP_HANDLE = 'hermes-conformance-storefront';
+export const STOREFRONT_CONFORMANCE_REDIRECT_URI = 'http://127.0.0.1:13388/auth/callback';
+export const SHOPIFY_CONFORMANCE_STOREFRONT_ADMIN_AUTH_PATH = path.join(
+  SHOPIFY_CONFORMANCE_AUTH_DIR,
+  'conformance-storefront-admin-auth.json',
+);
+export const SHOPIFY_CONFORMANCE_STOREFRONT_ADMIN_PKCE_PATH = path.join(
+  SHOPIFY_CONFORMANCE_AUTH_DIR,
+  'conformance-storefront-admin-auth-pkce.json',
+);
+export const SHOPIFY_CONFORMANCE_STOREFRONT_ADMIN_AUTH_REQUEST_PATH = path.join(
+  SHOPIFY_CONFORMANCE_AUTH_DIR,
+  'conformance-storefront-admin-auth-request.json',
+);
 export const SHOPIFY_CONFORMANCE_STOREFRONT_AUTH_PATH = path.join(
-  path.join(homedir(), '.shopify-draft-proxy'),
+  SHOPIFY_CONFORMANCE_AUTH_DIR,
   'conformance-storefront-auth.json',
 );
 
-export const SHOPIFY_CONFORMANCE_AUTH_DIR = path.join(homedir(), '.shopify-draft-proxy');
 export const SHOPIFY_CONFORMANCE_AUTH_PATH = path.join(SHOPIFY_CONFORMANCE_AUTH_DIR, 'conformance-admin-auth.json');
 export const SHOPIFY_CONFORMANCE_PKCE_PATH = path.join(
   SHOPIFY_CONFORMANCE_AUTH_DIR,
@@ -26,6 +40,22 @@ export const SHOPIFY_CONFORMANCE_AUTH_REQUEST_PATH = path.join(
   SHOPIFY_CONFORMANCE_AUTH_DIR,
   'conformance-admin-auth-request.json',
 );
+
+export function getStorefrontConformanceAuthProfile(): {
+  appHandle: string;
+  redirectUri: string;
+  credentialPath: string;
+  authRequestPath: string;
+  pkcePath: string;
+} {
+  return {
+    appHandle: STOREFRONT_CONFORMANCE_APP_HANDLE,
+    redirectUri: STOREFRONT_CONFORMANCE_REDIRECT_URI,
+    credentialPath: SHOPIFY_CONFORMANCE_STOREFRONT_ADMIN_AUTH_PATH,
+    authRequestPath: SHOPIFY_CONFORMANCE_STOREFRONT_ADMIN_AUTH_REQUEST_PATH,
+    pkcePath: SHOPIFY_CONFORMANCE_STOREFRONT_ADMIN_PKCE_PATH,
+  };
+}
 
 const DEFAULT_REDIRECT_URI = 'http://127.0.0.1:13387/auth/callback';
 const PROBE_QUERY = `#graphql
@@ -118,7 +148,8 @@ function parseEnvFile(content: string): Record<string, string> {
 async function writeJsonAtomically(filePath: string, value: unknown): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });
   const tempPath = `${filePath}.tmp`;
-  await writeFile(tempPath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+  await writeFile(tempPath, `${JSON.stringify(value, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
+  await chmod(tempPath, 0o600);
   await rename(tempPath, filePath);
 }
 
@@ -226,28 +257,40 @@ async function probeAccessToken({
   };
 }
 
-export function resolveDefaultAppRoot({ repoRoot = process.cwd() }: { repoRoot?: string } = {}): string {
-  const appHandle = process.env['SHOPIFY_CONFORMANCE_APP_HANDLE'] || 'hermes-conformance-products';
-  const repoLocalRoot = path.join(repoRoot, 'shopify-conformance-app', appHandle);
+export function resolveDefaultAppRoot({
+  repoRoot = process.cwd(),
+  appHandle,
+}: {
+  repoRoot?: string;
+  appHandle?: string;
+} = {}): string {
+  const resolvedAppHandle = appHandle || process.env['SHOPIFY_CONFORMANCE_APP_HANDLE'] || 'hermes-conformance-products';
+  const repoLocalRoot = path.join(repoRoot, 'shopify-conformance-app', resolvedAppHandle);
   if (existsSync(repoLocalRoot)) {
     return repoLocalRoot;
   }
 
-  return path.join('/tmp/shopify-conformance-app', appHandle);
+  return path.join('/tmp/shopify-conformance-app', resolvedAppHandle);
 }
 
-export function resolveDefaultAppEnvPath({ repoRoot = process.cwd() }: { repoRoot?: string } = {}): string {
-  if (process.env['SHOPIFY_CONFORMANCE_APP_ENV_PATH']) {
+export function resolveDefaultAppEnvPath({
+  repoRoot = process.cwd(),
+  appHandle,
+}: {
+  repoRoot?: string;
+  appHandle?: string;
+} = {}): string {
+  if (process.env['SHOPIFY_CONFORMANCE_APP_ENV_PATH'] && !appHandle) {
     return process.env['SHOPIFY_CONFORMANCE_APP_ENV_PATH'];
   }
 
-  const appHandle = process.env['SHOPIFY_CONFORMANCE_APP_HANDLE'] || 'hermes-conformance-products';
-  const repoLocalEnvPath = path.join(repoRoot, 'shopify-conformance-app', appHandle, '.env');
+  const resolvedAppHandle = appHandle || process.env['SHOPIFY_CONFORMANCE_APP_HANDLE'] || 'hermes-conformance-products';
+  const repoLocalEnvPath = path.join(repoRoot, 'shopify-conformance-app', resolvedAppHandle, '.env');
   if (existsSync(repoLocalEnvPath)) {
     return repoLocalEnvPath;
   }
 
-  return path.join('/tmp/shopify-conformance-app', appHandle, '.env');
+  return path.join('/tmp/shopify-conformance-app', resolvedAppHandle, '.env');
 }
 
 async function readShopifyApiSecret(appEnvPath: string): Promise<string> {

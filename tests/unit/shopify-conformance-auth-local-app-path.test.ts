@@ -32,6 +32,15 @@ describe('resolveDefaultAppRoot', () => {
 
     expect(resolveDefaultAppRoot({ repoRoot })).toBe('/tmp/shopify-conformance-app/hermes-conformance-products');
   });
+
+  it('uses an explicit storefront app handle instead of the primary admin app', async () => {
+    const repoRoot = await createTempDir('shopify-auth-repo-');
+    process.env['SHOPIFY_CONFORMANCE_APP_HANDLE'] = 'hermes-conformance-products';
+    const appRoot = path.join(repoRoot, 'shopify-conformance-app', 'hermes-conformance-storefront');
+    await mkdir(appRoot, { recursive: true });
+
+    expect(resolveDefaultAppRoot({ repoRoot, appHandle: 'hermes-conformance-storefront' })).toBe(appRoot);
+  });
 });
 
 describe('resolveDefaultAppEnvPath', () => {

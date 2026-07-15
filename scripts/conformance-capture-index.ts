@@ -7461,7 +7461,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'Does not create disposable resources. Captures schema validation and current app access-scope observations only.',
     expectedStatusChecks: ['manual-capture-review', 'targeted-runtime-test', 'conformance:check', 'rust:test'],
     notes:
-      'The current conformance app still lacks pixel and storefront access-token write scopes, so successful live serverPixelCreate/storefrontAccessTokenCreate captures are not available from this credential; local success payloads remain Rust-test-backed.',
+      'The primary Admin conformance app still lacks the pixel-only scopes, but Storefront access-token creation now uses the separate deployed `hermes-conformance-storefront` sales-channel app and its local-only credential pair. Run `conformance:storefront-auth-link`, `conformance:exchange-storefront-auth`, and `conformance:grant-storefront-token` before recording a Storefront API request. Local success payloads remain Rust-test-backed until a registered capture script records the intended Storefront request family.',
   },
   {
     domain: 'collections',

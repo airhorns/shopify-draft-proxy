@@ -1,0 +1,20 @@
+handle = "conformance-us"
+label = "Shopify Draft Proxy Storefront Conformance"
+productFeedManagement = "manual"
+
+[capabilities]
+bundles = false
+digitalProducts = false
+subscriptions = false
+combinedListings = false
+unlistedProducts = false
+scheduledPublishing = false
+
+[requirements]
+expectsOnlineStoreParity = true
+merchantOfRecord = "merchant"
+
+[[countries]]
+code = "US"
+languages = ["en"]
+currency = "USD"
