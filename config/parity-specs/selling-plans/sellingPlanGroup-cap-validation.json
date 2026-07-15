@@ -7,6 +7,9 @@
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/selling-plans/selling-plan-group-cap-validation.json"
   ],
   "runtimeTestFiles": ["tests/graphql_routes/selling_plans.rs"],
+  "proxyConfig": {
+    "readMode": "live-hybrid"
+  },
   "proxyRequest": {
     "documentPath": "config/parity-requests/products/productCreate-parity-plan.graphql",
     "variablesCapturePath": "$.scenarios.productSetup.request.variables",

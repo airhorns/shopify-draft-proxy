@@ -4,7 +4,7 @@ title: 'Storefront API'
 
 # Storefront API
 
-The Storefront API surface covers `/api/<version>/graphql.json` requests. The proxy supports a read-only 2026-04 slice for store context roots, core catalog product reads, and online-store content roots that can be hydrated from authenticated Storefront reads, shared Admin-observed state, or locally staged Admin writes.
+The Storefront API surface covers `/api/<version>/graphql.json` requests. The proxy supports a read-only 2026-04 slice for store-context roots, core catalog product reads, and online-store content roots that can be hydrated from authenticated Storefront reads, shared Admin-observed state, or locally staged Admin writes. Storefront requests execute against a Storefront-specific GraphQL schema rather than the Admin schema.
 
 ## Current support and limitations
 
@@ -32,17 +32,19 @@ Read roots:
 - `sitemap`
 - `urlRedirects`
 
-Mutation roots remain unsupported for local Storefront execution. In snapshot mode they return the Storefront snapshot mutation rejection response; in live-hybrid mode unimplemented Storefront roots continue through the Storefront passthrough path and are logged as Storefront traffic.
+Mutation roots remain unsupported for local Storefront execution. In snapshot mode, schema-valid mutations return the Storefront snapshot mutation rejection response. In live-hybrid mode, operations containing unimplemented Storefront roots continue through the Storefront passthrough path and are logged as Storefront traffic.
 
 ### Local behavior
 
-Storefront local roots dispatch only for Storefront API version `2026-04`. Dispatch is keyed by the Storefront surface plus parsed root fields, so Admin roots with the same names stay isolated from Storefront handling. Selection aliases, fragments, built-in directives, GraphQL validation, and the selected API version are preserved by the Storefront route before local projection runs.
+Storefront local roots execute only for Storefront API version `2026-04`. That route uses the complete captured 2026-04 Storefront type graph as an independently cached executable schema. GraphQL operation selection, aliases, fragments, built-in directives, argument and variable coercion, field/type validation, response projection, and null propagation are therefore enforced against Storefront types. Storefront roots map to globally unique internal resolver names (`shop` becomes `storefrontShop`), so Admin roots with the same public names stay isolated from Storefront handling.
 
-Live-hybrid reads hydrate missing first-slice base state through explicit Storefront upstream calls, then answer the caller from the instance-owned store. The hydrated state includes Storefront shop fields, context-keyed localization, payment settings, locations with captured cursors, and public API versions. Snapshot reads do not invent shop, localization, payment, location, market, or API-version values; empty state returns null objects or empty connections/lists according to the local no-data boundary.
+The accepted `2025-01` route has no complete captured executable schema. Live-hybrid and passthrough requests for that version are forwarded unchanged; snapshot requests retain the legacy schema-shaped no-data fallback. The runtime does not silently substitute either an Admin schema or the 2026-04 Storefront schema.
+
+Live-hybrid reads hydrate missing first-slice base state through explicit Storefront upstream calls, then answer the caller from the instance-owned store. The hydrated state includes Storefront shop fields, context-keyed localization, payment settings, locations with captured cursors, and public API versions. Snapshot reads do not invent shop, localization, payment, location, market, or API-version values. Empty connections and lists remain empty; absent objects resolve to null when the schema permits it, while absent non-null roots produce a GraphQL execution error and normal null propagation instead of invalid partial data.
 
 Storefront catalog reads dispatch locally only when the proxy has shared product state and explicit publication visibility context in live-hybrid mode: either the current-channel publication is resolved or the store has a known publication catalog with staged product membership. Without that local catalog basis, live-hybrid product reads continue through the Storefront passthrough path. Snapshot mode answers from the local state only: unknown, draft, unpublished, deleted, or publication-unresolved products return `null` for `product` / `productByHandle` and are omitted from `products(...)`.
 
-`@inContext(country:, language:)` is parsed into a reusable Storefront request context. The current context model stores country and language values and leaves room for later buyer, company, and location context without adding a separate dispatcher.
+`@inContext(country:, language:)` is parsed from the original operation into a reusable Storefront request context. The engine-facing copy removes only that custom directive and variables used exclusively by it because the dynamic executor cannot register its runtime behavior; all other directives and variable uses remain under normal GraphQL validation. The current context model stores country and language values.
 
 `shop` projects selected Storefront fields from captured Storefront shop state when available. It may reuse Admin-observed `shop`, `primaryDomain`, shop policy, money-format, and payment-setting fields when those shapes line up. It does not fabricate policy handles, domains, brand assets, or payment account values when neither Storefront nor Admin state has supplied them.
 
@@ -74,8 +76,10 @@ Projected content fields include the selected handle, title, body/content HTML a
 
 ### Boundaries
 
-This is not support for every field on `Shop`, `Localization`, `Location`, `PaymentSettings`, content, menu, sitemap, redirect, `Product`, `ProductVariant`, or related nested types. Fields outside the selected and hydrated boundary return null/empty values when no shared store state has supplied them.
+This is not local behavioral support for every field exposed by the captured `Shop`, `Localization`, `Location`, `PaymentSettings`, content, menu, sitemap, redirect, `Product`, `ProductVariant`, or related nested types. The schema validates those fields, but fields outside the selected and hydrated boundary have no modeled Storefront state and therefore resolve through the documented null/empty boundary or schema null propagation.
 
 Admin blog/page/article create, update, and delete effects are visible through the Storefront content roots when those Admin operations are locally supported. Admin menu CRUD is not locally modeled, so Storefront menu support is captured Storefront hydration/restored base-state projection only. URL redirect mutation lifecycle is not implemented for Storefront.
 
 Storefront contextual pricing, selling plan allocations, bundle component/grouping details, store availability, quantity price breaks/rules beyond the default minimum/increment shape, product recommendations, theme rendering, Online Store routing, canonical URL generation, storefront policy pages, product/collection content linked from menus, cart, customer, checkout, metaobject, and Storefront mutation domains remain outside this slice unless another endpoint document names them explicitly.
+
+Live-hybrid operations that include unimplemented roots are forwarded as one unchanged Storefront request, while snapshot mode returns schema-shaped no-data behavior or rejects mutations.

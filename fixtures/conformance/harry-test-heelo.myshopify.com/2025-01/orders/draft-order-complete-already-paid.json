@@ -4,15 +4,15 @@
       "query": "mutation DraftOrderCompleteAlreadyPaidCreate($input: DraftOrderInput!) {\n  draftOrderCreate(input: $input) {\n    draftOrder {\n      id\n      name\n      status\n      ready\n      tags\n      totalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
       "variables": {
         "input": {
-          "email": "draft-complete-already-paid-1782065079457@example.com",
+          "email": "draft-complete-already-paid-1784037610035@example.com",
           "note": "draft order complete already paid conformance",
-          "tags": ["dcap-mqo3jbmp", "dcap"],
+          "tags": ["dcap-mrkpxhyr", "dcap"],
           "lineItems": [
             {
               "title": "Already paid completion guard",
               "quantity": 1,
               "originalUnitPrice": "1.00",
-              "sku": "paid-guard-1782065079457"
+              "sku": "paid-guard-1784037610035"
             }
           ]
         }
@@ -21,11 +21,11 @@
         "data": {
           "draftOrderCreate": {
             "draftOrder": {
-              "id": "gid://shopify/DraftOrder/1269177942322",
-              "name": "#D200",
+              "id": "gid://shopify/DraftOrder/1280992215346",
+              "name": "#D343",
               "status": "OPEN",
               "ready": true,
-              "tags": ["dcap", "dcap-mqo3jbmp"],
+              "tags": ["dcap", "dcap-mrkpxhyr"],
               "totalPriceSet": {
                 "shopMoney": {
                   "amount": "1.0",
@@ -52,18 +52,18 @@
     "firstComplete": {
       "query": "mutation DraftOrderCompleteAlreadyPaidComplete($id: ID!, $paymentPending: Boolean) {\n  draftOrderComplete(id: $id, sourceName: \"shopify-draft-proxy\", paymentPending: $paymentPending) {\n    draftOrder {\n      id\n      status\n      order {\n        id\n        name\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
       "variables": {
-        "id": "gid://shopify/DraftOrder/1269177942322",
+        "id": "gid://shopify/DraftOrder/1280992215346",
         "paymentPending": false
       },
       "response": {
         "data": {
           "draftOrderComplete": {
             "draftOrder": {
-              "id": "gid://shopify/DraftOrder/1269177942322",
+              "id": "gid://shopify/DraftOrder/1280992215346",
               "status": "COMPLETED",
               "order": {
-                "id": "gid://shopify/Order/8835931701554",
-                "name": "#1467"
+                "id": "gid://shopify/Order/8951183343922",
+                "name": "#1831"
               }
             },
             "userErrors": []
@@ -85,13 +85,13 @@
     "afterFirstOrderRead": {
       "query": "query DraftOrderCompleteAlreadyPaidOrderRead($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    displayFinancialStatus\n  }\n}",
       "variables": {
-        "id": "gid://shopify/Order/8835931701554"
+        "id": "gid://shopify/Order/8951183343922"
       },
       "response": {
         "data": {
           "order": {
-            "id": "gid://shopify/Order/8835931701554",
-            "name": "#1467",
+            "id": "gid://shopify/Order/8951183343922",
+            "name": "#1831",
             "displayFinancialStatus": "PAID"
           }
         },
@@ -112,18 +112,18 @@
   "mutation": {
     "query": "mutation DraftOrderCompleteAlreadyPaidComplete($id: ID!, $paymentPending: Boolean) {\n  draftOrderComplete(id: $id, sourceName: \"shopify-draft-proxy\", paymentPending: $paymentPending) {\n    draftOrder {\n      id\n      status\n      order {\n        id\n        name\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
     "variables": {
-      "id": "gid://shopify/DraftOrder/1269177942322",
+      "id": "gid://shopify/DraftOrder/1280992215346",
       "paymentPending": false
     },
     "response": {
       "data": {
         "draftOrderComplete": {
           "draftOrder": {
-            "id": "gid://shopify/DraftOrder/1269177942322",
+            "id": "gid://shopify/DraftOrder/1280992215346",
             "status": "COMPLETED",
             "order": {
-              "id": "gid://shopify/Order/8835931701554",
-              "name": "#1467"
+              "id": "gid://shopify/Order/8951183343922",
+              "name": "#1831"
             }
           },
           "userErrors": [
@@ -150,19 +150,19 @@
   "orderRead": {
     "query": "query DraftOrderCompleteAlreadyPaidOrderRead($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    displayFinancialStatus\n  }\n}",
     "variables": {
-      "id": "gid://shopify/Order/8835931701554"
+      "id": "gid://shopify/Order/8951183343922"
     }
   },
   "afterSecondOrderRead": {
     "query": "query DraftOrderCompleteAlreadyPaidOrderRead($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    displayFinancialStatus\n  }\n}",
     "variables": {
-      "id": "gid://shopify/Order/8835931701554"
+      "id": "gid://shopify/Order/8951183343922"
     },
     "response": {
       "data": {
         "order": {
-          "id": "gid://shopify/Order/8835931701554",
-          "name": "#1467",
+          "id": "gid://shopify/Order/8951183343922",
+          "name": "#1831",
           "displayFinancialStatus": "PAID"
         }
       },
@@ -182,19 +182,19 @@
   "downstreamRead": {
     "query": "query DraftOrderCompleteAlreadyPaidDraftRead($id: ID!) {\n    draftOrder(id: $id) {\n      id\n      name\n      status\n      ready\n      completedAt\n      order {\n        id\n        name\n      }\n    }\n  }",
     "variables": {
-      "id": "gid://shopify/DraftOrder/1269177942322"
+      "id": "gid://shopify/DraftOrder/1280992215346"
     },
     "response": {
       "data": {
         "draftOrder": {
-          "id": "gid://shopify/DraftOrder/1269177942322",
-          "name": "#D200",
+          "id": "gid://shopify/DraftOrder/1280992215346",
+          "name": "#D343",
           "status": "COMPLETED",
           "ready": true,
-          "completedAt": "2026-06-21T18:04:40Z",
+          "completedAt": "2026-07-14T14:00:11Z",
           "order": {
-            "id": "gid://shopify/Order/8835931701554",
-            "name": "#1467"
+            "id": "gid://shopify/Order/8951183343922",
+            "name": "#1831"
           }
         }
       },
@@ -215,7 +215,7 @@
     "cancelOrder": {
       "query": "mutation DraftOrderCompleteAlreadyPaidCleanup($orderId: ID!, $reason: OrderCancelReason!, $notifyCustomer: Boolean!, $restock: Boolean!) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n        done\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
       "variables": {
-        "orderId": "gid://shopify/Order/8835931701554",
+        "orderId": "gid://shopify/Order/8951183343922",
         "reason": "OTHER",
         "notifyCustomer": false,
         "restock": false
@@ -224,7 +224,7 @@
         "data": {
           "orderCancel": {
             "job": {
-              "id": "gid://shopify/Job/10819a9b-19ed-4c3a-9913-24eadb3b37eb",
+              "id": "gid://shopify/Job/ae0f62c2-893a-4edd-857f-2dd99382c6a0",
               "done": false
             },
             "userErrors": []
@@ -243,5 +243,35 @@
         }
       }
     }
-  }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "DraftProxyShopPricingHydrate",
+      "variables": {},
+      "query": "query DraftProxyShopPricingHydrate { shop { currencyCode taxesIncluded taxShipping } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shop": {
+              "currencyCode": "CAD",
+              "taxesIncluded": false,
+              "taxShipping": false
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

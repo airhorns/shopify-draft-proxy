@@ -24,7 +24,7 @@
   "create": {
     "variables": {
       "product": {
-        "title": "Draft Proxy Price Range Hat 1783213782747",
+        "title": "Draft Proxy Price Range Hat 1784045503078",
         "status": "DRAFT",
         "productOptions": [
           {
@@ -42,7 +42,7 @@
       "data": {
         "productCreate": {
           "product": {
-            "id": "gid://shopify/Product/10231748886834",
+            "id": "gid://shopify/Product/10240312410418",
             "priceRangeV2": {
               "minVariantPrice": {
                 "amount": "0.0",
@@ -71,7 +71,7 @@
             "variants": {
               "nodes": [
                 {
-                  "id": "gid://shopify/ProductVariant/51424351486258",
+                  "id": "gid://shopify/ProductVariant/51474116018482",
                   "title": "Red",
                   "price": "0.00",
                   "selectedOptions": [
@@ -102,10 +102,10 @@
   },
   "priceUpdate": {
     "variables": {
-      "productId": "gid://shopify/Product/10231748886834",
+      "productId": "gid://shopify/Product/10240312410418",
       "variants": [
         {
-          "id": "gid://shopify/ProductVariant/51424351486258",
+          "id": "gid://shopify/ProductVariant/51474116018482",
           "price": "10.00",
           "compareAtPrice": "15.00"
         }
@@ -115,7 +115,7 @@
       "data": {
         "productVariantsBulkUpdate": {
           "product": {
-            "id": "gid://shopify/Product/10231748886834",
+            "id": "gid://shopify/Product/10240312410418",
             "priceRangeV2": {
               "minVariantPrice": {
                 "amount": "10.0",
@@ -148,7 +148,7 @@
           },
           "productVariants": [
             {
-              "id": "gid://shopify/ProductVariant/51424351486258",
+              "id": "gid://shopify/ProductVariant/51474116018482",
               "price": "10.00",
               "compareAtPrice": "15.00"
             }
@@ -171,7 +171,7 @@
   },
   "bulkCreate": {
     "variables": {
-      "productId": "gid://shopify/Product/10231748886834",
+      "productId": "gid://shopify/Product/10240312410418",
       "variants": [
         {
           "optionValues": [
@@ -199,7 +199,7 @@
       "data": {
         "productVariantsBulkCreate": {
           "product": {
-            "id": "gid://shopify/Product/10231748886834",
+            "id": "gid://shopify/Product/10240312410418",
             "priceRangeV2": {
               "minVariantPrice": {
                 "amount": "5.0",
@@ -242,13 +242,13 @@
           },
           "productVariants": [
             {
-              "id": "gid://shopify/ProductVariant/51424351519026",
+              "id": "gid://shopify/ProductVariant/51474116051250",
               "title": "Blue",
               "price": "5.00",
               "compareAtPrice": "9.00"
             },
             {
-              "id": "gid://shopify/ProductVariant/51424351551794",
+              "id": "gid://shopify/ProductVariant/51474116084018",
               "title": "Green",
               "price": "20.00",
               "compareAtPrice": "30.00"
@@ -273,7 +273,7 @@
   "downstreamRead": {
     "data": {
       "product": {
-        "id": "gid://shopify/Product/10231748886834",
+        "id": "gid://shopify/Product/10240312410418",
         "priceRangeV2": {
           "minVariantPrice": {
             "amount": "5.0",
@@ -329,14 +329,14 @@
   },
   "bulkDelete": {
     "variables": {
-      "productId": "gid://shopify/Product/10231748886834",
-      "variantsIds": ["gid://shopify/ProductVariant/51424351519026"]
+      "productId": "gid://shopify/Product/10240312410418",
+      "variantsIds": ["gid://shopify/ProductVariant/51474116051250"]
     },
     "response": {
       "data": {
         "productVariantsBulkDelete": {
           "product": {
-            "id": "gid://shopify/Product/10231748886834",
+            "id": "gid://shopify/Product/10240312410418",
             "priceRangeV2": {
               "minVariantPrice": {
                 "amount": "10.0",
@@ -382,7 +382,7 @@
   "postDeleteDownstreamRead": {
     "data": {
       "product": {
-        "id": "gid://shopify/Product/10231748886834",
+        "id": "gid://shopify/Product/10240312410418",
         "priceRangeV2": {
           "minVariantPrice": {
             "amount": "10.0",

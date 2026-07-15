@@ -131,13 +131,17 @@ impl DraftProxy {
         id: &str,
         selection: &[SelectedField],
     ) -> Option<Value> {
-        match shopify_gid_resource_type(id) {
-            Some("Blog") => self.online_store_value(OnlineStoreKind::Blog, id, selection),
-            Some("Page") => self.online_store_value(OnlineStoreKind::Page, id, selection),
-            Some("Article") => self.online_store_value(OnlineStoreKind::Article, id, selection),
-            Some("Comment") => self.online_store_value(OnlineStoreKind::Comment, id, selection),
-            _ => None,
+        let kind = match shopify_gid_resource_type(id) {
+            Some("Blog") => OnlineStoreKind::Blog,
+            Some("Page") => OnlineStoreKind::Page,
+            Some("Article") => OnlineStoreKind::Article,
+            Some("Comment") => OnlineStoreKind::Comment,
+            _ => return None,
+        };
+        if kind.deleted_ids(&self.store.staged).contains(id) {
+            return Some(Value::Null);
         }
+        self.online_store_value(kind, id, selection)
     }
 
     pub(in crate::proxy) fn online_store_content_query_needs_upstream(
@@ -333,9 +337,6 @@ impl DraftProxy {
         {
             return resource_payload(&field.selection, "blog", Value::Null, vec![error]);
         }
-        if let Some(error) = commentable_inclusion_error(&input) {
-            return resource_payload(&field.selection, "blog", Value::Null, vec![error]);
-        }
         let id = self.next_online_store_id("Blog");
         let timestamp = online_store_operation_timestamp();
         let record = blog_record(&id, &input, &timestamp);
@@ -372,9 +373,6 @@ impl DraftProxy {
         if let Some(error) =
             content_length_error(&input, "blog", ONLINE_STORE_HANDLE_MAX_CHARS, None)
         {
-            return resource_payload(&field.selection, "blog", Value::Null, vec![error]);
-        }
-        if let Some(error) = commentable_inclusion_error(&input) {
             return resource_payload(&field.selection, "blog", Value::Null, vec![error]);
         }
         let timestamp = online_store_operation_timestamp();
@@ -1171,12 +1169,8 @@ fn apply_title_and_handle(record: &mut Value, input: &BTreeMap<String, ResolvedV
 
 fn blog_record(id: &str, input: &BTreeMap<String, ResolvedValue>, timestamp: &str) -> Value {
     let (title, handle) = input_title_and_handle(input);
-    let comment_policy = resolved_string_field(input, "commentPolicy")
-        .or_else(|| {
-            resolved_string_field(input, "commentable")
-                .and_then(|value| normalize_commentable(&value).map(str::to_string))
-        })
-        .unwrap_or_else(|| "CLOSED".to_string());
+    let comment_policy =
+        resolved_string_field(input, "commentPolicy").unwrap_or_else(|| "CLOSED".to_string());
     json!({
         "__typename": "Blog",
         "id": id,
@@ -1196,11 +1190,6 @@ fn apply_blog_input(record: &mut Value, input: &BTreeMap<String, ResolvedValue>,
     apply_title_and_handle(record, input);
     if let Some(comment_policy) = resolved_string_field(input, "commentPolicy") {
         record["commentPolicy"] = json!(comment_policy);
-    }
-    if let Some(commentable) = resolved_string_field(input, "commentable") {
-        if let Some(commentable) = normalize_commentable(&commentable) {
-            record["commentPolicy"] = json!(commentable);
-        }
     }
     if input.contains_key("tags") {
         record["tags"] = json!(resolved_string_list_field(input, "tags"));
@@ -1241,11 +1230,7 @@ fn apply_page_input(record: &mut Value, input: &BTreeMap<String, ResolvedValue>,
         record["body"] = json!(body);
         record["bodySummary"] = json!(body_summary(record["body"].as_str().unwrap_or_default()));
     }
-    if input.contains_key("isPublished")
-        || input.contains_key("visible")
-        || input.contains_key("publishDate")
-        || input.contains_key("visibilityDate")
-    {
+    if input.contains_key("isPublished") || input.contains_key("publishDate") {
         let (is_published, published_at) = publication_state(input, Some(record), false, timestamp);
         record["isPublished"] = json!(is_published);
         record["publishedAt"] = published_at;
@@ -1315,11 +1300,7 @@ fn apply_article_input(
     if input.contains_key("metafields") {
         apply_article_metafields_input(record, input, timestamp);
     }
-    if input.contains_key("isPublished")
-        || input.contains_key("visible")
-        || input.contains_key("publishDate")
-        || input.contains_key("visibilityDate")
-    {
+    if input.contains_key("isPublished") || input.contains_key("publishDate") {
         let (is_published, published_at) = publication_state(input, Some(record), false, timestamp);
         record["isPublished"] = json!(is_published);
         record["publishedAt"] = published_at;
@@ -1336,8 +1317,7 @@ fn publication_state(
     create: bool,
     timestamp: &str,
 ) -> (bool, Value) {
-    let supplied_date = resolved_string_field(input, "publishDate")
-        .or_else(|| resolved_string_field(input, "visibilityDate"));
+    let supplied_date = resolved_string_field(input, "publishDate");
     let existing_published_at = existing
         .map(|record| record["publishedAt"].clone())
         .unwrap_or(Value::Null);
@@ -1361,10 +1341,8 @@ fn effective_published(
     existing: Option<&Value>,
     create: bool,
 ) -> bool {
-    let supplied_published =
-        resolved_bool_field(input, "isPublished").or_else(|| resolved_bool_field(input, "visible"));
-    let supplied_date = resolved_string_field(input, "publishDate")
-        .or_else(|| resolved_string_field(input, "visibilityDate"));
+    let supplied_published = resolved_bool_field(input, "isPublished");
+    let supplied_date = resolved_string_field(input, "publishDate");
     let existing_published = existing
         .and_then(|record| record["isPublished"].as_bool())
         .unwrap_or(false);
@@ -1385,8 +1363,7 @@ fn invalid_publish_date_error(
     create: bool,
 ) -> Option<Value> {
     let effective_is_published = effective_published(input, existing, create);
-    let publish_date = resolved_string_field(input, "publishDate")
-        .or_else(|| resolved_string_field(input, "visibilityDate"));
+    let publish_date = resolved_string_field(input, "publishDate");
     if effective_is_published && publish_date.as_deref().is_some_and(is_future_date) {
         Some(user_error(
             vec![root],
@@ -1470,27 +1447,6 @@ fn content_length_error(
         }
     }
     None
-}
-
-fn commentable_inclusion_error(input: &BTreeMap<String, ResolvedValue>) -> Option<Value> {
-    let commentable = resolved_string_field(input, "commentable")?;
-    if normalize_commentable(&commentable).is_some() {
-        None
-    } else {
-        Some(user_error(
-            vec!["blog", "commentable"],
-            "Commentable is not included in the list",
-            Some("INCLUSION"),
-        ))
-    }
-}
-
-fn normalize_commentable(value: &str) -> Option<&str> {
-    match value {
-        "MODERATE" => Some("MODERATED"),
-        "NO" | "CLOSED" | "YES" | "MODERATED" => Some(value),
-        _ => None,
-    }
 }
 
 fn article_author_error(

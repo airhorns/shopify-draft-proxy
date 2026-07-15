@@ -8,6 +8,7 @@ import path from 'node:path';
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
+import { captureProductPayloadShopHydrate } from './support/shopify/runtime-hydration-capture.js';
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
@@ -18,6 +19,9 @@ const { runGraphql, runGraphqlRequest } = createAdminGraphqlClient({
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
 });
+const shopIdentityHydrate = await captureProductPayloadShopHydrate((query, variables) =>
+  runGraphqlRequest(query, variables),
+);
 
 const productSlice = `
   id
@@ -357,7 +361,7 @@ try {
       missingValueSelectorSchemaError,
       positionSchemaError,
     },
-    upstreamCalls: [],
+    upstreamCalls: [shopIdentityHydrate],
   };
 
   await writeFile(outputPath, `${JSON.stringify(capture, null, 2)}\n`, 'utf8');

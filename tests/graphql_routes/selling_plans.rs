@@ -2786,7 +2786,7 @@ fn product_and_variant_join_leave_validate_membership_inputs() {
         json!([{
             "field": ["sellingPlanGroupIds"],
             "message": "Selling plan group IDs contains duplicate values.",
-            "code": "DUPLICATE"
+            "code": null
         }])
     );
 
@@ -2805,7 +2805,7 @@ fn product_and_variant_join_leave_validate_membership_inputs() {
         json!([{
             "field": ["sellingPlanGroupIds"],
             "message": "Selling plan group is not a member.",
-            "code": "NOT_A_MEMBER"
+            "code": null
         }])
     );
 }

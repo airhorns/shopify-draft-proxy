@@ -289,11 +289,26 @@ corepack pnpm parity -- <scenario-id>
 
 # Run one spec file.
 corepack pnpm parity -- --spec config/parity-specs/products/product-empty-state-read.json
+
+# Write the complete pass/failure set without making known mismatches fail the process.
+corepack pnpm parity:run -- --output-json .parity/current/parity-results.json --allow-failures
 ```
 
 The parity CLI discovers every spec and treats any runner error or comparison
-mismatch as a hard failure. A spec without a valid `upstreamCalls` cassette
-does not run in a degraded mode; it fails until the capture is repaired.
+mismatch as a hard failure unless `--allow-failures` is explicit. That option
+suppresses only the final nonzero status for scenario mismatches; malformed
+specs, runner exceptions, and cassette infrastructure failures still fail.
+`--output-json` records every selected, passed, and failed spec plus the failure
+details. Main CI publishes that document, and pull requests reject failing specs
+or comparison targets absent from the main baseline. The guard also rejects a
+result that omits any baseline spec, so removing a scenario cannot masquerade as
+a fix. A spec without a valid `upstreamCalls` cassette does not run in a degraded
+mode; it fails until the capture is repaired.
+
+The request version comes from an explicit target override, the live capture's
+`apiVersion`, or its versioned fixture path. If none exists, the shared Admin
+schema manifest default is used. A declared/path version without an executable
+schema is an error; the runner never substitutes a different version silently.
 
 ## Debugging a single scenario
 

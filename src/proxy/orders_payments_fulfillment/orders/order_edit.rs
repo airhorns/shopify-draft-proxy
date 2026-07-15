@@ -614,7 +614,9 @@ pub(super) fn oe_commit_order(base: &Value, session: &Value, author: Option<&str
             }));
         }
     }
-    let message = author.map(|author| format!("{author} edited this order."));
+    let message = author
+        .map(|author| format!("{author} edited this order."))
+        .unwrap_or_default();
     let base_total = oe_money_set_cents(&base["currentTotalPriceSet"])
         .or_else(|| oe_money_set_cents(&base["totalPriceSet"]))
         .unwrap_or_else(|| oe_session_original_total(session));
@@ -665,7 +667,7 @@ pub(super) fn oe_commit_order(base: &Value, session: &Value, author: Option<&str
         "nodes": [{
             "id": "gid://shopify/BasicEvent/oe-edited",
             "action": "edited",
-            "message": message.map(Value::String).unwrap_or(Value::Null),
+            "message": message,
             "createdAt": "2026-01-01T00:00:00Z"
         }]
     });

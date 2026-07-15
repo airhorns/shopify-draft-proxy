@@ -161,6 +161,7 @@ describe('Rust HTTP adapter route surface', () => {
             productVariants: {},
             productVariantOrder: [],
             giftCards: {},
+            giftCardCompleteQueries: [],
             giftCardConfiguration: null,
             orders: {},
             orderOrder: [],
@@ -503,7 +504,7 @@ describe('Rust HTTP adapter route surface', () => {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
-              query: '{ currentAppInstallation { id } }',
+              query: '{ currentStaffMember { id } }',
             }),
           });
           expect(response).toEqual({

@@ -979,10 +979,8 @@ impl DraftProxy {
         };
         let mut out = serde_json::Map::new();
         for sel in selection {
-            if let Some(type_condition) = sel.type_condition.as_deref() {
-                if type_condition != resource_type && type_condition != "Node" {
-                    continue;
-                }
+            if !selected_field_applies_to_type(resource_type, sel) {
+                continue;
             }
             let value = match sel.name.as_str() {
                 "id" => json!(resource_id),
@@ -1085,7 +1083,9 @@ impl DraftProxy {
             return json_error(400, "Unable to parse publishable mutation");
         };
         let operation_path = document.operation_path.clone();
-        let fields = document.root_fields;
+        let Some(fields) = self.execution_root_fields(query, variables) else {
+            return json_error(400, "Operation has no root field");
+        };
         let publish = matches!(
             root_field,
             "publishablePublish" | "publishablePublishToCurrentChannel"
@@ -1545,6 +1545,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn collection_mutation(
         &mut self,
+        request: &Request,
         root_field: &str,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
@@ -1552,7 +1553,7 @@ impl DraftProxy {
         match root_field {
             "collectionCreate" => self.collection_create(query, variables),
             "collectionUpdate" => self.collection_update(query, variables),
-            "collectionDelete" => self.collection_delete(query, variables),
+            "collectionDelete" => self.collection_delete(request, query, variables),
             "collectionAddProducts" => self.collection_add_products(root_field, query, variables),
             "collectionAddProductsV2" => {
                 self.collection_async_membership(root_field, query, variables, true)
@@ -1573,7 +1574,11 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let input = collection_input(query, variables).unwrap_or_default();
+        let arguments = self
+            .execution_root_field(query, variables, "collectionCreate")
+            .map(|field| field.arguments)
+            .unwrap_or_default();
+        let input = collection_input(&arguments).unwrap_or_default();
         if input.contains_key("id") {
             return MutationOutcome::response(self.collection_payload_response(
                 query,
@@ -1664,11 +1669,15 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let input = collection_input(query, variables).unwrap_or_default();
+        let field = self.execution_root_field(query, variables, "collectionUpdate");
+        let input = field
+            .as_ref()
+            .and_then(|field| collection_input(&field.arguments))
+            .unwrap_or_default();
         let Some(id) = resolved_string_field(&input, "id").filter(|id| !id.trim().is_empty())
         else {
             return MutationOutcome::response(collection_update_missing_id_response(
-                query, variables,
+                field.as_ref(),
             ));
         };
         self.hydrate_missing_collection_baseline(&id, &[]);
@@ -1805,11 +1814,21 @@ impl DraftProxy {
 
     fn collection_delete(
         &mut self,
+        request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let input = collection_input(query, variables).unwrap_or_default();
+        let arguments = self
+            .execution_root_field(query, variables, "collectionDelete")
+            .map(|field| field.arguments)
+            .unwrap_or_default();
+        let input = collection_input(&arguments).unwrap_or_default();
         let id = resolved_string_field(&input, "id").unwrap_or_default();
+        let (_, payload_selection) =
+            self.execution_primary_root_response_selection(query, variables, || {
+                "collectionDelete".to_string()
+            });
+        self.hydrate_payload_shop_identity_if_selected(request, &payload_selection);
         self.hydrate_missing_collection_baseline(&id, &[]);
         let deleted = self.store.delete_collection(&id);
         let response = self.collection_delete_response(
@@ -1838,7 +1857,10 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let arguments = self
+            .execution_root_field(query, variables, root_field)
+            .map(|field| field.arguments)
+            .unwrap_or_default();
         let collection_id = resolved_string_field(&arguments, "id").unwrap_or_default();
         let requested_product_ids = list_string_field(&arguments, "productIds");
         self.hydrate_missing_collection_baseline(&collection_id, &requested_product_ids);
@@ -1886,7 +1908,10 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         add: bool,
     ) -> MutationOutcome {
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let arguments = self
+            .execution_root_field(query, variables, root_field)
+            .map(|field| field.arguments)
+            .unwrap_or_default();
         let collection_id = resolved_string_field(&arguments, "id").unwrap_or_default();
         let product_ids = list_string_field(&arguments, "productIds");
         if product_ids.len() > COLLECTION_PRODUCT_IDS_LIMIT {
@@ -1944,7 +1969,10 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let arguments = self
+            .execution_root_field(query, variables, "collectionReorderProducts")
+            .map(|field| field.arguments)
+            .unwrap_or_default();
         let collection_id = resolved_string_field(&arguments, "id").unwrap_or_default();
         let moves = resolved_object_list_field(&arguments, "moves");
         let move_product_ids = moves
@@ -2133,7 +2161,9 @@ impl DraftProxy {
         user_errors: Vec<Value>,
     ) -> Response {
         let (response_key, payload_selection) =
-            primary_root_response_selection(query, variables, || root_field.to_string());
+            self.execution_primary_root_response_selection(query, variables, || {
+                root_field.to_string()
+            });
         let collection_selection =
             selected_child_selection(&payload_selection, "collection").unwrap_or_default();
         let job_selection = selected_child_selection(&payload_selection, "job").unwrap_or_default();
@@ -2157,7 +2187,9 @@ impl DraftProxy {
         user_errors: Vec<Value>,
     ) -> Response {
         let (response_key, payload_selection) =
-            primary_root_response_selection(query, variables, || "collectionDelete".to_string());
+            self.execution_primary_root_response_selection(query, variables, || {
+                "collectionDelete".to_string()
+            });
         let shop = self.store.effective_shop();
         ok_json(json!({
             "data": {
@@ -2410,12 +2442,10 @@ impl DraftProxy {
 }
 
 fn collection_input(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
+    arguments: &BTreeMap<String, ResolvedValue>,
 ) -> Option<BTreeMap<String, ResolvedValue>> {
-    let mut arguments = root_field_arguments(query, variables)?;
-    match arguments.remove("input") {
-        Some(ResolvedValue::Object(input)) => Some(input),
+    match arguments.get("input") {
+        Some(ResolvedValue::Object(input)) => Some(input.clone()),
         _ => None,
     }
 }
@@ -2882,18 +2912,11 @@ fn collection_product_ids_too_long_response(root_field: &str, len: usize) -> Res
     }))
 }
 
-fn collection_update_missing_id_response(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> Response {
-    let field = primary_root_field(query, variables)
-        .or_else(|| primary_root_field(query, &BTreeMap::new()));
+fn collection_update_missing_id_response(field: Option<&RootFieldSelection>) -> Response {
     let response_key = field
-        .as_ref()
         .map(|field| field.response_key.clone())
         .unwrap_or_else(|| "collectionUpdate".to_string());
     let location = field
-        .as_ref()
         .map(|field| field.location)
         .unwrap_or(SourceLocation { line: 1, column: 1 });
     ok_json(json!({

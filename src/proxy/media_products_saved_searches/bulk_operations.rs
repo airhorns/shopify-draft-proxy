@@ -4,6 +4,39 @@ use super::owner_metafields::{
 };
 use super::*;
 
+impl DraftProxy {
+    pub(in crate::proxy) fn resolve_bulk_operations_graphql(
+        &mut self,
+        context: RootResolverContext<'_>,
+    ) -> Response {
+        let RootResolverContext {
+            request,
+            query,
+            variables,
+            root_name,
+            mode,
+            ..
+        } = context;
+        match mode {
+            LocalResolverMode::OverlayRead => {
+                self.bulk_operation_read_response(request, query, variables, root_name)
+            }
+            LocalResolverMode::StageLocally if root_name == "bulkOperationRunQuery" => {
+                self.bulk_operation_run_query(request, query, variables)
+            }
+            LocalResolverMode::StageLocally if root_name == "bulkOperationRunMutation" => {
+                self.bulk_operation_run_mutation(request, query, variables)
+            }
+            LocalResolverMode::StageLocally if root_name == "bulkOperationCancel" => {
+                self.bulk_operation_cancel(request, query, variables)
+            }
+            LocalResolverMode::StageLocally => {
+                Self::unimplemented_resolver_response(mode, root_name)
+            }
+        }
+    }
+}
+
 const BULK_OPERATION_HYDRATE_QUERY: &str = "query BulkOperationHydrate($id: ID!) { bulkOperation(id: $id) { id status type errorCode createdAt completedAt objectCount rootObjectCount fileSize url partialDataUrl query } }";
 const BULK_OPERATION_QUERY_STORAGE_BYTE_LIMIT: usize = 65_535;
 const BULK_OPERATION_RUN_MUTATION_MAX_CONNECTIONS: usize = 1;
@@ -118,9 +151,12 @@ impl DraftProxy {
         let mut rows = Vec::new();
         for product in products {
             let variants = self.store.product_variants_for_product(&product.id);
-            let product_json = self.product_owner_json_with_store_currency(
-                &product,
-                &variants,
+            let product_json = bulk_jsonl_projected_node(
+                self.product_owner_json_with_store_currency(
+                    &product,
+                    &variants,
+                    &product_selection,
+                ),
                 &product_selection,
             );
             rows.push(product_json);
@@ -150,7 +186,7 @@ impl DraftProxy {
             return Vec::new();
         }
 
-        match selection.name.as_str() {
+        let rows = match selection.name.as_str() {
             "collections" => product
                 .collections
                 .iter()
@@ -189,7 +225,10 @@ impl DraftProxy {
                 })
                 .collect(),
             _ => Vec::new(),
-        }
+        };
+        rows.into_iter()
+            .map(|row| bulk_jsonl_projected_node(row, &child_node_selection))
+            .collect()
     }
 
     fn bulk_owner_metafield_nodes(
@@ -278,9 +317,12 @@ impl DraftProxy {
         for product in products {
             for variant in self.store.product_variants_for_product(&product.id) {
                 root_object_count += 1;
-                rows.push(self.product_variant_json_with_current_publication_context(
-                    &variant,
-                    Some(&product),
+                rows.push(bulk_jsonl_projected_node(
+                    self.product_variant_json_with_current_publication_context(
+                        &variant,
+                        Some(&product),
+                        &variant_selection,
+                    ),
                     &variant_selection,
                 ));
 
@@ -312,7 +354,7 @@ impl DraftProxy {
             return Vec::new();
         }
 
-        match selection.name.as_str() {
+        let rows = match selection.name.as_str() {
             "media" => variant_attached_media_nodes(variant, Some(product))
                 .iter()
                 .map(|media| selected_json(media, &child_node_selection))
@@ -329,7 +371,10 @@ impl DraftProxy {
                 })
                 .collect(),
             _ => Vec::new(),
-        }
+        };
+        rows.into_iter()
+            .map(|row| bulk_jsonl_projected_node(row, &child_node_selection))
+            .collect()
     }
 
     pub(in crate::proxy) fn bulk_operation_read_response(
@@ -339,7 +384,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         root_field: &str,
     ) -> Response {
-        let Some(fields) = root_fields(query, variables) else {
+        let Some(fields) = self.execution_root_fields(query, variables) else {
             return json_error(400, "Could not parse GraphQL operation");
         };
         if self.should_passthrough_cold_bulk_operations_read(&fields) {
@@ -477,8 +522,10 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        let (response_key, payload_selection, arguments) =
-            primary_root_response_parts(query, variables, || "bulkOperationRunQuery".to_string());
+        let (response_key, payload_selection, arguments) = self
+            .execution_primary_root_response_parts(query, variables, || {
+                "bulkOperationRunQuery".to_string()
+            });
         let query_text = resolved_string_field(&arguments, "query").unwrap_or_else(|| {
             "#graphql\n{ products { edges { node { id title } } } }".to_string()
         });
@@ -623,8 +670,8 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        let (response_key, payload_selection, arguments) =
-            primary_root_response_parts(query, variables, || {
+        let (response_key, payload_selection, arguments) = self
+            .execution_primary_root_response_parts(query, variables, || {
                 "bulkOperationRunMutation".to_string()
             });
         let mutation_text = resolved_string_field(&arguments, "mutation").unwrap_or_default();
@@ -829,7 +876,7 @@ impl DraftProxy {
                 })
                 .to_string(),
             };
-            let mut row = self.dispatch_graphql(&row_request).body;
+            let mut row = self.resolve_nested_graphql_request(&row_request).body;
             if let Some(object) = row.as_object_mut() {
                 object.insert("__lineNumber".to_string(), json!(line_number));
             } else {
@@ -851,7 +898,9 @@ impl DraftProxy {
     ) -> Response {
         let id = resolved_string_field(variables, "id").unwrap_or_default();
         let (response_key, payload_selection) =
-            primary_root_response_selection(query, variables, || "bulkOperationCancel".to_string());
+            self.execution_primary_root_response_selection(query, variables, || {
+                "bulkOperationCancel".to_string()
+            });
 
         if self.bulk_operation_by_id(&id).is_none() {
             self.hydrate_bulk_operation_for_cancel(request, &id);
@@ -1202,28 +1251,27 @@ mod tests {
     fn create_variant(proxy: &mut DraftProxy, product_id: &str, sku: &str) -> Value {
         let response = proxy.process_request(test_request(
             r#"
-            mutation CreateLegacyVariantForBulkTest($input: ProductVariantInput!) {
-              productVariantCreate(input: $input) {
-                productVariant { id sku }
+            mutation CreateVariantForBulkTest($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+              productVariantsBulkCreate(productId: $productId, variants: $variants) {
+                productVariants { id sku }
                 userErrors { field message code }
               }
             }
             "#,
             json!({
-                "input": {
-                    "productId": product_id,
-                    "title": sku,
-                    "sku": sku,
+                "productId": product_id,
+                "variants": [{
+                    "inventoryItem": { "sku": sku },
                     "price": "10.00"
-                }
+                }]
             }),
         ));
         assert_eq!(response.status, 200);
         assert_eq!(
-            response.body["data"]["productVariantCreate"]["userErrors"],
+            response.body["data"]["productVariantsBulkCreate"]["userErrors"],
             json!([])
         );
-        response.body["data"]["productVariantCreate"]["productVariant"].clone()
+        response.body["data"]["productVariantsBulkCreate"]["productVariants"][0].clone()
     }
 
     #[test]
@@ -1460,13 +1508,16 @@ mod tests {
                 "sku": "VARIANT-CHILD-SKU"
             })
         }));
-        assert!(rows.iter().any(|row| {
-            row == &json!({
-                "id": media_id,
-                "alt": "Variant media alt",
-                "__parentId": variant_id
-            })
-        }));
+        assert!(
+            rows.iter().any(|row| {
+                row == &json!({
+                    "id": media_id,
+                    "alt": "Variant media alt",
+                    "__parentId": variant_id
+                })
+            }),
+            "nested variant rows: {rows:#?}"
+        );
         assert!(rows.iter().any(|row| {
             row == &json!({
                 "id": metafield_id,
@@ -1676,13 +1727,16 @@ mod tests {
                 "title": "Nested children"
             })
         }));
-        assert!(rows.iter().any(|row| {
-            row == &json!({
-                "id": media_id,
-                "alt": "Nested media alt",
-                "__parentId": product_id
-            })
-        }));
+        assert!(
+            rows.iter().any(|row| {
+                row == &json!({
+                    "id": media_id,
+                    "alt": "Nested media alt",
+                    "__parentId": product_id
+                })
+            }),
+            "nested product rows: {rows:#?}"
+        );
         assert!(rows.iter().any(|row| {
             row == &json!({
                 "id": metafield_id,
@@ -2067,6 +2121,18 @@ fn bulk_jsonl_node_selection(selection: &[SelectedField]) -> Vec<SelectedField> 
         .collect()
 }
 
+fn bulk_jsonl_projected_node(mut node: Value, selection: &[SelectedField]) -> Value {
+    let selects_unaliased_typename = selection
+        .iter()
+        .any(|field| field.name == "__typename" && field.response_key == "__typename");
+    if !selects_unaliased_typename {
+        if let Some(object) = node.as_object_mut() {
+            object.remove("__typename");
+        }
+    }
+    node
+}
+
 fn bulk_jsonl_child_node(mut node: Value, parent_id: &str) -> Value {
     if let Some(object) = node.as_object_mut() {
         object.insert("__parentId".to_string(), json!(parent_id));
@@ -2260,7 +2326,7 @@ fn analyze_bulk_mutation_field(
     analysis: &mut BulkMutationConnectionAnalysis,
 ) {
     let Some(named_type) =
-        public_admin_output_field_named_type(api_version, parent_type, field_name)
+        crate::admin_graphql::output_field_named_type(api_version, parent_type, field_name)
     else {
         return;
     };
@@ -2273,7 +2339,7 @@ fn analyze_bulk_mutation_field(
     for child in selection {
         analyze_bulk_mutation_field(
             api_version,
-            named_type,
+            &named_type,
             &child.name,
             &child.selection,
             next_connection_depth,

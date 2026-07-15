@@ -63,8 +63,11 @@ impl DraftProxy {
             return json_error(400, "Unable to parse publishable mutation");
         };
         let operation_path = document.operation_path.clone();
+        let Some(fields) = self.execution_root_fields(query, variables) else {
+            return json_error(400, "Operation has no root field");
+        };
         let mut data = serde_json::Map::new();
-        for field in document.root_fields {
+        for field in fields {
             if field.name != root_field {
                 continue;
             }
@@ -311,7 +314,8 @@ impl DraftProxy {
                     .shop_policies
                     .replace_with_order(policies, order);
             }
-            self.store.base.shop = shop.clone();
+            self.store.base.shop =
+                shallow_merged_object(self.store.base.shop.clone(), shop.clone());
         }
         if let Some(nodes) = data["publications"]["nodes"].as_array() {
             self.store.base.publication_ids = nodes

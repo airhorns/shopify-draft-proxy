@@ -820,10 +820,11 @@ fn product_downstream_read_uses_staged_store_instead_of_operation_name_fixture()
     let create = proxy.process_request(graphql_request(
         r#"
         mutation ProductCreateParityPlan($product: ProductInput!) {
-          productCreate(product: $product) {
-            product {
-              id
-            }
+            productCreate(product: $product) {
+              product {
+                id
+                variants(first: 1) { nodes { id } }
+              }
             userErrors {
               field
               message
@@ -1527,7 +1528,11 @@ fn product_variant_downstream_read_uses_staged_variant_state() {
         json!({
             "product": {
                 "title": "Store Variant Product",
-                "status": "ACTIVE"
+                "status": "ACTIVE",
+                "productOptions": [{
+                    "name": "Color",
+                    "values": [{ "name": "Store Red" }]
+                }]
             }
         }),
     ));
@@ -1538,39 +1543,38 @@ fn product_variant_downstream_read_uses_staged_variant_state() {
 
     let create_variant = proxy.process_request(graphql_request(
         r#"
-        mutation ProductVariantUpdateSetupVariant($input: ProductVariantInput!) {
-          productVariantCreate(input: $input) {
-            productVariant {
-              id
-            }
-            userErrors {
-              field
-              message
-            }
+        mutation ProductVariantUpdateSetupVariant(
+          $productId: ID!
+          $variants: [ProductVariantsBulkInput!]!
+        ) {
+          productVariantsBulkCreate(productId: $productId, variants: $variants) {
+            productVariants { id }
+            userErrors { field message }
           }
         }
         "#,
         json!({
-            "input": {
-                "productId": product_id,
-                "title": "Store Red",
-                "sku": "STORE-DRAFT",
+            "productId": product_id,
+            "variants": [{
+                "optionValues": [{ "optionName": "Color", "name": "Store Red" }],
                 "inventoryItem": {
+                    "sku": "STORE-DRAFT",
                     "tracked": false,
                     "requiresShipping": true
                 }
-            }
+            }]
         }),
     ));
-    let variant_id = create_variant.body["data"]["productVariantCreate"]["productVariant"]["id"]
+    let variant_id = create_variant.body["data"]["productVariantsBulkCreate"]["productVariants"][0]
+        ["id"]
         .as_str()
-        .expect("variant create should return variant id")
+        .expect("bulk create should return a variant id")
         .to_string();
 
     let update = proxy.process_request(graphql_request(
         r#"
-        mutation ProductVariantUpdateParityPlan($input: ProductVariantInput!) {
-          productVariantUpdate(input: $input) {
+        mutation ProductVariantUpdateParityPlan($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+          productVariantsBulkUpdate(productId: $productId, variants: $variants) {
             product {
               id
               totalInventory
@@ -1583,7 +1587,7 @@ fn product_variant_downstream_read_uses_staged_variant_state() {
                 }
               }
             }
-            productVariant {
+            productVariants {
               id
               title
               sku
@@ -1606,21 +1610,21 @@ fn product_variant_downstream_read_uses_staged_variant_state() {
         }
         "#,
         json!({
-            "input": {
+            "productId": product_id,
+            "variants": [{
                 "id": variant_id,
-                "title": "Store Red",
-                "sku": "STORE-RED",
                 "barcode": "store-barcode",
-                "selectedOptions": [{ "name": "Color", "value": "Store Red" }],
+                "optionValues": [{ "optionName": "Color", "name": "Store Red" }],
                 "inventoryItem": {
+                    "sku": "STORE-RED",
                     "tracked": true,
                     "requiresShipping": false
                 }
-            }
+            }]
         }),
     ));
     assert_eq!(
-        update.body["data"]["productVariantUpdate"]["product"]["id"],
+        update.body["data"]["productVariantsBulkUpdate"]["product"]["id"],
         json!(product_id)
     );
 

@@ -107,17 +107,11 @@ fn order_return_status(returns: &[Value]) -> &'static str {
 }
 
 fn selected_order_type_condition_applies(field: &SelectedField) -> bool {
-    matches!(
-        field.type_condition.as_deref(),
-        None | Some("Order" | "Node")
-    )
+    selected_field_applies_to_type("Order", field)
 }
 
 fn selected_return_type_condition_applies(field: &SelectedField) -> bool {
-    matches!(
-        field.type_condition.as_deref(),
-        None | Some("Return" | "Node")
-    )
+    selected_field_applies_to_type("Return", field)
 }
 
 fn selection_contains_order_return_fields(selection: &[SelectedField]) -> bool {
@@ -1142,7 +1136,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
-        let fields = root_fields(query, variables)?;
+        let fields = self.execution_root_fields(query, variables)?;
         if matches!(
             root_field,
             "return" | "order" | "reverseDelivery" | "reverseFulfillmentOrder"
@@ -1996,11 +1990,14 @@ impl DraftProxy {
         let id = self.next_synthetic_gid("ReverseDelivery");
         let tracking = resolved_object_field(&field.arguments, "trackingInput").unwrap_or_default();
         let label = resolved_object_field(&field.arguments, "labelInput").unwrap_or_default();
-        let rfo_lines = self
+        let reverse_order = self
             .store
             .staged
             .reverse_fulfillment_orders
             .get(&reverse_order_id)
+            .cloned();
+        let rfo_lines = reverse_order
+            .as_ref()
             .and_then(|order| order["lineItems"]["nodes"].as_array())
             .cloned()
             .unwrap_or_default();
@@ -2048,7 +2045,8 @@ impl DraftProxy {
             .collect::<Vec<_>>();
         let delivery = json!({
             "id": id,
-            "reverseFulfillmentOrder": { "id": reverse_order_id },
+            "reverseFulfillmentOrder": reverse_order
+                .unwrap_or_else(|| json!({ "id": reverse_order_id.clone() })),
             "reverseDeliveryLineItems": {
                 "nodes": reverse_delivery_line_items
             },

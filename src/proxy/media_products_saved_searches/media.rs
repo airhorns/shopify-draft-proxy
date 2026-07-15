@@ -18,6 +18,32 @@ const MEDIA_PRODUCTS_HYDRATE_QUERY: &str = "query MediaProductHydrate($ids: [ID!
 const MEDIA_FILE_REFERENCES_HYDRATE_QUERY: &str = "query MediaFileReferencesHydrate($fileIds: [ID!]!) {\n  nodes(ids: $fileIds) {\n    id\n    __typename\n    ... on MediaImage {\n      alt\n      fileStatus\n      mediaContentType\n      status\n      preview { image { url width height } }\n      image { url width height }\n      references(first: 50) {\n        nodes {\n          ... on Product {\n            id\n            title\n            handle\n            status\n            media(first: 50) {\n              nodes {\n                id\n                __typename\n                alt\n                fileStatus\n                mediaContentType\n                status\n                preview { image { url width height } }\n                ... on MediaImage { image { url width height } }\n              }\n            }\n            variants(first: 50) {\n              nodes {\n                id\n                title\n                media(first: 10) { nodes { id alt mediaContentType } }\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}";
 
 impl DraftProxy {
+    pub(in crate::proxy) fn resolve_media_graphql(
+        &mut self,
+        context: RootResolverContext<'_>,
+    ) -> Response {
+        let RootResolverContext {
+            request,
+            query,
+            variables,
+            root_name,
+            mode,
+            ..
+        } = context;
+        match mode {
+            LocalResolverMode::OverlayRead if root_name == "files" => {
+                self.media_files_read(request, query, variables)
+            }
+            LocalResolverMode::StageLocally => {
+                let outcome = self.media_mutation(root_name, request, query, variables);
+                self.finalize_mutation_outcome(request, query, variables, outcome)
+            }
+            LocalResolverMode::OverlayRead => {
+                Self::unimplemented_resolver_response(mode, root_name)
+            }
+        }
+    }
+
     pub(in crate::proxy) fn media_mutation(
         &mut self,
         root_field: &str,
@@ -43,9 +69,9 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let (response_key, payload_selection) =
-            primary_root_response_selection(query, variables, || "fileCreate".to_string());
-        let inputs = media_object_list_arg(query, variables, "files");
+        let (response_key, payload_selection, arguments) = self
+            .execution_primary_root_response_parts(query, variables, || "fileCreate".to_string());
+        let inputs = media_object_list_arg(&arguments, "files");
         if manage_products_denied(request) && media_inputs_have_references(&inputs) {
             return MutationOutcome::response(media_access_denied_response(
                 &response_key,
@@ -159,9 +185,9 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let (response_key, payload_selection) =
-            primary_root_response_selection(query, variables, || "fileUpdate".to_string());
-        let inputs = media_object_list_arg(query, variables, "files");
+        let (response_key, payload_selection, arguments) = self
+            .execution_primary_root_response_parts(query, variables, || "fileUpdate".to_string());
+        let inputs = media_object_list_arg(&arguments, "files");
         if manage_products_denied(request) && media_inputs_have_references(&inputs) {
             return MutationOutcome::response(media_access_denied_response(
                 &response_key,
@@ -352,9 +378,9 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let (response_key, payload_selection) =
-            primary_root_response_selection(query, variables, || "fileDelete".to_string());
-        let ids = media_string_list_arg(query, variables, "fileIds")
+        let (response_key, payload_selection, arguments) = self
+            .execution_primary_root_response_parts(query, variables, || "fileDelete".to_string());
+        let ids = media_string_list_arg(&arguments, "fileIds")
             .into_iter()
             .map(|id| self.resolve_media_file_delete_id(&id))
             .collect::<Vec<_>>();
@@ -392,11 +418,11 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let (response_key, payload_selection) =
-            primary_root_response_selection(query, variables, || {
+        let (response_key, payload_selection, arguments) = self
+            .execution_primary_root_response_parts(query, variables, || {
                 "fileAcknowledgeUpdateFailed".to_string()
             });
-        let file_ids = media_string_list_arg(query, variables, "fileIds");
+        let file_ids = media_string_list_arg(&arguments, "fileIds");
         let missing_ids = missing_media_file_ids(file_ids.iter(), |id| {
             self.media_file_for_update(id).is_some()
         });
@@ -438,8 +464,10 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let (response_key, payload_selection) =
-            primary_root_response_selection(query, variables, || "stagedUploadsCreate".to_string());
+        let (response_key, payload_selection, arguments) = self
+            .execution_primary_root_response_parts(query, variables, || {
+                "stagedUploadsCreate".to_string()
+            });
         let user_error_selection =
             selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
         if user_error_selection
@@ -458,7 +486,7 @@ impl DraftProxy {
                 }]
             })));
         }
-        let inputs = media_object_list_arg(query, variables, "input");
+        let inputs = media_object_list_arg(&arguments, "input");
         if let Some((index, resource)) = inputs
             .iter()
             .enumerate()
@@ -856,7 +884,9 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        let fields = root_fields(query, variables).unwrap_or_default();
+        let fields = self
+            .execution_root_fields(query, variables)
+            .unwrap_or_default();
         if self.config.read_mode == ReadMode::LiveHybrid {
             let mut response = (self.upstream_transport)(request.clone());
             if (200..300).contains(&response.status) {
@@ -1186,21 +1216,14 @@ impl DraftProxy {
 }
 
 fn media_object_list_arg(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
+    arguments: &BTreeMap<String, ResolvedValue>,
     key: &str,
 ) -> Vec<BTreeMap<String, ResolvedValue>> {
-    let arguments = root_field_arguments(query, variables).unwrap_or_default();
-    resolved_object_list_field(&arguments, key)
+    resolved_object_list_field(arguments, key)
 }
 
-fn media_string_list_arg(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-    key: &str,
-) -> Vec<String> {
-    let arguments = root_field_arguments(query, variables).unwrap_or_default();
-    list_string_field(&arguments, key)
+fn media_string_list_arg(arguments: &BTreeMap<String, ResolvedValue>, key: &str) -> Vec<String> {
+    list_string_field(arguments, key)
 }
 
 fn media_invalid_field_arguments_response(
@@ -1268,12 +1291,7 @@ fn media_quota_errors(request: &Request, inputs: &[BTreeMap<String, ResolvedValu
         .filter_map(|(index, input)| {
             let content_type =
                 resolved_string_field(input, "contentType").unwrap_or_else(|| "IMAGE".to_string());
-            let code = if content_type == "VIDEO" && requested.contains("VIDEO_THROTTLE_EXCEEDED") {
-                Some("VIDEO_THROTTLE_EXCEEDED")
-            } else if content_type == "MODEL_3D" && requested.contains("MODEL3D_THROTTLE_EXCEEDED")
-            {
-                Some("MODEL3D_THROTTLE_EXCEEDED")
-            } else if content_type != "IMAGE"
+            let code = if content_type != "IMAGE"
                 && requested.contains("NON_IMAGE_MEDIA_PER_SHOP_LIMIT_EXCEEDED")
             {
                 Some("NON_IMAGE_MEDIA_PER_SHOP_LIMIT_EXCEEDED")
@@ -1292,8 +1310,6 @@ fn media_quota_errors(request: &Request, inputs: &[BTreeMap<String, ResolvedValu
 
 fn media_quota_message(code: &str) -> &'static str {
     match code {
-        "VIDEO_THROTTLE_EXCEEDED" => "Video upload throttle exceeded.",
-        "MODEL3D_THROTTLE_EXCEEDED" => "Model 3D upload throttle exceeded.",
         "NON_IMAGE_MEDIA_PER_SHOP_LIMIT_EXCEEDED" => "Non-image media per shop limit exceeded.",
         _ => "Media quota exceeded.",
     }
