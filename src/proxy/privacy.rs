@@ -9,14 +9,38 @@ const DATA_SALE_OPT_OUT_CUSTOMER_LOOKUP_QUERY: &str =
     include_str!("../../config/parity-requests/privacy/data-sale-opt-out-customer-lookup.graphql");
 
 impl DraftProxy {
+    pub(in crate::proxy) fn resolve_privacy_graphql(
+        &mut self,
+        context: RootResolverContext<'_>,
+    ) -> Response {
+        let RootResolverContext {
+            request,
+            query,
+            variables,
+            root_name,
+            mode,
+            ..
+        } = context;
+        match mode {
+            LocalResolverMode::StageLocally if root_name == "dataSaleOptOut" => {
+                let outcome = self.data_sale_opt_out(request, query, variables);
+                self.finalize_mutation_outcome(request, query, variables, outcome)
+            }
+            LocalResolverMode::OverlayRead | LocalResolverMode::StageLocally => {
+                Self::unimplemented_resolver_response(mode, root_name)
+            }
+        }
+    }
+
     pub(in crate::proxy) fn data_sale_opt_out(
         &mut self,
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let Some(field) =
-            root_fields(query, variables).and_then(|fields| fields.into_iter().next())
+        let Some(field) = self
+            .execution_root_fields(query, variables)
+            .and_then(|fields| fields.into_iter().next())
         else {
             return MutationOutcome::response(json_error(400, "Could not parse GraphQL operation"));
         };

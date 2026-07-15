@@ -87,7 +87,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
-        let fields = root_fields(query, variables)?;
+        let fields = self.execution_root_fields(query, variables)?;
         if !fields.iter().all(|field| {
             matches!(
                 field.name.as_str(),
@@ -142,7 +142,7 @@ impl DraftProxy {
                         ));
                     }
                     let status = resolved_string_field(&field.arguments, "deliveryStatus")
-                        .unwrap_or_else(|| "DELIVERED".to_string());
+                        .unwrap_or_else(|| "NOT_SENT".to_string());
                     let delivered_at = resolved_string_field(&field.arguments, "deliveredAt");
                     let Some(record) = self.store.staged.abandonments.get_mut(&abandonment_id)
                     else {
@@ -189,7 +189,7 @@ impl DraftProxy {
                         ));
                     }
                     let current_status = abandonment_delivery_status(record);
-                    if current_status == "DELIVERED" && status == "SENDING" {
+                    if current_status == "SENT" && status == "NOT_SENT" {
                         user_errors.push(user_error(
                             ["deliveryStatuses", "0", "deliveryStatus"],
                             "invalid_transition",
@@ -201,7 +201,7 @@ impl DraftProxy {
                         ));
                     }
                     if current_status != status {
-                        let email_sent_at = if status == "DELIVERED" {
+                        let email_sent_at = if status == "SENT" {
                             Value::String(delivered_at.unwrap_or_else(abandonment_timestamp))
                         } else {
                             Value::Null

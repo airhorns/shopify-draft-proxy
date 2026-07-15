@@ -12,6 +12,9 @@
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-buyer-context-lifecycle.json"
   ],
   "runtimeTestFiles": ["tests/integration/discount-automatic-basic-flow.test.ts"],
+  "proxyConfig": {
+    "readMode": "live-hybrid"
+  },
   "proxyRequest": {
     "documentPath": "config/parity-requests/discounts/discount-automatic-basic-buyer-context-create.graphql",
     "variablesCapturePath": "$.requests.automaticCreate.variables"

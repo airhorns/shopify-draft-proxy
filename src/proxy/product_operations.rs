@@ -7,14 +7,14 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let root_field = primary_root_field(query, variables);
+        let root_field = self.execution_primary_root_field(query, variables);
         let (response_key, payload_selection, arguments) =
-            primary_root_response_parts(query, variables, || "productSet".into());
+            self.execution_primary_root_response_parts(query, variables, || "productSet".into());
         let product_selection =
             selected_child_selection(&payload_selection, "product").unwrap_or_default();
         let operation_selection =
             selected_child_selection(&payload_selection, "productSetOperation").unwrap_or_default();
-        let input = match product_input(query, variables) {
+        let input = match product_input(&arguments) {
             Some(input) => input,
             None => return MutationOutcome::response(json_error(400, "productSet requires input")),
         };
@@ -244,6 +244,9 @@ impl DraftProxy {
             );
         }
         if input.contains_key("variants") {
+            for location_id in product_set_inventory_location_ids(&input) {
+                self.ensure_location_hydrated(&location_id, request);
+            }
             let variants = self.stage_product_set_variants(&product_id, &input);
             // `totalInventory` only counts tracked variants (see product_json_with_variants).
             product.total_inventory = variants
@@ -390,7 +393,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let field = primary_root_field(query, variables);
+        let field = self.execution_primary_root_field(query, variables);
         if let Some(field) = field.as_ref() {
             if let Some(response) = product_status_argument_validation_error(
                 request,
@@ -407,7 +410,9 @@ impl DraftProxy {
         let (response_key, payload_selection, arguments) = field
             .map(|field| (field.response_key, field.selection, field.arguments))
             .unwrap_or_else(|| {
-                primary_root_response_parts(query, variables, || "productDuplicate".into())
+                self.execution_primary_root_response_parts(query, variables, || {
+                    "productDuplicate".into()
+                })
             });
         let new_product_selection =
             selected_child_selection(&payload_selection, "newProduct").unwrap_or_default();
@@ -523,7 +528,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
         let (response_key, payload_selection, arguments) =
-            primary_root_response_parts(query, variables, || root_field.into());
+            self.execution_primary_root_response_parts(query, variables, || root_field.into());
         let operation_selection =
             selected_child_selection(&payload_selection, "productBundleOperation")
                 .unwrap_or_default();
@@ -1081,11 +1086,19 @@ impl DraftProxy {
     }
 }
 
-pub(in crate::proxy) fn is_product_operation_gid(id: &str) -> bool {
-    matches!(
-        shopify_gid_resource_type(id),
-        Some("ProductSetOperation" | "ProductDuplicateOperation" | "ProductBundleOperation")
-    )
+fn product_set_inventory_location_ids(input: &BTreeMap<String, ResolvedValue>) -> Vec<String> {
+    let mut ids = Vec::new();
+    for variant in resolved_object_list_field(input, "variants") {
+        for quantity in resolved_object_list_field(&variant, "inventoryQuantities") {
+            let Some(id) = resolved_string_field(&quantity, "locationId") else {
+                continue;
+            };
+            if !ids.contains(&id) {
+                ids.push(id);
+            }
+        }
+    }
+    ids
 }
 
 fn product_operation_typename(kind: ProductOperationKind) -> &'static str {

@@ -6,6 +6,7 @@ import {
   requireString,
   type JsonRecord,
 } from './conformance-capture-lib.js';
+import { captureDraftProxyShopPricingHydrate } from './support/shopify/runtime-hydration-capture.js';
 
 type CaptureEntry = {
   document: string;
@@ -15,6 +16,9 @@ type CaptureEntry = {
 
 const scenarioId = 'draft-orders-search-sort-staged';
 const cap = await createConformanceCapture();
+const shopPricingHydrate = await captureDraftProxyShopPricingHydrate((query, variables) =>
+  cap.runGraphqlRequest(query, variables),
+);
 const fixturePath = cap.fixturePath('orders', 'draft-orders-search-sort-staged.json');
 const specPath = 'config/parity-specs/orders/draftOrders-search-sort-staged.json';
 const createDocumentPath = 'config/parity-requests/orders/draftOrders-search-sort-create.graphql';
@@ -290,7 +294,7 @@ try {
     },
     reads,
     cleanup: cleanupResults,
-    upstreamCalls: [],
+    upstreamCalls: [shopPricingHydrate],
   });
 
   const twoNodeListPaths = [

@@ -1,11 +1,11 @@
 {
-  "capturedAt": "2026-05-07T17:32:10.505Z",
+  "capturedAt": "2026-07-14T16:39:37.224Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "document": "mutation OrderUpdateLocalizationAndStaff($input: OrderInput!) {\n    orderUpdate(input: $input) {\n      order {\n        id\n        localizedFields(first: 5) {\n          nodes {\n            key\n            value\n          }\n        }\n        localizationExtensions(first: 5) {\n          nodes {\n            key\n            value\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
   "variables": {
     "input": {
-      "id": "gid://shopify/Order/8734696014130",
+      "id": "gid://shopify/Order/8951436509490",
       "localizedFields": [
         {
           "key": "TAX_CREDENTIAL_BR",
@@ -19,14 +19,14 @@
       "document": "mutation OrderUpdateLocalizationAndStaffCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        \n  id\n  name\n  email\n  note\n  tags\n  localizedFields(first: 5) {\n    nodes {\n      key\n      value\n    }\n  }\n  localizationExtensions(first: 5) {\n    nodes {\n      key\n      value\n    }\n  }\n\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
       "variables": {
         "order": {
-          "email": "order-update-localization-1778175129207@example.com",
+          "email": "order-update-localization-1784047175059@example.com",
           "note": "orderUpdate localization baseline",
-          "tags": ["order-update-localization", "1778175129207"],
+          "tags": ["order-update-localization", "1784047175059"],
           "test": true,
           "currency": "USD",
           "lineItems": [
             {
-              "title": "orderUpdate localization item 1778175129207",
+              "title": "orderUpdate localization item 1784047175059",
               "quantity": 1,
               "priceSet": {
                 "shopMoney": {
@@ -36,7 +36,7 @@
               },
               "requiresShipping": false,
               "taxable": false,
-              "sku": "order-update-localization-1778175129207"
+              "sku": "order-update-localization-1784047175059"
             }
           ],
           "transactions": [
@@ -64,11 +64,11 @@
         "data": {
           "orderCreate": {
             "order": {
-              "id": "gid://shopify/Order/8734696014130",
-              "name": "#1376",
-              "email": "order-update-localization-1778175129207@example.com",
+              "id": "gid://shopify/Order/8951436509490",
+              "name": "#1837",
+              "email": "order-update-localization-1784047175059@example.com",
               "note": "orderUpdate localization baseline",
-              "tags": ["1778175129207", "order-update-localization"],
+              "tags": ["1784047175059", "order-update-localization"],
               "localizedFields": {
                 "nodes": []
               },
@@ -95,16 +95,16 @@
     "beforeRead": {
       "document": "query OrderUpdateLocalizationAndStaffRead($id: ID!) {\n    order(id: $id) {\n      \n  id\n  name\n  email\n  note\n  tags\n  localizedFields(first: 5) {\n    nodes {\n      key\n      value\n    }\n  }\n  localizationExtensions(first: 5) {\n    nodes {\n      key\n      value\n    }\n  }\n\n    }\n  }",
       "variables": {
-        "id": "gid://shopify/Order/8734696014130"
+        "id": "gid://shopify/Order/8951436509490"
       },
       "response": {
         "data": {
           "order": {
-            "id": "gid://shopify/Order/8734696014130",
-            "name": "#1376",
-            "email": "order-update-localization-1778175129207@example.com",
+            "id": "gid://shopify/Order/8951436509490",
+            "name": "#1837",
+            "email": "order-update-localization-1784047175059@example.com",
             "note": "orderUpdate localization baseline",
-            "tags": ["1778175129207", "order-update-localization"],
+            "tags": ["1784047175059", "order-update-localization"],
             "localizedFields": {
               "nodes": []
             },
@@ -132,7 +132,7 @@
       "data": {
         "orderUpdate": {
           "order": {
-            "id": "gid://shopify/Order/8734696014130",
+            "id": "gid://shopify/Order/8951436509490",
             "localizedFields": {
               "nodes": [
                 {
@@ -170,7 +170,7 @@
     "document": "mutation OrderUpdateLocalizationAndStaff($input: OrderInput!) {\n    orderUpdate(input: $input) {\n      order {\n        id\n        localizedFields(first: 5) {\n          nodes {\n            key\n            value\n          }\n        }\n        localizationExtensions(first: 5) {\n          nodes {\n            key\n            value\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
     "variables": {
       "input": {
-        "id": "gid://shopify/Order/8734696014130",
+        "id": "gid://shopify/Order/8951436509490",
         "localizationExtensions": [
           {
             "key": "SHIPPING_CREDENTIAL_BR",
@@ -183,7 +183,7 @@
       "data": {
         "orderUpdate": {
           "order": {
-            "id": "gid://shopify/Order/8734696014130",
+            "id": "gid://shopify/Order/8951436509490",
             "localizedFields": {
               "nodes": [
                 {
@@ -228,12 +228,12 @@
   "downstreamRead": {
     "document": "query OrderUpdateLocalizationAndStaffRead($id: ID!) {\n    order(id: $id) {\n      id\n      localizedFields(first: 5) {\n        nodes {\n          key\n          value\n        }\n      }\n      localizationExtensions(first: 5) {\n        nodes {\n          key\n          value\n        }\n      }\n    }\n  }",
     "variables": {
-      "id": "gid://shopify/Order/8734696014130"
+      "id": "gid://shopify/Order/8951436509490"
     },
     "response": {
       "data": {
         "order": {
-          "id": "gid://shopify/Order/8734696014130",
+          "id": "gid://shopify/Order/8951436509490",
           "localizedFields": {
             "nodes": [
               {
@@ -266,7 +266,7 @@
           "actualQueryCost": 9,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1989,
+            "currentlyAvailable": 1991,
             "restoreRate": 100
           }
         }
@@ -277,7 +277,7 @@
     "document": "mutation OrderUpdateStaffMemberIdSchemaProbe($input: OrderInput!) {\n    orderUpdate(input: $input) {\n      order {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
     "variables": {
       "input": {
-        "id": "gid://shopify/Order/8734696014130",
+        "id": "gid://shopify/Order/8951436509490",
         "staffMemberId": "gid://shopify/StaffMember/999999999999"
       }
     },
@@ -294,7 +294,7 @@
           "extensions": {
             "code": "INVALID_VARIABLE",
             "value": {
-              "id": "gid://shopify/Order/8734696014130",
+              "id": "gid://shopify/Order/8951436509490",
               "staffMemberId": "gid://shopify/StaffMember/999999999999"
             },
             "problems": [
@@ -309,24 +309,10 @@
     },
     "notes": "The configured public 2026-04 Admin schema rejects OrderInput.staffMemberId before resolver execution; focused runtime tests cover the internal staffMemberId NOT_FOUND branch."
   },
-  "localRuntimeStaffUnknown": {
-    "expected": {
-      "data": {
-        "orderUpdate": {
-          "userErrors": [
-            {
-              "field": ["input", "staffMemberId"],
-              "message": "Staff member does not exist"
-            }
-          ]
-        }
-      }
-    }
-  },
   "cleanup": {
     "document": "mutation OrderUpdateLocalizationAndStaffCleanup(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n        done\n      }\n      orderCancelUserErrors {\n        field\n        message\n        code\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
     "variables": {
-      "orderId": "gid://shopify/Order/8734696014130",
+      "orderId": "gid://shopify/Order/8951436509490",
       "reason": "OTHER",
       "notifyCustomer": false,
       "restock": false
@@ -335,7 +321,7 @@
       "data": {
         "orderCancel": {
           "job": {
-            "id": "gid://shopify/Job/8edb0ed4-e53e-4cb1-8f71-2620e386f0fb",
+            "id": "gid://shopify/Job/e20238c2-50f4-4f44-9e0f-4623bbae2927",
             "done": false
           },
           "orderCancelUserErrors": [],
@@ -359,172 +345,72 @@
     {
       "operationName": "OrdersOrderHydrate",
       "variables": {
-        "id": "gid://shopify/Order/8734696014130"
+        "id": "gid://shopify/Order/8951436509490",
+        "lineItemsAfter": null
       },
-      "query": "query OrdersOrderHydrate($id: ID!) {\n  order(id: $id) { id name email phone poNumber createdAt updatedAt closed closedAt cancelledAt cancelReason displayFinancialStatus displayFulfillmentStatus presentmentCurrencyCode paymentGatewayNames note tags customAttributes { key value } customer { id email displayName } totalOutstandingSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } totalReceivedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } totalRefundedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } currentSubtotalLineItemsQuantity currentSubtotalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } currentTotalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } currentTotalTaxSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } currentTaxLines { title rate priceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } } totalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } transactions { id kind status gateway amountSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } } refunds { id note totalRefundedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } refundLineItems(first: 10) { nodes { id quantity restockType lineItem { id title } subtotalSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } } } transactions(first: 10) { nodes { id kind status gateway amountSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } } } } fulfillments { id status displayStatus createdAt updatedAt trackingInfo { number url company } fulfillmentLineItems(first: 10) { nodes { id quantity lineItem { id title } } } } fulfillmentOrders(first: 10) { nodes { id status requestStatus lineItems(first: 10) { nodes { id totalQuantity remainingQuantity lineItem { id title quantity fulfillableQuantity } } } } } shippingLines(first: 10) { nodes { id title code source originalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } discountedPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } } } lineItems(first: 10) { nodes { id title name quantity currentQuantity sku variantTitle originalUnitPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } originalTotalSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } variant { id title sku } } } }\n}\n",
+      "query": "query OrdersOrderHydrate($id: ID!, $lineItemsAfter: String) {\n  order(id: $id) {\n    id\n    name\n    email\n    note\n    tags\n    customAttributes { key value }\n    customer { id email displayName }\n    billingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }\n    shippingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }\n    currencyCode\n    presentmentCurrencyCode\n    displayFinancialStatus\n    displayFulfillmentStatus\n    currentTotalPriceSet { shopMoney { amount currencyCode } }\n    totalPriceSet { shopMoney { amount currencyCode } }\n    totalTaxSet { shopMoney { amount currencyCode } }\n    totalDiscountsSet { shopMoney { amount currencyCode } }\n    discountCodes\n    lineItems(first: 10, after: $lineItemsAfter) {\n      nodes {\n        id\n        title\n        name\n        quantity\n        currentQuantity\n        sku\n        variantTitle\n        requiresShipping\n        taxable\n        customAttributes { key value }\n        originalUnitPriceSet { shopMoney { amount currencyCode } }\n        originalTotalSet { shopMoney { amount currencyCode } }\n        variant { id title sku }\n        taxLines { title rate priceSet { shopMoney { amount currencyCode } } }\n      }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "order": {
-              "id": "gid://shopify/Order/8734696014130",
-              "name": "#1376",
-              "email": "order-update-localization-1778175129207@example.com",
-              "phone": null,
-              "poNumber": null,
-              "createdAt": "2026-05-07T17:32:09Z",
-              "updatedAt": "2026-05-07T17:32:10Z",
-              "closed": false,
-              "closedAt": null,
-              "cancelledAt": "2026-05-07T17:32:10Z",
-              "cancelReason": "OTHER",
-              "displayFinancialStatus": "PAID",
-              "displayFulfillmentStatus": "UNFULFILLED",
-              "presentmentCurrencyCode": "USD",
-              "paymentGatewayNames": ["manual"],
+              "id": "gid://shopify/Order/8951436509490",
+              "name": "#1837",
+              "email": "order-update-localization-1784047175059@example.com",
               "note": "orderUpdate localization baseline",
-              "tags": ["1778175129207", "order-update-localization"],
+              "tags": ["1784047175059", "order-update-localization"],
               "customAttributes": [],
               "customer": {
-                "id": "gid://shopify/Customer/10588981854514",
-                "email": "order-update-localization-1778175129207@example.com",
-                "displayName": "order-update-localization-1778175129207@example.com"
+                "id": "gid://shopify/Customer/10960444850482",
+                "email": "order-update-localization-1784047175059@example.com",
+                "displayName": "order-update-localization-1784047175059@example.com"
               },
-              "totalOutstandingSet": {
-                "shopMoney": {
-                  "amount": "0.0",
-                  "currencyCode": "USD"
-                },
-                "presentmentMoney": {
-                  "amount": "0.0",
-                  "currencyCode": "USD"
-                }
-              },
-              "totalReceivedSet": {
-                "shopMoney": {
-                  "amount": "1.0",
-                  "currencyCode": "USD"
-                },
-                "presentmentMoney": {
-                  "amount": "1.0",
-                  "currencyCode": "USD"
-                }
-              },
-              "totalRefundedSet": {
-                "shopMoney": {
-                  "amount": "0.0",
-                  "currencyCode": "USD"
-                },
-                "presentmentMoney": {
-                  "amount": "0.0",
-                  "currencyCode": "USD"
-                }
-              },
-              "currentSubtotalLineItemsQuantity": 1,
-              "currentSubtotalPriceSet": {
-                "shopMoney": {
-                  "amount": "1.0",
-                  "currencyCode": "USD"
-                },
-                "presentmentMoney": {
-                  "amount": "1.0",
-                  "currencyCode": "USD"
-                }
-              },
+              "billingAddress": null,
+              "shippingAddress": null,
+              "currencyCode": "USD",
+              "presentmentCurrencyCode": "USD",
+              "displayFinancialStatus": "PAID",
+              "displayFulfillmentStatus": "UNFULFILLED",
               "currentTotalPriceSet": {
                 "shopMoney": {
                   "amount": "1.0",
                   "currencyCode": "USD"
-                },
-                "presentmentMoney": {
-                  "amount": "1.0",
-                  "currencyCode": "USD"
                 }
               },
-              "currentTotalTaxSet": {
-                "shopMoney": {
-                  "amount": "0.0",
-                  "currencyCode": "USD"
-                },
-                "presentmentMoney": {
-                  "amount": "0.0",
-                  "currencyCode": "USD"
-                }
-              },
-              "currentTaxLines": [],
               "totalPriceSet": {
                 "shopMoney": {
                   "amount": "1.0",
                   "currencyCode": "USD"
-                },
-                "presentmentMoney": {
-                  "amount": "1.0",
+                }
+              },
+              "totalTaxSet": {
+                "shopMoney": {
+                  "amount": "0.0",
                   "currencyCode": "USD"
                 }
               },
-              "transactions": [
-                {
-                  "id": "gid://shopify/OrderTransaction/10423547887922",
-                  "kind": "SALE",
-                  "status": "SUCCESS",
-                  "gateway": "manual",
-                  "amountSet": {
-                    "shopMoney": {
-                      "amount": "1.0",
-                      "currencyCode": "USD"
-                    },
-                    "presentmentMoney": {
-                      "amount": "1.0",
-                      "currencyCode": "USD"
-                    }
-                  }
+              "totalDiscountsSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "USD"
                 }
-              ],
-              "refunds": [],
-              "fulfillments": [],
-              "fulfillmentOrders": {
-                "nodes": [
-                  {
-                    "id": "gid://shopify/FulfillmentOrder/9658435961138",
-                    "status": "CLOSED",
-                    "requestStatus": "UNSUBMITTED",
-                    "lineItems": {
-                      "nodes": [
-                        {
-                          "id": "gid://shopify/FulfillmentOrderLineItem/19460343169330",
-                          "totalQuantity": 1,
-                          "remainingQuantity": 1,
-                          "lineItem": {
-                            "id": "gid://shopify/LineItem/19311120744754",
-                            "title": "orderUpdate localization item 1778175129207",
-                            "quantity": 1,
-                            "fulfillableQuantity": 1
-                          }
-                        }
-                      ]
-                    }
-                  }
-                ]
               },
-              "shippingLines": {
-                "nodes": []
-              },
+              "discountCodes": [],
               "lineItems": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/LineItem/19311120744754",
-                    "title": "orderUpdate localization item 1778175129207",
-                    "name": "orderUpdate localization item 1778175129207",
+                    "id": "gid://shopify/LineItem/19966623514930",
+                    "title": "orderUpdate localization item 1784047175059",
+                    "name": "orderUpdate localization item 1784047175059",
                     "quantity": 1,
                     "currentQuantity": 1,
-                    "sku": "order-update-localization-1778175129207",
+                    "sku": "order-update-localization-1784047175059",
                     "variantTitle": null,
+                    "requiresShipping": false,
+                    "taxable": false,
+                    "customAttributes": [],
                     "originalUnitPriceSet": {
                       "shopMoney": {
-                        "amount": "1.0",
-                        "currencyCode": "USD"
-                      },
-                      "presentmentMoney": {
                         "amount": "1.0",
                         "currencyCode": "USD"
                       }
@@ -533,25 +419,28 @@
                       "shopMoney": {
                         "amount": "1.0",
                         "currencyCode": "USD"
-                      },
-                      "presentmentMoney": {
-                        "amount": "1.0",
-                        "currencyCode": "USD"
                       }
                     },
-                    "variant": null
+                    "variant": null,
+                    "taxLines": []
                   }
-                ]
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoxOTk2NjYyMzUxNDkzMCwibGFzdF92YWx1ZSI6MTk5NjY2MjM1MTQ5MzB9",
+                  "endCursor": "eyJsYXN0X2lkIjoxOTk2NjYyMzUxNDkzMCwibGFzdF92YWx1ZSI6MTk5NjY2MjM1MTQ5MzB9"
+                }
               }
             }
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 96,
-              "actualQueryCost": 21,
+              "requestedQueryCost": 23,
+              "actualQueryCost": 9,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1979,
+                "currentlyAvailable": 1991,
                 "restoreRate": 100
               }
             }

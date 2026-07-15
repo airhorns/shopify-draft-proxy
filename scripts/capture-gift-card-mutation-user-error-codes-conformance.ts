@@ -179,6 +179,28 @@ async function hydrateMissingGiftCard(id: string): Promise<RecordedCall> {
   };
 }
 
+async function hydrateGiftCardCreateConfiguration(): Promise<RecordedCall> {
+  const variables = {};
+  const query = `#graphql
+  query GiftCardCreateConfiguration {
+    giftCardConfiguration {
+      issueLimit { amount currencyCode }
+      purchaseLimit { amount currencyCode }
+    }
+  }
+`;
+  const response = await runGraphqlRequest(query, variables);
+  return {
+    operationName: 'GiftCardCreateConfiguration',
+    variables,
+    query,
+    response: {
+      status: response.status,
+      body: response.payload,
+    },
+  };
+}
+
 const runToken = Date.now().toString(36).slice(-10);
 const setupVariables = {
   input: {
@@ -205,7 +227,7 @@ try {
   }
 
   cardCurrency = readCreatedGiftCardCurrency(setupSmallBalance) ?? cardCurrency;
-  upstreamCalls = [await hydrateMissingGiftCard(missingUpdateId)];
+  upstreamCalls = [await hydrateGiftCardCreateConfiguration(), await hydrateMissingGiftCard(missingUpdateId)];
 
   mutationUserErrorCodes = await capture('mutationUserErrorCodes', validationDocument, {
     cardId: setupCardId,
@@ -238,7 +260,7 @@ await writeFile(
       notes: [
         'Live Shopify capture for public gift-card mutation userError branches that can be represented through Admin GraphQL.',
         'GiftCardUpdatePayload.userErrors is generic UserError in the public schema, so this capture compares field/message for update and leaves local typed-code coverage to Rust integration tests.',
-        'Setup creates one disposable small-balance gift card and cleanup deactivates it. The upstreamCalls cassette contains the exact GiftCardHydrate miss used when the proxy validates an unknown update id from a cold LiveHybrid state.',
+        'Setup creates one disposable small-balance gift card and cleanup deactivates it. The upstreamCalls cassette contains the exact GiftCardCreateConfiguration query used by local create validation and the GiftCardHydrate miss used when the proxy validates an unknown update id from a cold LiveHybrid state.',
       ],
       proxyVariables: {
         setupSmallBalance: setupVariables,

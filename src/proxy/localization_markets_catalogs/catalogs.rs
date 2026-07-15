@@ -178,7 +178,7 @@ impl DraftProxy {
                     field,
                     vec!["input", "publicationId"],
                     "Publication is already attached to another catalog",
-                    "PUBLICATION_TAKEN",
+                    "TAKEN",
                 );
             }
         }
@@ -290,7 +290,7 @@ impl DraftProxy {
                     field,
                     vec!["input", "publicationId"],
                     "Publication is already attached to another catalog",
-                    "PUBLICATION_TAKEN",
+                    "TAKEN",
                 );
             }
             set_catalog_publication_relation(&mut updated_catalog, Some(&publication_id));

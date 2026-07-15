@@ -133,7 +133,7 @@ pub(in crate::proxy) fn theme_file_record(filename: &str, content: &str) -> Valu
         "filename": filename,
         "checksumMd5": theme_file_checksum_md5(content),
         "size": content.len(),
-        "body": {"content": content}
+        "body": {"__typename": "OnlineStoreThemeFileBodyText", "content": content}
     })
 }
 
@@ -155,17 +155,17 @@ pub(in crate::proxy) fn theme_file_record_from_body(
             let content = String::from_utf8(bytes).map_err(|_| ())?;
             Ok(theme_file_record(filename, &content))
         }
-        "URL" => Ok(theme_file_url_record(filename)),
+        "URL" => Ok(theme_file_url_record(filename, &value)),
         _ => Err(()),
     }
 }
 
-pub(in crate::proxy) fn theme_file_url_record(filename: &str) -> Value {
+pub(in crate::proxy) fn theme_file_url_record(filename: &str, url: &str) -> Value {
     json!({
         "filename": filename,
         "checksumMd5": theme_file_checksum_md5(""),
         "size": 0,
-        "body": {"type": "URL", "value": Value::Null}
+        "body": {"__typename": "OnlineStoreThemeFileBodyUrl", "url": url}
     })
 }
 
@@ -362,7 +362,7 @@ pub(in crate::proxy) fn theme_file_limit_error() -> Value {
     theme_file_user_error(
         vec!["files".to_string()],
         "Exceeded maximum number of files",
-        "INVALID",
+        "LESS_THAN_OR_EQUAL_TO",
     )
 }
 
@@ -374,7 +374,7 @@ pub(in crate::proxy) fn theme_file_duplicate_error(index: usize, field_name: &st
             field_name.to_string(),
         ],
         "duplicate-file-input",
-        "INVALID",
+        "DUPLICATE_FILE_INPUT",
     )
 }
 
@@ -418,7 +418,7 @@ pub(in crate::proxy) fn theme_file_filename_error(index: usize, filename: &str) 
             index,
             "filename",
             "Filename can't be blank",
-            "INVALID",
+            "FILE_VALIDATION_ERROR",
         ));
     }
     if filename == "_drafts" || filename.starts_with("_drafts/") || filename.contains("/_drafts/") {
@@ -434,7 +434,7 @@ pub(in crate::proxy) fn theme_file_filename_error(index: usize, filename: &str) 
             index,
             "filename",
             "Filename is invalid",
-            "INVALID",
+            "FILE_VALIDATION_ERROR",
         ));
     }
     None
@@ -450,9 +450,10 @@ pub(in crate::proxy) fn validate_mobile_app_clip_application_id(
             .as_deref()
             .is_none_or(|value| value.trim().is_empty())
     {
-        return Some(presence_user_error(
+        return Some(mobile_app_error(
+            "INVALID",
             ["input", "apple", "appClipApplicationId"],
-            "App clip application",
+            "App clip application can't be blank",
         ));
     }
     if app_clips_enabled
@@ -473,9 +474,10 @@ pub(in crate::proxy) fn validate_mobile_app_clip_application_id(
             .as_deref()
             .is_some_and(|value| value.trim().is_empty())
     {
-        return Some(presence_user_error(
+        return Some(mobile_app_error(
+            "INVALID",
             ["input", "apple", "appClipApplicationId"],
-            "App clip application",
+            "App clip application can't be blank",
         ));
     }
     None

@@ -2,6 +2,64 @@ use super::common::*;
 use pretty_assertions::assert_eq;
 use shopify_draft_proxy::proxy::Response;
 
+#[test]
+fn mixed_admin_platform_read_forwards_the_original_document_once() {
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "publicApiVersions": [{
+                            "handle": "2026-04",
+                            "displayName": "2026-04",
+                            "supported": true
+                        }],
+                        "domain": {
+                            "id": "gid://shopify/Domain/1",
+                            "host": "example.test"
+                        }
+                    }
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query MixedAdminPlatformRead($domainId: ID!) {
+          publicApiVersions { handle displayName supported }
+          domain(id: $domainId) { id host }
+        }
+        "#,
+        json!({"domainId": "gid://shopify/Domain/1"}),
+    ));
+
+    assert_eq!(
+        response.body["data"],
+        json!({
+            "publicApiVersions": [{
+                "handle": "2026-04",
+                "displayName": "2026-04",
+                "supported": true
+            }],
+            "domain": {
+                "id": "gid://shopify/Domain/1",
+                "host": "example.test"
+            }
+        })
+    );
+    let bodies = upstream_bodies.lock().unwrap();
+    assert_eq!(bodies.len(), 1);
+    let query = bodies[0]["query"].as_str().expect("query is preserved");
+    assert!(query.contains("publicApiVersions"));
+    assert!(query.contains("domain(id: $domainId)"));
+}
+
 fn add_platform_location(
     proxy: &mut DraftProxy,
     name: &str,
@@ -455,23 +513,40 @@ fn create_location_for_platform_test(proxy: &mut DraftProxy, name: &str) -> Stri
 }
 
 fn set_location_active_for_platform_test(proxy: &mut DraftProxy, location_id: &str, active: bool) {
+    let (query, response_key, error_key) = if active {
+        (
+            r#"
+            mutation SetPlatformLocationActive($locationId: ID!) {
+              locationActivate(locationId: $locationId) @idempotent(key: "platform-location-active") {
+                location { id isActive }
+                locationActivateUserErrors { field code message }
+              }
+            }
+            "#,
+            "locationActivate",
+            "locationActivateUserErrors",
+        )
+    } else {
+        (
+            r#"
+            mutation SetPlatformLocationInactive($locationId: ID!) {
+              locationDeactivate(locationId: $locationId) @idempotent(key: "platform-location-inactive") {
+                location { id isActive }
+                locationDeactivateUserErrors { field code message }
+              }
+            }
+            "#,
+            "locationDeactivate",
+            "locationDeactivateUserErrors",
+        )
+    };
     let response = proxy.process_request(json_graphql_request(
-        r#"
-        mutation SetPlatformLocationActive($id: ID!, $input: LocationEditInput!) {
-          locationEdit(id: $id, input: $input) {
-            location { id isActive }
-            userErrors { field code message }
-          }
-        }
-        "#,
-        json!({ "id": location_id, "input": { "active": active } }),
+        query,
+        json!({ "locationId": location_id }),
     ));
+    assert_eq!(response.body["data"][response_key][error_key], json!([]));
     assert_eq!(
-        response.body["data"]["locationEdit"]["userErrors"],
-        json!([])
-    );
-    assert_eq!(
-        response.body["data"]["locationEdit"]["location"]["isActive"],
+        response.body["data"][response_key]["location"]["isActive"],
         json!(active)
     );
 }
@@ -928,7 +1003,12 @@ fn cold_snapshot_shop_baseline_leaves_identity_absent() {
     ));
 
     assert_eq!(response.status, 200);
-    assert_eq!(response.body["data"]["shop"], json!({}));
+    assert!(response.body["data"].is_null());
+    assert_eq!(
+        response.body["errors"][0]["message"],
+        json!("Local resolver did not implement `Shop.id`")
+    );
+    assert_eq!(response.body["errors"][0]["path"], json!(["shop", "id"]));
 }
 
 #[test]
@@ -1020,7 +1100,7 @@ fn fulfillment_order_request_and_cancellation_transitions_stage_and_read_back() 
             message: "accepted"
             estimatedShippedAt: "2026-04-27T00:00:00Z"
           ) {
-            fulfillmentOrder { id status requestStatus estimatedShippedAt }
+            fulfillmentOrder { id status requestStatus }
             userErrors { field message }
           }
         }
@@ -1490,7 +1570,6 @@ fn fulfillment_order_split_and_merge_stage_remaining_records_and_read_back() {
                 requestStatus
                 updatedAt
                 supportedActions { action }
-                assignedLocation { name location { id name } }
                 lineItems(first: 5) { nodes { id totalQuantity remainingQuantity lineItem { id title quantity fulfillableQuantity } } }
               }
               remainingFulfillmentOrder {
@@ -1499,7 +1578,6 @@ fn fulfillment_order_split_and_merge_stage_remaining_records_and_read_back() {
                 requestStatus
                 updatedAt
                 supportedActions { action }
-                assignedLocation { name location { id name } }
                 lineItems(first: 5) { nodes { id totalQuantity remainingQuantity lineItem { id title quantity fulfillableQuantity } } }
               }
               replacementFulfillmentOrder { id }
@@ -1872,7 +1950,13 @@ fn backup_region_update_uses_staged_market_region_and_computed_coercion_location
               enabled
               status
               type
-              conditions { regionsCondition { regions(first: 5) { nodes { code } } } }
+              conditions {
+                regionsCondition {
+                  regions(first: 5) {
+                    nodes { ... on MarketRegionCountry { code } }
+                  }
+                }
+              }
             }
             userErrors { field message code }
           }
@@ -2000,15 +2084,6 @@ fn backup_region_update_uses_staged_market_region_and_computed_coercion_location
             "#,
             "argumentLiteralsIncompatible",
         ),
-        (
-            "numeric-country-code",
-            r#"
-            mutation FooNumericCountryCode {
-              backupRegionUpdate(region: { countryCode: 42 }) { backupRegion { id } userErrors { field code } }
-            }
-            "#,
-            "argumentLiteralsIncompatible",
-        ),
     ] {
         let response = proxy.process_request(json_graphql_request(query, json!({})));
         assert_eq!(
@@ -2032,6 +2107,34 @@ fn backup_region_update_uses_staged_market_region_and_computed_coercion_location
             "{name} must not fabricate a successful payload"
         );
     }
+
+    let numeric_country_code = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FooNumericCountryCode {
+          backupRegionUpdate(region: { countryCode: 42 }) { backupRegion { id } userErrors { field code } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        numeric_country_code.body["errors"][0],
+        json!({
+            "message": "Argument 'countryCode' on InputObject 'BackupRegionUpdateInput' has an invalid value (42). Expected type 'CountryCode!'.",
+            "locations": [{ "line": 3, "column": 38 }],
+            "path": [
+                "mutation FooNumericCountryCode",
+                "backupRegionUpdate",
+                "region",
+                "countryCode"
+            ],
+            "extensions": {
+                "code": "argumentLiteralsIncompatible",
+                "typeName": "InputObject",
+                "argumentName": "countryCode"
+            }
+        })
+    );
+    assert!(numeric_country_code.body.get("data").is_none());
 
     let invalid_country_location_query = r#"
         mutation BackupRegionUpdateInvalidCountryLocation {
@@ -2563,6 +2666,105 @@ fn generic_node_reads_keep_well_formed_absent_and_unknown_ids_null() {
 }
 
 #[test]
+fn live_hybrid_nodes_batch_merges_staged_and_tombstoned_records_over_one_upstream_read() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("node request body parses");
+            captured_requests.lock().unwrap().push(body.clone());
+            let nodes = body["variables"]["ids"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .map(|id| match id.as_str().unwrap_or_default() {
+                    "gid://shopify/Order/upstream" => json!({
+                        "__typename": "Order",
+                        "id": "gid://shopify/Order/upstream",
+                        "name": "#UPSTREAM"
+                    }),
+                    id => json!({
+                        "__typename": "Product",
+                        "id": id,
+                        "title": "stale upstream product"
+                    }),
+                })
+                .collect::<Vec<_>>();
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "nodes": nodes } }),
+            }
+        });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateProductsForMixedNodeBatch {
+          kept: productCreate(product: { title: "Local staged product" }) {
+            product { id }
+            userErrors { field message }
+          }
+          deleted: productCreate(product: { title: "Deleted staged product" }) {
+            product { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let kept_id = required_string(
+        &create.body["data"]["kept"]["product"]["id"],
+        "kept staged product id",
+    );
+    let deleted_id = required_string(
+        &create.body["data"]["deleted"]["product"]["id"],
+        "deleted staged product id",
+    );
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteProductForMixedNodeBatch($input: ProductDeleteInput!) {
+          productDelete(input: $input) { deletedProductId userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "id": deleted_id } }),
+    ));
+    assert_eq!(
+        delete.body["data"]["productDelete"]["deletedProductId"],
+        json!(deleted_id)
+    );
+
+    let node_read = proxy.process_request(json_graphql_request(
+        r#"
+        query MixedLocalAndColdNodes($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            __typename
+            ... on Product { id title }
+            ... on Order { id name }
+          }
+        }
+        "#,
+        json!({
+            "ids": [kept_id, "gid://shopify/Order/upstream", deleted_id]
+        }),
+    ));
+
+    assert_eq!(
+        node_read.body["data"]["nodes"],
+        json!([
+            { "__typename": "Product", "id": kept_id, "title": "Local staged product" },
+            { "__typename": "Order", "id": "gid://shopify/Order/upstream", "name": "#UPSTREAM" },
+            null
+        ])
+    );
+    let upstream_requests = upstream_requests.lock().unwrap();
+    assert_eq!(upstream_requests.len(), 1);
+    assert!(upstream_requests[0]["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("query MixedLocalAndColdNodes")));
+}
+
+#[test]
 fn generic_node_reads_project_customer_payment_store_credit_and_gift_card_records() {
     let mut proxy = snapshot_proxy();
 
@@ -2633,9 +2835,7 @@ fn generic_node_reads_project_customer_payment_store_credit_and_gift_card_record
               instrument {
                 __typename
                 ... on CustomerCreditCard {
-                  maskedNumber
-                  lastDigits
-                  billingAddress { address1 city countryCodeV2 }
+                  billingAddress { address1 city countryCode }
                 }
               }
               revokedAt
@@ -2728,7 +2928,7 @@ fn generic_node_reads_project_customer_payment_store_credit_and_gift_card_record
     let gift_card_setup = proxy.process_request(json_graphql_request(
         r#"
         mutation AdminNodeGiftCardSetup {
-          create: giftCardCreate(input: { initialValue: "20.00", notify: false }) {
+          create: giftCardCreate(input: { initialValue: "20.00" }) {
             giftCard { id balance { amount currencyCode } }
             userErrors { field code message }
           }
@@ -2797,6 +2997,8 @@ fn generic_node_reads_project_customer_payment_store_credit_and_gift_card_record
           $giftCardCreditId: ID!
           $giftCardDebitId: ID!
           $ids: [ID!]!
+          $accountBatchIds: [ID!]!
+          $mixedStoreCreditIds: [ID!]!
         ) {
           customerNode: node(id: $customerId) {
             __typename
@@ -2821,9 +3023,7 @@ fn generic_node_reads_project_customer_payment_store_credit_and_gift_card_record
               instrument {
                 __typename
                 ... on CustomerCreditCard {
-                  maskedNumber
-                  lastDigits
-                  billingAddress { address1 city countryCodeV2 }
+                  billingAddress { address1 city countryCode }
                 }
               }
             }
@@ -2837,6 +3037,9 @@ fn generic_node_reads_project_customer_payment_store_credit_and_gift_card_record
               transactions(first: 5) {
                 nodes {
                   __typename
+                  balanceAfterTransaction { amount currencyCode }
+                  event
+                  origin
                   ... on StoreCreditAccountCreditTransaction { id amount { amount currencyCode } balanceAfterTransaction { amount currencyCode } }
                   ... on StoreCreditAccountDebitTransaction { id amount { amount currencyCode } balanceAfterTransaction { amount currencyCode } }
                 }
@@ -2886,6 +3089,80 @@ fn generic_node_reads_project_customer_payment_store_credit_and_gift_card_record
             ... on GiftCardDebitTransaction { id note }
             ... on Customer { id email }
           }
+          accountBatch: nodes(ids: $accountBatchIds) {
+            __typename
+            ... on StoreCreditAccount {
+              id
+              transactions(first: 5) {
+                nodes {
+                  __typename
+                  amount { amount currencyCode }
+                  balanceAfterTransaction { amount currencyCode }
+                  event
+                  origin
+                  ... on StoreCreditAccountCreditTransaction {
+                    id
+                    remainingAmount { amount currencyCode }
+                  }
+                  ... on StoreCreditAccountDebitTransaction {
+                    id
+                    account { id }
+                  }
+                }
+              }
+            }
+          }
+          mixedStoreCreditBatch: nodes(ids: $mixedStoreCreditIds) {
+            __typename
+            ... on StoreCreditAccount {
+              id
+              transactions(first: 5) {
+                nodes {
+                  __typename
+                  amount { amount currencyCode }
+                  balanceAfterTransaction { amount currencyCode }
+                  event
+                  origin
+                  ... on StoreCreditAccountCreditTransaction {
+                    id
+                    remainingAmount { amount currencyCode }
+                  }
+                  ... on StoreCreditAccountDebitTransaction {
+                    id
+                    account { id }
+                  }
+                }
+              }
+            }
+            ... on StoreCreditAccountCreditTransaction {
+              id
+              amount { amount currencyCode }
+              balanceAfterTransaction { amount currencyCode }
+              event
+              origin
+              remainingAmount { amount currencyCode }
+              account { id }
+            }
+            ... on StoreCreditAccountDebitTransaction {
+              id
+              amount { amount currencyCode }
+              balanceAfterTransaction { amount currencyCode }
+              event
+              origin
+              account { id }
+            }
+            ... on GiftCard {
+              id
+              transactions(first: 5) {
+                nodes {
+                  __typename
+                  id
+                  note
+                  amount { amount currencyCode }
+                }
+              }
+            }
+          }
         }
         "#,
         json!({
@@ -2903,11 +3180,22 @@ fn generic_node_reads_project_customer_payment_store_credit_and_gift_card_record
                 store_credit_credit_id,
                 gift_card_debit_id,
                 customer_id
+            ],
+            "accountBatchIds": [
+                store_credit_account_id,
+                "gid://shopify/StoreCreditAccount/999999999999"
+            ],
+            "mixedStoreCreditIds": [
+                store_credit_account_id,
+                store_credit_credit_id,
+                store_credit_debit_id,
+                gift_card_id
             ]
         }),
     ));
     assert_eq!(node_read.status, 200);
     assert_eq!(node_read.body.get("errors"), None);
+
     assert_eq!(
         node_read.body["data"]["customerNode"],
         json!({
@@ -2945,12 +3233,10 @@ fn generic_node_reads_project_customer_payment_store_credit_and_gift_card_record
             "revokedReason": Value::Null,
             "instrument": {
                 "__typename": "CustomerCreditCard",
-                "maskedNumber": Value::Null,
-                "lastDigits": Value::Null,
                 "billingAddress": {
                     "address1": "2 Billing St",
                     "city": "Toronto",
-                    "countryCodeV2": "CA"
+                    "countryCode": "CA"
                 }
             }
         })
@@ -2968,13 +3254,17 @@ fn generic_node_reads_project_customer_payment_store_credit_and_gift_card_record
                         "__typename": "StoreCreditAccountCreditTransaction",
                         "id": store_credit_credit_id,
                         "amount": { "amount": "10.0", "currencyCode": "USD" },
-                        "balanceAfterTransaction": { "amount": "10.0", "currencyCode": "USD" }
+                        "balanceAfterTransaction": { "amount": "10.0", "currencyCode": "USD" },
+                        "event": "ADJUSTMENT",
+                        "origin": Value::Null
                     },
                     {
                         "__typename": "StoreCreditAccountDebitTransaction",
                         "id": store_credit_debit_id,
                         "amount": { "amount": "-3.0", "currencyCode": "USD" },
-                        "balanceAfterTransaction": { "amount": "7.0", "currencyCode": "USD" }
+                        "balanceAfterTransaction": { "amount": "7.0", "currencyCode": "USD" },
+                        "event": "ADJUSTMENT",
+                        "origin": Value::Null
                     }
                 ]
             }
@@ -2999,6 +3289,42 @@ fn generic_node_reads_project_customer_payment_store_credit_and_gift_card_record
             "balanceAfterTransaction": { "amount": "7.0", "currencyCode": "USD" },
             "account": { "id": store_credit_account_id }
         })
+    );
+    assert_eq!(
+        node_read.body["data"]["accountBatch"],
+        json!([
+            {
+                "__typename": "StoreCreditAccount",
+                "id": store_credit_account_id,
+                "transactions": {
+                    "nodes": [
+                        {
+                            "__typename": "StoreCreditAccountCreditTransaction",
+                            "id": store_credit_credit_id,
+                            "amount": { "amount": "10.0", "currencyCode": "USD" },
+                            "balanceAfterTransaction": { "amount": "10.0", "currencyCode": "USD" },
+                            "event": "ADJUSTMENT",
+                            "origin": Value::Null,
+                            "remainingAmount": { "amount": "7.0", "currencyCode": "USD" }
+                        },
+                        {
+                            "__typename": "StoreCreditAccountDebitTransaction",
+                            "id": store_credit_debit_id,
+                            "amount": { "amount": "-3.0", "currencyCode": "USD" },
+                            "balanceAfterTransaction": { "amount": "7.0", "currencyCode": "USD" },
+                            "event": "ADJUSTMENT",
+                            "origin": Value::Null,
+                            "account": { "id": store_credit_account_id }
+                        }
+                    ]
+                }
+            },
+            Value::Null
+        ])
+    );
+    assert_eq!(
+        node_read.body["data"]["mixedStoreCreditBatch"][0]["transactions"],
+        node_read.body["data"]["accountBatch"][0]["transactions"]
     );
     assert_eq!(
         node_read.body["data"]["giftCardCreditNode"],
@@ -4174,11 +4500,11 @@ fn generic_location_add_stages_location_and_downstream_reads() {
             "input": {
                 "name": "available",
                 "reason": "correction",
-                "ignoreCompareQuantity": true,
                 "quantities": [{
                     "inventoryItemId": inventory_item_id,
                     "locationId": location_id,
-                    "quantity": 7
+                    "quantity": 7,
+                    "changeFromQuantity": null
                 }]
             }
         }),
@@ -4308,9 +4634,9 @@ fn top_level_locations_connection_filters_sorts_windows_and_counts() {
             nodes { id name }
           }
           activeCount: locationsCount { count precision }
-          inactiveCount: locationsCount(includeInactive: true) { count precision }
-          legacyCount: locationsCount(includeLegacy: true) { count precision }
-          limitedCount: locationsCount(includeInactive: true, includeLegacy: true, limit: 3) { count precision }
+          inactiveCount: locationsCount { count precision }
+          legacyCount: locationsCount { count precision }
+          limitedCount: locationsCount(limit: 3) { count precision }
           queryCount: locationsCount(query: "name:Alpha") { count precision }
         }
         "#,
@@ -4878,24 +5204,7 @@ fn generic_location_activate_stages_existing_state_and_rejects_absent_ids() {
     assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 
     let location_id = add_platform_location(&mut proxy, "Activation control", false);
-    let make_inactive = proxy.process_request(json_graphql_request(
-        r#"
-        mutation GenericLocationActivateMakeInactive($id: ID!, $input: LocationEditInput!) {
-          locationEdit(id: $id, input: $input) {
-            location { id isActive }
-            userErrors { field code message }
-          }
-        }
-        "#,
-        json!({ "id": location_id, "input": { "active": false } }),
-    ));
-    assert_eq!(
-        make_inactive.body["data"]["locationEdit"],
-        json!({
-            "location": { "id": location_id, "isActive": false },
-            "userErrors": []
-        })
-    );
+    set_location_active_for_platform_test(&mut proxy, &location_id, false);
 
     let activate = proxy.process_request(json_graphql_request(
         activate_query,
@@ -4928,21 +5237,7 @@ fn generic_location_activate_stages_existing_state_and_rejects_absent_ids() {
     );
 
     let deleted_id = add_platform_location(&mut proxy, "Deleted activation target", false);
-    let make_deleted_inactive = proxy.process_request(json_graphql_request(
-        r#"
-        mutation GenericLocationActivateMakeDeletedInactive($id: ID!, $input: LocationEditInput!) {
-          locationEdit(id: $id, input: $input) {
-            location { id isActive }
-            userErrors { field code message }
-          }
-        }
-        "#,
-        json!({ "id": deleted_id, "input": { "active": false } }),
-    ));
-    assert_eq!(
-        make_deleted_inactive.body["data"]["locationEdit"]["userErrors"],
-        json!([])
-    );
+    set_location_active_for_platform_test(&mut proxy, &deleted_id, false);
     let delete = proxy.process_request(json_graphql_request(
         r#"
         mutation GenericLocationActivateDeleteTarget($locationId: ID!) {
@@ -5326,6 +5621,7 @@ fn generic_location_delete_stages_tombstone_and_cascades_inventory_levels() {
         json!({
             "input": {
                 "name": "Delete Target",
+                "fulfillsOnlineOrders": false,
                 "address": { "countryCode": "CA" }
             }
         }),
@@ -5373,11 +5669,11 @@ fn generic_location_delete_stages_tombstone_and_cascades_inventory_levels() {
             "input": {
                 "name": "available",
                 "reason": "correction",
-                "ignoreCompareQuantity": true,
                 "quantities": [{
                     "inventoryItemId": inventory_item_id,
                     "locationId": target_id,
-                    "quantity": 5
+                    "quantity": 5,
+                    "changeFromQuantity": null
                 }]
             }
         }),
@@ -5385,52 +5681,6 @@ fn generic_location_delete_stages_tombstone_and_cascades_inventory_levels() {
     assert_eq!(
         seed_inventory.body["data"]["inventorySetQuantities"]["userErrors"],
         json!([])
-    );
-
-    let forced_inactive = proxy.process_request(json_graphql_request(
-        r#"
-        mutation GenericLocationDeleteForceInactive($id: ID!, $input: LocationEditInput!) {
-          locationEdit(id: $id, input: $input) {
-            location { id isActive hasActiveInventory }
-            userErrors { field code message }
-          }
-        }
-        "#,
-        json!({ "id": target_id, "input": { "active": false } }),
-    ));
-    assert_eq!(
-        forced_inactive.body["data"]["locationEdit"],
-        json!({
-            "location": {
-                "id": target_id,
-                "isActive": false,
-                "hasActiveInventory": true
-            },
-            "userErrors": []
-        })
-    );
-
-    let inventory_delete_guard = proxy.process_request(json_graphql_request(
-        r#"
-        mutation GenericLocationDeleteInventoryGuard($locationId: ID!) {
-          locationDelete(locationId: $locationId) {
-            deletedLocationId
-            locationDeleteUserErrors { field code message }
-          }
-        }
-        "#,
-        json!({ "locationId": target_id }),
-    ));
-    assert_eq!(
-        inventory_delete_guard.body["data"]["locationDelete"],
-        json!({
-            "deletedLocationId": null,
-            "locationDeleteUserErrors": [{
-                "field": ["locationId"],
-                "code": "LOCATION_HAS_INVENTORY",
-                "message": "The location cannot be deleted while it has inventory."
-            }]
-        })
     );
 
     let cleared = proxy.process_request(json_graphql_request(
@@ -5446,11 +5696,11 @@ fn generic_location_delete_stages_tombstone_and_cascades_inventory_levels() {
             "input": {
                 "name": "available",
                 "reason": "correction",
-                "ignoreCompareQuantity": true,
                 "quantities": [{
                     "inventoryItemId": inventory_item_id,
                     "locationId": target_id,
-                    "quantity": 0
+                    "quantity": 0,
+                    "changeFromQuantity": null
                 }]
             }
         }),
@@ -5459,6 +5709,7 @@ fn generic_location_delete_stages_tombstone_and_cascades_inventory_levels() {
         cleared.body["data"]["inventorySetQuantities"]["userErrors"],
         json!([])
     );
+    set_location_active_for_platform_test(&mut proxy, &target_id, false);
 
     let delete = proxy.process_request(json_graphql_request(
         r#"
@@ -5573,7 +5824,13 @@ fn location_edit_and_delete_are_local_in_live_hybrid_mode() {
           locationAdd(input: $input) { location { id name } userErrors { field message } }
         }
         "#,
-        json!({ "input": { "name": "Live Local", "address": { "countryCode": "CA" } } }),
+        json!({
+            "input": {
+                "name": "Live Local",
+                "fulfillsOnlineOrders": false,
+                "address": { "countryCode": "CA" }
+            }
+        }),
     ));
     let location_id = add.body["data"]["locationAdd"]["location"]["id"]
         .as_str()
@@ -5605,17 +5862,17 @@ fn location_edit_and_delete_are_local_in_live_hybrid_mode() {
 
     let deactivate = proxy.process_request(json_graphql_request(
         r#"
-        mutation LocationLiveForceInactive($id: ID!, $input: LocationEditInput!) {
-          locationEdit(id: $id, input: $input) {
+        mutation LocationLiveForceInactive($locationId: ID!) {
+          locationDeactivate(locationId: $locationId) @idempotent(key: "location-live-force-inactive") {
             location { id isActive }
-            userErrors { field message code }
+            locationDeactivateUserErrors { field message code }
           }
         }
         "#,
-        json!({ "id": location_id, "input": { "active": false } }),
+        json!({ "locationId": location_id }),
     ));
     assert_eq!(
-        deactivate.body["data"]["locationEdit"]["location"]["isActive"],
+        deactivate.body["data"]["locationDeactivate"]["location"]["isActive"],
         json!(false)
     );
 
@@ -5764,11 +6021,11 @@ fn location_deactivate_recomputes_inventory_for_hydrated_base_location() {
             "input": {
                 "name": "available",
                 "reason": "correction",
-                "ignoreCompareQuantity": true,
                 "quantities": [{
                     "inventoryItemId": inventory_item_id,
                     "locationId": location_id,
-                    "quantity": 7
+                    "quantity": 7,
+                    "changeFromQuantity": null
                 }]
             }
         }),
@@ -5835,10 +6092,9 @@ fn location_deactivate_with_destination_relocates_and_merges_inventory_quantitie
             "input": {
                 "name": "available",
                 "reason": "correction",
-                "ignoreCompareQuantity": true,
                 "quantities": [
-                    { "inventoryItemId": inventory_item_id, "locationId": source_location_id, "quantity": 5 },
-                    { "inventoryItemId": inventory_item_id, "locationId": destination_location_id, "quantity": 9 }
+                    { "inventoryItemId": inventory_item_id, "locationId": source_location_id, "quantity": 5, "changeFromQuantity": null },
+                    { "inventoryItemId": inventory_item_id, "locationId": destination_location_id, "quantity": 9, "changeFromQuantity": null }
                 ]
             }
         }),
@@ -5937,10 +6193,9 @@ fn location_deactivate_user_error_does_not_relocate_inventory_quantities() {
             "input": {
                 "name": "available",
                 "reason": "correction",
-                "ignoreCompareQuantity": true,
                 "quantities": [
-                    { "inventoryItemId": inventory_item_id, "locationId": source_location_id, "quantity": 5 },
-                    { "inventoryItemId": inventory_item_id, "locationId": inactive_destination_location_id, "quantity": 9 }
+                    { "inventoryItemId": inventory_item_id, "locationId": source_location_id, "quantity": 5, "changeFromQuantity": null },
+                    { "inventoryItemId": inventory_item_id, "locationId": inactive_destination_location_id, "quantity": 9, "changeFromQuantity": null }
                 ]
             }
         }),
@@ -6116,11 +6371,11 @@ fn location_deactivate_state_machine_errors_match_captured_codes_fields_and_loca
             "input": {
                 "name": "available",
                 "reason": "correction",
-                "ignoreCompareQuantity": true,
                 "quantities": [{
                     "inventoryItemId": active_inventory_item,
                     "locationId": active_inventory_location,
-                    "quantity": 5
+                    "quantity": 5,
+                    "changeFromQuantity": null
                 }]
             }
         }),
@@ -7244,7 +7499,7 @@ fn fulfillment_order_close_reschedule_and_reroute_return_guardrail_payloads() {
     );
     assert_eq!(
         reroute.body["data"]["fulfillmentOrdersReroute"]["userErrors"][0]["code"],
-        json!("NOT_IMPLEMENTED")
+        Value::Null
     );
 }
 
@@ -7509,7 +7764,7 @@ fn fulfillment_order_status_invalid_state_rejections_do_not_mutate_order_reads()
             query FulfillmentOrderInvalidStateOrderRead($orderId: ID!) {
               order(id: $orderId) {
                 id
-                fulfillmentOrders(first: 10, includeClosed: true) {
+                fulfillmentOrders(first: 10) {
                   nodes { id status updatedAt supportedActions { action } }
                 }
               }
@@ -7577,7 +7832,7 @@ fn fulfillment_order_status_invalid_state_rejections_do_not_mutate_order_reads()
         query FulfillmentOrderInvalidStateOrderRead($orderId: ID!) {
           order(id: $orderId) {
             id
-            fulfillmentOrders(first: 10, includeClosed: true) {
+            fulfillmentOrders(first: 10) {
               nodes { id status updatedAt supportedActions { action } }
             }
           }
@@ -8679,8 +8934,6 @@ fn shop_policy_update_stages_policy_and_downstream_reads_locally() {
         r#"
         query ShopPolicyDownstreamRead($id: ID!) {
           shop {
-            id
-            myshopifyDomain
             shopPolicies { __typename id type title body url updatedAt }
           }
           nodePolicy: node(id: $id) { __typename ... on ShopPolicy { id type title body url } }

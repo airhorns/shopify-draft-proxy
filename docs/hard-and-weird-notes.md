@@ -1802,14 +1802,12 @@ Practical rule:
 
 On this conformance store and API version, schema introspection listed the bulk variant family (`productVariantsBulkCreate`, `productVariantsBulkUpdate`, `productVariantsBulkDelete`) but did **not** expose `productVariantCreate`, `productVariantUpdate`, or `productVariantDelete` at all.
 
-That means the older single-variant compatibility roots can still be useful local digital-twin affordances, but they cannot be promoted via the same first-party live-root capture process used for the bulk family on this store/API pair. The repo now adopts an explicit compatibility-only closure policy for this family:
+The complete captured schema inventory now makes those compatibility roots an invalid public API surface, not merely a live-capture blocker:
 
-- keep the dedicated live schema probe (`corepack pnpm conformance:probe-product-variant-compatibility-roots`) and HAR-189 follow-up so schema absence stays explicit rather than hand-wavy
-- treat `productVariantCreate` / `productVariantUpdate` / `productVariantDelete` as thin wrappers over the already covered bulk variant overlay paths they reuse locally
-- close their conformance status with captured compatibility evidence that pairs the relevant bulk live parity fixture with Linear-tracked evidence documenting the missing direct roots
-- if Shopify reintroduces the direct compatibility roots on a future API version/store, rerun the probe and replace the compatibility-only evidence with direct live mutation capture
-
-Use `corepack pnpm conformance:probe-product-variant-compatibility-roots` to refresh the live blocker evidence on this host; keep the exact missing-root errors in HAR-189 and parity metadata instead of reintroducing pending Markdown issue tracking.
+- `productVariantCreate` / `productVariantUpdate` / `productVariantDelete` remain registered as explicitly unimplemented historical names so audits can explain them, but every executable version rejects them during GraphQL validation
+- parity replays must use `productVariantsBulkCreate` / `productVariantsBulkUpdate` / `productVariantsBulkDelete`; a one-id bulk request is the faithful replacement for former single-delete janitor coverage
+- compatibility parity specs that selected fields absent from every captured schema are retired instead of teaching the executor to expose a fictional schema extension
+- if Shopify reintroduces a direct root in a future captured API version, the versioned schema and a fresh direct live capture can restore executable coverage for that version
 
 ## 22. Nested product connections need the same cursor semantics as top-level products
 
@@ -3525,6 +3523,7 @@ HAR-310 re-captured gift-card evidence on Admin GraphQL 2025-01 against `harry-t
 Captured facts:
 
 - `giftCards(query: "id:999999999999")` and `giftCardsCount(query: "id:999999999999")` returned an empty connection/count with no search warnings
+- Unfielded code search matched a three-character fragment visible in `lastCharacters`, but a longer fragment spanning the masked portion of the code returned an empty connection even after the card became readable by ID. Connection captures therefore use a collision-checked visible fragment and record the pre-create zero-count baseline for that exact query.
 - `giftCards(query: "last_characters:...")`, `giftCards(query: "enabled:false")`, and `giftCards(query: "active:false")` returned unfiltered results plus invalid-search-field warnings
 - `giftCardCredit` and `giftCardDebit` require `write_gift_card_transactions`, which is separate from `write_gift_cards`
 - selecting `giftCard.transactions.nodes` requires `read_gift_card_transactions`, which is separate from `read_gift_cards`

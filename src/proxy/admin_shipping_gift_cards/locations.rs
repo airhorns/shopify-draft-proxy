@@ -27,7 +27,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let Some(fields) = root_fields(query, variables) else {
+        let Some(fields) = self.execution_root_fields(query, variables) else {
             return json_error(400, "Could not parse GraphQL operation");
         };
         let data = root_payload_json(&fields, |field| {
@@ -255,13 +255,13 @@ impl DraftProxy {
         request: &Request,
     ) -> Response {
         if location_requires_idempotency(request, query) {
+            let field = self.execution_root_field(query, variables, "locationActivate");
             return ok_json(location_idempotency_required_error(
                 "locationActivate",
-                query,
-                variables,
+                field.as_ref(),
             ));
         }
-        let Some(fields) = root_fields(query, variables) else {
+        let Some(fields) = self.execution_root_fields(query, variables) else {
             return json_error(400, "Unable to parse locationActivate mutation");
         };
         let mut data = serde_json::Map::new();
@@ -324,7 +324,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let Some(fields) = root_fields(query, variables) else {
+        let Some(fields) = self.execution_root_fields(query, variables) else {
             return json_error(400, "Unable to parse locationDelete mutation");
         };
         let mut data = serde_json::Map::new();
@@ -505,7 +505,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let Some(fields) = root_fields(query, variables) else {
+        let Some(fields) = self.execution_root_fields(query, variables) else {
             return json_error(400, "Unable to parse locationEdit mutation");
         };
         let mut data = serde_json::Map::new();
@@ -1385,13 +1385,13 @@ impl DraftProxy {
         request: &Request,
     ) -> Response {
         if location_requires_idempotency(request, query) {
+            let field = self.execution_root_field(query, variables, "locationDeactivate");
             return ok_json(location_idempotency_required_error(
                 "locationDeactivate",
-                query,
-                variables,
+                field.as_ref(),
             ));
         }
-        let Some(fields) = root_fields(query, variables) else {
+        let Some(fields) = self.execution_root_fields(query, variables) else {
             return json_error(400, "Unable to parse locationDeactivate mutation");
         };
         let mut data = serde_json::Map::new();
@@ -2612,17 +2612,12 @@ fn location_requires_idempotency(request: &Request, query: &str) -> bool {
 
 fn location_idempotency_required_error(
     root_field: &str,
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
+    field: Option<&RootFieldSelection>,
 ) -> Value {
-    let field = root_fields(query, variables)
-        .and_then(|fields| fields.into_iter().find(|field| field.name == root_field));
     let response_key = field
-        .as_ref()
         .map(|field| field.response_key.clone())
         .unwrap_or_else(|| root_field.to_string());
     let (line, column) = field
-        .as_ref()
         .map(|field| (field.location.line, field.location.column))
         .unwrap_or((1, 1));
     json!({

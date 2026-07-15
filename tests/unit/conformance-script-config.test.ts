@@ -14,7 +14,7 @@ describe('conformance script config', () => {
     ).toEqual({
       storeDomain: 'example.myshopify.com',
       adminOrigin: 'https://example.myshopify.com',
-      apiVersion: '2026-04',
+      apiVersion: '2026-07',
     });
   });
 
@@ -59,7 +59,7 @@ describe('conformance script config', () => {
     ).toEqual({
       storeDomain: 'example.myshopify.com',
       adminOrigin: 'https://example.myshopify.com',
-      apiVersion: '2026-04',
+      apiVersion: '2026-07',
     });
   });
 });

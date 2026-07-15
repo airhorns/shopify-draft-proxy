@@ -2,14 +2,14 @@
   "scenarioId": "draft-order-invoice-send-created-no-recipient",
   "apiVersion": "2026-04",
   "storeDomain": "harry-test-heelo.myshopify.com",
-  "recordedAt": "2026-07-04T23:40:07.308Z",
+  "recordedAt": "2026-07-14T14:00:45.404Z",
   "source": "live-shopify-admin-graphql",
   "safetyPolicy": "Creates a disposable draft order without a recipient, sends draftOrderInvoiceSend without an email argument so Shopify returns validation userErrors instead of sending customer-visible email, then deletes the draft order during cleanup.",
   "create": {
     "variables": {
       "input": {
-        "note": "Draft order invoice created no-recipient 20260704234006",
-        "tags": ["draft-proxy-capture", "invoice-created-no-recipient", "20260704234006"],
+        "note": "Draft order invoice created no-recipient 20260714140044",
+        "tags": ["draft-proxy-capture", "invoice-created-no-recipient", "20260714140044"],
         "lineItems": [
           {
             "title": "Invoice error parity item",
@@ -28,11 +28,11 @@
       "data": {
         "draftOrderCreate": {
           "draftOrder": {
-            "id": "gid://shopify/DraftOrder/1275890237746",
-            "name": "#D307",
+            "id": "gid://shopify/DraftOrder/1280992379186",
+            "name": "#D346",
             "status": "OPEN",
             "email": null,
-            "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/d5f8fc5b419d0eb3c7050eec9890bba0",
+            "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/e059f727825467a2313b15899e4b1378",
             "totalQuantityOfLineItems": 2,
             "subtotalPriceSet": {
               "shopMoney": {
@@ -109,17 +109,17 @@
   },
   "send": {
     "variables": {
-      "id": "gid://shopify/DraftOrder/1275890237746"
+      "id": "gid://shopify/DraftOrder/1280992379186"
     },
     "response": {
       "data": {
         "draftOrderInvoiceSend": {
           "draftOrder": {
-            "id": "gid://shopify/DraftOrder/1275890237746",
-            "name": "#D307",
+            "id": "gid://shopify/DraftOrder/1280992379186",
+            "name": "#D346",
             "status": "OPEN",
             "email": null,
-            "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/d5f8fc5b419d0eb3c7050eec9890bba0",
+            "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/e059f727825467a2313b15899e4b1378",
             "totalQuantityOfLineItems": 2,
             "subtotalPriceSet": {
               "shopMoney": {
@@ -205,7 +205,7 @@
       "response": {
         "data": {
           "draftOrderDelete": {
-            "deletedId": "gid://shopify/DraftOrder/1275890237746",
+            "deletedId": "gid://shopify/DraftOrder/1280992379186",
             "userErrors": []
           }
         },
@@ -223,5 +223,34 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "DraftProxyShopPricingHydrate",
+      "variables": {},
+      "query": "query DraftProxyShopPricingHydrate { shop { currencyCode taxesIncluded taxShipping } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shop": {
+              "currencyCode": "CAD",
+              "taxesIncluded": false,
+              "taxShipping": false
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

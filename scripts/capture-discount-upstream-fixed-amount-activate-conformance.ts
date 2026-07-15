@@ -332,7 +332,7 @@ try {
     cleanup: { response: cleanup },
     upstreamCalls: [
       {
-        operationName: 'DiscountHydrate',
+        operationName: 'DiscountCodeHydrate',
         variables: { id: discountId },
         query: discountHydrateDocument,
         response: { status: hydrateBeforeActivate.status, body: hydrateBeforeActivate.payload },

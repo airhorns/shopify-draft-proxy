@@ -180,6 +180,9 @@ const locationQuery = `#graphql
   }
 `;
 
+const locationHydrateQuery =
+  'query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: "custom", key: "hours") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: ["available", "committed", "on_hand"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }';
+
 const preferredProductSetLocationIds = ['gid://shopify/Location/106318463282', 'gid://shopify/Location/106318430514'];
 
 const productsByHandleQuery = `#graphql
@@ -331,10 +334,16 @@ function buildProductSetVariables(runId, locations) {
 
 function selectProductSetLocations(locations) {
   const activeLocations = locations.filter((location) => location?.isActive !== false);
-  const preferredLocations = preferredProductSetLocationIds
+  const selectedLocations = preferredProductSetLocationIds
     .map((id) => activeLocations.find((location) => location.id === id))
     .filter(Boolean);
-  return preferredLocations.length > 0 ? preferredLocations : activeLocations.slice(0, 2);
+  for (const location of activeLocations) {
+    if (selectedLocations.length >= 2) break;
+    if (!selectedLocations.some((selected) => selected.id === location.id)) {
+      selectedLocations.push(location);
+    }
+  }
+  return selectedLocations;
 }
 
 function readProductSetVariantRefs(productSetResponse) {
@@ -549,6 +558,15 @@ try {
     );
   }
 
+  const productSetLocationHydrates = [];
+  for (const location of productSetLocations) {
+    const variables = { id: location.id };
+    productSetLocationHydrates.push({
+      variables,
+      response: await runGraphql(locationHydrateQuery, variables),
+    });
+  }
+
   const productSetVariables = buildProductSetVariables(runId, productSetLocations);
   const productSetResponse = await runGraphql(productSetMutation, productSetVariables);
   expectNoUserErrors('productSet', productSetResponse.data?.productSet?.userErrors);
@@ -671,6 +689,15 @@ try {
   const captures = {
     'product-set-parity.json': {
       upstreamCalls: [
+        ...productSetLocationHydrates.map((hydrate) => ({
+          operationName: 'StorePropertiesLocationHydrate',
+          query: locationHydrateQuery,
+          variables: hydrate.variables,
+          response: {
+            status: 200,
+            body: hydrate.response,
+          },
+        })),
         {
           operationName: 'ProductSetTargetHydrateById',
           query: productSetTargetHydrateByIdQuery,

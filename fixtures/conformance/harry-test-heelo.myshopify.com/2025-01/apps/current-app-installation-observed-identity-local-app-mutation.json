@@ -1,11 +1,12 @@
 {
-  "capturedAt": "2026-07-04T06:32:46.175Z",
+  "capturedAt": "2026-07-14T13:37:54.595Z",
   "apiVersion": "2025-01",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "notes": [
     "Captures the installed app identity returned by currentAppInstallation before and after a real delegateAccessTokenCreate call.",
     "The conformance app is a custom app, so the fixture records Shopify rejecting appSubscriptionCreate with \"Custom apps cannot use the Billing API\" and uses delegateAccessTokenCreate as the real app-domain mutation that this app can execute.",
-    "The capture asserts Shopify keeps currentAppInstallation.id and app identity stable across the app mutation. The created delegate token is destroyed in cleanup when Shopify returns a token."
+    "The capture asserts Shopify keeps currentAppInstallation.id and app identity stable across the app mutation. The created delegate token is destroyed in cleanup when Shopify returns a token.",
+    "The upstreamCalls cassette records the exact ProductPayloadShopHydrate query used when the local delegateAccessTokenCreate payload selects shop identity fields."
   ],
   "observedIdentity": {
     "id": "gid://shopify/AppInstallation/913990517042",
@@ -54,7 +55,7 @@
       "label": "billingMutationProbe",
       "query": "#graphql\n  mutation CustomAppBillingProbe(\n    $name: String!\n    $returnUrl: URL!\n    $lineItems: [AppSubscriptionLineItemInput!]!\n  ) {\n    appSubscriptionCreate(name: $name, returnUrl: $returnUrl, test: true, lineItems: $lineItems) {\n      appSubscription {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
       "variables": {
-        "name": "Observed identity test plan mr5zjm27",
+        "name": "Observed identity test plan mrkp4utr",
         "returnUrl": "https://app.example.test/return",
         "lineItems": [
           {
@@ -121,7 +122,41 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1988,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "shopIdentityHydrate": {
+      "label": "shopIdentityHydrate",
+      "query": "#graphql\n  query ProductPayloadShopHydrate {\n    shop {\n      id\n      name\n      myshopifyDomain\n      url\n      currencyCode\n      primaryDomain {\n        id\n        host\n        url\n        sslEnabled\n      }\n    }\n  }\n",
+      "variables": {},
+      "status": 200,
+      "response": {
+        "data": {
+          "shop": {
+            "id": "gid://shopify/Shop/92891250994",
+            "name": "harry-test-heelo",
+            "myshopifyDomain": "harry-test-heelo.myshopify.com",
+            "url": "https://harry-test-heelo.myshopify.com",
+            "currencyCode": "CAD",
+            "primaryDomain": {
+              "id": "gid://shopify/Domain/157391388978",
+              "host": "harry-test-heelo.myshopify.com",
+              "url": "https://harry-test-heelo.myshopify.com",
+              "sslEnabled": true
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
               "restoreRate": 100
             }
           }
@@ -190,5 +225,42 @@
       }
     }
   ],
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "ProductPayloadShopHydrate",
+      "variables": {},
+      "query": "#graphql\n  query ProductPayloadShopHydrate {\n    shop {\n      id\n      name\n      myshopifyDomain\n      url\n      currencyCode\n      primaryDomain {\n        id\n        host\n        url\n        sslEnabled\n      }\n    }\n  }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shop": {
+              "id": "gid://shopify/Shop/92891250994",
+              "name": "harry-test-heelo",
+              "myshopifyDomain": "harry-test-heelo.myshopify.com",
+              "url": "https://harry-test-heelo.myshopify.com",
+              "currencyCode": "CAD",
+              "primaryDomain": {
+                "id": "gid://shopify/Domain/157391388978",
+                "host": "harry-test-heelo.myshopify.com",
+                "url": "https://harry-test-heelo.myshopify.com",
+                "sslEnabled": true
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

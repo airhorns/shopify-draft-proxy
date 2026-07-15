@@ -7,6 +7,7 @@ import path from 'node:path';
 import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
+import { captureProductPayloadShopHydrate } from './support/shopify/runtime-hydration-capture.js';
 
 type CaptureEntry = {
   query: string;
@@ -18,11 +19,14 @@ const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ e
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'products');
 const outputPath = path.join(outputDir, 'productVariantsBulkCreate-validation.json');
-const { runGraphql, runGraphqlRaw } = createAdminGraphqlClient({
+const { runGraphql, runGraphqlRaw, runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
 });
+const shopIdentityHydrate = await captureProductPayloadShopHydrate((query, variables) =>
+  runGraphqlRequest(query, variables),
+);
 
 const productCreateMutation = `#graphql
   mutation ProductVariantScalarValidationCreate($product: ProductCreateInput!) {
@@ -429,7 +433,7 @@ try {
       locations,
       ...cases,
     },
-    upstreamCalls: [],
+    upstreamCalls: [shopIdentityHydrate],
   };
 
   await writeFile(outputPath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');

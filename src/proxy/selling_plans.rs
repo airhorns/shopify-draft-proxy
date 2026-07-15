@@ -158,7 +158,7 @@ impl DraftProxy {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return;
         }
-        let Some(field) = mutation_root_field(query, variables, root_field) else {
+        let Some(field) = self.execution_root_field(query, variables, root_field) else {
             return;
         };
 
@@ -337,7 +337,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
-        let Some(field) = mutation_root_field(query, variables, root_field) else {
+        let Some(field) = self.execution_root_field(query, variables, root_field) else {
             return MutationOutcome::response(json_error(400, "Could not parse GraphQL operation"));
         };
         match root_field {
@@ -825,7 +825,7 @@ impl DraftProxy {
             return vec![user_error(
                 ["sellingPlanGroupIds"],
                 "Selling plan group IDs contains duplicate values.",
-                Some("DUPLICATE"),
+                None,
             )];
         }
         if !self.has_resource(resource_id, resource_kind) {
@@ -857,7 +857,7 @@ impl DraftProxy {
             return vec![user_error(
                 ["sellingPlanGroupIds"],
                 "Selling plan group is not a member.",
-                Some("NOT_A_MEMBER"),
+                None,
             )];
         }
         Vec::new()
@@ -1625,16 +1625,6 @@ fn selling_plan_group_percentage_off_matches(group: &SellingPlanGroupRecord, val
                 (value - operand).abs() < f64::EPSILON
             })
         })
-}
-
-fn mutation_root_field(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-    root_field: &str,
-) -> Option<RootFieldSelection> {
-    root_fields(query, variables)?
-        .into_iter()
-        .find(|field| field.name == root_field)
 }
 
 fn selling_plan_group_input_user_errors(

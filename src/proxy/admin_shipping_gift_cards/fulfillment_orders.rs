@@ -236,7 +236,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        let Some(fields) = root_fields(query, variables) else {
+        let Some(fields) = self.execution_root_fields(query, variables) else {
             return json_error(400, "Could not parse shipping fulfillment-order read");
         };
         let all_connection_reads = fields.iter().all(|field| {
@@ -527,7 +527,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        let Some(fields) = root_fields(query, variables) else {
+        let Some(fields) = self.execution_root_fields(query, variables) else {
             return json_error(400, "Could not parse shipping fulfillment-order order read");
         };
         let data = root_payload_json(&fields, |field| {
@@ -568,7 +568,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> bool {
-        let Some(fields) = root_fields(query, variables) else {
+        let Some(fields) = self.execution_root_fields(query, variables) else {
             return false;
         };
         fields.iter().any(|field| match field.name.as_str() {
@@ -835,11 +835,12 @@ impl DraftProxy {
     }
 
     fn fulfillment_order_store_backed_parts(
+        &self,
         root_field: &str,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> (String, Vec<SelectedField>, BTreeMap<String, ResolvedValue>) {
-        primary_root_response_parts(query, variables, || root_field.to_string())
+        self.execution_primary_root_response_parts(query, variables, || root_field.to_string())
     }
 
     fn fulfillment_order_store_backed_preamble(
@@ -851,7 +852,7 @@ impl DraftProxy {
         guardrail_message: Option<&str>,
     ) -> Result<FulfillmentOrderStoreBackedPreamble, Response> {
         let (response_key, payload_selection, arguments) =
-            Self::fulfillment_order_store_backed_parts(root_field, query, variables);
+            self.fulfillment_order_store_backed_parts(root_field, query, variables);
         let id = resolved_string_field(&arguments, "id").unwrap_or_default();
         if !self.ensure_shipping_fulfillment_order_hydrated(request, &id) {
             return Err(self.fulfillment_order_missing_response(
@@ -1539,8 +1540,8 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let (response_key, payload_selection, arguments) =
-            Self::fulfillment_order_store_backed_parts(
+        let (response_key, payload_selection, arguments) = self
+            .fulfillment_order_store_backed_parts(
                 "fulfillmentOrdersSetFulfillmentDeadline",
                 query,
                 variables,
@@ -1668,8 +1669,8 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let (response_key, payload_selection, arguments) =
-            Self::fulfillment_order_store_backed_parts(
+        let (response_key, payload_selection, arguments) = self
+            .fulfillment_order_store_backed_parts(
                 "fulfillmentOrderLineItemsPreparedForPickup",
                 query,
                 variables,
@@ -1772,7 +1773,9 @@ impl DraftProxy {
         message: &str,
     ) -> Response {
         let (response_key, payload_selection) =
-            primary_root_response_selection(query, &BTreeMap::new(), || root_field.to_string());
+            self.execution_primary_root_response_selection(query, &BTreeMap::new(), || {
+                root_field.to_string()
+            });
         fulfillment_order_data_response(
             &response_key,
             fulfillment_order_simple_payload_json(
@@ -1785,7 +1788,7 @@ impl DraftProxy {
 
     fn fulfillment_orders_reroute_guardrail_response(&self, query: &str) -> Response {
         let (response_key, payload_selection) =
-            primary_root_response_selection(query, &BTreeMap::new(), || {
+            self.execution_primary_root_response_selection(query, &BTreeMap::new(), || {
                 "fulfillmentOrdersReroute".to_string()
             });
         fulfillment_order_data_response(
@@ -1796,7 +1799,7 @@ impl DraftProxy {
                 vec![user_error(
                     Value::Null,
                     "Fulfillment orders could not be rerouted locally.",
-                    Some("NOT_IMPLEMENTED"),
+                    None,
                 )],
             ),
         )

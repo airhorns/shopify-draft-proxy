@@ -142,12 +142,57 @@ jobs:
       - name: Node ESM consumer smoke
         run: corepack pnpm test
 
+      - name: Find latest main parity baseline
+        id: main_parity_baseline
+        if: github.event_name == 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >
+          corepack pnpm exec tsx ./scripts/find-main-conformance-baseline.ts
+          --artifact-name parity-results-main
+
+      - name: Download latest main parity baseline
+        if: github.event_name == 'pull_request' && steps.main_parity_baseline.outputs.found == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.main_parity_baseline.outputs.run_id }}
+          artifact-ids: ${{ steps.main_parity_baseline.outputs.artifact_id }}
+          path: .parity/main
+          merge-multiple: true
+
+      - name: Run full parity suite
+        run: >
+          corepack pnpm parity:run --
+          --allow-failures
+          --output-json .parity/current/parity-results.json
+
+      - name: Reject new parity failures
+        if: github.event_name == 'pull_request' && steps.main_parity_baseline.outputs.found == 'true'
+        run: >
+          corepack pnpm parity:check-regressions --
+          --current .parity/current/parity-results.json
+          --baseline .parity/main/parity-results.json
+
+      - name: Note missing main parity baseline
+        if: github.event_name == 'pull_request' && steps.main_parity_baseline.outputs.found != 'true'
+        run: echo "No main parity baseline artifact found; this run cannot distinguish existing failures from regressions."
+
       - name: Upload main conformance baseline
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
         with:
           name: conformance-status-main
           path: .conformance/current/conformance-status-report.json
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Upload main parity baseline
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: parity-results-main
+          path: .parity/current/parity-results.json
           if-no-files-found: error
           retention-days: 90
 

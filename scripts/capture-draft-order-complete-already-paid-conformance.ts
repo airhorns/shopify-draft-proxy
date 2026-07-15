@@ -7,6 +7,7 @@ import path from 'node:path';
 import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
+import { captureDraftProxyShopPricingHydrate } from './support/shopify/runtime-hydration-capture.js';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -20,6 +21,9 @@ const { runGraphqlRequest } = createAdminGraphqlClient({
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
 });
+const shopPricingHydrate = await captureDraftProxyShopPricingHydrate((query, variables) =>
+  runGraphqlRequest(query, variables),
+);
 
 const fixtureDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'orders');
 const fixturePath = path.join(fixtureDir, 'draft-order-complete-already-paid.json');
@@ -287,6 +291,7 @@ async function main(): Promise<void> {
         response: cleanupResult.payload,
       },
     },
+    upstreamCalls: [shopPricingHydrate],
   });
 
   console.log(`Wrote ${fixturePath}`);

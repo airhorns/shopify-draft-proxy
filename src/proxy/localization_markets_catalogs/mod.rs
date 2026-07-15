@@ -1013,7 +1013,7 @@ fn market_update_price_inclusions_json(
     json!({
         "inclusiveDutiesPricingStrategy": resolved_string_field(&price_inclusions, "dutiesPricingStrategy")
             .or_else(|| value_string_field(existing, "inclusiveDutiesPricingStrategy", ""))
-            .unwrap_or_else(|| "NOT_INCLUDED".to_string()),
+            .unwrap_or_else(|| "ADD_DUTIES_AT_CHECKOUT".to_string()),
         "inclusiveTaxPricingStrategy": resolved_string_field(&price_inclusions, "taxPricingStrategy")
             .or_else(|| value_string_field(existing, "inclusiveTaxPricingStrategy", ""))
             .unwrap_or_else(|| "ADD_TAXES_AT_CHECKOUT".to_string())
@@ -1027,10 +1027,23 @@ fn market_update_region_input_present(input: &BTreeMap<String, ResolvedValue>) -
     let Some(ResolvedValue::Object(conditions)) = input.get("conditions") else {
         return false;
     };
-    let Some(ResolvedValue::Object(regions_condition)) = conditions.get("regionsCondition") else {
-        return false;
-    };
-    regions_condition.contains_key("regions")
+    if matches!(
+        conditions.get("regionsCondition"),
+        Some(ResolvedValue::Object(regions_condition)) if regions_condition.contains_key("regions")
+    ) {
+        return true;
+    }
+    ["conditionsToAdd", "conditionsToDelete"].iter().any(|key| {
+        matches!(
+            conditions.get(*key),
+            Some(ResolvedValue::Object(nested))
+                if matches!(
+                    nested.get("regionsCondition"),
+                    Some(ResolvedValue::Object(regions_condition))
+                        if regions_condition.contains_key("regions")
+                )
+        )
+    })
 }
 
 fn value_string_field(existing: Option<&Value>, field: &str, nested_field: &str) -> Option<String> {

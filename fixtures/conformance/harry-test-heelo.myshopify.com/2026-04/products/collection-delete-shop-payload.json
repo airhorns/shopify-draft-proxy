@@ -1,18 +1,18 @@
 {
-  "capturedAt": "2026-06-23T22:48:55.462Z",
+  "capturedAt": "2026-07-14T14:14:52.120Z",
   "apiVersion": "2026-04",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "success": {
     "document": "mutation CollectionDeleteParityPlan($input: CollectionDeleteInput!) {\n  collectionDelete(input: $input) {\n    deletedCollectionId\n    shop {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
     "variables": {
       "input": {
-        "id": "gid://shopify/Collection/513789165874"
+        "id": "gid://shopify/Collection/514431516978"
       }
     },
     "response": {
       "data": {
         "collectionDelete": {
-          "deletedCollectionId": "gid://shopify/Collection/513789165874",
+          "deletedCollectionId": "gid://shopify/Collection/514431516978",
           "shop": {
             "id": "gid://shopify/Shop/92891250994"
           },
@@ -36,7 +36,7 @@
     "document": "mutation CollectionDeleteParityPlan($input: CollectionDeleteInput!) {\n  collectionDelete(input: $input) {\n    deletedCollectionId\n    shop {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
     "variables": {
       "input": {
-        "id": "gid://shopify/Collection/1782254934467999"
+        "id": "gid://shopify/Collection/1784038490864999"
       }
     },
     "response": {
@@ -70,7 +70,7 @@
   "downstreamRead": {
     "document": "query CollectionDeleteDownstreamRead($id: ID!) {\n  collection(id: $id) {\n    id\n  }\n}\n",
     "variables": {
-      "id": "gid://shopify/Collection/513789165874"
+      "id": "gid://shopify/Collection/514431516978"
     },
     "response": {
       "data": {
@@ -91,9 +91,45 @@
   },
   "upstreamCalls": [
     {
+      "operationName": "ProductPayloadShopHydrate",
+      "variables": {},
+      "query": "#graphql\n  query ProductPayloadShopHydrate {\n    shop {\n      id\n      name\n      myshopifyDomain\n      url\n      currencyCode\n      primaryDomain {\n        id\n        host\n        url\n        sslEnabled\n      }\n    }\n  }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shop": {
+              "id": "gid://shopify/Shop/92891250994",
+              "name": "harry-test-heelo",
+              "myshopifyDomain": "harry-test-heelo.myshopify.com",
+              "url": "https://harry-test-heelo.myshopify.com",
+              "currencyCode": "CAD",
+              "primaryDomain": {
+                "id": "gid://shopify/Domain/157391388978",
+                "host": "harry-test-heelo.myshopify.com",
+                "url": "https://harry-test-heelo.myshopify.com",
+                "sslEnabled": true
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Collection/513789165874"]
+        "ids": ["gid://shopify/Collection/514431516978"]
       },
       "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
       "response": {
@@ -102,9 +138,9 @@
           "data": {
             "nodes": [
               {
-                "id": "gid://shopify/Collection/513789165874",
-                "title": "Collection delete shop payload 1782254934467",
-                "handle": "collection-delete-shop-payload-1782254934467",
+                "id": "gid://shopify/Collection/514431516978",
+                "title": "Collection delete shop payload 1784038490864",
+                "handle": "collection-delete-shop-payload-1784038490864",
                 "products": {
                   "nodes": [],
                   "pageInfo": {
@@ -135,7 +171,7 @@
               "actualQueryCost": 19,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1981,
+                "currentlyAvailable": 1974,
                 "restoreRate": 100
               }
             }
@@ -146,7 +182,7 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Collection/1782254934467999"]
+        "ids": ["gid://shopify/Collection/1784038490864999"]
       },
       "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
       "response": {
@@ -172,6 +208,6 @@
   ],
   "notes": [
     "Live public Admin GraphQL 2026-04 returns a non-null CollectionDeletePayload.shop on both success and not-found userError branches.",
-    "The upstreamCalls entries are real live ProductsHydrateNodes reads captured before replay so parity can hydrate collection existence without writing to Shopify."
+    "The upstreamCalls entries are real live ProductPayloadShopHydrate and ProductsHydrateNodes reads captured before replay so parity can hydrate shop identity and collection existence without writing to Shopify."
   ]
 }

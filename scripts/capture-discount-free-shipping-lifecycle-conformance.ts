@@ -9,6 +9,10 @@ import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { readDiscountHydrateDocument } from './discount-hydrate-query.js';
 import { assertDiscountConformanceScopes, probeDiscountConformanceScopes } from './discount-conformance-lib.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
+import {
+  captureDiscountUniquenessCheck,
+  captureDraftProxyShopPricingHydrate,
+} from './support/shopify/runtime-hydration-capture.js';
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
   defaultApiVersion: '2026-04',
@@ -24,6 +28,9 @@ const adminOptions = {
   headers: buildAdminAuthHeaders(adminAccessToken),
 };
 const { runGraphqlRaw } = createAdminGraphqlClient(adminOptions);
+const shopPricingHydrate = await captureDraftProxyShopPricingHydrate((query, variables) =>
+  runGraphqlRaw(query, variables),
+);
 
 await mkdir(outputDir, { recursive: true });
 
@@ -351,6 +358,7 @@ const codeCreateVariables = {
   },
 };
 
+const initialCodeUniqueness = await captureDiscountUniquenessCheck(runGraphqlRaw, initialCode);
 const codeCreate = await runGraphqlRaw(codeCreateDocument, codeCreateVariables);
 const codeDiscountId = (
   codeCreate.payload as {
@@ -392,6 +400,7 @@ const codeOmittedFieldsCreateVariables = {
     usageLimit: 5,
   },
 };
+const omittedFieldsCodeUniqueness = await captureDiscountUniquenessCheck(runGraphqlRaw, omittedFieldsCode);
 const codeOmittedFieldsCreate = await runGraphqlRaw(codeCreateDocument, codeOmittedFieldsCreateVariables);
 const codeOmittedFieldsDiscountId = (
   codeOmittedFieldsCreate.payload as {
@@ -576,6 +585,7 @@ const automaticUpdateVariables = {
   },
 };
 
+const updatedCodeUniqueness = await captureDiscountUniquenessCheck(runGraphqlRaw, updatedCode);
 const codeUpdate = await runGraphqlRaw(codeUpdateDocument, codeUpdateVariables);
 const automaticUpdate = await runGraphqlRaw(automaticUpdateDocument, automaticUpdateVariables);
 const readAfterUpdate = await runGraphqlRaw(readDocument, {
@@ -596,6 +606,9 @@ const readAfterDelete = await runGraphqlRaw(readDocument, {
 });
 
 const output = {
+  capturedAt: new Date().toISOString(),
+  storeDomain,
+  apiVersion,
   variables: {
     codeDiscountId,
     codeOmittedFieldsDiscountId,
@@ -643,6 +656,10 @@ const output = {
   automaticDelete,
   readAfterDelete,
   upstreamCalls: [
+    shopPricingHydrate,
+    initialCodeUniqueness,
+    omittedFieldsCodeUniqueness,
+    updatedCodeUniqueness,
     {
       operationName: 'DraftProxyShopSubscriptionCapability',
       variables: {},
@@ -653,7 +670,7 @@ const output = {
       },
     },
     {
-      operationName: 'DiscountHydrate',
+      operationName: 'DiscountCodeHydrate',
       variables: { id: codeOmittedFieldsDiscountId },
       query: discountHydrateDocument,
       response: {
