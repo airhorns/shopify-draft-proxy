@@ -1,0 +1,76 @@
+query StorefrontFirstSliceContext($country: CountryCode, $language: LanguageCode)
+@inContext(country: $country, language: $language) {
+  sfShop: shop {
+    ...StorefrontFirstSliceShopFields
+    paymentSettings {
+      countryCode
+      currencyCode
+      enabledPresentmentCurrencies
+    }
+  }
+  localization {
+    country {
+      isoCode
+      name
+      market {
+        id
+        handle
+      }
+    }
+    language {
+      isoCode
+      name
+      endonymName
+    }
+    market {
+      id
+      handle
+    }
+  }
+  locations(first: 5) {
+    edges {
+      cursor
+      node {
+        id
+        name
+        address {
+          city
+          countryCode
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  paymentSettings {
+    countryCode
+    currencyCode
+    enabledPresentmentCurrencies
+  }
+  publicApiVersions {
+    handle
+    displayName
+    supported
+  }
+}
+
+fragment StorefrontFirstSliceShopFields on Shop {
+  name
+  primaryDomain {
+    host
+    url
+  }
+  brand {
+    shortDescription
+    slogan
+  }
+  privacyPolicy {
+    title
+    handle
+    url
+  }
+}

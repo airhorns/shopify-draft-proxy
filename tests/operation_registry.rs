@@ -205,6 +205,24 @@ fn default_registry_classifies_core_local_targets_without_runtime_io() {
         CapabilityExecution::StageLocally
     );
 
+    for root in [
+        "shop",
+        "localization",
+        "locations",
+        "paymentSettings",
+        "publicApiVersions",
+    ] {
+        let capability = operation_capability_for_surface(
+            &registry,
+            ApiSurface::Storefront,
+            OperationType::Query,
+            Some(root),
+        );
+        assert_eq!(capability.api_surface, ApiSurface::Storefront);
+        assert_eq!(capability.domain, CapabilityDomain::Storefront);
+        assert_eq!(capability.execution, CapabilityExecution::OverlayRead);
+    }
+
     let app = operation_capability(&registry, OperationType::Query, Some("app"));
     assert_eq!(app.domain, CapabilityDomain::Unknown);
     assert_eq!(app.execution, CapabilityExecution::Passthrough);

@@ -6,7 +6,6 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store/storefront-shop-name-proxy-parity.json"
   ],
-  "runtimeTestFiles": ["tests/graphql_routes/storefront.rs"],
   "proxyRequest": {
     "apiSurface": "storefront",
     "documentPath": "config/parity-requests/online-store/storefront-shop-name.graphql",

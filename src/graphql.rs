@@ -339,6 +339,26 @@ pub fn directive_invocations(
     Some(invocations)
 }
 
+pub fn operation_directive_invocations(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+    operation_name: Option<&str>,
+) -> Result<Vec<DirectiveInvocation>, OperationSelectionError> {
+    let document = parse_query::<&str>(query).map_err(|_| OperationSelectionError::Parse)?;
+    let operation = select_operation_definition(&document.definitions, operation_name)?;
+    let (operation_type, name, location, _, _) = operation_parts(operation);
+    let path = vec![operation_path(operation_type, name)];
+    let mut invocations = Vec::new();
+    push_directive_invocations(
+        operation_directives(operation),
+        variables,
+        source_location(location),
+        &path,
+        &mut invocations,
+    );
+    Ok(invocations)
+}
+
 pub fn root_field_arguments(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
@@ -633,6 +653,17 @@ fn operation_parts<'a>(operation: &'a OperationDefinition<'a, &'a str>) -> Opera
             subscription.variable_definitions.as_slice(),
             subscription.selection_set.items.as_slice(),
         ),
+    }
+}
+
+fn operation_directives<'a>(
+    operation: &'a OperationDefinition<'a, &'a str>,
+) -> &'a [Directive<'a, &'a str>] {
+    match operation {
+        OperationDefinition::SelectionSet(_) => &[],
+        OperationDefinition::Query(query) => query.directives.as_slice(),
+        OperationDefinition::Mutation(mutation) => mutation.directives.as_slice(),
+        OperationDefinition::Subscription(subscription) => subscription.directives.as_slice(),
     }
 }
 

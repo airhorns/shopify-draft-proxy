@@ -7020,6 +7020,29 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'storefront',
+    captureId: 'storefront-first-slice',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-storefront-first-slice-conformance.mts',
+    purpose:
+      'Authenticated Storefront API evidence for the 2026-04 local first-slice roots in default context and @inContext(country: US, language: EN).',
+    requiredAuthScopes: ['stored Storefront access token from corepack pnpm conformance:grant-storefront-token'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/storefront/storefront-first-slice-default.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/storefront/storefront-first-slice-context.json',
+      'config/parity-specs/storefront/storefront-first-slice-default.json',
+      'config/parity-specs/storefront/storefront-first-slice-context.json',
+      'config/parity-requests/storefront/storefront-first-slice-default.graphql',
+      'config/parity-requests/storefront/storefront-first-slice-context.graphql',
+      'config/parity-requests/storefront/storefront-first-slice-hydrate.graphql',
+      'config/parity-requests/storefront/storefront-first-slice-hydrate-context.graphql',
+    ],
+    cleanupBehavior: 'Read-only Storefront API requests; no Shopify resources are created or mutated.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The conformance shop enables the US/EN Storefront context; the default Storefront context remains CA/EN, so the context capture asserts country and market changes without requiring Admin setup.',
+  },
+  {
     domain: 'online-store',
     captureId: 'storefront-shop-name-proxy-parity',
     scriptPath: 'scripts/capture-storefront-shop-name-proxy-conformance.mts',

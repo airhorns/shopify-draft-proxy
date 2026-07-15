@@ -287,11 +287,27 @@ fn storefront_registry_entries_for_roots<'a>(
             name: name.to_string(),
             operation_type,
             domain: CapabilityDomain::Storefront,
-            implemented: false,
+            implemented: storefront_root_is_implemented(operation_type, name),
             match_names: default_match_names(name),
-            runtime_tests: Vec::new(),
+            runtime_tests: storefront_runtime_tests(operation_type, name),
         })
         .collect()
+}
+
+fn storefront_root_is_implemented(operation_type: OperationType, name: &str) -> bool {
+    operation_type == OperationType::Query
+        && matches!(
+            name,
+            "shop" | "localization" | "locations" | "paymentSettings" | "publicApiVersions"
+        )
+}
+
+fn storefront_runtime_tests(operation_type: OperationType, name: &str) -> Vec<String> {
+    if storefront_root_is_implemented(operation_type, name) {
+        vec!["tests/graphql_routes/storefront.rs".to_string()]
+    } else {
+        Vec::new()
+    }
 }
 
 fn storefront_root_inventory_json(api_version: &str) -> Value {

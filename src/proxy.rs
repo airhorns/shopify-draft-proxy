@@ -282,6 +282,12 @@ struct BaseState {
     gift_cards: BTreeMap<String, Value>,
     gift_card_configuration: Option<Value>,
     shop: Value,
+    storefront_shop: Value,
+    storefront_localizations: BTreeMap<String, Value>,
+    storefront_payment_settings: Value,
+    storefront_locations: OrderedRecords<Value>,
+    storefront_location_cursors: BTreeMap<String, String>,
+    storefront_public_api_versions: Vec<Value>,
     publication_ids: BTreeSet<String>,
     publication_count: Option<usize>,
     available_locales: BTreeMap<String, String>,
@@ -2146,6 +2152,7 @@ mod search;
 mod selection;
 mod selling_plans;
 mod store_properties;
+mod storefront;
 mod url_redirects;
 
 pub(in crate::proxy) use self::admin_shipping_gift_cards::*;
