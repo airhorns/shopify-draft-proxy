@@ -64,6 +64,7 @@ pub(crate) fn resolver_handler_for_domain(domain: CapabilityDomain) -> ResolverH
         CapabilityDomain::Localization => DraftProxy::resolve_localization_graphql,
         CapabilityDomain::Markets => DraftProxy::resolve_markets_graphql,
         CapabilityDomain::Metafields => DraftProxy::resolve_metafields_graphql,
+        CapabilityDomain::Storefront => DraftProxy::resolve_storefront_graphql,
         CapabilityDomain::Unknown => {
             panic!("unknown GraphQL capabilities cannot register local resolvers")
         }
@@ -75,7 +76,7 @@ pub(crate) fn resolver_handler_for_domain(domain: CapabilityDomain) -> ResolverH
 /// moves the proxy back out of the request Arc. Exceptional paths clone the
 /// latest guarded value before resuming the unwind, so `self` is never left as
 /// the fresh placeholder used during execution.
-fn with_request_owned_proxy<T>(
+pub(in crate::proxy) fn with_request_owned_proxy<T>(
     proxy: &mut DraftProxy,
     run: impl FnOnce(Arc<std::sync::Mutex<DraftProxy>>) -> T,
 ) -> T {

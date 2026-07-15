@@ -20,8 +20,7 @@ impl DraftProxy {
                     Ok(fields) => fields,
                     Err(response) => return response,
                 };
-                if self.config.read_mode != ReadMode::Snapshot && !self.has_local_metaobject_state()
-                {
+                if self.config.read_mode != ReadMode::Snapshot {
                     self.metaobject_live_hybrid_read(request, &fields)
                 } else {
                     ok_json(json!({ "data": self.metaobject_query_data(&fields, request) }))

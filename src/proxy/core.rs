@@ -1,5 +1,5 @@
-use super::graphql_runtime::operation_selection_error_response;
 use super::*;
+use crate::storefront_graphql::{self, StorefrontApiVersion};
 
 fn format_runtime_timestamp(timestamp: time::OffsetDateTime) -> String {
     timestamp
@@ -202,73 +202,10 @@ impl DraftProxy {
                 self.bulk_operation_result_jsonl(&artifact_id)
             }
             Route::Graphql => self.execute_graphql(&request),
-            Route::StorefrontGraphql => self.dispatch_storefront_graphql(&request),
+            Route::StorefrontGraphql => self.execute_storefront_graphql(&request),
             Route::NotFound => json_error(404, "Not found"),
             Route::MethodNotAllowed => json_error(405, "Method not allowed"),
         }
-    }
-
-    fn dispatch_storefront_graphql(&mut self, request: &Request) -> Response {
-        let Some(graphql_request) = parse_graphql_request_body(&request.body) else {
-            return json_error(400, "Expected JSON body with a string `query`");
-        };
-        let raw_query = graphql_request.query;
-        let requested_operation_name = graphql_request.operation_name.as_deref();
-        let api_version = storefront_graphql_version(&request.path);
-
-        if let Some(response) =
-            public_storefront_graphql_parse_error_response(&raw_query, api_version)
-        {
-            return response;
-        }
-
-        let selection = match selected_operation(&raw_query, requested_operation_name) {
-            Ok(selection) => selection,
-            Err(error) => return operation_selection_error_response(error),
-        };
-        let query = if selection.requires_filtered_document {
-            match selected_operation_query(&raw_query, requested_operation_name) {
-                Ok(query) => query,
-                Err(error) => return operation_selection_error_response(error),
-            }
-        } else {
-            raw_query
-        };
-        let variables =
-            match variables_with_operation_defaults(&query, &graphql_request.variables, None) {
-                Ok(variables) => variables,
-                Err(error) => return operation_selection_error_response(error),
-            };
-
-        if let Some(response) =
-            public_storefront_graphql_validation_response(&query, &variables, api_version)
-        {
-            return response;
-        }
-
-        if let Some(response) =
-            self.dispatch_storefront_local_graphql(request, &query, &variables, api_version)
-        {
-            return response;
-        }
-
-        if self.config.read_mode == ReadMode::Snapshot {
-            self.record_storefront_log_entry(
-                request,
-                "rejected",
-                "passthrough",
-                "Storefront API traffic has no local snapshot data; Admin local dispatch is not applied.",
-            );
-            return self.storefront_snapshot_graphql_response(&query, &variables, api_version);
-        }
-
-        self.record_storefront_log_entry(
-            request,
-            "proxied",
-            "passthrough",
-            "Storefront API traffic is passthrough-only; Admin local dispatch is not applied.",
-        );
-        (self.storefront_upstream_transport)(request.clone())
     }
 
     pub(in crate::proxy) fn record_storefront_log_entry(
@@ -322,11 +259,11 @@ impl DraftProxy {
         }));
     }
 
-    fn storefront_snapshot_graphql_response(
+    pub(in crate::proxy) fn storefront_snapshot_graphql_response(
         &self,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-        api_version: Option<&str>,
+        api_version: Option<StorefrontApiVersion>,
     ) -> Response {
         let Some(operation) = parse_operation_with_variables(query, variables) else {
             return json_error(400, "Could not parse GraphQL operation");
@@ -349,14 +286,18 @@ impl DraftProxy {
         ok_json(json!({ "data": Value::Object(data) }))
     }
 
-    fn storefront_snapshot_root_value(
+    pub(in crate::proxy) fn storefront_snapshot_root_value(
         &self,
         field: &RootFieldSelection,
-        api_version: Option<&str>,
+        api_version: Option<StorefrontApiVersion>,
     ) -> Value {
         let named_type = api_version
             .and_then(|version| {
-                public_storefront_root_field_named_type(version, OperationType::Query, &field.name)
+                storefront_graphql::root_field_named_type(
+                    version,
+                    OperationType::Query,
+                    &field.name,
+                )
             })
             .unwrap_or_default();
         if named_type.ends_with("Connection") {

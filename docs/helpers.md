@@ -4,17 +4,19 @@ This document points at shared Rust helper surfaces to check before adding resou
 
 The proxy is currently implemented in Rust. New runtime behavior belongs in `src/`, and TypeScript under `scripts/` / `js/` should stay limited to conformance tooling and the embeddable package shim.
 
-## `src/admin_graphql.rs`
+## `src/admin_graphql.rs` And `src/storefront_graphql.rs`
 
 Use the executable-schema registry before adding another schema parser or checked-in schema projection.
 
-- `schema(...)` returns the lazily built `async-graphql` schema for a captured `AdminApiVersion`.
+- `admin_graphql::schema(...)` returns the lazily built `async-graphql` schema for a captured `AdminApiVersion`.
+- `storefront_graphql::schema(...)` returns the independently cached schema for a captured `StorefrontApiVersion`; do not reuse an Admin schema for same-named Storefront roots.
+- `build_schema_from_sdl(...)` is the shared dynamic type/resolver builder. New GraphQL surfaces should keep their own version inventory and immutable capture source while reusing this construction path.
 - `root_field_arguments(...)`, `input_field_at_path(...)`, `input_owner_at_path(...)`, `input_object_fields(...)`, and `enum_values(...)` expose metadata from the same executable registry that validates requests.
 - `output_field_named_type(...)` supports nested output planning without a second output-schema model.
 - `output_type_condition_applies(...)` lets transitional JSON projectors use captured interface/union relationships instead of maintaining handwritten implementor lists; the executable engine remains the final projection authority.
 - Custom scalar codecs live beside schema construction. Extend that explicit codec table when a captured schema adds a scalar; do not make unknown scalars permissive. `invalid_url_scalar_message(...)` is shared with the Shopify error adapter so engine validation and wire-envelope text cannot drift.
 
-Full schema captures live at `config/admin-graphql/<version>/schema.graphql`, the executable/default version inventory lives in `config/admin-graphql/manifest.json`, and captures are produced by `scripts/capture-admin-graphql-schema.mts`. Do not introduce another partial mutation/input/output schema source or a second TypeScript version list.
+Full Admin schema captures live at `config/admin-graphql/<version>/schema.graphql`, the executable/default version inventory lives in `config/admin-graphql/manifest.json`, and captures are produced by `scripts/capture-admin-graphql-schema.mts`. The complete Storefront 2026-04 introspection capture lives at `config/storefront-graphql/2026-04/schema.json`; `src/storefront_graphql.rs` renders it to SDL once and keeps its version/cache separate from Admin. Do not introduce another partial mutation/input/output schema source or a second TypeScript version list.
 
 ## `src/graphql.rs`
 
@@ -35,6 +37,7 @@ Use `src/operation_registry.rs` and `src/resolver_registry.rs` before adding cap
 - `implemented_entries(...)` filters only locally modeled roots.
 - `operation_capability(...)` returns passthrough for unknown or unimplemented roots, even when metadata exists.
 - `ResolverRegistry::new(...)` derives the instance-owned local root inventory from those implemented entries.
+- `ApiSurface::resolver_name(...)` keeps Admin resolver names unchanged and maps Storefront roots to a `storefront*` internal name (`shop` becomes `storefrontShop`). `resolve_for_surface(...)` and `registration_for_surface(...)` perform this translation and verify the API surface, operation type, and public root before returning a callback. Use them for non-Admin execution; the shorter lookup methods intentionally default to Admin for existing callers.
 
 For generic IDs, update `src/node_resolver_inventory.rs` and its matching loader in `src/proxy/node_registry.rs` rather than adding another `node`/`nodes` switch. The inventory is exported for coverage audits; the executable loader reads the owning domain's effective store state.
 
@@ -128,6 +131,7 @@ Before adding a new search parser, inspect these functions and `docs/hard-and-we
 Use the existing route/version helpers before adding local request-path parsing.
 
 - `admin_graphql_version(...)` extracts Shopify Admin API versions from Admin GraphQL paths.
+- `storefront_graphql_version(...)` extracts accepted Storefront API versions, while `StorefrontApiVersion::from_route(...)` selects only versions with an executable captured schema.
 - `version_at_least(...)` compares Shopify Admin API year-month versions.
 - The route classifier in `DraftProxy::process_request(...)` preserves Shopify-like versioned routes and meta API boundaries.
 

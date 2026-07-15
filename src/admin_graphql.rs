@@ -218,7 +218,7 @@ fn scalar_codec(name: &str) -> Option<ScalarCodec> {
         "JSON" => Some(ScalarCodec::ArbitraryJson),
         "BigInt" => Some(ScalarCodec::BigInteger),
         "Decimal" | "Money" => Some(ScalarCodec::Decimal),
-        "DateTime" => Some(ScalarCodec::Rfc3339DateTime),
+        "DateTime" | "ISO8601DateTime" => Some(ScalarCodec::Rfc3339DateTime),
         "UnsignedInt64" => Some(ScalarCodec::UnsignedInteger),
         "URL" => Some(ScalarCodec::Url),
         "ARN" | "Color" | "Date" | "FormattedString" | "HTML" | "StorefrontID" | "UtcOffset" => {
@@ -587,8 +587,19 @@ impl From<SchemaError> for SchemaBuildError {
 }
 
 fn build_schema(version: AdminApiVersion) -> Result<Schema, SchemaBuildError> {
-    let document = parse_schema(version.schema_sdl())
-        .map_err(|error| SchemaBuildError::Parse(error.to_string()))?;
+    build_schema_from_sdl(version.schema_sdl(), "Admin")
+}
+
+/// Build one executable Shopify GraphQL schema from captured SDL. Admin and
+/// Storefront keep independent version inventories and caches, but share this
+/// type/resolver construction so adding another API surface does not duplicate
+/// the GraphQL machinery.
+pub(crate) fn build_schema_from_sdl(
+    schema_sdl: &str,
+    api_surface: &'static str,
+) -> Result<Schema, SchemaBuildError> {
+    let document =
+        parse_schema(schema_sdl).map_err(|error| SchemaBuildError::Parse(error.to_string()))?;
     let schema_definition = document
         .definitions
         .iter()
@@ -694,7 +705,7 @@ fn build_schema(version: AdminApiVersion) -> Result<Schema, SchemaBuildError> {
                 }
                 for field in &object_type.fields {
                     object = object.field(if is_root {
-                        dynamic_root_field(&field.node, Arc::clone(&metadata))
+                        dynamic_root_field(&field.node, Arc::clone(&metadata), api_surface)
                     } else {
                         dynamic_object_field(&name, &field.node, Arc::clone(&metadata))
                     });
@@ -841,7 +852,11 @@ fn schema_metadata(definitions: &[TypeSystemDefinition]) -> SchemaMetadata {
     metadata
 }
 
-fn dynamic_root_field(field: &FieldDefinition, metadata: Arc<SchemaMetadata>) -> Field {
+fn dynamic_root_field(
+    field: &FieldDefinition,
+    metadata: Arc<SchemaMetadata>,
+    api_surface: &'static str,
+) -> Field {
     let root_name = field.name.node.to_string();
     let output_type = dynamic_type_ref(&field.ty.node);
     let value_type = field.ty.node.clone();
@@ -864,7 +879,7 @@ fn dynamic_root_field(field: &FieldDefinition, metadata: Arc<SchemaMetadata>) ->
         FieldFuture::new(async move {
             let execution = context.data::<RootExecutionContext>().map_err(|_| {
                 Error::new(format!(
-                    "Admin GraphQL root `{root_name}` has no request-scoped resolver"
+                    "{api_surface} GraphQL root `{root_name}` has no request-scoped resolver"
                 ))
             })?;
             let response_key = context.field().alias().unwrap_or(&root_name).to_string();

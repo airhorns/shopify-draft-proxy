@@ -16,6 +16,22 @@ impl ApiSurface {
             Self::Storefront => "storefront",
         }
     }
+
+    /// Return the globally unique internal resolver name for one public
+    /// GraphQL root. Admin keeps the Shopify root name; Storefront uses an
+    /// explicit prefix so same-named roots can never share a callback slot.
+    pub fn resolver_name(self, graphql_root_name: &str) -> String {
+        match self {
+            Self::Admin => graphql_root_name.to_string(),
+            Self::Storefront => {
+                let mut chars = graphql_root_name.chars();
+                let Some(first) = chars.next() else {
+                    return "storefront".to_string();
+                };
+                format!("storefront{}{}", first.to_ascii_uppercase(), chars.as_str())
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

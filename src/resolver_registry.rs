@@ -2,15 +2,18 @@
 //!
 //! `ResolverRegistry` is instance-owned by `DraftProxy`. It turns operation
 //! metadata into the one lookup used to decide whether a schema root resolves
-//! against local state or is eligible for passthrough. This avoids maintaining
-//! a second routing table beside the exported operation registry.
+//! against local state or is eligible for passthrough. Public Storefront roots
+//! map to globally unique `storefront*` resolver names, while Admin roots keep
+//! their public names. This avoids both cross-surface name collisions and a
+//! second routing table beside the exported operation registry.
 
 use std::{collections::BTreeMap, ops::Deref};
 
 use crate::{
     graphql::{OperationType, ParsedOperation, ResolvedValue},
     operation_registry::{
-        CapabilityDomain, CapabilityExecution, OperationCapability, OperationRegistryEntry,
+        ApiSurface, CapabilityDomain, CapabilityExecution, OperationCapability,
+        OperationRegistryEntry,
     },
     proxy::{DraftProxy, Request, Response},
 };
@@ -53,8 +56,10 @@ pub(crate) type ResolverHandler = for<'a> fn(&mut DraftProxy, RootResolverContex
 
 #[derive(Debug, Clone)]
 pub struct ResolverRegistration {
+    pub api_surface: ApiSurface,
     pub operation_type: OperationType,
-    pub root_name: String,
+    pub graphql_root_name: String,
+    pub resolver_name: String,
     pub domain: CapabilityDomain,
     pub execution: CapabilityExecution,
     pub(crate) handler: ResolverHandler,
@@ -63,45 +68,56 @@ pub struct ResolverRegistration {
 #[derive(Debug, Clone)]
 pub struct ResolverRegistry {
     entries: Vec<OperationRegistryEntry>,
-    local_roots: BTreeMap<(OperationType, String), ResolverRegistration>,
+    local_resolvers: BTreeMap<String, ResolverRegistration>,
 }
 
 impl ResolverRegistry {
     pub fn new(entries: Vec<OperationRegistryEntry>) -> Self {
-        let mut local_roots = BTreeMap::new();
+        let mut local_resolvers = BTreeMap::new();
         for entry in &entries {
             if !entry.implemented {
                 continue;
             }
-            let key = (entry.operation_type, entry.name.clone());
+            let resolver_name = entry.api_surface.resolver_name(&entry.name);
             let registration = ResolverRegistration {
+                api_surface: entry.api_surface,
                 operation_type: entry.operation_type,
-                root_name: entry.name.clone(),
+                graphql_root_name: entry.name.clone(),
+                resolver_name: resolver_name.clone(),
                 domain: entry.domain,
                 execution: entry.execution(),
                 handler: crate::proxy::resolver_handler_for_domain(entry.domain),
             };
-            let previous = local_roots.insert(key, registration);
+            let previous = local_resolvers.insert(resolver_name.clone(), registration);
             assert!(
                 previous.is_none(),
-                "duplicate local GraphQL resolver registration for {}",
-                entry.name
+                "duplicate internal GraphQL resolver registration for {resolver_name}",
             );
         }
         Self {
             entries,
-            local_roots,
+            local_resolvers,
         }
     }
 
     pub fn resolve(&self, operation_type: OperationType, root_name: &str) -> OperationCapability {
-        self.local_roots
-            .get(&(operation_type, root_name.to_string()))
+        self.resolve_for_surface(ApiSurface::Admin, operation_type, root_name)
+    }
+
+    pub fn resolve_for_surface(
+        &self,
+        api_surface: ApiSurface,
+        operation_type: OperationType,
+        root_name: &str,
+    ) -> OperationCapability {
+        self.registration_for_surface(api_surface, operation_type, root_name)
             .map(|registration| OperationCapability {
+                api_surface: registration.api_surface,
                 domain: registration.domain,
                 execution: registration.execution,
             })
             .unwrap_or(OperationCapability {
+                api_surface,
                 domain: CapabilityDomain::Unknown,
                 execution: CapabilityExecution::Passthrough,
             })
@@ -112,12 +128,27 @@ impl ResolverRegistry {
         operation_type: OperationType,
         root_name: &str,
     ) -> Option<&ResolverRegistration> {
-        self.local_roots
-            .get(&(operation_type, root_name.to_string()))
+        self.registration_for_surface(ApiSurface::Admin, operation_type, root_name)
+    }
+
+    pub(crate) fn registration_for_surface(
+        &self,
+        api_surface: ApiSurface,
+        operation_type: OperationType,
+        root_name: &str,
+    ) -> Option<&ResolverRegistration> {
+        let resolver_name = api_surface.resolver_name(root_name);
+        self.local_resolvers
+            .get(&resolver_name)
+            .filter(|registration| {
+                registration.api_surface == api_surface
+                    && registration.operation_type == operation_type
+                    && registration.graphql_root_name == root_name
+            })
     }
 
     pub fn local_resolvers(&self) -> impl Iterator<Item = &ResolverRegistration> {
-        self.local_roots.values()
+        self.local_resolvers.values()
     }
 
     pub fn entries(&self) -> &[OperationRegistryEntry] {
@@ -157,5 +188,41 @@ mod tests {
                 .filter(|entry| entry.implemented)
                 .count()
         );
+    }
+
+    #[test]
+    fn same_named_admin_and_storefront_roots_resolve_independently() {
+        let registry = ResolverRegistry::new(default_registry());
+        let admin = registry.resolve_for_surface(ApiSurface::Admin, OperationType::Query, "shop");
+        let storefront =
+            registry.resolve_for_surface(ApiSurface::Storefront, OperationType::Query, "shop");
+
+        assert_eq!(admin.api_surface, ApiSurface::Admin);
+        assert_eq!(admin.domain, CapabilityDomain::StoreProperties);
+        assert_eq!(admin.execution, CapabilityExecution::OverlayRead);
+        assert_eq!(storefront.api_surface, ApiSurface::Storefront);
+        assert_eq!(storefront.domain, CapabilityDomain::Storefront);
+        assert_eq!(storefront.execution, CapabilityExecution::OverlayRead);
+
+        let admin_registration = registry
+            .registration_for_surface(ApiSurface::Admin, OperationType::Query, "shop")
+            .expect("Admin shop should have its own resolver registration");
+        let storefront_registration = registry
+            .registration_for_surface(ApiSurface::Storefront, OperationType::Query, "shop")
+            .expect("Storefront shop should have its own resolver registration");
+        assert_eq!(admin_registration.api_surface, ApiSurface::Admin);
+        assert_eq!(storefront_registration.api_surface, ApiSurface::Storefront);
+        assert_eq!(admin_registration.graphql_root_name, "shop");
+        assert_eq!(admin_registration.resolver_name, "shop");
+        assert_eq!(storefront_registration.graphql_root_name, "shop");
+        assert_eq!(storefront_registration.resolver_name, "storefrontShop");
+        assert_eq!(
+            ApiSurface::Storefront.resolver_name("products"),
+            "storefrontProducts"
+        );
+        assert!(!std::ptr::fn_addr_eq(
+            admin_registration.handler,
+            storefront_registration.handler
+        ));
     }
 }

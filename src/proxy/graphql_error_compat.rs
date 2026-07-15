@@ -283,6 +283,167 @@ pub(super) fn shopify_engine_response(
     body
 }
 
+/// Translate validation diagnostics from the independent Storefront schema.
+/// Storefront shares Shopify's public GraphQL envelope conventions with Admin,
+/// but it must not consult Admin input metadata when names overlap.
+pub(super) fn shopify_storefront_engine_response(
+    engine_response: async_graphql::Response,
+    document: Option<&ParsedDocument>,
+    query: &str,
+) -> Value {
+    let mut body = serde_json::to_value(engine_response)
+        .unwrap_or_else(|error| json!({ "errors": [{ "message": error.to_string() }] }));
+    normalize_engine_error_paths(&mut body);
+    if let Some(errors) = body.get_mut("errors").and_then(Value::as_array_mut) {
+        for error in errors {
+            if error.get("message").and_then(Value::as_str)
+                != Some("internal: non-null types require a return value")
+            {
+                continue;
+            }
+            let Some(root_name) = error
+                .get("path")
+                .and_then(Value::as_array)
+                .and_then(|path| path.first())
+                .and_then(Value::as_str)
+            else {
+                continue;
+            };
+            error["message"] = json!(format!(
+                "Storefront snapshot has no value for non-null root `QueryRoot.{root_name}`"
+            ));
+        }
+    }
+    let validation_only = body
+        .get("errors")
+        .and_then(Value::as_array)
+        .is_some_and(|errors| {
+            !errors.is_empty() && errors.iter().all(|error| error.get("path").is_none())
+        });
+    if !validation_only {
+        return body;
+    }
+    if let Some(object) = body.as_object_mut() {
+        object.remove("data");
+    }
+    let Some(errors) = body.get_mut("errors").and_then(Value::as_array_mut) else {
+        return body;
+    };
+    for error in errors {
+        let Some(message) = error
+            .get("message")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+        else {
+            continue;
+        };
+        match message.as_str() {
+            "Operation name required in request." => {
+                error["message"] = json!("An operation name is required");
+            }
+            message
+                if message.starts_with("Unknown operation named \"")
+                    && (message.ends_with('"') || message.ends_with("\".")) =>
+            {
+                error["message"] = json!(format!(
+                    "No operation named {}",
+                    message
+                        .trim_start_matches("Unknown operation named ")
+                        .trim_end_matches('.')
+                ));
+            }
+            message if document.is_none() && message.contains("expected ") => {
+                let engine_location = error_location(error).unwrap_or((1, 1));
+                let (line, column) = shopify_parse_error_location(query, engine_location);
+                *error = json!({
+                    "message": format!(
+                        "syntax error, unexpected end of file at [{line}, {column}]"
+                    ),
+                    "locations": [{ "line": line, "column": column }],
+                    "extensions": { "code": "PARSE_ERROR" }
+                });
+            }
+            message => {
+                if let Some(argument_error) =
+                    shopify_unknown_field_argument_error(message, document, error)
+                {
+                    *error = argument_error;
+                    continue;
+                }
+                if let Some((field_name, argument_name)) =
+                    async_graphql_missing_field_argument(message)
+                {
+                    let root = document.and_then(|document| {
+                        document
+                            .root_fields
+                            .iter()
+                            .find(|field| field.name == field_name)
+                    });
+                    let location = root
+                        .map(|field| field.location)
+                        .or_else(|| document.map(|document| document.location))
+                        .unwrap_or(SourceLocation { line: 1, column: 1 });
+                    let response_key = root
+                        .map(|field| field.response_key.as_str())
+                        .unwrap_or(&field_name);
+                    *error = missing_required_arguments_error(
+                        &field_name,
+                        &argument_name,
+                        location,
+                        document
+                            .map(|document| document_field_path(document, response_key))
+                            .unwrap_or_else(|| vec![json!(response_key)]),
+                    );
+                    continue;
+                }
+                if let Some((field_name, type_name)) = async_graphql_missing_selection(message) {
+                    let path = document
+                        .and_then(|document| {
+                            error_location(error)
+                                .and_then(|location| response_path_for_location(document, location))
+                        })
+                        .unwrap_or_else(|| vec![json!(field_name)]);
+                    let locations = error.get("locations").cloned().unwrap_or_else(|| json!([]));
+                    *error = json!({
+                        "message": format!(
+                            "Field must have selections (field '{field_name}' returns {type_name} but has no selections. Did you mean '{field_name} {{ ... }}'?)"
+                        ),
+                        "locations": locations,
+                        "path": path,
+                        "extensions": {
+                            "code": "selectionMismatch",
+                            "nodeName": format!("field '{field_name}'"),
+                            "typeName": type_name
+                        }
+                    });
+                    continue;
+                }
+                let Some((field_name, type_name)) = async_graphql_unknown_field(message) else {
+                    continue;
+                };
+                let path = document
+                    .and_then(|document| {
+                        error_location(error)
+                            .and_then(|location| response_path_for_location(document, location))
+                    })
+                    .unwrap_or_else(|| vec![json!(field_name)]);
+                let locations = error.get("locations").cloned().unwrap_or_else(|| json!([]));
+                *error = json!({
+                    "message": format!("Field '{field_name}' doesn't exist on type '{type_name}'"),
+                    "locations": locations,
+                    "path": path,
+                    "extensions": {
+                        "code": "undefinedField",
+                        "typeName": type_name,
+                        "fieldName": field_name
+                    }
+                });
+            }
+        }
+    }
+    body
+}
+
 fn normalize_engine_error_paths(body: &mut Value) {
     let Some(errors) = body.get_mut("errors").and_then(Value::as_array_mut) else {
         return;

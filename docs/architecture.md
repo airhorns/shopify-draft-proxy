@@ -2,7 +2,7 @@
 
 ## Overview
 
-`shopify-draft-proxy` is an embeddable Shopify Admin GraphQL draft proxy. The Rust runtime executes requests through real `async-graphql` schemas built from complete captured Shopify SDL in `config/admin-graphql/<version>/schema.graphql`. `DraftProxy` in `src/proxy.rs` owns the store and runtime services; `src/admin_graphql.rs` owns the executable type system; `src/proxy/graphql_runtime.rs` bridges engine execution to domain resolvers; `src/resolver_registry.rs` maps registered roots to execution capabilities; domain behavior remains under `src/proxy/`; and `src/proxy/commit.rs` owns replay.
+`shopify-draft-proxy` is an embeddable Shopify Admin GraphQL draft proxy with a separately modeled Storefront API surface. The Rust runtime executes requests through real `async-graphql` schemas: Admin schemas come from complete captured SDL in `config/admin-graphql/<version>/schema.graphql`, while the Storefront 2026-04 schema is rendered from the complete captured introspection graph in `config/storefront-graphql/2026-04/schema.json`. `DraftProxy` in `src/proxy.rs` owns the store and runtime services; `src/admin_graphql.rs` owns the shared dynamic type-system builder and Admin schema inventory; `src/storefront_graphql.rs` owns the independent Storefront inventory; the two request bridges execute their respective schemas; `src/resolver_registry.rs` maps public roots to globally unique internal resolver names and execution capabilities; domain behavior remains under `src/proxy/`; and `src/proxy/commit.rs` owns replay.
 
 The TypeScript package under `js/` is intentionally thin: it starts and owns a Rust HTTP runtime process, forwards public API requests to that process, and exposes the stable JavaScript surface for application tests.
 
@@ -52,14 +52,20 @@ App/test harness
        ├─ HTTP/meta route classifier
        │    ├─ health/config/log/state/reset/dump/restore
        │    └─ commit replay
-       └─ Admin GraphQL route
-            ├─ select the captured schema from the versioned request path
-            ├─ async-graphql parses, selects, coerces, validates, and executes the operation
-            ├─ generic schema resolvers classify each root through the instance resolver registry
-            ├─ supported read -> store-backed domain resolver / overlay
-            ├─ supported mutation -> local domain staging + replay log
-            ├─ node(s) -> cross-domain node-loader registry, then read-through when needed
-            └─ unsupported/unknown -> passthrough or reject according to mode
+       ├─ Admin GraphQL route
+       │    ├─ select the captured Admin schema from the versioned request path
+       │    ├─ async-graphql parses, selects, coerces, validates, and executes the operation
+       │    ├─ generic schema resolvers classify each Admin root through the instance resolver registry
+       │    ├─ supported read -> store-backed domain resolver / overlay
+       │    ├─ supported mutation -> local domain staging + replay log
+       │    ├─ node(s) -> cross-domain node-loader registry, then read-through when needed
+       │    └─ unsupported/unknown -> passthrough or reject according to mode
+       └─ Storefront GraphQL route
+            ├─ select the independent captured Storefront schema from the versioned request path
+            ├─ async-graphql validates and executes against Storefront types only
+            ├─ local roots -> `storefront*` internal resolver names -> Storefront domain callback
+            ├─ snapshot-only unknown roots -> schema-shaped empty/null values with null propagation
+            └─ live-hybrid unknown roots -> one unchanged Storefront passthrough request
 ```
 
 The engine owns operation selection, aliases, fragments, built-in directives,
@@ -80,13 +86,15 @@ selected root.
 
 ## GraphQL schema and resolver boundaries
 
-- Each supported route version has its own full captured SDL. `config/admin-graphql/manifest.json` declares the executable inventory and default (`2026-07`); `AdminApiVersion` selects and lazily caches one immutable schema for `2025-01`, `2025-10`, `2026-01`, `2026-04`, or `2026-07`. Fields and input types that differ by version are therefore enforced by the requested route's actual schema.
-- The schema builder registers objects, interfaces, unions, enums, scalars, input objects, arguments, defaults, descriptions, and deprecations dynamically. This avoids maintaining thousands of handwritten Rust GraphQL wrapper types while still using a real GraphQL executor.
+- Each Admin route version has its own full captured SDL. `config/admin-graphql/manifest.json` declares the executable inventory and default (`2026-07`); `AdminApiVersion` selects and lazily caches one immutable schema for `2025-01`, `2025-10`, `2026-01`, `2026-04`, or `2026-07`. Fields and input types that differ by version are therefore enforced by the requested route's actual schema.
+- Storefront keeps an independent version inventory and schema cache because Admin and Storefront intentionally reuse names such as `shop` with different types and semantics. `StorefrontApiVersion` currently executes the captured 2026-04 type graph. The accepted 2025-01 route remains an explicit legacy passthrough/no-data compatibility boundary until a complete schema capture exists for that version; it never substitutes the Admin schema or the Storefront 2026-04 schema.
+- The shared schema builder registers objects, interfaces, unions, enums, scalars, input objects, arguments, defaults, descriptions, and deprecations dynamically. This avoids maintaining thousands of handwritten Rust GraphQL wrapper types while still using a real GraphQL executor. Storefront's captured introspection JSON is deterministically rendered to SDL once before entering the same builder.
 - Captured custom scalars have explicit codecs. URL, RFC 3339 DateTime, decimal/money, integer, JSON, and string-like scalar families are validated deliberately, and schema construction fails when a new capture introduces an unknown scalar instead of silently treating it as arbitrary JSON.
 - Root fields share one generic resolver bridge. Domain code continues to model Shopify behavior and store effects directly; it does not need a second resolver-shaped copy of every function. Complex lifecycle behavior can remain in rich domain methods, while ordinary output fields are read from the returned typed JSON object by the generic schema resolver.
 - Returning a JSON object is not permission to return arbitrary shape. For every selected nested field, the executable schema validates its type and the generic object resolver reports an explicit `Local resolver did not implement Type.field` execution error when the domain result omits that field. The engine then applies GraphQL null propagation.
-- `ResolverRegistry` is owned by each `DraftProxy` and derives executable callbacks from implemented operation-registry entries. There is no second checked-in root inventory to synchronize. Every implemented capability domain has one distinct domain-owned callback, and a structural test prevents domains from collapsing back into a shared compatibility handler.
+- `ResolverRegistry` is owned by each `DraftProxy` and derives executable callbacks from implemented operation-registry entries. Admin registrations keep their public root names (`shop`, `products`); Storefront registrations receive globally unique internal names (`storefrontShop`, `storefrontProducts`). Surface-aware lookup performs that translation and also verifies the operation type and public root before returning a callback. Duplicate internal names fail registry construction, so same-named API roots cannot collide. There is no second checked-in local-routing inventory to synchronize. Every implemented capability domain has one distinct domain-owned callback, and structural tests prevent domains from collapsing back into a shared compatibility handler or crossing API surfaces.
 - A domain callback is the only GraphQL-shaped entry point for that domain. It routes the root to existing store-backed lifecycle methods directly; ordinary fields do not acquire a second one-line resolver/service copy.
+- Storefront's `@inContext` directive is interpreted from the original operation by the Storefront domain. Because the dynamic engine cannot register executable custom directives, only the engine-facing copy removes `@inContext` and variables used exclusively by it; all other directives and variable uses remain under normal schema validation.
 - `node(id:)` and `nodes(ids:)` use one type-to-loader inventory in `src/node_resolver_inventory.rs`; each entry carries its executable loader rather than a second loader enum/switch. Loaders return explicit `Found`, `KnownMissing`, `NeedsHydration`, or `UnsupportedType` states. Live-hybrid sends one upstream request for a mixed cold batch, merges staged values and tombstones over the response before caching it, and preserves input ordering/null placeholders. Snapshot mode never hydrates upstream.
 
 `DraftProxy` is instance-owned state, not a singleton. A proxy owns its normalized `Store`, mutation log, registry, synthetic ID counters, injectable runtime clock, and injectable upstream/commit transports. Runtime base/staged resource data belongs under the Store rather than as loose `DraftProxy` fields. Do not introduce global mutable proxy state.
@@ -98,25 +106,33 @@ selected root.
 - owns `DraftProxy`, `Config`, `ReadMode`, the normalized Store, synthetic identity allocation, registry metadata, runtime clock, and injectable transports
 - declares the runtime's domain submodules while keeping proxy state instance-owned instead of global
 
-### `src/proxy/core.rs`, `src/proxy/routing.rs`, `src/proxy/graphql_runtime.rs`, `src/proxy/graphql_error_compat.rs`
+### `src/proxy/core.rs`, `src/proxy/routing.rs`, `src/proxy/graphql_runtime.rs`, `src/proxy/storefront_graphql_runtime.rs`, `src/proxy/graphql_error_compat.rs`
 
 - expose `process_request(...)` as the central route boundary
 - implement meta routes: health, config, log, state, reset, dump, and restore
 - keep Shopify-like Admin GraphQL route classification and request-body parsing separate from domain handlers
-- execute Admin requests through the route's versioned `async-graphql` schema
+- execute Admin and Storefront requests through independent route-versioned `async-graphql` schemas
 - isolate Shopify-specific parse/validation/coercion envelope translation in `graphql_error_compat.rs`; domain resolvers do not own top-level GraphQL error formatting
-- provide the request-scoped generic root executor that serializes access to the instance-owned proxy, reuses grouped reads where necessary, and invokes domain-owned callbacks with one local-only context
+- provide request-scoped Admin and Storefront root executors that serialize access to the instance-owned proxy, reuse grouped reads where necessary, and invoke domain-owned callbacks with one local-only context
 - preserve original multi-root mutation documents in the replay log while preventing mixed local/passthrough writes
 - wrap upstream transports with the stage-locally mutation guard while leaving query hydration and commit replay on their explicit transport paths
 - preserve `with_clock(...)`, `with_upstream_transport(...)`, and `with_commit_transport(...)` test seams so behavior stays deterministic
 
 ### `src/admin_graphql.rs`
 
-- parses each captured SDL and builds a complete dynamic `async-graphql` schema
+- owns the shared captured-schema builder and parses each Admin SDL into a complete dynamic `async-graphql` schema
 - caches one executable schema per supported Admin API version
 - registers an explicit codec for every captured custom scalar and fails schema construction for unknown scalar names
 - exposes schema-registry metadata used by compatibility error formatting and bulk-query planning, replacing the former partial mutation/output schema models
 - provides generic root and nested object resolvers, including explicit missing-field errors and abstract-type resolution from `__typename` or unambiguous schema metadata
+
+### `src/storefront_graphql.rs`, `src/proxy/storefront_graphql_runtime.rs`, `src/proxy/storefront.rs`
+
+- render the captured Storefront introspection graph into the shared dynamic schema builder and cache it independently from Admin
+- select the executable Storefront schema by route version without falling back to a different version or API surface
+- bridge engine root invocations to surface-qualified Storefront registrations, or forward one unchanged request when the complete operation is passthrough-only
+- preserve the original operation for Storefront context interpretation while validating an engine-only copy without `@inContext`
+- own Storefront hydration, context-keyed state, local projections, and schema-enforced snapshot no-data/null behavior
 
 ### `src/resolver_registry.rs`, `src/node_resolver_inventory.rs`, `src/proxy/node_registry.rs`
 
@@ -241,6 +257,7 @@ Effective reads merge base state and staged state through shared Store helpers, 
 The Rust HTTP bridge serves:
 
 - `POST /admin/api/:version/graphql.json`
+- `POST /api/:version/graphql.json` for accepted Storefront API versions
 - `GET /__meta/health`
 - `GET /__meta/config`
 - `GET /__meta/log`

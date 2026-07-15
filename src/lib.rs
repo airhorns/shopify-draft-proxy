@@ -6,4 +6,5 @@ pub mod operation_registry;
 mod operation_registry_data;
 pub mod proxy;
 pub mod resolver_registry;
+pub mod storefront_graphql;
 pub mod upstream;

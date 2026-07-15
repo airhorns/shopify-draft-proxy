@@ -58,7 +58,7 @@ impl DraftProxy {
                 }
             }
             "job" if self.should_handle_customer_overlay_read(&fields) => ok_json(json!({
-                "data": self.customer_overlay_read_fields(&fields)
+                "data": self.customer_overlay_read_fields(request, &fields, None)
             })),
             "job" => ok_json(self.product_tail_job_query_body(&fields)),
             "node" | "nodes" => {
