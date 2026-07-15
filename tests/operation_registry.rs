@@ -2,13 +2,15 @@ use pretty_assertions::assert_eq;
 use shopify_draft_proxy::graphql::OperationType;
 use shopify_draft_proxy::operation_registry::{
     default_registry, execution_for_operation_type, implemented_entries, operation_capability,
-    CapabilityDomain, CapabilityExecution, OperationRegistryEntry,
+    operation_capability_for_surface, ApiSurface, CapabilityDomain, CapabilityExecution,
+    OperationRegistryEntry,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
 fn sample_registry() -> Vec<OperationRegistryEntry> {
     vec![
         OperationRegistryEntry {
+            api_surface: ApiSurface::Admin,
             name: "product".to_string(),
             operation_type: OperationType::Query,
             domain: CapabilityDomain::Products,
@@ -17,6 +19,7 @@ fn sample_registry() -> Vec<OperationRegistryEntry> {
             runtime_tests: vec!["tests/graphql_routes.rs".to_string()],
         },
         OperationRegistryEntry {
+            api_surface: ApiSurface::Admin,
             name: "productCreate".to_string(),
             operation_type: OperationType::Mutation,
             domain: CapabilityDomain::Products,
@@ -25,6 +28,7 @@ fn sample_registry() -> Vec<OperationRegistryEntry> {
             runtime_tests: vec!["tests/graphql_routes.rs".to_string()],
         },
         OperationRegistryEntry {
+            api_surface: ApiSurface::Admin,
             name: "customerCreate".to_string(),
             operation_type: OperationType::Mutation,
             domain: CapabilityDomain::Customers,
@@ -33,6 +37,7 @@ fn sample_registry() -> Vec<OperationRegistryEntry> {
             runtime_tests: vec![],
         },
         OperationRegistryEntry {
+            api_surface: ApiSurface::Admin,
             name: "app".to_string(),
             operation_type: OperationType::Query,
             domain: CapabilityDomain::Apps,
@@ -75,6 +80,7 @@ fn implemented_entries_filter_unimplemented_registry_rows() {
 fn operation_capability_returns_implemented_canonical_registry_matches_only() {
     let mut registry = sample_registry();
     registry.push(OperationRegistryEntry {
+        api_surface: ApiSurface::Admin,
         name: "syntheticLocalRoot".to_string(),
         operation_type: OperationType::Query,
         domain: CapabilityDomain::Apps,
@@ -121,6 +127,50 @@ fn operation_capability_returns_implemented_canonical_registry_matches_only() {
     );
     assert_eq!(missing.domain, CapabilityDomain::Unknown);
     assert_eq!(missing.execution, CapabilityExecution::Passthrough);
+}
+
+#[test]
+fn operation_capability_is_scoped_by_api_surface() {
+    let registry = vec![
+        OperationRegistryEntry {
+            api_surface: ApiSurface::Admin,
+            name: "shop".to_string(),
+            operation_type: OperationType::Query,
+            domain: CapabilityDomain::StoreProperties,
+            implemented: true,
+            match_names: vec!["shop".to_string()],
+            runtime_tests: vec![],
+        },
+        OperationRegistryEntry {
+            api_surface: ApiSurface::Storefront,
+            name: "shop".to_string(),
+            operation_type: OperationType::Query,
+            domain: CapabilityDomain::Storefront,
+            implemented: false,
+            match_names: vec!["shop".to_string()],
+            runtime_tests: vec![],
+        },
+    ];
+
+    let admin = operation_capability_for_surface(
+        &registry,
+        ApiSurface::Admin,
+        OperationType::Query,
+        Some("shop"),
+    );
+    assert_eq!(admin.api_surface, ApiSurface::Admin);
+    assert_eq!(admin.domain, CapabilityDomain::StoreProperties);
+    assert_eq!(admin.execution, CapabilityExecution::OverlayRead);
+
+    let storefront = operation_capability_for_surface(
+        &registry,
+        ApiSurface::Storefront,
+        OperationType::Query,
+        Some("shop"),
+    );
+    assert_eq!(storefront.api_surface, ApiSurface::Storefront);
+    assert_eq!(storefront.domain, CapabilityDomain::Unknown);
+    assert_eq!(storefront.execution, CapabilityExecution::Passthrough);
 }
 
 #[test]
@@ -192,8 +242,17 @@ fn implemented_entries_classify_through_canonical_registry_names() {
     let registry = default_registry();
 
     for entry in implemented_entries(&registry) {
-        let capability =
-            operation_capability(&registry, entry.operation_type, Some(entry.name.as_str()));
+        let capability = operation_capability_for_surface(
+            &registry,
+            entry.api_surface,
+            entry.operation_type,
+            Some(entry.name.as_str()),
+        );
+        assert_eq!(
+            capability.api_surface, entry.api_surface,
+            "{} is implemented and must keep its API surface",
+            entry.name
+        );
         assert_eq!(
             capability.domain, entry.domain,
             "{} is implemented and must keep its capability domain",
@@ -237,7 +296,10 @@ fn unimplemented_and_unregistered_admin_mutations_are_not_local_capabilities() {
     let registry = default_registry();
     let mutation_registry: BTreeMap<&str, &OperationRegistryEntry> = registry
         .iter()
-        .filter(|entry| entry.operation_type == OperationType::Mutation)
+        .filter(|entry| {
+            entry.api_surface == ApiSurface::Admin
+                && entry.operation_type == OperationType::Mutation
+        })
         .map(|entry| (entry.name.as_str(), entry))
         .collect();
 

@@ -14917,6 +14917,7 @@ fn registry_classification_without_matching_root_field_fails_closed() {
 #[test]
 fn implemented_registry_entry_without_dispatch_match_arm_fails_closed() {
     let mut proxy = snapshot_proxy().with_registry(vec![OperationRegistryEntry {
+        api_surface: ApiSurface::Admin,
         name: "productVariants".to_string(),
         operation_type: OperationType::Query,
         domain: CapabilityDomain::Products,

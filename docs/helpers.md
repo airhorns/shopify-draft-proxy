@@ -21,9 +21,10 @@ Use the registry helpers here before adding capability metadata or support disco
 
 - `default_registry()` is the executable Rust registry.
 - `implemented_entries(...)` filters only locally modeled roots.
-- `operation_capability(...)` returns passthrough for unknown or unimplemented roots, even when metadata exists.
+- `operation_capability(...)` is the Admin-compatible capability helper.
+- `operation_capability_for_surface(...)` classifies by `(apiSurface, operationType, canonicalRoot)` and returns passthrough for unknown or unimplemented roots, even when metadata exists.
 
-Do not mark a root implemented until the Rust runtime models its supported local lifecycle and downstream read-after-write behavior.
+Do not mark a root implemented until the Rust runtime models its supported local lifecycle and downstream read-after-write behavior. Storefront root entries are generated from captured Storefront schema inventory and must remain unimplemented until runtime tests plus captured Storefront parity promote that specific Storefront root.
 
 ## `src/proxy/schema_validation.rs` UserError Builders
 
@@ -109,7 +110,9 @@ Before adding a new search parser, inspect these functions and `docs/hard-and-we
 Use the existing route/version helpers before adding local request-path parsing.
 
 - `admin_graphql_version(...)` extracts Shopify Admin API versions from Admin GraphQL paths.
+- `storefront_graphql_version(...)` extracts Shopify Storefront API versions from Storefront GraphQL paths.
+- `supported_admin_graphql_version(...)` and `supported_storefront_graphql_version(...)` are intentionally separate policies.
 - `version_at_least(...)` compares Shopify Admin API year-month versions.
 - The route classifier in `DraftProxy::process_request(...)` preserves Shopify-like versioned routes and meta API boundaries.
 
-Endpoint handlers should not add ad hoc Admin path parsing unless the behavior is tightly scoped and documented.
+Endpoint handlers should not add ad hoc Admin or Storefront path parsing unless the behavior is tightly scoped and documented. Storefront route code must use Storefront schema/version helpers and must not reuse Admin validation just because a root name overlaps.

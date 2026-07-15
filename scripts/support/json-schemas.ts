@@ -36,6 +36,7 @@ export const graphqlVariablesSchema = z.record(z.string(), z.unknown());
 export const apiSurfaceSchema = z.enum(['admin', 'storefront']);
 
 export const operationRegistryEntrySchema = z.strictObject({
+  apiSurface: apiSurfaceSchema,
   name: z.string().min(1),
   type: z.enum(['query', 'mutation']),
   domain: z.enum([
@@ -64,6 +65,7 @@ export const operationRegistryEntrySchema = z.strictObject({
     'metafields',
     'metaobjects',
     'markets',
+    'storefront',
     'unknown',
   ]),
   execution: z.enum(['overlay-read', 'stage-locally']),

@@ -466,6 +466,9 @@ describe('conformance scenario discovery', () => {
     const status = buildConformanceStatusDocument(repoRoot);
 
     expect(status.implementedOperations.length).toBeGreaterThan(0);
+    expect(status.apiSurfaceSummaries.admin.implementedOperations).toBeGreaterThan(0);
+    expect(status.apiSurfaceSummaries.storefront.implementedOperations).toBe(0);
+    expect(status.apiSurfaceSummaries.aggregate.implementedOperations).toBe(status.implementedOperations.length);
     expect(status.capturedScenarioIds).toContain('product-create-live-parity');
     expect(status.capturedScenarioIds).toContain('product-duplicate-live-parity');
     expect(status.strictComparisonScenarioIds).toContain('product-create-live-parity');
@@ -473,6 +476,18 @@ describe('conformance scenario discovery', () => {
     expect(status.captureOnlyScenarioIds).toHaveLength(0);
     expect(status.captureOnlyScenarioIds).not.toContain('product-create-live-parity');
     expect(status.implementedOperations.every((entry) => entry.scenarioIds.length > 0)).toBe(true);
+  });
+
+  it('keeps Admin and Storefront operation coverage identities separate', () => {
+    const status = buildConformanceStatusDocument(repoRoot);
+    const adminShop = status.implementedOperations.find(
+      (entry) => entry.apiSurface === 'admin' && entry.name === 'shop',
+    );
+    const storefrontShopScenario = scenarios.find((scenario) => scenario.id === 'storefront-shop-name-proxy-parity');
+
+    expect(storefrontShopScenario?.apiSurface).toBe('storefront');
+    expect(adminShop?.scenarioIds).not.toContain('storefront-shop-name-proxy-parity');
+    expect(status.apiSurfaceSummaries.storefront.coveredOperationNames).not.toContain('shop');
   });
 
   it('blocks synthetic metaobjects parity evidence from captured scenarios', () => {

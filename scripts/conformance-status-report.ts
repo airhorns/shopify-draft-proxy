@@ -20,7 +20,17 @@ export interface ConformanceStatusDocument {
   coveredOperationNames?: unknown[] | null;
   declaredGapOperationNames?: unknown[] | null;
   implementedOperations?: unknown[] | null;
+  apiSurfaceSummaries?: unknown | null;
   regrettableDivergences?: unknown[] | null;
+}
+
+interface ApiSurfaceStatusSummary {
+  implementedOperations: number;
+  coveredOperations: number;
+  declaredGapOperations: number;
+  operationCoverageRatio: number;
+  coveredOperationNames: string[];
+  declaredGapOperationNames: string[];
 }
 
 export interface ConformanceSummary {
@@ -39,6 +49,7 @@ export interface ConformanceSummary {
   implementedOperations: number;
   declaredGapOperations: number;
   operationCoverageRatio: number;
+  apiSurfaceSummaries?: Record<string, ApiSurfaceStatusSummary>;
   regrettableDivergences: number;
   regrettableDivergenceScenarios: number;
 }
@@ -118,6 +129,40 @@ function stringList(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
 }
 
+function apiSurfaceSummaries(value: unknown): Record<string, ApiSurfaceStatusSummary> | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const result: Record<string, ApiSurfaceStatusSummary> = {};
+  for (const [name, summary] of Object.entries(value)) {
+    if (!isRecord(summary)) {
+      continue;
+    }
+    const implementedOperations = summary['implementedOperations'];
+    const coveredOperations = summary['coveredOperations'];
+    const declaredGapOperations = summary['declaredGapOperations'];
+    const operationCoverageRatio = summary['operationCoverageRatio'];
+    if (
+      typeof implementedOperations !== 'number' ||
+      typeof coveredOperations !== 'number' ||
+      typeof declaredGapOperations !== 'number' ||
+      typeof operationCoverageRatio !== 'number'
+    ) {
+      continue;
+    }
+    result[name] = {
+      implementedOperations,
+      coveredOperations,
+      declaredGapOperations,
+      operationCoverageRatio,
+      coveredOperationNames: stringList(summary['coveredOperationNames']),
+      declaredGapOperationNames: stringList(summary['declaredGapOperationNames']),
+    };
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
 function readJsonFile(filePath: string): unknown {
   return JSON.parse(readFileSync(filePath, 'utf8')) as unknown;
 }
@@ -193,6 +238,8 @@ export function summarizeConformanceStatus(status: ConformanceStatusDocument): C
     ? status.declaredGapOperationNames
     : [];
   const implementedOperations = Array.isArray(status.implementedOperations) ? status.implementedOperations : [];
+  const surfaceSummaries = apiSurfaceSummaries(status.apiSurfaceSummaries);
+  const aggregateSummary = surfaceSummaries?.['aggregate'];
   const regrettableDivergences = Array.isArray(status.regrettableDivergences) ? status.regrettableDivergences : [];
   const regrettableDivergenceScenarioIds = new Set<string>();
   for (const divergence of regrettableDivergences) {
@@ -215,10 +262,12 @@ export function summarizeConformanceStatus(status: ConformanceStatusDocument): C
     captureOnlyScenariosKnown: hasStrictComparisonBreakdown || hasCaptureOnlyBreakdown,
     pendingScenarios: pendingScenarioIds.length,
     conformanceRatio: ratio(conformingScenarios, totalScenarios),
-    coveredOperations: coveredOperationNames.length,
-    implementedOperations: implementedOperations.length,
-    declaredGapOperations: declaredGapOperationNames.length,
-    operationCoverageRatio: ratio(coveredOperationNames.length, implementedOperations.length),
+    coveredOperations: aggregateSummary?.coveredOperations ?? coveredOperationNames.length,
+    implementedOperations: aggregateSummary?.implementedOperations ?? implementedOperations.length,
+    declaredGapOperations: aggregateSummary?.declaredGapOperations ?? declaredGapOperationNames.length,
+    operationCoverageRatio:
+      aggregateSummary?.operationCoverageRatio ?? ratio(coveredOperationNames.length, implementedOperations.length),
+    ...(surfaceSummaries ? { apiSurfaceSummaries: surfaceSummaries } : {}),
     regrettableDivergences: regrettableDivergences.length,
     regrettableDivergenceScenarios: regrettableDivergenceScenarioIds.size,
   };
@@ -357,6 +406,22 @@ function renderRuntimeFixtureLine(
   )})`;
 }
 
+function renderApiSurfaceOperationLines(current: ConformanceSummary): string[] {
+  const summaries = current.apiSurfaceSummaries;
+  if (!summaries) {
+    return [];
+  }
+  return ['admin', 'storefront'].flatMap((apiSurface) => {
+    const summary = summaries[apiSurface];
+    if (!summary) {
+      return [];
+    }
+    return [
+      `- ${apiSurface === 'admin' ? 'Admin' : 'Storefront'} covered operations: ${summary.coveredOperations} / ${summary.implementedOperations} (${summary.declaredGapOperations} declared gaps)`,
+    ];
+  });
+}
+
 export function renderConformanceComment(report: ConformanceReport): string {
   const baseline = report.baseline;
   const delta = report.delta;
@@ -387,6 +452,7 @@ export function renderConformanceComment(report: ConformanceReport): string {
     ...(captureOnlyAlarm ? [captureOnlyAlarm] : []),
     regrettableDivergenceLine,
     `- Covered operations: ${current.coveredOperations} / ${current.implementedOperations} (${current.declaredGapOperations} declared gaps)`,
+    ...renderApiSurfaceOperationLines(current),
     `- Commit: \`${commit}\``,
     ...renderCaptureOnlyDetails(current),
     '',
@@ -446,6 +512,9 @@ export function writeConformanceReport({
   writeLine(`strict proxy-vs-capture comparisons: ${report.conformance.strictComparisonScenarios ?? 0}`);
   writeLine(`runtime-test-backed fixture scenarios: ${report.conformance.runtimeFixtureScenarios ?? 0}`);
   writeLine(`capture-only scenarios: ${report.conformance.captureOnlyScenarios ?? 0}`);
+  for (const line of renderApiSurfaceOperationLines(report.conformance)) {
+    writeLine(line.slice(2));
+  }
   if (report.delta) {
     writeLine(
       `improvement over main: ${formatSignedInteger(report.delta.conformingScenarios)} conformance-evidenced scenarios`,

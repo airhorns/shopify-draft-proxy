@@ -40,6 +40,7 @@
     "conformance:probe-storefront": "tsx ./scripts/probe-conformance-storefront.mts",
     "conformance:refresh-auth": "tsx ./scripts/refresh-conformance-auth.mts",
     "conformance:grant-storefront-token": "tsx ./scripts/grant-conformance-storefront-token.mts",
+    "conformance:capture-storefront-schema": "tsx ./scripts/capture-storefront-graphql-schema.mts",
     "conformance:capture": "tsx ./scripts/conformance-capture-index.ts",
     "conformance:capture:index": "tsx ./scripts/conformance-capture-index.ts",
     "conformance:capture-data-sale-opt-out": "tsx ./scripts/capture-data-sale-opt-out-conformance.ts",

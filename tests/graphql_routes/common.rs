@@ -4,7 +4,7 @@ pub(super) use std::sync::{Arc, Mutex};
 pub(super) use serde_json::{json, Value};
 pub(super) use shopify_draft_proxy::graphql::OperationType;
 pub(super) use shopify_draft_proxy::operation_registry::{
-    CapabilityDomain, OperationRegistryEntry,
+    ApiSurface, CapabilityDomain, OperationRegistryEntry,
 };
 pub(super) use shopify_draft_proxy::proxy::{
     Config, DraftProxy, ProductRecord, ReadMode, Request, Response,
@@ -238,6 +238,7 @@ pub(super) fn registry_entry(
     implemented: bool,
 ) -> OperationRegistryEntry {
     OperationRegistryEntry {
+        api_surface: ApiSurface::Admin,
         name: name.to_string(),
         operation_type,
         domain: CapabilityDomain::Products,
