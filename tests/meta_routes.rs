@@ -6,6 +6,16 @@ use shopify_draft_proxy::proxy::{
     Config, DraftProxy, ProductRecord, ReadMode, Request, Response, UnsupportedMutationMode,
 };
 
+const COMMIT_GRAPHQL_PATH: &str = "/admin/api/2026-04/graphql.json";
+const SYNTHETIC_SAVED_SEARCH_ONE: &str =
+    "gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic";
+const SYNTHETIC_SAVED_SEARCH_TWO: &str =
+    "gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic";
+const CANONICAL_SAVED_SEARCH_ONE: &str = "gid://shopify/SavedSearch/1";
+const CANONICAL_SAVED_SEARCH_TWO: &str = "gid://shopify/SavedSearch/2";
+const AUTHORITATIVE_SAVED_SEARCH_ONE: &str = "gid://shopify/SavedSearch/12345";
+const AUTHORITATIVE_SAVED_SEARCH_TWO: &str = "gid://shopify/SavedSearch/67890";
+
 fn snapshot_proxy() -> DraftProxy {
     DraftProxy::new(Config {
         read_mode: ReadMode::Snapshot,
@@ -168,6 +178,22 @@ fn error_transport_response(status: u16, body: Value) -> Response {
         headers: Default::default(),
         body,
     }
+}
+
+fn restore_log_entries(proxy: &mut DraftProxy, entries: Value) {
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+
+    let mut restored = dump.body;
+    restored["log"]["entries"] = entries;
+    restored["nextSyntheticId"] = json!(10);
+
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200, "restore body: {}", restore.body);
 }
 
 #[test]
@@ -2487,6 +2513,461 @@ fn commit_rewrites_later_replay_bodies_with_authoritative_ids() {
             .contains(&synthetic_id),
         "the persisted original raw mutation should not be rewritten"
     );
+}
+
+#[test]
+fn commit_replay_raw_body_rewrites_all_mapped_synthetic_ids() {
+    let replayed = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let replayed_for_transport = Arc::clone(&replayed);
+    let attempts = Arc::new(Mutex::new(0usize));
+    let attempts_for_transport = Arc::clone(&attempts);
+    let mut proxy = snapshot_proxy().with_commit_transport(move |request| {
+        replayed_for_transport.lock().unwrap().push(request);
+        let mut attempts = attempts_for_transport.lock().unwrap();
+        *attempts += 1;
+        if *attempts == 1 {
+            ok_transport_response(json!({
+                "data": {
+                    "savedSearchCreate": {
+                        "savedSearches": [
+                            { "id": AUTHORITATIVE_SAVED_SEARCH_ONE },
+                            { "id": AUTHORITATIVE_SAVED_SEARCH_TWO }
+                        ],
+                        "userErrors": []
+                    }
+                }
+            }))
+        } else {
+            ok_transport_response(json!({ "data": { "savedSearchUpdate": { "userErrors": [] } } }))
+        }
+    });
+
+    let replay_raw_body = json!({
+        "query": "mutation UpdateSavedSearches($ids: [ID!]!) { savedSearchUpdate(ids: $ids) { savedSearch { id } } }",
+        "variables": { "ids": [SYNTHETIC_SAVED_SEARCH_ONE, SYNTHETIC_SAVED_SEARCH_TWO] }
+    })
+    .to_string();
+    restore_log_entries(
+        &mut proxy,
+        json!([
+            {
+                "id": "log-1",
+                "path": COMMIT_GRAPHQL_PATH,
+                "rawBody": json!({ "query": "mutation { savedSearchCreate(input: { name: \"One\", query: \"status:open\" }) { savedSearch { id } } }" }).to_string(),
+                "stagedResourceIds": [
+                    SYNTHETIC_SAVED_SEARCH_ONE,
+                    { "nested": [SYNTHETIC_SAVED_SEARCH_TWO] }
+                ],
+                "status": "staged"
+            },
+            {
+                "id": "log-2",
+                "path": COMMIT_GRAPHQL_PATH,
+                "query": "mutation { ignored }",
+                "variables": { "ignored": true },
+                "rawBody": replay_raw_body,
+                "stagedResourceIds": [],
+                "status": "staged"
+            }
+        ]),
+    );
+
+    let commit = proxy.process_request(request("POST", "/__meta/commit"));
+    assert_eq!(commit.status, 200);
+    assert_eq!(
+        commit.body["attempts"][0]["mappedIds"],
+        json!({
+            SYNTHETIC_SAVED_SEARCH_ONE: AUTHORITATIVE_SAVED_SEARCH_ONE,
+            SYNTHETIC_SAVED_SEARCH_TWO: AUTHORITATIVE_SAVED_SEARCH_TWO
+        })
+    );
+
+    let replayed = replayed.lock().unwrap();
+    assert_eq!(replayed.len(), 2);
+    let replay_body = &replayed[1].body;
+    let parsed = serde_json::from_str::<Value>(replay_body).expect("replay body should be JSON");
+    assert_eq!(
+        parsed["variables"]["ids"],
+        json!([
+            AUTHORITATIVE_SAVED_SEARCH_ONE,
+            AUTHORITATIVE_SAVED_SEARCH_TWO
+        ])
+    );
+    assert!(!replay_body.contains(SYNTHETIC_SAVED_SEARCH_ONE));
+    assert!(!replay_body.contains(SYNTHETIC_SAVED_SEARCH_TWO));
+    assert!(!replay_body.contains("ignored"));
+
+    let log = proxy.process_request(request("GET", "/__meta/log"));
+    assert!(
+        log.body["entries"][1]["rawBody"]
+            .as_str()
+            .unwrap()
+            .contains(SYNTHETIC_SAVED_SEARCH_ONE),
+        "commit replay should not mutate the persisted raw mutation body"
+    );
+}
+
+#[test]
+fn commit_replay_rewrites_canonical_aliases_in_variables_and_inline_literals() {
+    let replayed = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let replayed_for_transport = Arc::clone(&replayed);
+    let attempts = Arc::new(Mutex::new(0usize));
+    let attempts_for_transport = Arc::clone(&attempts);
+    let mut proxy = snapshot_proxy().with_commit_transport(move |request| {
+        replayed_for_transport.lock().unwrap().push(request);
+        let mut attempts = attempts_for_transport.lock().unwrap();
+        *attempts += 1;
+        if *attempts == 1 {
+            ok_transport_response(json!({
+                "data": {
+                    "savedSearchCreate": {
+                        "savedSearches": [
+                            { "id": AUTHORITATIVE_SAVED_SEARCH_ONE },
+                            { "id": AUTHORITATIVE_SAVED_SEARCH_TWO }
+                        ],
+                        "userErrors": []
+                    }
+                }
+            }))
+        } else {
+            ok_transport_response(json!({ "data": { "savedSearchUpdate": { "userErrors": [] } } }))
+        }
+    });
+
+    let query = format!(
+        r#"
+        mutation {{
+          # GraphQL text should keep {CANONICAL_SAVED_SEARCH_ONE}
+          savedSearchUpdate(input: {{ id: "{CANONICAL_SAVED_SEARCH_ONE}", name: "Updated", query: "status:open" }}) {{
+            savedSearch {{ id }}
+            userErrors {{ field message }}
+          }}
+          second: savedSearchUpdate(input: {{ id: "{CANONICAL_SAVED_SEARCH_TWO}", name: "Updated two", query: "status:closed" }}) {{
+            savedSearch {{ id }}
+            userErrors {{ field message }}
+          }}
+        }}
+        "#
+    );
+    restore_log_entries(
+        &mut proxy,
+        json!([
+            {
+                "id": "log-1",
+                "path": COMMIT_GRAPHQL_PATH,
+                "rawBody": json!({ "query": "mutation { savedSearchCreate(input: { name: \"One\", query: \"status:open\" }) { savedSearch { id } } }" }).to_string(),
+                "stagedResourceIds": [SYNTHETIC_SAVED_SEARCH_ONE, SYNTHETIC_SAVED_SEARCH_TWO],
+                "status": "staged"
+            },
+            {
+                "id": "log-2",
+                "path": COMMIT_GRAPHQL_PATH,
+                "rawBody": json!({
+                    "query": query,
+                    "variables": {
+                        "id": CANONICAL_SAVED_SEARCH_ONE,
+                        "nested": {
+                            "ids": [CANONICAL_SAVED_SEARCH_TWO, SYNTHETIC_SAVED_SEARCH_ONE],
+                            "text": format!("note mentions {CANONICAL_SAVED_SEARCH_ONE} but is not an ID value")
+                        }
+                    }
+                }).to_string(),
+                "stagedResourceIds": [],
+                "status": "staged"
+            }
+        ]),
+    );
+
+    let commit = proxy.process_request(request("POST", "/__meta/commit"));
+    assert_eq!(commit.status, 200);
+
+    let replayed = replayed.lock().unwrap();
+    assert_eq!(replayed.len(), 2);
+    let parsed =
+        serde_json::from_str::<Value>(&replayed[1].body).expect("replayed body should be JSON");
+    let query = parsed["query"].as_str().expect("query should be preserved");
+    assert!(query.contains(&format!(
+        "savedSearchUpdate(input: {{ id: \"{AUTHORITATIVE_SAVED_SEARCH_ONE}\""
+    )));
+    assert!(query.contains(&format!(
+        "second: savedSearchUpdate(input: {{ id: \"{AUTHORITATIVE_SAVED_SEARCH_TWO}\""
+    )));
+    assert!(query.contains(&format!(
+        "# GraphQL text should keep {CANONICAL_SAVED_SEARCH_ONE}"
+    )));
+    assert_eq!(
+        parsed["variables"]["id"],
+        json!(AUTHORITATIVE_SAVED_SEARCH_ONE)
+    );
+    assert_eq!(
+        parsed["variables"]["nested"]["ids"],
+        json!([
+            AUTHORITATIVE_SAVED_SEARCH_TWO,
+            AUTHORITATIVE_SAVED_SEARCH_ONE
+        ])
+    );
+    assert_eq!(
+        parsed["variables"]["nested"]["text"],
+        json!(format!(
+            "note mentions {CANONICAL_SAVED_SEARCH_ONE} but is not an ID value"
+        ))
+    );
+}
+
+#[test]
+fn commit_replay_preserves_nonmatching_canonical_type_and_tail_values() {
+    let replayed = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let replayed_for_transport = Arc::clone(&replayed);
+    let attempts = Arc::new(Mutex::new(0usize));
+    let attempts_for_transport = Arc::clone(&attempts);
+    let mut proxy = snapshot_proxy().with_commit_transport(move |request| {
+        replayed_for_transport.lock().unwrap().push(request);
+        let mut attempts = attempts_for_transport.lock().unwrap();
+        *attempts += 1;
+        if *attempts == 1 {
+            ok_transport_response(json!({
+                "data": {
+                    "savedSearchCreate": {
+                        "savedSearch": { "id": AUTHORITATIVE_SAVED_SEARCH_ONE },
+                        "userErrors": []
+                    }
+                }
+            }))
+        } else {
+            ok_transport_response(json!({ "data": { "savedSearchUpdate": { "userErrors": [] } } }))
+        }
+    });
+    let wrong_type_same_tail = "gid://shopify/Product/1";
+    let same_type_wrong_tail = "gid://shopify/SavedSearch/42";
+    let longer_tail = format!("{CANONICAL_SAVED_SEARCH_ONE}0");
+    let query = format!(
+        r#"
+        mutation {{
+          wrongType: savedSearchUpdate(input: {{ id: "{wrong_type_same_tail}", name: "Wrong type" }}) {{ savedSearch {{ id }} }}
+          wrongTail: savedSearchUpdate(input: {{ id: "{same_type_wrong_tail}", name: "Wrong tail" }}) {{ savedSearch {{ id }} }}
+          longer: savedSearchUpdate(input: {{ id: "{longer_tail}", name: "Longer tail" }}) {{ savedSearch {{ id }} }}
+        }}
+        "#
+    );
+    restore_log_entries(
+        &mut proxy,
+        json!([
+            {
+                "id": "log-1",
+                "path": COMMIT_GRAPHQL_PATH,
+                "rawBody": json!({ "query": "mutation { savedSearchCreate(input: { name: \"One\", query: \"status:open\" }) { savedSearch { id } } }" }).to_string(),
+                "stagedResourceIds": [SYNTHETIC_SAVED_SEARCH_ONE],
+                "status": "staged"
+            },
+            {
+                "id": "log-2",
+                "path": COMMIT_GRAPHQL_PATH,
+                "rawBody": json!({
+                    "query": query,
+                    "variables": {
+                        "wrongType": wrong_type_same_tail,
+                        "wrongTail": same_type_wrong_tail,
+                        "longer": longer_tail
+                    }
+                }).to_string(),
+                "stagedResourceIds": [],
+                "status": "staged"
+            }
+        ]),
+    );
+
+    let commit = proxy.process_request(request("POST", "/__meta/commit"));
+    assert_eq!(commit.status, 200);
+
+    let replayed = replayed.lock().unwrap();
+    assert_eq!(replayed.len(), 2);
+    let body = &replayed[1].body;
+    let parsed = serde_json::from_str::<Value>(body).expect("replayed body should be JSON");
+    let replay_query = parsed["query"].as_str().expect("query should be preserved");
+    assert!(replay_query.contains(wrong_type_same_tail));
+    assert!(replay_query.contains(same_type_wrong_tail));
+    assert!(replay_query.contains(&longer_tail));
+    assert_eq!(
+        parsed["variables"]["wrongType"],
+        json!(wrong_type_same_tail)
+    );
+    assert_eq!(
+        parsed["variables"]["wrongTail"],
+        json!(same_type_wrong_tail)
+    );
+    assert_eq!(parsed["variables"]["longer"], json!(longer_tail));
+    assert!(!body.contains(AUTHORITATIVE_SAVED_SEARCH_ONE));
+}
+
+#[test]
+fn commit_replay_legacy_log_entries_fall_back_to_query_and_variables() {
+    let replayed = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let replayed_for_transport = Arc::clone(&replayed);
+    let mut proxy = snapshot_proxy().with_commit_transport(move |request| {
+        replayed_for_transport.lock().unwrap().push(request);
+        ok_transport_response(json!({ "data": { "savedSearchCreate": { "userErrors": [] } } }))
+    });
+    let legacy_query = "mutation LegacyCommit($input: SavedSearchCreateInput!) { savedSearchCreate(input: $input) { savedSearch { id } } }";
+    let legacy_variables = json!({ "input": { "name": "Open orders", "query": "status:open" } });
+    restore_log_entries(
+        &mut proxy,
+        json!([{
+            "id": "log-1",
+            "path": COMMIT_GRAPHQL_PATH,
+            "query": legacy_query,
+            "variables": legacy_variables,
+            "stagedResourceIds": [],
+            "status": "staged"
+        }]),
+    );
+
+    let commit = proxy.process_request(request("POST", "/__meta/commit"));
+    assert_eq!(commit.status, 200);
+
+    let replayed = replayed.lock().unwrap();
+    assert_eq!(replayed.len(), 1);
+    let parsed =
+        serde_json::from_str::<Value>(&replayed[0].body).expect("fallback body should be JSON");
+    assert_eq!(parsed["query"], json!(legacy_query));
+    assert_eq!(parsed["variables"], legacy_variables);
+}
+
+#[test]
+fn commit_replay_maps_multiple_ids_and_keeps_existing_mapping() {
+    let attempts = Arc::new(Mutex::new(0usize));
+    let attempts_for_transport = Arc::clone(&attempts);
+    let mut proxy = snapshot_proxy().with_commit_transport(move |_request| {
+        let mut attempts = attempts_for_transport.lock().unwrap();
+        *attempts += 1;
+        if *attempts == 1 {
+            ok_transport_response(json!({
+                "data": {
+                    "savedSearchCreate": {
+                        "savedSearches": [
+                            { "id": AUTHORITATIVE_SAVED_SEARCH_ONE },
+                            { "id": AUTHORITATIVE_SAVED_SEARCH_ONE },
+                            { "id": SYNTHETIC_SAVED_SEARCH_ONE },
+                            { "id": AUTHORITATIVE_SAVED_SEARCH_TWO }
+                        ],
+                        "userErrors": []
+                    }
+                }
+            }))
+        } else {
+            ok_transport_response(json!({ "id": AUTHORITATIVE_SAVED_SEARCH_TWO }))
+        }
+    });
+    restore_log_entries(
+        &mut proxy,
+        json!([
+            {
+                "id": "log-1",
+                "path": COMMIT_GRAPHQL_PATH,
+                "rawBody": json!({ "query": "mutation { savedSearchCreate(input: { name: \"One\", query: \"status:open\" }) { savedSearch { id } } }" }).to_string(),
+                "stagedResourceIds": [
+                    SYNTHETIC_SAVED_SEARCH_ONE,
+                    { "nested": [SYNTHETIC_SAVED_SEARCH_TWO, "gid://shopify/SavedSearch/non-synthetic"] }
+                ],
+                "status": "staged"
+            },
+            {
+                "id": "log-2",
+                "path": COMMIT_GRAPHQL_PATH,
+                "rawBody": json!({ "query": "mutation { savedSearchUpdate(input: { id: \"gid://shopify/SavedSearch/1\", name: \"Again\" }) { savedSearch { id } } }" }).to_string(),
+                "stagedResourceIds": [SYNTHETIC_SAVED_SEARCH_ONE],
+                "status": "staged"
+            }
+        ]),
+    );
+
+    let commit = proxy.process_request(request("POST", "/__meta/commit"));
+    assert_eq!(commit.status, 200);
+    assert_eq!(commit.body["committed"], json!(2));
+    assert_eq!(
+        commit.body["attempts"][0]["mappedIds"],
+        json!({
+            SYNTHETIC_SAVED_SEARCH_ONE: AUTHORITATIVE_SAVED_SEARCH_ONE,
+            SYNTHETIC_SAVED_SEARCH_TWO: AUTHORITATIVE_SAVED_SEARCH_TWO
+        })
+    );
+    assert_eq!(commit.body["attempts"][1]["mappedIds"], json!({}));
+}
+
+#[test]
+fn commit_replay_authoritative_id_mapping_skips_non_synthetic_and_wrong_type_ids() {
+    let mut proxy = snapshot_proxy().with_commit_transport(move |_request| {
+        ok_transport_response(json!({
+            "data": {
+                "webhookSubscriptionCreate": {
+                    "webhookSubscription": {
+                        "id": "gid://shopify/WebhookSubscription/99"
+                    }
+                }
+            }
+        }))
+    });
+    restore_log_entries(
+        &mut proxy,
+        json!([{
+            "id": "log-1",
+            "path": COMMIT_GRAPHQL_PATH,
+            "rawBody": json!({ "query": "mutation { savedSearchCreate(input: { name: \"One\", query: \"status:open\" }) { savedSearch { id } } }" }).to_string(),
+            "stagedResourceIds": [
+                "gid://shopify/SavedSearch/ordinary",
+                SYNTHETIC_SAVED_SEARCH_ONE
+            ],
+            "status": "staged"
+        }]),
+    );
+
+    let commit = proxy.process_request(request("POST", "/__meta/commit"));
+    assert_eq!(commit.status, 200);
+    assert_eq!(commit.body["attempts"][0]["mappedIds"], json!({}));
+}
+
+#[test]
+fn commit_replay_graphql_error_detection_matches_top_level_error_semantics() {
+    let cases = vec![
+        (
+            "non-empty error array",
+            json!({ "errors": [{ "message": "boom" }] }),
+            502,
+            false,
+        ),
+        (
+            "error object",
+            json!({ "errors": { "message": "boom" } }),
+            502,
+            false,
+        ),
+        ("empty error array", json!({ "errors": [] }), 200, true),
+        ("null errors", json!({ "errors": null }), 200, true),
+        (
+            "absent errors",
+            json!({ "data": { "ok": true } }),
+            200,
+            true,
+        ),
+    ];
+
+    for (label, response_body, expected_status, expected_ok) in cases {
+        let mut proxy = snapshot_proxy()
+            .with_commit_transport(move |_request| ok_transport_response(response_body.clone()));
+        restore_log_entries(
+            &mut proxy,
+            json!([{
+                "id": "log-1",
+                "path": COMMIT_GRAPHQL_PATH,
+                "rawBody": json!({ "query": "mutation { savedSearchCreate(input: { name: \"One\", query: \"status:open\" }) { savedSearch { id } } }" }).to_string(),
+                "stagedResourceIds": [],
+                "status": "staged"
+            }]),
+        );
+
+        let commit = proxy.process_request(request("POST", "/__meta/commit"));
+        assert_eq!(commit.status, expected_status, "{label}");
+        assert_eq!(commit.body["ok"], json!(expected_ok), "{label}");
+    }
 }
 
 #[test]
