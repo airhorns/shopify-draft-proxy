@@ -73,8 +73,9 @@ App/test harness
        └─ Storefront GraphQL route
             ├─ run Storefront-route version and captured Storefront schema validation
             ├─ preserve Storefront auth headers and request body
-            ├─ live-hybrid/passthrough -> upstream Storefront endpoint
-            └─ snapshot -> schema-shaped null/empty query data or explicit mutation rejection
+            ├─ supported Storefront root -> local store/customer model
+            ├─ live-hybrid/passthrough for unimplemented roots -> upstream Storefront endpoint
+            └─ snapshot -> local no-data query response or explicit mutation rejection for unimplemented roots
 ```
 
 Multi-root Admin GraphQL documents keep Shopify's top-level execution contract:
@@ -228,7 +229,7 @@ Effective reads merge base state and staged state through shared Store helpers, 
 The Rust HTTP bridge serves:
 
 - `POST /admin/api/:version/graphql.json`
-- `POST /api/:version/graphql.json` for Storefront GraphQL passthrough only
+- `POST /api/:version/graphql.json` for Storefront GraphQL local roots or passthrough
 - `GET /__meta/health`
 - `GET /__meta/config`
 - `GET /__meta/log`
@@ -244,11 +245,12 @@ Keep Shopify-like versioned Admin and Storefront API paths even when tests use
 local/snapshot mode. Admin and Storefront supported-version policies are split
 so one surface can move without implying support for the other. Storefront
 GraphQL traffic stays on the Storefront route, forwards through the upstream
-transport with Storefront headers preserved in live-hybrid/passthrough modes,
-and does not enter Admin local dispatch or staged commit replay. In snapshot
-mode Storefront query roots return schema-shaped no-data responses, while
-Storefront mutations reject explicitly until a local Storefront lifecycle model
-exists.
+transport with Storefront headers preserved for unimplemented live-hybrid /
+passthrough roots, and does not enter Admin local dispatch or staged commit
+replay. Implemented Storefront roots can stage locally from Storefront traffic
+when runtime tests and captured Storefront parity back their lifecycle model.
+In snapshot mode unimplemented Storefront query roots return schema-shaped
+no-data responses, while unimplemented Storefront mutations reject explicitly.
 
 ## Development rules
 
