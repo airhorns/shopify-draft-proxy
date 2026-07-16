@@ -1,0 +1,19 @@
+query StorefrontCollectionsAbsentRead($id: ID!, $handle: String!, $query: String!) {
+  byId: collection(id: $id) {
+    id
+  }
+  byHandle: collectionByHandle(handle: $handle) {
+    id
+  }
+  catalog: collections(first: 3, query: $query) {
+    nodes {
+      id
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

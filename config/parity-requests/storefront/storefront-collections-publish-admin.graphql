@@ -1,0 +1,31 @@
+mutation StorefrontCollectionsPublish(
+  $primaryId: ID!
+  $secondaryId: ID!
+  $input: [PublicationInput!]!
+  $publicationId: ID!
+) {
+  primary: publishablePublish(id: $primaryId, input: $input) {
+    publishable {
+      ... on Collection {
+        id
+        publishedOnPublication(publicationId: $publicationId)
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  secondary: publishablePublish(id: $secondaryId, input: $input) {
+    publishable {
+      ... on Collection {
+        id
+        publishedOnPublication(publicationId: $publicationId)
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

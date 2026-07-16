@@ -3,10 +3,14 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { once } from 'node:events';
 import type { AddressInfo } from 'node:net';
 import { setTimeout as delay } from 'node:timers/promises';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const repoRoot = new URL('../..', import.meta.url);
+const integrationCargoTargetDir = fileURLToPath(new URL('../../target/integration-rust-server', import.meta.url));
 const pnpmCommand = 'corepack';
+const serverStartupTimeoutMs = 90_000;
+const adapterTestTimeoutMs = serverStartupTimeoutMs + 30_000;
 
 function pnpmArgs(args: string[]): string[] {
   return ['pnpm', ...args];
@@ -24,7 +28,7 @@ function collectOutput(child: ChildProcessWithoutNullStreams): { getOutput: () =
 }
 
 async function waitForRustServer(child: ChildProcessWithoutNullStreams, getOutput: () => string): Promise<void> {
-  const deadline = Date.now() + 60_000;
+  const deadline = Date.now() + serverStartupTimeoutMs;
   while (Date.now() < deadline) {
     if (getOutput().includes('shopify-draft-proxy rust runtime listening')) return;
     if (child.exitCode !== null) {
@@ -70,6 +74,7 @@ async function withRustServer<T>(
       PORT: String(port),
       SHOPIFY_ADMIN_ORIGIN: options.shopifyAdminOrigin ?? 'https://shopify.com',
       READ_MODE: options.readMode,
+      CARGO_TARGET_DIR: integrationCargoTargetDir,
     },
   });
   const { getOutput } = collectOutput(child);
@@ -122,7 +127,7 @@ async function withChunkedUpstream<T>(run: (origin: string) => Promise<T>): Prom
   }
 }
 
-describe('Rust HTTP adapter route surface', () => {
+describe('Rust HTTP adapter route surface', { timeout: adapterTestTimeoutMs }, () => {
   it('serves the required meta route response shapes through the Rust HTTP adapter', async () => {
     const port = await unusedLocalPort();
     await withRustServer(port, async (origin) => {
@@ -178,6 +183,9 @@ describe('Rust HTTP adapter route surface', () => {
             deliveryPromiseProviderOrder: [],
             deliveryPromiseParticipants: {},
             deliveryPromiseParticipantOrder: [],
+            bulkOperations: {},
+            bulkOperationOrder: [],
+            bulkOperationsObserved: false,
             discounts: {},
             discountOrder: [],
             discountCountBaselines: {},
@@ -321,7 +329,7 @@ describe('Rust HTTP adapter route surface', () => {
         body: { ok: true, message: 'state reset' },
       });
     });
-  }, 90_000);
+  });
 
   it('serves Admin GraphQL, staged upload, and error envelopes through Rust HTTP', async () => {
     const graphQLBody = {
@@ -376,7 +384,7 @@ describe('Rust HTTP adapter route surface', () => {
         body: { errors: [{ message: 'Method not allowed' }] },
       });
     });
-  }, 90_000);
+  });
 
   it('captures staged upload bytes for local bulk mutation imports through Rust HTTP', async () => {
     await withRustServer(await unusedLocalPort(), async (origin) => {
@@ -519,7 +527,7 @@ describe('Rust HTTP adapter route surface', () => {
       });
       expect(currentOperation.fileSize).toBe(String(artifact.body.length));
     });
-  }, 90_000);
+  });
 
   it('forwards chunked upstream passthrough responses without producing duplicate hop-by-hop headers', async () => {
     await withChunkedUpstream(async (upstreamOrigin) => {
@@ -541,5 +549,5 @@ describe('Rust HTTP adapter route surface', () => {
         { readMode: 'live-hybrid', shopifyAdminOrigin: upstreamOrigin },
       );
     });
-  }, 90_000);
+  });
 });
