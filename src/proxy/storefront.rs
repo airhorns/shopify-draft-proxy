@@ -79,6 +79,11 @@ pub(in crate::proxy) const STOREFRONT_CART_MUTATION_ROOTS: &[&str] = &[
     "cartGiftCardCodesUpdate",
     "cartMetafieldsSet",
     "cartMetafieldDelete",
+    "cartDeliveryAddressesAdd",
+    "cartDeliveryAddressesUpdate",
+    "cartDeliveryAddressesRemove",
+    "cartDeliveryAddressesReplace",
+    "cartSelectedDeliveryOptionsUpdate",
 ];
 const STOREFRONT_DEFAULT_CONTEXT_KEY: &str = "country=*;language=*";
 const STOREFRONT_CUSTOMER_PASSWORD_FINGERPRINT_FIELD: &str = "__storefrontPasswordFingerprint";

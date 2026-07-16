@@ -118,7 +118,10 @@ fn add_storefront_inventory_location(proxy: &mut DraftProxy) -> String {
         .to_string()
 }
 
-fn stage_storefront_cart_variant(proxy: &mut DraftProxy, inventory_quantity: i64) -> String {
+fn stage_storefront_cart_variant(
+    proxy: &mut DraftProxy,
+    inventory_quantity: i64,
+) -> (String, String) {
     let publication_id = "gid://shopify/Publication/storefront-cart-tests";
     restore_storefront_current_publication(proxy, publication_id);
     let create = proxy.process_request(json_graphql_request(
@@ -178,7 +181,7 @@ fn stage_storefront_cart_variant(proxy: &mut DraftProxy, inventory_quantity: i64
                 "id": variant_id,
                 "price": "12.50",
                 "compareAtPrice": "15.00",
-                "inventoryItem": { "tracked": true, "requiresShipping": false }
+                "inventoryItem": { "tracked": true, "requiresShipping": true }
             }]
         }),
     ));
@@ -215,7 +218,87 @@ fn stage_storefront_cart_variant(proxy: &mut DraftProxy, inventory_quantity: i64
         inventory.body
     );
     publish_to_current_storefront_channel(proxy, &product_id);
-    variant_id
+    (variant_id, location_id)
+}
+
+struct StorefrontCartDeliveryProfileFixture {
+    id: String,
+    location_group_id: String,
+    zone_id: String,
+    standard_method_id: String,
+    standard_rate_id: String,
+}
+
+fn stage_storefront_cart_delivery_profile(
+    proxy: &mut DraftProxy,
+    variant_id: &str,
+    location_id: &str,
+) -> StorefrontCartDeliveryProfileFixture {
+    let response = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/shipping-fulfillments/delivery-profile-lifecycle-create.graphql"
+        ),
+        json!({
+            "profile": {
+                "name": "Storefront cart delivery profile",
+                "variantsToAssociate": [variant_id],
+                "locationGroupsToCreate": [{
+                    "locations": [location_id],
+                    "zonesToCreate": [{
+                        "name": "Domestic",
+                        "countries": [{ "code": "US", "includeAllProvinces": true }],
+                        "methodDefinitionsToCreate": [
+                            {
+                                "name": "Conformance Standard",
+                                "description": "Captured fixed storefront cart delivery rate",
+                                "active": true,
+                                "rateDefinition": { "price": { "amount": "7.25", "currencyCode": "USD" } }
+                            },
+                            {
+                                "name": "Conformance Express",
+                                "description": "Captured expedited storefront cart delivery rate",
+                                "active": true,
+                                "rateDefinition": { "price": { "amount": "12.00", "currencyCode": "USD" } }
+                            }
+                        ]
+                    }]
+                }]
+            }
+        }),
+    ));
+    assert_eq!(response.status, 200, "{}", response.body);
+    assert_eq!(
+        response.body["data"]["deliveryProfileCreate"]["userErrors"],
+        json!([]),
+        "{}",
+        response.body
+    );
+    let profile = &response.body["data"]["deliveryProfileCreate"]["profile"];
+    StorefrontCartDeliveryProfileFixture {
+        id: profile["id"]
+            .as_str()
+            .expect("delivery profile id")
+            .to_string(),
+        location_group_id: profile["profileLocationGroups"][0]["locationGroup"]["id"]
+            .as_str()
+            .expect("delivery location group id")
+            .to_string(),
+        zone_id: profile["profileLocationGroups"][0]["locationGroupZones"]["nodes"][0]["zone"]
+            ["id"]
+            .as_str()
+            .expect("delivery zone id")
+            .to_string(),
+        standard_method_id: profile["profileLocationGroups"][0]["locationGroupZones"]["nodes"][0]
+            ["methodDefinitions"]["nodes"][0]["id"]
+            .as_str()
+            .expect("delivery method id")
+            .to_string(),
+        standard_rate_id: profile["profileLocationGroups"][0]["locationGroupZones"]["nodes"][0]
+            ["methodDefinitions"]["nodes"][0]["rateProvider"]["id"]
+            .as_str()
+            .expect("delivery rate id")
+            .to_string(),
+    }
 }
 
 #[test]
@@ -1752,7 +1835,7 @@ fn storefront_cart_lifecycle_stages_locally_with_aliases_fragments_and_state_rou
         .with_upstream_transport(|_| {
             panic!("supported Storefront carts must never write upstream")
         });
-    let variant_id = stage_storefront_cart_variant(&mut proxy, 5);
+    let (variant_id, _) = stage_storefront_cart_variant(&mut proxy, 5);
 
     let create = proxy.process_request(storefront_graphql_request(
         r#"
@@ -1965,7 +2048,7 @@ fn storefront_cart_lifecycle_stages_locally_with_aliases_fragments_and_state_rou
 fn storefront_cart_validations_warnings_limits_and_stale_branches_match_capture() {
     let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
         .with_upstream_transport(|_| panic!("supported Storefront cart branches must stay local"));
-    let variant_id = stage_storefront_cart_variant(&mut proxy, 5);
+    let (variant_id, _) = stage_storefront_cart_variant(&mut proxy, 5);
     let create = proxy.process_request(storefront_graphql_request(
         r#"
         mutation CreateValidationCart($input: CartInput) {
@@ -2187,7 +2270,7 @@ fn storefront_cart_adjustments_reuse_shared_state_and_round_trip_without_upstrea
         .with_upstream_transport(|_| {
             panic!("supported Storefront cart adjustments must never write upstream")
         });
-    let variant_id = stage_storefront_cart_variant(&mut proxy, 5);
+    let (variant_id, _) = stage_storefront_cart_variant(&mut proxy, 5);
     restore_state_with(&mut proxy, |state| {
         state["baseState"]["shop"] = json!({
             "id": "gid://shopify/Shop/cart-adjustments",
@@ -2624,6 +2707,531 @@ fn storefront_cart_state_is_isolated_between_proxy_instances() {
 }
 
 #[test]
+fn storefront_cart_delivery_lifecycle_stages_rates_selection_and_state_round_trip() {
+    let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|_| panic!("Storefront cart delivery must stay local"));
+    let (variant_id, location_id) = stage_storefront_cart_variant(&mut proxy, 5);
+    stage_storefront_cart_delivery_profile(&mut proxy, &variant_id, &location_id);
+
+    let create = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation CreateDeliveryCart($input: CartInput) {
+          cartCreate(input: $input) {
+            cart { id checkoutUrl totalQuantity }
+            userErrors { field message code }
+            warnings { code message target }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "buyerIdentity": { "countryCode": "US" },
+                "lines": [{ "merchandiseId": variant_id, "quantity": 2 }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200, "{}", create.body);
+    let cart_id = create.body["data"]["cartCreate"]["cart"]["id"]
+        .as_str()
+        .expect("delivery cart id")
+        .to_string();
+    let checkout_url = create.body["data"]["cartCreate"]["cart"]["checkoutUrl"]
+        .as_str()
+        .expect("checkout url")
+        .to_string();
+    assert!(checkout_url.starts_with("https://shopify.com/cart/c/"));
+    assert!(checkout_url.contains("?key="));
+
+    let add = proxy.process_request(storefront_graphql_request(
+        include_str!(
+            "../../config/parity-requests/storefront/storefront-cart-delivery-addresses-add.graphql"
+        ),
+        json!({
+            "cartId": cart_id,
+            "addresses": [
+                {
+                    "address": { "deliveryAddress": {
+                        "firstName": "Conformance",
+                        "lastName": "Buyer",
+                        "address1": "123 Example Street",
+                        "city": "New York",
+                        "provinceCode": "NY",
+                        "countryCode": "US",
+                        "zip": "10001"
+                    } },
+                    "selected": true,
+                    "oneTimeUse": false,
+                    "validationStrategy": "COUNTRY_CODE_ONLY"
+                },
+                {
+                    "address": { "deliveryAddress": {
+                        "firstName": "Conformance",
+                        "lastName": "Buyer",
+                        "address1": "456 Example Street",
+                        "city": "New York",
+                        "provinceCode": "NY",
+                        "countryCode": "US",
+                        "zip": "10001"
+                    } },
+                    "selected": false,
+                    "oneTimeUse": true,
+                    "validationStrategy": "COUNTRY_CODE_ONLY"
+                }
+            ]
+        }),
+    ));
+    assert_eq!(add.status, 200, "{}", add.body);
+    let payload = &add.body["data"]["cartDeliveryAddressesAdd"];
+    assert_eq!(payload["userErrors"], json!([]));
+    assert_eq!(payload["warnings"], json!([]));
+    let addresses = payload["cart"]["delivery"]["addresses"]
+        .as_array()
+        .expect("delivery addresses");
+    assert_eq!(addresses.len(), 2);
+    assert_eq!(addresses[0]["selected"], json!(true));
+    assert_eq!(addresses[0]["oneTimeUse"], json!(false));
+    assert_eq!(addresses[1]["selected"], json!(false));
+    assert_eq!(addresses[1]["oneTimeUse"], json!(true));
+    let first_address_id = addresses[0]["id"].as_str().unwrap().to_string();
+    let second_address_id = addresses[1]["id"].as_str().unwrap().to_string();
+
+    let groups = &payload["cart"]["deliveryGroups"];
+    assert_eq!(groups["nodes"].as_array().unwrap().len(), 1);
+    assert_eq!(groups["edges"].as_array().unwrap().len(), 1);
+    assert_eq!(groups["nodes"][0]["groupType"], json!("ONE_TIME_PURCHASE"));
+    assert_eq!(
+        groups["nodes"][0]["deliveryOptions"][0]["code"],
+        json!("Conformance Standard")
+    );
+    assert_eq!(
+        groups["nodes"][0]["deliveryOptions"][0]["estimatedCost"],
+        json!({
+            "amount": "7.25",
+            "currencyCode": "USD"
+        })
+    );
+    assert_eq!(
+        groups["nodes"][0]["deliveryOptions"][1]["code"],
+        json!("Conformance Express")
+    );
+    assert_eq!(
+        groups["nodes"][0]["selectedDeliveryOption"]["code"],
+        json!("Conformance Standard")
+    );
+    let standard_cost = proxy.process_request(storefront_graphql_request(
+        r#"query DeliveryCartCost($id: ID!) { cart(id: $id) { cost { totalAmount { amount currencyCode } } } }"#,
+        json!({ "id": cart_id }),
+    ));
+    assert_eq!(
+        standard_cost.body["data"]["cart"]["cost"]["totalAmount"]["amount"],
+        json!("32.25")
+    );
+    assert_eq!(
+        groups["nodes"][0]["cartLines"]["nodes"][0]["quantity"],
+        json!(2)
+    );
+    let group_id = groups["nodes"][0]["id"].as_str().unwrap().to_string();
+    let express_handle = groups["nodes"][0]["deliveryOptions"][1]["handle"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let select = proxy.process_request(storefront_graphql_request(
+        include_str!(
+            "../../config/parity-requests/storefront/storefront-cart-selected-delivery-options-update.graphql"
+        ),
+        json!({
+            "cartId": cart_id,
+            "selectedDeliveryOptions": [{
+                "deliveryGroupId": group_id,
+                "deliveryOptionHandle": express_handle
+            }]
+        }),
+    ));
+    assert_eq!(select.status, 200, "{}", select.body);
+    assert_eq!(
+        select.body["data"]["cartSelectedDeliveryOptionsUpdate"]["cart"]["deliveryGroups"]["nodes"]
+            [0]["selectedDeliveryOption"]["code"],
+        json!("Conformance Express")
+    );
+    let express_cost = proxy.process_request(storefront_graphql_request(
+        r#"query SelectedDeliveryCartCost($id: ID!) { cart(id: $id) { cost { totalAmount { amount currencyCode } } } }"#,
+        json!({ "id": cart_id }),
+    ));
+    assert_eq!(
+        express_cost.body["data"]["cart"]["cost"]["totalAmount"]["amount"],
+        json!("37.0")
+    );
+
+    let update = proxy.process_request(storefront_graphql_request(
+        include_str!(
+            "../../config/parity-requests/storefront/storefront-cart-delivery-addresses-update.graphql"
+        ),
+        json!({
+            "cartId": cart_id,
+            "addresses": [{ "id": second_address_id, "selected": true, "oneTimeUse": false }]
+        }),
+    ));
+    let updated_addresses =
+        &update.body["data"]["cartDeliveryAddressesUpdate"]["cart"]["delivery"]["addresses"];
+    assert_eq!(updated_addresses[0]["id"], json!(first_address_id));
+    assert_eq!(updated_addresses[0]["selected"], json!(false));
+    assert_eq!(updated_addresses[1]["id"], json!(second_address_id));
+    assert_eq!(updated_addresses[1]["selected"], json!(true));
+    assert_eq!(updated_addresses[1]["oneTimeUse"], json!(false));
+    assert_eq!(
+        update.body["data"]["cartDeliveryAddressesUpdate"]["cart"]["deliveryGroups"]["nodes"][0]
+            ["selectedDeliveryOption"]["code"],
+        json!("Conformance Standard")
+    );
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    assert!(!dump.body.to_string().contains(&cart_id));
+    let mut restored = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|_| panic!("restored cart delivery must stay local"));
+    assert_eq!(
+        restored
+            .process_request(request_with_body(
+                "POST",
+                "/__meta/restore",
+                &dump.body.to_string()
+            ))
+            .status,
+        200
+    );
+    let restored_read = restored.process_request(storefront_graphql_request(
+        include_str!(
+            "../../config/parity-requests/storefront/storefront-cart-delivery-read.graphql"
+        ),
+        json!({ "id": cart_id }),
+    ));
+    assert_eq!(restored_read.status, 200, "{}", restored_read.body);
+    assert_eq!(
+        restored_read.body["data"]["cart"]["checkoutUrl"],
+        json!(checkout_url)
+    );
+    assert_eq!(
+        restored_read.body["data"]["cart"]["delivery"]["addresses"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    assert_eq!(
+        restored_read.body["data"]["cart"]["deliveryGroups"]["nodes"][0]["selectedDeliveryOption"]
+            ["code"],
+        json!("Conformance Standard")
+    );
+
+    assert_eq!(
+        restored
+            .process_request(request_with_body("POST", "/__meta/reset", ""))
+            .status,
+        200
+    );
+    let after_reset = restored.process_request(storefront_graphql_request(
+        r#"query CartAfterDeliveryReset($id: ID!) { cart(id: $id) { id } }"#,
+        json!({ "id": cart_id }),
+    ));
+    assert_eq!(after_reset.body["data"]["cart"], Value::Null);
+}
+
+#[test]
+fn storefront_cart_delivery_validates_ownership_inputs_and_stale_options() {
+    let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|_| panic!("Storefront cart delivery validation must stay local"));
+    let (variant_id, location_id) = stage_storefront_cart_variant(&mut proxy, 5);
+    stage_storefront_cart_delivery_profile(&mut proxy, &variant_id, &location_id);
+    let create_cart = |proxy: &mut DraftProxy| {
+        proxy.process_request(storefront_graphql_request(
+            r#"mutation CreateDeliveryValidationCart($input: CartInput) { cartCreate(input: $input) { cart { id } userErrors { field message code } warnings { code message target } } }"#,
+            json!({ "input": { "buyerIdentity": { "countryCode": "US" }, "lines": [{ "merchandiseId": variant_id, "quantity": 1 }] } }),
+        ))
+    };
+    let create = create_cart(&mut proxy);
+    let cart_id = create.body["data"]["cartCreate"]["cart"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let missing_country = proxy.process_request(storefront_graphql_request(
+        include_str!("../../config/parity-requests/storefront/storefront-cart-delivery-addresses-add.graphql"),
+        json!({ "cartId": cart_id, "addresses": [{ "address": { "deliveryAddress": { "address1": "123 Example Street", "city": "New York" } }, "selected": true }] }),
+    ));
+    assert_eq!(
+        missing_country.body["data"]["cartDeliveryAddressesAdd"]["userErrors"],
+        json!([{
+            "field": ["addresses", "0", "address", "deliveryAddress", "countryCode"],
+            "message": "invalid value",
+            "code": "INVALID"
+        }])
+    );
+
+    let strict = proxy.process_request(storefront_graphql_request(
+        include_str!("../../config/parity-requests/storefront/storefront-cart-delivery-addresses-add.graphql"),
+        json!({ "cartId": cart_id, "addresses": [{ "address": { "deliveryAddress": { "countryCode": "US" } }, "selected": true, "validationStrategy": "STRICT" }] }),
+    ));
+    assert_eq!(
+        strict.body["data"]["cartDeliveryAddressesAdd"]["userErrors"],
+        json!([
+            { "field": ["addresses", "0", "address", "deliveryAddress", "lastName"], "message": "A last name is required in order to continue.", "code": "ADDRESS_FIELD_IS_REQUIRED" },
+            { "field": ["addresses", "0", "address", "deliveryAddress", "address1"], "message": "An address is required in order to continue.", "code": "ADDRESS_FIELD_IS_REQUIRED" },
+            { "field": ["addresses", "0", "address", "deliveryAddress", "provinceCode"], "message": "The specified country requires a zone.", "code": "ADDRESS_FIELD_IS_REQUIRED" },
+            { "field": ["addresses", "0", "address", "deliveryAddress", "zip"], "message": "Country specified requires a postal code in order to continue.", "code": "ADDRESS_FIELD_IS_REQUIRED" },
+            { "field": ["addresses", "0", "address", "deliveryAddress", "city"], "message": "A city is required in order to continue.", "code": "ADDRESS_FIELD_IS_REQUIRED" }
+        ])
+    );
+
+    let add = proxy.process_request(storefront_graphql_request(
+        include_str!("../../config/parity-requests/storefront/storefront-cart-delivery-addresses-add.graphql"),
+        json!({ "cartId": cart_id, "addresses": [{ "address": { "deliveryAddress": { "lastName": "Buyer", "address1": "123 Example Street", "city": "New York", "provinceCode": "NY", "countryCode": "US", "zip": "10001" } }, "selected": true }] }),
+    ));
+    let address_id = add.body["data"]["cartDeliveryAddressesAdd"]["cart"]["delivery"]["addresses"]
+        [0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let group_id = add.body["data"]["cartDeliveryAddressesAdd"]["cart"]["deliveryGroups"]["nodes"]
+        [0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let other = create_cart(&mut proxy);
+    let other_cart_id = other.body["data"]["cartCreate"]["cart"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    for (document, variables, root, field) in [
+        (
+            include_str!("../../config/parity-requests/storefront/storefront-cart-delivery-addresses-update.graphql"),
+            json!({ "cartId": other_cart_id, "addresses": [{ "id": address_id, "selected": true }] }),
+            "cartDeliveryAddressesUpdate",
+            json!(["addresses", "0"]),
+        ),
+        (
+            include_str!("../../config/parity-requests/storefront/storefront-cart-delivery-addresses-remove.graphql"),
+            json!({ "cartId": other_cart_id, "addressIds": [address_id] }),
+            "cartDeliveryAddressesRemove",
+            json!(["addressIds", "0"]),
+        ),
+    ] {
+        let response = proxy.process_request(storefront_graphql_request(document, variables));
+        assert_eq!(response.body["data"][root]["userErrors"][0]["field"], field);
+        assert_eq!(response.body["data"][root]["userErrors"][0]["code"], json!("INVALID_DELIVERY_ADDRESS_ID"));
+    }
+
+    let invalid_option = proxy.process_request(storefront_graphql_request(
+        include_str!("../../config/parity-requests/storefront/storefront-cart-selected-delivery-options-update.graphql"),
+        json!({ "cartId": cart_id, "selectedDeliveryOptions": [{ "deliveryGroupId": group_id, "deliveryOptionHandle": "invalid-delivery-option-handle" }] }),
+    ));
+    assert_eq!(
+        invalid_option.body["data"]["cartSelectedDeliveryOptionsUpdate"]["cart"],
+        Value::Null
+    );
+    assert_eq!(
+        invalid_option.body["data"]["cartSelectedDeliveryOptionsUpdate"]["userErrors"],
+        json!([{
+            "field": ["selectedDeliveryOptions"],
+            "message": "The delivery option with handle invalid-delivery-option-handle is not valid.",
+            "code": "INVALID_DELIVERY_OPTION"
+        }])
+    );
+
+    let too_many = proxy.process_request(storefront_graphql_request(
+        include_str!("../../config/parity-requests/storefront/storefront-cart-delivery-addresses-add.graphql"),
+        json!({ "cartId": cart_id, "addresses": (0..251).map(|_| json!({ "address": { "deliveryAddress": { "countryCode": "US" } } })).collect::<Vec<_>>() }),
+    ));
+    assert_eq!(
+        too_many.body["data"]["cartDeliveryAddressesAdd"],
+        Value::Null
+    );
+    assert_eq!(
+        too_many.body["errors"][0]["extensions"]["code"],
+        json!("MAX_INPUT_SIZE_EXCEEDED")
+    );
+    assert_eq!(
+        too_many.body["errors"][0]["path"],
+        json!(["cartDeliveryAddressesAdd", "addresses"])
+    );
+}
+
+#[test]
+fn storefront_cart_delivery_recalculates_from_admin_shipping_and_address_context() {
+    let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|_| {
+            panic!("Storefront cart delivery context changes must stay local")
+        });
+    let (variant_id, location_id) = stage_storefront_cart_variant(&mut proxy, 5);
+    let profile = stage_storefront_cart_delivery_profile(&mut proxy, &variant_id, &location_id);
+    let create = proxy.process_request(storefront_graphql_request(
+        r#"mutation CreateDeliveryContextCart($input: CartInput) { cartCreate(input: $input) { cart { id } userErrors { field message code } warnings { code message target } } }"#,
+        json!({ "input": { "buyerIdentity": { "countryCode": "US" }, "lines": [{ "merchandiseId": variant_id, "quantity": 2 }] } }),
+    ));
+    let cart_id = create.body["data"]["cartCreate"]["cart"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let add = proxy.process_request(storefront_graphql_request(
+        include_str!("../../config/parity-requests/storefront/storefront-cart-delivery-addresses-add.graphql"),
+        json!({ "cartId": cart_id, "addresses": [{ "address": { "deliveryAddress": { "lastName": "Buyer", "address1": "123 Example Street", "city": "New York", "provinceCode": "NY", "countryCode": "US", "zip": "10001" } }, "selected": true }] }),
+    ));
+    let address_id = add.body["data"]["cartDeliveryAddressesAdd"]["cart"]["delivery"]["addresses"]
+        [0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let admin_update = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/shipping-fulfillments/delivery-profile-lifecycle-update.graphql"),
+        json!({
+            "id": profile.id,
+            "profile": {
+                "locationGroupsToUpdate": [{
+                    "id": profile.location_group_id,
+                    "zonesToUpdate": [{
+                        "id": profile.zone_id,
+                        "methodDefinitionsToUpdate": [{
+                            "id": profile.standard_method_id,
+                            "name": "Conformance Standard Updated",
+                            "description": "Captured updated storefront cart delivery rate",
+                            "active": true,
+                            "rateDefinition": {
+                                "id": profile.standard_rate_id,
+                                "price": { "amount": "8.50", "currencyCode": "USD" }
+                            }
+                        }]
+                    }]
+                }]
+            }
+        }),
+    ));
+    assert_eq!(admin_update.status, 200, "{}", admin_update.body);
+    assert_eq!(
+        admin_update.body["data"]["deliveryProfileUpdate"]["userErrors"],
+        json!([])
+    );
+    let after_profile_update = proxy.process_request(storefront_graphql_request(
+        include_str!(
+            "../../config/parity-requests/storefront/storefront-cart-delivery-read.graphql"
+        ),
+        json!({ "id": cart_id }),
+    ));
+    assert_eq!(
+        after_profile_update.body["data"]["cart"]["deliveryGroups"]["nodes"][0]["deliveryOptions"]
+            [0]["code"],
+        json!("Conformance Standard Updated")
+    );
+    assert_eq!(
+        after_profile_update.body["data"]["cart"]["deliveryGroups"]["nodes"][0]["deliveryOptions"]
+            [0]["estimatedCost"]["amount"],
+        json!("8.5")
+    );
+    let updated_cost = proxy.process_request(storefront_graphql_request(
+        r#"query UpdatedDeliveryCartCost($id: ID!) { cart(id: $id) { cost { totalAmount { amount currencyCode } } } }"#,
+        json!({ "id": cart_id }),
+    ));
+    assert_eq!(
+        updated_cost.body["data"]["cart"]["cost"]["totalAmount"]["amount"],
+        json!("33.5")
+    );
+
+    let backup_location = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AddDeliveryBackupLocation($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": { "name": "Storefront inventory backup", "address": { "countryCode": "US" } } }),
+    ));
+    assert_eq!(
+        backup_location.body["data"]["locationAdd"]["userErrors"],
+        json!([])
+    );
+    let disable_location = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DisableDeliveryLocation($id: ID!, $input: LocationEditInput!) {
+          locationEdit(id: $id, input: $input) {
+            location { id fulfillsOnlineOrders }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": location_id, "input": { "fulfillsOnlineOrders": false } }),
+    ));
+    assert_eq!(
+        disable_location.body["data"]["locationEdit"]["userErrors"],
+        json!([])
+    );
+    let unavailable_location_read = proxy.process_request(storefront_graphql_request(
+        include_str!(
+            "../../config/parity-requests/storefront/storefront-cart-delivery-read.graphql"
+        ),
+        json!({ "id": cart_id }),
+    ));
+    assert_eq!(
+        unavailable_location_read.body["data"]["cart"]["deliveryGroups"]["nodes"],
+        json!([])
+    );
+
+    let restore_location = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RestoreDeliveryLocation($id: ID!, $input: LocationEditInput!) {
+          locationEdit(id: $id, input: $input) {
+            location { id fulfillsOnlineOrders }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": location_id, "input": { "fulfillsOnlineOrders": true } }),
+    ));
+    assert_eq!(
+        restore_location.body["data"]["locationEdit"]["userErrors"],
+        json!([])
+    );
+    let restored_location_read = proxy.process_request(storefront_graphql_request(
+        include_str!(
+            "../../config/parity-requests/storefront/storefront-cart-delivery-read.graphql"
+        ),
+        json!({ "id": cart_id }),
+    ));
+    assert_eq!(
+        restored_location_read.body["data"]["cart"]["deliveryGroups"]["nodes"][0]
+            ["deliveryOptions"][0]["code"],
+        json!("Conformance Standard Updated")
+    );
+
+    let non_deliverable = proxy.process_request(storefront_graphql_request(
+        include_str!("../../config/parity-requests/storefront/storefront-cart-delivery-addresses-update.graphql"),
+        json!({
+            "cartId": cart_id,
+            "addresses": [{
+                "id": address_id,
+                "address": { "deliveryAddress": { "lastName": "Buyer", "address1": "123 Example Street", "city": "Ottawa", "provinceCode": "ON", "countryCode": "CA", "zip": "K1A 0B1" } },
+                "selected": true
+            }]
+        }),
+    ));
+    assert_eq!(
+        non_deliverable.body["data"]["cartDeliveryAddressesUpdate"]["cart"]["totalQuantity"],
+        json!(0)
+    );
+    assert_eq!(
+        non_deliverable.body["data"]["cartDeliveryAddressesUpdate"]["cart"]["deliveryGroups"]
+            ["nodes"],
+        json!([])
+    );
+    assert_eq!(
+        non_deliverable.body["data"]["cartDeliveryAddressesUpdate"]["warnings"][0]["code"],
+        json!("MERCHANDISE_OUT_OF_STOCK")
+    );
+}
+
+#[test]
 fn storefront_cart_mutations_cannot_mix_with_passthrough_roots() {
     let mut proxy = configured_proxy(
         ReadMode::LiveHybrid,
@@ -2636,7 +3244,7 @@ fn storefront_cart_mutations_cannot_mix_with_passthrough_roots() {
         r#"
         mutation MixedCartMutation($input: CartInput, $cartId: ID!) {
           cartCreate(input: $input) { cart { id } userErrors { message } }
-          cartDeliveryAddressesAdd(cartId: $cartId, addresses: []) { cart { id } userErrors { message } }
+          cartPrepareForCompletion(cartId: $cartId) { userErrors { message } }
         }
         "#,
         json!({ "input": { "note": "must not stage" }, "cartId": "gid://shopify/Cart/missing?key=missing" }),

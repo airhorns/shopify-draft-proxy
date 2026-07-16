@@ -63,6 +63,9 @@ const documentPaths = {
   locationAdd: 'config/parity-requests/storefront/storefront-catalog-location-add-admin.graphql',
   stockLocationHydrate: 'config/parity-requests/storefront/storefront-catalog-stock-location-hydrate-admin.graphql',
   inventorySet: 'config/parity-requests/storefront/storefront-catalog-inventory-set-admin.graphql',
+  deliveryProfileCreate: 'config/parity-requests/shipping-fulfillments/delivery-profile-lifecycle-create.graphql',
+  deliveryProfileRemove: 'config/parity-requests/shipping-fulfillments/delivery-profile-lifecycle-remove.graphql',
+  deliveryProfileUpdate: 'config/parity-requests/shipping-fulfillments/delivery-profile-lifecycle-update.graphql',
   publicationHydrate: 'config/parity-requests/storefront/storefront-catalog-publications-hydrate-admin.graphql',
   publish: 'config/parity-requests/storefront/storefront-catalog-publish-admin.graphql',
   productDelete: 'config/parity-requests/storefront/storefront-catalog-product-delete-admin.graphql',
@@ -81,6 +84,14 @@ const documentPaths = {
   giftCardCodesUpdate: 'config/parity-requests/storefront/storefront-cart-gift-card-codes-update.graphql',
   metafieldsSet: 'config/parity-requests/storefront/storefront-cart-metafields-set.graphql',
   metafieldDelete: 'config/parity-requests/storefront/storefront-cart-metafield-delete.graphql',
+  deliveryAddressesAdd: 'config/parity-requests/storefront/storefront-cart-delivery-addresses-add.graphql',
+  deliveryAddressesUpdate: 'config/parity-requests/storefront/storefront-cart-delivery-addresses-update.graphql',
+  deliveryAddressesRemove: 'config/parity-requests/storefront/storefront-cart-delivery-addresses-remove.graphql',
+  deliveryAddressesReplace: 'config/parity-requests/storefront/storefront-cart-delivery-addresses-replace.graphql',
+  selectedDeliveryOptionsUpdate:
+    'config/parity-requests/storefront/storefront-cart-selected-delivery-options-update.graphql',
+  deliveryRead: 'config/parity-requests/storefront/storefront-cart-delivery-read.graphql',
+  deliveryContextHydrate: 'config/parity-requests/storefront/storefront-enrichment-context-hydrate.graphql',
   discountCreate: 'config/parity-requests/storefront/storefront-cart-discount-create-admin.graphql',
   discountDelete: 'config/parity-requests/storefront/storefront-cart-discount-delete-admin.graphql',
   giftCardCreate: 'config/parity-requests/storefront/storefront-cart-gift-card-create-admin.graphql',
@@ -104,6 +115,10 @@ const redactedInapplicableDiscountCode = '<redacted:storefront-cart-inapplicable
 const redactedGiftCardCode = '<redacted:storefront-cart-gift-card-code>';
 const redactedGiftCardSuffix = '<redacted:storefront-cart-gift-card-suffix>';
 const redactedCustomerAuth = '<redacted:storefront-cart-customer-auth>';
+const redactedAddressLine = '<redacted:storefront-cart-address-line>';
+const redactedAddressCity = '<redacted:storefront-cart-address-city>';
+const redactedAddressGivenName = '<redacted:storefront-cart-address-given-name>';
+const redactedAddressFamilyName = '<redacted:storefront-cart-address-family-name>';
 
 function registerSecret(secret: string, marker: string): void {
   if (secret.length === 0) return;
@@ -288,10 +303,20 @@ const inapplicableDiscountCode = `CARTI${suffix}`;
 const giftCardCode = `CARTG${suffix}`;
 const customerEmail = `storefront-cart-${suffix}@example.com`;
 const customerPassword = `Cart-${suffix}-Aa1!`;
+const addressLine = `123 Capture Avenue ${suffix}`;
+const replacementAddressLine = `456 Evidence Street ${suffix}`;
+const addressCity = `Capturetown${suffix}`;
+const addressGivenName = `AddressGiven${suffix}`;
+const addressFamilyName = `AddressFamily${suffix}`;
 registerSecret(discountCode, redactedDiscountCode);
 registerSecret(expiredDiscountCode, redactedExpiredDiscountCode);
 registerSecret(inapplicableDiscountCode, redactedInapplicableDiscountCode);
 registerSecret(giftCardCode, redactedGiftCardCode);
+registerSecret(addressLine, redactedAddressLine);
+registerSecret(replacementAddressLine, redactedAddressLine);
+registerSecret(addressCity, redactedAddressCity);
+registerSecret(addressGivenName, redactedAddressGivenName);
+registerSecret(addressFamilyName, redactedAddressFamilyName);
 const productVariables = {
   product: {
     title: `Storefront Cart Product ${suffix}`,
@@ -304,14 +329,29 @@ const productVariables = {
     productOptions: [{ name: 'Color', values: [{ name: 'Blue' }] }],
   },
 };
+const deliveryProductVariables = {
+  product: {
+    title: `Storefront Cart Delivery Product ${suffix}`,
+    handle: `storefront-cart-delivery-product-${suffix}`,
+    status: 'ACTIVE',
+    vendor: 'Hermes',
+    productType: 'Cart Delivery Fixture',
+    tags: ['storefront-cart-delivery'],
+    descriptionHtml: `<p>Storefront cart delivery fixture ${suffix}</p>`,
+    productOptions: [{ name: 'Color', values: [{ name: 'Green' }] }],
+  },
+};
 const adminRecords: Record<string, GraphqlRecord> = {};
 const storefrontRecords: Record<string, GraphqlRecord> = {};
 const cleanup: GraphqlRecord[] = [];
 let productId: string | undefined;
+let deliveryProductId: string | undefined;
 let disposableLocationId: string | undefined;
 const discountIds: string[] = [];
 let giftCardId: string | undefined;
 let customerId: string | undefined;
+let deliveryProfileId: string | undefined;
+let deliveryProfileUpdateObserved = false;
 
 const locationDeactivateMutation = `#graphql
   mutation StorefrontCartLocationDeactivateCleanup($locationId: ID!, $idempotencyKey: String!) {
@@ -372,6 +412,50 @@ try {
     'inventory item ID',
   );
 
+  const deliveryCreated = await recordAdmin(
+    'adminDeliveryProductCreate',
+    'StorefrontCatalogProductCreate',
+    documents.productCreate,
+    deliveryProductVariables,
+  );
+  adminRecords['adminDeliveryProductCreate'] = deliveryCreated.record;
+  assertNoTopLevelErrors(deliveryCreated.raw, 'delivery productCreate');
+  assertNoUserErrors(deliveryCreated.raw, ['data', 'productCreate', 'userErrors'], 'delivery productCreate');
+  deliveryProductId = requiredString(
+    deliveryCreated.raw,
+    ['data', 'productCreate', 'product', 'id'],
+    'delivery product ID',
+  );
+  const deliveryVariantId = requiredString(
+    deliveryCreated.raw,
+    ['data', 'productCreate', 'product', 'variants', 'nodes', '0', 'id'],
+    'delivery variant ID',
+  );
+  const deliveryVariantUpdate = await recordAdmin(
+    'adminDeliveryVariantUpdate',
+    'StorefrontCatalogVariantUpdate',
+    documents.variantUpdate,
+    {
+      productId: deliveryProductId,
+      variants: [
+        {
+          id: deliveryVariantId,
+          price: '12.50',
+          compareAtPrice: '15.00',
+          inventoryItem: { sku: `CART-DELIVERY-${suffix}`, tracked: true, requiresShipping: true },
+        },
+      ],
+    },
+  );
+  adminRecords['adminDeliveryVariantUpdate'] = deliveryVariantUpdate.record;
+  assertNoTopLevelErrors(deliveryVariantUpdate.raw, 'delivery variant update');
+  assertNoUserErrors(deliveryVariantUpdate.raw, ['data', 'updateVariant', 'userErrors'], 'delivery variant update');
+  const deliveryInventoryItemId = requiredString(
+    deliveryVariantUpdate.raw,
+    ['data', 'updateVariant', 'productVariants', '0', 'inventoryItem', 'id'],
+    'delivery inventory item ID',
+  );
+
   const locationAdd = await recordAdmin('adminLocationAdd', 'StorefrontCatalogLocationAdd', documents.locationAdd, {
     input: { name: `Storefront Cart ${suffix}`, address: { countryCode: 'US' } },
   });
@@ -403,6 +487,131 @@ try {
   assertNoTopLevelErrors(inventorySet.raw, 'inventory set');
   assertNoUserErrors(inventorySet.raw, ['data', 'inventorySetQuantities', 'userErrors'], 'inventory set');
 
+  const deliveryInventorySet = await recordAdmin(
+    'adminDeliveryInventorySet',
+    'StorefrontCatalogInventorySet',
+    documents.inventorySet,
+    {
+      input: {
+        name: 'available',
+        reason: 'correction',
+        referenceDocumentUri: `logistics://storefront-cart-delivery/${suffix}`,
+        quantities: [{ inventoryItemId: deliveryInventoryItemId, locationId, quantity: 5, changeFromQuantity: 0 }],
+      },
+      idempotencyKey: `storefront-cart-delivery-inventory-${suffix}`,
+    },
+  );
+  adminRecords['adminDeliveryInventorySet'] = deliveryInventorySet.record;
+  assertNoTopLevelErrors(deliveryInventorySet.raw, 'delivery inventory set');
+  assertNoUserErrors(
+    deliveryInventorySet.raw,
+    ['data', 'inventorySetQuantities', 'userErrors'],
+    'delivery inventory set',
+  );
+
+  const deliveryProfile = await recordAdmin(
+    'adminDeliveryProfileCreate',
+    'DeliveryProfileLifecycleCreate',
+    documents.deliveryProfileCreate,
+    {
+      profile: {
+        name: `Storefront cart delivery ${suffix}`,
+        variantsToAssociate: [deliveryVariantId],
+        locationGroupsToCreate: [
+          {
+            locations: [locationId],
+            zonesToCreate: [
+              {
+                name: 'Domestic',
+                countries: [{ code: 'US', includeAllProvinces: true }],
+                methodDefinitionsToCreate: [
+                  {
+                    name: 'Conformance Standard',
+                    description: 'Captured fixed storefront cart delivery rate',
+                    active: true,
+                    rateDefinition: { price: { amount: '7.25', currencyCode: 'USD' } },
+                  },
+                  {
+                    name: 'Conformance Express',
+                    description: 'Captured expedited storefront cart delivery rate',
+                    active: true,
+                    rateDefinition: { price: { amount: '12.00', currencyCode: 'USD' } },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    },
+  );
+  adminRecords['adminDeliveryProfileCreate'] = deliveryProfile.record;
+  assertNoTopLevelErrors(deliveryProfile.raw, 'delivery profile create');
+  assertNoUserErrors(deliveryProfile.raw, ['data', 'deliveryProfileCreate', 'userErrors'], 'delivery profile create');
+  deliveryProfileId = requiredString(
+    deliveryProfile.raw,
+    ['data', 'deliveryProfileCreate', 'profile', 'id'],
+    'delivery profile ID',
+  );
+  const deliveryProfileLocationGroupId = requiredString(
+    deliveryProfile.raw,
+    ['data', 'deliveryProfileCreate', 'profile', 'profileLocationGroups', '0', 'locationGroup', 'id'],
+    'delivery profile location group ID',
+  );
+  const deliveryProfileZoneId = requiredString(
+    deliveryProfile.raw,
+    [
+      'data',
+      'deliveryProfileCreate',
+      'profile',
+      'profileLocationGroups',
+      '0',
+      'locationGroupZones',
+      'nodes',
+      '0',
+      'zone',
+      'id',
+    ],
+    'delivery profile zone ID',
+  );
+  const deliveryProfileMethodId = requiredString(
+    deliveryProfile.raw,
+    [
+      'data',
+      'deliveryProfileCreate',
+      'profile',
+      'profileLocationGroups',
+      '0',
+      'locationGroupZones',
+      'nodes',
+      '0',
+      'methodDefinitions',
+      'nodes',
+      '0',
+      'id',
+    ],
+    'delivery profile method ID',
+  );
+  const deliveryProfileRateId = requiredString(
+    deliveryProfile.raw,
+    [
+      'data',
+      'deliveryProfileCreate',
+      'profile',
+      'profileLocationGroups',
+      '0',
+      'locationGroupZones',
+      'nodes',
+      '0',
+      'methodDefinitions',
+      'nodes',
+      '0',
+      'rateProvider',
+      'id',
+    ],
+    'delivery profile rate ID',
+  );
+
   const publications = await recordAdmin(
     'adminPublicationHydrate',
     'StorePropertiesPublishableInputValidationHydrate',
@@ -421,6 +630,14 @@ try {
   adminRecords['adminPublish'] = publish.record;
   assertNoTopLevelErrors(publish.raw, 'publishablePublish');
   assertNoUserErrors(publish.raw, ['data', 'publishablePublish', 'userErrors'], 'publishablePublish');
+  const deliveryPublish = await recordAdmin('adminDeliveryPublish', 'StorefrontCatalogPublish', documents.publish, {
+    id: deliveryProductId,
+    input: [{ publicationId: storefrontPublicationId }],
+    publicationId: storefrontPublicationId,
+  });
+  adminRecords['adminDeliveryPublish'] = deliveryPublish.record;
+  assertNoTopLevelErrors(deliveryPublish.raw, 'delivery publishablePublish');
+  assertNoUserErrors(deliveryPublish.raw, ['data', 'publishablePublish', 'userErrors'], 'delivery publishablePublish');
 
   const activeStartsAt = new Date(Date.now() - 60_000).toISOString();
   const expiredStartsAt = new Date(Date.now() - 7_200_000).toISOString();
@@ -553,6 +770,34 @@ try {
   if (!catalogReady) throw new Error('Storefront cart merchandise did not become available before capture.');
   storefrontRecords['storefrontCatalogReady'] = catalogReady.record;
 
+  let deliveryCatalogReady: { record: GraphqlRecord; raw: unknown } | undefined;
+  for (let attempt = 1; attempt <= 45; attempt += 1) {
+    const candidate = await recordStorefront(
+      'storefrontDeliveryCatalogReady',
+      'StorefrontCatalogReadAfterAdminSetup',
+      documents.catalogRead,
+      {
+        id: deliveryProductId,
+        handle: deliveryProductVariables.product.handle,
+        query: 'tag:storefront-cart-delivery',
+        selectedOptions: [{ name: 'Color', value: 'Green' }],
+      },
+    );
+    assertNoTopLevelErrors(candidate.raw, `Storefront delivery catalog readiness attempt ${attempt}`);
+    if (
+      pathValue(candidate.raw, ['data', 'byId', 'variants', 'edges', '0', 'node', 'quantityAvailable']) === 5 &&
+      pathValue(candidate.raw, ['data', 'byId', 'variants', 'edges', '0', 'node', 'availableForSale']) === true
+    ) {
+      deliveryCatalogReady = candidate;
+      break;
+    }
+    await delay(2000);
+  }
+  if (!deliveryCatalogReady) {
+    throw new Error('Storefront cart delivery merchandise did not become available before capture.');
+  }
+  storefrontRecords['storefrontDeliveryCatalogReady'] = deliveryCatalogReady.record;
+
   const create = await recordStorefront('cartCreate', 'StorefrontCartCreate', documents.create, {
     input: {
       attributes: [{ key: 'channel', value: 'conformance' }],
@@ -582,6 +827,344 @@ try {
     storefrontRecords[key] = result.record;
     return result.raw;
   };
+
+  await capture(
+    'storefrontDeliveryContextHydrate',
+    'StorefrontEnrichmentContextHydrate',
+    documents.deliveryContextHydrate,
+    { country: 'US', language: 'EN', preferredLocationId: null, buyer: null },
+  );
+  const deliveryCart = await capture('cartDeliveryPrimaryCartCreate', 'StorefrontCartCreate', documents.create, {
+    input: {
+      buyerIdentity: { countryCode: 'US' },
+      lines: [{ merchandiseId: deliveryVariantId, quantity: 2 }],
+    },
+  });
+  assertNoTopLevelErrors(deliveryCart, 'delivery cartCreate');
+  assertNoUserErrors(deliveryCart, ['data', 'cartCreate', 'userErrors'], 'delivery cartCreate');
+  const deliveryCartId = requiredString(deliveryCart, ['data', 'cartCreate', 'cart', 'id'], 'delivery cart ID');
+
+  const deliveryAddress = (line: string, selected: boolean, oneTimeUse: boolean, countryCode = 'US'): JsonRecord => ({
+    address: {
+      deliveryAddress: {
+        firstName: addressGivenName,
+        lastName: addressFamilyName,
+        address1: line,
+        city: addressCity,
+        provinceCode: countryCode === 'US' ? 'NY' : 'ON',
+        countryCode,
+        zip: countryCode === 'US' ? '10001' : 'K1A 0B1',
+      },
+    },
+    selected,
+    oneTimeUse,
+    validationStrategy: 'COUNTRY_CODE_ONLY',
+  });
+
+  await capture('cartDeliveryReadBeforeAddresses', 'StorefrontCartDeliveryRead', documents.deliveryRead, {
+    id: deliveryCartId,
+  });
+  await capture(
+    'cartDeliveryAddressesAddMissingCountry',
+    'StorefrontCartDeliveryAddressesAdd',
+    documents.deliveryAddressesAdd,
+    {
+      cartId: deliveryCartId,
+      addresses: [
+        {
+          address: { deliveryAddress: { address1: addressLine, city: addressCity } },
+          selected: true,
+          validationStrategy: 'COUNTRY_CODE_ONLY',
+        },
+      ],
+    },
+  );
+  await capture(
+    'cartDeliveryAddressesAddStrictInvalid',
+    'StorefrontCartDeliveryAddressesAdd',
+    documents.deliveryAddressesAdd,
+    {
+      cartId: deliveryCartId,
+      addresses: [
+        {
+          address: { deliveryAddress: { countryCode: 'US' } },
+          selected: true,
+          validationStrategy: 'STRICT',
+        },
+      ],
+    },
+  );
+  const addressesAdded = await capture(
+    'cartDeliveryAddressesAdd',
+    'StorefrontCartDeliveryAddressesAdd',
+    documents.deliveryAddressesAdd,
+    {
+      cartId: deliveryCartId,
+      addresses: [deliveryAddress(addressLine, true, false), deliveryAddress(replacementAddressLine, false, true)],
+    },
+  );
+  assertNoTopLevelErrors(addressesAdded, 'cartDeliveryAddressesAdd');
+  assertNoUserErrors(addressesAdded, ['data', 'cartDeliveryAddressesAdd', 'userErrors'], 'cartDeliveryAddressesAdd');
+  const addedAddresses = requiredArray(
+    addressesAdded,
+    ['data', 'cartDeliveryAddressesAdd', 'cart', 'delivery', 'addresses'],
+    'added delivery addresses',
+  );
+  if (addedAddresses.length !== 2) {
+    throw new Error(`Expected two added delivery addresses, got ${JSON.stringify(redactCartSecrets(addedAddresses))}`);
+  }
+  const firstAddressId = requiredString(addedAddresses[0], ['id'], 'first delivery address ID');
+  const secondAddressId = requiredString(addedAddresses[1], ['id'], 'second delivery address ID');
+
+  const ownershipCart = await capture('cartDeliveryOwnershipCartCreate', 'StorefrontCartCreate', documents.create, {
+    input: {
+      buyerIdentity: { countryCode: 'CA' },
+      lines: [{ merchandiseId: deliveryVariantId, quantity: 1 }],
+    },
+  });
+  assertNoTopLevelErrors(ownershipCart, 'delivery ownership cartCreate');
+  assertNoUserErrors(ownershipCart, ['data', 'cartCreate', 'userErrors'], 'delivery ownership cartCreate');
+  const ownershipCartId = requiredString(
+    ownershipCart,
+    ['data', 'cartCreate', 'cart', 'id'],
+    'delivery ownership cart ID',
+  );
+  await capture(
+    'cartDeliveryAddressesUpdateForeignCart',
+    'StorefrontCartDeliveryAddressesUpdate',
+    documents.deliveryAddressesUpdate,
+    { cartId: ownershipCartId, addresses: [{ id: firstAddressId, selected: true }] },
+  );
+  await capture(
+    'cartDeliveryAddressesRemoveForeignCart',
+    'StorefrontCartDeliveryAddressesRemove',
+    documents.deliveryAddressesRemove,
+    { cartId: ownershipCartId, addressIds: [firstAddressId] },
+  );
+  await capture(
+    'cartDeliveryAddressesUpdateMissing',
+    'StorefrontCartDeliveryAddressesUpdate',
+    documents.deliveryAddressesUpdate,
+    {
+      cartId: deliveryCartId,
+      addresses: [{ id: 'gid://shopify/CartSelectableAddress/missing', selected: true }],
+    },
+  );
+
+  let addressesUpdated = await capture(
+    'cartDeliveryAddressesUpdateSelectOneTime',
+    'StorefrontCartDeliveryAddressesUpdate',
+    documents.deliveryAddressesUpdate,
+    {
+      cartId: deliveryCartId,
+      addresses: [
+        {
+          id: secondAddressId,
+          address: deliveryAddress(replacementAddressLine, true, false)['address'],
+          selected: true,
+          oneTimeUse: false,
+          validationStrategy: 'COUNTRY_CODE_ONLY',
+        },
+      ],
+    },
+  );
+  assertNoTopLevelErrors(addressesUpdated, 'cartDeliveryAddressesUpdate');
+  assertNoUserErrors(
+    addressesUpdated,
+    ['data', 'cartDeliveryAddressesUpdate', 'userErrors'],
+    'cartDeliveryAddressesUpdate',
+  );
+  for (let attempt = 1; attempt <= 15; attempt += 1) {
+    const options = pathValue(addressesUpdated, [
+      'data',
+      'cartDeliveryAddressesUpdate',
+      'cart',
+      'deliveryGroups',
+      'nodes',
+      '0',
+      'deliveryOptions',
+    ]);
+    if (Array.isArray(options) && options.length > 0) break;
+    await delay(2000);
+    addressesUpdated = await capture(
+      'cartDeliveryReadWithOptions',
+      'StorefrontCartDeliveryRead',
+      documents.deliveryRead,
+      { id: deliveryCartId },
+    );
+  }
+  const deliveryGroup = pathValue(addressesUpdated, [
+    'data',
+    pathValue(addressesUpdated, ['data', 'cartDeliveryAddressesUpdate']) ? 'cartDeliveryAddressesUpdate' : 'cart',
+    ...(pathValue(addressesUpdated, ['data', 'cartDeliveryAddressesUpdate']) ? ['cart'] : []),
+    'deliveryGroups',
+    'nodes',
+    '0',
+  ]);
+  const deliveryGroupId = requiredString(deliveryGroup, ['id'], 'delivery group ID');
+  const deliveryOptionHandle = requiredString(
+    deliveryGroup,
+    ['deliveryOptions', '0', 'handle'],
+    'delivery option handle',
+  );
+  await capture(
+    'cartSelectedDeliveryOptionsUpdate',
+    'StorefrontCartSelectedDeliveryOptionsUpdate',
+    documents.selectedDeliveryOptionsUpdate,
+    {
+      cartId: deliveryCartId,
+      selectedDeliveryOptions: [{ deliveryGroupId, deliveryOptionHandle }],
+    },
+  );
+  const deliveryProfileUpdate = await recordAdmin(
+    'adminDeliveryProfileUpdateAfterSelection',
+    'DeliveryProfileLifecycleUpdate',
+    documents.deliveryProfileUpdate,
+    {
+      id: deliveryProfileId,
+      profile: {
+        locationGroupsToUpdate: [
+          {
+            id: deliveryProfileLocationGroupId,
+            zonesToUpdate: [
+              {
+                id: deliveryProfileZoneId,
+                methodDefinitionsToUpdate: [
+                  {
+                    id: deliveryProfileMethodId,
+                    name: 'Conformance Standard Updated',
+                    description: 'Captured updated storefront cart delivery rate',
+                    active: true,
+                    rateDefinition: {
+                      id: deliveryProfileRateId,
+                      price: { amount: '8.50', currencyCode: 'USD' },
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    },
+  );
+  adminRecords['adminDeliveryProfileUpdateAfterSelection'] = deliveryProfileUpdate.record;
+  assertNoTopLevelErrors(deliveryProfileUpdate.raw, 'delivery profile update after cart selection');
+  assertNoUserErrors(
+    deliveryProfileUpdate.raw,
+    ['data', 'deliveryProfileUpdate', 'userErrors'],
+    'delivery profile update after cart selection',
+  );
+  let deliveryReadAfterProfileUpdate: { record: GraphqlRecord; raw: unknown } | undefined;
+  let lastDeliveryReadAfterProfileUpdate: { record: GraphqlRecord; raw: unknown } | undefined;
+  for (let attempt = 1; attempt <= 20; attempt += 1) {
+    const candidate = await recordStorefront(
+      'cartDeliveryReadAfterAdminProfileUpdate',
+      'StorefrontCartDeliveryRead',
+      documents.deliveryRead,
+      { id: deliveryCartId },
+    );
+    lastDeliveryReadAfterProfileUpdate = candidate;
+    const updatedOption = pathValue(candidate.raw, [
+      'data',
+      'cart',
+      'deliveryGroups',
+      'nodes',
+      '0',
+      'deliveryOptions',
+      '0',
+    ]);
+    if (
+      pathValue(updatedOption, ['code']) === 'Conformance Standard Updated' &&
+      pathValue(updatedOption, ['estimatedCost', 'amount']) === '8.5'
+    ) {
+      deliveryReadAfterProfileUpdate = candidate;
+      deliveryProfileUpdateObserved = true;
+      break;
+    }
+    await delay(2000);
+  }
+  if (deliveryReadAfterProfileUpdate) {
+    storefrontRecords['cartDeliveryReadAfterAdminProfileUpdate'] = deliveryReadAfterProfileUpdate.record;
+  } else if (lastDeliveryReadAfterProfileUpdate) {
+    storefrontRecords['cartDeliveryReadAfterAdminProfileUpdateUnobserved'] = lastDeliveryReadAfterProfileUpdate.record;
+  }
+  await capture(
+    'cartSelectedDeliveryOptionsUpdateInvalidHandle',
+    'StorefrontCartSelectedDeliveryOptionsUpdate',
+    documents.selectedDeliveryOptionsUpdate,
+    {
+      cartId: deliveryCartId,
+      selectedDeliveryOptions: [{ deliveryGroupId, deliveryOptionHandle: 'invalid-delivery-option-handle' }],
+    },
+  );
+  await capture(
+    'cartDeliveryAddressesUpdateInvalidatesSelection',
+    'StorefrontCartDeliveryAddressesUpdate',
+    documents.deliveryAddressesUpdate,
+    {
+      cartId: deliveryCartId,
+      addresses: [
+        {
+          id: secondAddressId,
+          address: deliveryAddress(replacementAddressLine, true, false, 'CA')['address'],
+          selected: true,
+          validationStrategy: 'COUNTRY_CODE_ONLY',
+        },
+      ],
+    },
+  );
+  await capture(
+    'cartDeliveryAddressesUpdateRestoresDomesticAddress',
+    'StorefrontCartDeliveryAddressesUpdate',
+    documents.deliveryAddressesUpdate,
+    {
+      cartId: deliveryCartId,
+      addresses: [
+        {
+          id: secondAddressId,
+          address: deliveryAddress(replacementAddressLine, true, false)['address'],
+          selected: true,
+          validationStrategy: 'COUNTRY_CODE_ONLY',
+        },
+      ],
+    },
+  );
+  await capture(
+    'cartDeliveryAddressesRemove',
+    'StorefrontCartDeliveryAddressesRemove',
+    documents.deliveryAddressesRemove,
+    { cartId: deliveryCartId, addressIds: [firstAddressId] },
+  );
+  await capture(
+    'cartDeliveryAddressesReplace',
+    'StorefrontCartDeliveryAddressesReplace',
+    documents.deliveryAddressesReplace,
+    {
+      cartId: deliveryCartId,
+      addresses: [deliveryAddress(addressLine, false, true), deliveryAddress(replacementAddressLine, true, false)],
+    },
+  );
+  await capture(
+    'cartDeliveryAddressesReplaceEmpty',
+    'StorefrontCartDeliveryAddressesReplace',
+    documents.deliveryAddressesReplace,
+    { cartId: deliveryCartId, addresses: [] },
+  );
+  await capture(
+    'cartDeliveryAddressesAddTooMany',
+    'StorefrontCartDeliveryAddressesAdd',
+    documents.deliveryAddressesAdd,
+    {
+      cartId: deliveryCartId,
+      addresses: Array.from({ length: 251 }, () => ({
+        address: { deliveryAddress: { countryCode: 'US' } },
+      })),
+    },
+  );
+  await capture('cartDeliveryReadAfterReplaceEmpty', 'StorefrontCartDeliveryRead', documents.deliveryRead, {
+    id: deliveryCartId,
+  });
 
   await capture('cartReadAfterCreate', 'StorefrontCartRead', documents.read, { id: cartId });
   await capture('cartBuyerIdentityUpdate', 'StorefrontCartBuyerIdentityUpdate', documents.buyerIdentityUpdate, {
@@ -807,6 +1390,24 @@ try {
     );
     cleanup.push(deleted.record);
   }
+  if (deliveryProfileId) {
+    const removed = await recordAdmin(
+      'adminDeliveryProfileRemoveCleanup',
+      'DeliveryProfileLifecycleRemove',
+      documents.deliveryProfileRemove,
+      { id: deliveryProfileId },
+    );
+    cleanup.push(removed.record);
+  }
+  if (deliveryProductId) {
+    const deleted = await recordAdmin(
+      'adminDeliveryProductDeleteCleanup',
+      'StorefrontCatalogProductDelete',
+      documents.productDelete,
+      { input: { id: deliveryProductId } },
+    );
+    cleanup.push(deleted.record);
+  }
   if (productId) {
     const deleted = await recordAdmin(
       'adminProductDeleteCleanup',
@@ -861,6 +1462,7 @@ const fixture = {
       'discount codes',
       'gift card codes and suffixes',
       'customer passwords and access tokens',
+      'delivery address lines, cities, and personal names',
     ],
     markers: {
       cart: redactedCartSecret,
@@ -870,16 +1472,28 @@ const fixture = {
       giftCardCode: redactedGiftCardCode,
       giftCardSuffix: redactedGiftCardSuffix,
       customerAuth: redactedCustomerAuth,
+      addressLine: redactedAddressLine,
+      addressCity: redactedAddressCity,
+      addressGivenName: redactedAddressGivenName,
+      addressFamilyName: redactedAddressFamilyName,
     },
   },
   ...adminRecords,
   ...storefrontRecords,
   cleanup,
-  upstreamCalls: [adminRecords['adminStockLocationHydrate'], adminRecords['adminPublicationHydrate']],
+  upstreamCalls: [
+    adminRecords['adminStockLocationHydrate'],
+    adminRecords['adminPublicationHydrate'],
+    storefrontRecords['storefrontDeliveryContextHydrate'],
+  ],
   notes: [
     'All Storefront documents and variables were sent exactly as recorded; live cart tokens and keys are replaced consistently in the checked-in artifact.',
     'Discount codes, gift card codes and suffixes, customer passwords, and customer access tokens are redacted before the artifact is written.',
-    'The recorder creates disposable products, discounts, gift cards, customers, and carts. Admin resources are deleted or deactivated during cleanup; Storefront exposes no cart deletion mutation, so cart secrets are discarded.',
+    'Delivery addresses use synthetic conformance-only values; address lines, cities, and personal names are redacted before the artifact is written.',
+    deliveryProfileUpdateObserved
+      ? 'The selected cart observed the disposable Admin delivery-profile rate update within the bounded capture window.'
+      : 'Shopify accepted the disposable Admin delivery-profile rate update, but the selected Storefront cart did not expose it within the bounded capture window; immediate Admin-to-cart rate propagation remains runtime-test-only and is not claimed as parity.',
+    'The recorder creates separate disposable digital and shippable products, delivery profiles/rates, discounts, gift cards, customers, and carts. Admin resources are deleted, removed, or deactivated during cleanup; Storefront exposes no cart deletion mutation, so cart secrets are discarded.',
   ],
 };
 const fixtureText = `${JSON.stringify(fixture, null, 2)}\n`;

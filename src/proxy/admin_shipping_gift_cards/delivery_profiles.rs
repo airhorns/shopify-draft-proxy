@@ -859,7 +859,7 @@ impl DraftProxy {
             .or_else(|| self.store.base.delivery_profiles.get(profile_id).cloned())
     }
 
-    fn effective_delivery_profiles(&self) -> Vec<Value> {
+    pub(in crate::proxy) fn effective_delivery_profiles(&self) -> Vec<Value> {
         let mut profiles = Vec::new();
         let mut seen = BTreeSet::new();
         for id in &self.store.base.delivery_profiles.order {

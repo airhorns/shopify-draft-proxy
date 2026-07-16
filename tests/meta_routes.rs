@@ -1292,6 +1292,7 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "storefrontCustomerAccessTokens": {},
                     "storefrontCustomerEmailIndex": {},
                     "nextStorefrontCartAppliedGiftCardId": 1,
+                    "nextStorefrontCartDeliveryAddressId": 1,
                     "nextStorefrontCartId": 1,
                     "nextStorefrontCartLineId": 1,
                     "nextStorefrontCartMetafieldId": 1,
@@ -1446,6 +1447,7 @@ fn restore_state_round_trips_dumped_staged_counter_fields() {
     staged_state.insert("nextStorefrontCartLineId".to_string(), json!(67));
     staged_state.insert("nextStorefrontCartAppliedGiftCardId".to_string(), json!(71));
     staged_state.insert("nextStorefrontCartMetafieldId".to_string(), json!(73));
+    staged_state.insert("nextStorefrontCartDeliveryAddressId".to_string(), json!(79));
     staged_state.insert(
         "orderCustomerOrders".to_string(),
         json!({
@@ -1477,6 +1479,7 @@ fn restore_state_round_trips_dumped_staged_counter_fields() {
         "nextStorefrontCartLineId",
         "nextStorefrontCartAppliedGiftCardId",
         "nextStorefrontCartMetafieldId",
+        "nextStorefrontCartDeliveryAddressId",
     ];
     let expected_counters = counter_fields
         .iter()
