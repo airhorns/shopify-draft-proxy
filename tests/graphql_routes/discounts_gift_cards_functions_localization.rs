@@ -2033,6 +2033,71 @@ fn discount_stage_locally_roots_dispatch_by_root_field_not_operation_name_or_ali
     );
 }
 
+#[test]
+fn discount_count_only_live_hybrid_preserves_upstream_total_with_staged_delta() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<String>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            let query = body["query"].as_str().unwrap_or_default().to_string();
+            captured_calls.lock().unwrap().push(query.clone());
+            let data = if query.contains("discountNodesCount") {
+                json!({ "discountNodesCount": { "count": 2, "precision": "EXACT" } })
+            } else {
+                json!({ "codeDiscountNodeByCode": null })
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": data }),
+            }
+        });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateCountOnlyDiscount($input: DiscountCodeBasicInput!) {
+          discountCodeBasicCreate(basicCodeDiscount: $input) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "title": "Count only staged discount",
+            "code": "COUNT-ONLY-STAGED",
+            "startsAt": "2026-04-27T19:31:14Z",
+            "context": { "all": "ALL" },
+            "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+        }}),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["discountCodeBasicCreate"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query DiscountCountOnly {
+          discountNodesCount { count precision }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["discountNodesCount"],
+        json!({ "count": 3, "precision": "EXACT" })
+    );
+    assert!(upstream_calls
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|query| query.contains("discountNodesCount")));
+}
+
 fn starts_at_required_variables(starts_at: Option<Value>) -> Value {
     let mut variables = json!({
         "basicCode": {

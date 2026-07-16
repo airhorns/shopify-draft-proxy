@@ -344,6 +344,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}b2b-mixed-company-location-overlay.json`,
       'config/parity-specs/b2b/b2b-mixed-company-location-overlay.json',
       'config/parity-requests/b2b/b2b-mixed-overlay-company-create.graphql',
+      'config/parity-requests/b2b/b2b-mixed-overlay-companies-count-only.graphql',
       'config/parity-requests/b2b/b2b-mixed-overlay-location-create.graphql',
       'config/parity-requests/b2b/b2b-mixed-overlay-company-update.graphql',
       'config/parity-requests/b2b/b2b-mixed-overlay-location-update.graphql',
@@ -9758,6 +9759,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}discount-mixed-catalog.json`,
       'config/parity-specs/discounts/discount-mixed-catalog.json',
+      'config/parity-requests/discounts/discount-mixed-catalog-count-only.graphql',
       'config/parity-requests/discounts/discount-mixed-catalog-create.graphql',
       'config/parity-requests/discounts/discount-mixed-catalog-delete-code.graphql',
       'config/parity-requests/discounts/discount-mixed-catalog-read-after-mutations.graphql',

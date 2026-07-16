@@ -1291,10 +1291,6 @@ impl Store {
         self.base.discount_count_baselines.insert(key, count);
     }
 
-    fn discount_count_baseline(&self, key: &str) -> Option<&Value> {
-        self.base.discount_count_baselines.get(key)
-    }
-
     fn domain_by_id(&self, id: &str) -> Option<Value> {
         if id.is_empty() {
             return None;

@@ -92,11 +92,13 @@ impl DraftProxy {
             self.observe_discount_read_response(&fields, &response);
             return response;
         }
+        let mut upstream_data = None;
         if self.discount_read_needs_live_hydration(&fields) {
             let response = (self.upstream_transport)(request.clone());
             self.observe_discount_read_response(&fields, &response);
+            upstream_data = response.body.get("data").cloned();
         }
-        ok_json(json!({ "data": self.discounts_query_data(&fields) }))
+        ok_json(json!({ "data": self.discounts_query_data(&fields, upstream_data.as_ref()) }))
     }
 
     /// Decide whether a discount read carries no relevant local overlay state and
@@ -1732,7 +1734,11 @@ impl DraftProxy {
         )
     }
 
-    fn discounts_query_data(&self, fields: &[RootFieldSelection]) -> Value {
+    fn discounts_query_data(
+        &self,
+        fields: &[RootFieldSelection],
+        upstream_data: Option<&Value>,
+    ) -> Value {
         root_payload_json(fields, |field| {
             let value = match field.name.as_str() {
                 "discountNode" => {
@@ -1804,7 +1810,7 @@ impl DraftProxy {
                     )
                 }
                 "discountNodesCount" => selected_json(
-                    &self.effective_discount_nodes_count_value(&field.arguments),
+                    &self.discount_nodes_count_value(field, upstream_data),
                     &field.selection,
                 ),
                 "discountRedeemCodeBulkCreation" => {
@@ -1823,6 +1829,32 @@ impl DraftProxy {
         })
     }
 
+    fn discount_nodes_count_value(
+        &self,
+        field: &RootFieldSelection,
+        upstream_data: Option<&Value>,
+    ) -> Value {
+        upstream_count_with_staged_delta(
+            field,
+            upstream_data,
+            self.staged_discount_count_delta(&field.arguments),
+            &field.arguments,
+        )
+        .unwrap_or_else(|| {
+            snapshot_count_with_limit_precision(
+                staged_connection_query(
+                    self.discount_connection_records(),
+                    &field.arguments,
+                    discount_search_decision,
+                    discount_staged_sort_key,
+                    value_id_cursor,
+                )
+                .total_count,
+                &field.arguments,
+            )
+        })
+    }
+
     fn discount_connection_records(&self) -> Vec<Value> {
         effective_records(&self.store.base.discounts, &self.store.staged.discounts)
             .iter()
@@ -1835,50 +1867,6 @@ impl DraftProxy {
             })
             .map(|record| self.discount_record_with_effective_status(record))
             .collect()
-    }
-
-    fn effective_discount_nodes_count_value(
-        &self,
-        arguments: &BTreeMap<String, ResolvedValue>,
-    ) -> Value {
-        let baseline_key = discount_count_baseline_key(arguments);
-        let Some(baseline) = self.store.discount_count_baseline(&baseline_key) else {
-            return staged_count_with_limit_precision(
-                staged_connection_query(
-                    self.discount_connection_records(),
-                    arguments,
-                    discount_search_decision,
-                    discount_staged_sort_key,
-                    value_id_cursor,
-                )
-                .total_count,
-                arguments,
-            );
-        };
-        let Some(base_count) = baseline.get("count").and_then(Value::as_u64) else {
-            return staged_count_with_limit_precision(
-                staged_connection_query(
-                    self.discount_connection_records(),
-                    arguments,
-                    discount_search_decision,
-                    discount_staged_sort_key,
-                    value_id_cursor,
-                )
-                .total_count,
-                arguments,
-            );
-        };
-        let delta = self.staged_discount_count_delta(arguments);
-        let effective_total = if delta.is_negative() {
-            (base_count as usize).saturating_sub(delta.unsigned_abs())
-        } else {
-            (base_count as usize).saturating_add(delta as usize)
-        };
-        let mut count = staged_count_with_limit_precision(effective_total, arguments);
-        if baseline.get("precision").and_then(Value::as_str) == Some("AT_LEAST") {
-            count["precision"] = json!("AT_LEAST");
-        }
-        count
     }
 
     fn staged_discount_count_delta(&self, arguments: &BTreeMap<String, ResolvedValue>) -> isize {
