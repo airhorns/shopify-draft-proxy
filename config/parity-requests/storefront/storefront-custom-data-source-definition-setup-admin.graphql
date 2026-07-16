@@ -1,0 +1,34 @@
+mutation StorefrontCustomDataSourceDefinitionAdminSetup($sourceDefinition: MetaobjectDefinitionCreateInput!) {
+  sourceDefinition: metaobjectDefinitionCreate(definition: $sourceDefinition) {
+    metaobjectDefinition {
+      id
+      type
+      access {
+        storefront
+      }
+      capabilities {
+        publishable {
+          enabled
+        }
+      }
+      fieldDefinitions {
+        key
+        type {
+          name
+        }
+        required
+        validations {
+          name
+          value
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
+    }
+  }
+}

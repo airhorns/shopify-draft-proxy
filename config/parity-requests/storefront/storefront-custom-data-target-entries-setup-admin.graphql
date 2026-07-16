@@ -1,0 +1,84 @@
+mutation StorefrontCustomDataTargetEntriesAdminSetup(
+  $visibleTarget: MetaobjectCreateInput!
+  $draftTarget: MetaobjectCreateInput!
+  $privateEntry: MetaobjectCreateInput!
+) {
+  visibleTarget: metaobjectCreate(metaobject: $visibleTarget) {
+    metaobject {
+      id
+      handle
+      type
+      updatedAt
+      capabilities {
+        publishable {
+          status
+        }
+      }
+      fields {
+        key
+        type
+        value
+        jsonValue
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
+    }
+  }
+  draftTarget: metaobjectCreate(metaobject: $draftTarget) {
+    metaobject {
+      id
+      handle
+      type
+      updatedAt
+      capabilities {
+        publishable {
+          status
+        }
+      }
+      fields {
+        key
+        type
+        value
+        jsonValue
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
+    }
+  }
+  privateEntry: metaobjectCreate(metaobject: $privateEntry) {
+    metaobject {
+      id
+      handle
+      type
+      updatedAt
+      capabilities {
+        publishable {
+          status
+        }
+      }
+      fields {
+        key
+        type
+        value
+        jsonValue
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
+    }
+  }
+}

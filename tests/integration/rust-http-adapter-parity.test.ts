@@ -181,6 +181,7 @@ describe('Rust HTTP adapter route surface', () => {
             deliveryPromiseParticipantOrder: [],
             discounts: {},
             discountOrder: [],
+            discountCountBaselines: {},
             shop: null,
             publicationIds: [],
             publicationCount: null,

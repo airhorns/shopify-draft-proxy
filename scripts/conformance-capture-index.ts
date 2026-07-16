@@ -7075,6 +7075,38 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'storefront',
+    captureId: 'storefront-custom-data-read-after-admin-setup',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-storefront-custom-data-conformance.mts',
+    purpose:
+      'Authenticated Storefront API custom-data evidence for Storefront-visible metaobjects, metaobject connections, references, and Shop metafields after Admin setup.',
+    requiredAuthScopes: [
+      'read_metaobjects',
+      'write_metaobjects',
+      'read_metaobject_definitions',
+      'write_metaobject_definitions',
+      'read_metafields',
+      'write_metafields',
+      'stored Storefront access token from corepack pnpm conformance:grant-storefront-token',
+    ],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/storefront/storefront-custom-data-read-after-admin-setup.json',
+      'config/parity-specs/storefront/storefront-custom-data-read-after-admin-setup.json',
+      'config/parity-requests/storefront/storefront-custom-data-primary-setup-admin.graphql',
+      'config/parity-requests/storefront/storefront-custom-data-read-after-admin-setup.graphql',
+      'config/parity-requests/storefront/storefront-custom-data-shop-metafields-set-admin.graphql',
+      'config/parity-requests/storefront/storefront-custom-data-source-definition-setup-admin.graphql',
+      'config/parity-requests/storefront/storefront-custom-data-source-entry-setup-admin.graphql',
+      'config/parity-requests/storefront/storefront-custom-data-target-entries-setup-admin.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable metaobject definitions, metaobjects, metafield definitions, and Shop metafields through Admin GraphQL setup calls; polls authenticated Storefront reads until visible; then deletes created entries and definitions during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The Storefront target selects only fields exposed by the live Storefront schema; Storefront field jsonValue is intentionally not selected because the public Storefront schema exposes value/reference(s) instead.',
+  },
+  {
+    domain: 'storefront',
     captureId: 'storefront-customer-auth-lifecycle',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-storefront-customer-auth-conformance.mts',
@@ -10430,6 +10462,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates disposable app-managed, code-basic, and automatic-basic discounts, captures app lifecycle and bulk job payloads, then deletes remaining created discounts.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
+    captureId: 'discount-app-count-only-read-after-create',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-app-count-only-conformance.ts',
+    purpose:
+      'Count-only discountNodesCount(query: "type:app") LiveHybrid evidence with a real upstream app-discount baseline and one locally staged app-discount delta.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-app-count-only-read-after-create.json`,
+      'config/parity-specs/discounts/discount-app-count-only-read-after-create.json',
+      'config/parity-requests/discounts/discount-app-count-only-create.graphql',
+      'config/parity-requests/discounts/discount-app-count-only-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable app-managed automatic discount as the real upstream baseline, creates one local-equivalent app-managed automatic discount for read-after-create capture, then deletes both discounts.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
