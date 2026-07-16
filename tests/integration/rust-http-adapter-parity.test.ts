@@ -10,6 +10,7 @@ const repoRoot = new URL('../..', import.meta.url);
 const integrationCargoTargetDir = fileURLToPath(new URL('../../target/integration-rust-server', import.meta.url));
 const pnpmCommand = 'corepack';
 const serverStartupTimeoutMs = 90_000;
+const adapterTestTimeoutMs = serverStartupTimeoutMs + 30_000;
 
 function pnpmArgs(args: string[]): string[] {
   return ['pnpm', ...args];
@@ -126,7 +127,7 @@ async function withChunkedUpstream<T>(run: (origin: string) => Promise<T>): Prom
   }
 }
 
-describe('Rust HTTP adapter route surface', () => {
+describe('Rust HTTP adapter route surface', { timeout: adapterTestTimeoutMs }, () => {
   it('serves the required meta route response shapes through the Rust HTTP adapter', async () => {
     const port = await unusedLocalPort();
     await withRustServer(port, async (origin) => {
@@ -322,7 +323,7 @@ describe('Rust HTTP adapter route surface', () => {
         body: { ok: true, message: 'state reset' },
       });
     });
-  }, 45_000);
+  });
 
   it('serves Admin GraphQL, staged upload, and error envelopes through Rust HTTP', async () => {
     const graphQLBody = {
@@ -377,7 +378,7 @@ describe('Rust HTTP adapter route surface', () => {
         body: { errors: [{ message: 'Method not allowed' }] },
       });
     });
-  }, 45_000);
+  });
 
   it('captures staged upload bytes for local bulk mutation imports through Rust HTTP', async () => {
     await withRustServer(await unusedLocalPort(), async (origin) => {
@@ -520,7 +521,7 @@ describe('Rust HTTP adapter route surface', () => {
       });
       expect(currentOperation.fileSize).toBe(String(artifact.body.length));
     });
-  }, 45_000);
+  });
 
   it('forwards chunked upstream passthrough responses without producing duplicate hop-by-hop headers', async () => {
     await withChunkedUpstream(async (upstreamOrigin) => {
@@ -542,5 +543,5 @@ describe('Rust HTTP adapter route surface', () => {
         { readMode: 'live-hybrid', shopifyAdminOrigin: upstreamOrigin },
       );
     });
-  }, 45_000);
+  });
 });
