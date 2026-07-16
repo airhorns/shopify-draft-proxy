@@ -526,7 +526,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn collections_count_field(&self, field: &RootFieldSelection) -> Value {
         selected_json(
-            &staged_count_with_limit_precision(
+            &snapshot_count_with_limit_precision(
                 self.matching_collections_query(&field.arguments)
                     .total_count,
                 &field.arguments,

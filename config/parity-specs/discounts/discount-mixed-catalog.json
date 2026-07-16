@@ -82,6 +82,17 @@
         ]
       },
       {
+        "name": "count-only-discountNodesCount-preserves-upstream-plus-staged-delta",
+        "capturePath": "$.countOnlyReadAfterCreate.payload.data.discountNodesCount",
+        "proxyPath": "$.data.discountNodesCount",
+        "upstreamCapturePath": "$.upstreamCalls",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-mixed-catalog-count-only.graphql",
+          "variablesCapturePath": "$.requests.countOnlyReadAfterCreate.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
         "name": "mixed-catalog-retains-upstream-after-local-create",
         "capturePath": "$.readAfterCreate.payload.data",
         "proxyPath": "$.data",
@@ -207,5 +218,5 @@
       }
     ]
   },
-  "notes": "Live Shopify 2026-04 evidence for LiveHybrid discount effective-catalog reads. The recorder creates an upstream scheduled code discount and scheduled automatic discount, records baseline discount list/count/detail reads as upstreamCalls, then creates one local-equivalent code discount, updates the upstream automatic discount, deletes the upstream code discount, and captures downstream reads. Proxy replay stages only through public GraphQL mutation/read roots; the upstreamCalls cassette hydrates the real baseline so the list/count/detail targets prove base records survive a staged create, staged updates override hydrated base records, and local tombstones hide upstream code lookup/catalog records."
+  "notes": "Live Shopify 2026-04 evidence for LiveHybrid discount effective-catalog reads. The recorder creates an upstream scheduled code discount and scheduled automatic discount, records baseline discount list/count/detail and lone discountNodesCount reads as upstreamCalls, then creates one local-equivalent code discount, updates the upstream automatic discount, deletes the upstream code discount, and captures downstream reads. Proxy replay stages only through public GraphQL mutation/read roots; the upstreamCalls cassette hydrates the real baseline so the list/count/detail targets prove base records survive a staged create, the count-only target proves the shared upstream-count helper adds the staged delta without node hydration, staged updates override hydrated base records, and local tombstones hide upstream code lookup/catalog records."
 }

@@ -92,11 +92,13 @@ impl DraftProxy {
             self.observe_discount_read_response(&fields, &response);
             return response;
         }
+        let mut upstream_data = None;
         if self.discount_read_needs_live_hydration(&fields) {
             let response = (self.upstream_transport)(request.clone());
             self.observe_discount_read_response(&fields, &response);
+            upstream_data = response.body.get("data").cloned();
         }
-        ok_json(json!({ "data": self.discounts_query_data(&fields) }))
+        ok_json(json!({ "data": self.discounts_query_data(&fields, upstream_data.as_ref()) }))
     }
 
     /// Decide whether a discount read carries no relevant local overlay state and
@@ -1726,7 +1728,11 @@ impl DraftProxy {
         )
     }
 
-    fn discounts_query_data(&self, fields: &[RootFieldSelection]) -> Value {
+    fn discounts_query_data(
+        &self,
+        fields: &[RootFieldSelection],
+        upstream_data: Option<&Value>,
+    ) -> Value {
         root_payload_json(fields, |field| {
             let value = match field.name.as_str() {
                 "discountNode" => {
@@ -1798,17 +1804,7 @@ impl DraftProxy {
                     )
                 }
                 "discountNodesCount" => selected_json(
-                    &staged_count_with_limit_precision(
-                        staged_connection_query(
-                            self.discount_connection_records(),
-                            &field.arguments,
-                            discount_search_decision,
-                            discount_staged_sort_key,
-                            value_id_cursor,
-                        )
-                        .total_count,
-                        &field.arguments,
-                    ),
+                    &self.discount_nodes_count_value(field, upstream_data),
                     &field.selection,
                 ),
                 "discountRedeemCodeBulkCreation" => {
@@ -1825,6 +1821,51 @@ impl DraftProxy {
             };
             Some(value)
         })
+    }
+
+    fn discount_nodes_count_value(
+        &self,
+        field: &RootFieldSelection,
+        upstream_data: Option<&Value>,
+    ) -> Value {
+        upstream_count_with_staged_delta(
+            field,
+            upstream_data,
+            self.discount_nodes_count_delta(),
+            &field.arguments,
+        )
+        .unwrap_or_else(|| {
+            snapshot_count_with_limit_precision(
+                staged_connection_query(
+                    self.discount_connection_records(),
+                    &field.arguments,
+                    discount_search_decision,
+                    discount_staged_sort_key,
+                    value_id_cursor,
+                )
+                .total_count,
+                &field.arguments,
+            )
+        })
+    }
+
+    fn discount_nodes_count_delta(&self) -> isize {
+        let mut delta = 0isize;
+        for id in &self.store.staged.discounts.tombstones {
+            if self.store.base.discounts.get(id).is_some() {
+                delta -= 1;
+            }
+        }
+        for (id, record) in &self.store.staged.discounts {
+            if self.store.staged.discounts.is_tombstoned(id)
+                || self.store.base.discounts.get(id).is_some()
+                || discount_id(record).is_empty()
+            {
+                continue;
+            }
+            delta += 1;
+        }
+        delta
     }
 
     fn discount_connection_records(&self) -> Vec<Value> {
