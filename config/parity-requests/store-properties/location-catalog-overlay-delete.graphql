@@ -1,0 +1,10 @@
+mutation LocationCatalogOverlayDelete($locationId: ID!) {
+  locationDelete(locationId: $locationId) {
+    deletedLocationId
+    locationDeleteUserErrors {
+      field
+      code
+      message
+    }
+  }
+}

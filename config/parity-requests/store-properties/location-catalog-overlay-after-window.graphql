@@ -1,0 +1,33 @@
+fragment LocationCatalogOverlayWindowFields on Location {
+  id
+  name
+  isActive
+  isFulfillmentService
+  fulfillsOnlineOrders
+  address {
+    address1
+    city
+    countryCode
+    zip
+  }
+}
+
+query LocationCatalogOverlayAfterWindow($query: String!, $after: String!) {
+  afterWindow: locations(first: 1, query: $query, sortKey: NAME, includeInactive: true, after: $after) {
+    edges {
+      cursor
+      node {
+        ...LocationCatalogOverlayWindowFields
+      }
+    }
+    nodes {
+      ...LocationCatalogOverlayWindowFields
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

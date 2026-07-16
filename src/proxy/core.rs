@@ -484,6 +484,8 @@ impl DraftProxy {
                 "bulkOperations": self.store.base.bulk_operations.records.clone(),
                 "bulkOperationOrder": self.store.base.bulk_operations.order.clone(),
                 "bulkOperationsObserved": self.store.base.bulk_operations_observed,
+                "locations": self.store.base.locations.records.clone(),
+                "locationOrder": self.store.base.locations.order,
                 "giftCards": self.store.base.gift_cards.clone(),
                 "giftCardConfiguration": self.store.base.gift_card_configuration.clone().unwrap_or(Value::Null),
                 "giftCardCompleteQueries": self.store.base.gift_card_complete_queries.iter().cloned().collect::<Vec<_>>(),
@@ -1824,6 +1826,15 @@ impl DraftProxy {
                 base_delivery_promise_participants,
                 base_delivery_promise_participant_order,
             );
+        let base_locations = value_map_from_json(state["baseState"].get("locations"));
+        let base_location_order = state["baseState"]
+            .get("locationOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| base_locations.keys().cloned().collect());
+        self.store
+            .base
+            .locations
+            .replace_with_order(base_locations, base_location_order);
         self.store.base.shop = base_shop;
         self.store.base.publication_ids =
             string_array_from_json(&state["baseState"]["publicationIds"])

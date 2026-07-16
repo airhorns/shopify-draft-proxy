@@ -1055,7 +1055,9 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "discountCountBaselines": {},
                     "bulkOperationOrder": [],
                     "bulkOperations": {},
-                    "bulkOperationsObserved": false
+                    "bulkOperationsObserved": false,
+                    "locationOrder": [],
+                    "locations": {}
                 },
                 "stagedState": {
                     "abandonments": {},

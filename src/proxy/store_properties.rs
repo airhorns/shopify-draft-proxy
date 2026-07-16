@@ -99,6 +99,11 @@ impl DraftProxy {
                 } else if self.has_location_overlay_state()
                     || !self.location_read_needs_upstream(&fields)
                 {
+                    if fields.iter().any(|field| {
+                        field.name == "locationsAvailableForDeliveryProfilesConnection"
+                    }) {
+                        self.hydrate_delivery_profile_locations_baseline(request);
+                    }
                     let mut response = self.location_read_response(&fields);
                     if fields.iter().any(|field| {
                         field.name == "locationsAvailableForDeliveryProfilesConnection"

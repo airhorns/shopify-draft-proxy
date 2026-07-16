@@ -76,6 +76,23 @@ anchor is
 
 So snapshot-mode fidelity cannot be implemented as a single generic fallback rule. It has to be modeled per field family.
 
+## Current: Location catalogs and delivery-profile eligibility are different sets
+
+Admin GraphQL 2026-04 does not make a newly created Location appear in
+`locationsAvailableForDeliveryProfilesConnection` merely because it exists in
+`locations`. The delivery-profile connection can also contain
+fulfillment-service locations and uses Location-ID ordering, while the general
+location catalog includes inactive and legacy rows needed for effective counts,
+duplicate-name checks, and the shop's active merchant-managed location limit.
+
+Practical rule: hydrate and retain the two catalogs separately. General staged
+location lifecycle changes overlay the normalized `locations` baseline;
+delivery-profile reads overlay a staged row only when that ID was already in the
+hydrated eligibility catalog. The captured
+`location-catalog-overlay-lifecycle` scenario also confirms that quoted
+multi-word `name:` expressions must remain one search term rather than being
+split on whitespace.
+
 ## Current: reverseFulfillmentOrderDispose public validation differs by setup
 
 A 2026-04 `reverseFulfillmentOrderDispose` capture against
