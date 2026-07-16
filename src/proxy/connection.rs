@@ -422,7 +422,81 @@ where
     )
 }
 
-pub(in crate::proxy) fn staged_count_with_limit_precision(
+pub(in crate::proxy) fn upstream_count_total(
+    field: &RootFieldSelection,
+    upstream_data: Option<&Value>,
+) -> Option<usize> {
+    upstream_data?
+        .get(field.response_key.as_str())?
+        .get("count")?
+        .as_u64()
+        .and_then(|count| usize::try_from(count).ok())
+}
+
+fn upstream_count_precision<'a>(
+    field: &RootFieldSelection,
+    upstream_data: Option<&'a Value>,
+) -> Option<&'a str> {
+    upstream_data?
+        .get(field.response_key.as_str())?
+        .get("precision")
+        .and_then(Value::as_str)
+}
+
+pub(in crate::proxy) fn upstream_count_with_staged_delta(
+    field: &RootFieldSelection,
+    upstream_data: Option<&Value>,
+    staged_delta: isize,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> Option<Value> {
+    let base_count = upstream_count_total(field, upstream_data)?;
+    let effective_total = if staged_delta.is_negative() {
+        base_count.saturating_sub(staged_delta.unsigned_abs())
+    } else {
+        base_count.saturating_add(staged_delta as usize)
+    };
+    upstream_count_with_effective_total(field, upstream_data, effective_total, arguments)
+}
+
+pub(in crate::proxy) fn upstream_count_with_effective_total(
+    field: &RootFieldSelection,
+    upstream_data: Option<&Value>,
+    effective_total: usize,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> Option<Value> {
+    upstream_count_total(field, upstream_data)?;
+    let upstream_precision = upstream_count_precision(field, upstream_data).unwrap_or("EXACT");
+    Some(count_with_limit_precision_from_upstream(
+        effective_total,
+        upstream_precision,
+        arguments,
+    ))
+}
+
+fn count_with_limit_precision_from_upstream(
+    effective_total: usize,
+    upstream_precision: &str,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> Value {
+    let limit = resolved_int_field(arguments, "limit").filter(|limit| *limit >= 0);
+    if let Some(limit) = limit {
+        let limit = limit as usize;
+        if effective_total > limit
+            || (effective_total == limit && upstream_precision.eq_ignore_ascii_case("AT_LEAST"))
+        {
+            return count_object_with_precision(limit, "AT_LEAST");
+        }
+        return count_object_with_precision(effective_total, "EXACT");
+    }
+
+    if upstream_precision.eq_ignore_ascii_case("AT_LEAST") {
+        count_object_with_precision(effective_total, "AT_LEAST")
+    } else {
+        count_object_with_precision(effective_total, "EXACT")
+    }
+}
+
+pub(in crate::proxy) fn snapshot_count_with_limit_precision(
     count: usize,
     arguments: &BTreeMap<String, ResolvedValue>,
 ) -> Value {

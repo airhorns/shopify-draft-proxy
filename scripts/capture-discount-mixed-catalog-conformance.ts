@@ -170,6 +170,14 @@ function assertCountAtLeast(result: GraphqlResult, expectedCount: number): void 
   }
 }
 
+function discountNodesCountValue(result: GraphqlResult): number {
+  const count = readPath(result, ['payload', 'data', 'discountNodesCount', 'count']);
+  if (typeof count !== 'number') {
+    throw new Error(`Missing discountNodesCount.count: ${JSON.stringify(result, null, 2)}`);
+  }
+  return count;
+}
+
 function assertBaselineRead(result: GraphqlResult, titles: ExpectedTitles): void {
   assertStartsWith('baseline reverse discountNodes', catalogTitles(result, 'reverseCatalog'), [
     titles.upstreamCode,
@@ -248,6 +256,29 @@ async function waitForRead(
   throw new Error(`${label} did not converge: ${String(lastError)}; last=${JSON.stringify(lastResult, null, 2)}`);
 }
 
+async function waitForCountOnlyRead(
+  query: string,
+  variables: JsonRecord,
+  expectedCount: number,
+  label: string,
+): Promise<GraphqlResult> {
+  let lastResult: GraphqlResult | null = null;
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    lastResult = await runChecked(query, variables, label);
+    if (discountNodesCountValue(lastResult) === expectedCount) {
+      return lastResult;
+    }
+    await sleep(750);
+  }
+  throw new Error(`${label} did not reach count ${expectedCount}: ${JSON.stringify(lastResult, null, 2)}`);
+}
+
+async function captureCountOnlyRead(query: string, variables: JsonRecord, label: string): Promise<GraphqlResult> {
+  const result = await runChecked(query, variables, label);
+  discountNodesCountValue(result);
+  return result;
+}
+
 type ExpectedTitles = {
   upstreamCode: string;
   localCode: string;
@@ -272,6 +303,7 @@ const countLimit = 2;
 
 const createDocument = await readRequest('discount-mixed-catalog-create.graphql');
 const readDocument = await readRequest('discount-mixed-catalog-read.graphql');
+const countOnlyDocument = await readRequest('discount-mixed-catalog-count-only.graphql');
 const updateAutomaticDocument = await readRequest('discount-mixed-catalog-update-automatic.graphql');
 const deleteCodeDocument = await readRequest('discount-mixed-catalog-delete-code.graphql');
 const readAfterMutationsDocument = await readRequest('discount-mixed-catalog-read-after-mutations.graphql');
@@ -326,8 +358,10 @@ let upstreamAutomaticCreate: GraphqlResult | null = null;
 let uniquenessBeforeLocal: GraphqlResult | null = null;
 let baselineRead: GraphqlResult | null = null;
 let baselineReadForAfterMutations: GraphqlResult | null = null;
+let baselineCountOnlyRead: GraphqlResult | null = null;
 let localCreate: GraphqlResult | null = null;
 let readAfterCreate: GraphqlResult | null = null;
+let countOnlyReadAfterCreate: GraphqlResult | null = null;
 let updateAutomatic: GraphqlResult | null = null;
 let deleteCode: GraphqlResult | null = null;
 let readAfterMutations: GraphqlResult | null = null;
@@ -397,6 +431,9 @@ try {
     upstreamCode,
     upstreamAutomaticId,
   };
+  const countOnlyVariables: JsonRecord = {
+    query: queryFilter,
+  };
   const uniquenessVariables = { code: localCode };
 
   uniquenessBeforeLocal = await runChecked(
@@ -428,6 +465,16 @@ try {
     titles,
     'discount mixed catalog baseline hydrate for post-mutation read',
   );
+  baselineCountOnlyRead = await captureCountOnlyRead(
+    countOnlyDocument,
+    countOnlyVariables,
+    'discount mixed catalog baseline count-only read',
+  );
+  if (discountNodesCountValue(baselineCountOnlyRead) <= 1) {
+    throw new Error(
+      `discount mixed catalog baseline count must exceed staged delta: ${JSON.stringify(baselineCountOnlyRead, null, 2)}`,
+    );
+  }
 
   localCreate = await runChecked(createDocument, createLocalVariables, 'discount mixed catalog local code create');
   assertNoUserErrors(localCreate, 'discountCodeBasicCreate', 'discount mixed catalog local code create');
@@ -444,6 +491,12 @@ try {
     assertReadAfterCreate,
     titles,
     'discount mixed catalog read after local create',
+  );
+  countOnlyReadAfterCreate = await waitForCountOnlyRead(
+    countOnlyDocument,
+    countOnlyVariables,
+    discountNodesCountValue(baselineCountOnlyRead) + 1,
+    'discount mixed catalog count-only read after local create',
   );
 
   const updateVariables: JsonRecord = {
@@ -500,8 +553,10 @@ try {
       uniquenessBeforeLocal: { query: uniquenessDocument, variables: uniquenessVariables },
       baselineRead: { query: readDocument, variables: readVariables },
       baselineReadForAfterMutations: { query: readAfterMutationsDocument, variables: readAfterMutationsVariables },
+      baselineCountOnlyRead: { query: countOnlyDocument, variables: countOnlyVariables },
       localCreate: { query: createDocument, variables: createLocalVariables },
       readAfterCreate: { query: readDocument, variables: readVariables },
+      countOnlyReadAfterCreate: { query: countOnlyDocument, variables: countOnlyVariables },
       updateAutomatic: { query: updateAutomaticDocument, variables: updateVariables },
       deleteCode: { query: deleteCodeDocument, variables: { id: upstreamCodeId } },
       readAfterMutations: { query: readAfterMutationsDocument, variables: readAfterMutationsVariables },
@@ -513,9 +568,11 @@ try {
       uniquenessBeforeLocal,
       baselineRead,
       baselineReadForAfterMutations,
+      baselineCountOnlyRead,
     },
     localCreate,
     readAfterCreate,
+    countOnlyReadAfterCreate,
     updateAutomatic,
     deleteCode,
     readAfterMutations,
@@ -526,6 +583,12 @@ try {
         variables: uniquenessVariables,
         query: uniquenessDocument,
         response: { status: uniquenessBeforeLocal.status, body: uniquenessBeforeLocal.payload },
+      },
+      {
+        operationName: 'DiscountMixedCatalogCountOnly',
+        variables: countOnlyVariables,
+        query: countOnlyDocument,
+        response: { status: baselineCountOnlyRead.status, body: baselineCountOnlyRead.payload },
       },
       {
         operationName: 'DiscountMixedCatalogRead',
@@ -553,6 +616,8 @@ try {
         upstreamCodeId,
         localCodeId,
         upstreamAutomaticId,
+        baselineCountOnly: discountNodesCountValue(baselineCountOnlyRead),
+        afterCreateCountOnly: discountNodesCountValue(countOnlyReadAfterCreate),
       },
       null,
       2,
