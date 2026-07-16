@@ -439,6 +439,9 @@ impl DraftProxy {
                 "orderCountBaselines": self.store.base.order_count_baselines.clone(),
                 "discounts": self.store.base.discounts.records.clone(),
                 "discountOrder": self.store.base.discounts.order,
+                "bulkOperations": self.store.base.bulk_operations.records.clone(),
+                "bulkOperationOrder": self.store.base.bulk_operations.order.clone(),
+                "bulkOperationsObserved": self.store.base.bulk_operations_observed,
                 "giftCards": self.store.base.gift_cards.clone(),
                 "giftCardConfiguration": self.store.base.gift_card_configuration.clone().unwrap_or(Value::Null),
                 "giftCardCompleteQueries": self.store.base.gift_card_complete_queries.iter().cloned().collect::<Vec<_>>(),
@@ -755,7 +758,9 @@ impl DraftProxy {
         }
         if !self.store.staged.bulk_operations.is_empty() {
             snapshot["stagedState"]["bulkOperations"] =
-                json!(self.store.staged.bulk_operations.clone());
+                json!(self.store.staged.bulk_operations.records.clone());
+            snapshot["stagedState"]["bulkOperationOrder"] =
+                json!(self.store.staged.bulk_operations.order.clone());
         }
         if !self.store.staged.bulk_operation_staged_uploads.is_empty() {
             snapshot["stagedState"]["bulkOperationStagedUploads"] =
@@ -1364,6 +1369,17 @@ impl DraftProxy {
         );
         self.store.base.order_count_baselines =
             value_map_from_json(state["baseState"].get("orderCountBaselines"));
+        self.store.base.bulk_operations.replace_with_order(
+            value_map_from_json(state["baseState"].get("bulkOperations")),
+            state["baseState"]
+                .get("bulkOperationOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
+        self.store.base.bulk_operations_observed = state["baseState"]
+            .get("bulkOperationsObserved")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
         self.store.staged.products.replace_with_order(
             product_state_map_from_json(&state["stagedState"]["products"]),
             string_array_from_json(&state["stagedState"]["productOrder"]),
@@ -1481,8 +1497,13 @@ impl DraftProxy {
             .unwrap_or_default()
             .into_iter()
             .collect();
-        self.store.staged.bulk_operations =
-            value_map_from_json(state["stagedState"].get("bulkOperations"));
+        self.store.staged.bulk_operations.replace_with_order(
+            value_map_from_json(state["stagedState"].get("bulkOperations")),
+            state["stagedState"]
+                .get("bulkOperationOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
         self.store.staged.bulk_operation_staged_uploads = state["stagedState"]
             .get("bulkOperationStagedUploads")
             .and_then(Value::as_object)

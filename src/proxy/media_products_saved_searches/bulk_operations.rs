@@ -378,7 +378,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn bulk_operation_read_response(
-        &self,
+        &mut self,
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
@@ -387,9 +387,6 @@ impl DraftProxy {
         let Some(fields) = self.execution_root_fields(query, variables) else {
             return json_error(400, "Could not parse GraphQL operation");
         };
-        if self.should_passthrough_cold_bulk_operations_read(&fields) {
-            return (self.upstream_transport)(request.clone());
-        }
         let operation_path = parsed_document(query, variables)
             .map(|document| document.operation_path)
             .unwrap_or_else(|| "query".to_string());
@@ -398,22 +395,103 @@ impl DraftProxy {
         {
             return response;
         }
-        let data = self.bulk_operation_read_data(&fields);
+        if self.bulk_operation_read_needs_upstream(&fields) {
+            let response = (self.upstream_transport)(request.clone());
+            if response.status == 200 {
+                self.observe_bulk_operation_read_response(&fields, &response.body);
+            }
+            if !self.store.staged.bulk_operations.is_empty()
+                && fields.iter().any(|field| field.name == "bulkOperations")
+            {
+                return self.bulk_operation_local_read_response(&fields);
+            }
+            return response;
+        }
+        self.bulk_operation_local_read_response(&fields)
+    }
+
+    fn bulk_operation_local_read_response(&self, fields: &[RootFieldSelection]) -> Response {
+        let data = self.bulk_operation_read_data(fields);
         let mut body = json!({ "data": data });
-        if let Some(search) = bulk_operation_search_extensions(&fields) {
+        if let Some(search) = bulk_operation_search_extensions(fields) {
             body["extensions"] = json!({ "search": search });
         }
         ok_json(body)
     }
 
-    fn should_passthrough_cold_bulk_operations_read(&self, fields: &[RootFieldSelection]) -> bool {
-        self.config.read_mode == ReadMode::LiveHybrid
-            && self.store.staged.bulk_operations.is_empty()
-            && fields.iter().all(|field| {
-                field.name == "bulkOperations"
-                    && field.arguments.contains_key("sortKey")
-                    && !field.arguments.contains_key("query")
-            })
+    fn bulk_operation_read_needs_upstream(&self, fields: &[RootFieldSelection]) -> bool {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return false;
+        }
+        fields.iter().any(|field| match field.name.as_str() {
+            "bulkOperation" => {
+                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                self.bulk_operation_by_id(&id).is_none()
+            }
+            "bulkOperations" => !self.store.base.bulk_operations_observed,
+            "currentBulkOperation" => {
+                let operation_type = resolved_string_field(&field.arguments, "type")
+                    .unwrap_or_else(|| "QUERY".to_string());
+                self.current_bulk_operation(&operation_type).is_none()
+            }
+            _ => false,
+        })
+    }
+
+    fn observe_bulk_operation_read_response(
+        &mut self,
+        fields: &[RootFieldSelection],
+        body: &Value,
+    ) {
+        let Some(data) = body.get("data").and_then(Value::as_object) else {
+            return;
+        };
+        for field in fields {
+            let Some(value) = data.get(&field.response_key) else {
+                continue;
+            };
+            match field.name.as_str() {
+                "bulkOperation" | "currentBulkOperation" => {
+                    self.observe_bulk_operation_value(value);
+                }
+                "bulkOperations" => {
+                    self.store.base.bulk_operations_observed = true;
+                    self.observe_bulk_operations_connection(value);
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn observe_bulk_operations_connection(&mut self, connection: &Value) {
+        if let Some(edges) = connection.get("edges").and_then(Value::as_array) {
+            for edge in edges {
+                if let Some(node) = edge.get("node") {
+                    self.observe_bulk_operation_value(node);
+                }
+            }
+        }
+        if let Some(nodes) = connection.get("nodes").and_then(Value::as_array) {
+            for node in nodes {
+                self.observe_bulk_operation_value(node);
+            }
+        }
+    }
+
+    fn observe_bulk_operation_value(&mut self, operation: &Value) {
+        if !operation.is_object() {
+            return;
+        }
+        let Some(id) = operation.get("id").and_then(Value::as_str) else {
+            return;
+        };
+        if shopify_gid_resource_type(id) != Some("BulkOperation") {
+            return;
+        }
+        self.store
+            .base
+            .bulk_operations
+            .insert(id.to_string(), operation.clone());
     }
 
     pub(in crate::proxy) fn bulk_operation_read_data(
@@ -433,7 +511,7 @@ impl DraftProxy {
                     let operation_type = resolved_string_field(&field.arguments, "type")
                         .unwrap_or_else(|| "QUERY".to_string());
                     self.current_bulk_operation(&operation_type)
-                        .map(|operation| selected_json(operation, &field.selection))
+                        .map(|operation| selected_json(&operation, &field.selection))
                         .unwrap_or(Value::Null)
                 }
                 _ => return None,
@@ -456,16 +534,18 @@ impl DraftProxy {
     }
 
     fn bulk_operation_by_id(&self, id: &str) -> Option<&Value> {
-        self.store.staged.bulk_operations.get(id)
+        effective_get(
+            &self.store.base.bulk_operations,
+            &self.store.staged.bulk_operations,
+            id,
+        )
     }
 
-    fn effective_bulk_operations(&self) -> Vec<&Value> {
-        let mut operations = self
-            .store
-            .staged
-            .bulk_operations
-            .values()
-            .collect::<Vec<_>>();
+    fn effective_bulk_operations(&self) -> Vec<Value> {
+        let mut operations = effective_records(
+            &self.store.base.bulk_operations,
+            &self.store.staged.bulk_operations,
+        );
         operations.sort_by(|left, right| {
             bulk_operation_sort_value(right, "CREATED_AT")
                 .cmp(&bulk_operation_sort_value(left, "CREATED_AT"))
@@ -479,7 +559,7 @@ impl DraftProxy {
         operations
     }
 
-    fn current_bulk_operation(&self, operation_type: &str) -> Option<&Value> {
+    fn current_bulk_operation(&self, operation_type: &str) -> Option<Value> {
         self.effective_bulk_operations()
             .into_iter()
             .find(|operation| operation.get("type").and_then(Value::as_str) == Some(operation_type))
@@ -501,9 +581,8 @@ impl DraftProxy {
                         .cmp(&left.get("id").and_then(Value::as_str))
                 })
         });
-        let records = operations.into_iter().cloned().collect::<Vec<_>>();
         selected_connection_json_with_args(
-            records,
+            operations,
             &field.arguments,
             &field.selection,
             |operation| {
@@ -978,7 +1057,7 @@ impl DraftProxy {
         };
         if operation.get("id").and_then(Value::as_str) == Some(id) {
             self.store
-                .staged
+                .base
                 .bulk_operations
                 .insert(id.to_string(), operation);
         }
@@ -1153,6 +1232,7 @@ fn escaped_single_quoted_newlines_byte_len(query_text: &str) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Arc, Mutex};
 
     fn test_request(query: &str, variables: Value) -> Request {
         Request {
@@ -1170,6 +1250,52 @@ mod tests {
             headers: BTreeMap::new(),
             body: String::new(),
         }
+    }
+
+    fn meta_request(method: &str, path: &str, body: &str) -> Request {
+        Request {
+            method: method.to_string(),
+            path: path.to_string(),
+            headers: BTreeMap::new(),
+            body: body.to_string(),
+        }
+    }
+
+    fn observed_bulk_operation(id: &str, created_at: &str) -> Value {
+        json!({
+            "id": id,
+            "status": "COMPLETED",
+            "type": "QUERY",
+            "errorCode": null,
+            "createdAt": created_at,
+            "completedAt": created_at,
+            "objectCount": "4",
+            "rootObjectCount": "2",
+            "fileSize": "512",
+            "url": "https://cdn.shopify.test/bulk/result.jsonl",
+            "partialDataUrl": null,
+            "query": "{ products { edges { node { id } } } }"
+        })
+    }
+
+    fn upstream_bulk_operations_window(operation: Value) -> Value {
+        json!({
+            "data": {
+                "bulkOperations": {
+                    "edges": [{
+                        "cursor": "bulk-operation-cursor",
+                        "node": operation
+                    }],
+                    "nodes": [operation],
+                    "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "bulk-operation-cursor",
+                        "endCursor": "bulk-operation-cursor"
+                    }
+                }
+            }
+        })
     }
 
     fn seed_product(id: &str, title: &str, handle: &str) -> ProductRecord {
@@ -1312,6 +1438,473 @@ mod tests {
         assert_eq!(
             operation["url"],
             json!("https://localhost:3123/__meta/bulk-operations/123/result.jsonl")
+        );
+    }
+
+    #[test]
+    fn cold_bulk_operations_without_sort_key_forwards_upstream() {
+        let upstream_calls = Arc::new(Mutex::new(Vec::new()));
+        let upstream_calls_for_transport = Arc::clone(&upstream_calls);
+        let real_operation = observed_bulk_operation(
+            "gid://shopify/BulkOperation/7749092278578",
+            "2026-01-02T00:00:00Z",
+        );
+        let mut proxy = DraftProxy::new(Config {
+            read_mode: ReadMode::LiveHybrid,
+            unsupported_mutation_mode: None,
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+        })
+        .with_upstream_transport(move |request| {
+            upstream_calls_for_transport
+                .lock()
+                .unwrap()
+                .push(request.body.clone());
+            Response {
+                status: 200,
+                headers: BTreeMap::new(),
+                body: upstream_bulk_operations_window(real_operation.clone()),
+            }
+        });
+
+        let response = proxy.process_request(test_request(
+            r#"
+            query ColdBulkOperationsNoSortKey {
+              bulkOperations(first: 10) {
+                edges { cursor node { id status type createdAt } }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+            "#,
+            json!({}),
+        ));
+
+        assert_eq!(response.status, 200);
+        assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+        assert_eq!(
+            response.body["data"]["bulkOperations"]["edges"][0]["node"]["id"],
+            json!("gid://shopify/BulkOperation/7749092278578")
+        );
+    }
+
+    #[test]
+    fn cold_bulk_operation_by_id_forwards_upstream() {
+        let real_id = "gid://shopify/BulkOperation/7749063934258";
+        let upstream_calls = Arc::new(Mutex::new(Vec::new()));
+        let upstream_calls_for_transport = Arc::clone(&upstream_calls);
+        let real_operation = observed_bulk_operation(real_id, "2026-01-03T00:00:00Z");
+        let mut proxy = DraftProxy::new(Config {
+            read_mode: ReadMode::LiveHybrid,
+            unsupported_mutation_mode: None,
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+        })
+        .with_upstream_transport(move |request| {
+            upstream_calls_for_transport
+                .lock()
+                .unwrap()
+                .push(request.body.clone());
+            Response {
+                status: 200,
+                headers: BTreeMap::new(),
+                body: json!({
+                    "data": {
+                        "bulkOperation": real_operation
+                    }
+                }),
+            }
+        });
+
+        let response = proxy.process_request(test_request(
+            r#"
+            query ColdBulkOperationById($id: ID!) {
+              bulkOperation(id: $id) {
+                id
+                status
+                type
+                createdAt
+              }
+            }
+            "#,
+            json!({ "id": real_id }),
+        ));
+
+        assert_eq!(response.status, 200);
+        assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+        assert_eq!(response.body["data"]["bulkOperation"]["id"], json!(real_id));
+    }
+
+    #[test]
+    fn observed_real_bulk_operation_stays_visible_with_staged_operation() {
+        let real_id = "gid://shopify/BulkOperation/7749099127090";
+        let upstream_calls = Arc::new(Mutex::new(Vec::new()));
+        let upstream_calls_for_transport = Arc::clone(&upstream_calls);
+        let real_operation = observed_bulk_operation(real_id, "2026-01-01T00:00:00Z");
+        let mut proxy = DraftProxy::new(Config {
+            read_mode: ReadMode::LiveHybrid,
+            unsupported_mutation_mode: None,
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+        })
+        .with_base_products(vec![seed_product(
+            "gid://shopify/Product/1",
+            "Observed bulk product",
+            "observed-bulk-product",
+        )])
+        .with_upstream_transport(move |request| {
+            upstream_calls_for_transport
+                .lock()
+                .unwrap()
+                .push(request.body.clone());
+            Response {
+                status: 200,
+                headers: BTreeMap::new(),
+                body: upstream_bulk_operations_window(real_operation.clone()),
+            }
+        });
+
+        let observed = proxy.process_request(test_request(
+            r#"
+            query ObserveBulkOperationsWindow {
+              bulkOperations(first: 10) {
+                edges {
+                  node {
+                    id
+                    status
+                    type
+                    createdAt
+                    completedAt
+                    objectCount
+                    rootObjectCount
+                    fileSize
+                    url
+                    partialDataUrl
+                    query
+                  }
+                }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+            "#,
+            json!({}),
+        ));
+        assert_eq!(observed.status, 200);
+        assert_eq!(
+            observed.body["data"]["bulkOperations"]["edges"][0]["node"]["id"],
+            json!(real_id)
+        );
+
+        let staged = proxy.process_request(test_request(
+            r#"
+            mutation StageBulkOperation($query: String!) {
+              bulkOperationRunQuery(query: $query) {
+                bulkOperation { id status type }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "query": "{ products { edges { node { id } } } }"
+            }),
+        ));
+        assert_eq!(staged.status, 200);
+        assert_eq!(
+            staged.body["data"]["bulkOperationRunQuery"]["userErrors"],
+            json!([])
+        );
+        let staged_id = staged.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+
+        let combined = proxy.process_request(test_request(
+            r#"
+            query CombinedBulkOperations {
+              bulkOperations(first: 10, sortKey: CREATED_AT) {
+                edges { node { id status type createdAt } }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+            "#,
+            json!({}),
+        ));
+        assert_eq!(combined.status, 200);
+        let ids = combined.body["data"]["bulkOperations"]["edges"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|edge| edge["node"]["id"].as_str().unwrap().to_string())
+            .collect::<Vec<_>>();
+        assert!(ids.contains(&real_id.to_string()), "combined ids: {ids:?}");
+        assert!(ids.contains(&staged_id), "combined ids: {ids:?}");
+        assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn staged_bulk_operation_hydrates_real_window_before_overlay() {
+        let real_id = "gid://shopify/BulkOperation/7745508180274";
+        let upstream_calls = Arc::new(Mutex::new(Vec::new()));
+        let upstream_calls_for_transport = Arc::clone(&upstream_calls);
+        let real_operation = observed_bulk_operation(real_id, "2026-01-01T00:00:00Z");
+        let mut proxy = DraftProxy::new(Config {
+            read_mode: ReadMode::LiveHybrid,
+            unsupported_mutation_mode: None,
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+        })
+        .with_base_products(vec![seed_product(
+            "gid://shopify/Product/1",
+            "Staged first product",
+            "staged-first-product",
+        )])
+        .with_upstream_transport(move |request| {
+            upstream_calls_for_transport
+                .lock()
+                .unwrap()
+                .push(request.body.clone());
+            Response {
+                status: 200,
+                headers: BTreeMap::new(),
+                body: upstream_bulk_operations_window(real_operation.clone()),
+            }
+        });
+
+        let staged = proxy.process_request(test_request(
+            r#"
+            mutation StageBulkOperationBeforeObservation($query: String!) {
+              bulkOperationRunQuery(query: $query) {
+                bulkOperation { id status type }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "query": "{ products { edges { node { id } } } }"
+            }),
+        ));
+        assert_eq!(staged.status, 200);
+        let staged_id = staged.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+
+        let combined = proxy.process_request(test_request(
+            r#"
+            query StagedFirstCombinedBulkOperations {
+              bulkOperations(first: 10, sortKey: CREATED_AT) {
+                edges { node { id status type createdAt } }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+            "#,
+            json!({}),
+        ));
+        assert_eq!(combined.status, 200);
+        let ids = combined.body["data"]["bulkOperations"]["edges"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|edge| edge["node"]["id"].as_str().unwrap().to_string())
+            .collect::<Vec<_>>();
+        assert!(ids.contains(&real_id.to_string()), "combined ids: {ids:?}");
+        assert!(ids.contains(&staged_id), "combined ids: {ids:?}");
+        assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn staged_bulk_operation_wins_over_observed_operation_by_id() {
+        let real_id = "gid://shopify/BulkOperation/7964059697458";
+        let mut running_operation = observed_bulk_operation(real_id, "2026-01-01T00:00:00Z");
+        running_operation["status"] = json!("RUNNING");
+        running_operation["completedAt"] = Value::Null;
+        running_operation["objectCount"] = json!("0");
+        running_operation["rootObjectCount"] = json!("0");
+        running_operation["fileSize"] = Value::Null;
+        running_operation["url"] = Value::Null;
+        let mut proxy = DraftProxy::new(Config {
+            read_mode: ReadMode::LiveHybrid,
+            unsupported_mutation_mode: None,
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+        })
+        .with_upstream_transport(move |_| Response {
+            status: 200,
+            headers: BTreeMap::new(),
+            body: json!({
+                "data": {
+                    "bulkOperation": running_operation
+                }
+            }),
+        });
+
+        let observed = proxy.process_request(test_request(
+            r#"
+            query ObserveRunningBulkOperation($id: ID!) {
+              bulkOperation(id: $id) {
+                id
+                status
+                type
+                createdAt
+                completedAt
+                objectCount
+                rootObjectCount
+                fileSize
+                url
+                partialDataUrl
+                query
+              }
+            }
+            "#,
+            json!({ "id": real_id }),
+        ));
+        assert_eq!(observed.status, 200);
+        assert_eq!(
+            observed.body["data"]["bulkOperation"]["status"],
+            json!("RUNNING")
+        );
+
+        let cancel = proxy.process_request(test_request(
+            r#"
+            mutation CancelObservedBulkOperation($id: ID!) {
+              bulkOperationCancel(id: $id) {
+                bulkOperation { id status }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({ "id": real_id }),
+        ));
+        assert_eq!(cancel.status, 200);
+        assert_eq!(
+            cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["status"],
+            json!("CANCELING")
+        );
+
+        let read = proxy.process_request(test_request(
+            r#"
+            query ReadCanceledBulkOperation($id: ID!) {
+              bulkOperation(id: $id) {
+                id
+                status
+              }
+              currentBulkOperation(type: QUERY) {
+                id
+                status
+              }
+            }
+            "#,
+            json!({ "id": real_id }),
+        ));
+        assert_eq!(read.status, 200);
+        assert_eq!(
+            read.body["data"]["bulkOperation"]["status"],
+            json!("CANCELING")
+        );
+        assert_eq!(
+            read.body["data"]["currentBulkOperation"]["status"],
+            json!("CANCELING")
+        );
+    }
+
+    #[test]
+    fn observed_bulk_operation_base_state_round_trips_dump_restore() {
+        let real_id = "gid://shopify/BulkOperation/7749092278578";
+        let real_operation = observed_bulk_operation(real_id, "2026-01-01T00:00:00Z");
+        let mut proxy = DraftProxy::new(Config {
+            read_mode: ReadMode::LiveHybrid,
+            unsupported_mutation_mode: None,
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+        })
+        .with_upstream_transport(move |_| Response {
+            status: 200,
+            headers: BTreeMap::new(),
+            body: upstream_bulk_operations_window(real_operation.clone()),
+        });
+
+        let observed = proxy.process_request(test_request(
+            r#"
+            query ObserveBulkOperationsForRestore {
+              bulkOperations(first: 10) {
+                edges {
+                  node {
+                    id
+                    status
+                    type
+                    createdAt
+                    completedAt
+                    objectCount
+                    rootObjectCount
+                    fileSize
+                    url
+                    partialDataUrl
+                    query
+                  }
+                }
+              }
+            }
+            "#,
+            json!({}),
+        ));
+        assert_eq!(observed.status, 200);
+
+        let dump = proxy.process_request(meta_request("POST", "/__meta/dump", ""));
+        assert_eq!(dump.status, 200);
+        assert_eq!(
+            dump.body["state"]["baseState"]["bulkOperations"][real_id]["id"],
+            json!(real_id)
+        );
+        assert_eq!(
+            dump.body["state"]["baseState"]["bulkOperationOrder"],
+            json!([real_id])
+        );
+        assert_eq!(
+            dump.body["state"]["baseState"]["bulkOperationsObserved"],
+            json!(true)
+        );
+
+        let mut restored = DraftProxy::new(Config {
+            read_mode: ReadMode::LiveHybrid,
+            unsupported_mutation_mode: None,
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+        })
+        .with_upstream_transport(|_| panic!("restored bulk operation read should stay local"));
+        let restore = restored.process_request(meta_request(
+            "POST",
+            "/__meta/restore",
+            &dump.body.to_string(),
+        ));
+        assert_eq!(restore.status, 200);
+
+        let read = restored.process_request(test_request(
+            r#"
+            query RestoredBulkOperations {
+              bulkOperations(first: 10) {
+                edges { node { id status type createdAt } }
+              }
+            }
+            "#,
+            json!({}),
+        ));
+        assert_eq!(read.status, 200);
+        assert_eq!(
+            read.body["data"]["bulkOperations"]["edges"][0]["node"]["id"],
+            json!(real_id)
         );
     }
 
@@ -1551,7 +2144,28 @@ mod tests {
 
     #[test]
     fn product_variants_bulk_query_rejects_unsupported_nested_child_connections() {
-        let mut proxy = test_proxy();
+        let mut proxy = DraftProxy::new(Config {
+            read_mode: ReadMode::LiveHybrid,
+            unsupported_mutation_mode: None,
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+        })
+        .with_base_products(vec![
+            seed_product("gid://shopify/Product/1", "Red product", "red-product"),
+            seed_product("gid://shopify/Product/2", "Blue product", "blue-product"),
+        ])
+        .with_upstream_transport(|request| {
+            if request.body.contains("currentBulkOperation") {
+                return Response {
+                    status: 200,
+                    headers: BTreeMap::new(),
+                    body: json!({ "data": { "currentBulkOperation": null } }),
+                };
+            }
+            panic!("unsupported variant child bulk test should not call upstream")
+        });
         create_variant(
             &mut proxy,
             "gid://shopify/Product/1",
