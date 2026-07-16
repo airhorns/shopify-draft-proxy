@@ -7,6 +7,7 @@ import path from 'node:path';
 import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
+import { captureGiftCardCreateConfiguration } from './support/shopify/runtime-hydration-capture.js';
 
 type CapturedRequest = {
   label: string;
@@ -208,21 +209,6 @@ async function hydrateGiftCard(id: string): Promise<RecordedCall> {
   };
 }
 
-async function hydrateShopPricing(): Promise<RecordedCall> {
-  const query = `query DraftProxyShopPricingHydrate { shop { currencyCode taxesIncluded taxShipping } }`;
-  const variables = {};
-  const response = await runGraphqlRequest(query, variables);
-  return {
-    operationName: 'DraftProxyShopPricingHydrate',
-    variables,
-    query,
-    response: {
-      status: response.status,
-      body: response.payload,
-    },
-  };
-}
-
 const setupActive = await createGiftCard('active', activeExpiresOn);
 const setupExpired = await createGiftCard('expired', expiredExpiresOn);
 const setupDeactivated = await createGiftCard('deactivated', activeExpiresOn);
@@ -233,7 +219,9 @@ const deactivatedId = readGiftCardId(setupDeactivated);
 const cardCurrency = readGiftCardCurrency(setupActive) ?? 'CAD';
 const mismatchCurrency = cardCurrency === 'EUR' ? 'USD' : 'EUR';
 const setupDeactivate = deactivatedId === null ? null : await deactivateGiftCard('setupDeactivate', deactivatedId);
-const upstreamCalls: RecordedCall[] = [await hydrateShopPricing()];
+const upstreamCalls: RecordedCall[] = [
+  await captureGiftCardCreateConfiguration((query, variables) => runGraphqlRequest(query, variables)),
+];
 
 if (activeId !== null && expiredId !== null && deactivatedId !== null) {
   upstreamCalls.push(await hydrateGiftCard(expiredId));

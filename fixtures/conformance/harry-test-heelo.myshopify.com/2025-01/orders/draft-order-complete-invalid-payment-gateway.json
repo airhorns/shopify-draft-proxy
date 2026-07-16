@@ -2,7 +2,7 @@
   "scenarioId": "draft-order-complete-invalid-payment-gateway",
   "apiVersion": "2025-01",
   "storeDomain": "harry-test-heelo.myshopify.com",
-  "recordedAt": "2026-07-02T23:07:23.722Z",
+  "recordedAt": "2026-07-14T14:00:21.821Z",
   "source": "live-shopify-admin-graphql",
   "notes": "Live draft-order completion capture for a paymentGatewayId that does not resolve to an enabled manual payment gateway. Shopify returns a base UserError with field null and message Invalid payment gateway. A separate operation selecting userErrors.code is rejected by the public schema because draftOrderComplete.userErrors is plain UserError.",
   "setup": {
@@ -10,7 +10,7 @@
       "query": "#graphql\n  mutation DraftOrderCompleteInvalidGatewayCreate($input: DraftOrderInput!) {\n    draftOrderCreate(input: $input) {\n      draftOrder {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
       "variables": {
         "input": {
-          "email": "draft-complete-invalid-gateway-20260702230722@example.com",
+          "email": "draft-complete-invalid-gateway-20260714140020@example.com",
           "note": "invalid payment gateway draft order complete parity probe",
           "tags": ["draft-order-complete", "invalid-payment-gateway", "parity-probe"],
           "taxExempt": true,
@@ -21,7 +21,7 @@
               "originalUnitPrice": "10.00",
               "requiresShipping": false,
               "taxable": false,
-              "sku": "invalid-gateway-20260702230722"
+              "sku": "invalid-gateway-20260714140020"
             }
           ]
         }
@@ -30,8 +30,8 @@
         "data": {
           "draftOrderCreate": {
             "draftOrder": {
-              "id": "gid://shopify/DraftOrder/1274672120114",
-              "name": "#D283"
+              "id": "gid://shopify/DraftOrder/1280992280882",
+              "name": "#D344"
             },
             "userErrors": []
           }
@@ -51,7 +51,7 @@
     }
   },
   "variables": {
-    "id": "gid://shopify/DraftOrder/1274672120114",
+    "id": "gid://shopify/DraftOrder/1280992280882",
     "paymentGatewayId": "gid://shopify/PaymentGateway/999999999999",
     "paymentPending": false
   },
@@ -61,7 +61,7 @@
       "data": {
         "draftOrderComplete": {
           "draftOrder": {
-            "id": "gid://shopify/DraftOrder/1274672120114",
+            "id": "gid://shopify/DraftOrder/1280992280882",
             "status": "OPEN",
             "order": null
           },
@@ -89,7 +89,7 @@
   "codeSelection": {
     "query": "mutation DraftOrderCompleteInvalidGatewayCodeSelection($id: ID!, $paymentGatewayId: ID) {\n  draftOrderComplete(id: $id, paymentGatewayId: $paymentGatewayId) {\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
     "variables": {
-      "id": "gid://shopify/DraftOrder/1274672120114",
+      "id": "gid://shopify/DraftOrder/1280992280882",
       "paymentGatewayId": "gid://shopify/PaymentGateway/999999999999"
     },
     "response": {
@@ -123,7 +123,7 @@
       "response": {
         "data": {
           "draftOrderDelete": {
-            "deletedId": "gid://shopify/DraftOrder/1274672120114",
+            "deletedId": "gid://shopify/DraftOrder/1280992280882",
             "userErrors": []
           }
         },
@@ -141,5 +141,34 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "DraftProxyShopPricingHydrate",
+      "variables": {},
+      "query": "query DraftProxyShopPricingHydrate { shop { currencyCode taxesIncluded taxShipping } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shop": {
+              "currencyCode": "CAD",
+              "taxesIncluded": false,
+              "taxShipping": false
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

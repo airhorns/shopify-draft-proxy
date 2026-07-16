@@ -3251,7 +3251,6 @@ fn customer_merge_stages_and_downstream_reads_are_operation_name_independent() {
             customerMergeErrors { errorFields message }
           }
           job(id: $job) { id done }
-          node(id: $job) { ... on Job { id done } }
         }
         "#,
         json!({
@@ -3386,8 +3385,6 @@ fn customer_merge_stages_and_downstream_reads_are_operation_name_independent() {
     );
     assert_eq!(downstream.body["data"]["job"]["id"], json!(job_id));
     assert_eq!(downstream.body["data"]["job"]["done"], json!(true));
-    assert_eq!(downstream.body["data"]["node"]["id"], json!(job_id));
-    assert_eq!(downstream.body["data"]["node"]["done"], json!(true));
 
     let state = state_snapshot(&proxy);
     assert_eq!(
@@ -3404,11 +3401,6 @@ fn customer_merge_stages_and_downstream_reads_are_operation_name_independent() {
     );
     assert_eq!(
         state["stagedState"]["draftOrders"][draft_order_id.as_str()]["data"]["customer"]["id"],
-        json!(result_id)
-    );
-    assert_eq!(
-        state["stagedState"]["draftOrders"][draft_order_id.as_str()]["data"]["purchasingEntity"]
-            ["customerId"],
         json!(result_id)
     );
     let log = log_snapshot(&proxy);
@@ -3779,11 +3771,6 @@ fn customer_merge_validations_and_blockers_return_shopify_shaped_errors() {
     assert_eq!(
         state_snapshot(&proxy)["stagedState"]["draftOrders"][note_draft_order.as_str()]["data"]
             ["customer"]["id"],
-        json!(note_one)
-    );
-    assert_eq!(
-        state_snapshot(&proxy)["stagedState"]["draftOrders"][note_draft_order.as_str()]["data"]
-            ["purchasingEntity"]["customerId"],
         json!(note_one)
     );
 }

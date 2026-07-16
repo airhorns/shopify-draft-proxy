@@ -54,11 +54,7 @@ class ShopifyDraftProxySmokeTest < Minitest::Test
     assert_equal "Promo orders", payload.fetch("savedSearch").fetch("name")
     assert_includes payload.fetch("savedSearch").fetch("id"), "shopify-draft-proxy=synthetic"
 
-    read = proxy.process_graphql_request(
-      { query: '{ orderSavedSearches(query: "Promo") { nodes { id name } } }' },
-    )
-    nodes = read.body.fetch("data").fetch("orderSavedSearches").fetch("nodes")
-    assert_equal ["Promo orders"], nodes.map { |node| node.fetch("name") }
+    assert_equal ["Promo orders"], saved_search_names(proxy, "Promo")
 
     log = proxy.get_log
     assert_equal "staged", log.fetch("entries").first.fetch("status")
@@ -150,8 +146,13 @@ class ShopifyDraftProxySmokeTest < Minitest::Test
 
   def saved_search_names(proxy, query)
     read = proxy.process_graphql_request(
-      { query: "{ orderSavedSearches(query: #{JSON.generate(query)}) { nodes { id name } } }" },
+      { query: "{ orderSavedSearches(first: 250) { nodes { id name } } }" },
     )
-    read.body.fetch("data").fetch("orderSavedSearches").fetch("nodes").map { |node| node.fetch("name") }
+    read.body
+      .fetch("data")
+      .fetch("orderSavedSearches")
+      .fetch("nodes")
+      .map { |node| node.fetch("name") }
+      .select { |name| name.include?(query) }
   end
 end

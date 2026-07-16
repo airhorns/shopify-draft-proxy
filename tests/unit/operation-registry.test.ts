@@ -1,7 +1,8 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { buildSchema } from 'graphql';
 import { z } from 'zod';
 import { loadNodeResolverInventory, loadOperationRegistry } from '../../scripts/conformance-scenario-registry.js';
 import { parseJsonFileWithSchema } from '../../scripts/support/json-schemas.js';
@@ -9,12 +10,6 @@ import { parseJsonFileWithSchema } from '../../scripts/support/json-schemas.js';
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const operationRegistryEntries = loadOperationRegistry(repoRoot);
 const nodeResolverInventoryEntries = loadNodeResolverInventory(repoRoot);
-
-const capturedMutationSchema = z
-  .strictObject({
-    mutations: z.array(z.strictObject({ name: z.string().min(1) }).passthrough()),
-  })
-  .passthrough();
 
 const capturedNodeInterfaceSchema = z
   .strictObject({
@@ -30,7 +25,7 @@ const capturedNodeInterfaceSchema = z
   })
   .passthrough();
 
-const mutationSchemaPath = resolve(repoRoot, 'config/admin-graphql/2026-04/mutation-schema.json');
+const adminSchemaPath = resolve(repoRoot, 'config/admin-graphql/2026-04/schema.graphql');
 const adminPlatformNodeCapturePath = resolve(
   repoRoot,
   'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform/admin-platform-utility-roots.json',
@@ -65,8 +60,12 @@ function sortedStrings(values: Iterable<string>): string[] {
 }
 
 function capturedMutationNames() {
-  const schema = parseJsonFileWithSchema(mutationSchemaPath, capturedMutationSchema);
-  return sortedStrings(schema.mutations.map((mutation) => mutation.name));
+  const schema = buildSchema(readFileSync(adminSchemaPath, 'utf8'));
+  const mutationType = schema.getMutationType();
+  if (mutationType === null || mutationType === undefined) {
+    throw new Error('captured Admin schema must expose a mutation root');
+  }
+  return sortedStrings(Object.keys(mutationType.getFields()));
 }
 
 function adminMutationCoverageAudit() {
@@ -348,27 +347,21 @@ describe('operation registry', () => {
         'subscriptionDraftUpdate',
         'themeDuplicate',
       ],
-      registeredButMissingFromCapturedSchema: [
-        'metafieldDelete',
-        'productVariantCreate',
-        'productVariantDelete',
-        'productVariantUpdate',
-      ],
+      registeredButMissingFromCapturedSchema: ['productVariantCreate', 'productVariantDelete', 'productVariantUpdate'],
     });
   });
 
   it('audits captured Shopify Node implementors against the explicit Rust resolver inventory', () => {
     expect(nodeResolverCoverageAudit()).toEqual({
       capturedNodeImplementorCount: 203,
-      localNodeResolverTypeCount: 78,
+      localNodeResolverTypeCount: 84,
       localResolverBehaviorCounts: {
-        projectLocalRecord: 75,
+        projectLocalRecord: 81,
         returnKnownNull: 3,
       },
       unsupported: [
         'AbandonedCheckout',
         'AbandonedCheckoutLineItem',
-        'Abandonment',
         'AddAllProductsOperation',
         'AdditionalFee',
         'AppCatalog',
@@ -401,7 +394,6 @@ describe('operation registry', () => {
         'DeliveryCarrierService',
         'DeliveryCondition',
         'DeliveryCountry',
-        'DeliveryCustomization',
         'DeliveryLocationGroup',
         'DeliveryMethod',
         'DeliveryMethodDefinition',
@@ -434,10 +426,7 @@ describe('operation registry', () => {
         'Menu',
         'Metafield',
         'MetafieldDefinition',
-        'Metaobject',
-        'MetaobjectDefinition',
         'OnlineStoreTheme',
-        'Order',
         'OrderAdjustment',
         'OrderDisputeSummary',
         'OrderEditSession',
@@ -494,7 +483,11 @@ describe('operation registry', () => {
         'WebhookSubscription',
         'WebPixel',
       ],
-      localInventoryNotInCapturedNodeInterface: ['StoreCreditAccountTransaction', 'TaxAppConfiguration'],
+      localInventoryNotInCapturedNodeInterface: [
+        'ShopifyFunction',
+        'StoreCreditAccountTransaction',
+        'TaxAppConfiguration',
+      ],
     });
   });
 });

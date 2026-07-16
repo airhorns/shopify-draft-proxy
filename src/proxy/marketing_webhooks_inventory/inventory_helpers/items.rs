@@ -242,6 +242,27 @@ impl DraftProxy {
                     &selection.arguments,
                     &selection.selection,
                 )),
+                "countryHarmonizedSystemCodes" => Some(selected_connection_json_with_args(
+                    variant
+                        .and_then(|variant| {
+                            variant
+                                .inventory_item
+                                .extra_fields
+                                .get("countryHarmonizedSystemCodes")
+                        })
+                        .and_then(Value::as_array)
+                        .cloned()
+                        .unwrap_or_default(),
+                    &selection.arguments,
+                    &selection.selection,
+                    |record| {
+                        record
+                            .get("countryCode")
+                            .and_then(Value::as_str)
+                            .unwrap_or_default()
+                            .to_string()
+                    },
+                )),
                 _ => variant.and_then(|variant| {
                     variant
                         .inventory_item

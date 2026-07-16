@@ -1,6 +1,38 @@
 use crate::proxy::*;
 use std::cmp::Ordering;
 
+impl DraftProxy {
+    pub(in crate::proxy) fn resolve_gift_cards_graphql(
+        &mut self,
+        context: RootResolverContext<'_>,
+    ) -> Response {
+        let RootResolverContext {
+            request,
+            query,
+            variables,
+            root_name: _,
+            mode,
+            ..
+        } = context;
+        match mode {
+            LocalResolverMode::OverlayRead => {
+                let fields = match self.root_fields_or_error(query, variables) {
+                    Ok(fields) => fields,
+                    Err(response) => return response,
+                };
+                self.gift_card_read_response(request, &fields)
+            }
+            LocalResolverMode::StageLocally => {
+                let fields = match self.root_fields_or_error(query, variables) {
+                    Ok(fields) => fields,
+                    Err(response) => return response,
+                };
+                self.gift_card_mutation_response(&fields, request, query, variables)
+            }
+        }
+    }
+}
+
 const GIFT_CARD_SEND_NOTIFICATION_WINDOW_DAYS: i64 = 90;
 const GIFT_CARD_NARROW_HYDRATE_OPERATION_NAME: &str = "GiftCardHydrate";
 const GIFT_CARD_TRANSACTION_HYDRATE_OPERATION_NAME: &str = "GiftCardTransactionHydrate";
@@ -243,7 +275,9 @@ impl DraftProxy {
                 !id.is_empty()
                     && (!self.store.staged.gift_cards.contains_key(&id) || needs_transaction_window)
             }
-            "giftCards" | "giftCardsCount" => true,
+            "giftCards" | "giftCardsCount" => {
+                !self.gift_card_query_baseline_complete(&field.arguments)
+            }
             "giftCardConfiguration" => self.store.base.gift_card_configuration.is_none(),
             _ => false,
         })
@@ -408,6 +442,7 @@ impl DraftProxy {
             match field.name.as_str() {
                 "giftCard" => self.observe_gift_card_read_value(value),
                 "giftCards" => self.observe_gift_card_connection_value(value),
+                "giftCardsCount" => self.observe_gift_card_count_baseline(&field.arguments, value),
                 "giftCardConfiguration" => self.observe_gift_card_configuration(value),
                 _ => {}
             }
@@ -445,6 +480,25 @@ impl DraftProxy {
         if value.is_object() {
             self.store.base.gift_card_configuration = Some(value.clone());
         }
+    }
+
+    fn observe_gift_card_count_baseline(
+        &mut self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        value: &Value,
+    ) {
+        let query = resolved_string_field(arguments, "query").unwrap_or_default();
+        if value.get("count").and_then(Value::as_u64) == Some(0) {
+            self.store.base.gift_card_complete_queries.insert(query);
+        }
+    }
+
+    fn gift_card_query_baseline_complete(
+        &self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> bool {
+        let query = resolved_string_field(arguments, "query").unwrap_or_default();
+        self.store.base.gift_card_complete_queries.contains(&query)
     }
 
     fn overlay_gift_card_read_response(&self, fields: &[RootFieldSelection], data: &mut Value) {
@@ -491,6 +545,18 @@ impl DraftProxy {
         arguments: &BTreeMap<String, ResolvedValue>,
         selection: &[SelectedField],
     ) {
+        if self.gift_card_query_baseline_complete(arguments) {
+            let result = self.staged_gift_cards_query(arguments);
+            *connection = selected_json(
+                &connection_json_with_cursor(
+                    result.records,
+                    |_, card| value_id_cursor(card),
+                    result.page_info,
+                ),
+                selection,
+            );
+            return;
+        }
         let query = resolved_string_field(arguments, "query").unwrap_or_default();
         let mut seen_ids = BTreeSet::new();
         let node_selection = nested_selected_fields(selection, &["nodes"]);
@@ -591,6 +657,14 @@ impl DraftProxy {
         arguments: &BTreeMap<String, ResolvedValue>,
         selection: &[SelectedField],
     ) {
+        if self.gift_card_query_baseline_complete(arguments) {
+            let result = self.staged_gift_cards_query(arguments);
+            *count = selected_json(
+                &staged_count_with_limit_precision(result.total_count, arguments),
+                selection,
+            );
+            return;
+        }
         let query = resolved_string_field(arguments, "query").unwrap_or_default();
         let mut delta = 0i64;
         for (id, card) in &self.store.staged.gift_cards {
@@ -692,7 +766,6 @@ impl DraftProxy {
             .map(|code| normalize_gift_card_code(&code))
             .unwrap_or_else(|| synthetic_gift_card_code(&id));
         let last_characters = gift_card_code_last_characters(&code);
-        let notify = resolved_bool_field(&input, "notify").unwrap_or(true);
         let shop_currency_code = self.gift_card_configuration_currency();
         let mut card = gift_card_lifecycle_base_card(&id, &shop_currency_code);
         card["lastCharacters"] = json!(last_characters);
@@ -700,7 +773,6 @@ impl DraftProxy {
         card["giftCardCode"] = json!(code);
         card["initialValue"] = money_value(&amount, &shop_currency_code);
         card["balance"] = card["initialValue"].clone();
-        card["notify"] = json!(notify);
         card["source"] = json!("api_client");
         card["note"] = resolved_nullable_string_field(&input, "note");
         card["expiresOn"] = resolved_nullable_string_field(&input, "expiresOn");
@@ -2142,7 +2214,7 @@ pub(in crate::proxy) fn gift_card_transaction_payload(
 ) -> Value {
     selected_payload_json(selections, |selection| match selection.name.as_str() {
         name if name == transaction_field => Some(match transaction.as_ref() {
-            Some(transaction) => selected_json(transaction, &selection.selection),
+            Some(transaction) => selected_abstract_json(transaction, &selection.selection),
             None => Value::Null,
         }),
         "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),

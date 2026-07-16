@@ -4,17 +4,17 @@
     "Public schema rejects missing oneOf selectors and the internal position key before ProductOptionsReorderPayload is returned; those raw responses are recorded as schemaErrorCaptures while local inline-parser guardrails are covered by runtime tests."
   ],
   "run": {
-    "runId": "product-options-reorder-validation-movk2v1h",
+    "runId": "product-options-reorder-validation-mrkqfezx",
     "storeDomain": "harry-test-heelo.myshopify.com",
     "apiVersion": "2025-01",
-    "productId": "gid://shopify/Product/10179869344050"
+    "productId": "gid://shopify/Product/10240276857138"
   },
   "captures": {
     "productCreate": {
       "query": "#graphql\n  mutation ProductOptionsReorderValidationCreateProduct($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        title\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
       "variables": {
         "product": {
-          "title": "product-options-reorder-validation-movk2v1h productOptionsReorder",
+          "title": "product-options-reorder-validation-mrkqfezx productOptionsReorder",
           "status": "DRAFT"
         }
       },
@@ -22,8 +22,8 @@
         "data": {
           "productCreate": {
             "product": {
-              "id": "gid://shopify/Product/10179869344050",
-              "title": "product-options-reorder-validation-movk2v1h productOptionsReorder"
+              "id": "gid://shopify/Product/10240276857138",
+              "title": "product-options-reorder-validation-mrkqfezx productOptionsReorder"
             },
             "userErrors": []
           }
@@ -44,7 +44,7 @@
     "setupOptions": {
       "query": "#graphql\n  mutation ProductOptionsReorderValidationSetupOptions($productId: ID!, $options: [OptionCreateInput!]!) {\n    productOptionsCreate(productId: $productId, options: $options) {\n      product {\n        \n  id\n  options {\n    id\n    name\n    position\n    values\n    optionValues {\n      id\n      name\n      hasVariants\n    }\n  }\n  variants(first: 10) {\n    nodes {\n      id\n      title\n      selectedOptions {\n        name\n        value\n      }\n    }\n  }\n\n      }\n      userErrors {\n        \n  field\n  message\n  code\n\n      }\n    }\n  }\n",
       "variables": {
-        "productId": "gid://shopify/Product/10179869344050",
+        "productId": "gid://shopify/Product/10240276857138",
         "options": [
           {
             "name": "Color",
@@ -71,34 +71,34 @@
         "data": {
           "productOptionsCreate": {
             "product": {
-              "id": "gid://shopify/Product/10179869344050",
+              "id": "gid://shopify/Product/10240276857138",
               "options": [
                 {
-                  "id": "gid://shopify/ProductOption/12728451072306",
+                  "id": "gid://shopify/ProductOption/12800347046194",
                   "name": "Color",
                   "position": 1,
                   "values": ["Red"],
                   "optionValues": [
                     {
-                      "id": "gid://shopify/ProductOptionValue/8020784152882",
+                      "id": "gid://shopify/ProductOptionValue/8302370259250",
                       "name": "Red",
                       "hasVariants": true
                     },
                     {
-                      "id": "gid://shopify/ProductOptionValue/8020784185650",
+                      "id": "gid://shopify/ProductOptionValue/8302370292018",
                       "name": "Green",
                       "hasVariants": false
                     }
                   ]
                 },
                 {
-                  "id": "gid://shopify/ProductOption/12728451105074",
+                  "id": "gid://shopify/ProductOption/12800347078962",
                   "name": "Size",
                   "position": 2,
                   "values": ["Small"],
                   "optionValues": [
                     {
-                      "id": "gid://shopify/ProductOptionValue/8020784218418",
+                      "id": "gid://shopify/ProductOptionValue/8302370324786",
                       "name": "Small",
                       "hasVariants": true
                     }
@@ -108,7 +108,7 @@
               "variants": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/ProductVariant/51136024117554",
+                    "id": "gid://shopify/ProductVariant/51473622794546",
                     "title": "Red / Small",
                     "selectedOptions": [
                       {
@@ -143,7 +143,7 @@
     "setupVariants": {
       "query": "#graphql\n  mutation ProductOptionsReorderValidationSetupVariants(\n    $productId: ID!\n    $variants: [ProductVariantsBulkInput!]!\n  ) {\n    productVariantsBulkCreate(productId: $productId, variants: $variants) {\n      product {\n        \n  id\n  options {\n    id\n    name\n    position\n    values\n    optionValues {\n      id\n      name\n      hasVariants\n    }\n  }\n  variants(first: 10) {\n    nodes {\n      id\n      title\n      selectedOptions {\n        name\n        value\n      }\n    }\n  }\n\n      }\n      productVariants {\n        id\n        title\n        selectedOptions {\n          name\n          value\n        }\n      }\n      userErrors {\n        \n  field\n  message\n  code\n\n      }\n    }\n  }\n",
       "variables": {
-        "productId": "gid://shopify/Product/10179869344050",
+        "productId": "gid://shopify/Product/10240276857138",
         "variants": [
           {
             "price": "1.00",
@@ -164,34 +164,34 @@
         "data": {
           "productVariantsBulkCreate": {
             "product": {
-              "id": "gid://shopify/Product/10179869344050",
+              "id": "gid://shopify/Product/10240276857138",
               "options": [
                 {
-                  "id": "gid://shopify/ProductOption/12728451072306",
+                  "id": "gid://shopify/ProductOption/12800347046194",
                   "name": "Color",
                   "position": 1,
                   "values": ["Red", "Green"],
                   "optionValues": [
                     {
-                      "id": "gid://shopify/ProductOptionValue/8020784152882",
+                      "id": "gid://shopify/ProductOptionValue/8302370259250",
                       "name": "Red",
                       "hasVariants": true
                     },
                     {
-                      "id": "gid://shopify/ProductOptionValue/8020784185650",
+                      "id": "gid://shopify/ProductOptionValue/8302370292018",
                       "name": "Green",
                       "hasVariants": true
                     }
                   ]
                 },
                 {
-                  "id": "gid://shopify/ProductOption/12728451105074",
+                  "id": "gid://shopify/ProductOption/12800347078962",
                   "name": "Size",
                   "position": 2,
                   "values": ["Small"],
                   "optionValues": [
                     {
-                      "id": "gid://shopify/ProductOptionValue/8020784218418",
+                      "id": "gid://shopify/ProductOptionValue/8302370324786",
                       "name": "Small",
                       "hasVariants": true
                     }
@@ -201,7 +201,7 @@
               "variants": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/ProductVariant/51136024117554",
+                    "id": "gid://shopify/ProductVariant/51473622794546",
                     "title": "Red / Small",
                     "selectedOptions": [
                       {
@@ -215,7 +215,7 @@
                     ]
                   },
                   {
-                    "id": "gid://shopify/ProductVariant/51136024183090",
+                    "id": "gid://shopify/ProductVariant/51473623154994",
                     "title": "Green / Small",
                     "selectedOptions": [
                       {
@@ -233,7 +233,7 @@
             },
             "productVariants": [
               {
-                "id": "gid://shopify/ProductVariant/51136024183090",
+                "id": "gid://shopify/ProductVariant/51473623154994",
                 "title": "Green / Small",
                 "selectedOptions": [
                   {
@@ -266,39 +266,39 @@
     "preMutationRead": {
       "query": "#graphql\n  query ProductOptionsReorderValidationProductRead($productId: ID!) {\n    product(id: $productId) {\n      \n  id\n  options {\n    id\n    name\n    position\n    values\n    optionValues {\n      id\n      name\n      hasVariants\n    }\n  }\n  variants(first: 10) {\n    nodes {\n      id\n      title\n      selectedOptions {\n        name\n        value\n      }\n    }\n  }\n\n    }\n  }\n",
       "variables": {
-        "productId": "gid://shopify/Product/10179869344050"
+        "productId": "gid://shopify/Product/10240276857138"
       },
       "result": {
         "data": {
           "product": {
-            "id": "gid://shopify/Product/10179869344050",
+            "id": "gid://shopify/Product/10240276857138",
             "options": [
               {
-                "id": "gid://shopify/ProductOption/12728451072306",
+                "id": "gid://shopify/ProductOption/12800347046194",
                 "name": "Color",
                 "position": 1,
                 "values": ["Red", "Green"],
                 "optionValues": [
                   {
-                    "id": "gid://shopify/ProductOptionValue/8020784152882",
+                    "id": "gid://shopify/ProductOptionValue/8302370259250",
                     "name": "Red",
                     "hasVariants": true
                   },
                   {
-                    "id": "gid://shopify/ProductOptionValue/8020784185650",
+                    "id": "gid://shopify/ProductOptionValue/8302370292018",
                     "name": "Green",
                     "hasVariants": true
                   }
                 ]
               },
               {
-                "id": "gid://shopify/ProductOption/12728451105074",
+                "id": "gid://shopify/ProductOption/12800347078962",
                 "name": "Size",
                 "position": 2,
                 "values": ["Small"],
                 "optionValues": [
                   {
-                    "id": "gid://shopify/ProductOptionValue/8020784218418",
+                    "id": "gid://shopify/ProductOptionValue/8302370324786",
                     "name": "Small",
                     "hasVariants": true
                   }
@@ -308,7 +308,7 @@
             "variants": {
               "nodes": [
                 {
-                  "id": "gid://shopify/ProductVariant/51136024117554",
+                  "id": "gid://shopify/ProductVariant/51473622794546",
                   "title": "Red / Small",
                   "selectedOptions": [
                     {
@@ -322,7 +322,7 @@
                   ]
                 },
                 {
-                  "id": "gid://shopify/ProductVariant/51136024183090",
+                  "id": "gid://shopify/ProductVariant/51473623154994",
                   "title": "Green / Small",
                   "selectedOptions": [
                     {
@@ -355,7 +355,7 @@
     "unknownOptionName": {
       "query": "#graphql\n  mutation ProductOptionsReorderValidation($productId: ID!, $options: [OptionReorderInput!]!) {\n    productOptionsReorder(productId: $productId, options: $options) {\n      product {\n        \n  id\n  options {\n    id\n    name\n    position\n    values\n    optionValues {\n      id\n      name\n      hasVariants\n    }\n  }\n  variants(first: 10) {\n    nodes {\n      id\n      title\n      selectedOptions {\n        name\n        value\n      }\n    }\n  }\n\n      }\n      userErrors {\n        \n  field\n  message\n  code\n\n      }\n    }\n  }\n",
       "variables": {
-        "productId": "gid://shopify/Product/10179869344050",
+        "productId": "gid://shopify/Product/10240276857138",
         "options": [
           {
             "name": "Missing option"
@@ -366,34 +366,34 @@
         "data": {
           "productOptionsReorder": {
             "product": {
-              "id": "gid://shopify/Product/10179869344050",
+              "id": "gid://shopify/Product/10240276857138",
               "options": [
                 {
-                  "id": "gid://shopify/ProductOption/12728451072306",
+                  "id": "gid://shopify/ProductOption/12800347046194",
                   "name": "Color",
                   "position": 1,
                   "values": ["Red", "Green"],
                   "optionValues": [
                     {
-                      "id": "gid://shopify/ProductOptionValue/8020784152882",
+                      "id": "gid://shopify/ProductOptionValue/8302370259250",
                       "name": "Red",
                       "hasVariants": true
                     },
                     {
-                      "id": "gid://shopify/ProductOptionValue/8020784185650",
+                      "id": "gid://shopify/ProductOptionValue/8302370292018",
                       "name": "Green",
                       "hasVariants": true
                     }
                   ]
                 },
                 {
-                  "id": "gid://shopify/ProductOption/12728451105074",
+                  "id": "gid://shopify/ProductOption/12800347078962",
                   "name": "Size",
                   "position": 2,
                   "values": ["Small"],
                   "optionValues": [
                     {
-                      "id": "gid://shopify/ProductOptionValue/8020784218418",
+                      "id": "gid://shopify/ProductOptionValue/8302370324786",
                       "name": "Small",
                       "hasVariants": true
                     }
@@ -403,7 +403,7 @@
               "variants": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/ProductVariant/51136024117554",
+                    "id": "gid://shopify/ProductVariant/51473622794546",
                     "title": "Red / Small",
                     "selectedOptions": [
                       {
@@ -417,7 +417,7 @@
                     ]
                   },
                   {
-                    "id": "gid://shopify/ProductVariant/51136024183090",
+                    "id": "gid://shopify/ProductVariant/51473623154994",
                     "title": "Green / Small",
                     "selectedOptions": [
                       {
@@ -458,7 +458,7 @@
     "unknownOptionId": {
       "query": "#graphql\n  mutation ProductOptionsReorderValidation($productId: ID!, $options: [OptionReorderInput!]!) {\n    productOptionsReorder(productId: $productId, options: $options) {\n      product {\n        \n  id\n  options {\n    id\n    name\n    position\n    values\n    optionValues {\n      id\n      name\n      hasVariants\n    }\n  }\n  variants(first: 10) {\n    nodes {\n      id\n      title\n      selectedOptions {\n        name\n        value\n      }\n    }\n  }\n\n      }\n      userErrors {\n        \n  field\n  message\n  code\n\n      }\n    }\n  }\n",
       "variables": {
-        "productId": "gid://shopify/Product/10179869344050",
+        "productId": "gid://shopify/Product/10240276857138",
         "options": [
           {
             "id": "gid://shopify/ProductOption/999999999"
@@ -469,34 +469,34 @@
         "data": {
           "productOptionsReorder": {
             "product": {
-              "id": "gid://shopify/Product/10179869344050",
+              "id": "gid://shopify/Product/10240276857138",
               "options": [
                 {
-                  "id": "gid://shopify/ProductOption/12728451072306",
+                  "id": "gid://shopify/ProductOption/12800347046194",
                   "name": "Color",
                   "position": 1,
                   "values": ["Red", "Green"],
                   "optionValues": [
                     {
-                      "id": "gid://shopify/ProductOptionValue/8020784152882",
+                      "id": "gid://shopify/ProductOptionValue/8302370259250",
                       "name": "Red",
                       "hasVariants": true
                     },
                     {
-                      "id": "gid://shopify/ProductOptionValue/8020784185650",
+                      "id": "gid://shopify/ProductOptionValue/8302370292018",
                       "name": "Green",
                       "hasVariants": true
                     }
                   ]
                 },
                 {
-                  "id": "gid://shopify/ProductOption/12728451105074",
+                  "id": "gid://shopify/ProductOption/12800347078962",
                   "name": "Size",
                   "position": 2,
                   "values": ["Small"],
                   "optionValues": [
                     {
-                      "id": "gid://shopify/ProductOptionValue/8020784218418",
+                      "id": "gid://shopify/ProductOptionValue/8302370324786",
                       "name": "Small",
                       "hasVariants": true
                     }
@@ -506,7 +506,7 @@
               "variants": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/ProductVariant/51136024117554",
+                    "id": "gid://shopify/ProductVariant/51473622794546",
                     "title": "Red / Small",
                     "selectedOptions": [
                       {
@@ -520,7 +520,7 @@
                     ]
                   },
                   {
-                    "id": "gid://shopify/ProductVariant/51136024183090",
+                    "id": "gid://shopify/ProductVariant/51473623154994",
                     "title": "Green / Small",
                     "selectedOptions": [
                       {
@@ -551,7 +551,7 @@
             "actualQueryCost": 16,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1982,
+              "currentlyAvailable": 1984,
               "restoreRate": 100
             }
           }
@@ -561,7 +561,7 @@
     "unknownValueName": {
       "query": "#graphql\n  mutation ProductOptionsReorderValidation($productId: ID!, $options: [OptionReorderInput!]!) {\n    productOptionsReorder(productId: $productId, options: $options) {\n      product {\n        \n  id\n  options {\n    id\n    name\n    position\n    values\n    optionValues {\n      id\n      name\n      hasVariants\n    }\n  }\n  variants(first: 10) {\n    nodes {\n      id\n      title\n      selectedOptions {\n        name\n        value\n      }\n    }\n  }\n\n      }\n      userErrors {\n        \n  field\n  message\n  code\n\n      }\n    }\n  }\n",
       "variables": {
-        "productId": "gid://shopify/Product/10179869344050",
+        "productId": "gid://shopify/Product/10240276857138",
         "options": [
           {
             "name": "Color",
@@ -585,34 +585,34 @@
         "data": {
           "productOptionsReorder": {
             "product": {
-              "id": "gid://shopify/Product/10179869344050",
+              "id": "gid://shopify/Product/10240276857138",
               "options": [
                 {
-                  "id": "gid://shopify/ProductOption/12728451072306",
+                  "id": "gid://shopify/ProductOption/12800347046194",
                   "name": "Color",
                   "position": 1,
                   "values": ["Red", "Green"],
                   "optionValues": [
                     {
-                      "id": "gid://shopify/ProductOptionValue/8020784152882",
+                      "id": "gid://shopify/ProductOptionValue/8302370259250",
                       "name": "Red",
                       "hasVariants": true
                     },
                     {
-                      "id": "gid://shopify/ProductOptionValue/8020784185650",
+                      "id": "gid://shopify/ProductOptionValue/8302370292018",
                       "name": "Green",
                       "hasVariants": true
                     }
                   ]
                 },
                 {
-                  "id": "gid://shopify/ProductOption/12728451105074",
+                  "id": "gid://shopify/ProductOption/12800347078962",
                   "name": "Size",
                   "position": 2,
                   "values": ["Small"],
                   "optionValues": [
                     {
-                      "id": "gid://shopify/ProductOptionValue/8020784218418",
+                      "id": "gid://shopify/ProductOptionValue/8302370324786",
                       "name": "Small",
                       "hasVariants": true
                     }
@@ -622,7 +622,7 @@
               "variants": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/ProductVariant/51136024117554",
+                    "id": "gid://shopify/ProductVariant/51473622794546",
                     "title": "Red / Small",
                     "selectedOptions": [
                       {
@@ -636,7 +636,7 @@
                     ]
                   },
                   {
-                    "id": "gid://shopify/ProductVariant/51136024183090",
+                    "id": "gid://shopify/ProductVariant/51473623154994",
                     "title": "Green / Small",
                     "selectedOptions": [
                       {
@@ -667,7 +667,7 @@
             "actualQueryCost": 16,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1979,
+              "currentlyAvailable": 1984,
               "restoreRate": 100
             }
           }
@@ -677,10 +677,10 @@
     "unknownValueId": {
       "query": "#graphql\n  mutation ProductOptionsReorderValidation($productId: ID!, $options: [OptionReorderInput!]!) {\n    productOptionsReorder(productId: $productId, options: $options) {\n      product {\n        \n  id\n  options {\n    id\n    name\n    position\n    values\n    optionValues {\n      id\n      name\n      hasVariants\n    }\n  }\n  variants(first: 10) {\n    nodes {\n      id\n      title\n      selectedOptions {\n        name\n        value\n      }\n    }\n  }\n\n      }\n      userErrors {\n        \n  field\n  message\n  code\n\n      }\n    }\n  }\n",
       "variables": {
-        "productId": "gid://shopify/Product/10179869344050",
+        "productId": "gid://shopify/Product/10240276857138",
         "options": [
           {
-            "id": "gid://shopify/ProductOption/12728451072306",
+            "id": "gid://shopify/ProductOption/12800347046194",
             "values": [
               {
                 "id": "gid://shopify/ProductOptionValue/999999999"
@@ -688,10 +688,10 @@
             ]
           },
           {
-            "id": "gid://shopify/ProductOption/12728451105074",
+            "id": "gid://shopify/ProductOption/12800347078962",
             "values": [
               {
-                "id": "gid://shopify/ProductOptionValue/8020784218418"
+                "id": "gid://shopify/ProductOptionValue/8302370324786"
               }
             ]
           }
@@ -701,34 +701,34 @@
         "data": {
           "productOptionsReorder": {
             "product": {
-              "id": "gid://shopify/Product/10179869344050",
+              "id": "gid://shopify/Product/10240276857138",
               "options": [
                 {
-                  "id": "gid://shopify/ProductOption/12728451072306",
+                  "id": "gid://shopify/ProductOption/12800347046194",
                   "name": "Color",
                   "position": 1,
                   "values": ["Red", "Green"],
                   "optionValues": [
                     {
-                      "id": "gid://shopify/ProductOptionValue/8020784152882",
+                      "id": "gid://shopify/ProductOptionValue/8302370259250",
                       "name": "Red",
                       "hasVariants": true
                     },
                     {
-                      "id": "gid://shopify/ProductOptionValue/8020784185650",
+                      "id": "gid://shopify/ProductOptionValue/8302370292018",
                       "name": "Green",
                       "hasVariants": true
                     }
                   ]
                 },
                 {
-                  "id": "gid://shopify/ProductOption/12728451105074",
+                  "id": "gid://shopify/ProductOption/12800347078962",
                   "name": "Size",
                   "position": 2,
                   "values": ["Small"],
                   "optionValues": [
                     {
-                      "id": "gid://shopify/ProductOptionValue/8020784218418",
+                      "id": "gid://shopify/ProductOptionValue/8302370324786",
                       "name": "Small",
                       "hasVariants": true
                     }
@@ -738,7 +738,7 @@
               "variants": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/ProductVariant/51136024117554",
+                    "id": "gid://shopify/ProductVariant/51473622794546",
                     "title": "Red / Small",
                     "selectedOptions": [
                       {
@@ -752,7 +752,7 @@
                     ]
                   },
                   {
-                    "id": "gid://shopify/ProductVariant/51136024183090",
+                    "id": "gid://shopify/ProductVariant/51473623154994",
                     "title": "Green / Small",
                     "selectedOptions": [
                       {
@@ -783,7 +783,7 @@
             "actualQueryCost": 16,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1976,
+              "currentlyAvailable": 1984,
               "restoreRate": 100
             }
           }
@@ -793,7 +793,7 @@
     "duplicateOptionName": {
       "query": "#graphql\n  mutation ProductOptionsReorderValidation($productId: ID!, $options: [OptionReorderInput!]!) {\n    productOptionsReorder(productId: $productId, options: $options) {\n      product {\n        \n  id\n  options {\n    id\n    name\n    position\n    values\n    optionValues {\n      id\n      name\n      hasVariants\n    }\n  }\n  variants(first: 10) {\n    nodes {\n      id\n      title\n      selectedOptions {\n        name\n        value\n      }\n    }\n  }\n\n      }\n      userErrors {\n        \n  field\n  message\n  code\n\n      }\n    }\n  }\n",
       "variables": {
-        "productId": "gid://shopify/Product/10179869344050",
+        "productId": "gid://shopify/Product/10240276857138",
         "options": [
           {
             "name": "Color"
@@ -807,34 +807,34 @@
         "data": {
           "productOptionsReorder": {
             "product": {
-              "id": "gid://shopify/Product/10179869344050",
+              "id": "gid://shopify/Product/10240276857138",
               "options": [
                 {
-                  "id": "gid://shopify/ProductOption/12728451072306",
+                  "id": "gid://shopify/ProductOption/12800347046194",
                   "name": "Color",
                   "position": 1,
                   "values": ["Red", "Green"],
                   "optionValues": [
                     {
-                      "id": "gid://shopify/ProductOptionValue/8020784152882",
+                      "id": "gid://shopify/ProductOptionValue/8302370259250",
                       "name": "Red",
                       "hasVariants": true
                     },
                     {
-                      "id": "gid://shopify/ProductOptionValue/8020784185650",
+                      "id": "gid://shopify/ProductOptionValue/8302370292018",
                       "name": "Green",
                       "hasVariants": true
                     }
                   ]
                 },
                 {
-                  "id": "gid://shopify/ProductOption/12728451105074",
+                  "id": "gid://shopify/ProductOption/12800347078962",
                   "name": "Size",
                   "position": 2,
                   "values": ["Small"],
                   "optionValues": [
                     {
-                      "id": "gid://shopify/ProductOptionValue/8020784218418",
+                      "id": "gid://shopify/ProductOptionValue/8302370324786",
                       "name": "Small",
                       "hasVariants": true
                     }
@@ -844,7 +844,7 @@
               "variants": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/ProductVariant/51136024117554",
+                    "id": "gid://shopify/ProductVariant/51473622794546",
                     "title": "Red / Small",
                     "selectedOptions": [
                       {
@@ -858,7 +858,7 @@
                     ]
                   },
                   {
-                    "id": "gid://shopify/ProductVariant/51136024183090",
+                    "id": "gid://shopify/ProductVariant/51473623154994",
                     "title": "Green / Small",
                     "selectedOptions": [
                       {
@@ -889,7 +889,7 @@
             "actualQueryCost": 16,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1973,
+              "currentlyAvailable": 1984,
               "restoreRate": 100
             }
           }
@@ -899,7 +899,7 @@
     "duplicateValueName": {
       "query": "#graphql\n  mutation ProductOptionsReorderValidation($productId: ID!, $options: [OptionReorderInput!]!) {\n    productOptionsReorder(productId: $productId, options: $options) {\n      product {\n        \n  id\n  options {\n    id\n    name\n    position\n    values\n    optionValues {\n      id\n      name\n      hasVariants\n    }\n  }\n  variants(first: 10) {\n    nodes {\n      id\n      title\n      selectedOptions {\n        name\n        value\n      }\n    }\n  }\n\n      }\n      userErrors {\n        \n  field\n  message\n  code\n\n      }\n    }\n  }\n",
       "variables": {
-        "productId": "gid://shopify/Product/10179869344050",
+        "productId": "gid://shopify/Product/10240276857138",
         "options": [
           {
             "name": "Color",
@@ -926,34 +926,34 @@
         "data": {
           "productOptionsReorder": {
             "product": {
-              "id": "gid://shopify/Product/10179869344050",
+              "id": "gid://shopify/Product/10240276857138",
               "options": [
                 {
-                  "id": "gid://shopify/ProductOption/12728451072306",
+                  "id": "gid://shopify/ProductOption/12800347046194",
                   "name": "Color",
                   "position": 1,
                   "values": ["Red", "Green"],
                   "optionValues": [
                     {
-                      "id": "gid://shopify/ProductOptionValue/8020784152882",
+                      "id": "gid://shopify/ProductOptionValue/8302370259250",
                       "name": "Red",
                       "hasVariants": true
                     },
                     {
-                      "id": "gid://shopify/ProductOptionValue/8020784185650",
+                      "id": "gid://shopify/ProductOptionValue/8302370292018",
                       "name": "Green",
                       "hasVariants": true
                     }
                   ]
                 },
                 {
-                  "id": "gid://shopify/ProductOption/12728451105074",
+                  "id": "gid://shopify/ProductOption/12800347078962",
                   "name": "Size",
                   "position": 2,
                   "values": ["Small"],
                   "optionValues": [
                     {
-                      "id": "gid://shopify/ProductOptionValue/8020784218418",
+                      "id": "gid://shopify/ProductOptionValue/8302370324786",
                       "name": "Small",
                       "hasVariants": true
                     }
@@ -963,7 +963,7 @@
               "variants": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/ProductVariant/51136024117554",
+                    "id": "gid://shopify/ProductVariant/51473622794546",
                     "title": "Red / Small",
                     "selectedOptions": [
                       {
@@ -977,7 +977,7 @@
                     ]
                   },
                   {
-                    "id": "gid://shopify/ProductVariant/51136024183090",
+                    "id": "gid://shopify/ProductVariant/51473623154994",
                     "title": "Green / Small",
                     "selectedOptions": [
                       {
@@ -1008,7 +1008,7 @@
             "actualQueryCost": 16,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1971,
+              "currentlyAvailable": 1984,
               "restoreRate": 100
             }
           }
@@ -1018,10 +1018,10 @@
     "mixedOptionSelectors": {
       "query": "#graphql\n  mutation ProductOptionsReorderValidation($productId: ID!, $options: [OptionReorderInput!]!) {\n    productOptionsReorder(productId: $productId, options: $options) {\n      product {\n        \n  id\n  options {\n    id\n    name\n    position\n    values\n    optionValues {\n      id\n      name\n      hasVariants\n    }\n  }\n  variants(first: 10) {\n    nodes {\n      id\n      title\n      selectedOptions {\n        name\n        value\n      }\n    }\n  }\n\n      }\n      userErrors {\n        \n  field\n  message\n  code\n\n      }\n    }\n  }\n",
       "variables": {
-        "productId": "gid://shopify/Product/10179869344050",
+        "productId": "gid://shopify/Product/10240276857138",
         "options": [
           {
-            "id": "gid://shopify/ProductOption/12728451072306"
+            "id": "gid://shopify/ProductOption/12800347046194"
           },
           {
             "name": "Size"
@@ -1032,34 +1032,34 @@
         "data": {
           "productOptionsReorder": {
             "product": {
-              "id": "gid://shopify/Product/10179869344050",
+              "id": "gid://shopify/Product/10240276857138",
               "options": [
                 {
-                  "id": "gid://shopify/ProductOption/12728451072306",
+                  "id": "gid://shopify/ProductOption/12800347046194",
                   "name": "Color",
                   "position": 1,
                   "values": ["Red", "Green"],
                   "optionValues": [
                     {
-                      "id": "gid://shopify/ProductOptionValue/8020784152882",
+                      "id": "gid://shopify/ProductOptionValue/8302370259250",
                       "name": "Red",
                       "hasVariants": true
                     },
                     {
-                      "id": "gid://shopify/ProductOptionValue/8020784185650",
+                      "id": "gid://shopify/ProductOptionValue/8302370292018",
                       "name": "Green",
                       "hasVariants": true
                     }
                   ]
                 },
                 {
-                  "id": "gid://shopify/ProductOption/12728451105074",
+                  "id": "gid://shopify/ProductOption/12800347078962",
                   "name": "Size",
                   "position": 2,
                   "values": ["Small"],
                   "optionValues": [
                     {
-                      "id": "gid://shopify/ProductOptionValue/8020784218418",
+                      "id": "gid://shopify/ProductOptionValue/8302370324786",
                       "name": "Small",
                       "hasVariants": true
                     }
@@ -1069,7 +1069,7 @@
               "variants": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/ProductVariant/51136024117554",
+                    "id": "gid://shopify/ProductVariant/51473622794546",
                     "title": "Red / Small",
                     "selectedOptions": [
                       {
@@ -1083,7 +1083,7 @@
                     ]
                   },
                   {
-                    "id": "gid://shopify/ProductVariant/51136024183090",
+                    "id": "gid://shopify/ProductVariant/51473623154994",
                     "title": "Green / Small",
                     "selectedOptions": [
                       {
@@ -1114,7 +1114,7 @@
             "actualQueryCost": 16,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1970,
+              "currentlyAvailable": 1984,
               "restoreRate": 100
             }
           }
@@ -1124,13 +1124,13 @@
     "mixedValueSelectors": {
       "query": "#graphql\n  mutation ProductOptionsReorderValidation($productId: ID!, $options: [OptionReorderInput!]!) {\n    productOptionsReorder(productId: $productId, options: $options) {\n      product {\n        \n  id\n  options {\n    id\n    name\n    position\n    values\n    optionValues {\n      id\n      name\n      hasVariants\n    }\n  }\n  variants(first: 10) {\n    nodes {\n      id\n      title\n      selectedOptions {\n        name\n        value\n      }\n    }\n  }\n\n      }\n      userErrors {\n        \n  field\n  message\n  code\n\n      }\n    }\n  }\n",
       "variables": {
-        "productId": "gid://shopify/Product/10179869344050",
+        "productId": "gid://shopify/Product/10240276857138",
         "options": [
           {
-            "id": "gid://shopify/ProductOption/12728451072306",
+            "id": "gid://shopify/ProductOption/12800347046194",
             "values": [
               {
-                "id": "gid://shopify/ProductOptionValue/8020784152882"
+                "id": "gid://shopify/ProductOptionValue/8302370259250"
               },
               {
                 "name": "Green"
@@ -1138,10 +1138,10 @@
             ]
           },
           {
-            "id": "gid://shopify/ProductOption/12728451105074",
+            "id": "gid://shopify/ProductOption/12800347078962",
             "values": [
               {
-                "id": "gid://shopify/ProductOptionValue/8020784218418"
+                "id": "gid://shopify/ProductOptionValue/8302370324786"
               }
             ]
           }
@@ -1151,34 +1151,34 @@
         "data": {
           "productOptionsReorder": {
             "product": {
-              "id": "gid://shopify/Product/10179869344050",
+              "id": "gid://shopify/Product/10240276857138",
               "options": [
                 {
-                  "id": "gid://shopify/ProductOption/12728451072306",
+                  "id": "gid://shopify/ProductOption/12800347046194",
                   "name": "Color",
                   "position": 1,
                   "values": ["Red", "Green"],
                   "optionValues": [
                     {
-                      "id": "gid://shopify/ProductOptionValue/8020784152882",
+                      "id": "gid://shopify/ProductOptionValue/8302370259250",
                       "name": "Red",
                       "hasVariants": true
                     },
                     {
-                      "id": "gid://shopify/ProductOptionValue/8020784185650",
+                      "id": "gid://shopify/ProductOptionValue/8302370292018",
                       "name": "Green",
                       "hasVariants": true
                     }
                   ]
                 },
                 {
-                  "id": "gid://shopify/ProductOption/12728451105074",
+                  "id": "gid://shopify/ProductOption/12800347078962",
                   "name": "Size",
                   "position": 2,
                   "values": ["Small"],
                   "optionValues": [
                     {
-                      "id": "gid://shopify/ProductOptionValue/8020784218418",
+                      "id": "gid://shopify/ProductOptionValue/8302370324786",
                       "name": "Small",
                       "hasVariants": true
                     }
@@ -1188,7 +1188,7 @@
               "variants": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/ProductVariant/51136024117554",
+                    "id": "gid://shopify/ProductVariant/51473622794546",
                     "title": "Red / Small",
                     "selectedOptions": [
                       {
@@ -1202,7 +1202,7 @@
                     ]
                   },
                   {
-                    "id": "gid://shopify/ProductVariant/51136024183090",
+                    "id": "gid://shopify/ProductVariant/51473623154994",
                     "title": "Green / Small",
                     "selectedOptions": [
                       {
@@ -1233,7 +1233,7 @@
             "actualQueryCost": 16,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1967,
+              "currentlyAvailable": 1981,
               "restoreRate": 100
             }
           }
@@ -1243,24 +1243,24 @@
     "successReorder": {
       "query": "#graphql\n  mutation ProductOptionsReorderValidation($productId: ID!, $options: [OptionReorderInput!]!) {\n    productOptionsReorder(productId: $productId, options: $options) {\n      product {\n        \n  id\n  options {\n    id\n    name\n    position\n    values\n    optionValues {\n      id\n      name\n      hasVariants\n    }\n  }\n  variants(first: 10) {\n    nodes {\n      id\n      title\n      selectedOptions {\n        name\n        value\n      }\n    }\n  }\n\n      }\n      userErrors {\n        \n  field\n  message\n  code\n\n      }\n    }\n  }\n",
       "variables": {
-        "productId": "gid://shopify/Product/10179869344050",
+        "productId": "gid://shopify/Product/10240276857138",
         "options": [
           {
-            "id": "gid://shopify/ProductOption/12728451105074",
+            "id": "gid://shopify/ProductOption/12800347078962",
             "values": [
               {
-                "id": "gid://shopify/ProductOptionValue/8020784218418"
+                "id": "gid://shopify/ProductOptionValue/8302370324786"
               }
             ]
           },
           {
-            "id": "gid://shopify/ProductOption/12728451072306",
+            "id": "gid://shopify/ProductOption/12800347046194",
             "values": [
               {
-                "id": "gid://shopify/ProductOptionValue/8020784185650"
+                "id": "gid://shopify/ProductOptionValue/8302370292018"
               },
               {
-                "id": "gid://shopify/ProductOptionValue/8020784152882"
+                "id": "gid://shopify/ProductOptionValue/8302370259250"
               }
             ]
           }
@@ -1270,34 +1270,34 @@
         "data": {
           "productOptionsReorder": {
             "product": {
-              "id": "gid://shopify/Product/10179869344050",
+              "id": "gid://shopify/Product/10240276857138",
               "options": [
                 {
-                  "id": "gid://shopify/ProductOption/12728451105074",
+                  "id": "gid://shopify/ProductOption/12800347078962",
                   "name": "Size",
                   "position": 1,
                   "values": ["Small"],
                   "optionValues": [
                     {
-                      "id": "gid://shopify/ProductOptionValue/8020784218418",
+                      "id": "gid://shopify/ProductOptionValue/8302370324786",
                       "name": "Small",
                       "hasVariants": true
                     }
                   ]
                 },
                 {
-                  "id": "gid://shopify/ProductOption/12728451072306",
+                  "id": "gid://shopify/ProductOption/12800347046194",
                   "name": "Color",
                   "position": 2,
                   "values": ["Green", "Red"],
                   "optionValues": [
                     {
-                      "id": "gid://shopify/ProductOptionValue/8020784185650",
+                      "id": "gid://shopify/ProductOptionValue/8302370292018",
                       "name": "Green",
                       "hasVariants": true
                     },
                     {
-                      "id": "gid://shopify/ProductOptionValue/8020784152882",
+                      "id": "gid://shopify/ProductOptionValue/8302370259250",
                       "name": "Red",
                       "hasVariants": true
                     }
@@ -1307,7 +1307,7 @@
               "variants": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/ProductVariant/51136024183090",
+                    "id": "gid://shopify/ProductVariant/51473623154994",
                     "title": "Small / Green",
                     "selectedOptions": [
                       {
@@ -1321,7 +1321,7 @@
                     ]
                   },
                   {
-                    "id": "gid://shopify/ProductVariant/51136024117554",
+                    "id": "gid://shopify/ProductVariant/51473622794546",
                     "title": "Small / Red",
                     "selectedOptions": [
                       {
@@ -1346,7 +1346,7 @@
             "actualQueryCost": 16,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1963,
+              "currentlyAvailable": 1983,
               "restoreRate": 100
             }
           }
@@ -1356,39 +1356,39 @@
     "downstreamRead": {
       "query": "#graphql\n  query ProductOptionsReorderValidationProductRead($productId: ID!) {\n    product(id: $productId) {\n      \n  id\n  options {\n    id\n    name\n    position\n    values\n    optionValues {\n      id\n      name\n      hasVariants\n    }\n  }\n  variants(first: 10) {\n    nodes {\n      id\n      title\n      selectedOptions {\n        name\n        value\n      }\n    }\n  }\n\n    }\n  }\n",
       "variables": {
-        "productId": "gid://shopify/Product/10179869344050"
+        "productId": "gid://shopify/Product/10240276857138"
       },
       "result": {
         "data": {
           "product": {
-            "id": "gid://shopify/Product/10179869344050",
+            "id": "gid://shopify/Product/10240276857138",
             "options": [
               {
-                "id": "gid://shopify/ProductOption/12728451105074",
+                "id": "gid://shopify/ProductOption/12800347078962",
                 "name": "Size",
                 "position": 1,
                 "values": ["Small"],
                 "optionValues": [
                   {
-                    "id": "gid://shopify/ProductOptionValue/8020784218418",
+                    "id": "gid://shopify/ProductOptionValue/8302370324786",
                     "name": "Small",
                     "hasVariants": true
                   }
                 ]
               },
               {
-                "id": "gid://shopify/ProductOption/12728451072306",
+                "id": "gid://shopify/ProductOption/12800347046194",
                 "name": "Color",
                 "position": 2,
                 "values": ["Green", "Red"],
                 "optionValues": [
                   {
-                    "id": "gid://shopify/ProductOptionValue/8020784185650",
+                    "id": "gid://shopify/ProductOptionValue/8302370292018",
                     "name": "Green",
                     "hasVariants": true
                   },
                   {
-                    "id": "gid://shopify/ProductOptionValue/8020784152882",
+                    "id": "gid://shopify/ProductOptionValue/8302370259250",
                     "name": "Red",
                     "hasVariants": true
                   }
@@ -1398,7 +1398,7 @@
             "variants": {
               "nodes": [
                 {
-                  "id": "gid://shopify/ProductVariant/51136024183090",
+                  "id": "gid://shopify/ProductVariant/51473623154994",
                   "title": "Small / Green",
                   "selectedOptions": [
                     {
@@ -1412,7 +1412,7 @@
                   ]
                 },
                 {
-                  "id": "gid://shopify/ProductVariant/51136024117554",
+                  "id": "gid://shopify/ProductVariant/51473622794546",
                   "title": "Small / Red",
                   "selectedOptions": [
                     {
@@ -1435,7 +1435,7 @@
             "actualQueryCost": 7,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1983,
+              "currentlyAvailable": 1993,
               "restoreRate": 100
             }
           }
@@ -1447,7 +1447,7 @@
     "missingOptionSelectorSchemaError": {
       "query": "#graphql\n  mutation ProductOptionsReorderValidation($productId: ID!, $options: [OptionReorderInput!]!) {\n    productOptionsReorder(productId: $productId, options: $options) {\n      product {\n        \n  id\n  options {\n    id\n    name\n    position\n    values\n    optionValues {\n      id\n      name\n      hasVariants\n    }\n  }\n  variants(first: 10) {\n    nodes {\n      id\n      title\n      selectedOptions {\n        name\n        value\n      }\n    }\n  }\n\n      }\n      userErrors {\n        \n  field\n  message\n  code\n\n      }\n    }\n  }\n",
       "variables": {
-        "productId": "gid://shopify/Product/10179869344050",
+        "productId": "gid://shopify/Product/10240276857138",
         "options": [
           {
             "values": []
@@ -1485,7 +1485,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1985,
+                "currentlyAvailable": 1990,
                 "restoreRate": 100
               }
             }
@@ -1496,7 +1496,7 @@
     "missingValueSelectorSchemaError": {
       "query": "#graphql\n  mutation ProductOptionsReorderValidation($productId: ID!, $options: [OptionReorderInput!]!) {\n    productOptionsReorder(productId: $productId, options: $options) {\n      product {\n        \n  id\n  options {\n    id\n    name\n    position\n    values\n    optionValues {\n      id\n      name\n      hasVariants\n    }\n  }\n  variants(first: 10) {\n    nodes {\n      id\n      title\n      selectedOptions {\n        name\n        value\n      }\n    }\n  }\n\n      }\n      userErrors {\n        \n  field\n  message\n  code\n\n      }\n    }\n  }\n",
       "variables": {
-        "productId": "gid://shopify/Product/10179869344050",
+        "productId": "gid://shopify/Product/10240276857138",
         "options": [
           {
             "name": "Color",
@@ -1535,7 +1535,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1985,
+                "currentlyAvailable": 1990,
                 "restoreRate": 100
               }
             }
@@ -1546,10 +1546,10 @@
     "positionSchemaError": {
       "query": "#graphql\n  mutation ProductOptionsReorderValidation($productId: ID!, $options: [OptionReorderInput!]!) {\n    productOptionsReorder(productId: $productId, options: $options) {\n      product {\n        \n  id\n  options {\n    id\n    name\n    position\n    values\n    optionValues {\n      id\n      name\n      hasVariants\n    }\n  }\n  variants(first: 10) {\n    nodes {\n      id\n      title\n      selectedOptions {\n        name\n        value\n      }\n    }\n  }\n\n      }\n      userErrors {\n        \n  field\n  message\n  code\n\n      }\n    }\n  }\n",
       "variables": {
-        "productId": "gid://shopify/Product/10179869344050",
+        "productId": "gid://shopify/Product/10240276857138",
         "options": [
           {
-            "id": "gid://shopify/ProductOption/12728451072306",
+            "id": "gid://shopify/ProductOption/12800347046194",
             "position": 2
           }
         ]
@@ -1570,7 +1570,7 @@
                 "code": "INVALID_VARIABLE",
                 "value": [
                   {
-                    "id": "gid://shopify/ProductOption/12728451072306",
+                    "id": "gid://shopify/ProductOption/12800347046194",
                     "position": 2
                   }
                 ],
@@ -1587,5 +1587,42 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "ProductPayloadShopHydrate",
+      "variables": {},
+      "query": "#graphql\n  query ProductPayloadShopHydrate {\n    shop {\n      id\n      name\n      myshopifyDomain\n      url\n      currencyCode\n      primaryDomain {\n        id\n        host\n        url\n        sslEnabled\n      }\n    }\n  }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shop": {
+              "id": "gid://shopify/Shop/92891250994",
+              "name": "harry-test-heelo",
+              "myshopifyDomain": "harry-test-heelo.myshopify.com",
+              "url": "https://harry-test-heelo.myshopify.com",
+              "currencyCode": "CAD",
+              "primaryDomain": {
+                "id": "gid://shopify/Domain/157391388978",
+                "host": "harry-test-heelo.myshopify.com",
+                "url": "https://harry-test-heelo.myshopify.com",
+                "sslEnabled": true
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

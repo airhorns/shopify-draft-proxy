@@ -19,6 +19,21 @@ pub(in crate::proxy) fn resolved_value_json(value: &ResolvedValue) -> Value {
     }
 }
 
+pub(in crate::proxy) fn resolved_value_contains_field(
+    value: &ResolvedValue,
+    field_name: &str,
+) -> bool {
+    match value {
+        ResolvedValue::Object(fields) => fields.iter().any(|(name, value)| {
+            name == field_name || resolved_value_contains_field(value, field_name)
+        }),
+        ResolvedValue::List(values) => values
+            .iter()
+            .any(|value| resolved_value_contains_field(value, field_name)),
+        _ => false,
+    }
+}
+
 pub(in crate::proxy) fn resolved_variables_json(
     variables: &BTreeMap<String, ResolvedValue>,
 ) -> Value {

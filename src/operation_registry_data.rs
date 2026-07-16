@@ -351,9 +351,13 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
         entry!("productVariantsBulkUpdate", Mutation, Products, true, ["tests/graphql_routes.rs"]),
         entry!("productVariantsBulkDelete", Mutation, Products, true, ["tests/graphql_routes.rs"]),
         entry!("productVariantsBulkReorder", Mutation, Products, true, ["tests/graphql_routes.rs"]),
-        entry!("productVariantCreate", Mutation, Products, true, ["tests/graphql_routes.rs"]),
-        entry!("productVariantUpdate", Mutation, Products, true, ["tests/graphql_routes.rs"]),
-        entry!("productVariantDelete", Mutation, Products, true, ["tests/graphql_routes.rs"]),
+        // Historical parity metadata still names these removed compatibility
+        // roots. Keep them explicitly declared as unsupported so discovery can
+        // distinguish a retired root from an unregistered operation. The
+        // captured versioned schemas remain authoritative and reject them.
+        entry!("productVariantCreate", Mutation, Products, false, []),
+        entry!("productVariantUpdate", Mutation, Products, false, []),
+        entry!("productVariantDelete", Mutation, Products, false, []),
         entry!("productCreateMedia", Mutation, Products, true, []),
         entry!("productUpdateMedia", Mutation, Products, true, []),
         entry!("productDeleteMedia", Mutation, Products, true, []),
@@ -389,7 +393,6 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
         entry!("inventoryShipmentDelete", Mutation, Products, true, ["tests/graphql_routes.rs"]),
         entry!("metafieldsSet", Mutation, Products, true, []),
         entry!("metafieldsDelete", Mutation, Products, true, []),
-        entry!("metafieldDelete", Mutation, Products, true, []),
         entry!("metafieldDefinition", Query, Metafields, true, []),
         entry!("metafieldDefinitions", Query, Metafields, true, []),
         entry!("standardMetafieldDefinitionTemplates", Query, Metafields, false, []),

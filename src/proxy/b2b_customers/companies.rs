@@ -525,7 +525,7 @@ impl DraftProxy {
             return None;
         }
 
-        let fields = root_fields(query, variables)?;
+        let fields = self.execution_root_fields(query, variables)?;
         if let Some(response) = b2b_tax_settings_invalid_enum_response(query, &fields) {
             return Some(response);
         }
@@ -567,7 +567,7 @@ impl DraftProxy {
         if parsed_root_fields.is_empty() {
             return None;
         }
-        let fields = root_fields(query, variables)?;
+        let fields = self.execution_root_fields(query, variables)?;
         match operation_type {
             OperationType::Mutation
                 if parsed_root_fields
@@ -671,7 +671,7 @@ impl DraftProxy {
             return None;
         }
 
-        let fields = root_fields(query, variables)?;
+        let fields = self.execution_root_fields(query, variables)?;
         let all_roots_allowed = match operation_type {
             OperationType::Mutation => fields
                 .iter()
@@ -871,7 +871,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Response> {
-        let fields = root_fields(query, variables)?;
+        let fields = self.execution_root_fields(query, variables)?;
         let field = fields
             .iter()
             .find(|field| field.name == "companyAssignCustomerAsContact")?;

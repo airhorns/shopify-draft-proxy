@@ -2,7 +2,7 @@
   "metadata": {
     "storeDomain": "harry-test-heelo.myshopify.com",
     "apiVersion": "2026-04",
-    "capturedAt": "2026-06-24T00:46:49.093Z",
+    "capturedAt": "2026-07-14T13:59:59.264Z",
     "description": "DraftOrderAppliedDiscountInput value/valueType validation for draftOrderCreate, draftOrderUpdate, and draftOrderCalculate."
   },
   "invalidRootNames": [
@@ -17,10 +17,10 @@
   "setupCreate": {
     "variables": {
       "input": {
-        "email": "draft-discount-setup-20260624004644@example.com",
+        "email": "draft-discount-setup-20260714135954@example.com",
         "lineItems": [
           {
-            "title": "Applied discount item 20260624004644",
+            "title": "Applied discount item 20260714135954",
             "quantity": 1,
             "originalUnitPrice": "10.00",
             "requiresShipping": false
@@ -32,7 +32,7 @@
       "data": {
         "draftOrderCreate": {
           "draftOrder": {
-            "id": "gid://shopify/DraftOrder/1270112715058"
+            "id": "gid://shopify/DraftOrder/1280991789362"
           },
           "userErrors": []
         }
@@ -53,17 +53,17 @@
   "createValidation": {
     "variables": {
       "orderPercentageAboveMax": {
-        "email": "draft-discount-order-above-max-20260624004644@example.com",
+        "email": "draft-discount-order-above-max-20260714135954@example.com",
         "lineItems": [
           {
-            "title": "Applied discount item 20260624004644",
+            "title": "Applied discount item 20260714135954",
             "quantity": 1,
             "originalUnitPrice": "10.00",
             "requiresShipping": false
           }
         ],
         "appliedDiscount": {
-          "title": "Applied discount validation 20260624004644",
+          "title": "Applied discount validation 20260714135954",
           "description": "Draft order applied discount validation capture",
           "value": 150,
           "amount": 10,
@@ -71,17 +71,17 @@
         }
       },
       "orderPercentageNegative": {
-        "email": "draft-discount-order-negative-20260624004644@example.com",
+        "email": "draft-discount-order-negative-20260714135954@example.com",
         "lineItems": [
           {
-            "title": "Applied discount item 20260624004644",
+            "title": "Applied discount item 20260714135954",
             "quantity": 1,
             "originalUnitPrice": "10.00",
             "requiresShipping": false
           }
         ],
         "appliedDiscount": {
-          "title": "Applied discount validation 20260624004644",
+          "title": "Applied discount validation 20260714135954",
           "description": "Draft order applied discount validation capture",
           "value": -5,
           "amount": 0,
@@ -89,17 +89,17 @@
         }
       },
       "orderValueTooPrecise": {
-        "email": "draft-discount-order-precision-20260624004644@example.com",
+        "email": "draft-discount-order-precision-20260714135954@example.com",
         "lineItems": [
           {
-            "title": "Applied discount item 20260624004644",
+            "title": "Applied discount item 20260714135954",
             "quantity": 1,
             "originalUnitPrice": "10.00",
             "requiresShipping": false
           }
         ],
         "appliedDiscount": {
-          "title": "Applied discount validation 20260624004644",
+          "title": "Applied discount validation 20260714135954",
           "description": "Draft order applied discount validation capture",
           "value": 12.345,
           "amount": 10,
@@ -107,15 +107,15 @@
         }
       },
       "linePercentageAboveMax": {
-        "email": "draft-discount-line-above-max-20260624004644@example.com",
+        "email": "draft-discount-line-above-max-20260714135954@example.com",
         "lineItems": [
           {
-            "title": "Applied discount item 20260624004644",
+            "title": "Applied discount item 20260714135954",
             "quantity": 1,
             "originalUnitPrice": "10.00",
             "requiresShipping": false,
             "appliedDiscount": {
-              "title": "Applied discount validation 20260624004644",
+              "title": "Applied discount validation 20260714135954",
               "description": "Draft order applied discount validation capture",
               "value": 150,
               "amount": 10,
@@ -125,15 +125,15 @@
         ]
       },
       "linePercentageNegative": {
-        "email": "draft-discount-line-negative-20260624004644@example.com",
+        "email": "draft-discount-line-negative-20260714135954@example.com",
         "lineItems": [
           {
-            "title": "Applied discount item 20260624004644",
+            "title": "Applied discount item 20260714135954",
             "quantity": 1,
             "originalUnitPrice": "10.00",
             "requiresShipping": false,
             "appliedDiscount": {
-              "title": "Applied discount validation 20260624004644",
+              "title": "Applied discount validation 20260714135954",
               "description": "Draft order applied discount validation capture",
               "value": -5,
               "amount": 0,
@@ -143,15 +143,15 @@
         ]
       },
       "lineValueTooPrecise": {
-        "email": "draft-discount-line-precision-20260624004644@example.com",
+        "email": "draft-discount-line-precision-20260714135954@example.com",
         "lineItems": [
           {
-            "title": "Applied discount item 20260624004644",
+            "title": "Applied discount item 20260714135954",
             "quantity": 1,
             "originalUnitPrice": "10.00",
             "requiresShipping": false,
             "appliedDiscount": {
-              "title": "Applied discount validation 20260624004644",
+              "title": "Applied discount validation 20260714135954",
               "description": "Draft order applied discount validation capture",
               "value": 12.345,
               "amount": 10,
@@ -161,17 +161,17 @@
         ]
       },
       "validOrderPercentage": {
-        "email": "draft-discount-order-valid-20260624004644@example.com",
+        "email": "draft-discount-order-valid-20260714135954@example.com",
         "lineItems": [
           {
-            "title": "Applied discount item 20260624004644",
+            "title": "Applied discount item 20260714135954",
             "quantity": 1,
             "originalUnitPrice": "10.00",
             "requiresShipping": false
           }
         ],
         "appliedDiscount": {
-          "title": "Applied discount validation 20260624004644",
+          "title": "Applied discount validation 20260714135954",
           "description": "Draft order applied discount validation capture",
           "value": 12.34,
           "amount": 10,
@@ -179,15 +179,15 @@
         }
       },
       "validLinePercentage": {
-        "email": "draft-discount-line-valid-20260624004644@example.com",
+        "email": "draft-discount-line-valid-20260714135954@example.com",
         "lineItems": [
           {
-            "title": "Applied discount item 20260624004644",
+            "title": "Applied discount item 20260714135954",
             "quantity": 1,
             "originalUnitPrice": "10.00",
             "requiresShipping": false,
             "appliedDiscount": {
-              "title": "Applied discount validation 20260624004644",
+              "title": "Applied discount validation 20260714135954",
               "description": "Draft order applied discount validation capture",
               "value": 12.34,
               "amount": 10,
@@ -210,7 +210,7 @@
         },
         "orderPercentageNegative": {
           "draftOrder": {
-            "id": "gid://shopify/DraftOrder/1270112747826"
+            "id": "gid://shopify/DraftOrder/1280991822130"
           },
           "userErrors": []
         },
@@ -234,7 +234,7 @@
         },
         "linePercentageNegative": {
           "draftOrder": {
-            "id": "gid://shopify/DraftOrder/1270112780594"
+            "id": "gid://shopify/DraftOrder/1280991854898"
           },
           "userErrors": []
         },
@@ -249,7 +249,7 @@
         },
         "validOrderPercentage": {
           "draftOrder": {
-            "id": "gid://shopify/DraftOrder/1270112813362",
+            "id": "gid://shopify/DraftOrder/1280991887666",
             "appliedDiscount": {
               "value": 12.34,
               "valueType": "PERCENTAGE",
@@ -271,7 +271,7 @@
         },
         "validLinePercentage": {
           "draftOrder": {
-            "id": "gid://shopify/DraftOrder/1270112846130",
+            "id": "gid://shopify/DraftOrder/1280991920434",
             "lineItems": {
               "nodes": [
                 {
@@ -319,19 +319,19 @@
   },
   "updateValidation": {
     "variables": {
-      "id": "gid://shopify/DraftOrder/1270112715058",
+      "id": "gid://shopify/DraftOrder/1280991789362",
       "orderPercentageAboveMax": {
-        "email": "draft-discount-order-above-max-20260624004644@example.com",
+        "email": "draft-discount-order-above-max-20260714135954@example.com",
         "lineItems": [
           {
-            "title": "Applied discount item 20260624004644",
+            "title": "Applied discount item 20260714135954",
             "quantity": 1,
             "originalUnitPrice": "10.00",
             "requiresShipping": false
           }
         ],
         "appliedDiscount": {
-          "title": "Applied discount validation 20260624004644",
+          "title": "Applied discount validation 20260714135954",
           "description": "Draft order applied discount validation capture",
           "value": 150,
           "amount": 10,
@@ -339,17 +339,17 @@
         }
       },
       "orderPercentageNegative": {
-        "email": "draft-discount-order-negative-20260624004644@example.com",
+        "email": "draft-discount-order-negative-20260714135954@example.com",
         "lineItems": [
           {
-            "title": "Applied discount item 20260624004644",
+            "title": "Applied discount item 20260714135954",
             "quantity": 1,
             "originalUnitPrice": "10.00",
             "requiresShipping": false
           }
         ],
         "appliedDiscount": {
-          "title": "Applied discount validation 20260624004644",
+          "title": "Applied discount validation 20260714135954",
           "description": "Draft order applied discount validation capture",
           "value": -5,
           "amount": 0,
@@ -357,17 +357,17 @@
         }
       },
       "orderValueTooPrecise": {
-        "email": "draft-discount-order-precision-20260624004644@example.com",
+        "email": "draft-discount-order-precision-20260714135954@example.com",
         "lineItems": [
           {
-            "title": "Applied discount item 20260624004644",
+            "title": "Applied discount item 20260714135954",
             "quantity": 1,
             "originalUnitPrice": "10.00",
             "requiresShipping": false
           }
         ],
         "appliedDiscount": {
-          "title": "Applied discount validation 20260624004644",
+          "title": "Applied discount validation 20260714135954",
           "description": "Draft order applied discount validation capture",
           "value": 12.345,
           "amount": 10,
@@ -375,15 +375,15 @@
         }
       },
       "linePercentageAboveMax": {
-        "email": "draft-discount-line-above-max-20260624004644@example.com",
+        "email": "draft-discount-line-above-max-20260714135954@example.com",
         "lineItems": [
           {
-            "title": "Applied discount item 20260624004644",
+            "title": "Applied discount item 20260714135954",
             "quantity": 1,
             "originalUnitPrice": "10.00",
             "requiresShipping": false,
             "appliedDiscount": {
-              "title": "Applied discount validation 20260624004644",
+              "title": "Applied discount validation 20260714135954",
               "description": "Draft order applied discount validation capture",
               "value": 150,
               "amount": 10,
@@ -393,15 +393,15 @@
         ]
       },
       "linePercentageNegative": {
-        "email": "draft-discount-line-negative-20260624004644@example.com",
+        "email": "draft-discount-line-negative-20260714135954@example.com",
         "lineItems": [
           {
-            "title": "Applied discount item 20260624004644",
+            "title": "Applied discount item 20260714135954",
             "quantity": 1,
             "originalUnitPrice": "10.00",
             "requiresShipping": false,
             "appliedDiscount": {
-              "title": "Applied discount validation 20260624004644",
+              "title": "Applied discount validation 20260714135954",
               "description": "Draft order applied discount validation capture",
               "value": -5,
               "amount": 0,
@@ -411,15 +411,15 @@
         ]
       },
       "lineValueTooPrecise": {
-        "email": "draft-discount-line-precision-20260624004644@example.com",
+        "email": "draft-discount-line-precision-20260714135954@example.com",
         "lineItems": [
           {
-            "title": "Applied discount item 20260624004644",
+            "title": "Applied discount item 20260714135954",
             "quantity": 1,
             "originalUnitPrice": "10.00",
             "requiresShipping": false,
             "appliedDiscount": {
-              "title": "Applied discount validation 20260624004644",
+              "title": "Applied discount validation 20260714135954",
               "description": "Draft order applied discount validation capture",
               "value": 12.345,
               "amount": 10,
@@ -429,17 +429,17 @@
         ]
       },
       "validOrderPercentage": {
-        "email": "draft-discount-order-valid-20260624004644@example.com",
+        "email": "draft-discount-order-valid-20260714135954@example.com",
         "lineItems": [
           {
-            "title": "Applied discount item 20260624004644",
+            "title": "Applied discount item 20260714135954",
             "quantity": 1,
             "originalUnitPrice": "10.00",
             "requiresShipping": false
           }
         ],
         "appliedDiscount": {
-          "title": "Applied discount validation 20260624004644",
+          "title": "Applied discount validation 20260714135954",
           "description": "Draft order applied discount validation capture",
           "value": 12.34,
           "amount": 10,
@@ -447,15 +447,15 @@
         }
       },
       "validLinePercentage": {
-        "email": "draft-discount-line-valid-20260624004644@example.com",
+        "email": "draft-discount-line-valid-20260714135954@example.com",
         "lineItems": [
           {
-            "title": "Applied discount item 20260624004644",
+            "title": "Applied discount item 20260714135954",
             "quantity": 1,
             "originalUnitPrice": "10.00",
             "requiresShipping": false,
             "appliedDiscount": {
-              "title": "Applied discount validation 20260624004644",
+              "title": "Applied discount validation 20260714135954",
               "description": "Draft order applied discount validation capture",
               "value": 12.34,
               "amount": 10,
@@ -478,7 +478,7 @@
         },
         "orderPercentageNegative": {
           "draftOrder": {
-            "id": "gid://shopify/DraftOrder/1270112715058"
+            "id": "gid://shopify/DraftOrder/1280991789362"
           },
           "userErrors": []
         },
@@ -502,7 +502,7 @@
         },
         "linePercentageNegative": {
           "draftOrder": {
-            "id": "gid://shopify/DraftOrder/1270112715058"
+            "id": "gid://shopify/DraftOrder/1280991789362"
           },
           "userErrors": []
         },
@@ -517,7 +517,7 @@
         },
         "validOrderPercentage": {
           "draftOrder": {
-            "id": "gid://shopify/DraftOrder/1270112715058",
+            "id": "gid://shopify/DraftOrder/1280991789362",
             "appliedDiscount": {
               "value": 12.34,
               "valueType": "PERCENTAGE",
@@ -539,7 +539,7 @@
         },
         "validLinePercentage": {
           "draftOrder": {
-            "id": "gid://shopify/DraftOrder/1270112715058",
+            "id": "gid://shopify/DraftOrder/1280991789362",
             "lineItems": {
               "nodes": [
                 {
@@ -588,17 +588,17 @@
   "calculateValidation": {
     "variables": {
       "orderPercentageAboveMax": {
-        "email": "draft-discount-order-above-max-20260624004644@example.com",
+        "email": "draft-discount-order-above-max-20260714135954@example.com",
         "lineItems": [
           {
-            "title": "Applied discount item 20260624004644",
+            "title": "Applied discount item 20260714135954",
             "quantity": 1,
             "originalUnitPrice": "10.00",
             "requiresShipping": false
           }
         ],
         "appliedDiscount": {
-          "title": "Applied discount validation 20260624004644",
+          "title": "Applied discount validation 20260714135954",
           "description": "Draft order applied discount validation capture",
           "value": 150,
           "amount": 10,
@@ -606,17 +606,17 @@
         }
       },
       "orderPercentageNegative": {
-        "email": "draft-discount-order-negative-20260624004644@example.com",
+        "email": "draft-discount-order-negative-20260714135954@example.com",
         "lineItems": [
           {
-            "title": "Applied discount item 20260624004644",
+            "title": "Applied discount item 20260714135954",
             "quantity": 1,
             "originalUnitPrice": "10.00",
             "requiresShipping": false
           }
         ],
         "appliedDiscount": {
-          "title": "Applied discount validation 20260624004644",
+          "title": "Applied discount validation 20260714135954",
           "description": "Draft order applied discount validation capture",
           "value": -5,
           "amount": 0,
@@ -624,17 +624,17 @@
         }
       },
       "orderValueTooPrecise": {
-        "email": "draft-discount-order-precision-20260624004644@example.com",
+        "email": "draft-discount-order-precision-20260714135954@example.com",
         "lineItems": [
           {
-            "title": "Applied discount item 20260624004644",
+            "title": "Applied discount item 20260714135954",
             "quantity": 1,
             "originalUnitPrice": "10.00",
             "requiresShipping": false
           }
         ],
         "appliedDiscount": {
-          "title": "Applied discount validation 20260624004644",
+          "title": "Applied discount validation 20260714135954",
           "description": "Draft order applied discount validation capture",
           "value": 12.345,
           "amount": 10,
@@ -642,15 +642,15 @@
         }
       },
       "linePercentageAboveMax": {
-        "email": "draft-discount-line-above-max-20260624004644@example.com",
+        "email": "draft-discount-line-above-max-20260714135954@example.com",
         "lineItems": [
           {
-            "title": "Applied discount item 20260624004644",
+            "title": "Applied discount item 20260714135954",
             "quantity": 1,
             "originalUnitPrice": "10.00",
             "requiresShipping": false,
             "appliedDiscount": {
-              "title": "Applied discount validation 20260624004644",
+              "title": "Applied discount validation 20260714135954",
               "description": "Draft order applied discount validation capture",
               "value": 150,
               "amount": 10,
@@ -660,15 +660,15 @@
         ]
       },
       "linePercentageNegative": {
-        "email": "draft-discount-line-negative-20260624004644@example.com",
+        "email": "draft-discount-line-negative-20260714135954@example.com",
         "lineItems": [
           {
-            "title": "Applied discount item 20260624004644",
+            "title": "Applied discount item 20260714135954",
             "quantity": 1,
             "originalUnitPrice": "10.00",
             "requiresShipping": false,
             "appliedDiscount": {
-              "title": "Applied discount validation 20260624004644",
+              "title": "Applied discount validation 20260714135954",
               "description": "Draft order applied discount validation capture",
               "value": -5,
               "amount": 0,
@@ -678,15 +678,15 @@
         ]
       },
       "lineValueTooPrecise": {
-        "email": "draft-discount-line-precision-20260624004644@example.com",
+        "email": "draft-discount-line-precision-20260714135954@example.com",
         "lineItems": [
           {
-            "title": "Applied discount item 20260624004644",
+            "title": "Applied discount item 20260714135954",
             "quantity": 1,
             "originalUnitPrice": "10.00",
             "requiresShipping": false,
             "appliedDiscount": {
-              "title": "Applied discount validation 20260624004644",
+              "title": "Applied discount validation 20260714135954",
               "description": "Draft order applied discount validation capture",
               "value": 12.345,
               "amount": 10,
@@ -696,17 +696,17 @@
         ]
       },
       "validOrderPercentage": {
-        "email": "draft-discount-order-valid-20260624004644@example.com",
+        "email": "draft-discount-order-valid-20260714135954@example.com",
         "lineItems": [
           {
-            "title": "Applied discount item 20260624004644",
+            "title": "Applied discount item 20260714135954",
             "quantity": 1,
             "originalUnitPrice": "10.00",
             "requiresShipping": false
           }
         ],
         "appliedDiscount": {
-          "title": "Applied discount validation 20260624004644",
+          "title": "Applied discount validation 20260714135954",
           "description": "Draft order applied discount validation capture",
           "value": 12.34,
           "amount": 10,
@@ -714,15 +714,15 @@
         }
       },
       "validLinePercentage": {
-        "email": "draft-discount-line-valid-20260624004644@example.com",
+        "email": "draft-discount-line-valid-20260714135954@example.com",
         "lineItems": [
           {
-            "title": "Applied discount item 20260624004644",
+            "title": "Applied discount item 20260714135954",
             "quantity": 1,
             "originalUnitPrice": "10.00",
             "requiresShipping": false,
             "appliedDiscount": {
-              "title": "Applied discount validation 20260624004644",
+              "title": "Applied discount validation 20260714135954",
               "description": "Draft order applied discount validation capture",
               "value": 12.34,
               "amount": 10,
@@ -840,34 +840,34 @@
   },
   "missingValueTypeValidation": {
     "variables": {
-      "id": "gid://shopify/DraftOrder/1270112715058",
+      "id": "gid://shopify/DraftOrder/1280991789362",
       "createOrderMissingValueType": {
-        "email": "draft-discount-create-order-missing-type-20260624004644@example.com",
+        "email": "draft-discount-create-order-missing-type-20260714135954@example.com",
         "lineItems": [
           {
-            "title": "Applied discount item 20260624004644",
+            "title": "Applied discount item 20260714135954",
             "quantity": 1,
             "originalUnitPrice": "10.00",
             "requiresShipping": false
           }
         ],
         "appliedDiscount": {
-          "title": "Applied discount validation 20260624004644",
+          "title": "Applied discount validation 20260714135954",
           "description": "Draft order applied discount validation capture",
           "value": 10,
           "amount": 10
         }
       },
       "createLineMissingValueType": {
-        "email": "draft-discount-create-line-missing-type-20260624004644@example.com",
+        "email": "draft-discount-create-line-missing-type-20260714135954@example.com",
         "lineItems": [
           {
-            "title": "Applied discount item 20260624004644",
+            "title": "Applied discount item 20260714135954",
             "quantity": 1,
             "originalUnitPrice": "10.00",
             "requiresShipping": false,
             "appliedDiscount": {
-              "title": "Applied discount validation 20260624004644",
+              "title": "Applied discount validation 20260714135954",
               "description": "Draft order applied discount validation capture",
               "value": 10,
               "amount": 10
@@ -876,32 +876,32 @@
         ]
       },
       "updateOrderMissingValueType": {
-        "email": "draft-discount-update-order-missing-type-20260624004644@example.com",
+        "email": "draft-discount-update-order-missing-type-20260714135954@example.com",
         "lineItems": [
           {
-            "title": "Applied discount item 20260624004644",
+            "title": "Applied discount item 20260714135954",
             "quantity": 1,
             "originalUnitPrice": "10.00",
             "requiresShipping": false
           }
         ],
         "appliedDiscount": {
-          "title": "Applied discount validation 20260624004644",
+          "title": "Applied discount validation 20260714135954",
           "description": "Draft order applied discount validation capture",
           "value": 10,
           "amount": 10
         }
       },
       "updateLineMissingValueType": {
-        "email": "draft-discount-update-line-missing-type-20260624004644@example.com",
+        "email": "draft-discount-update-line-missing-type-20260714135954@example.com",
         "lineItems": [
           {
-            "title": "Applied discount item 20260624004644",
+            "title": "Applied discount item 20260714135954",
             "quantity": 1,
             "originalUnitPrice": "10.00",
             "requiresShipping": false,
             "appliedDiscount": {
-              "title": "Applied discount validation 20260624004644",
+              "title": "Applied discount validation 20260714135954",
               "description": "Draft order applied discount validation capture",
               "value": 10,
               "amount": 10
@@ -910,32 +910,32 @@
         ]
       },
       "calculateOrderMissingValueType": {
-        "email": "draft-discount-calculate-order-missing-type-20260624004644@example.com",
+        "email": "draft-discount-calculate-order-missing-type-20260714135954@example.com",
         "lineItems": [
           {
-            "title": "Applied discount item 20260624004644",
+            "title": "Applied discount item 20260714135954",
             "quantity": 1,
             "originalUnitPrice": "10.00",
             "requiresShipping": false
           }
         ],
         "appliedDiscount": {
-          "title": "Applied discount validation 20260624004644",
+          "title": "Applied discount validation 20260714135954",
           "description": "Draft order applied discount validation capture",
           "value": 10,
           "amount": 10
         }
       },
       "calculateLineMissingValueType": {
-        "email": "draft-discount-calculate-line-missing-type-20260624004644@example.com",
+        "email": "draft-discount-calculate-line-missing-type-20260714135954@example.com",
         "lineItems": [
           {
-            "title": "Applied discount item 20260624004644",
+            "title": "Applied discount item 20260714135954",
             "quantity": 1,
             "originalUnitPrice": "10.00",
             "requiresShipping": false,
             "appliedDiscount": {
-              "title": "Applied discount validation 20260624004644",
+              "title": "Applied discount validation 20260714135954",
               "description": "Draft order applied discount validation capture",
               "value": 10,
               "amount": 10
@@ -944,17 +944,17 @@
         ]
       },
       "createOrderInvalidValueType": {
-        "email": "draft-discount-create-order-invalid-type-20260624004644@example.com",
+        "email": "draft-discount-create-order-invalid-type-20260714135954@example.com",
         "lineItems": [
           {
-            "title": "Applied discount item 20260624004644",
+            "title": "Applied discount item 20260714135954",
             "quantity": 1,
             "originalUnitPrice": "10.00",
             "requiresShipping": false
           }
         ],
         "appliedDiscount": {
-          "title": "Applied discount validation 20260624004644",
+          "title": "Applied discount validation 20260714135954",
           "description": "Draft order applied discount validation capture",
           "value": 10,
           "amount": 10,
@@ -962,15 +962,15 @@
         }
       },
       "createLineInvalidValueType": {
-        "email": "draft-discount-create-line-invalid-type-20260624004644@example.com",
+        "email": "draft-discount-create-line-invalid-type-20260714135954@example.com",
         "lineItems": [
           {
-            "title": "Applied discount item 20260624004644",
+            "title": "Applied discount item 20260714135954",
             "quantity": 1,
             "originalUnitPrice": "10.00",
             "requiresShipping": false,
             "appliedDiscount": {
-              "title": "Applied discount validation 20260624004644",
+              "title": "Applied discount validation 20260714135954",
               "description": "Draft order applied discount validation capture",
               "value": 10,
               "amount": 10,
@@ -980,17 +980,17 @@
         ]
       },
       "updateOrderInvalidValueType": {
-        "email": "draft-discount-update-order-invalid-type-20260624004644@example.com",
+        "email": "draft-discount-update-order-invalid-type-20260714135954@example.com",
         "lineItems": [
           {
-            "title": "Applied discount item 20260624004644",
+            "title": "Applied discount item 20260714135954",
             "quantity": 1,
             "originalUnitPrice": "10.00",
             "requiresShipping": false
           }
         ],
         "appliedDiscount": {
-          "title": "Applied discount validation 20260624004644",
+          "title": "Applied discount validation 20260714135954",
           "description": "Draft order applied discount validation capture",
           "value": 10,
           "amount": 10,
@@ -998,15 +998,15 @@
         }
       },
       "updateLineInvalidValueType": {
-        "email": "draft-discount-update-line-invalid-type-20260624004644@example.com",
+        "email": "draft-discount-update-line-invalid-type-20260714135954@example.com",
         "lineItems": [
           {
-            "title": "Applied discount item 20260624004644",
+            "title": "Applied discount item 20260714135954",
             "quantity": 1,
             "originalUnitPrice": "10.00",
             "requiresShipping": false,
             "appliedDiscount": {
-              "title": "Applied discount validation 20260624004644",
+              "title": "Applied discount validation 20260714135954",
               "description": "Draft order applied discount validation capture",
               "value": 10,
               "amount": 10,
@@ -1016,17 +1016,17 @@
         ]
       },
       "calculateOrderInvalidValueType": {
-        "email": "draft-discount-calculate-order-invalid-type-20260624004644@example.com",
+        "email": "draft-discount-calculate-order-invalid-type-20260714135954@example.com",
         "lineItems": [
           {
-            "title": "Applied discount item 20260624004644",
+            "title": "Applied discount item 20260714135954",
             "quantity": 1,
             "originalUnitPrice": "10.00",
             "requiresShipping": false
           }
         ],
         "appliedDiscount": {
-          "title": "Applied discount validation 20260624004644",
+          "title": "Applied discount validation 20260714135954",
           "description": "Draft order applied discount validation capture",
           "value": 10,
           "amount": 10,
@@ -1034,15 +1034,15 @@
         }
       },
       "calculateLineInvalidValueType": {
-        "email": "draft-discount-calculate-line-invalid-type-20260624004644@example.com",
+        "email": "draft-discount-calculate-line-invalid-type-20260714135954@example.com",
         "lineItems": [
           {
-            "title": "Applied discount item 20260624004644",
+            "title": "Applied discount item 20260714135954",
             "quantity": 1,
             "originalUnitPrice": "10.00",
             "requiresShipping": false,
             "appliedDiscount": {
-              "title": "Applied discount validation 20260624004644",
+              "title": "Applied discount validation 20260714135954",
               "description": "Draft order applied discount validation capture",
               "value": 10,
               "amount": 10,
@@ -1065,17 +1065,17 @@
           "extensions": {
             "code": "INVALID_VARIABLE",
             "value": {
-              "email": "draft-discount-create-order-missing-type-20260624004644@example.com",
+              "email": "draft-discount-create-order-missing-type-20260714135954@example.com",
               "lineItems": [
                 {
-                  "title": "Applied discount item 20260624004644",
+                  "title": "Applied discount item 20260714135954",
                   "quantity": 1,
                   "originalUnitPrice": "10.00",
                   "requiresShipping": false
                 }
               ],
               "appliedDiscount": {
-                "title": "Applied discount validation 20260624004644",
+                "title": "Applied discount validation 20260714135954",
                 "description": "Draft order applied discount validation capture",
                 "value": 10,
                 "amount": 10
@@ -1100,15 +1100,15 @@
           "extensions": {
             "code": "INVALID_VARIABLE",
             "value": {
-              "email": "draft-discount-create-line-missing-type-20260624004644@example.com",
+              "email": "draft-discount-create-line-missing-type-20260714135954@example.com",
               "lineItems": [
                 {
-                  "title": "Applied discount item 20260624004644",
+                  "title": "Applied discount item 20260714135954",
                   "quantity": 1,
                   "originalUnitPrice": "10.00",
                   "requiresShipping": false,
                   "appliedDiscount": {
-                    "title": "Applied discount validation 20260624004644",
+                    "title": "Applied discount validation 20260714135954",
                     "description": "Draft order applied discount validation capture",
                     "value": 10,
                     "amount": 10
@@ -1135,17 +1135,17 @@
           "extensions": {
             "code": "INVALID_VARIABLE",
             "value": {
-              "email": "draft-discount-update-order-missing-type-20260624004644@example.com",
+              "email": "draft-discount-update-order-missing-type-20260714135954@example.com",
               "lineItems": [
                 {
-                  "title": "Applied discount item 20260624004644",
+                  "title": "Applied discount item 20260714135954",
                   "quantity": 1,
                   "originalUnitPrice": "10.00",
                   "requiresShipping": false
                 }
               ],
               "appliedDiscount": {
-                "title": "Applied discount validation 20260624004644",
+                "title": "Applied discount validation 20260714135954",
                 "description": "Draft order applied discount validation capture",
                 "value": 10,
                 "amount": 10
@@ -1170,15 +1170,15 @@
           "extensions": {
             "code": "INVALID_VARIABLE",
             "value": {
-              "email": "draft-discount-update-line-missing-type-20260624004644@example.com",
+              "email": "draft-discount-update-line-missing-type-20260714135954@example.com",
               "lineItems": [
                 {
-                  "title": "Applied discount item 20260624004644",
+                  "title": "Applied discount item 20260714135954",
                   "quantity": 1,
                   "originalUnitPrice": "10.00",
                   "requiresShipping": false,
                   "appliedDiscount": {
-                    "title": "Applied discount validation 20260624004644",
+                    "title": "Applied discount validation 20260714135954",
                     "description": "Draft order applied discount validation capture",
                     "value": 10,
                     "amount": 10
@@ -1205,17 +1205,17 @@
           "extensions": {
             "code": "INVALID_VARIABLE",
             "value": {
-              "email": "draft-discount-calculate-order-missing-type-20260624004644@example.com",
+              "email": "draft-discount-calculate-order-missing-type-20260714135954@example.com",
               "lineItems": [
                 {
-                  "title": "Applied discount item 20260624004644",
+                  "title": "Applied discount item 20260714135954",
                   "quantity": 1,
                   "originalUnitPrice": "10.00",
                   "requiresShipping": false
                 }
               ],
               "appliedDiscount": {
-                "title": "Applied discount validation 20260624004644",
+                "title": "Applied discount validation 20260714135954",
                 "description": "Draft order applied discount validation capture",
                 "value": 10,
                 "amount": 10
@@ -1240,15 +1240,15 @@
           "extensions": {
             "code": "INVALID_VARIABLE",
             "value": {
-              "email": "draft-discount-calculate-line-missing-type-20260624004644@example.com",
+              "email": "draft-discount-calculate-line-missing-type-20260714135954@example.com",
               "lineItems": [
                 {
-                  "title": "Applied discount item 20260624004644",
+                  "title": "Applied discount item 20260714135954",
                   "quantity": 1,
                   "originalUnitPrice": "10.00",
                   "requiresShipping": false,
                   "appliedDiscount": {
-                    "title": "Applied discount validation 20260624004644",
+                    "title": "Applied discount validation 20260714135954",
                     "description": "Draft order applied discount validation capture",
                     "value": 10,
                     "amount": 10
@@ -1275,17 +1275,17 @@
           "extensions": {
             "code": "INVALID_VARIABLE",
             "value": {
-              "email": "draft-discount-create-order-invalid-type-20260624004644@example.com",
+              "email": "draft-discount-create-order-invalid-type-20260714135954@example.com",
               "lineItems": [
                 {
-                  "title": "Applied discount item 20260624004644",
+                  "title": "Applied discount item 20260714135954",
                   "quantity": 1,
                   "originalUnitPrice": "10.00",
                   "requiresShipping": false
                 }
               ],
               "appliedDiscount": {
-                "title": "Applied discount validation 20260624004644",
+                "title": "Applied discount validation 20260714135954",
                 "description": "Draft order applied discount validation capture",
                 "value": 10,
                 "amount": 10,
@@ -1311,15 +1311,15 @@
           "extensions": {
             "code": "INVALID_VARIABLE",
             "value": {
-              "email": "draft-discount-create-line-invalid-type-20260624004644@example.com",
+              "email": "draft-discount-create-line-invalid-type-20260714135954@example.com",
               "lineItems": [
                 {
-                  "title": "Applied discount item 20260624004644",
+                  "title": "Applied discount item 20260714135954",
                   "quantity": 1,
                   "originalUnitPrice": "10.00",
                   "requiresShipping": false,
                   "appliedDiscount": {
-                    "title": "Applied discount validation 20260624004644",
+                    "title": "Applied discount validation 20260714135954",
                     "description": "Draft order applied discount validation capture",
                     "value": 10,
                     "amount": 10,
@@ -1347,17 +1347,17 @@
           "extensions": {
             "code": "INVALID_VARIABLE",
             "value": {
-              "email": "draft-discount-update-order-invalid-type-20260624004644@example.com",
+              "email": "draft-discount-update-order-invalid-type-20260714135954@example.com",
               "lineItems": [
                 {
-                  "title": "Applied discount item 20260624004644",
+                  "title": "Applied discount item 20260714135954",
                   "quantity": 1,
                   "originalUnitPrice": "10.00",
                   "requiresShipping": false
                 }
               ],
               "appliedDiscount": {
-                "title": "Applied discount validation 20260624004644",
+                "title": "Applied discount validation 20260714135954",
                 "description": "Draft order applied discount validation capture",
                 "value": 10,
                 "amount": 10,
@@ -1383,15 +1383,15 @@
           "extensions": {
             "code": "INVALID_VARIABLE",
             "value": {
-              "email": "draft-discount-update-line-invalid-type-20260624004644@example.com",
+              "email": "draft-discount-update-line-invalid-type-20260714135954@example.com",
               "lineItems": [
                 {
-                  "title": "Applied discount item 20260624004644",
+                  "title": "Applied discount item 20260714135954",
                   "quantity": 1,
                   "originalUnitPrice": "10.00",
                   "requiresShipping": false,
                   "appliedDiscount": {
-                    "title": "Applied discount validation 20260624004644",
+                    "title": "Applied discount validation 20260714135954",
                     "description": "Draft order applied discount validation capture",
                     "value": 10,
                     "amount": 10,
@@ -1419,17 +1419,17 @@
           "extensions": {
             "code": "INVALID_VARIABLE",
             "value": {
-              "email": "draft-discount-calculate-order-invalid-type-20260624004644@example.com",
+              "email": "draft-discount-calculate-order-invalid-type-20260714135954@example.com",
               "lineItems": [
                 {
-                  "title": "Applied discount item 20260624004644",
+                  "title": "Applied discount item 20260714135954",
                   "quantity": 1,
                   "originalUnitPrice": "10.00",
                   "requiresShipping": false
                 }
               ],
               "appliedDiscount": {
-                "title": "Applied discount validation 20260624004644",
+                "title": "Applied discount validation 20260714135954",
                 "description": "Draft order applied discount validation capture",
                 "value": 10,
                 "amount": 10,
@@ -1455,15 +1455,15 @@
           "extensions": {
             "code": "INVALID_VARIABLE",
             "value": {
-              "email": "draft-discount-calculate-line-invalid-type-20260624004644@example.com",
+              "email": "draft-discount-calculate-line-invalid-type-20260714135954@example.com",
               "lineItems": [
                 {
-                  "title": "Applied discount item 20260624004644",
+                  "title": "Applied discount item 20260714135954",
                   "quantity": 1,
                   "originalUnitPrice": "10.00",
                   "requiresShipping": false,
                   "appliedDiscount": {
-                    "title": "Applied discount validation 20260624004644",
+                    "title": "Applied discount validation 20260714135954",
                     "description": "Draft order applied discount validation capture",
                     "value": 10,
                     "amount": 10,
@@ -1483,5 +1483,34 @@
       ]
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "DraftProxyShopPricingHydrate",
+      "variables": {},
+      "query": "query DraftProxyShopPricingHydrate { shop { currencyCode taxesIncluded taxShipping } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shop": {
+              "currencyCode": "CAD",
+              "taxesIncluded": false,
+              "taxShipping": false
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

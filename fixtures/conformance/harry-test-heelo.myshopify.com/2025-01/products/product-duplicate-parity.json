@@ -1,0 +1,868 @@
+{
+  "setup": {
+    "sourceProductId": "gid://shopify/Product/10240219316530",
+    "sourceReadBeforeDuplicate": {
+      "data": {
+        "product": {
+          "id": "gid://shopify/Product/10240219316530",
+          "title": "Hermes Product Graph Updated 1784036357996",
+          "handle": "hermes-product-graph-1784036357996",
+          "status": "DRAFT",
+          "vendor": "HERMES",
+          "productType": "SNOWBOARD",
+          "tags": ["1784036357996", "conformance", "product-graph"],
+          "descriptionHtml": "",
+          "templateSuffix": null,
+          "seo": {
+            "title": null,
+            "description": null
+          },
+          "onlineStorePreviewUrl": "https://hj06p56odck822a7-92891250994.shopifypreview.com/products_preview?preview_key=564fa83210fb48e984652adc37c073c0&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNy0xNFQxNDozOToyNS4xMjRaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--9aa4690b0c0c1055388671d9c8980d90da7bd738",
+          "options": [
+            {
+              "id": "gid://shopify/ProductOption/12800285475122",
+              "name": "Color",
+              "position": 1,
+              "values": ["Blue", "Black"],
+              "optionValues": [
+                {
+                  "id": "gid://shopify/ProductOptionValue/8302093467954",
+                  "name": "Blue",
+                  "hasVariants": true
+                },
+                {
+                  "id": "gid://shopify/ProductOptionValue/8302093500722",
+                  "name": "Black",
+                  "hasVariants": true
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51473263165746",
+                "title": "Blue",
+                "sku": "GRAPH-BLUE-UPDATED-1784036357996",
+                "barcode": null,
+                "price": "89.99",
+                "compareAtPrice": null,
+                "taxable": true,
+                "inventoryPolicy": "DENY",
+                "inventoryQuantity": 10,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Blue"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53578694787378",
+                  "tracked": true,
+                  "requiresShipping": true,
+                  "measurement": {
+                    "weight": {
+                      "unit": "KILOGRAMS",
+                      "value": 0
+                    }
+                  },
+                  "countryCodeOfOrigin": null,
+                  "provinceCodeOfOrigin": null,
+                  "harmonizedSystemCode": null
+                }
+              },
+              {
+                "id": "gid://shopify/ProductVariant/51473263198514",
+                "title": "Black",
+                "sku": "GRAPH-BLACK-UPDATED-1784036357996",
+                "barcode": null,
+                "price": "59.99",
+                "compareAtPrice": null,
+                "taxable": true,
+                "inventoryPolicy": "DENY",
+                "inventoryQuantity": 1,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Black"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53578694820146",
+                  "tracked": false,
+                  "requiresShipping": true,
+                  "measurement": {
+                    "weight": {
+                      "unit": "KILOGRAMS",
+                      "value": 0
+                    }
+                  },
+                  "countryCodeOfOrigin": null,
+                  "provinceCodeOfOrigin": null,
+                  "harmonizedSystemCode": null
+                }
+              }
+            ]
+          },
+          "collections": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Collection/514430173490",
+                "title": "Hermes Product Graph Collection 1784036357996",
+                "handle": "hermes-product-graph-collection-1784036357996"
+              }
+            ]
+          },
+          "media": {
+            "nodes": [
+              {
+                "mediaContentType": "IMAGE",
+                "alt": "Product graph media 1784036357996",
+                "preview": {
+                  "image": {
+                    "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/placeholder-images-image_medium_fb2738ad-9ee3-4687-bbd3-4865265f74af.png?v=1784036363"
+                  }
+                }
+              }
+            ]
+          },
+          "metafield": {
+            "id": "gid://shopify/Metafield/45047874453810",
+            "namespace": "custom",
+            "key": "material",
+            "type": "single_line_text_field",
+            "value": "canvas"
+          },
+          "metafields": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Metafield/45047874453810",
+                "namespace": "custom",
+                "key": "material",
+                "type": "single_line_text_field",
+                "value": "canvas"
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 45,
+          "actualQueryCost": 20,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1980,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "collectionCreate": {
+      "variables": {
+        "input": {
+          "title": "Hermes Product Graph Collection 1784036357996"
+        }
+      },
+      "response": {
+        "data": {
+          "collectionCreate": {
+            "collection": {
+              "id": "gid://shopify/Collection/514430173490",
+              "title": "Hermes Product Graph Collection 1784036357996",
+              "handle": "hermes-product-graph-collection-1784036357996"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1945,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "collectionAddProducts": {
+      "variables": {
+        "id": "gid://shopify/Collection/514430173490",
+        "productIds": ["gid://shopify/Product/10240219316530"]
+      },
+      "response": {
+        "data": {
+          "collectionAddProducts": {
+            "collection": {
+              "id": "gid://shopify/Collection/514430173490"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1954,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "productCreateMedia": {
+      "variables": {
+        "productId": "gid://shopify/Product/10240219316530",
+        "media": [
+          {
+            "mediaContentType": "IMAGE",
+            "originalSource": "https://cdn.shopify.com/s/files/1/0533/2089/files/placeholder-images-image_medium.png",
+            "alt": "Product graph media 1784036357996"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "productCreateMedia": {
+            "media": [
+              {
+                "id": "gid://shopify/MediaImage/44048252698930",
+                "alt": "Product graph media 1784036357996",
+                "mediaContentType": "IMAGE",
+                "status": "UPLOADED",
+                "preview": {
+                  "image": null
+                },
+                "image": null
+              }
+            ],
+            "mediaUserErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 23,
+            "actualQueryCost": 23,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1960,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "mutation": {
+    "variables": {
+      "productId": "gid://shopify/Product/10240219316530",
+      "newTitle": "Hermes Product Graph Copy 1784036357996"
+    },
+    "response": {
+      "data": {
+        "productDuplicate": {
+          "newProduct": {
+            "id": "gid://shopify/Product/10240219414834",
+            "title": "Hermes Product Graph Copy 1784036357996",
+            "handle": "hermes-product-graph-copy-1784036357996",
+            "status": "DRAFT",
+            "vendor": "HERMES",
+            "productType": "SNOWBOARD",
+            "tags": ["1784036357996", "conformance", "product-graph"],
+            "descriptionHtml": "",
+            "templateSuffix": null,
+            "seo": {
+              "title": null,
+              "description": null
+            },
+            "onlineStorePreviewUrl": "https://hj06p56odck822a7-92891250994.shopifypreview.com/products_preview?preview_key=6c0094f7105e3191d4cd7b456f2c6e15&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNy0xNFQxNDozOToyNS44ODhaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--e507bc0eda44cb9cd7dd063a54e335ad3e449eb2",
+            "options": [
+              {
+                "id": "gid://shopify/ProductOption/12800285573426",
+                "name": "Color",
+                "position": 1,
+                "values": ["Blue", "Black"],
+                "optionValues": [
+                  {
+                    "id": "gid://shopify/ProductOptionValue/8302093664562",
+                    "name": "Blue",
+                    "hasVariants": true
+                  },
+                  {
+                    "id": "gid://shopify/ProductOptionValue/8302093631794",
+                    "name": "Black",
+                    "hasVariants": true
+                  }
+                ]
+              }
+            ],
+            "variants": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ProductVariant/51473263329586",
+                  "title": "Blue",
+                  "sku": "GRAPH-BLUE-UPDATED-1784036357996",
+                  "barcode": null,
+                  "price": "89.99",
+                  "compareAtPrice": null,
+                  "taxable": true,
+                  "inventoryPolicy": "DENY",
+                  "inventoryQuantity": 10,
+                  "selectedOptions": [
+                    {
+                      "name": "Color",
+                      "value": "Blue"
+                    }
+                  ],
+                  "inventoryItem": {
+                    "id": "gid://shopify/InventoryItem/53578694951218",
+                    "tracked": true,
+                    "requiresShipping": true,
+                    "measurement": {
+                      "weight": {
+                        "unit": "KILOGRAMS",
+                        "value": 0
+                      }
+                    },
+                    "countryCodeOfOrigin": null,
+                    "provinceCodeOfOrigin": null,
+                    "harmonizedSystemCode": null
+                  }
+                },
+                {
+                  "id": "gid://shopify/ProductVariant/51473263362354",
+                  "title": "Black",
+                  "sku": "GRAPH-BLACK-UPDATED-1784036357996",
+                  "barcode": null,
+                  "price": "59.99",
+                  "compareAtPrice": null,
+                  "taxable": true,
+                  "inventoryPolicy": "DENY",
+                  "inventoryQuantity": 1,
+                  "selectedOptions": [
+                    {
+                      "name": "Color",
+                      "value": "Black"
+                    }
+                  ],
+                  "inventoryItem": {
+                    "id": "gid://shopify/InventoryItem/53578694983986",
+                    "tracked": false,
+                    "requiresShipping": true,
+                    "measurement": {
+                      "weight": {
+                        "unit": "KILOGRAMS",
+                        "value": 0
+                      }
+                    },
+                    "countryCodeOfOrigin": null,
+                    "provinceCodeOfOrigin": null,
+                    "harmonizedSystemCode": null
+                  }
+                }
+              ]
+            },
+            "collections": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Collection/514430173490",
+                  "title": "Hermes Product Graph Collection 1784036357996",
+                  "handle": "hermes-product-graph-collection-1784036357996"
+                }
+              ]
+            },
+            "media": {
+              "nodes": []
+            },
+            "metafield": {
+              "id": "gid://shopify/Metafield/45047877271858",
+              "namespace": "custom",
+              "key": "material",
+              "type": "single_line_text_field",
+              "value": "canvas"
+            },
+            "metafields": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Metafield/45047877271858",
+                  "namespace": "custom",
+                  "key": "material",
+                  "type": "single_line_text_field",
+                  "value": "canvas"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 54,
+          "actualQueryCost": 31,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1969,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "handleParity": {
+    "duplicateCollision": {
+      "firstDuplicate": {
+        "data": {
+          "productDuplicate": {
+            "newProduct": {
+              "id": "gid://shopify/Product/10240219414834",
+              "title": "Hermes Product Graph Copy 1784036357996",
+              "handle": "hermes-product-graph-copy-1784036357996",
+              "status": "DRAFT",
+              "vendor": "HERMES",
+              "productType": "SNOWBOARD",
+              "tags": ["1784036357996", "conformance", "product-graph"],
+              "descriptionHtml": "",
+              "templateSuffix": null,
+              "seo": {
+                "title": null,
+                "description": null
+              },
+              "onlineStorePreviewUrl": "https://hj06p56odck822a7-92891250994.shopifypreview.com/products_preview?preview_key=6c0094f7105e3191d4cd7b456f2c6e15&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNy0xNFQxNDozOToyNS44ODhaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--e507bc0eda44cb9cd7dd063a54e335ad3e449eb2",
+              "options": [
+                {
+                  "id": "gid://shopify/ProductOption/12800285573426",
+                  "name": "Color",
+                  "position": 1,
+                  "values": ["Blue", "Black"],
+                  "optionValues": [
+                    {
+                      "id": "gid://shopify/ProductOptionValue/8302093664562",
+                      "name": "Blue",
+                      "hasVariants": true
+                    },
+                    {
+                      "id": "gid://shopify/ProductOptionValue/8302093631794",
+                      "name": "Black",
+                      "hasVariants": true
+                    }
+                  ]
+                }
+              ],
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51473263329586",
+                    "title": "Blue",
+                    "sku": "GRAPH-BLUE-UPDATED-1784036357996",
+                    "barcode": null,
+                    "price": "89.99",
+                    "compareAtPrice": null,
+                    "taxable": true,
+                    "inventoryPolicy": "DENY",
+                    "inventoryQuantity": 10,
+                    "selectedOptions": [
+                      {
+                        "name": "Color",
+                        "value": "Blue"
+                      }
+                    ],
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53578694951218",
+                      "tracked": true,
+                      "requiresShipping": true,
+                      "measurement": {
+                        "weight": {
+                          "unit": "KILOGRAMS",
+                          "value": 0
+                        }
+                      },
+                      "countryCodeOfOrigin": null,
+                      "provinceCodeOfOrigin": null,
+                      "harmonizedSystemCode": null
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/ProductVariant/51473263362354",
+                    "title": "Black",
+                    "sku": "GRAPH-BLACK-UPDATED-1784036357996",
+                    "barcode": null,
+                    "price": "59.99",
+                    "compareAtPrice": null,
+                    "taxable": true,
+                    "inventoryPolicy": "DENY",
+                    "inventoryQuantity": 1,
+                    "selectedOptions": [
+                      {
+                        "name": "Color",
+                        "value": "Black"
+                      }
+                    ],
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53578694983986",
+                      "tracked": false,
+                      "requiresShipping": true,
+                      "measurement": {
+                        "weight": {
+                          "unit": "KILOGRAMS",
+                          "value": 0
+                        }
+                      },
+                      "countryCodeOfOrigin": null,
+                      "provinceCodeOfOrigin": null,
+                      "harmonizedSystemCode": null
+                    }
+                  }
+                ]
+              },
+              "collections": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Collection/514430173490",
+                    "title": "Hermes Product Graph Collection 1784036357996",
+                    "handle": "hermes-product-graph-collection-1784036357996"
+                  }
+                ]
+              },
+              "media": {
+                "nodes": []
+              },
+              "metafield": {
+                "id": "gid://shopify/Metafield/45047877271858",
+                "namespace": "custom",
+                "key": "material",
+                "type": "single_line_text_field",
+                "value": "canvas"
+              },
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/45047877271858",
+                    "namespace": "custom",
+                    "key": "material",
+                    "type": "single_line_text_field",
+                    "value": "canvas"
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 54,
+            "actualQueryCost": 31,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1969,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "secondDuplicate": {
+        "data": {
+          "productDuplicate": {
+            "newProduct": {
+              "id": "gid://shopify/Product/10240219447602",
+              "title": "Hermes Product Graph Copy 1784036357996",
+              "handle": "hermes-product-graph-copy-1784036357997",
+              "status": "DRAFT",
+              "vendor": "HERMES",
+              "productType": "SNOWBOARD",
+              "tags": ["1784036357996", "conformance", "product-graph"],
+              "descriptionHtml": "",
+              "templateSuffix": null,
+              "seo": {
+                "title": null,
+                "description": null
+              },
+              "onlineStorePreviewUrl": "https://hj06p56odck822a7-92891250994.shopifypreview.com/products_preview?preview_key=5d85daa649dfd21f17adaf60c1b41df3&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNy0xNFQxNDozOToyNi43OTNaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--c05e6e368d1a304a3131f37dc8649f6cb16e304f",
+              "options": [
+                {
+                  "id": "gid://shopify/ProductOption/12800285606194",
+                  "name": "Color",
+                  "position": 1,
+                  "values": ["Blue", "Black"],
+                  "optionValues": [
+                    {
+                      "id": "gid://shopify/ProductOptionValue/8302093730098",
+                      "name": "Blue",
+                      "hasVariants": true
+                    },
+                    {
+                      "id": "gid://shopify/ProductOptionValue/8302093697330",
+                      "name": "Black",
+                      "hasVariants": true
+                    }
+                  ]
+                }
+              ],
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51473263395122",
+                    "title": "Blue",
+                    "sku": "GRAPH-BLUE-UPDATED-1784036357996",
+                    "barcode": null,
+                    "price": "89.99",
+                    "compareAtPrice": null,
+                    "taxable": true,
+                    "inventoryPolicy": "DENY",
+                    "inventoryQuantity": 10,
+                    "selectedOptions": [
+                      {
+                        "name": "Color",
+                        "value": "Blue"
+                      }
+                    ],
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53578695016754",
+                      "tracked": true,
+                      "requiresShipping": true,
+                      "measurement": {
+                        "weight": {
+                          "unit": "KILOGRAMS",
+                          "value": 0
+                        }
+                      },
+                      "countryCodeOfOrigin": null,
+                      "provinceCodeOfOrigin": null,
+                      "harmonizedSystemCode": null
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/ProductVariant/51473263427890",
+                    "title": "Black",
+                    "sku": "GRAPH-BLACK-UPDATED-1784036357996",
+                    "barcode": null,
+                    "price": "59.99",
+                    "compareAtPrice": null,
+                    "taxable": true,
+                    "inventoryPolicy": "DENY",
+                    "inventoryQuantity": 1,
+                    "selectedOptions": [
+                      {
+                        "name": "Color",
+                        "value": "Black"
+                      }
+                    ],
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53578695049522",
+                      "tracked": false,
+                      "requiresShipping": true,
+                      "measurement": {
+                        "weight": {
+                          "unit": "KILOGRAMS",
+                          "value": 0
+                        }
+                      },
+                      "countryCodeOfOrigin": null,
+                      "provinceCodeOfOrigin": null,
+                      "harmonizedSystemCode": null
+                    }
+                  }
+                ]
+              },
+              "collections": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Collection/514430173490",
+                    "title": "Hermes Product Graph Collection 1784036357996",
+                    "handle": "hermes-product-graph-collection-1784036357996"
+                  }
+                ]
+              },
+              "media": {
+                "nodes": []
+              },
+              "metafield": {
+                "id": "gid://shopify/Metafield/45047877402930",
+                "namespace": "custom",
+                "key": "material",
+                "type": "single_line_text_field",
+                "value": "canvas"
+              },
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/45047877402930",
+                    "namespace": "custom",
+                    "key": "material",
+                    "type": "single_line_text_field",
+                    "value": "canvas"
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 54,
+            "actualQueryCost": 31,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1969,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/10240219414834",
+        "title": "Hermes Product Graph Copy 1784036357996",
+        "handle": "hermes-product-graph-copy-1784036357996",
+        "status": "DRAFT",
+        "vendor": "HERMES",
+        "productType": "SNOWBOARD",
+        "tags": ["1784036357996", "conformance", "product-graph"],
+        "descriptionHtml": "",
+        "templateSuffix": null,
+        "seo": {
+          "title": null,
+          "description": null
+        },
+        "onlineStorePreviewUrl": "https://hj06p56odck822a7-92891250994.shopifypreview.com/products_preview?preview_key=6c0094f7105e3191d4cd7b456f2c6e15&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNy0xNFQxNDozOToyNy4wMjFaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--840dee904821c71fe1911829fc32af843dd582f7",
+        "options": [
+          {
+            "id": "gid://shopify/ProductOption/12800285573426",
+            "name": "Color",
+            "position": 1,
+            "values": ["Blue", "Black"],
+            "optionValues": [
+              {
+                "id": "gid://shopify/ProductOptionValue/8302093664562",
+                "name": "Blue",
+                "hasVariants": true
+              },
+              {
+                "id": "gid://shopify/ProductOptionValue/8302093631794",
+                "name": "Black",
+                "hasVariants": true
+              }
+            ]
+          }
+        ],
+        "variants": {
+          "nodes": [
+            {
+              "id": "gid://shopify/ProductVariant/51473263329586",
+              "title": "Blue",
+              "sku": "GRAPH-BLUE-UPDATED-1784036357996",
+              "barcode": null,
+              "price": "89.99",
+              "compareAtPrice": null,
+              "taxable": true,
+              "inventoryPolicy": "DENY",
+              "inventoryQuantity": 10,
+              "selectedOptions": [
+                {
+                  "name": "Color",
+                  "value": "Blue"
+                }
+              ],
+              "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/53578694951218",
+                "tracked": true,
+                "requiresShipping": true,
+                "measurement": {
+                  "weight": {
+                    "unit": "KILOGRAMS",
+                    "value": 0
+                  }
+                },
+                "countryCodeOfOrigin": null,
+                "provinceCodeOfOrigin": null,
+                "harmonizedSystemCode": null
+              }
+            },
+            {
+              "id": "gid://shopify/ProductVariant/51473263362354",
+              "title": "Black",
+              "sku": "GRAPH-BLACK-UPDATED-1784036357996",
+              "barcode": null,
+              "price": "59.99",
+              "compareAtPrice": null,
+              "taxable": true,
+              "inventoryPolicy": "DENY",
+              "inventoryQuantity": 1,
+              "selectedOptions": [
+                {
+                  "name": "Color",
+                  "value": "Black"
+                }
+              ],
+              "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/53578694983986",
+                "tracked": false,
+                "requiresShipping": true,
+                "measurement": {
+                  "weight": {
+                    "unit": "KILOGRAMS",
+                    "value": 0
+                  }
+                },
+                "countryCodeOfOrigin": null,
+                "provinceCodeOfOrigin": null,
+                "harmonizedSystemCode": null
+              }
+            }
+          ]
+        },
+        "collections": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Collection/514430173490",
+              "title": "Hermes Product Graph Collection 1784036357996",
+              "handle": "hermes-product-graph-collection-1784036357996"
+            }
+          ]
+        },
+        "media": {
+          "nodes": []
+        },
+        "metafield": {
+          "id": "gid://shopify/Metafield/45047877271858",
+          "namespace": "custom",
+          "key": "material",
+          "type": "single_line_text_field",
+          "value": "canvas"
+        },
+        "metafields": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Metafield/45047877271858",
+              "namespace": "custom",
+              "key": "material",
+              "type": "single_line_text_field",
+              "value": "canvas"
+            }
+          ]
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 45,
+        "actualQueryCost": 22,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1978,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}

@@ -240,7 +240,7 @@ describe('package launch scripts', () => {
           const passthrough = await fetch(`${proxyOrigin}/admin/api/2026-04/graphql.json`, {
             method: 'POST',
             headers: { 'content-type': 'application/json', authorization: 'Bearer live-token' },
-            body: JSON.stringify({ query: '{ currentAppInstallation { id } }' }),
+            body: JSON.stringify({ query: '{ currentStaffMember { id } }' }),
           });
           expect(passthrough.status).toBe(202);
           expect(passthrough.headers.get('x-test-upstream')).toBe('rust-http');
@@ -272,7 +272,7 @@ describe('package launch scripts', () => {
       expect(upstreamRequests[0]).toMatchObject({
         url: '/admin/api/2026-04/graphql.json',
         authorization: 'Bearer live-token',
-        body: JSON.stringify({ query: '{ currentAppInstallation { id } }' }),
+        body: JSON.stringify({ query: '{ currentStaffMember { id } }' }),
       });
       expect(upstreamRequests[1]).toMatchObject({
         url: '/admin/api/2026-04/graphql.json',

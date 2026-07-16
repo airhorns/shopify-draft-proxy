@@ -3,7 +3,7 @@
     "variables": {
       "synchronous": true,
       "input": {
-        "title": "Draft Proxy Inventory Aggregate 1782056861660",
+        "title": "Draft Proxy Inventory Aggregate 1784045503078",
         "status": "DRAFT",
         "productOptions": [
           {
@@ -31,7 +31,7 @@
             },
             "inventoryQuantities": [
               {
-                "locationId": "gid://shopify/Location/112829759794",
+                "locationId": "gid://shopify/Location/113884102962",
                 "name": "available",
                 "quantity": 1
               }
@@ -44,7 +44,7 @@
       "data": {
         "productSet": {
           "product": {
-            "id": "gid://shopify/Product/10218077028658",
+            "id": "gid://shopify/Product/10240312443186",
             "totalVariants": 1,
             "hasOnlyDefaultVariant": true,
             "hasOutOfStockVariants": false,
@@ -53,18 +53,18 @@
             "variants": {
               "nodes": [
                 {
-                  "id": "gid://shopify/ProductVariant/51345392402738",
+                  "id": "gid://shopify/ProductVariant/51474116116786",
                   "inventoryQuantity": 1,
                   "inventoryItem": {
-                    "id": "gid://shopify/InventoryItem/53450177282354",
+                    "id": "gid://shopify/InventoryItem/53579548819762",
                     "tracked": true,
                     "inventoryLevels": {
                       "nodes": [
                         {
-                          "id": "gid://shopify/InventoryLevel/150024945970?inventory_item_id=53450177282354",
+                          "id": "gid://shopify/InventoryLevel/152183341362?inventory_item_id=53579548819762",
                           "location": {
-                            "id": "gid://shopify/Location/112829759794",
-                            "name": "HAR-571 transfer destination 20260505000619"
+                            "id": "gid://shopify/Location/113884102962",
+                            "name": "HAR-2332 Probe Destination 1783701294047"
                           },
                           "quantities": [
                             {
@@ -106,11 +106,11 @@
       "input": {
         "name": "available",
         "reason": "correction",
-        "referenceDocumentUri": "logistics://draft-proxy-conformance/inventory-adjust/1782056861660",
+        "referenceDocumentUri": "logistics://draft-proxy-conformance/inventory-adjust/1784045503078",
         "changes": [
           {
-            "inventoryItemId": "gid://shopify/InventoryItem/53450177282354",
-            "locationId": "gid://shopify/Location/112829759794",
+            "inventoryItemId": "gid://shopify/InventoryItem/53579548819762",
+            "locationId": "gid://shopify/Location/113884102962",
             "delta": -1
           }
         ]
@@ -121,28 +121,28 @@
         "inventoryAdjustQuantities": {
           "inventoryAdjustmentGroup": {
             "reason": "correction",
-            "referenceDocumentUri": "logistics://draft-proxy-conformance/inventory-adjust/1782056861660",
+            "referenceDocumentUri": "logistics://draft-proxy-conformance/inventory-adjust/1784045503078",
             "changes": [
               {
                 "name": "available",
                 "delta": -1,
                 "item": {
-                  "id": "gid://shopify/InventoryItem/53450177282354"
+                  "id": "gid://shopify/InventoryItem/53579548819762"
                 },
                 "location": {
-                  "id": "gid://shopify/Location/112829759794",
-                  "name": "HAR-571 transfer destination 20260505000619"
+                  "id": "gid://shopify/Location/113884102962",
+                  "name": "HAR-2332 Probe Destination 1783701294047"
                 }
               },
               {
                 "name": "on_hand",
                 "delta": -1,
                 "item": {
-                  "id": "gid://shopify/InventoryItem/53450177282354"
+                  "id": "gid://shopify/InventoryItem/53579548819762"
                 },
                 "location": {
-                  "id": "gid://shopify/Location/112829759794",
-                  "name": "HAR-571 transfer destination 20260505000619"
+                  "id": "gid://shopify/Location/113884102962",
+                  "name": "HAR-2332 Probe Destination 1783701294047"
                 }
               }
             ]
@@ -166,7 +166,7 @@
   "downstreamRead": {
     "data": {
       "product": {
-        "id": "gid://shopify/Product/10218077028658",
+        "id": "gid://shopify/Product/10240312443186",
         "totalVariants": 1,
         "hasOnlyDefaultVariant": true,
         "hasOutOfStockVariants": true,
@@ -182,8 +182,8 @@
                   "nodes": [
                     {
                       "location": {
-                        "id": "gid://shopify/Location/112829759794",
-                        "name": "HAR-571 transfer destination 20260505000619"
+                        "id": "gid://shopify/Location/113884102962",
+                        "name": "HAR-2332 Probe Destination 1783701294047"
                       },
                       "quantities": [
                         {
@@ -216,5 +216,113 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "StorePropertiesLocationHydrate",
+      "variables": {
+        "id": "gid://shopify/Location/113884102962"
+      },
+      "query": "query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: \"custom\", key: \"hours\") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: [\"available\", \"committed\", \"on_hand\"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/113884102962",
+              "legacyResourceId": "113884102962",
+              "name": "HAR-2332 Probe Destination 1783701294047",
+              "activatable": true,
+              "addressVerified": true,
+              "createdAt": "2026-07-10T16:34:54Z",
+              "deactivatable": true,
+              "deactivatedAt": null,
+              "deletable": false,
+              "fulfillsOnlineOrders": true,
+              "hasActiveInventory": true,
+              "hasUnfulfilledOrders": false,
+              "isActive": true,
+              "isFulfillmentService": false,
+              "isPrimary": false,
+              "shipsInventory": false,
+              "updatedAt": "2026-07-10T16:34:54Z",
+              "fulfillmentService": null,
+              "address": {
+                "address1": null,
+                "address2": null,
+                "city": null,
+                "country": "United States",
+                "countryCode": "US",
+                "formatted": ["United States"],
+                "latitude": null,
+                "longitude": null,
+                "phone": null,
+                "province": null,
+                "provinceCode": null,
+                "zip": null
+              },
+              "suggestedAddresses": [],
+              "metafield": null,
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "inventoryLevels": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/InventoryLevel/152183341362?inventory_item_id=53579548819762",
+                    "item": {
+                      "id": "gid://shopify/InventoryItem/53579548819762"
+                    },
+                    "location": {
+                      "id": "gid://shopify/Location/113884102962",
+                      "name": "HAR-2332 Probe Destination 1783701294047"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 1,
+                        "updatedAt": "2026-07-14T16:11:46Z"
+                      },
+                      {
+                        "name": "committed",
+                        "quantity": 0,
+                        "updatedAt": null
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 1,
+                        "updatedAt": null
+                      }
+                    ]
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo1Njc5MjE1ODExMDAwMiwibGFzdF92YWx1ZSI6IjU2NzkyMTU4MTEwMDAyIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjo1Njc5MjE1ODExMDAwMiwibGFzdF92YWx1ZSI6IjU2NzkyMTU4MTEwMDAyIn0="
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

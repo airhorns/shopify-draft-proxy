@@ -580,7 +580,7 @@ fn product_mutation_outcomes_finalize_exactly_one_log_draft() {
 }
 
 #[test]
-fn multi_root_mutation_executes_serially_and_logs_each_root_once() {
+fn multi_root_mutation_executes_serially_and_logs_the_original_operation_once() {
     let mut proxy = snapshot_proxy().with_base_products(vec![base_product()]);
     let query = r#"
         mutation SerialProductMutations($product: ProductUpdateInput!, $tags: [String!]!) {
@@ -626,18 +626,17 @@ fn multi_root_mutation_executes_serially_and_logs_each_root_once() {
 
     let log = log_snapshot(&proxy);
     let entries = log["entries"].as_array().expect("mutation log entries");
-    assert_eq!(entries.len(), 2);
+    assert_eq!(entries.len(), 1);
     assert_eq!(
-        entries
-            .iter()
-            .map(|entry| entry["interpreted"]["primaryRootField"].clone())
-            .collect::<Vec<_>>(),
-        vec![json!("productUpdate"), json!("tagsAdd")]
+        entries[0]["interpreted"]["rootFields"],
+        json!(["productUpdate", "tagsAdd"])
     );
+    assert_eq!(entries[0]["query"], json!(query));
+    assert_eq!(entries[0]["status"], json!("staged"));
 }
 
 #[test]
-fn mixed_supported_unsupported_mutation_only_forwards_unsupported_root() {
+fn mixed_supported_unsupported_mutation_is_rejected_without_writes() {
     let forwarded = Arc::new(Mutex::new(Vec::<Value>::new()));
     let captured = Arc::clone(&forwarded);
     let mut proxy = DraftProxy::new(Config {
@@ -652,12 +651,6 @@ fn mixed_supported_unsupported_mutation_only_forwards_unsupported_root() {
     .with_upstream_transport(move |request| {
         let body: Value = serde_json::from_str(&request.body).expect("upstream body");
         captured.lock().unwrap().push(body.clone());
-        assert!(body["query"]
-            .as_str()
-            .is_some_and(|query| query.contains("urlRedirectCreate")));
-        assert!(body["query"]
-            .as_str()
-            .is_some_and(|query| !query.contains("productUpdate")));
         Response {
             status: 200,
             headers: Default::default(),
@@ -687,30 +680,30 @@ fn mixed_supported_unsupported_mutation_only_forwards_unsupported_root() {
     let response = proxy.process_request(graphql_request(&json!({ "query": query }).to_string()));
 
     assert_eq!(response.status, 200);
-    assert_eq!(
-        response.body["data"]["productUpdate"]["product"],
-        json!({
-            "id": "gid://shopify/Product/base",
-            "title": "Safe local update"
-        })
-    );
-    assert_eq!(
-        response.body["data"]["redirect"]["urlRedirect"]["id"],
-        json!("gid://shopify/UrlRedirect/1")
-    );
+    assert_eq!(response.body["data"]["productUpdate"], Value::Null);
+    assert_eq!(response.body["data"]["redirect"], Value::Null);
+    assert!(response.body["errors"].as_array().is_some_and(|errors| {
+        !errors.is_empty()
+            && errors.iter().all(|error| {
+                error["message"]
+                    == json!(
+                    "A mutation operation cannot mix locally staged and passthrough root fields."
+                )
+            })
+    }));
 
     let forwarded = forwarded.lock().unwrap();
-    assert_eq!(forwarded.len(), 1);
+    assert!(forwarded.is_empty());
 
     let log = log_snapshot(&proxy);
     let entries = log["entries"].as_array().expect("mutation log entries");
-    assert_eq!(entries.len(), 2);
-    assert_eq!(
-        entries[0]["interpreted"]["primaryRootField"],
-        json!("productUpdate")
-    );
-    assert_eq!(entries[1]["operationName"], json!("urlRedirectCreate"));
-    assert_eq!(entries[1]["status"], json!("proxied"));
+    assert!(entries.is_empty());
+
+    let read = proxy.process_request(graphql_request(
+        &json!({ "query": "{ product(id: \"gid://shopify/Product/base\") { title } }" })
+            .to_string(),
+    ));
+    assert_eq!(read.body["data"]["product"]["title"], json!("Base product"));
 }
 
 #[test]
@@ -794,12 +787,12 @@ fn log_draft_enforcement_supported_domains_record_entries() {
         (
             "functions",
             "taxAppConfigure",
-            "mutation { taxAppConfigure(ready: true) { taxAppConfiguration { id } userErrors { message } } }",
+            "mutation { taxAppConfigure(ready: true) { taxAppConfiguration { state } userErrors { message } } }",
         ),
         (
             "gift_cards",
             "giftCardCreate",
-            "mutation GiftCardCreateNotify { giftCardCreate(input: { initialValue: { amount: \"5.00\", currencyCode: CAD } }) { giftCard { id } userErrors { message } } }",
+            "mutation GiftCardCreateNotify { giftCardCreate(input: { initialValue: \"5.00\" }) { giftCard { id } userErrors { message } } }",
         ),
         (
             "localization",
@@ -914,7 +907,7 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
     assert_eq!(create_product.status, 200);
 
     let delete_base = proxy.process_request(graphql_request(
-        &json!({ "query": "mutation { productDelete(product: { id: \"gid://shopify/Product/base\" }) { deletedProductId } }" }).to_string(),
+        &json!({ "query": "mutation { productDelete(input: { id: \"gid://shopify/Product/base\" }) { deletedProductId } }" }).to_string(),
     ));
     assert_eq!(delete_base.status, 200);
 
@@ -950,6 +943,7 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
             {
                 "baseState": {
                     "availableLocales": null,
+                    "giftCardCompleteQueries": [],
                     "giftCardConfiguration": null,
                     "giftCards": {},
                     "localizationProductIds": [],
@@ -1363,7 +1357,7 @@ fn meta_dump_and_restore_round_trip_staged_rust_state() {
     );
 
     let restored_saved_search_read = restored.process_request(graphql_request(
-        &json!({ "query": "{ productSavedSearches(query: \"Promo\") { nodes { id name query resourceType } } }" }).to_string(),
+        &json!({ "query": "{ productSavedSearches(first: 10) { nodes { id name query resourceType } } }" }).to_string(),
     ));
     assert_eq!(restored_saved_search_read.status, 200);
     assert_eq!(
@@ -1545,6 +1539,8 @@ fn restore_state_advances_order_refund_transaction_and_bulk_job_counters() {
                     "transactions": [{
                         "parentId": parent_transaction_id,
                         "kind": "REFUND",
+                        "gateway": "manual",
+                        "orderId": first_order_id,
                         "amount": "10.00"
                     }]
                 }
@@ -1687,6 +1683,8 @@ fn restore_state_advances_order_refund_transaction_and_bulk_job_counters() {
                     "transactions": [{
                         "parentId": parent_transaction_id,
                         "kind": "REFUND",
+                        "gateway": "manual",
+                        "orderId": first_order_id,
                         "amount": "10.00"
                     }]
                 }
@@ -1756,7 +1754,7 @@ fn restore_state_round_trips_customer_payment_method_records_and_counter() {
               instrument {
                 __typename
                 ... on CustomerCreditCard {
-                  billingAddress { address1 city zip countryCodeV2 provinceCode }
+                  billingAddress { address1 city zip countryCode provinceCode }
                 }
               }
             }
@@ -1822,7 +1820,7 @@ fn restore_state_round_trips_customer_payment_method_records_and_counter() {
                     instrument {
                       __typename
                       ... on CustomerCreditCard {
-                        billingAddress { address1 city zip countryCodeV2 provinceCode }
+                        billingAddress { address1 city zip countryCode provinceCode }
                       }
                     }
                   }
@@ -1942,15 +1940,40 @@ fn restore_state_round_trips_order_customer_and_b2b_records() {
         json!([])
     );
 
+    let company_location = proxy.process_request(graphql_request(
+        &json!({
+            "query": r#"
+                mutation CreateOrderCustomerCompanyLocation($companyId: ID!) {
+                  companyLocationCreate(companyId: $companyId, input: { name: "Roundtrip HQ" }) {
+                    companyLocation { id }
+                    userErrors { field message code }
+                  }
+                }
+            "#,
+            "variables": { "companyId": company_id }
+        })
+        .to_string(),
+    ));
+    assert_eq!(company_location.status, 200);
+    assert_eq!(
+        company_location.body["data"]["companyLocationCreate"]["userErrors"],
+        json!([])
+    );
+    let company_location_id =
+        company_location.body["data"]["companyLocationCreate"]["companyLocation"]["id"].clone();
+
     let b2b_order = proxy.process_request(graphql_request(
         &json!({
             "query": create_order_query,
             "variables": {
                 "order": {
                     "email": "roundtrip-b2b-order@example.test",
-                    "purchasingEntity": {
-                        "purchasingCompany": { "companyId": company_id }
-                    }
+                    "companyLocationId": company_location_id,
+                    "lineItems": [{
+                        "title": "Roundtrip B2B item",
+                        "quantity": 1,
+                        "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+                    }]
                 }
             }
         })
@@ -1982,7 +2005,7 @@ fn restore_state_round_trips_order_customer_and_b2b_records() {
             "query": r#"
                 mutation CancelOrderCustomerOrder($orderId: ID!) {
                   orderCancel(orderId: $orderId, restock: false, reason: OTHER) {
-                    order { id cancelledAt cancelReason }
+                    job { id done }
                     orderCancelUserErrors { field message code }
                     userErrors { field message }
                   }

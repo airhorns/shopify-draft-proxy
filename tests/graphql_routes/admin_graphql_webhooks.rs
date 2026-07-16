@@ -243,6 +243,23 @@ fn admin_graphql_reports_base_validation_errors_before_dispatch() {
             "{version} parse error body"
         );
 
+        let trailing_newline_parse_error = proxy.process_request(request_with_body(
+            "POST",
+            &path,
+            r#"{"query":"query Incomplete {\n  shop {\n    id\n"}"#,
+        ));
+        assert_eq!(
+            trailing_newline_parse_error.body,
+            json!({
+                "errors": [{
+                    "message": "syntax error, unexpected end of file at [3, 5]",
+                    "locations": [{ "line": 3, "column": 5 }],
+                    "extensions": { "code": "PARSE_ERROR" }
+                }]
+            }),
+            "{version} trailing-newline parse error body"
+        );
+
         let missing_variable = proxy.process_request(request_with_body(
             "POST",
             &path,

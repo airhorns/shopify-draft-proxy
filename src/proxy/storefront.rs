@@ -1,6 +1,5 @@
 use super::*;
 use crate::graphql::operation_directive_invocations;
-use crate::operation_registry::operation_capability_for_surface;
 
 const STOREFRONT_FIRST_SLICE_VERSION: &str = "2026-04";
 const STOREFRONT_FIRST_SLICE_ROOTS: &[&str] = &[
@@ -74,59 +73,55 @@ impl StorefrontRequestContext {
 }
 
 impl DraftProxy {
-    pub(in crate::proxy) fn dispatch_storefront_local_graphql(
+    pub(crate) fn resolve_storefront_graphql(
         &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        api_version: Option<&str>,
-    ) -> Option<Response> {
-        let api_version = api_version?;
-        if api_version != STOREFRONT_FIRST_SLICE_VERSION || self.config.read_mode == ReadMode::Live
+        execution: RootResolverContext<'_>,
+    ) -> Response {
+        let RootResolverContext {
+            request,
+            query,
+            variables,
+            operation,
+            root_name,
+            mode,
+        } = execution;
+        if storefront_graphql_version(&request.path) != Some(STOREFRONT_FIRST_SLICE_VERSION)
+            || self.config.read_mode == ReadMode::Live
+            || operation.operation_type != OperationType::Query
+            || mode != LocalResolverMode::OverlayRead
         {
-            return None;
+            return Self::unimplemented_resolver_response(mode, root_name);
         }
-        let operation = parse_operation_with_variables(query, variables)?;
-        if operation.operation_type != OperationType::Query {
-            return None;
-        }
-        let fields = root_fields(query, variables)?;
-        if fields.is_empty() || !self.storefront_fields_are_local(&fields) {
-            return None;
-        }
+        let Some(field) = self.execution_root_field(query, variables, root_name) else {
+            return json_error(400, "Could not parse Storefront GraphQL root field");
+        };
 
         let context = storefront_request_context(query, variables);
         if self.config.read_mode == ReadMode::LiveHybrid
-            && self.storefront_first_slice_needs_hydration(&fields, &context)
+            && self.storefront_first_slice_needs_hydration(std::slice::from_ref(&field), &context)
         {
             self.hydrate_storefront_first_slice(request, &context);
         }
         if self.config.read_mode == ReadMode::LiveHybrid {
-            self.hydrate_storefront_menus_for_fields(request, &fields);
+            self.hydrate_storefront_menus_for_fields(request, std::slice::from_ref(&field));
         }
 
-        self.record_storefront_log_entry(
-            request,
-            "handled",
-            "overlay-read",
-            "Storefront roots were resolved locally from shared proxy store state.",
-        );
-        Some(ok_json(json!({
-            "data": self.storefront_local_query_data(&fields, &context)
-        })))
+        ok_json(json!({
+            "data": self.storefront_local_query_data(&[field], &context)
+        }))
     }
 
-    fn storefront_fields_are_local(&self, fields: &[RootFieldSelection]) -> bool {
+    pub(in crate::proxy) fn storefront_fields_are_local(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> bool {
         fields.iter().all(|field| {
             self.storefront_root_is_promoted(&field.name)
                 && self.storefront_root_has_local_backing(field)
-                && operation_capability_for_surface(
-                    &self.registry,
-                    ApiSurface::Storefront,
-                    OperationType::Query,
-                    Some(&field.name),
-                )
-                .domain
+                && self
+                    .registry
+                    .resolve_for_surface(ApiSurface::Storefront, OperationType::Query, &field.name)
+                    .domain
                     == CapabilityDomain::Storefront
         })
     }

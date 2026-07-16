@@ -7,6 +7,7 @@ import path from 'node:path';
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
+import { captureStorePropertiesLocationHydrate } from './support/shopify/runtime-hydration-capture.js';
 
 type GraphqlVariables = Record<string, unknown>;
 type UserError = { field: string[] | null; message: string; code?: string | null };
@@ -48,12 +49,13 @@ type ShopCurrencyData = {
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'products');
-const { runGraphql } = createAdminGraphqlClient({
+const { runGraphql, runGraphqlRaw } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
 }) as {
   runGraphql: <TData>(query: string, variables?: GraphqlVariables) => Promise<GraphqlPayload<TData>>;
+  runGraphqlRaw: (query: string, variables?: GraphqlVariables) => Promise<{ status: number; payload: unknown }>;
 };
 
 function expectNoUserErrors(label: string, userErrors: UserError[] | null | undefined): void {
@@ -487,6 +489,7 @@ try {
     inventoryVariant?.inventoryItem?.inventoryLevels?.nodes?.[0]?.location?.id,
     'inventory adjustment location id',
   );
+  const locationHydrate = await captureStorePropertiesLocationHydrate(runGraphqlRaw, adjustmentLocationId);
   const adjustVariables = {
     input: {
       name: 'available',
@@ -510,7 +513,7 @@ try {
         setup: { variables: inventorySetupVariables, response: setup },
         adjust: { variables: adjustVariables, response: adjust },
         downstreamRead: inventoryDownstream,
-        upstreamCalls: [],
+        upstreamCalls: [locationHydrate],
       },
       null,
       2,

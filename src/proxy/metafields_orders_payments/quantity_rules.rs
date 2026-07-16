@@ -8,12 +8,11 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let (response_key, payload_selection) = primary_root_field(query, variables)
-            .map(|field| (field.response_key, field.selection))
-            .unwrap_or_else(|| (root_field.to_string(), Vec::new()));
-        let price_list_id = resolved_string_field(variables, "priceListId").unwrap_or_default();
+        let (response_key, payload_selection, arguments) =
+            self.execution_primary_root_response_parts(query, variables, || root_field.to_string());
+        let price_list_id = resolved_string_field(&arguments, "priceListId").unwrap_or_default();
         let (payload, staged_variant_ids) = if root_field == "quantityRulesDelete" {
-            let variant_ids = list_string_field(variables, "variantIds");
+            let variant_ids = list_string_field(&arguments, "variantIds");
             let variant_errors = quantity_rules_delete_variant_errors(&self.store, &variant_ids);
             if !self
                 .store
@@ -36,11 +35,11 @@ impl DraftProxy {
                 }
                 (
                     json!({"deletedQuantityRulesVariantIds": variant_ids, "userErrors": []}),
-                    list_string_field(variables, "variantIds"),
+                    list_string_field(&arguments, "variantIds"),
                 )
             }
         } else {
-            let quantity_rules = resolved_object_list_field(variables, "quantityRules");
+            let quantity_rules = resolved_object_list_field(&arguments, "quantityRules");
             let variant_errors = quantity_rules_add_variant_errors(&self.store, &quantity_rules);
             if !self
                 .store

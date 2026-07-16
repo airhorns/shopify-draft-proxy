@@ -10,6 +10,12 @@ name = "shopify_draft_proxy"
 path = "src/lib.rs"
 
 [dependencies]
+async-graphql = { version = "=7.0.17", default-features = false, features = ["dynamic-schema"] }
+async-graphql-parser = "=7.0.17"
+# Native-language consumers resolve the root crate without this lockfile. Keep
+# async-graphql's semver-compatible internal value crate on the same release.
+async-graphql-value = "=7.0.17"
+futures-executor = "0.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 graphql-parser = "0.4"

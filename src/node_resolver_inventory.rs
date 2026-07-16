@@ -1,5 +1,13 @@
 use serde_json::{json, Value};
 
+use crate::{
+    graphql::SelectedField,
+    proxy::{DraftProxy, Request},
+};
+
+pub(crate) type NodeLoader =
+    fn(&DraftProxy, &str, &[SelectedField], Option<&Request>) -> Option<Value>;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NodeResolverBehavior {
     ProjectLocalRecord,
@@ -15,415 +23,549 @@ impl NodeResolverBehavior {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy)]
 pub struct NodeResolverInventoryEntry {
     pub type_name: &'static str,
     pub resolver: &'static str,
     pub behavior: NodeResolverBehavior,
+    pub(crate) loader: NodeLoader,
+}
+
+macro_rules! direct_node_entry {
+    ($type_name:expr, $resolver:expr, $behavior:expr, $loader:ident) => {
+        node_entry_with_loader(
+            $type_name,
+            $resolver,
+            $behavior,
+            crate::proxy::node_registry::$loader,
+        )
+    };
+}
+
+macro_rules! node_entry {
+    ($type_name:literal, $resolver:literal, $behavior:expr, $loader:ident $(,)?) => {
+        direct_node_entry!($type_name, $resolver, $behavior, $loader)
+    };
 }
 
 const DEFAULT_NODE_RESOLVER_INVENTORY: &[NodeResolverInventoryEntry] = &[
-    entry(
+    node_entry!(
+        "Abandonment",
+        "DraftProxy::abandonment_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+        load_abandonment,
+    ),
+    node_entry!(
         "App",
         "DraftProxy::app_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_app,
     ),
-    entry(
+    node_entry!(
         "AppInstallation",
         "DraftProxy::app_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_app,
     ),
-    entry(
+    node_entry!(
         "AppPurchaseOneTime",
         "DraftProxy::app_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_app,
     ),
-    entry(
+    node_entry!(
         "AppSubscription",
         "DraftProxy::app_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_app,
     ),
-    entry(
+    node_entry!(
         "AppUsageRecord",
         "DraftProxy::app_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_app,
     ),
-    entry(
+    node_entry!(
         "Article",
         "DraftProxy::online_store_content_node_value",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_online_store,
     ),
-    entry(
+    node_entry!(
         "Blog",
         "DraftProxy::online_store_content_node_value",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_online_store,
     ),
-    entry(
+    node_entry!(
         "CartTransform",
         "DraftProxy::local_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_cart_transform,
     ),
-    entry(
+    node_entry!(
         "CashTrackingSession",
         "local_node_value::is_safe_no_data_node_gid",
         NodeResolverBehavior::ReturnKnownNull,
+        load_known_null,
     ),
-    entry(
+    node_entry!(
         "Collection",
         "DraftProxy::collection_json_with_publication_fields",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_collection,
     ),
-    entry(
+    node_entry!(
         "Comment",
         "DraftProxy::online_store_content_node_value",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_online_store,
     ),
-    entry(
+    node_entry!(
         "Company",
         "DraftProxy::b2b_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_b2b,
     ),
-    entry(
+    node_entry!(
         "CompanyAddress",
         "DraftProxy::b2b_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_b2b,
     ),
-    entry(
+    node_entry!(
         "CompanyContact",
         "DraftProxy::b2b_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_b2b,
     ),
-    entry(
+    node_entry!(
         "CompanyContactRole",
         "DraftProxy::b2b_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_b2b,
     ),
-    entry(
+    node_entry!(
         "CompanyContactRoleAssignment",
         "DraftProxy::b2b_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_b2b,
     ),
-    entry(
+    node_entry!(
         "CompanyLocation",
         "DraftProxy::b2b_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_b2b,
     ),
-    entry(
+    node_entry!(
         "Customer",
         "DraftProxy::customer_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_customer,
     ),
-    entry(
+    node_entry!(
         "CustomerPaymentMethod",
         "DraftProxy::customer_payment_method_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_customer_payment_method,
     ),
-    entry(
+    node_entry!(
         "CustomerSegmentMembersQuery",
         "DraftProxy::local_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_customer_segment_members_query,
     ),
-    entry(
+    node_entry!(
+        "DeliveryCustomization",
+        "DraftProxy::delivery_customization_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+        load_delivery_customization,
+    ),
+    node_entry!(
         "DeliveryPromiseParticipant",
         "DraftProxy::delivery_promise_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_delivery_promise,
     ),
-    entry(
+    node_entry!(
         "DeliveryPromiseProvider",
         "DraftProxy::delivery_promise_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_delivery_promise,
     ),
-    entry(
+    node_entry!(
         "DiscountAutomaticNode",
         "DraftProxy::discount_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_discount,
     ),
-    entry(
+    node_entry!(
         "DiscountCodeNode",
         "DraftProxy::discount_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_discount,
     ),
-    entry(
+    node_entry!(
         "ExternalVideo",
         "DraftProxy::local_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_media,
     ),
-    entry(
+    node_entry!(
         "Fulfillment",
         "DraftProxy::fulfillment_return_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_fulfillment_return,
     ),
-    entry(
+    node_entry!(
         "FulfillmentConstraintRule",
         "DraftProxy::local_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_fulfillment_constraint_rule,
     ),
-    entry(
+    node_entry!(
         "FulfillmentEvent",
         "DraftProxy::fulfillment_return_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_fulfillment_return,
     ),
-    entry(
+    node_entry!(
         "FulfillmentHold",
         "DraftProxy::fulfillment_return_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_fulfillment_return,
     ),
-    entry(
+    node_entry!(
         "FulfillmentLineItem",
         "DraftProxy::fulfillment_return_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_fulfillment_return,
     ),
-    entry(
+    node_entry!(
         "FulfillmentOrder",
         "DraftProxy::fulfillment_return_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_fulfillment_return,
     ),
-    entry(
+    node_entry!(
         "FulfillmentOrderLineItem",
         "DraftProxy::fulfillment_return_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_fulfillment_return,
     ),
-    entry(
+    node_entry!(
         "GenericFile",
         "DraftProxy::local_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_media,
     ),
-    entry(
+    node_entry!(
         "GiftCard",
         "DraftProxy::gift_card_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_gift_card,
     ),
-    entry(
+    node_entry!(
         "GiftCardCreditTransaction",
         "DraftProxy::gift_card_transaction_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_gift_card_transaction,
     ),
-    entry(
+    node_entry!(
         "GiftCardDebitTransaction",
         "DraftProxy::gift_card_transaction_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_gift_card_transaction,
     ),
-    entry(
+    node_entry!(
         "InventoryAdjustmentGroup",
         "DraftProxy::inventory_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_inventory,
     ),
-    entry(
+    node_entry!(
         "InventoryItem",
         "DraftProxy::inventory_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_inventory,
     ),
-    entry(
+    node_entry!(
         "InventoryLevel",
         "DraftProxy::inventory_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_inventory,
     ),
-    entry(
+    node_entry!(
         "InventoryQuantity",
         "DraftProxy::inventory_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_inventory,
     ),
-    entry(
+    node_entry!(
         "InventoryShipment",
         "DraftProxy::inventory_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_inventory,
     ),
-    entry(
+    node_entry!(
         "InventoryShipmentLineItem",
         "DraftProxy::inventory_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_inventory,
     ),
-    entry(
+    node_entry!(
         "InventoryTransfer",
         "DraftProxy::inventory_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_inventory,
     ),
-    entry(
+    node_entry!(
         "InventoryTransferLineItem",
         "DraftProxy::inventory_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_inventory,
     ),
-    entry(
+    node_entry!(
         "Location",
         "DraftProxy::local_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_location,
     ),
-    entry(
+    node_entry!(
         "MailingAddress",
         "DraftProxy::customer_address_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_customer_address,
     ),
-    entry(
+    node_entry!(
         "MarketRegionCountry",
         "DraftProxy::local_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_backup_region,
     ),
-    entry(
+    node_entry!(
         "MediaImage",
         "DraftProxy::local_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_media,
     ),
-    entry(
+    node_entry!(
+        "Metaobject",
+        "DraftProxy::metaobject_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+        load_metaobject,
+    ),
+    node_entry!(
+        "MetaobjectDefinition",
+        "DraftProxy::metaobject_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+        load_metaobject,
+    ),
+    node_entry!(
         "Model3d",
         "DraftProxy::local_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_media,
     ),
-    entry(
+    node_entry!(
+        "Order",
+        "DraftProxy::order_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+        load_order,
+    ),
+    node_entry!(
         "Page",
         "DraftProxy::online_store_content_node_value",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_online_store,
     ),
-    entry(
+    node_entry!(
         "PointOfSaleDevice",
         "local_node_value::is_safe_no_data_node_gid",
         NodeResolverBehavior::ReturnKnownNull,
+        load_known_null,
     ),
-    entry(
+    node_entry!(
         "Product",
         "DraftProxy::product_json_with_variants_and_currency_context",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_product,
     ),
-    entry(
+    node_entry!(
         "ProductBundleOperation",
         "DraftProxy::product_operation_json",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_product_operation,
     ),
-    entry(
+    node_entry!(
         "ProductDeleteOperation",
         "DraftProxy::product_delete_operation_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_product_delete_operation,
     ),
-    entry(
+    node_entry!(
         "ProductDuplicateOperation",
         "DraftProxy::product_operation_json",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_product_operation,
     ),
-    entry(
+    node_entry!(
         "ProductFeed",
         "DraftProxy::product_tail_feed_node_value",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_product_feed,
     ),
-    entry(
+    node_entry!(
         "ProductSetOperation",
         "DraftProxy::product_operation_json",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_product_operation,
     ),
-    entry(
+    node_entry!(
         "ProductVariant",
         "DraftProxy::product_variant_by_id_value",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_product_variant,
     ),
-    entry(
+    node_entry!(
         "Return",
         "DraftProxy::fulfillment_return_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_fulfillment_return,
     ),
-    entry(
+    node_entry!(
         "ReturnLineItem",
         "DraftProxy::fulfillment_return_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_fulfillment_return,
     ),
-    entry(
+    node_entry!(
         "ReturnableFulfillment",
         "DraftProxy::fulfillment_return_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_fulfillment_return,
     ),
-    entry(
+    node_entry!(
         "ReverseDelivery",
         "DraftProxy::fulfillment_return_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_fulfillment_return,
     ),
-    entry(
+    node_entry!(
         "ReverseDeliveryLineItem",
         "DraftProxy::fulfillment_return_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_fulfillment_return,
     ),
-    entry(
+    node_entry!(
         "ReverseFulfillmentOrder",
         "DraftProxy::fulfillment_return_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_fulfillment_return,
     ),
-    entry(
+    node_entry!(
         "ReverseFulfillmentOrderLineItem",
         "DraftProxy::fulfillment_return_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_fulfillment_return,
     ),
-    entry(
+    node_entry!(
         "Segment",
         "DraftProxy::local_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_segment,
     ),
-    entry(
+    node_entry!(
         "ShopAddress",
         "DraftProxy::shop_property_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_shop_property,
     ),
-    entry(
+    node_entry!(
         "ShopPolicy",
         "DraftProxy::shop_property_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_shop_property,
     ),
-    entry(
+    node_entry!(
+        "ShopifyFunction",
+        "DraftProxy::shopify_function_node_value_by_id",
+        NodeResolverBehavior::ProjectLocalRecord,
+        load_shopify_function,
+    ),
+    node_entry!(
         "ShopifyPaymentsDispute",
         "local_node_value::is_safe_no_data_node_gid",
         NodeResolverBehavior::ReturnKnownNull,
+        load_known_null,
     ),
-    entry(
+    node_entry!(
         "StoreCreditAccount",
         "DraftProxy::store_credit_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_store_credit,
     ),
-    entry(
+    node_entry!(
         "StoreCreditAccountCreditTransaction",
         "DraftProxy::store_credit_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_store_credit,
     ),
-    entry(
+    node_entry!(
         "StoreCreditAccountDebitRevertTransaction",
         "DraftProxy::store_credit_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_store_credit,
     ),
-    entry(
+    node_entry!(
         "StoreCreditAccountDebitTransaction",
         "DraftProxy::store_credit_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_store_credit,
     ),
-    entry(
+    node_entry!(
         "StoreCreditAccountTransaction",
         "DraftProxy::store_credit_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_store_credit,
     ),
-    entry(
+    node_entry!(
         "TaxAppConfiguration",
         "DraftProxy::local_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_tax_app_configuration,
     ),
-    entry(
+    node_entry!(
         "UnverifiedReturnLineItem",
         "DraftProxy::fulfillment_return_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_fulfillment_return,
     ),
-    entry(
+    node_entry!(
         "Validation",
         "DraftProxy::local_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_validation,
     ),
-    entry(
+    node_entry!(
         "Video",
         "DraftProxy::local_node_value_by_id",
         NodeResolverBehavior::ProjectLocalRecord,
+        load_media,
     ),
 ];
 
-const fn entry(
+const fn node_entry_with_loader(
     type_name: &'static str,
     resolver: &'static str,
     behavior: NodeResolverBehavior,
+    loader: NodeLoader,
 ) -> NodeResolverInventoryEntry {
     NodeResolverInventoryEntry {
         type_name,
         resolver,
         behavior,
+        loader,
     }
 }
 

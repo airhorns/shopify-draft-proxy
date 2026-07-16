@@ -7,12 +7,13 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let (response_key, payload_selection, arguments) =
-            primary_root_response_parts(query, variables, || {
+        let (response_key, payload_selection, arguments) = self
+            .execution_primary_root_response_parts(query, variables, || {
                 "delegateAccessTokenCreate".to_string()
             });
         let token_selection =
             selected_child_selection(&payload_selection, "delegateAccessToken").unwrap_or_default();
+        self.hydrate_payload_shop_identity_if_selected(request, &payload_selection);
         let input = resolved_object_field(&arguments, "input").unwrap_or_default();
         let scopes = input
             .get("delegateAccessScope")
@@ -148,10 +149,11 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let (response_key, payload_selection, arguments) =
-            primary_root_response_parts(query, variables, || {
+        let (response_key, payload_selection, arguments) = self
+            .execution_primary_root_response_parts(query, variables, || {
                 "delegateAccessTokenDestroy".to_string()
             });
+        self.hydrate_payload_shop_identity_if_selected(request, &payload_selection);
         let token = resolved_string_field(&arguments, "accessToken").unwrap_or_default();
         let caller_token = request_access_token(request).unwrap_or_default();
         let caller_api_client_id = request_api_client_id(request);
@@ -228,8 +230,10 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let (response_key, payload_selection, arguments) =
-            primary_root_response_parts(query, variables, || "appRevokeAccessScopes".to_string());
+        let (response_key, payload_selection, arguments) = self
+            .execution_primary_root_response_parts(query, variables, || {
+                "appRevokeAccessScopes".to_string()
+            });
         let scopes = arguments
             .get("scopes")
             .map(resolved_string_list)

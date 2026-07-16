@@ -51,28 +51,31 @@ fn create_product_with_variant(proxy: &mut DraftProxy, title: &str, sku: &str) -
     );
     let variant = proxy.process_request(json_graphql_request(
         r#"
-        mutation CreateEntitledVariant($input: ProductVariantInput!) {
-          productVariantCreate(input: $input) {
-            productVariant { id }
+        mutation CreateEntitledVariant(
+          $productId: ID!
+          $variants: [ProductVariantsBulkInput!]!
+        ) {
+          productVariantsBulkCreate(productId: $productId, variants: $variants) {
+            productVariants { id }
             userErrors { field message }
           }
         }
         "#,
         json!({
-            "input": {
-                "productId": product_id,
-                "title": sku,
-                "sku": sku,
+            "productId": product_id,
+            "variants": [{
+                "inventoryItem": { "sku": sku },
+                "optionValues": [{ "optionName": "Title", "name": sku }],
                 "price": "10.00"
-            }
+            }]
         }),
     ));
     assert_eq!(
-        variant.body["data"]["productVariantCreate"]["userErrors"],
+        variant.body["data"]["productVariantsBulkCreate"]["userErrors"],
         json!([])
     );
     let variant_id = json_string(
-        &variant.body["data"]["productVariantCreate"]["productVariant"]["id"],
+        &variant.body["data"]["productVariantsBulkCreate"]["productVariants"][0]["id"],
         "entitled variant id",
     );
     (product_id, variant_id)
@@ -464,14 +467,27 @@ fn discount_entitlement_connections_follow_staged_resource_updates_and_deletes()
     );
     let variant_update = proxy.process_request(json_graphql_request(
         r#"
-        mutation UpdateEntitledVariant($input: ProductVariantInput!) {
-          productVariantUpdate(input: $input) { productVariant { id title sku } userErrors { field message } }
+        mutation UpdateEntitledVariant(
+          $productId: ID!
+          $variants: [ProductVariantsBulkInput!]!
+        ) {
+          productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+            productVariants { id title sku }
+            userErrors { field message }
+          }
         }
         "#,
-        json!({ "input": { "id": variant_id, "title": "Entitled Variant Updated", "sku": "ENTITLED-MUTABLE-UPDATED" } }),
+        json!({
+            "productId": product_id,
+            "variants": [{
+                "id": variant_id,
+                "inventoryItem": { "sku": "ENTITLED-MUTABLE-UPDATED" },
+                "optionValues": [{ "optionName": "Title", "name": "Entitled Variant Updated" }]
+            }]
+        }),
     ));
     assert_eq!(
-        variant_update.body["data"]["productVariantUpdate"]["userErrors"],
+        variant_update.body["data"]["productVariantsBulkUpdate"]["userErrors"],
         json!([])
     );
     let collection_update = proxy.process_request(json_graphql_request(
@@ -549,14 +565,17 @@ fn discount_entitlement_connections_follow_staged_resource_updates_and_deletes()
 
     let variant_delete = proxy.process_request(json_graphql_request(
         r#"
-        mutation DeleteEntitledVariant($id: ID!) {
-          productVariantDelete(id: $id) { deletedProductVariantId userErrors { field message } }
+        mutation DeleteEntitledVariant($productId: ID!, $variantIds: [ID!]!) {
+          productVariantsBulkDelete(productId: $productId, variantsIds: $variantIds) {
+            product { id }
+            userErrors { field message }
+          }
         }
         "#,
-        json!({ "id": variant_id }),
+        json!({ "productId": product_id, "variantIds": [variant_id] }),
     ));
     assert_eq!(
-        variant_delete.body["data"]["productVariantDelete"]["userErrors"],
+        variant_delete.body["data"]["productVariantsBulkDelete"]["userErrors"],
         json!([])
     );
     let product_delete = proxy.process_request(json_graphql_request(

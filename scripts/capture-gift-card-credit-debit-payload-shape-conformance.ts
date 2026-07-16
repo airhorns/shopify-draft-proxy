@@ -7,6 +7,7 @@ import path from 'node:path';
 import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
+import { captureGiftCardCreateConfiguration } from './support/shopify/runtime-hydration-capture.js';
 
 type CapturedRequest = {
   label: string;
@@ -28,6 +29,9 @@ const { runGraphqlRequest } = createAdminGraphqlClient({
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
 });
+const giftCardCreateConfigurationHydrate = await captureGiftCardCreateConfiguration((query, variables) =>
+  runGraphqlRequest(query, variables),
+);
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -285,7 +289,7 @@ try {
           invalidDebitGiftCard,
         },
         cleanup,
-        upstreamCalls: [],
+        upstreamCalls: [giftCardCreateConfigurationHydrate],
       },
       null,
       2,

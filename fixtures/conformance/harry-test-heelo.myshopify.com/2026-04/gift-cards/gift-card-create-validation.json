@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-06-14T18:00:19.266Z",
+  "capturedAt": "2026-07-14T15:53:11.068Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "notes": [
@@ -9,7 +9,7 @@
   ],
   "proxyVariables": {
     "createValidation": {
-      "validCode": "parityokmqe3arhi",
+      "validCode": "parityokmrktyteu",
       "tooLongCode": "xxxxxxxxxxxxxxxxxxxxxxxxx",
       "missingCustomerId": "gid://shopify/Customer/999999999999"
     },
@@ -1118,78 +1118,6 @@
                   ]
                 },
                 {
-                  "name": "collectionAddProducts",
-                  "args": [
-                    {
-                      "name": "id",
-                      "type": {
-                        "kind": "NON_NULL",
-                        "name": null,
-                        "ofType": {
-                          "kind": "SCALAR",
-                          "name": "ID",
-                          "ofType": null
-                        }
-                      }
-                    },
-                    {
-                      "name": "productIds",
-                      "type": {
-                        "kind": "NON_NULL",
-                        "name": null,
-                        "ofType": {
-                          "kind": "LIST",
-                          "name": null,
-                          "ofType": {
-                            "kind": "NON_NULL",
-                            "name": null,
-                            "ofType": {
-                              "kind": "SCALAR",
-                              "name": "ID"
-                            }
-                          }
-                        }
-                      }
-                    }
-                  ]
-                },
-                {
-                  "name": "collectionAddProductsV2",
-                  "args": [
-                    {
-                      "name": "id",
-                      "type": {
-                        "kind": "NON_NULL",
-                        "name": null,
-                        "ofType": {
-                          "kind": "SCALAR",
-                          "name": "ID",
-                          "ofType": null
-                        }
-                      }
-                    },
-                    {
-                      "name": "productIds",
-                      "type": {
-                        "kind": "NON_NULL",
-                        "name": null,
-                        "ofType": {
-                          "kind": "LIST",
-                          "name": null,
-                          "ofType": {
-                            "kind": "NON_NULL",
-                            "name": null,
-                            "ofType": {
-                              "kind": "SCALAR",
-                              "name": "ID"
-                            }
-                          }
-                        }
-                      }
-                    }
-                  ]
-                },
-                {
                   "name": "collectionCreate",
                   "args": [
                     {
@@ -1235,42 +1163,6 @@
                           "kind": "INPUT_OBJECT",
                           "name": "CollectionDuplicateInput",
                           "ofType": null
-                        }
-                      }
-                    }
-                  ]
-                },
-                {
-                  "name": "collectionRemoveProducts",
-                  "args": [
-                    {
-                      "name": "id",
-                      "type": {
-                        "kind": "NON_NULL",
-                        "name": null,
-                        "ofType": {
-                          "kind": "SCALAR",
-                          "name": "ID",
-                          "ofType": null
-                        }
-                      }
-                    },
-                    {
-                      "name": "productIds",
-                      "type": {
-                        "kind": "NON_NULL",
-                        "name": null,
-                        "ofType": {
-                          "kind": "LIST",
-                          "name": null,
-                          "ofType": {
-                            "kind": "NON_NULL",
-                            "name": null,
-                            "ofType": {
-                              "kind": "SCALAR",
-                              "name": "ID"
-                            }
-                          }
                         }
                       }
                     }
@@ -6824,23 +6716,6 @@
                         "ofType": {
                           "kind": "INPUT_OBJECT",
                           "name": "MarketingActivityCreateInput",
-                          "ofType": null
-                        }
-                      }
-                    }
-                  ]
-                },
-                {
-                  "name": "marketingActivityCreateExternal",
-                  "args": [
-                    {
-                      "name": "input",
-                      "type": {
-                        "kind": "NON_NULL",
-                        "name": null,
-                        "ofType": {
-                          "kind": "INPUT_OBJECT",
-                          "name": "MarketingActivityCreateExternalInput",
                           "ofType": null
                         }
                       }
@@ -13395,7 +13270,7 @@
       "label": "createValidation",
       "query": "#graphql\n  mutation GiftCardCreateValidation(\n    $validCode: String!\n    $tooLongCode: String!\n    $missingCustomerId: ID!\n  ) {\n    zeroInitialValue: giftCardCreate(input: { initialValue: \"0\" }) {\n      giftCard {\n        id\n      }\n      giftCardCode\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n    shortCode: giftCardCreate(input: { initialValue: \"10\", code: \"abc\" }) {\n      giftCard {\n        id\n      }\n      giftCardCode\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n    longCode: giftCardCreate(input: { initialValue: \"10\", code: $tooLongCode }) {\n      giftCard {\n        id\n      }\n      giftCardCode\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n    invalidCode: giftCardCreate(input: { initialValue: \"10\", code: \"bad!code\" }) {\n      giftCard {\n        id\n      }\n      giftCardCode\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n    shortCodeMissingCustomer: giftCardCreate(\n      input: { initialValue: \"10\", code: \"abc\", customerId: $missingCustomerId }\n    ) {\n      giftCard {\n        id\n      }\n      giftCardCode\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n    missingCustomer: giftCardCreate(\n      input: { initialValue: \"10\", customerId: $missingCustomerId }\n    ) {\n      giftCard {\n        id\n      }\n      giftCardCode\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n    success: giftCardCreate(input: { initialValue: \"10\", code: $validCode }) {\n      giftCard {\n        id\n        lastCharacters\n        maskedCode\n        createdAt\n        updatedAt\n        initialValue {\n          amount\n          currencyCode\n        }\n        balance {\n          amount\n          currencyCode\n        }\n      }\n      giftCardCode\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n    duplicate: giftCardCreate(input: { initialValue: \"10\", code: $validCode }) {\n      giftCard {\n        id\n      }\n      giftCardCode\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n    autoGenerated: giftCardCreate(input: { initialValue: \"10\" }) {\n      giftCard {\n        id\n        lastCharacters\n        maskedCode\n        createdAt\n        updatedAt\n        initialValue {\n          amount\n          currencyCode\n        }\n        balance {\n          amount\n          currencyCode\n        }\n      }\n      giftCardCode\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
       "variables": {
-        "validCode": "parityokmqe3arhi",
+        "validCode": "parityokmrktyteu",
         "tooLongCode": "xxxxxxxxxxxxxxxxxxxxxxxxx",
         "missingCustomerId": "gid://shopify/Customer/999999999999"
       },
@@ -13471,11 +13346,11 @@
             },
             "success": {
               "giftCard": {
-                "id": "gid://shopify/GiftCard/660610941234",
-                "lastCharacters": "arhi",
-                "maskedCode": "•••• •••• •••• arhi",
-                "createdAt": "2026-06-14T18:00:18Z",
-                "updatedAt": "2026-06-14T18:00:18Z",
+                "id": "gid://shopify/GiftCard/663920050482",
+                "lastCharacters": "yteu",
+                "maskedCode": "•••• •••• •••• yteu",
+                "createdAt": "2026-07-14T15:53:10Z",
+                "updatedAt": "2026-07-14T15:53:10Z",
                 "initialValue": {
                   "amount": "10.0",
                   "currencyCode": "CAD"
@@ -13485,7 +13360,7 @@
                   "currencyCode": "CAD"
                 }
               },
-              "giftCardCode": "parityokmqe3arhi",
+              "giftCardCode": "parityokmrktyteu",
               "userErrors": []
             },
             "duplicate": {
@@ -13501,11 +13376,11 @@
             },
             "autoGenerated": {
               "giftCard": {
-                "id": "gid://shopify/GiftCard/660610974002",
-                "lastCharacters": "9da7",
-                "maskedCode": "•••• •••• •••• 9da7",
-                "createdAt": "2026-06-14T18:00:18Z",
-                "updatedAt": "2026-06-14T18:00:18Z",
+                "id": "gid://shopify/GiftCard/663920083250",
+                "lastCharacters": "376g",
+                "maskedCode": "•••• •••• •••• 376g",
+                "createdAt": "2026-07-14T15:53:10Z",
+                "updatedAt": "2026-07-14T15:53:10Z",
                 "initialValue": {
                   "amount": "10.0",
                   "currencyCode": "CAD"
@@ -13515,7 +13390,7 @@
                   "currencyCode": "CAD"
                 }
               },
-              "giftCardCode": "fc9dd9dda2f69da7",
+              "giftCardCode": "2af37haec63b376g",
               "userErrors": []
             }
           },
@@ -13539,7 +13414,7 @@
       "label": "cleanupDeactivate:success",
       "query": "#graphql\n      mutation GiftCardCreateValidationCleanup($id: ID!) {\n        giftCardDeactivate(id: $id) {\n          giftCard {\n            id\n            enabled\n            deactivatedAt\n          }\n          userErrors {\n            field\n            code\n            message\n          }\n        }\n      }\n    ",
       "variables": {
-        "id": "gid://shopify/GiftCard/660610941234"
+        "id": "gid://shopify/GiftCard/663920050482"
       },
       "response": {
         "status": 200,
@@ -13547,9 +13422,9 @@
           "data": {
             "giftCardDeactivate": {
               "giftCard": {
-                "id": "gid://shopify/GiftCard/660610941234",
+                "id": "gid://shopify/GiftCard/663920050482",
                 "enabled": false,
-                "deactivatedAt": "2026-06-14T18:00:18Z"
+                "deactivatedAt": "2026-07-14T15:53:10Z"
               },
               "userErrors": []
             }
@@ -13560,7 +13435,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1927,
+                "currentlyAvailable": 1936,
                 "restoreRate": 100
               }
             }
@@ -13572,7 +13447,7 @@
       "label": "cleanupDeactivate:autoGenerated",
       "query": "#graphql\n      mutation GiftCardCreateValidationCleanup($id: ID!) {\n        giftCardDeactivate(id: $id) {\n          giftCard {\n            id\n            enabled\n            deactivatedAt\n          }\n          userErrors {\n            field\n            code\n            message\n          }\n        }\n      }\n    ",
       "variables": {
-        "id": "gid://shopify/GiftCard/660610974002"
+        "id": "gid://shopify/GiftCard/663920083250"
       },
       "response": {
         "status": 200,
@@ -13580,9 +13455,9 @@
           "data": {
             "giftCardDeactivate": {
               "giftCard": {
-                "id": "gid://shopify/GiftCard/660610974002",
+                "id": "gid://shopify/GiftCard/663920083250",
                 "enabled": false,
-                "deactivatedAt": "2026-06-14T18:00:19Z"
+                "deactivatedAt": "2026-07-14T15:53:11Z"
               },
               "userErrors": []
             }
@@ -13593,7 +13468,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1935,
+                "currentlyAvailable": 1944,
                 "restoreRate": 100
               }
             }
@@ -13602,5 +13477,39 @@
       }
     }
   ],
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "GiftCardCreateConfiguration",
+      "variables": {},
+      "query": "#graphql\n  query GiftCardCreateConfiguration {\n    giftCardConfiguration {\n      issueLimit { amount currencyCode }\n      purchaseLimit { amount currencyCode }\n    }\n  }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "giftCardConfiguration": {
+              "issueLimit": {
+                "amount": "3000.0",
+                "currencyCode": "CAD"
+              },
+              "purchaseLimit": {
+                "amount": "14000.0",
+                "currencyCode": "CAD"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }
