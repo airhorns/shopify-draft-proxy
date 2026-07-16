@@ -7590,7 +7590,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-collection-top-level-staged-read-conformance.mts',
     purpose:
-      'Top-level collections/collectionsCount plus collectionByIdentifier and deprecated collectionByHandle read-after-write for staged collection create, update, delete, query filters, sortKey, reverse, cursor windows, and count limit precision.',
+      'Top-level collections/collectionsCount plus collectionByIdentifier and deprecated collectionByHandle read-after-write for staged collection create, existing-handle fallback reads, count-only reads, update, delete, query filters, sortKey, reverse, cursor windows, and count limit precision.',
     requiredAuthScopes: ['read_products', 'write_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}collection-top-level-staged-read.json`,
@@ -7598,6 +7598,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/products/collection-top-level-staged-read-create.graphql',
       'config/parity-requests/products/collection-top-level-staged-read-update.graphql',
       'config/parity-requests/products/collection-top-level-staged-read-delete.graphql',
+      'config/parity-requests/products/collection-top-level-staged-read-existing-handle-lookups.graphql',
+      'config/parity-requests/products/collection-top-level-staged-read-count-only.graphql',
       'config/parity-requests/products/collection-top-level-staged-read-initial-page1.graphql',
       'config/parity-requests/products/collection-top-level-staged-read-initial-page2.graphql',
       'config/parity-requests/products/collection-top-level-staged-read-post-update.graphql',

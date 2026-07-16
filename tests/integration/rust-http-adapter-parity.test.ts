@@ -220,6 +220,7 @@ describe('Rust HTTP adapter route surface', () => {
             deletedProductFeedIds: [],
             collections: {},
             deletedCollectionIds: [],
+            deletedCollectionHandles: [],
             collectionJobs: {},
             savedSearches: {},
             savedSearchOrder: [],

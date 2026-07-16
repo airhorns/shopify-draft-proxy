@@ -144,20 +144,23 @@ impl DraftProxy {
                 ok_json(json!({ "data": self.selling_plan_group_query_data(&fields) }))
             }
             "collections" | "collectionsCount" => {
+                let fields = match self.root_fields_or_error(query, variables) {
+                    Ok(fields) => fields,
+                    Err(response) => return response,
+                };
+                let mut upstream_data = None;
                 if self.config.read_mode == ReadMode::LiveHybrid
                     && self.store.has_collection_state()
                 {
-                    self.hydrate_collections_for_read(request);
+                    upstream_data = self.hydrate_collections_for_read(request, &fields);
                 }
                 if self.store.has_collection_state() {
-                    let fields = match self.root_fields_or_error(query, variables) {
-                        Ok(fields) => fields,
-                        Err(response) => return response,
-                    };
-                    let api_client_id = request_app_namespace_api_client_id(request);
-                    ok_json(
-                        json!({ "data": self.product_overlay_read_data(&fields, api_client_id.as_deref()) }),
-                    )
+                    ok_json(json!({
+                        "data": self.collection_membership_downstream_read_data_with_upstream(
+                            &fields,
+                            upstream_data.as_ref(),
+                        )
+                    }))
                 } else {
                     (self.upstream_transport)(request.clone())
                 }

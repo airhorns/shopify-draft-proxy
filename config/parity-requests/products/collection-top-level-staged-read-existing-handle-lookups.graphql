@@ -1,0 +1,12 @@
+query CollectionTopLevelStagedReadExistingHandleLookups($existingHandle: String!) {
+  existingByIdentifier: collectionByIdentifier(identifier: { handle: $existingHandle }) {
+    id
+    title
+    handle
+  }
+  existingByHandle: collectionByHandle(handle: $existingHandle) {
+    id
+    title
+    handle
+  }
+}

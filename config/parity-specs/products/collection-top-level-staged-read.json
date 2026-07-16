@@ -26,7 +26,7 @@
     "variablesCapturePath": "$.operations.firstCreate.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live Shopify 2026-04 capture for top-level collections/collectionsCount plus collectionByIdentifier and deprecated collectionByHandle read-after-write after two collectionCreate calls, a collectionUpdate, and a collectionDelete. The replay uses only public GraphQL requests; volatile collection ids and cursor strings are path-scoped expected differences.",
+  "notes": "Live Shopify 2026-04 capture for top-level collections/collectionsCount plus collectionByIdentifier and deprecated collectionByHandle read-after-write after collectionCreate calls, a collectionUpdate, and a collectionDelete. It also captures create-then-existing-handle lookup and count-only read ordering: the proxy count target receives a recorded pre-create upstream count through upstreamCalls, then must add the staged create locally to match Shopify's post-create count. The replay uses only public GraphQL requests; volatile collection ids and cursor strings are path-scoped expected differences.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
@@ -41,6 +41,24 @@
         "name": "first-create",
         "capturePath": "$.operations.firstCreate.response.data",
         "proxyPath": "$.data"
+      },
+      {
+        "name": "existing-handle-after-first-create",
+        "capturePath": "$.operations.existingHandleAfterFirstCreate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collection-top-level-staged-read-existing-handle-lookups.graphql",
+          "variablesCapturePath": "$.operations.existingHandleAfterFirstCreate.variables"
+        }
+      },
+      {
+        "name": "count-only-after-first-create",
+        "capturePath": "$.operations.countOnlyAfterFirstCreate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collection-top-level-staged-read-count-only.graphql",
+          "variablesCapturePath": "$.operations.countOnlyAfterFirstCreate.variables"
+        }
       },
       {
         "name": "second-create",

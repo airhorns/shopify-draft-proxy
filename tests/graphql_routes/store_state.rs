@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::sync::{Arc, Mutex};
 
 use pretty_assertions::assert_eq;
 use serde_json::{json, Value};
@@ -1434,6 +1435,260 @@ fn top_level_collections_live_hybrid_overlays_observed_upstream_state() {
                 "handle": "upstream-base-collection"
             }
         ])
+    );
+}
+
+#[test]
+fn collection_handle_lookups_forward_after_staged_collection_miss() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy = DraftProxy::new(Config {
+        read_mode: ReadMode::LiveHybrid,
+        unsupported_mutation_mode: Some(UnsupportedMutationMode::Passthrough),
+        bulk_operation_run_mutation_max_input_file_size_bytes: None,
+        port: 0,
+        shopify_admin_origin: "https://shopify.com".to_string(),
+        snapshot_path: None,
+    })
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+        captured_requests.lock().unwrap().push(body);
+        ok_json(json!({
+            "data": {
+                "byHandle": {
+                    "id": "gid://shopify/Collection/494967390514",
+                    "title": "Automated Collection",
+                    "handle": "automated-collection"
+                },
+                "byIdentifier": {
+                    "id": "gid://shopify/Collection/494967390515",
+                    "title": "Home page",
+                    "handle": "frontpage"
+                }
+            }
+        }))
+    });
+
+    let create = proxy.process_request(graphql_request(
+        r#"
+        mutation CreateCollection($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "title": "Summer Sale", "handle": "summer-sale" } }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(upstream_requests.lock().unwrap().len(), 0);
+
+    let read = proxy.process_request(graphql_request(
+        r#"
+        query CollectionHandleLookupMisses {
+          byIdentifier: collectionByIdentifier(identifier: { handle: "frontpage" }) {
+            id
+            title
+            handle
+          }
+          byHandle: collectionByHandle(handle: "automated-collection") {
+            id
+            title
+            handle
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["byHandle"],
+        json!({
+            "id": "gid://shopify/Collection/494967390514",
+            "title": "Automated Collection",
+            "handle": "automated-collection"
+        })
+    );
+    assert_eq!(
+        read.body["data"]["byIdentifier"],
+        json!({
+            "id": "gid://shopify/Collection/494967390515",
+            "title": "Home page",
+            "handle": "frontpage"
+        })
+    );
+    assert_eq!(upstream_requests.lock().unwrap().len(), 1);
+
+    let cached = proxy.process_request(graphql_request(
+        r#"
+        query CollectionHandleLookupCached {
+          byHandle: collectionByHandle(handle: "automated-collection") { id title handle }
+          byIdentifier: collectionByIdentifier(identifier: { handle: "frontpage" }) { id title handle }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(cached.status, 200);
+    assert_eq!(cached.body["data"], read.body["data"]);
+    assert_eq!(
+        upstream_requests.lock().unwrap().len(),
+        1,
+        "observed upstream collections should satisfy subsequent handle reads locally"
+    );
+}
+
+#[test]
+fn collections_count_uses_upstream_total_with_staged_delta() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy = DraftProxy::new(Config {
+        read_mode: ReadMode::LiveHybrid,
+        unsupported_mutation_mode: Some(UnsupportedMutationMode::Passthrough),
+        bulk_operation_run_mutation_max_input_file_size_bytes: None,
+        port: 0,
+        shopify_admin_origin: "https://shopify.com".to_string(),
+        snapshot_path: None,
+    })
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+        captured_requests.lock().unwrap().push(body);
+        ok_json(json!({
+            "data": {
+                "collectionsCount": {
+                    "count": 3,
+                    "precision": "EXACT"
+                }
+            }
+        }))
+    });
+
+    let create = proxy.process_request(graphql_request(
+        r#"
+        mutation CreateCollection($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "title": "Summer Sale", "handle": "summer-sale" } }),
+    ));
+    assert_eq!(create.status, 200);
+
+    let count = proxy.process_request(graphql_request(
+        r#"
+        query CollectionCountAfterCreate {
+          collectionsCount {
+            count
+            precision
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(count.status, 200);
+    assert_eq!(
+        count.body["data"]["collectionsCount"],
+        json!({ "count": 4, "precision": "EXACT" })
+    );
+    assert_eq!(upstream_requests.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn collections_live_hybrid_hydrates_identity_when_selection_omits_id() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy = DraftProxy::new(Config {
+        read_mode: ReadMode::LiveHybrid,
+        unsupported_mutation_mode: Some(UnsupportedMutationMode::Passthrough),
+        bulk_operation_run_mutation_max_input_file_size_bytes: None,
+        port: 0,
+        shopify_admin_origin: "https://shopify.com".to_string(),
+        snapshot_path: None,
+    })
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+        let operation_name = body
+            .get("operationName")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        captured_requests.lock().unwrap().push(body);
+        if operation_name == "CollectionsIdentityHydrate" {
+            ok_json(json!({
+                "data": {
+                    "collections": {
+                        "nodes": [{
+                            "id": "gid://shopify/Collection/900",
+                            "title": "Upstream Base Collection",
+                            "handle": "upstream-base-collection",
+                            "createdAt": "2024-01-01T00:00:00.000Z",
+                            "updatedAt": "2024-01-01T00:00:00.000Z",
+                            "sortOrder": "BEST_SELLING",
+                            "ruleSet": null,
+                            "productsCount": { "count": 0, "precision": "EXACT" }
+                        }]
+                    }
+                }
+            }))
+        } else {
+            ok_json(json!({
+                "data": {
+                    "collections": {
+                        "nodes": [{
+                            "title": "Upstream Base Collection"
+                        }],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": null,
+                            "endCursor": null
+                        }
+                    }
+                }
+            }))
+        }
+    });
+
+    let create = proxy.process_request(graphql_request(
+        r#"
+        mutation CreateCollection($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "title": "Local Staged Collection", "handle": "local-staged-collection" } }),
+    ));
+    assert_eq!(create.status, 200);
+
+    let read = proxy.process_request(graphql_request(
+        r#"
+        query CollectionReadWithoutIds {
+          collections(first: 10) {
+            nodes {
+              title
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["collections"]["nodes"],
+        json!([
+            { "title": "Local Staged Collection" },
+            { "title": "Upstream Base Collection" }
+        ])
+    );
+    let requests = upstream_requests.lock().unwrap();
+    assert_eq!(requests.len(), 2);
+    assert_eq!(
+        requests[1]["operationName"],
+        json!("CollectionsIdentityHydrate"),
+        "idless collection selections should trigger an identity hydrate"
     );
 }
 

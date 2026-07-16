@@ -360,6 +360,7 @@ struct StagedState {
     // generic staged-segment read path untouched.
     segment_catalog: BTreeMap<String, Value>,
     collections: StagedRecords<Value>,
+    deleted_collection_handles: BTreeSet<String>,
     collection_jobs: BTreeMap<String, Value>,
     fulfillment_order_deadlines: BTreeMap<String, String>,
     fulfillment_order_cursors: BTreeMap<String, BTreeMap<String, String>>,
@@ -945,6 +946,11 @@ fn effective_count<T>(base: &OrderedRecords<T>, staged: &StagedRecords<T>) -> us
             .count()
 }
 
+fn normalized_collection_handle(handle: &str) -> Option<String> {
+    let handle = handle.trim();
+    (!handle.is_empty()).then(|| handle.to_string())
+}
+
 fn merge_json_values(target: &mut Value, observed: &Value) {
     match (target, observed) {
         (Value::Object(target), Value::Object(observed)) => {
@@ -1309,7 +1315,9 @@ impl Store {
     }
 
     fn has_collection_state(&self) -> bool {
-        !self.staged.collections.is_empty() || !self.staged.collection_jobs.is_empty()
+        !self.staged.collections.is_empty()
+            || !self.staged.deleted_collection_handles.is_empty()
+            || !self.staged.collection_jobs.is_empty()
     }
 
     fn product_feed_by_id(&self, id: &str) -> Option<&Value> {
@@ -1522,7 +1530,8 @@ impl Store {
     }
 
     fn collection_by_handle(&self, handle: &str) -> Option<&Value> {
-        if handle.is_empty() {
+        let handle = handle.trim();
+        if handle.is_empty() || self.collection_handle_is_deleted(handle) {
             return None;
         }
         self.staged
@@ -1538,14 +1547,42 @@ impl Store {
         self.staged.collections.is_tombstoned(id)
     }
 
+    fn collection_handle_is_deleted(&self, handle: &str) -> bool {
+        normalized_collection_handle(handle)
+            .is_some_and(|handle| self.staged.deleted_collection_handles.contains(&handle))
+    }
+
+    fn delete_collection_handle(&mut self, handle: &str) {
+        if let Some(handle) = normalized_collection_handle(handle) {
+            self.staged.deleted_collection_handles.insert(handle);
+        }
+    }
+
     fn stage_collection(&mut self, collection: Value) {
         if let Some(id) = collection.get("id").and_then(Value::as_str) {
+            if let Some(handle) = collection.get("handle").and_then(Value::as_str) {
+                if let Some(handle) = normalized_collection_handle(handle) {
+                    self.staged.deleted_collection_handles.remove(&handle);
+                }
+            }
             self.staged.collections.insert(id.to_string(), collection);
         }
     }
 
     fn delete_collection(&mut self, id: &str) -> bool {
+        let deleted_handle = self
+            .staged
+            .collections
+            .get(id)
+            .and_then(|collection| collection.get("handle"))
+            .and_then(Value::as_str)
+            .and_then(normalized_collection_handle);
         let existed = self.staged.collections.tombstone_staged(id);
+        if existed {
+            if let Some(handle) = deleted_handle {
+                self.staged.deleted_collection_handles.insert(handle);
+            }
+        }
         for product in self.products() {
             if product
                 .collections

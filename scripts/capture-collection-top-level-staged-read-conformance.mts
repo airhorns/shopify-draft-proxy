@@ -37,16 +37,36 @@ type CollectionDeleteData = {
   collectionDelete?: CollectionDeletePayload;
 };
 
+type CollectionsReadData = {
+  collections?: {
+    nodes?: CollectionNode[];
+  };
+};
+
 const requestDir = path.join('config', 'parity-requests', 'products');
 const requestPaths = {
   create: path.join(requestDir, 'collection-top-level-staged-read-create.graphql'),
   update: path.join(requestDir, 'collection-top-level-staged-read-update.graphql'),
   delete: path.join(requestDir, 'collection-top-level-staged-read-delete.graphql'),
+  existingHandleLookups: path.join(requestDir, 'collection-top-level-staged-read-existing-handle-lookups.graphql'),
+  countOnly: path.join(requestDir, 'collection-top-level-staged-read-count-only.graphql'),
   initialPage1: path.join(requestDir, 'collection-top-level-staged-read-initial-page1.graphql'),
   initialPage2: path.join(requestDir, 'collection-top-level-staged-read-initial-page2.graphql'),
   postUpdate: path.join(requestDir, 'collection-top-level-staged-read-post-update.graphql'),
   postDelete: path.join(requestDir, 'collection-top-level-staged-read-post-delete.graphql'),
 } as const;
+
+const EXISTING_COLLECTION_CANDIDATE_QUERY = `#graphql
+query CollectionTopLevelStagedReadExistingCandidate {
+  collections(first: 10, sortKey: ID) {
+    nodes {
+      id
+      title
+      handle
+    }
+  }
+}
+`;
 
 async function readRequest(filePath: string): Promise<string> {
   return readFile(filePath, 'utf8');
@@ -134,6 +154,20 @@ function countValue(payload: ConformanceGraphqlPayload<JsonObject>, key: string)
   return typeof value === 'number' ? value : null;
 }
 
+function existingCollectionHandle(payload: ConformanceGraphqlPayload<CollectionsReadData>): string {
+  const handle = payload.data?.collections?.nodes?.find(
+    (node) => typeof node.handle === 'string' && node.handle.length > 0,
+  )?.handle;
+  if (typeof handle !== 'string' || handle.length === 0) {
+    throw new Error('Existing collection candidate read did not return a collection with a handle.');
+  }
+  return handle;
+}
+
+function countOnlyValue(payload: ConformanceGraphqlPayload<JsonObject>): number | null {
+  return countValue(payload, 'collectionsCount');
+}
+
 function hasObjectData(payload: ConformanceGraphqlPayload<JsonObject>, key: string): boolean {
   const value = payload.data?.[key];
   return typeof value === 'object' && value !== null;
@@ -141,6 +175,15 @@ function hasObjectData(payload: ConformanceGraphqlPayload<JsonObject>, key: stri
 
 function hasNullData(payload: ConformanceGraphqlPayload<JsonObject>, key: string): boolean {
   return payload.data?.[key] === null;
+}
+
+function objectHandle(payload: ConformanceGraphqlPayload<JsonObject>, key: string): string | null {
+  const value = payload.data?.[key];
+  if (typeof value !== 'object' || value === null) {
+    return null;
+  }
+  const handle = (value as JsonObject).handle;
+  return typeof handle === 'string' ? handle : null;
 }
 
 function page1Ready(payload: ConformanceGraphqlPayload<JsonObject>): boolean {
@@ -162,6 +205,20 @@ function page1Ready(payload: ConformanceGraphqlPayload<JsonObject>): boolean {
     hasNextPage &&
     maybeEndCursor(payload) !== null
   );
+}
+
+function existingHandleLookupReady(
+  expectedHandle: string,
+): (payload: ConformanceGraphqlPayload<JsonObject>) => boolean {
+  return (payload) =>
+    hasObjectData(payload, 'existingByIdentifier') &&
+    hasObjectData(payload, 'existingByHandle') &&
+    objectHandle(payload, 'existingByIdentifier') === expectedHandle &&
+    objectHandle(payload, 'existingByHandle') === expectedHandle;
+}
+
+function countOnlyReady(expectedCount: number): (payload: ConformanceGraphqlPayload<JsonObject>) => boolean {
+  return (payload) => countOnlyValue(payload) === expectedCount;
 }
 
 function postUpdateReady(payload: ConformanceGraphqlPayload<JsonObject>): boolean {
@@ -214,6 +271,24 @@ function operationRecord<TData>(
   return { document, variables, response };
 }
 
+function upstreamCallRecord<TData>(
+  document: string,
+  variables: Record<string, unknown>,
+  response: ConformanceGraphqlPayload<TData>,
+): JsonObject {
+  return {
+    method: 'POST',
+    path: `/admin/api/${apiVersion}/graphql.json`,
+    apiSurface: 'admin',
+    query: document,
+    variables,
+    response: {
+      status: 200,
+      body: response,
+    },
+  };
+}
+
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const { runGraphql } = createAdminGraphqlClient({
@@ -226,6 +301,8 @@ const documents = {
   create: await readRequest(requestPaths.create),
   update: await readRequest(requestPaths.update),
   delete: await readRequest(requestPaths.delete),
+  existingHandleLookups: await readRequest(requestPaths.existingHandleLookups),
+  countOnly: await readRequest(requestPaths.countOnly),
   initialPage1: await readRequest(requestPaths.initialPage1),
   initialPage2: await readRequest(requestPaths.initialPage2),
   postUpdate: await readRequest(requestPaths.postUpdate),
@@ -243,8 +320,19 @@ const updatedFirstHandle = `${handleBase}-alpha-updated`;
 const cleanupIds = new Set<string>();
 
 let operations: JsonObject = {};
+let upstreamCalls: JsonObject[] = [];
 
 try {
+  const existingCandidate = await runGraphql<CollectionsReadData>(EXISTING_COLLECTION_CANDIDATE_QUERY, {});
+  const existingHandle = existingCollectionHandle(existingCandidate);
+
+  const countOnlyVariables = {};
+  const preCreateCountBaseline = await runGraphql<JsonObject>(documents.countOnly, countOnlyVariables);
+  const preCreateCount = countOnlyValue(preCreateCountBaseline);
+  if (preCreateCount === null) {
+    throw new Error('Pre-create collectionsCount baseline did not return a count.');
+  }
+
   const firstCreateVariables = {
     input: {
       title: `${titleBase} Alpha`,
@@ -254,6 +342,19 @@ try {
   const firstCreate = await runGraphql<CollectionCreateData>(documents.create, firstCreateVariables);
   const firstCollectionId = collectionIdFromCreate(firstCreate, 'first collectionCreate');
   cleanupIds.add(firstCollectionId);
+
+  const existingHandleVariables = { existingHandle };
+  const existingHandleAfterFirstCreate = await pollGraphql<JsonObject>(
+    'existing collection handle lookup after first create',
+    () => runGraphql<JsonObject>(documents.existingHandleLookups, existingHandleVariables),
+    existingHandleLookupReady(existingHandle),
+  );
+
+  const countOnlyAfterFirstCreate = await pollGraphql<JsonObject>(
+    'count-only collectionsCount after first create',
+    () => runGraphql<JsonObject>(documents.countOnly, countOnlyVariables),
+    countOnlyReady(preCreateCount + 1),
+  );
 
   const secondCreateVariables = {
     input: {
@@ -332,7 +433,14 @@ try {
   );
 
   operations = {
+    preCreateCountBaseline: operationRecord(documents.countOnly, countOnlyVariables, preCreateCountBaseline),
     firstCreate: operationRecord(documents.create, firstCreateVariables, firstCreate),
+    existingHandleAfterFirstCreate: operationRecord(
+      documents.existingHandleLookups,
+      existingHandleVariables,
+      existingHandleAfterFirstCreate,
+    ),
+    countOnlyAfterFirstCreate: operationRecord(documents.countOnly, countOnlyVariables, countOnlyAfterFirstCreate),
     secondCreate: operationRecord(documents.create, secondCreateVariables, secondCreate),
     initialPage1: operationRecord(documents.initialPage1, initialPage1Variables, initialPage1),
     initialPage2: operationRecord(documents.initialPage2, initialPage2Variables, initialPage2),
@@ -341,6 +449,7 @@ try {
     delete: operationRecord(documents.delete, deleteVariables, deleteResponse),
     postDelete: operationRecord(documents.postDelete, postDeleteVariables, postDelete),
   };
+  upstreamCalls = [upstreamCallRecord(documents.countOnly, countOnlyVariables, preCreateCountBaseline)];
 
   await mkdir(outputDir, { recursive: true });
   await writeFile(
@@ -352,6 +461,7 @@ try {
         apiVersion,
         runId,
         operations,
+        upstreamCalls,
       },
       null,
       2,
