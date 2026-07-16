@@ -194,6 +194,14 @@ quantity-pricing / quantity-rules variant validation uses observed base/staged
 ProductVariant and fixed-price variant state when variant state is available;
 unknown IDs return the Shopify-like variant user error instead of being treated
 as successfully updated or deleted.
+When a price list is attached to a `MarketCatalog`,
+`quantityPricingByVariantUpdate` rejects `quantityRulesToAdd` with
+`QUANTITY_RULE_ADD_CATALOG_CONTEXT_NOT_SUPPORTED` at the indexed rule input.
+This keeps the linked price list unchanged while still allowing captured fixed
+variant prices for contextual Storefront reads. `marketCreate` region selections
+project the same staged country-region connection used by downstream market
+reads, so selecting `regions` cannot null-propagate an otherwise successful
+mutation payload.
 
 Web-presence slices stage create/update/delete behavior for the captured
 subfolder, default-locale, alternate-locale, root-URL, duplicate-language,

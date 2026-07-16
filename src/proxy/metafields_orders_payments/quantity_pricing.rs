@@ -123,6 +123,22 @@ pub(in crate::proxy) fn quantity_pricing_by_variant_errors(
     };
     let expected_currency = price_list_currency(price_list);
 
+    if !resolved_object_list_field(input, "quantityRulesToAdd").is_empty()
+        && price_list
+            .get("catalogId")
+            .and_then(Value::as_str)
+            .and_then(|catalog_id| store.staged.catalogs.get(catalog_id))
+            .is_some_and(|catalog| {
+                catalog.get("__typename").and_then(Value::as_str) == Some("MarketCatalog")
+            })
+    {
+        return vec![quantity_pricing_error(
+            vec!["input", "quantityRulesToAdd", "0"],
+            "QUANTITY_RULE_ADD_CATALOG_CONTEXT_NOT_SUPPORTED",
+            "Catalog context not supported",
+        )];
+    }
+
     for (index, price) in resolved_object_list_field(input, "pricesToAdd")
         .iter()
         .enumerate()

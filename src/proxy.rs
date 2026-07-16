@@ -270,6 +270,8 @@ struct BaseState {
     shop: Value,
     storefront_shop: Value,
     storefront_localizations: BTreeMap<String, Value>,
+    storefront_product_tags: Value,
+    storefront_product_types: Value,
     storefront_payment_settings: Value,
     storefront_locations: OrderedRecords<Value>,
     storefront_location_cursors: BTreeMap<String, String>,

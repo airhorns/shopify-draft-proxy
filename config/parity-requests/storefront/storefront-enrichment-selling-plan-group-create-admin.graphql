@@ -1,0 +1,50 @@
+mutation StorefrontEnrichmentSellingPlanGroupCreate(
+  $input: SellingPlanGroupInput!
+  $resources: SellingPlanGroupResourceInput!
+) {
+  sellingPlanGroupCreate(input: $input, resources: $resources) {
+    sellingPlanGroup {
+      id
+      name
+      merchantCode
+      productsCount {
+        count
+        precision
+      }
+      productVariantsCount {
+        count
+        precision
+      }
+      sellingPlans(first: 5) {
+        nodes {
+          id
+          name
+          description
+          options
+          category
+          pricingPolicies {
+            __typename
+            ... on SellingPlanFixedPricingPolicy {
+              adjustmentType
+              adjustmentValue {
+                __typename
+                ... on MoneyV2 {
+                  amount
+                  currencyCode
+                }
+                ... on SellingPlanPricingPolicyPercentageValue {
+                  percentage
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

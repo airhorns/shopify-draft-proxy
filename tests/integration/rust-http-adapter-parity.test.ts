@@ -202,6 +202,8 @@ describe('Rust HTTP adapter route surface', () => {
             metafieldDefinitionNamespaces: [],
             storefrontShop: null,
             storefrontLocalizations: {},
+            storefrontProductTags: null,
+            storefrontProductTypes: null,
             storefrontPaymentSettings: null,
             storefrontLocations: {},
             storefrontLocationOrder: [],

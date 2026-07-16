@@ -1,0 +1,108 @@
+query StorefrontEnrichmentContext(
+  $id: ID!
+  $country: CountryCode
+  $language: LanguageCode
+  $preferredLocationId: ID
+  $buyer: BuyerInput
+) @inContext(country: $country, language: $language, preferredLocationId: $preferredLocationId, buyer: $buyer) {
+  localization {
+    country {
+      isoCode
+      currency {
+        isoCode
+      }
+    }
+    language {
+      isoCode
+    }
+    market {
+      id
+      handle
+    }
+  }
+  product(id: $id) {
+    id
+    title
+    availableForSale
+    totalInventory
+    priceRange {
+      minVariantPrice {
+        amount
+        currencyCode
+      }
+      maxVariantPrice {
+        amount
+        currencyCode
+      }
+    }
+    compareAtPriceRange {
+      minVariantPrice {
+        amount
+        currencyCode
+      }
+      maxVariantPrice {
+        amount
+        currencyCode
+      }
+    }
+    variants(first: 5) {
+      nodes {
+        id
+        price {
+          amount
+          currencyCode
+        }
+        compareAtPrice {
+          amount
+          currencyCode
+        }
+        availableForSale
+        currentlyNotInStock
+        quantityAvailable
+        quantityRule {
+          minimum
+          maximum
+          increment
+        }
+        quantityPriceBreaks(first: 5) {
+          nodes {
+            minimumQuantity
+            price {
+              amount
+              currencyCode
+            }
+          }
+          pageInfo {
+            hasNextPage
+            hasPreviousPage
+            startCursor
+            endCursor
+          }
+        }
+        storeAvailability(first: 5) {
+          nodes {
+            available
+            pickUpTime
+            quantityAvailable
+            location {
+              id
+              name
+            }
+          }
+          pageInfo {
+            hasNextPage
+            hasPreviousPage
+            startCursor
+            endCursor
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+}

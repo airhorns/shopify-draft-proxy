@@ -3141,6 +3141,118 @@ fn quantity_pricing_by_variant_update_uses_store_backed_validation() {
 }
 
 #[test]
+fn market_catalog_quantity_rules_reject_the_captured_unsupported_context() {
+    let variant_id = "gid://shopify/ProductVariant/market-catalog-quantity-rule";
+    let mut proxy = snapshot_proxy().with_base_products(vec![observed_variant_product(
+        "gid://shopify/Product/market-catalog-quantity-rule",
+        variant_id,
+    )]);
+    restore_state_with(&mut proxy, |state| {
+        state["baseState"]["shop"] = json!({ "currencyCode": "CAD" });
+    });
+
+    let market = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateQuantityRuleMarket($input: MarketCreateInput!) {
+          marketCreate(input: $input) {
+            market {
+              id
+              regions(first: 5) {
+                nodes { id ... on MarketRegionCountry { code name } }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Denmark quantity pricing",
+                "status": "ACTIVE",
+                "conditions": {
+                    "regionsCondition": { "regions": [{ "countryCode": "DK" }] }
+                },
+                "currencySettings": { "localCurrencies": true }
+            }
+        }),
+    ));
+    assert_eq!(market.status, 200);
+    assert_eq!(market.body["data"]["marketCreate"]["userErrors"], json!([]));
+    assert_eq!(
+        market.body["data"]["marketCreate"]["market"]["regions"]["nodes"][0]["code"],
+        json!("DK")
+    );
+    let market_id = market.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let price_list_id = create_test_price_list(&mut proxy, "DKK");
+
+    let catalog = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateQuantityRuleMarketCatalog($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) {
+            catalog { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Denmark quantity pricing catalog",
+                "status": "ACTIVE",
+                "context": { "marketIds": [market_id] },
+                "priceListId": price_list_id
+            }
+        }),
+    ));
+    assert_eq!(catalog.status, 200);
+    assert_eq!(
+        catalog.body["data"]["catalogCreate"]["userErrors"],
+        json!([])
+    );
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AddMarketCatalogQuantityRule($priceListId: ID!, $input: QuantityPricingByVariantUpdateInput!) {
+          quantityPricingByVariantUpdate(priceListId: $priceListId, input: $input) {
+            productVariants { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": price_list_id,
+            "input": {
+                "pricesToAdd": [],
+                "pricesToDeleteByVariantId": [],
+                "quantityRulesToAdd": [{
+                    "variantId": variant_id,
+                    "minimum": 5,
+                    "maximum": 50,
+                    "increment": 5
+                }],
+                "quantityRulesToDeleteByVariantId": [],
+                "quantityPriceBreaksToAdd": [],
+                "quantityPriceBreaksToDelete": [],
+                "quantityPriceBreaksToDeleteByVariantId": []
+            }
+        }),
+    ));
+    assert_eq!(
+        response.body["data"]["quantityPricingByVariantUpdate"],
+        json!({
+            "productVariants": null,
+            "userErrors": [{
+                "field": ["input", "quantityRulesToAdd", "0"],
+                "message": "Catalog context not supported",
+                "code": "QUANTITY_RULE_ADD_CATALOG_CONTEXT_NOT_SUPPORTED"
+            }]
+        })
+    );
+}
+
+#[test]
 fn quantity_rules_delete_rejects_non_sentinel_missing_price_list() {
     let mut proxy = snapshot_proxy().with_base_products(vec![observed_variant_product(
         "gid://shopify/Product/quantity-rule-price-list",
