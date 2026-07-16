@@ -1,0 +1,17 @@
+mutation StorefrontCustomerAuthAdminUpdate($input: CustomerInput!) {
+  customerUpdate(input: $input) {
+    customer {
+      id
+      email
+      firstName
+      lastName
+      displayName
+      state
+      updatedAt
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
