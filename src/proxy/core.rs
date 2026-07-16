@@ -449,6 +449,7 @@ impl DraftProxy {
                 "orderCountBaselines": self.store.base.order_count_baselines.clone(),
                 "discounts": self.store.base.discounts.records.clone(),
                 "discountOrder": self.store.base.discounts.order,
+                "discountCountBaselines": self.store.base.discount_count_baselines.clone(),
                 "giftCards": self.store.base.gift_cards.clone(),
                 "giftCardConfiguration": self.store.base.gift_card_configuration.clone().unwrap_or(Value::Null),
                 "giftCardCompleteQueries": self.store.base.gift_card_complete_queries.iter().cloned().collect::<Vec<_>>(),
@@ -1398,6 +1399,8 @@ impl DraftProxy {
         );
         self.store.base.order_count_baselines =
             value_map_from_json(state["baseState"].get("orderCountBaselines"));
+        self.store.base.discount_count_baselines =
+            value_map_from_json(state["baseState"].get("discountCountBaselines"));
         self.store.base.inventory_transfers.replace_with_order(
             state["baseState"]
                 .get("inventoryTransfers")

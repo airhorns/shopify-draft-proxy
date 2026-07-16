@@ -33,6 +33,7 @@ const STOREFRONT_LOCAL_CONTENT_ROOTS: &[&str] = &[
     "sitemap",
     "urlRedirects",
 ];
+const STOREFRONT_CUSTOM_DATA_ROOTS: &[&str] = &["metaobject", "metaobjects"];
 pub(in crate::proxy) const STOREFRONT_CUSTOMER_AUTH_MUTATION_ROOTS: &[&str] = &[
     "customerCreate",
     "customerAccessTokenCreate",
@@ -899,15 +900,35 @@ impl DraftProxy {
         &self,
         fields: &[RootFieldSelection],
     ) -> bool {
-        fields.iter().all(|field| {
-            self.storefront_root_is_promoted(&field.name)
-                && self.storefront_root_has_local_backing(field)
-                && self
-                    .registry
-                    .resolve_for_surface(ApiSurface::Storefront, OperationType::Query, &field.name)
-                    .domain
-                    == CapabilityDomain::Storefront
-        })
+        fields
+            .iter()
+            .all(|field| self.storefront_field_is_local(field))
+    }
+
+    fn storefront_field_is_local(&self, field: &RootFieldSelection) -> bool {
+        let capability = self.registry.resolve_for_surface(
+            ApiSurface::Storefront,
+            OperationType::Query,
+            &field.name,
+        );
+        capability.domain == CapabilityDomain::Storefront
+            && self.storefront_root_is_promoted(&field.name)
+            && self.storefront_root_has_local_backing(field)
+    }
+
+    fn storefront_custom_data_field_has_local_effect(&self, field: &RootFieldSelection) -> bool {
+        match field.name.as_str() {
+            "metaobject" => self.has_local_metaobject_state(),
+            "metaobjects" => {
+                let meta_type = resolved_string_field(&field.arguments, "type").unwrap_or_default();
+                meta_type.is_empty()
+                    || self.metaobject_definition_by_type(&meta_type).is_some()
+                    || self.store.staged.metaobjects.values().any(|record| {
+                        record.get("type").and_then(Value::as_str) == Some(meta_type.as_str())
+                    })
+            }
+            _ => false,
+        }
     }
 
     pub(in crate::proxy) fn storefront_mutation_fields_are_local(
@@ -932,6 +953,7 @@ impl DraftProxy {
         root == "customer"
             || STOREFRONT_FIRST_SLICE_ROOTS.contains(&root)
             || STOREFRONT_LOCAL_CONTENT_ROOTS.contains(&root)
+            || STOREFRONT_CUSTOM_DATA_ROOTS.contains(&root)
     }
 
     fn storefront_root_has_local_backing(&self, field: &RootFieldSelection) -> bool {
@@ -948,6 +970,9 @@ impl DraftProxy {
             "sitemap" => self.has_online_store_content_state(),
             "urlRedirects" => self.has_staged_url_redirects(),
             "menu" => true,
+            root if STOREFRONT_CUSTOM_DATA_ROOTS.contains(&root) => {
+                self.storefront_custom_data_field_has_local_effect(field)
+            }
             _ => false,
         }
     }
@@ -979,12 +1004,51 @@ impl DraftProxy {
             Value::Null
         };
         if !admin_shop.is_object() {
-            return true;
+            return !self.storefront_shop_selection_uses_only_local_metafields(selections);
         }
         selections
             .iter()
             .filter(|selection| selection_applies_to_type(selection, "Shop"))
             .any(|selection| !self.storefront_shop_field_has_admin_source(&admin_shop, selection))
+    }
+
+    fn storefront_shop_selection_uses_only_local_metafields(
+        &self,
+        selections: &[SelectedField],
+    ) -> bool {
+        let mut has_metafield_selection = false;
+        for selection in selections
+            .iter()
+            .filter(|selection| selection_applies_to_type(selection, "Shop"))
+        {
+            match selection.name.as_str() {
+                "__typename" => {}
+                "metafield" | "metafields" => {
+                    if !self.storefront_has_local_shop_metafield_state() {
+                        return false;
+                    }
+                    has_metafield_selection = true;
+                }
+                _ => return false,
+            }
+        }
+        has_metafield_selection
+    }
+
+    fn storefront_has_local_shop_metafield_state(&self) -> bool {
+        self.storefront_shop_owner_id().is_some_and(|owner_id| {
+            self.store
+                .staged
+                .owner_metafields
+                .get(&owner_id)
+                .is_some_and(|records| !records.is_empty())
+                || self
+                    .store
+                    .staged
+                    .deleted_owner_metafields
+                    .iter()
+                    .any(|(deleted_owner_id, _, _)| deleted_owner_id == &owner_id)
+        })
     }
 
     fn storefront_shop_field_has_admin_source(
@@ -1010,6 +1074,7 @@ impl DraftProxy {
                 .shop_policy_by_type("CONTACT_INFORMATION")
                 .is_some(),
             "moneyFormat" => self.store.shop_money_format().is_some(),
+            "metafield" | "metafields" => self.storefront_has_local_shop_metafield_state(),
             _ => false,
         }
     }
@@ -1155,7 +1220,7 @@ impl DraftProxy {
         self.store.base.storefront_menus.insert(id, menu);
     }
 
-    fn storefront_local_query_data(
+    pub(in crate::proxy) fn storefront_local_query_data(
         &self,
         fields: &[RootFieldSelection],
         context: &StorefrontRequestContext,
@@ -1206,6 +1271,8 @@ impl DraftProxy {
                     .get(&field.response_key)
                     .cloned()
                     .unwrap_or(Value::Null),
+                "metaobject" => self.storefront_metaobject_root_json(field),
+                "metaobjects" => self.storefront_metaobjects_connection_json(field),
                 _ => Value::Null,
             })
         })
@@ -1218,7 +1285,9 @@ impl DraftProxy {
         } else {
             Value::Null
         };
-        let has_shop = storefront_shop.is_object() || admin_shop.is_object();
+        let has_shop = storefront_shop.is_object()
+            || admin_shop.is_object()
+            || self.storefront_shop_selection_uses_only_local_metafields(selections);
         if !has_shop {
             return Value::Null;
         }
@@ -1279,6 +1348,8 @@ impl DraftProxy {
                 "moneyFormat" => self
                     .storefront_shop_field(&storefront_shop, &admin_shop, "moneyFormat")
                     .or_else(|| self.store.shop_money_format().map(Value::String)),
+                "metafield" => Some(self.storefront_shop_metafield_json(selection)),
+                "metafields" => Some(self.storefront_shop_metafields_json(selection)),
                 _ => self
                     .storefront_shop_field(&storefront_shop, &admin_shop, &selection.name)
                     .map(|value| nullable_selected_json(&value, &selection.selection))
@@ -1757,6 +1828,305 @@ impl DraftProxy {
             })
             .collect()
     }
+
+    fn storefront_metaobject_root_json(&self, field: &RootFieldSelection) -> Value {
+        let record = if let Some(id) = resolved_string_field(&field.arguments, "id") {
+            self.metaobject_by_id(&id)
+        } else if let Some(handle) = resolved_object_field(&field.arguments, "handle") {
+            let meta_type = resolved_string_field(&handle, "type").unwrap_or_default();
+            let meta_handle = resolved_string_field(&handle, "handle").unwrap_or_default();
+            self.metaobject_by_type_and_handle(&meta_type, &meta_handle)
+        } else {
+            None
+        };
+        record
+            .and_then(|record| self.storefront_visible_metaobject(&record))
+            .map(|record| self.storefront_selected_metaobject(&record, &field.selection))
+            .unwrap_or(Value::Null)
+    }
+
+    fn storefront_metaobjects_connection_json(&self, field: &RootFieldSelection) -> Value {
+        let meta_type = resolved_string_field(&field.arguments, "type").unwrap_or_default();
+        let records =
+            self.store
+                .staged
+                .metaobjects
+                .values()
+                .filter(|record| {
+                    record.get("type").and_then(Value::as_str) == Some(meta_type.as_str())
+                        && !self.store.staged.metaobjects.is_tombstoned(
+                            record.get("id").and_then(Value::as_str).unwrap_or_default(),
+                        )
+                })
+                .filter_map(|record| self.storefront_visible_metaobject(record))
+                .filter(|record| self.metaobject_visible_in_catalog(record))
+                .collect::<Vec<_>>();
+        selected_staged_connection_with_args(
+            records,
+            &field.arguments,
+            &field.selection,
+            |_record, _query| StagedSearchDecision::Match,
+            storefront_metaobject_sort_key,
+            |record, selections| self.storefront_selected_metaobject(record, selections),
+            metaobject_cursor,
+        )
+    }
+
+    fn storefront_visible_metaobject(&self, record: &Value) -> Option<Value> {
+        let projected = self.project_metaobject_against_definition(record);
+        let meta_type = projected.get("type").and_then(Value::as_str)?;
+        let definition = self.metaobject_definition_by_type(meta_type)?;
+        if definition
+            .pointer("/access/storefront")
+            .and_then(Value::as_str)
+            != Some("PUBLIC_READ")
+        {
+            return None;
+        }
+        if definition
+            .pointer("/capabilities/publishable/enabled")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+            && projected
+                .pointer("/capabilities/publishable/status")
+                .and_then(Value::as_str)
+                != Some("ACTIVE")
+        {
+            return None;
+        }
+        Some(projected)
+    }
+
+    fn storefront_selected_metaobject(
+        &self,
+        record: &Value,
+        selections: &[SelectedField],
+    ) -> Value {
+        selected_payload_json(selections, |selection| {
+            if !selection_applies_to_type(selection, "Metaobject") {
+                return None;
+            }
+            match selection.name.as_str() {
+                "__typename" => Some(json!("Metaobject")),
+                "field" => {
+                    let key =
+                        resolved_string_field(&selection.arguments, "key").unwrap_or_default();
+                    let field =
+                        record["fields"]
+                            .as_array()
+                            .into_iter()
+                            .flatten()
+                            .find(|candidate| {
+                                candidate.get("key").and_then(Value::as_str) == Some(key.as_str())
+                            })?;
+                    Some(self.storefront_selected_metaobject_field(field, &selection.selection))
+                }
+                "fields" => {
+                    let fields = storefront_metaobject_fields(record);
+                    Some(Value::Array(
+                        fields
+                            .as_array()
+                            .into_iter()
+                            .flatten()
+                            .map(|field| {
+                                self.storefront_selected_metaobject_field(
+                                    field,
+                                    &selection.selection,
+                                )
+                            })
+                            .collect(),
+                    ))
+                }
+                "onlineStoreUrl" | "seo" => Some(
+                    record
+                        .get(&selection.name)
+                        .map(|value| nullable_selected_json(value, &selection.selection))
+                        .unwrap_or(Value::Null),
+                ),
+                _ => record
+                    .get(&selection.name)
+                    .map(|value| nullable_selected_json(value, &selection.selection)),
+            }
+        })
+    }
+
+    fn storefront_selected_metaobject_field(
+        &self,
+        record: &Value,
+        selections: &[SelectedField],
+    ) -> Value {
+        selected_payload_json(selections, |selection| match selection.name.as_str() {
+            "reference" => Some(self.storefront_selected_scalar_reference_json(record, selection)),
+            "references" => {
+                Some(self.storefront_selected_reference_connection_json(record, selection))
+            }
+            _ => record
+                .get(&selection.name)
+                .map(|value| nullable_selected_json(value, &selection.selection)),
+        })
+    }
+
+    fn storefront_shop_metafield_json(&self, selection: &SelectedField) -> Value {
+        let Some(owner_id) = self.storefront_shop_owner_id() else {
+            return Value::Null;
+        };
+        let namespace =
+            resolved_string_field(&selection.arguments, "namespace").unwrap_or_default();
+        let key = resolved_string_field(&selection.arguments, "key").unwrap_or_default();
+        self.storefront_owner_metafield(&owner_id, &namespace, &key)
+            .map(|metafield| self.storefront_selected_metafield(&metafield, &selection.selection))
+            .unwrap_or(Value::Null)
+    }
+
+    fn storefront_shop_metafields_json(&self, selection: &SelectedField) -> Value {
+        let Some(owner_id) = self.storefront_shop_owner_id() else {
+            return Value::Array(Vec::new());
+        };
+        Value::Array(
+            resolved_object_list_field(&selection.arguments, "identifiers")
+                .into_iter()
+                .map(|identifier| {
+                    let namespace =
+                        resolved_string_field(&identifier, "namespace").unwrap_or_default();
+                    let key = resolved_string_field(&identifier, "key").unwrap_or_default();
+                    self.storefront_owner_metafield(&owner_id, &namespace, &key)
+                        .map(|metafield| {
+                            self.storefront_selected_metafield(&metafield, &selection.selection)
+                        })
+                        .unwrap_or(Value::Null)
+                })
+                .collect(),
+        )
+    }
+
+    fn storefront_owner_metafield(
+        &self,
+        owner_id: &str,
+        namespace: &str,
+        key: &str,
+    ) -> Option<Value> {
+        let keys = vec![(namespace.to_string(), key.to_string())];
+        self.owner_metafields(owner_id, Some(namespace), Some(&keys))
+            .into_iter()
+            .find(|metafield| {
+                metafield.get("namespace").and_then(Value::as_str) == Some(namespace)
+                    && metafield.get("key").and_then(Value::as_str) == Some(key)
+            })
+            .filter(storefront_metafield_is_public)
+    }
+
+    fn storefront_selected_metafield(&self, record: &Value, selections: &[SelectedField]) -> Value {
+        selected_payload_json(selections, |selection| {
+            if !selection_applies_to_type(selection, "Metafield") {
+                return None;
+            }
+            match selection.name.as_str() {
+                "__typename" => Some(json!("Metafield")),
+                "list" => Some(json!(record
+                    .get("type")
+                    .and_then(Value::as_str)
+                    .is_some_and(|field_type| field_type.starts_with("list.")))),
+                "description" => Some(Value::Null),
+                "reference" => {
+                    Some(self.storefront_selected_scalar_reference_json(record, selection))
+                }
+                "references" => {
+                    Some(self.storefront_selected_reference_connection_json(record, selection))
+                }
+                "parentResource" => {
+                    Some(self.storefront_selected_metafield_parent(record, selection))
+                }
+                _ => record
+                    .get(&selection.name)
+                    .map(|value| nullable_selected_json(value, &selection.selection)),
+            }
+        })
+    }
+
+    fn storefront_selected_metafield_parent(
+        &self,
+        record: &Value,
+        selection: &SelectedField,
+    ) -> Value {
+        let Some(owner_id) = record.pointer("/owner/id").and_then(Value::as_str) else {
+            return Value::Null;
+        };
+        self.storefront_selected_reference_node_json(owner_id, &selection.selection)
+            .unwrap_or(Value::Null)
+    }
+
+    fn storefront_selected_scalar_reference_json(
+        &self,
+        record: &Value,
+        selection: &SelectedField,
+    ) -> Value {
+        let Some(id) = scalar_reference_id(record) else {
+            return Value::Null;
+        };
+        self.storefront_selected_reference_node_json(&id, &selection.selection)
+            .unwrap_or(Value::Null)
+    }
+
+    fn storefront_selected_reference_connection_json(
+        &self,
+        record: &Value,
+        selection: &SelectedField,
+    ) -> Value {
+        let ids = list_reference_ids(record)
+            .into_iter()
+            .filter(|id| {
+                self.storefront_selected_reference_node_json(id, &[])
+                    .is_some()
+            })
+            .collect::<Vec<_>>();
+        let (ids, page_info) = connection_window(&ids, &selection.arguments, |id| id.clone());
+        selected_typed_connection_with_page_info(
+            &ids,
+            &selection.selection,
+            |id, selections| {
+                self.storefront_selected_reference_node_json(id, selections)
+                    .unwrap_or(Value::Null)
+            },
+            |id| id.clone(),
+            page_info,
+        )
+    }
+
+    fn storefront_selected_reference_node_json(
+        &self,
+        id: &str,
+        selections: &[SelectedField],
+    ) -> Option<Value> {
+        match shopify_gid_resource_type(id) {
+            Some("Metaobject") => {
+                let record = self.metaobject_by_id(id)?;
+                let record = self.storefront_visible_metaobject(&record)?;
+                Some(self.storefront_selected_metaobject(&record, selections))
+            }
+            Some("Shop") => {
+                let shop = self.store.effective_shop();
+                (shop.get("id").and_then(Value::as_str) == Some(id))
+                    .then(|| self.storefront_shop_json(selections))
+            }
+            _ => None,
+        }
+    }
+
+    fn storefront_shop_owner_id(&self) -> Option<String> {
+        self.store
+            .effective_shop()
+            .get("id")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .or_else(|| {
+                self.store
+                    .staged
+                    .owner_metafields
+                    .keys()
+                    .find(|id| shopify_gid_resource_type(id.as_str()) == Some("Shop"))
+                    .cloned()
+            })
+    }
 }
 
 fn storefront_blog_record_from_admin(record: &Value) -> Value {
@@ -2093,7 +2463,7 @@ fn storefront_selected_sitemap_resources(
     })
 }
 
-fn storefront_request_context(
+pub(in crate::proxy) fn storefront_request_context(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
 ) -> StorefrontRequestContext {
@@ -2142,8 +2512,95 @@ fn selection_applies_to_type(selection: &SelectedField, type_name: &str) -> bool
     match selection.type_condition.as_deref() {
         None => true,
         Some("Node") => true,
+        Some("HasMetafields") => matches!(
+            type_name,
+            "Article"
+                | "Blog"
+                | "Collection"
+                | "Customer"
+                | "Page"
+                | "Product"
+                | "ProductVariant"
+                | "Shop"
+        ),
+        Some("OnlineStorePublishable") => type_name == "Metaobject",
+        Some("MetafieldReference") => matches!(
+            type_name,
+            "Article"
+                | "Collection"
+                | "GenericFile"
+                | "MediaImage"
+                | "Metaobject"
+                | "Model3d"
+                | "Page"
+                | "Product"
+                | "ProductVariant"
+                | "Video"
+        ),
+        Some("MetafieldParentResource") => matches!(
+            type_name,
+            "Article"
+                | "Blog"
+                | "Cart"
+                | "Collection"
+                | "Company"
+                | "CompanyLocation"
+                | "Customer"
+                | "Location"
+                | "Market"
+                | "Order"
+                | "Page"
+                | "Product"
+                | "ProductVariant"
+                | "SellingPlan"
+                | "Shop"
+        ),
         Some(condition) => condition == type_name,
     }
+}
+
+fn storefront_metafield_is_public(metafield: &Value) -> bool {
+    metafield
+        .pointer("/definition/access/storefront")
+        .and_then(Value::as_str)
+        == Some("PUBLIC_READ")
+}
+
+fn storefront_metaobject_fields(record: &Value) -> Value {
+    let mut fields = record["fields"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .cloned()
+        .collect::<Vec<_>>();
+    fields.sort_by(|left, right| {
+        left.get("key")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .cmp(right.get("key").and_then(Value::as_str).unwrap_or_default())
+    });
+    Value::Array(fields)
+}
+
+fn storefront_metaobject_sort_key(record: &Value, sort_key: Option<&str>) -> StagedSortKey {
+    let sort_key = sort_key
+        .unwrap_or("id")
+        .replace('-', "_")
+        .to_ascii_lowercase();
+    let primary = match sort_key.as_str() {
+        "updated_at" | "updatedat" => StagedSortValue::String(
+            record
+                .get("updatedAt")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string(),
+        ),
+        _ => resource_id_tail_sort_value(record.get("id").and_then(Value::as_str)),
+    };
+    vec![
+        primary,
+        resource_id_tail_sort_value(record.get("id").and_then(Value::as_str)),
+    ]
 }
 
 fn storefront_policy_from_admin(policy: &ShopPolicyRecord) -> Value {

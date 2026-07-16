@@ -188,6 +188,9 @@ describe('operation registry', () => {
       'pageByHandle',
       'pages',
       'paymentSettings',
+      'product',
+      'productByHandle',
+      'products',
       'publicApiVersions',
       'shop',
       'sitemap',
@@ -204,16 +207,6 @@ describe('operation registry', () => {
         }),
       );
     }
-    expect(storefrontEntries).toContainEqual(
-      expect.objectContaining({
-        apiSurface: 'storefront',
-        name: 'products',
-        type: 'query',
-        domain: 'storefront',
-        implemented: false,
-        runtimeTests: [],
-      }),
-    );
     for (const root of [
       'customerAccessTokenCreate',
       'customerAccessTokenCreateWithMultipass',

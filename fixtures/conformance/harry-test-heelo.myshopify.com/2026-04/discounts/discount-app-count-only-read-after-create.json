@@ -1,0 +1,507 @@
+{
+  "scenarioId": "discount-app-count-only-read-after-create",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "runId": "1784159995484",
+  "variables": {
+    "query": "type:app",
+    "limit": 1,
+    "startsAt": "2026-07-15T23:58:55.484Z",
+    "baselineTitle": "SDP app count baseline 1784159995484",
+    "localTitle": "SDP app count local 1784159995484",
+    "functionId": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
+    "baselineCount": 1,
+    "baselineId": "gid://shopify/DiscountAutomaticNode/1660454830386",
+    "localId": "gid://shopify/DiscountAutomaticNode/1660454863154"
+  },
+  "requests": {
+    "functionHydrate": {
+      "query": "query ShopifyFunctionById($id: String!) {\n  shopifyFunction(id: $id) {\n    id\n    title\n    apiType\n    description\n    appKey\n    app {\n      id\n      title\n      handle\n      apiKey\n    }\n  }\n}\n",
+      "variables": {
+        "id": "019e00a2-c8b0-7cbf-a6bf-35119ec10505"
+      }
+    },
+    "baselineCreate": {
+      "query": "mutation DiscountAppCountOnlyCreate($input: DiscountAutomaticAppInput!) {\n  discountAutomaticAppCreate(automaticAppDiscount: $input) {\n    automaticAppDiscount {\n      __typename\n      discountId\n      title\n      status\n      appDiscountType {\n        functionId\n        title\n        description\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "SDP app count baseline 1784159995484",
+          "startsAt": "2026-07-15T23:58:55.484Z",
+          "functionId": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
+          "discountClasses": ["ORDER"]
+        }
+      }
+    },
+    "baselineRead": {
+      "query": "query DiscountAppCountOnlyRead($query: String!, $limit: Int!) {\n  appCount: discountNodesCount(query: $query) {\n    count\n    precision\n  }\n  limitedAppCount: discountNodesCount(query: $query, limit: $limit) {\n    count\n    precision\n  }\n}\n",
+      "variables": {
+        "query": "type:app",
+        "limit": 1
+      }
+    },
+    "localCreate": {
+      "query": "mutation DiscountAppCountOnlyCreate($input: DiscountAutomaticAppInput!) {\n  discountAutomaticAppCreate(automaticAppDiscount: $input) {\n    automaticAppDiscount {\n      __typename\n      discountId\n      title\n      status\n      appDiscountType {\n        functionId\n        title\n        description\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "SDP app count local 1784159995484",
+          "startsAt": "2026-07-15T23:58:55.484Z",
+          "functionId": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
+          "discountClasses": ["ORDER"]
+        }
+      }
+    },
+    "readAfterCreate": {
+      "query": "query DiscountAppCountOnlyRead($query: String!, $limit: Int!) {\n  appCount: discountNodesCount(query: $query) {\n    count\n    precision\n  }\n  limitedAppCount: discountNodesCount(query: $query, limit: $limit) {\n    count\n    precision\n  }\n}\n",
+      "variables": {
+        "query": "type:app",
+        "limit": 1
+      }
+    }
+  },
+  "scopeProbe": {
+    "availableScopes": [
+      "read_assigned_fulfillment_orders",
+      "read_cart_transforms",
+      "read_cash_tracking",
+      "read_content",
+      "read_customer_data_erasure",
+      "read_customer_merge",
+      "read_customers",
+      "read_delivery_customizations",
+      "read_discounts",
+      "read_draft_orders",
+      "read_files",
+      "read_fulfillment_constraint_rules",
+      "read_fulfillments",
+      "read_gift_card_transactions",
+      "read_gift_cards",
+      "read_inventory",
+      "read_inventory_shipments",
+      "read_inventory_transfers",
+      "read_legal_policies",
+      "read_locales",
+      "read_locations",
+      "read_marketing_events",
+      "read_markets",
+      "read_merchant_managed_fulfillment_orders",
+      "read_metaobject_definitions",
+      "read_metaobjects",
+      "read_online_store_navigation",
+      "read_order_edits",
+      "read_orders",
+      "read_payment_customizations",
+      "read_payment_terms",
+      "read_privacy_settings",
+      "read_product_listings",
+      "read_products",
+      "read_publications",
+      "read_purchase_options",
+      "read_returns",
+      "read_shipping",
+      "read_shopify_payments_disputes",
+      "read_shopify_payments_payouts",
+      "read_store_credit_account_transactions",
+      "read_store_credit_accounts",
+      "read_themes",
+      "read_third_party_fulfillment_orders",
+      "read_translations",
+      "read_validations",
+      "write_assigned_fulfillment_orders",
+      "write_cart_transforms",
+      "write_cash_tracking",
+      "write_content",
+      "write_customer_data_erasure",
+      "write_customer_merge",
+      "write_customers",
+      "write_delivery_customizations",
+      "write_discounts",
+      "write_draft_orders",
+      "write_files",
+      "write_fulfillment_constraint_rules",
+      "write_fulfillments",
+      "write_gift_card_transactions",
+      "write_gift_cards",
+      "write_inventory",
+      "write_inventory_shipments",
+      "write_inventory_transfers",
+      "write_legal_policies",
+      "write_locales",
+      "write_locations",
+      "write_marketing_events",
+      "write_markets",
+      "write_merchant_managed_fulfillment_orders",
+      "write_metaobject_definitions",
+      "write_metaobjects",
+      "write_online_store_navigation",
+      "write_order_edits",
+      "write_orders",
+      "write_payment_customizations",
+      "write_payment_terms",
+      "write_privacy_settings",
+      "write_products",
+      "write_publications",
+      "write_purchase_options",
+      "write_returns",
+      "write_shipping",
+      "write_store_credit_account_transactions",
+      "write_third_party_fulfillment_orders",
+      "write_translations",
+      "write_validations"
+    ],
+    "requiredScopes": [
+      {
+        "handle": "read_discounts",
+        "present": true
+      },
+      {
+        "handle": "write_discounts",
+        "present": true
+      }
+    ],
+    "missingScopes": [],
+    "hasRequiredScopes": true
+  },
+  "setup": {
+    "functionCatalog": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "shopifyFunctions": {
+            "nodes": [
+              {
+                "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+                "title": "conformance-payment-customization",
+                "apiType": "payment_customization",
+                "description": "conformance-payment-customization",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              {
+                "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                "title": "conformance-validation",
+                "apiType": "cart_checkout_validation",
+                "description": "conformance-validation",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              {
+                "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+                "title": "conformance-cart-transform",
+                "apiType": "cart_transform",
+                "description": "conformance-cart-transform",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              {
+                "id": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
+                "title": "conformance-discount",
+                "apiType": "discount",
+                "description": "conformance-discount",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 3,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1997,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "functionHydrate": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "shopifyFunction": {
+            "id": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
+            "title": "conformance-discount",
+            "apiType": "discount",
+            "description": "conformance-discount",
+            "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+            "app": {
+              "id": "gid://shopify/App/347082227713",
+              "title": "hermes-conformance-products",
+              "handle": "hermes-conformance-products",
+              "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "baselineCreate": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "discountAutomaticAppCreate": {
+            "automaticAppDiscount": {
+              "__typename": "DiscountAutomaticApp",
+              "discountId": "gid://shopify/DiscountAutomaticNode/1660454830386",
+              "title": "SDP app count baseline 1784159995484",
+              "status": "ACTIVE",
+              "appDiscountType": {
+                "functionId": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
+                "title": "conformance-discount",
+                "description": "conformance-discount"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "baselineRead": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "appCount": {
+            "count": 1,
+            "precision": "EXACT"
+          },
+          "limitedAppCount": {
+            "count": 1,
+            "precision": "AT_LEAST"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1970,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "localCreate": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountAutomaticAppCreate": {
+          "automaticAppDiscount": {
+            "__typename": "DiscountAutomaticApp",
+            "discountId": "gid://shopify/DiscountAutomaticNode/1660454863154",
+            "title": "SDP app count local 1784159995484",
+            "status": "ACTIVE",
+            "appDiscountType": {
+              "functionId": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
+              "title": "conformance-discount",
+              "description": "conformance-discount"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1970,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterCreate": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "appCount": {
+          "count": 2,
+          "precision": "EXACT"
+        },
+        "limitedAppCount": {
+          "count": 1,
+          "precision": "AT_LEAST"
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 20,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1978,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "status": 200,
+      "payload": {
+        "data": {
+          "discountAutomaticDelete": {
+            "deletedAutomaticDiscountId": "gid://shopify/DiscountAutomaticNode/1660454830386",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1976,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "status": 200,
+      "payload": {
+        "data": {
+          "discountAutomaticDelete": {
+            "deletedAutomaticDiscountId": "gid://shopify/DiscountAutomaticNode/1660454863154",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "ShopifyFunctionById",
+      "variables": {
+        "id": "019e00a2-c8b0-7cbf-a6bf-35119ec10505"
+      },
+      "query": "query ShopifyFunctionById($id: String!) {\n  shopifyFunction(id: $id) {\n    id\n    title\n    apiType\n    description\n    appKey\n    app {\n      id\n      title\n      handle\n      apiKey\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shopifyFunction": {
+              "id": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
+              "title": "conformance-discount",
+              "apiType": "discount",
+              "description": "conformance-discount",
+              "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+              "app": {
+                "id": "gid://shopify/App/347082227713",
+                "title": "hermes-conformance-products",
+                "handle": "hermes-conformance-products",
+                "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountAppCountOnlyRead",
+      "variables": {
+        "query": "type:app",
+        "limit": 1
+      },
+      "query": "query DiscountAppCountOnlyRead($query: String!, $limit: Int!) {\n  appCount: discountNodesCount(query: $query) {\n    count\n    precision\n  }\n  limitedAppCount: discountNodesCount(query: $query, limit: $limit) {\n    count\n    precision\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "appCount": {
+              "count": 1,
+              "precision": "EXACT"
+            },
+            "limitedAppCount": {
+              "count": 1,
+              "precision": "AT_LEAST"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 20,
+              "actualQueryCost": 20,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1970,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
