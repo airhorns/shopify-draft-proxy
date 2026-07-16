@@ -1,0 +1,23 @@
+query StorefrontCustomerAuthRead($token: String!) {
+  customer(customerAccessToken: $token) {
+    id
+    email
+    firstName
+    lastName
+    displayName
+    acceptsMarketing
+    createdAt
+    updatedAt
+    numberOfOrders
+    tags
+    addresses(first: 2) {
+      nodes {
+        id
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+  }
+}

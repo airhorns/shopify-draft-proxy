@@ -1,0 +1,20 @@
+mutation StorefrontCustomerAuthActivateByUrl($activationUrl: URL!, $password: String!) {
+  customerActivateByUrl(activationUrl: $activationUrl, password: $password) {
+    customer {
+      id
+      email
+      firstName
+      lastName
+      displayName
+    }
+    customerAccessToken {
+      accessToken
+      expiresAt
+    }
+    customerUserErrors {
+      field
+      message
+      code
+    }
+  }
+}
