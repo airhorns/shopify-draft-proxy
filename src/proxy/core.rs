@@ -675,6 +675,14 @@ impl DraftProxy {
                 .function_fulfillment_constraint_rule_order
                 .clone());
         }
+        if self
+            .store
+            .base
+            .function_fulfillment_constraint_rules_catalog_hydrated
+        {
+            snapshot["baseState"]["functionFulfillmentConstraintRulesCatalogHydrated"] =
+                json!(true);
+        }
         if !self.store.staged.media_ready_on_read.is_empty() {
             snapshot["stagedState"]["mediaReadyOnReadIds"] = json!(self
                 .store
@@ -1767,6 +1775,12 @@ impl DraftProxy {
                     .cloned()
                     .collect()
             });
+        self.store
+            .base
+            .function_fulfillment_constraint_rules_catalog_hydrated = state["baseState"]
+            ["functionFulfillmentConstraintRulesCatalogHydrated"]
+            .as_bool()
+            .unwrap_or(false);
         self.store.base.metafield_definitions =
             metafield_definition_map_from_json(state["baseState"].get("metafieldDefinitions"));
         self.store.base.metafield_definition_owner_catalogs = state["baseState"]

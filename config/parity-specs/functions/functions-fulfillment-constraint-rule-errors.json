@@ -41,7 +41,10 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/functions/functions-fulfillment-constraint-rule-unknown-function.graphql",
           "variablesCapturePath": "$.unknownFunction.variables",
-          "apiVersion": "2026-04"
+          "apiVersion": "2026-04",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          }
         },
         "expectedDifferences": [
           {
