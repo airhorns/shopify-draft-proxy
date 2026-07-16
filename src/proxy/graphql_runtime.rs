@@ -7,25 +7,33 @@ use super::graphql_error_compat::{
 };
 use super::*;
 use crate::admin_graphql::{
-    self, AdminApiVersion, RootExecutionContext, RootFieldError, RootFieldExecutor,
-    RootFieldInvocation, RootFieldResult,
+    self, AdminApiVersion, FieldResolverInvocation, FieldResolverResult, RootExecutionContext,
+    RootFieldError, RootFieldExecutor, RootFieldInvocation, RootFieldResult,
 };
 use crate::graphql::{DirectiveSelection, ParsedDocument, VariableDefinitionInfo};
-use crate::resolver_registry::{LocalResolverMode, ResolverHandler, RootResolverContext};
+use crate::resolver_registry::{
+    FieldResolverImplementation, GraphqlApiVersion, LocalResolverMode, ResolverOutcome,
+};
+
+const INTERNAL_HTTP_STATUS_EXTENSION: &str = "__draftProxyHttpStatus";
 
 struct ProxyRootExecutor {
     proxy: Arc<std::sync::Mutex<DraftProxy>>,
+    original_request: Request,
+    version: AdminApiVersion,
     root_calls: BTreeMap<String, PreparedRootCall>,
     root_locations: BTreeMap<String, SourceLocation>,
     discount_preflight: Option<(Request, Vec<RootFieldSelection>)>,
     discount_preflight_done: std::sync::Mutex<bool>,
-    grouped_local_request: Option<Request>,
-    grouped_local_fields: Option<Vec<RootFieldSelection>>,
-    grouped_local_response: std::sync::Mutex<Option<Response>>,
+    delivery_promise_mutation: Option<PreparedAtomicMutation>,
+    delivery_promise_response: std::sync::Mutex<Option<Response>>,
     full_passthrough_request: Option<Request>,
+    full_passthrough_direct: bool,
+    observe_direct_shop_passthrough: bool,
     full_passthrough_response: Arc<std::sync::Mutex<Option<Response>>>,
     reject_mixed_mutation: bool,
     resolved_responses: Arc<std::sync::Mutex<BTreeMap<String, Response>>>,
+    resolved_extensions: Arc<std::sync::Mutex<BTreeMap<String, Value>>>,
 }
 
 #[derive(Debug, Clone)]
@@ -37,38 +45,27 @@ struct PreparedRootCall {
     field: RootFieldSelection,
 }
 
-pub(crate) fn resolver_handler_for_domain(domain: CapabilityDomain) -> ResolverHandler {
-    match domain {
-        CapabilityDomain::Products => DraftProxy::resolve_products_graphql,
-        CapabilityDomain::Orders => DraftProxy::resolve_orders_graphql,
-        CapabilityDomain::ShippingFulfillments => DraftProxy::resolve_shipping_fulfillments_graphql,
-        CapabilityDomain::Customers => DraftProxy::resolve_customers_graphql,
-        CapabilityDomain::B2b => DraftProxy::resolve_b2b_graphql,
-        CapabilityDomain::SavedSearches => DraftProxy::resolve_saved_searches_graphql,
-        CapabilityDomain::OnlineStore => DraftProxy::resolve_online_store_graphql,
-        CapabilityDomain::Metaobjects => DraftProxy::resolve_metaobjects_graphql,
-        CapabilityDomain::BulkOperations => DraftProxy::resolve_bulk_operations_graphql,
-        CapabilityDomain::Discounts => DraftProxy::resolve_discounts_graphql,
-        CapabilityDomain::GiftCards => DraftProxy::resolve_gift_cards_graphql,
-        CapabilityDomain::AdminPlatform => DraftProxy::resolve_admin_platform_graphql,
-        CapabilityDomain::Apps => DraftProxy::resolve_apps_graphql,
-        CapabilityDomain::Media => DraftProxy::resolve_media_graphql,
-        CapabilityDomain::StoreProperties => DraftProxy::resolve_store_properties_graphql,
-        CapabilityDomain::Events => DraftProxy::resolve_events_graphql,
-        CapabilityDomain::Functions => DraftProxy::resolve_functions_graphql,
-        CapabilityDomain::Payments => DraftProxy::resolve_payments_graphql,
-        CapabilityDomain::Marketing => DraftProxy::resolve_marketing_graphql,
-        CapabilityDomain::Privacy => DraftProxy::resolve_privacy_graphql,
-        CapabilityDomain::Segments => DraftProxy::resolve_segments_graphql,
-        CapabilityDomain::Webhooks => DraftProxy::resolve_webhooks_graphql,
-        CapabilityDomain::Localization => DraftProxy::resolve_localization_graphql,
-        CapabilityDomain::Markets => DraftProxy::resolve_markets_graphql,
-        CapabilityDomain::Metafields => DraftProxy::resolve_metafields_graphql,
-        CapabilityDomain::Storefront => DraftProxy::resolve_storefront_graphql,
-        CapabilityDomain::Unknown => {
-            panic!("unknown GraphQL capabilities cannot register local resolvers")
-        }
-    }
+#[derive(Debug, Clone)]
+struct PreparedAtomicMutation {
+    request: Request,
+    query: String,
+    variables: BTreeMap<String, ResolvedValue>,
+}
+
+pub(crate) fn field_resolver_registrations() -> Vec<FieldResolverRegistration> {
+    let mut registrations = saved_search_field_resolver_registrations();
+    registrations.extend(product_field_resolver_registrations());
+    registrations.extend(inventory_field_resolver_registrations());
+    registrations.extend(super::privacy::privacy_field_resolver_registrations());
+    registrations.extend(event_field_resolver_registrations());
+    registrations.extend(super::storefront::storefront_field_resolver_registrations());
+    registrations
+}
+
+pub(crate) fn field_resolver_type_policies() -> Vec<FieldResolverTypePolicy> {
+    let mut policies = product_field_resolver_type_policies();
+    policies.extend(inventory_field_resolver_type_policies());
+    policies
 }
 
 /// Temporarily make this proxy available to `'static` GraphQL resolver data
@@ -99,7 +96,6 @@ pub(in crate::proxy) fn with_request_owned_proxy<T>(
     };
     restored_proxy.engine_mutation_log_start = None;
     restored_proxy.engine_discount_refs_preflighted = false;
-    restored_proxy.engine_root_fields = None;
     *proxy = restored_proxy;
 
     match outcome {
@@ -127,6 +123,40 @@ impl RootFieldExecutor for ProxyRootExecutor {
                     .to_string(),
             );
         }
+        if matches!(
+            root_name.as_str(),
+            "deliveryPromiseProviderUpsert" | "deliveryPromiseParticipantsUpdate"
+        ) {
+            if let Some(prepared) = &self.delivery_promise_mutation {
+                let mut cached = self.delivery_promise_response.lock().map_err(|_| {
+                    "Delivery-promise mutation response lock was poisoned".to_string()
+                })?;
+                if cached.is_none() {
+                    let mut proxy = self
+                        .proxy
+                        .lock()
+                        .map_err(|_| "Admin GraphQL proxy state lock was poisoned".to_string())?;
+                    *cached = Some(proxy.delivery_promise_mutation(
+                        &prepared.query,
+                        &prepared.variables,
+                        &prepared.request,
+                    ));
+                }
+                let response = cached
+                    .as_ref()
+                    .expect("delivery-promise response should be cached")
+                    .clone();
+                self.resolved_responses
+                    .lock()
+                    .map_err(|_| "Admin GraphQL resolved response lock was poisoned".to_string())?
+                    .insert(response_key.clone(), response.clone());
+                let outcome = resolver_outcome_from_response(response, &response_key);
+                return Ok(RootFieldResult {
+                    value: outcome.value,
+                    errors: outcome.errors,
+                });
+            }
+        }
         if let Some((request, fields)) = &self.discount_preflight {
             let mut done = self
                 .discount_preflight_done
@@ -153,29 +183,20 @@ impl RootFieldExecutor for ProxyRootExecutor {
                     .proxy
                     .lock()
                     .map_err(|_| "Admin GraphQL proxy state lock was poisoned".to_string())?;
-                *cached = Some(proxy.execute_passthrough_graphql(request));
+                let response = if self.full_passthrough_direct {
+                    (proxy.upstream_transport)(request.clone())
+                } else {
+                    proxy.execute_passthrough_graphql(request)
+                };
+                if self.observe_direct_shop_passthrough && (200..300).contains(&response.status) {
+                    proxy.hydrate_shop_state_from_response_data(&response.body["data"]);
+                    proxy.observe_nodes_response(&response);
+                }
+                *cached = Some(response);
             }
             cached
                 .as_ref()
                 .expect("passthrough response should be cached")
-                .clone()
-        } else if let Some(request) = &self.grouped_local_request {
-            let mut cached = self
-                .grouped_local_response
-                .lock()
-                .map_err(|_| "Admin GraphQL grouped response lock was poisoned".to_string())?;
-            if cached.is_none() {
-                let mut proxy = self
-                    .proxy
-                    .lock()
-                    .map_err(|_| "Admin GraphQL proxy state lock was poisoned".to_string())?;
-                proxy.engine_root_fields = self.grouped_local_fields.clone();
-                *cached = Some(proxy.resolve_prevalidated_graphql_root(request));
-                proxy.engine_root_fields = None;
-            }
-            cached
-                .as_ref()
-                .expect("grouped local response should be cached")
                 .clone()
         } else {
             let mut call = self.root_calls.get(&response_key).cloned().ok_or_else(|| {
@@ -187,14 +208,85 @@ impl RootFieldExecutor for ProxyRootExecutor {
                 .iter()
                 .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
                 .collect();
+            let registration = self
+                .proxy
+                .lock()
+                .map_err(|_| "Admin GraphQL proxy state lock was poisoned".to_string())?
+                .registry
+                .registration(call.operation.operation_type, &call.field.name)
+                .cloned();
+            if let Some(registration) = registration {
+                let handler = registration.handler;
+                let mut proxy = self
+                    .proxy
+                    .lock()
+                    .map_err(|_| "Admin GraphQL proxy state lock was poisoned".to_string())?;
+                let outcome = handler(
+                    &mut proxy,
+                    crate::resolver_registry::RootInvocation {
+                        api_surface: ApiSurface::Admin,
+                        api_version: GraphqlApiVersion::Admin(self.version),
+                        response_key: &response_key,
+                        root_name: &root_name,
+                        arguments,
+                        request: &call.request,
+                        query: &call.query,
+                        variables: &call.variables,
+                        operation: &call.operation,
+                        mode: LocalResolverMode::from_execution(registration.execution),
+                    },
+                );
+                let ResolverOutcome {
+                    value,
+                    additional_root_values: _,
+                    mut errors,
+                    extensions,
+                    log_drafts,
+                } = outcome;
+                if let Some(location) = self.root_locations.get(&response_key) {
+                    for error in &mut errors {
+                        if error
+                            .extensions
+                            .get("code")
+                            .and_then(Value::as_str)
+                            .is_some_and(|code| {
+                                matches!(code, "BAD_REQUEST" | "MAX_INPUT_SIZE_EXCEEDED")
+                            })
+                        {
+                            error.locations = vec![async_graphql::Pos {
+                                line: location.line,
+                                column: location.column,
+                            }];
+                        }
+                    }
+                }
+                for draft in log_drafts {
+                    proxy.record_mutation_log_draft(
+                        &call.request,
+                        &call.query,
+                        &call.variables,
+                        draft,
+                    );
+                }
+                drop(proxy);
+                self.resolved_responses
+                    .lock()
+                    .map_err(|_| "Admin GraphQL resolved response lock was poisoned".to_string())?
+                    .entry(response_key.clone())
+                    .or_insert_with(|| {
+                        resolver_outcome_wire_response(&response_key, &value, &errors, &extensions)
+                    });
+                self.resolved_extensions
+                    .lock()
+                    .map_err(|_| "Admin GraphQL resolver extensions lock was poisoned".to_string())?
+                    .extend(extensions);
+                return Ok(RootFieldResult { value, errors });
+            }
             let mut proxy = self
                 .proxy
                 .lock()
                 .map_err(|_| "Admin GraphQL proxy state lock was poisoned".to_string())?;
-            proxy.engine_root_fields = Some(vec![call.field.clone()]);
-            let response = proxy.resolve_prevalidated_graphql_root_call(&call);
-            proxy.engine_root_fields = None;
-            response
+            proxy.resolve_prevalidated_graphql_root_call(&call)
         };
         self.resolved_responses
             .lock()
@@ -300,6 +392,43 @@ impl RootFieldExecutor for ProxyRootExecutor {
         }
         Ok(RootFieldResult { value, errors })
     }
+
+    fn execute_field(
+        &self,
+        invocation: FieldResolverInvocation<'_>,
+    ) -> Result<FieldResolverResult, String> {
+        let mut proxy = self
+            .proxy
+            .lock()
+            .map_err(|_| "Admin GraphQL proxy state lock was poisoned".to_string())?;
+        let implementation = proxy.registry.field_implementation(
+            invocation.api_surface,
+            invocation.api_version,
+            &invocation.parent_type,
+            &invocation.field_name,
+        );
+        match implementation {
+            FieldResolverImplementation::PropertyBacked => Ok(FieldResolverResult::PropertyBacked),
+            FieldResolverImplementation::ExplicitFallbackToProperty(handler) => {
+                if invocation.parent.as_object().is_some_and(|parent| {
+                    parent.contains_key(&invocation.response_key)
+                        || parent.contains_key(&invocation.field_name)
+                }) {
+                    Ok(FieldResolverResult::PropertyBacked)
+                } else {
+                    handler(&mut proxy, &self.original_request, &invocation)
+                        .map(FieldResolverResult::Resolved)
+                }
+            }
+            FieldResolverImplementation::ExplicitAlways(handler) => {
+                handler(&mut proxy, &self.original_request, &invocation)
+                    .map(FieldResolverResult::Resolved)
+            }
+            FieldResolverImplementation::DeliberatelyUnsupported(reason) => Ok(
+                FieldResolverResult::DeliberatelyUnsupported(reason.to_string()),
+            ),
+        }
+    }
 }
 
 pub(in crate::proxy) fn operation_selection_error_response(
@@ -322,9 +451,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Vec<RootFieldSelection>> {
-        self.engine_root_fields
-            .clone()
-            .or_else(|| root_fields(query, variables))
+        root_fields(query, variables)
     }
 
     pub(in crate::proxy) fn execution_root_field(
@@ -336,6 +463,17 @@ impl DraftProxy {
         self.execution_root_fields(query, variables)?
             .into_iter()
             .find(|field| field.name == root_name)
+    }
+
+    pub(in crate::proxy) fn execution_root_field_by_response_key(
+        &self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        response_key: &str,
+    ) -> Option<RootFieldSelection> {
+        self.execution_root_fields(query, variables)?
+            .into_iter()
+            .find(|field| field.response_key == response_key)
     }
 
     pub(in crate::proxy) fn execution_primary_root_field(
@@ -443,6 +581,12 @@ impl DraftProxy {
     /// Domain code is reached only through root field resolvers; the GraphQL
     /// engine owns the executable language and response projection.
     pub(in crate::proxy) fn execute_graphql(&mut self, request: &Request) -> Response {
+        self.request_owner_metafield_hydrated_ids.clear();
+        self.request_upstream_query_response = None;
+        self.request_localization_context_preflighted = false;
+        self.request_markets_query_preflighted = false;
+        self.request_mixed_discount_local_read = false;
+        self.request_node_query_response = None;
         let Some(graphql_request) = parse_graphql_request_body(&request.body) else {
             return json_error(400, "Expected JSON body with a string `query`");
         };
@@ -490,7 +634,7 @@ impl DraftProxy {
                             path: request.path.clone(),
                             headers: request.headers.clone(),
                             body: json!({
-                                "query": field_query,
+                                "query": field_query.clone(),
                                 "variables": resolved_variables_json(&variables)
                             })
                             .to_string(),
@@ -500,10 +644,10 @@ impl DraftProxy {
                         field.response_key.clone(),
                         PreparedRootCall {
                             request: field_request,
-                            // Domain execution receives the caller's selected operation for
-                            // diagnostics and mutation logging. Only `request` carries the
-                            // isolated transport document used when this root must go upstream.
-                            query: query.to_string(),
+                            // Transitional selection-aware domains receive the isolated
+                            // one-root document. The engine normalizes multi-root mutation
+                            // logging back to the caller's original document after execution.
+                            query: field_query,
                             variables: variables.clone(),
                             operation: crate::graphql::ParsedOperation {
                                 operation_type: document.operation_type,
@@ -558,6 +702,61 @@ impl DraftProxy {
             && has_passthrough_root;
 
         let all_passthrough = !root_names.is_empty() && !has_local_root && has_passthrough_root;
+        let product_original_query_passthrough =
+            prepared.as_ref().is_some_and(|(document, _, _)| {
+                document.operation_type == OperationType::Query
+                    && capabilities
+                        .iter()
+                        .any(|capability| capability.domain == CapabilityDomain::Products)
+                    && capabilities.iter().all(|capability| {
+                        matches!(
+                            capability.domain,
+                            CapabilityDomain::Products | CapabilityDomain::Unknown
+                        )
+                    })
+                    && self.product_read_needs_upstream(&document.root_fields)
+            });
+        let shop_original_query_passthrough =
+            prepared.as_ref().is_some_and(|(document, variables, _)| {
+                let Some(query) = selected_query.as_deref() else {
+                    return false;
+                };
+                document.operation_type == OperationType::Query
+                    && !document.root_fields.is_empty()
+                    && document
+                        .root_fields
+                        .iter()
+                        .all(|field| field.name == "shop")
+                    && !self.should_handle_shop_policy_query_locally()
+                    && !self.should_route_owner_metafields_read(query, variables)
+            });
+        let direct_full_query_passthrough = product_original_query_passthrough
+            || (self.config.read_mode == ReadMode::LiveHybrid && shop_original_query_passthrough)
+            || (self.config.read_mode == ReadMode::LiveHybrid
+                && operation_type == Some(OperationType::Query)
+                && ((!capabilities.is_empty()
+                    && capabilities
+                        .iter()
+                        .all(|capability| capability.domain == CapabilityDomain::Events))
+                    || (!root_names.is_empty()
+                        && root_names.iter().all(|root| {
+                            matches!(
+                                root.as_str(),
+                                "deliverySettings" | "deliveryPromiseSettings"
+                            )
+                        }))
+                    || (capabilities
+                        .iter()
+                        .any(|capability| capability.domain == CapabilityDomain::AdminPlatform)
+                        && capabilities
+                            .iter()
+                            .any(|capability| capability.domain == CapabilityDomain::Unknown)
+                        && capabilities.iter().all(|capability| {
+                            matches!(
+                                capability.domain,
+                                CapabilityDomain::AdminPlatform | CapabilityDomain::Unknown
+                            )
+                        }))));
         if let Some((document, _, _)) = prepared.as_ref() {
             if let Some(error) = required_variable_error(document, &graphql_request.variables) {
                 return ok_json(json!({ "errors": [error] }));
@@ -582,85 +781,6 @@ impl DraftProxy {
                 return ok_json(json!({ "errors": id_errors }));
             }
         }
-        let grouped_local_request = prepared.as_ref().and_then(|(document, variables, _)| {
-            selected_query.as_deref().and_then(|query| {
-                let owner_metafields = document.operation_type == OperationType::Query
-                    && self.should_route_owner_metafields_read(query, variables);
-                let grouped_domain_read = document.operation_type == OperationType::Query
-                    && document.root_fields.len() > 1
-                    && capabilities.first().is_some_and(|first| {
-                        first.domain != CapabilityDomain::Unknown
-                            && first.execution == CapabilityExecution::OverlayRead
-                            && capabilities.iter().all(|capability| capability == first)
-                    });
-                let grouped_media_saved_search_read =
-                    document.operation_type == OperationType::Query
-                        && document.root_fields.len() > 1
-                        && document.root_fields.iter().all(|field| {
-                            matches!(field.name.as_str(), "files" | "fileSavedSearches")
-                        });
-                let grouped_localization_markets_read = document.operation_type
-                    == OperationType::Query
-                    && document.root_fields.len() > 1
-                    && capabilities.first().is_some_and(|capability| {
-                        capability.domain == CapabilityDomain::Localization
-                            && capability.execution == CapabilityExecution::OverlayRead
-                    })
-                    && document
-                        .root_fields
-                        .iter()
-                        .any(|field| field.name == "markets")
-                    && capabilities.iter().all(|capability| {
-                        capability.execution == CapabilityExecution::OverlayRead
-                            && matches!(
-                                capability.domain,
-                                CapabilityDomain::Localization | CapabilityDomain::Markets
-                            )
-                    });
-                let grouped_admin_platform_read = document.operation_type == OperationType::Query
-                    && document.root_fields.len() > 1
-                    && capabilities
-                        .iter()
-                        .any(|capability| capability.domain == CapabilityDomain::AdminPlatform)
-                    && capabilities.iter().all(|capability| {
-                        matches!(
-                            capability.domain,
-                            CapabilityDomain::AdminPlatform | CapabilityDomain::Unknown
-                        )
-                    });
-                let grouped_product_helper_read = document.operation_type == OperationType::Query
-                    && document.root_fields.len() > 1
-                    && capabilities
-                        .iter()
-                        .any(|capability| capability.domain == CapabilityDomain::Products)
-                    && capabilities.iter().all(|capability| {
-                        matches!(
-                            capability.domain,
-                            CapabilityDomain::Products
-                                | CapabilityDomain::SavedSearches
-                                | CapabilityDomain::Unknown
-                        )
-                    });
-                let live_events = self.config.read_mode == ReadMode::LiveHybrid
-                    && !capabilities.is_empty()
-                    && capabilities
-                        .iter()
-                        .all(|capability| capability.domain == CapabilityDomain::Events);
-                (owner_metafields
-                    || grouped_domain_read
-                    || grouped_media_saved_search_read
-                    || grouped_localization_markets_read
-                    || grouped_admin_platform_read
-                    || grouped_product_helper_read
-                    || live_events)
-                    .then(|| request.clone())
-            })
-        });
-        let grouped_local_fields = grouped_local_request.as_ref().and_then(|_| {
-            prepared
-                .as_ref()
-                .map(|(document, _, _)| document.root_fields.clone())
-        });
         let root_locations = prepared
             .as_ref()
             .map(|(document, _, _)| {
@@ -678,6 +798,173 @@ impl DraftProxy {
                     .any(|capability| capability.domain == CapabilityDomain::Discounts))
             .then(|| (request.clone(), document.root_fields.clone()))
         });
+        let owner_metafield_preflight = prepared.as_ref().and_then(|(document, variables, _)| {
+            let query = selected_query.as_deref()?;
+            (document.operation_type == OperationType::Query
+                && has_local_root
+                && !product_original_query_passthrough
+                && self.should_route_owner_metafields_read(query, variables))
+            .then(|| {
+                (
+                    request.clone(),
+                    document.root_fields.clone(),
+                    variables.clone(),
+                )
+            })
+        });
+        let mixed_discount_local_read = prepared.as_ref().is_some_and(|(document, _, _)| {
+            document.operation_type == OperationType::Query
+                && capabilities
+                    .iter()
+                    .all(|capability| capability.domain == CapabilityDomain::Discounts)
+                && self.discount_query_has_mixed_local_read(&document.root_fields)
+        });
+        let overlay_query_preflight = prepared.as_ref().and_then(|(document, variables, _)| {
+            if self.config.read_mode != ReadMode::LiveHybrid
+                || document.operation_type != OperationType::Query
+                || direct_full_query_passthrough
+            {
+                return None;
+            }
+            let b2b = capabilities
+                .iter()
+                .all(|capability| capability.domain == CapabilityDomain::B2b)
+                && self.b2b_query_has_staged_match(&document.root_fields)
+                && DraftProxy::b2b_query_has_catalog_root(&document.root_fields);
+            let customers = capabilities
+                .iter()
+                .all(|capability| capability.domain == CapabilityDomain::Customers)
+                && self.should_handle_customer_overlay_read(&document.root_fields)
+                && self.customer_overlay_needs_upstream_data(&document.root_fields);
+            let functions = capabilities
+                .iter()
+                .all(|capability| capability.domain == CapabilityDomain::Functions)
+                && !self.function_read_has_local_overlay(&document.root_fields);
+            let gift_cards = capabilities
+                .iter()
+                .all(|capability| capability.domain == CapabilityDomain::GiftCards)
+                && self.gift_card_read_needs_upstream(&document.root_fields);
+            let marketing = capabilities
+                .iter()
+                .all(|capability| capability.domain == CapabilityDomain::Marketing);
+            let media_saved_searches = document
+                .root_fields
+                .iter()
+                .all(|field| matches!(field.name.as_str(), "files" | "fileSavedSearches"));
+            let metaobjects = capabilities
+                .iter()
+                .all(|capability| capability.domain == CapabilityDomain::Metaobjects);
+            let discounts = capabilities
+                .iter()
+                .all(|capability| capability.domain == CapabilityDomain::Discounts)
+                && !mixed_discount_local_read
+                && (self.should_forward_cold_discount_read(&document.root_fields)
+                    || self.discount_read_needs_live_hydration(&document.root_fields));
+            let orders = capabilities
+                .iter()
+                .all(|capability| capability.domain == CapabilityDomain::Orders)
+                && document
+                    .root_fields
+                    .iter()
+                    .all(|field| matches!(field.name.as_str(), "order" | "orders" | "ordersCount"))
+                && (document.root_fields.len() > 1
+                    || self.order_query_needs_shared_upstream(&document.root_fields));
+            let markets = capabilities
+                .iter()
+                .all(|capability| capability.domain == CapabilityDomain::Markets)
+                && self.markets_should_fetch_upstream(&document.root_fields, variables);
+            (b2b || customers
+                || functions
+                || gift_cards
+                || marketing
+                || media_saved_searches
+                || metaobjects
+                || discounts
+                || orders
+                || markets)
+                .then(|| (request.clone(), document.root_fields.clone()))
+        });
+        let localization_context_preflight =
+            prepared.as_ref().and_then(|(document, variables, _)| {
+                let mixed_surface = capabilities
+                    .iter()
+                    .any(|capability| capability.domain == CapabilityDomain::Localization)
+                    && capabilities
+                        .iter()
+                        .any(|capability| capability.domain == CapabilityDomain::Markets)
+                    && capabilities.iter().all(|capability| {
+                        matches!(
+                            capability.domain,
+                            CapabilityDomain::Localization | CapabilityDomain::Markets
+                        )
+                    });
+                let has_local_localization_root = document.root_fields.iter().any(|field| {
+                    matches!(
+                        field.name.as_str(),
+                        "translatableResource"
+                            | "translatableResources"
+                            | "translatableResourcesByIds"
+                    ) && !self.localization_should_fetch_upstream(&field.name)
+                });
+                let has_locale_catalog = document
+                    .root_fields
+                    .iter()
+                    .any(|field| matches!(field.name.as_str(), "shopLocales" | "availableLocales"));
+                (self.config.read_mode == ReadMode::LiveHybrid
+                    && document.operation_type == OperationType::Query
+                    && mixed_surface
+                    && has_local_localization_root
+                    && self.markets_should_fetch_upstream(&document.root_fields, variables))
+                .then(|| {
+                    (
+                        request.clone(),
+                        document.root_fields.clone(),
+                        has_locale_catalog,
+                    )
+                })
+            });
+        let markets_query_context = operation_type == Some(OperationType::Query)
+            && !root_names.is_empty()
+            && capabilities
+                .iter()
+                .all(|capability| capability.domain == CapabilityDomain::Markets);
+        let node_query_preflight = prepared.as_ref().and_then(|(document, variables, _)| {
+            let query = selected_query.as_ref()?;
+            (document.operation_type == OperationType::Query
+                && document.root_fields.len() > 1
+                && document
+                    .root_fields
+                    .iter()
+                    .all(|field| matches!(field.name.as_str(), "node" | "nodes")))
+            .then(|| {
+                (
+                    request.clone(),
+                    query.clone(),
+                    variables.clone(),
+                    document.root_fields.clone(),
+                )
+            })
+        });
+        let delivery_promise_mutation = prepared.as_ref().and_then(|(document, variables, _)| {
+            let query = selected_query.as_ref()?;
+            let promise_root_count = document
+                .root_fields
+                .iter()
+                .filter(|field| {
+                    matches!(
+                        field.name.as_str(),
+                        "deliveryPromiseProviderUpsert" | "deliveryPromiseParticipantsUpdate"
+                    )
+                })
+                .count();
+            (document.operation_type == OperationType::Mutation && promise_root_count > 1).then(
+                || PreparedAtomicMutation {
+                    request: request.clone(),
+                    query: query.clone(),
+                    variables: variables.clone(),
+                },
+            )
+        });
         // `async-graphql`'s dynamic builder cannot register custom directive
         // definitions. Preserve Shopify's executable `@idempotent` contract in
         // the domain request, while removing only that directive from the copy
@@ -688,59 +975,115 @@ impl DraftProxy {
         );
         let engine_variables = resolved_variables_json(&graphql_request.variables);
         let engine_operation_name = graphql_request.operation_name;
-        let (engine_response, resolved_responses, full_passthrough_response, log_start) =
-            with_request_owned_proxy(self, move |shared_proxy| {
-                let log_start = {
-                    let mut proxy = shared_proxy
-                        .lock()
-                        .unwrap_or_else(std::sync::PoisonError::into_inner);
-                    let log_start = proxy.log_entries.len();
-                    if operation_type == Some(OperationType::Mutation) && has_local_root {
-                        proxy.engine_mutation_log_start = Some(log_start);
-                    }
-                    log_start
-                };
-                let resolved_responses = Arc::new(std::sync::Mutex::new(BTreeMap::new()));
-                let full_passthrough_response = Arc::new(std::sync::Mutex::new(None));
-                let root_executor: Arc<dyn RootFieldExecutor> = Arc::new(ProxyRootExecutor {
-                    proxy: Arc::clone(&shared_proxy),
-                    root_calls,
-                    root_locations,
-                    discount_preflight,
-                    discount_preflight_done: std::sync::Mutex::new(false),
-                    grouped_local_request,
-                    grouped_local_fields,
-                    grouped_local_response: std::sync::Mutex::new(None),
-                    full_passthrough_request: all_passthrough.then(|| request.clone()),
-                    full_passthrough_response: Arc::clone(&full_passthrough_response),
-                    reject_mixed_mutation,
-                    resolved_responses: Arc::clone(&resolved_responses),
-                });
-                let mut engine_request = async_graphql::Request::new(engine_query)
-                    .variables(async_graphql::Variables::from_json(engine_variables))
-                    .data(RootExecutionContext {
-                        executor: Arc::clone(&root_executor),
-                    });
-                if let Some(operation_name) = engine_operation_name {
-                    engine_request = engine_request.operation_name(operation_name);
+        let (
+            engine_response,
+            resolved_responses,
+            resolved_extensions,
+            full_passthrough_response,
+            log_start,
+        ) = with_request_owned_proxy(self, move |shared_proxy| {
+            let resolved_responses = Arc::new(std::sync::Mutex::new(BTreeMap::new()));
+            let resolved_extensions = Arc::new(std::sync::Mutex::new(BTreeMap::new()));
+            let full_passthrough_response = Arc::new(std::sync::Mutex::new(None));
+            let log_start = {
+                let mut proxy = shared_proxy
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                if let Some((request, fields, variables)) = &owner_metafield_preflight {
+                    proxy.hydrate_owner_metafield_read_fields(request, fields, variables);
                 }
-                let engine_response = futures_executor::block_on(schema.execute(engine_request));
-                drop(root_executor);
-                let resolved_responses = resolved_responses
-                    .lock()
-                    .map(|responses| responses.clone())
-                    .unwrap_or_default();
-                let full_passthrough_response = full_passthrough_response
-                    .lock()
-                    .ok()
-                    .and_then(|response| response.clone());
-                (
-                    engine_response,
-                    resolved_responses,
-                    full_passthrough_response,
-                    log_start,
-                )
+                proxy.request_mixed_discount_local_read = mixed_discount_local_read;
+                if let Some((request, fields)) = &overlay_query_preflight {
+                    let response = (proxy.upstream_transport)(request.clone());
+                    if (200..300).contains(&response.status) {
+                        proxy.hydrate_function_metadata_from_response_data(&response.body["data"]);
+                        proxy.mark_function_read_fields_hydrated(fields);
+                        proxy.hydrate_gift_card_read_state_from_response(
+                            fields,
+                            &response.body["data"],
+                        );
+                        proxy.observe_order_read_response(request, &response);
+                        proxy.observe_discount_read_response(fields, &response);
+                    }
+                    proxy.request_upstream_query_response = Some(response);
+                }
+                if let Some((request, fields, use_original_request)) =
+                    &localization_context_preflight
+                {
+                    proxy.preflight_localization_markets_context(
+                        request,
+                        fields,
+                        *use_original_request,
+                    );
+                }
+                if markets_query_context {
+                    proxy.request_markets_query_preflighted = true;
+                }
+                if let Some((request, query, variables, fields)) = &node_query_preflight {
+                    let response =
+                        proxy.resolve_node_query_fields(request, query, variables, fields);
+                    proxy.request_node_query_response = Some(response.clone());
+                    if let Ok(mut responses) = resolved_responses.lock() {
+                        for field in fields {
+                            responses.insert(field.response_key.clone(), response.clone());
+                        }
+                    }
+                }
+                let log_start = proxy.log_entries.len();
+                if operation_type == Some(OperationType::Mutation) && has_local_root {
+                    proxy.engine_mutation_log_start = Some(log_start);
+                }
+                log_start
+            };
+            let root_executor: Arc<dyn RootFieldExecutor> = Arc::new(ProxyRootExecutor {
+                proxy: Arc::clone(&shared_proxy),
+                original_request: request.clone(),
+                version,
+                root_calls,
+                root_locations,
+                discount_preflight,
+                discount_preflight_done: std::sync::Mutex::new(false),
+                delivery_promise_mutation,
+                delivery_promise_response: std::sync::Mutex::new(None),
+                full_passthrough_request: (all_passthrough || direct_full_query_passthrough)
+                    .then(|| request.clone()),
+                full_passthrough_direct: direct_full_query_passthrough,
+                observe_direct_shop_passthrough: shop_original_query_passthrough,
+                full_passthrough_response: Arc::clone(&full_passthrough_response),
+                reject_mixed_mutation,
+                resolved_responses: Arc::clone(&resolved_responses),
+                resolved_extensions: Arc::clone(&resolved_extensions),
             });
+            let mut engine_request = async_graphql::Request::new(engine_query)
+                .variables(async_graphql::Variables::from_json(engine_variables))
+                .data(RootExecutionContext {
+                    executor: Arc::clone(&root_executor),
+                });
+            if let Some(operation_name) = engine_operation_name {
+                engine_request = engine_request.operation_name(operation_name);
+            }
+            let engine_response = futures_executor::block_on(schema.execute(engine_request));
+            drop(root_executor);
+            let resolved_responses = resolved_responses
+                .lock()
+                .map(|responses| responses.clone())
+                .unwrap_or_default();
+            let resolved_extensions = resolved_extensions
+                .lock()
+                .map(|extensions| extensions.clone())
+                .unwrap_or_default();
+            let full_passthrough_response = full_passthrough_response
+                .lock()
+                .ok()
+                .and_then(|response| response.clone());
+            (
+                engine_response,
+                resolved_responses,
+                resolved_extensions,
+                full_passthrough_response,
+                log_start,
+            )
+        });
 
         if operation_type == Some(OperationType::Mutation) && has_local_root {
             let variables = prepared
@@ -827,7 +1170,12 @@ impl DraftProxy {
             )
         };
         let mut body = body;
+        let resolver_http_status = resolved_extensions
+            .get(INTERNAL_HTTP_STATUS_EXTENSION)
+            .and_then(Value::as_u64)
+            .and_then(|status| u16::try_from(status).ok());
         strip_cloud_webhook_callback_urls(&mut body);
+        merge_native_resolver_extensions(&mut body, &resolved_extensions);
         merge_resolved_extensions(&mut body, &resolved_responses);
         if let Some(response) = shared_root_response(&resolved_responses) {
             if let (Some(projected), Some(resolved)) =
@@ -842,12 +1190,16 @@ impl DraftProxy {
                 }
             }
             return Response {
-                status: response.status,
+                status: resolver_http_status.unwrap_or(response.status),
                 headers: response.headers.clone(),
                 body,
             };
         }
-        ok_json(body)
+        Response {
+            status: resolver_http_status.unwrap_or(200),
+            headers: BTreeMap::new(),
+            body,
+        }
     }
 
     fn normalize_engine_mutation_log(
@@ -913,34 +1265,25 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn execute_passthrough_graphql(&mut self, request: &Request) -> Response {
-        self.resolve_registered_graphql(request, None)
-    }
-
-    pub(in crate::proxy) fn resolve_prevalidated_graphql_root(
-        &mut self,
-        request: &Request,
-    ) -> Response {
-        self.resolve_registered_graphql(request, None)
+        self.resolve_registered_graphql(request, None, None)
     }
 
     pub(in crate::proxy) fn resolve_nested_graphql_request(
         &mut self,
         request: &Request,
     ) -> Response {
-        let outer_fields = self.engine_root_fields.take();
-        let response = self.resolve_registered_graphql(request, None);
-        self.engine_root_fields = outer_fields;
-        response
+        self.resolve_registered_graphql(request, None, None)
     }
 
     fn resolve_prevalidated_graphql_root_call(&mut self, call: &PreparedRootCall) -> Response {
-        self.resolve_registered_graphql(&call.request, Some(call))
+        self.resolve_registered_graphql(&call.request, Some(call), None)
     }
 
     fn resolve_registered_graphql(
         &mut self,
         request: &Request,
         prepared: Option<&PreparedRootCall>,
+        preferred_root: Option<&str>,
     ) -> Response {
         let (request, query, variables, operation, root_field_name) = if let Some(call) = prepared {
             (
@@ -978,7 +1321,10 @@ impl DraftProxy {
             let Some(operation) = parse_operation_with_variables(&query, &variables) else {
                 return json_error(400, "Could not parse GraphQL operation");
             };
-            let Some(root_field) = operation.primary_root_field().map(str::to_string) else {
+            let Some(root_field) = preferred_root
+                .map(str::to_string)
+                .or_else(|| operation.primary_root_field().map(str::to_string))
+            else {
                 return ok_json(json!({ "data": {} }));
             };
             (request, query, variables, operation, root_field)
@@ -1016,18 +1362,236 @@ impl DraftProxy {
                 root_field,
             );
         };
-        (registration.handler)(
+        let handler = registration.handler;
+        let Some(version) = AdminApiVersion::from_route(&request.path) else {
+            return json_error(404, "No captured Admin GraphQL schema for this route");
+        };
+        let response_key = prepared
+            .map(|call| call.field.response_key.as_str())
+            .unwrap_or(root_field);
+        let arguments = prepared
+            .map(|call| {
+                call.field
+                    .arguments
+                    .iter()
+                    .map(|(name, value)| (name.clone(), resolved_value_json(value)))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let outcome = handler(
             self,
-            RootResolverContext {
+            crate::resolver_registry::RootInvocation {
+                api_surface: ApiSurface::Admin,
+                api_version: GraphqlApiVersion::Admin(version),
+                response_key,
+                root_name: root_field,
+                arguments,
                 request,
                 query: &query,
                 variables: &variables,
                 operation: &operation,
-                root_name: root_field,
                 mode: LocalResolverMode::from_execution(registration.execution),
             },
-        )
+        );
+        resolver_outcome_compat_response(self, request, &query, &variables, response_key, outcome)
     }
+}
+
+fn resolver_outcome_compat_response(
+    proxy: &mut DraftProxy,
+    request: &Request,
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+    response_key: &str,
+    outcome: ResolverOutcome<Value>,
+) -> Response {
+    let ResolverOutcome {
+        value,
+        additional_root_values,
+        errors,
+        extensions,
+        log_drafts,
+    } = outcome;
+    for draft in log_drafts {
+        proxy.record_mutation_log_draft(request, query, variables, draft);
+    }
+    let mut body = if additional_root_values.is_empty() {
+        json!({ "data": { response_key: value } })
+    } else {
+        json!({ "data": additional_root_values })
+    };
+    if !errors.is_empty() {
+        body["errors"] = Value::Array(
+            errors
+                .into_iter()
+                .map(|error| {
+                    let mut value = json!({ "message": error.message });
+                    if !error.extensions.is_empty() {
+                        value["extensions"] = Value::Object(error.extensions.into_iter().collect());
+                    }
+                    value
+                })
+                .collect(),
+        );
+    }
+    if !extensions.is_empty() {
+        body["extensions"] = Value::Object(extensions.into_iter().collect());
+    }
+    ok_json(body)
+}
+
+pub(in crate::proxy) fn resolver_outcome_from_response(
+    response: Response,
+    response_key: &str,
+) -> ResolverOutcome<Value> {
+    let additional_root_values = response
+        .body
+        .get("data")
+        .and_then(Value::as_object)
+        .map(|data| {
+            data.iter()
+                .map(|(key, value)| (key.clone(), value.clone()))
+                .collect()
+        })
+        .unwrap_or_default();
+    let value = response
+        .body
+        .get("data")
+        .and_then(Value::as_object)
+        .and_then(|data| data.get(response_key))
+        .cloned()
+        .unwrap_or(Value::Null);
+    let mut errors = response
+        .body
+        .get("errors")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|error| {
+            let error_path = error.get("path").and_then(Value::as_array);
+            if error_path
+                .and_then(|path| path.first())
+                .and_then(Value::as_str)
+                .is_some_and(|root| root != response_key)
+            {
+                return None;
+            }
+            Some(RootFieldError {
+                message: error
+                    .get("message")
+                    .and_then(Value::as_str)
+                    .unwrap_or("GraphQL root resolver failed")
+                    .to_string(),
+                extensions: error
+                    .get("extensions")
+                    .and_then(Value::as_object)
+                    .map(|extensions| {
+                        extensions
+                            .iter()
+                            .map(|(key, value)| (key.clone(), value.clone()))
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+                path: error_path
+                    .map(|path| {
+                        path.iter()
+                            .skip(1)
+                            .filter_map(|segment| match segment {
+                                Value::String(field) => {
+                                    Some(async_graphql::PathSegment::Field(field.clone()))
+                                }
+                                Value::Number(index) => index
+                                    .as_u64()
+                                    .map(|index| async_graphql::PathSegment::Index(index as usize)),
+                                _ => None,
+                            })
+                            .collect()
+                    })
+                    // Legacy HTTP/dispatcher failures historically gained the
+                    // active root path at the engine boundary. Preserve that
+                    // behavior until those fail-closed roots become native
+                    // GraphQL outcomes.
+                    .or_else(|| (response.status >= 400).then(Vec::new)),
+                locations: error
+                    .get("locations")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|location| {
+                        Some(async_graphql::Pos {
+                            line: location.get("line")?.as_u64()? as usize,
+                            column: location.get("column")?.as_u64()? as usize,
+                        })
+                    })
+                    .collect(),
+            })
+        })
+        .collect::<Vec<_>>();
+    if errors.is_empty() && response.status >= 400 {
+        errors.push(RootFieldError {
+            message: format!("GraphQL root failed with status {}", response.status),
+            extensions: BTreeMap::new(),
+            path: Some(Vec::new()),
+            locations: Vec::new(),
+        });
+    }
+    let mut extensions: BTreeMap<String, Value> = response
+        .body
+        .get("extensions")
+        .and_then(Value::as_object)
+        .map(|extensions| {
+            extensions
+                .iter()
+                .map(|(key, value)| (key.clone(), value.clone()))
+                .collect()
+        })
+        .unwrap_or_default();
+    if response.status != 200 {
+        extensions.insert(
+            INTERNAL_HTTP_STATUS_EXTENSION.to_string(),
+            json!(response.status),
+        );
+    }
+    ResolverOutcome {
+        value,
+        additional_root_values,
+        errors,
+        extensions,
+        log_drafts: Vec::new(),
+    }
+}
+
+fn resolver_outcome_wire_response(
+    response_key: &str,
+    value: &Value,
+    errors: &[RootFieldError],
+    extensions: &BTreeMap<String, Value>,
+) -> Response {
+    let mut body = json!({ "data": { response_key: value.clone() } });
+    if !errors.is_empty() {
+        body["errors"] = Value::Array(
+            errors
+                .iter()
+                .map(|error| {
+                    let mut value = json!({ "message": error.message });
+                    if !error.extensions.is_empty() {
+                        value["extensions"] =
+                            Value::Object(error.extensions.clone().into_iter().collect());
+                    }
+                    value
+                })
+                .collect(),
+        );
+    }
+    let public_extensions = extensions
+        .iter()
+        .filter(|(name, _)| name.as_str() != INTERNAL_HTTP_STATUS_EXTENSION)
+        .map(|(name, value)| (name.clone(), value.clone()))
+        .collect::<serde_json::Map<_, _>>();
+    if !public_extensions.is_empty() {
+        body["extensions"] = Value::Object(public_extensions);
+    }
+    ok_json(body)
 }
 
 fn merge_resolved_extensions(body: &mut Value, responses: &BTreeMap<String, Response>) {
@@ -1057,6 +1621,25 @@ fn merge_resolved_extensions(body: &mut Value, responses: &BTreeMap<String, Resp
                 }
             }
         }
+    }
+}
+
+fn merge_native_resolver_extensions(body: &mut Value, extensions: &BTreeMap<String, Value>) {
+    if extensions.is_empty() {
+        return;
+    }
+    let Some(body) = body.as_object_mut() else {
+        return;
+    };
+    let target = body.entry("extensions").or_insert_with(|| json!({}));
+    let Some(target) = target.as_object_mut() else {
+        return;
+    };
+    for (name, value) in extensions {
+        if name == INTERNAL_HTTP_STATUS_EXTENSION {
+            continue;
+        }
+        target.entry(name.clone()).or_insert_with(|| value.clone());
     }
 }
 
@@ -1573,39 +2156,25 @@ fn quote_graphql_string(value: &str) -> String {
 
 #[cfg(test)]
 mod graphql_runtime_tests {
-    use super::{
-        expand_bare_store_credit_origin_selections, resolver_handler_for_domain,
-        with_request_owned_proxy,
-    };
-    use crate::operation_registry::{default_registry, CapabilityDomain};
+    use super::{expand_bare_store_credit_origin_selections, with_request_owned_proxy};
+    use crate::operation_registry::{default_executable_registry, default_registry};
     use crate::proxy::{Config, DraftProxy};
-    use crate::resolver_registry::{ResolverHandler, ResolverRegistry};
+    use crate::resolver_registry::ResolverRegistry;
 
     #[test]
-    fn every_registered_domain_uses_one_distinct_callback() {
+    fn registered_roots_use_their_direct_callbacks() {
         let registry = ResolverRegistry::new(default_registry());
-        let mut domain_handlers: Vec<(CapabilityDomain, ResolverHandler)> = Vec::new();
-
+        let executable = default_executable_registry();
         for registration in registry.local_resolvers() {
-            assert!(std::ptr::fn_addr_eq(
-                registration.handler,
-                resolver_handler_for_domain(registration.domain),
-            ));
-            if let Some((_, handler)) = domain_handlers
+            let declared = executable
                 .iter()
-                .find(|(domain, _)| *domain == registration.domain)
-            {
-                assert!(std::ptr::fn_addr_eq(*handler, registration.handler));
-                continue;
-            }
-            for (other_domain, other_handler) in &domain_handlers {
-                assert!(
-                    !std::ptr::fn_addr_eq(*other_handler, registration.handler),
-                    "{other_domain:?} and {:?} unexpectedly share a resolver callback",
-                    registration.domain
-                );
-            }
-            domain_handlers.push((registration.domain, registration.handler));
+                .find(|declared| {
+                    declared.entry.api_surface == registration.api_surface
+                        && declared.entry.operation_type == registration.operation_type
+                        && declared.entry.name == registration.graphql_root_name
+                })
+                .expect("local root should have a direct executable declaration");
+            assert!(std::ptr::fn_addr_eq(declared.handler, registration.handler));
         }
     }
 

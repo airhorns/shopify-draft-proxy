@@ -33,59 +33,76 @@ fn segment_staged_sort_key(segment: &Value, sort_key: Option<&str>) -> StagedSor
 }
 
 impl DraftProxy {
-    pub(in crate::proxy) fn resolve_segments_graphql(
+    pub(crate) fn resolve_segments_graphql(
         &mut self,
-        context: RootResolverContext<'_>,
-    ) -> Response {
-        let RootResolverContext {
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let RootInvocation {
+            response_key,
+            arguments,
             request,
             query,
             variables,
             root_name,
             mode,
             ..
-        } = context;
-        match mode {
-            LocalResolverMode::OverlayRead => {
-                let fields = match self.root_fields_or_error(query, variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
-                if root_name == "customerSegmentMembersQuery" {
-                    ok_json(json!({
-                        "data": self.customer_segment_members_query_read_data(&fields)
-                    }))
-                } else if self.store.staged.segments.is_empty() {
-                    // With no local segment lifecycle effects, Shopify owns the
-                    // catalog, count, detail, cursors, and suggestion taxonomy.
-                    (self.upstream_transport)(request.clone())
-                } else {
-                    let upstream_response = self
-                        .segment_read_needs_upstream_data(&fields)
-                        .then(|| (self.upstream_transport)(request.clone()));
-                    let mut upstream_body = None;
-                    if let Some(response) = upstream_response {
-                        if response.status != 200 {
-                            return response;
-                        }
-                        self.observe_upstream_segment_read_data(&fields, &response.body);
-                        upstream_body = Some(response.body);
+        } = invocation;
+        let response = (|| -> Response {
+            match mode {
+                LocalResolverMode::OverlayRead => {
+                    let mut fields = match self.root_fields_or_error(query, variables) {
+                        Ok(fields) => fields,
+                        Err(response) => return response,
+                    };
+                    if let Some(field) = fields
+                        .iter_mut()
+                        .find(|field| field.response_key == response_key)
+                    {
+                        field.arguments = arguments
+                            .iter()
+                            .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
+                            .collect();
                     }
-                    let (data, errors) = self.segment_read_data(&fields, upstream_body.as_ref());
-                    if errors.is_empty() {
-                        ok_json(json!({ "data": data }))
+                    if root_name == "customerSegmentMembersQuery" {
+                        ok_json(json!({
+                            "data": self.customer_segment_members_query_read_data(&fields)
+                        }))
+                    } else if self.store.staged.segments.is_empty() {
+                        // With no local segment lifecycle effects, Shopify owns the
+                        // catalog, count, detail, cursors, and suggestion taxonomy.
+                        (self.upstream_transport)(request.clone())
                     } else {
-                        ok_json(json!({ "data": data, "errors": errors }))
+                        let upstream_response = self
+                            .segment_read_needs_upstream_data(&fields)
+                            .then(|| (self.upstream_transport)(request.clone()));
+                        let mut upstream_body = None;
+                        if let Some(response) = upstream_response {
+                            if response.status != 200 {
+                                return response;
+                            }
+                            self.observe_upstream_segment_read_data(&fields, &response.body);
+                            upstream_body = Some(response.body);
+                        }
+                        let (data, errors) =
+                            self.segment_read_data(&fields, upstream_body.as_ref());
+                        if errors.is_empty() {
+                            ok_json(json!({ "data": data }))
+                        } else {
+                            ok_json(json!({ "data": data, "errors": errors }))
+                        }
                     }
                 }
+                LocalResolverMode::StageLocally
+                    if root_name == "customerSegmentMembersQueryCreate" =>
+                {
+                    self.customer_segment_members_query_create(query, variables, request)
+                }
+                LocalResolverMode::StageLocally => {
+                    self.segment_mutation(root_name, query, variables, request)
+                }
             }
-            LocalResolverMode::StageLocally if root_name == "customerSegmentMembersQueryCreate" => {
-                self.customer_segment_members_query_create(query, variables, request)
-            }
-            LocalResolverMode::StageLocally => {
-                self.segment_mutation(root_name, query, variables, request)
-            }
-        }
+        })();
+        resolver_outcome_from_response(response, response_key)
     }
 
     pub(in crate::proxy) fn segment_read_needs_upstream_data(

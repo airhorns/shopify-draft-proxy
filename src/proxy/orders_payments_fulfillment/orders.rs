@@ -1344,8 +1344,29 @@ impl DraftProxy {
         })
     }
 
+    pub(in crate::proxy) fn order_query_needs_shared_upstream(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> bool {
+        let staged_order_read = fields.iter().any(|field| match field.name.as_str() {
+            "order" => resolved_string_field(&field.arguments, "id").is_some_and(|id| {
+                self.store.staged.orders.contains_key(&id)
+                    || self.store.staged.orders.is_tombstoned(&id)
+            }),
+            "orders" | "ordersCount" => {
+                !self.store.staged.orders.is_empty()
+                    || !self.store.staged.orders.tombstones.is_empty()
+            }
+            _ => false,
+        });
+        staged_order_read && self.live_hybrid_order_read_should_observe_upstream(fields)
+    }
+
     fn observe_live_hybrid_order_read(&mut self, request: &Request) {
-        let response = (self.upstream_transport)(request.clone());
+        let response = self
+            .request_upstream_query_response
+            .clone()
+            .unwrap_or_else(|| (self.upstream_transport)(request.clone()));
         self.observe_order_read_response(request, &response);
     }
 

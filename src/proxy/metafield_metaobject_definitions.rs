@@ -23,19 +23,20 @@ const METAFIELD_DEFINITION_HYDRATE_OWNER_CATALOG_QUERY: &str = include_str!(
 );
 
 impl DraftProxy {
-    pub(in crate::proxy) fn resolve_metafields_graphql(
+    pub(crate) fn resolve_metafields_graphql(
         &mut self,
-        context: RootResolverContext<'_>,
-    ) -> Response {
-        let RootResolverContext {
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let RootInvocation {
+            response_key,
             request,
             query,
             variables,
             root_name,
             mode,
             ..
-        } = context;
-        match mode {
+        } = invocation;
+        let response = match mode {
             LocalResolverMode::OverlayRead => {
                 // Cold LiveHybrid definition reads stay authoritative upstream;
                 // staged definition lifecycles resolve from the local overlay.
@@ -53,7 +54,8 @@ impl DraftProxy {
             LocalResolverMode::StageLocally => {
                 self.metafield_definition_pinning_mutation(request, query, variables)
             }
-        }
+        };
+        resolver_outcome_from_response(response, response_key)
     }
 }
 

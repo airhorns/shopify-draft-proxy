@@ -18,7 +18,10 @@ use crate::operation_registry::{
     CapabilityExecution, OperationRegistryEntry,
 };
 use crate::resolver_registry::ResolverRegistry;
-pub(in crate::proxy) use crate::resolver_registry::{LocalResolverMode, RootResolverContext};
+pub(in crate::proxy) use crate::resolver_registry::{
+    FieldResolverRegistration, FieldResolverTypePolicy, LocalResolverMode,
+    MutationLogDraft as LogDraft, ResolverOutcome, RootInvocation,
+};
 
 pub const DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES: u64 = 104_857_600;
 pub(in crate::proxy) const METAFIELDS_SET_INPUT_LIMIT: usize = 25;
@@ -323,6 +326,12 @@ struct SavedSearchRecord {
     resource_type: String,
 }
 
+#[derive(Clone, Default)]
+struct SavedSearchStore {
+    base: OrderedRecords<SavedSearchRecord>,
+    staged: StagedRecords<SavedSearchRecord>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct ShopPolicyRecord {
     id: String,
@@ -339,13 +348,13 @@ struct ShopPolicyRecord {
 struct Store {
     base: BaseState,
     staged: StagedState,
+    saved_searches: SavedSearchStore,
 }
 
 #[derive(Clone, Default)]
 struct BaseState {
     products: OrderedRecords<ProductRecord>,
     product_variants: OrderedRecords<ProductVariantRecord>,
-    saved_searches: OrderedRecords<SavedSearchRecord>,
     shop_policies: OrderedRecords<ShopPolicyRecord>,
     delivery_profiles: OrderedRecords<Value>,
     delivery_promise_providers: OrderedRecords<Value>,
@@ -413,7 +422,6 @@ struct StagedState {
     product_variants: StagedRecords<ProductVariantRecord>,
     product_feeds: StagedRecords<Value>,
     selling_plan_groups: StagedRecords<SellingPlanGroupRecord>,
-    saved_searches: StagedRecords<SavedSearchRecord>,
     shop_policies: StagedRecords<ShopPolicyRecord>,
     shipping_packages: StagedRecords<Value>,
     customers: StagedRecords<Value>,
@@ -947,6 +955,7 @@ impl Default for Store {
         Self {
             base: BaseState::default(),
             staged: StagedState::new_session(),
+            saved_searches: SavedSearchStore::default(),
         }
     }
 }
@@ -2289,7 +2298,7 @@ impl Store {
                 base.insert(record.id.clone(), record);
             }
         }
-        for record in self.base.saved_searches.ordered_values() {
+        for record in self.saved_searches.base.ordered_values() {
             if record.resource_type == resource_type {
                 base.insert(record.id.clone(), record.clone());
             }
@@ -2298,22 +2307,22 @@ impl Store {
     }
 
     fn has_base_saved_searches_for_resource(&self, resource_type: &str) -> bool {
-        self.base
-            .saved_searches
+        self.saved_searches
+            .base
             .ordered_values()
             .iter()
             .any(|record| record.resource_type == resource_type)
     }
 
     fn saved_search_by_id(&self, id: &str) -> Option<SavedSearchRecord> {
-        if self.staged.saved_searches.is_tombstoned(id) {
+        if self.saved_searches.staged.is_tombstoned(id) {
             return None;
         }
-        self.staged
-            .saved_searches
+        self.saved_searches
+            .staged
             .get(id)
             .cloned()
-            .or_else(|| self.base.saved_searches.get(id).cloned())
+            .or_else(|| self.saved_searches.base.get(id).cloned())
             .or_else(|| {
                 let record = default_saved_search_by_id(id)?;
                 (!self.has_base_saved_searches_for_resource(&record.resource_type))
@@ -2323,24 +2332,24 @@ impl Store {
 
     fn saved_searches_for_resource(&self, resource_type: &str) -> Vec<SavedSearchRecord> {
         let base = self.saved_search_base_with_defaults(resource_type);
-        effective_saved_search_records(&base, &self.staged.saved_searches)
+        effective_saved_search_records(&base, &self.saved_searches.staged)
             .into_iter()
             .filter(|record| record.resource_type == resource_type)
             .collect()
     }
 
     fn stage_saved_search(&mut self, record: SavedSearchRecord) {
-        self.staged.saved_searches.stage(record.id.clone(), record);
+        self.saved_searches.staged.stage(record.id.clone(), record);
     }
 
     fn delete_saved_search(&mut self, id: &str) -> bool {
-        let had_staged = self.staged.saved_searches.remove_staged(id).is_some();
+        let had_staged = self.saved_searches.staged.remove_staged(id).is_some();
         let has_default = default_saved_search_by_id(id)
             .map(|record| !self.has_base_saved_searches_for_resource(&record.resource_type))
             .unwrap_or(false);
-        let has_base = self.base.saved_searches.get(id).is_some() || has_default;
+        let has_base = self.saved_searches.base.get(id).is_some() || has_default;
         if has_base {
-            self.staged.saved_searches.tombstone(id.to_string());
+            self.saved_searches.staged.tombstone(id.to_string());
         }
         had_staged || has_base
     }
@@ -2364,15 +2373,6 @@ pub(in crate::proxy) struct MutationOutcome {
 pub(in crate::proxy) struct MutationFieldOutcome {
     value: Value,
     log_draft: Option<LogDraft>,
-}
-
-pub(in crate::proxy) struct LogDraft {
-    root_field: String,
-    staged_resource_ids: Vec<String>,
-    status: String,
-    capability_domain: String,
-    capability_execution: String,
-    notes: String,
 }
 
 impl MutationOutcome {
@@ -2414,39 +2414,6 @@ impl MutationFieldOutcome {
     }
 }
 
-impl LogDraft {
-    fn staged(
-        root_field: impl Into<String>,
-        domain: &'static str,
-        staged_resource_ids: Vec<String>,
-    ) -> Self {
-        Self {
-            root_field: root_field.into(),
-            staged_resource_ids,
-            status: "staged".to_string(),
-            capability_domain: domain.to_string(),
-            capability_execution: "stage-locally".to_string(),
-            notes: "Supported mutation staged locally; commit replays the original raw mutation."
-                .to_string(),
-        }
-    }
-
-    fn failed(
-        root_field: impl Into<String>,
-        domain: &'static str,
-        notes: impl Into<String>,
-    ) -> Self {
-        Self {
-            root_field: root_field.into(),
-            staged_resource_ids: Vec::new(),
-            status: "failed".to_string(),
-            capability_domain: domain.to_string(),
-            capability_execution: "stage-locally".to_string(),
-            notes: notes.into(),
-        }
-    }
-}
-
 fn default_commit_transport(_request: Request) -> Response {
     json_error(501, "No Rust commit transport configured")
 }
@@ -2479,9 +2446,20 @@ pub struct DraftProxy {
     last_mutation_timestamp: Option<time::OffsetDateTime>,
     engine_mutation_log_start: Option<usize>,
     engine_discount_refs_preflighted: bool,
-    /// Engine-coerced compatibility view for the root currently being
-    /// resolved. This is request-scoped transient state and is never dumped.
-    engine_root_fields: Option<Vec<RootFieldSelection>>,
+    /// Owner ids already included in the current Admin request's batched
+    /// metafield hydration. This is deliberately request-scoped: a successful
+    /// `nodes(ids:)` observation, including a null/missing node, is authoritative
+    /// for the remainder of that GraphQL execution without becoming persisted
+    /// proxy state.
+    request_owner_metafield_hydrated_ids: BTreeSet<String>,
+    /// One original-document upstream read captured by an explicit request
+    /// preflight. Overlay domains consume their own aliased root values from
+    /// this envelope instead of forwarding one isolated request per root.
+    request_upstream_query_response: Option<Response>,
+    request_localization_context_preflighted: bool,
+    request_markets_query_preflighted: bool,
+    request_mixed_discount_local_read: bool,
+    request_node_query_response: Option<Response>,
     commit_transport: CommitTransport,
     upstream_transport: UpstreamTransport,
     storefront_upstream_transport: UpstreamTransport,
@@ -2537,7 +2515,10 @@ pub(in crate::proxy) use self::b2b_customers::*;
 pub(in crate::proxy) use self::civil_date::*;
 pub(in crate::proxy) use self::connection::*;
 pub(in crate::proxy) use self::functions::*;
-pub(crate) use self::graphql_runtime::resolver_handler_for_domain;
+pub(in crate::proxy) use self::graphql_runtime::resolver_outcome_from_response;
+pub(crate) use self::graphql_runtime::{
+    field_resolver_registrations, field_resolver_type_policies,
+};
 pub(in crate::proxy) use self::json_helpers::*;
 pub(in crate::proxy) use self::localization_markets_catalogs::*;
 pub(in crate::proxy) use self::marketing_webhooks_inventory::*;

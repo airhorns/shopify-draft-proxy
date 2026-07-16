@@ -79,7 +79,12 @@ impl DraftProxy {
             last_mutation_timestamp: None,
             engine_mutation_log_start: None,
             engine_discount_refs_preflighted: false,
-            engine_root_fields: None,
+            request_owner_metafield_hydrated_ids: BTreeSet::new(),
+            request_upstream_query_response: None,
+            request_localization_context_preflighted: false,
+            request_markets_query_preflighted: false,
+            request_mixed_discount_local_read: false,
+            request_node_query_response: None,
             commit_transport: Arc::new(default_commit_transport),
             upstream_transport: guarded_upstream_transport_from_arc(Arc::clone(
                 &upstream_transport,
@@ -203,6 +208,12 @@ impl DraftProxy {
                 self.next_synthetic_id = 1;
                 self.shop_sells_subscriptions = None;
                 self.last_mutation_timestamp = None;
+                self.request_owner_metafield_hydrated_ids.clear();
+                self.request_upstream_query_response = None;
+                self.request_localization_context_preflighted = false;
+                self.request_markets_query_preflighted = false;
+                self.request_mixed_discount_local_read = false;
+                self.request_node_query_response = None;
                 ok_json(json!({ "ok": true, "message": "state reset" }))
             }
             Route::MetaDump => self.dump_state(&request),
@@ -463,8 +474,8 @@ impl DraftProxy {
                 "productOrder": self.store.base.products.order,
                 "productVariants": product_variant_state_map_json(&self.store.base.product_variants.records),
                 "productVariantOrder": self.store.base.product_variants.order,
-                "savedSearches": saved_search_state_map_json(&self.store.base.saved_searches.records),
-                "savedSearchOrder": self.store.base.saved_searches.order,
+                "savedSearches": saved_search_state_map_json(&self.store.saved_searches.base.records),
+                "savedSearchOrder": self.store.saved_searches.base.order,
                 "shopPolicies": shop_policy_state_map_json(&self.store.base.shop_policies.records),
                 "shopPolicyOrder": self.store.base.shop_policies.order,
                 "deliveryProfiles": self.store.base.delivery_profiles.records.clone(),
@@ -519,9 +530,9 @@ impl DraftProxy {
                 "deletedCollectionIds": self.store.staged.collections.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "deletedCollectionHandles": self.store.staged.deleted_collection_handles.iter().cloned().collect::<Vec<_>>(),
                 "collectionJobs": self.store.staged.collection_jobs.clone(),
-                "savedSearches": saved_search_state_map_json(&self.store.staged.saved_searches.records),
-                "savedSearchOrder": self.store.staged.saved_searches.order,
-                "deletedSavedSearchIds": self.store.staged.saved_searches.tombstones.iter().cloned().collect::<Vec<_>>(),
+                "savedSearches": saved_search_state_map_json(&self.store.saved_searches.staged.records),
+                "savedSearchOrder": self.store.saved_searches.staged.order,
+                "deletedSavedSearchIds": self.store.saved_searches.staged.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "shopPolicies": shop_policy_state_map_json(&self.store.staged.shop_policies.records),
                 "shopPolicyOrder": self.store.staged.shop_policies.order,
                 "deletedShopPolicyIds": self.store.staged.shop_policies.tombstones.iter().cloned().collect::<Vec<_>>(),
@@ -1680,7 +1691,7 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
-        self.store.base.saved_searches.replace_with_order(
+        self.store.saved_searches.base.replace_with_order(
             saved_search_state_map_from_json(&state["baseState"]["savedSearches"]),
             string_array_from_json(&state["baseState"]["savedSearchOrder"]),
         );
@@ -2021,11 +2032,11 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
-        self.store.staged.saved_searches.replace_with_order(
+        self.store.saved_searches.staged.replace_with_order(
             saved_search_state_map_from_json(&state["stagedState"]["savedSearches"]),
             string_array_from_json(&state["stagedState"]["savedSearchOrder"]),
         );
-        self.store.staged.saved_searches.replace_tombstones(
+        self.store.saved_searches.staged.replace_tombstones(
             string_array_from_json(&state["stagedState"]["deletedSavedSearchIds"])
                 .into_iter()
                 .collect(),

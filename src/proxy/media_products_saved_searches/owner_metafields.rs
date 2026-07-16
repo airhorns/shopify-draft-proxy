@@ -655,7 +655,7 @@ impl DraftProxy {
         ok_json(json!({"data": data}))
     }
 
-    fn hydrate_owner_metafield_read_fields(
+    pub(in crate::proxy) fn hydrate_owner_metafield_read_fields(
         &mut self,
         request: &Request,
         fields: &[RootFieldSelection],
@@ -734,7 +734,11 @@ impl DraftProxy {
         if ids.is_empty() {
             return;
         }
-        let Some((query, variables)) = owner_metafield_hydrate_request(ids, &shape) else {
+        let ids = ids
+            .into_iter()
+            .filter(|id| !self.request_owner_metafield_hydrated_ids.contains(id))
+            .collect::<Vec<_>>();
+        let Some((query, variables)) = owner_metafield_hydrate_request(ids.clone(), &shape) else {
             return;
         };
         let response = self.upstream_post(
@@ -749,6 +753,7 @@ impl DraftProxy {
             return;
         }
         if let Some(nodes) = response.body["data"]["nodes"].as_array() {
+            self.request_owner_metafield_hydrated_ids.extend(ids);
             for node in nodes {
                 self.stage_observed_owner_metafield_node(node);
             }
@@ -908,6 +913,9 @@ impl DraftProxy {
     }
 
     fn owner_needs_metafield_hydration(&self, root_field: &str, owner_id: &str) -> bool {
+        if self.request_owner_metafield_hydrated_ids.contains(owner_id) {
+            return false;
+        }
         match root_field {
             "product" => self.store.product_by_id(owner_id).is_none(),
             "productVariant" => self.store.product_variant_by_id(owner_id).is_none(),
@@ -1642,7 +1650,7 @@ impl DraftProxy {
             ))
     }
 
-    fn owner_has_metafield_local_effects(&self, owner_id: &str) -> bool {
+    pub(in crate::proxy) fn owner_has_metafield_local_effects(&self, owner_id: &str) -> bool {
         self.store
             .staged
             .owner_metafields
@@ -1735,6 +1743,100 @@ impl DraftProxy {
             records.sort_by_key(|metafield| owner_metafield_key_position(metafield, keys));
         }
         records
+    }
+
+    /// Resolve one owner metafield without consulting a GraphQL selection.
+    /// The dynamic schema executor owns projection of the returned canonical
+    /// record, including aliases and nested fields.
+    pub(in crate::proxy) fn canonical_owner_metafield_value(
+        &self,
+        owner_id: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        api_client_id: Option<&str>,
+    ) -> Value {
+        let namespace = owner_metafield_read_namespace(arguments, api_client_id);
+        let key = resolved_string_field(arguments, "key").unwrap_or_default();
+        if namespace.is_empty() || key.is_empty() {
+            return Value::Null;
+        }
+        self.owner_metafield(owner_id, &namespace, &key)
+            .unwrap_or(Value::Null)
+    }
+
+    /// Resolve a complete owner-metafield connection from store state. Search,
+    /// key ordering, reverse, and cursor windows are applied before the engine
+    /// projects nodes/edges/pageInfo.
+    pub(in crate::proxy) fn canonical_owner_metafields_connection_value(
+        &self,
+        owner_id: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        api_client_id: Option<&str>,
+    ) -> Value {
+        let namespace = owner_metafields_connection_namespace(arguments, api_client_id);
+        let keys = owner_metafields_connection_keys_with_app_namespace(arguments, api_client_id);
+        let mut records = self.owner_metafields(owner_id, namespace.as_deref(), keys.as_deref());
+        if resolved_bool_field(arguments, "reverse").unwrap_or(false) {
+            records.reverse();
+        }
+        let (records, page_info) = connection_window(&records, arguments, |record| {
+            metafield_cursor(record).unwrap_or_default()
+        });
+        let records = if keys.is_some() {
+            records
+                .into_iter()
+                .map(owner_metafield_with_connection_key)
+                .collect()
+        } else {
+            records
+        };
+        connection_json_with_cursor(
+            records,
+            |_, record| metafield_cursor(record).unwrap_or_default(),
+            page_info,
+        )
+    }
+
+    pub(in crate::proxy) fn canonical_metafield_reference_value(&self, record: &Value) -> Value {
+        if let Some(existing) = record.get("reference") {
+            return existing.clone();
+        }
+        scalar_reference_id(record)
+            .and_then(|id| self.canonical_metafield_reference_node(&id))
+            .unwrap_or(Value::Null)
+    }
+
+    pub(in crate::proxy) fn canonical_metafield_references_connection_value(
+        &self,
+        record: &Value,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let nodes =
+            if let Some(existing) = record.get("references").filter(|value| value.is_object()) {
+                connection_nodes(existing)
+            } else {
+                list_reference_ids(record)
+                    .into_iter()
+                    .filter_map(|id| self.canonical_metafield_reference_node(&id))
+                    .collect()
+            };
+        connection_value_with_args(nodes, arguments, |node| {
+            node.get("id")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string()
+        })
+    }
+
+    fn canonical_metafield_reference_node(&self, id: &str) -> Option<Value> {
+        match shopify_gid_resource_type(id) {
+            Some("Product") => {
+                let product = self.store.product_by_id(id)?;
+                let mut value = self.product_canonical_value(product);
+                value["__typename"] = json!("Product");
+                Some(value)
+            }
+            _ => None,
+        }
     }
 
     pub(in crate::proxy) fn owner_metafield_definition(

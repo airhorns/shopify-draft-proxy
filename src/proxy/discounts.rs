@@ -9,19 +9,20 @@ use self::hydrate_queries::*;
 use self::redeem_codes::*;
 
 impl DraftProxy {
-    pub(in crate::proxy) fn resolve_discounts_graphql(
+    pub(crate) fn resolve_discounts_graphql(
         &mut self,
-        context: RootResolverContext<'_>,
-    ) -> Response {
-        let RootResolverContext {
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let RootInvocation {
+            response_key,
             request,
             query,
             variables,
             root_name: _,
             mode,
             ..
-        } = context;
-        match mode {
+        } = invocation;
+        let response = match mode {
             LocalResolverMode::OverlayRead => {
                 self.discounts_query_response(request, query, variables)
             }
@@ -29,7 +30,8 @@ impl DraftProxy {
                 let outcome = self.discounts_mutation(request, query, variables);
                 self.finalize_mutation_outcome(request, query, variables, outcome)
             }
-        }
+        };
+        resolver_outcome_from_response(response, response_key)
     }
 }
 
@@ -88,13 +90,19 @@ impl DraftProxy {
             self.hydrate_shop_pricing_state_if_missing(request, true, false);
         }
         if self.should_forward_cold_discount_read(&fields) {
-            let response = (self.upstream_transport)(request.clone());
+            let response = self
+                .request_upstream_query_response
+                .clone()
+                .unwrap_or_else(|| (self.upstream_transport)(request.clone()));
             self.observe_discount_read_response(&fields, &response);
             return response;
         }
         let mut upstream_data = None;
         if self.discount_read_needs_live_hydration(&fields) {
-            let response = (self.upstream_transport)(request.clone());
+            let response = self
+                .request_upstream_query_response
+                .clone()
+                .unwrap_or_else(|| (self.upstream_transport)(request.clone()));
             self.observe_discount_read_response(&fields, &response);
             upstream_data = response.body.get("data").cloned();
         }
@@ -107,7 +115,13 @@ impl DraftProxy {
     /// answer the query, the only correct answer comes from the real store. In the
     /// parity harness this resolves through the cassette's fallback (the forwarded
     /// request matches the captured request exactly) or an explicit recorded call.
-    fn should_forward_cold_discount_read(&self, fields: &[RootFieldSelection]) -> bool {
+    pub(in crate::proxy) fn should_forward_cold_discount_read(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> bool {
+        if self.request_mixed_discount_local_read {
+            return false;
+        }
         if self.config.read_mode != ReadMode::LiveHybrid {
             return false;
         }
@@ -156,13 +170,40 @@ impl DraftProxy {
         }
     }
 
-    fn discount_read_needs_live_hydration(&self, fields: &[RootFieldSelection]) -> bool {
+    pub(in crate::proxy) fn discount_read_needs_live_hydration(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> bool {
+        if self.request_mixed_discount_local_read {
+            return false;
+        }
         if self.config.read_mode != ReadMode::LiveHybrid || fields.is_empty() {
             return false;
         }
         fields
             .iter()
             .any(|field| self.discount_read_field_needs_live_hydration(field))
+    }
+
+    pub(in crate::proxy) fn discount_query_has_mixed_local_read(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> bool {
+        fields.iter().all(|field| {
+            matches!(
+                field.name.as_str(),
+                "discountNode"
+                    | "codeDiscountNode"
+                    | "automaticDiscountNode"
+                    | "codeDiscountNodeByCode"
+                    | "discountRedeemCodeBulkCreation"
+            )
+        }) && fields
+            .iter()
+            .any(|field| self.discount_read_field_is_cold(field))
+            && fields
+                .iter()
+                .any(|field| !self.discount_read_field_is_cold(field))
     }
 
     fn discount_read_field_needs_live_hydration(&self, field: &RootFieldSelection) -> bool {
@@ -187,7 +228,7 @@ impl DraftProxy {
         }
     }
 
-    fn observe_discount_read_response(
+    pub(in crate::proxy) fn observe_discount_read_response(
         &mut self,
         fields: &[RootFieldSelection],
         response: &Response,

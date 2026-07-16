@@ -8,59 +8,70 @@ use super::*;
 const DATA_SALE_OPT_OUT_CUSTOMER_LOOKUP_QUERY: &str =
     include_str!("../../config/parity-requests/privacy/data-sale-opt-out-customer-lookup.graphql");
 
+pub(in crate::proxy) fn privacy_field_resolver_registrations() -> Vec<FieldResolverRegistration> {
+    [
+        ("DataSaleOptOutPayload", &["customerId", "userErrors"][..]),
+        ("DataSaleOptOutUserError", &["code", "field", "message"][..]),
+    ]
+    .into_iter()
+    .flat_map(|(parent_type, fields)| {
+        fields.iter().map(move |field| {
+            FieldResolverRegistration::property(ApiSurface::Admin, parent_type, field)
+        })
+    })
+    .collect()
+}
+
 impl DraftProxy {
-    pub(in crate::proxy) fn resolve_privacy_graphql(
+    pub(crate) fn resolve_privacy_graphql(
         &mut self,
-        context: RootResolverContext<'_>,
-    ) -> Response {
-        let RootResolverContext {
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let RootInvocation {
             request,
-            query,
-            variables,
+            arguments,
             root_name,
             mode,
             ..
-        } = context;
+        } = invocation;
         match mode {
-            LocalResolverMode::StageLocally if root_name == "dataSaleOptOut" => {
-                let outcome = self.data_sale_opt_out(request, query, variables);
-                self.finalize_mutation_outcome(request, query, variables, outcome)
-            }
+            LocalResolverMode::StageLocally if root_name == "dataSaleOptOut" => self
+                .data_sale_opt_out_value(request, &arguments)
+                .map_or_else(
+                    || {
+                        ResolverOutcome::value(json!({
+                            "customerId": Value::Null,
+                            "userErrors": data_sale_opt_out_failed_user_errors(),
+                        }))
+                    },
+                    |customer_id| {
+                        ResolverOutcome::value(json!({
+                            "customerId": customer_id.clone(),
+                            "userErrors": [],
+                        }))
+                        .with_log_draft(LogDraft::staged(
+                            "dataSaleOptOut",
+                            "privacy",
+                            vec![customer_id],
+                        ))
+                    },
+                ),
             LocalResolverMode::OverlayRead | LocalResolverMode::StageLocally => {
-                Self::unimplemented_resolver_response(mode, root_name)
+                ResolverOutcome::error(format!(
+                    "Privacy resolver `{root_name}` cannot execute in {} mode",
+                    mode.registry_name(),
+                ))
             }
         }
     }
 
-    pub(in crate::proxy) fn data_sale_opt_out(
+    fn data_sale_opt_out_value(
         &mut self,
         request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> MutationOutcome {
-        let Some(field) = self
-            .execution_root_fields(query, variables)
-            .and_then(|fields| fields.into_iter().next())
-        else {
-            return MutationOutcome::response(json_error(400, "Could not parse GraphQL operation"));
-        };
-
-        let Some(raw_email) = resolved_string_field(&field.arguments, "email") else {
-            return MutationOutcome::response(data_sale_opt_out_response(
-                field.response_key,
-                field.selection,
-                None,
-                data_sale_opt_out_failed_user_errors(),
-            ));
-        };
-        let Some(email) = data_sale_opt_out_sanitized_email(&raw_email) else {
-            return MutationOutcome::response(data_sale_opt_out_response(
-                field.response_key,
-                field.selection,
-                None,
-                data_sale_opt_out_failed_user_errors(),
-            ));
-        };
+        arguments: &BTreeMap<String, Value>,
+    ) -> Option<String> {
+        let raw_email = arguments.get("email").and_then(Value::as_str)?;
+        let email = data_sale_opt_out_sanitized_email(raw_email)?;
 
         let timestamp = self.next_mutation_timestamp();
         let customer_id = self
@@ -68,16 +79,7 @@ impl DraftProxy {
             .or_else(|| self.data_sale_opt_out_upstream_customer_id(request, &email, &timestamp))
             .unwrap_or_else(|| self.data_sale_opt_out_stage_new_customer(&email, &timestamp));
         self.data_sale_opt_out_mark_customer(&customer_id, &email, &timestamp);
-
-        MutationOutcome::staged(
-            data_sale_opt_out_response(
-                field.response_key,
-                field.selection,
-                Some(customer_id.clone()),
-                Vec::new(),
-            ),
-            LogDraft::staged("dataSaleOptOut", "privacy", vec![customer_id]),
-        )
+        Some(customer_id)
     }
 
     fn data_sale_opt_out_find_customer_id_by_email(&self, email: &str) -> Option<String> {
@@ -170,19 +172,6 @@ impl DraftProxy {
             );
         }
     }
-}
-
-fn data_sale_opt_out_response(
-    response_key: String,
-    selection: Vec<SelectedField>,
-    customer_id: Option<String>,
-    user_errors: Vec<Value>,
-) -> Response {
-    let payload = json!({
-        "customerId": customer_id,
-        "userErrors": user_errors,
-    });
-    ok_json(json!({ "data": { response_key: selected_json(&payload, &selection) } }))
 }
 
 fn data_sale_opt_out_failed_user_errors() -> Vec<Value> {

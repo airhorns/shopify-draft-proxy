@@ -796,7 +796,10 @@ impl DraftProxy {
         fields: &[RootFieldSelection],
     ) -> Response {
         if self.config.read_mode == ReadMode::LiveHybrid {
-            let mut response = (self.upstream_transport)(request.clone());
+            let mut response = self
+                .request_upstream_query_response
+                .clone()
+                .unwrap_or_else(|| (self.upstream_transport)(request.clone()));
             if response.status < 400 {
                 self.observe_marketing_upstream_response(fields, &response.body);
             }

@@ -2,34 +2,38 @@ use crate::proxy::*;
 use std::cmp::Ordering;
 
 impl DraftProxy {
-    pub(in crate::proxy) fn resolve_gift_cards_graphql(
+    pub(crate) fn resolve_gift_cards_graphql(
         &mut self,
-        context: RootResolverContext<'_>,
-    ) -> Response {
-        let RootResolverContext {
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let RootInvocation {
+            response_key,
             request,
             query,
             variables,
             root_name: _,
             mode,
             ..
-        } = context;
-        match mode {
-            LocalResolverMode::OverlayRead => {
-                let fields = match self.root_fields_or_error(query, variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
-                self.gift_card_read_response(request, &fields)
+        } = invocation;
+        let response = (|| -> Response {
+            match mode {
+                LocalResolverMode::OverlayRead => {
+                    let fields = match self.root_fields_or_error(query, variables) {
+                        Ok(fields) => fields,
+                        Err(response) => return response,
+                    };
+                    self.gift_card_read_response(request, &fields)
+                }
+                LocalResolverMode::StageLocally => {
+                    let fields = match self.root_fields_or_error(query, variables) {
+                        Ok(fields) => fields,
+                        Err(response) => return response,
+                    };
+                    self.gift_card_mutation_response(&fields, request, query, variables)
+                }
             }
-            LocalResolverMode::StageLocally => {
-                let fields = match self.root_fields_or_error(query, variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
-                self.gift_card_mutation_response(&fields, request, query, variables)
-            }
-        }
+        })();
+        resolver_outcome_from_response(response, response_key)
     }
 }
 
@@ -250,7 +254,10 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::LiveHybrid
             && self.gift_card_read_needs_upstream(fields)
         {
-            let mut response = (self.upstream_transport)(request.clone());
+            let mut response = self
+                .request_upstream_query_response
+                .clone()
+                .unwrap_or_else(|| (self.upstream_transport)(request.clone()));
             if (200..300).contains(&response.status) {
                 self.hydrate_gift_card_read_state_from_response(fields, &response.body["data"]);
                 if self.has_gift_card_overlay_state() {
@@ -262,7 +269,10 @@ impl DraftProxy {
         ok_json(json!({ "data": self.gift_card_read_data(fields) }))
     }
 
-    fn gift_card_read_needs_upstream(&self, fields: &[RootFieldSelection]) -> bool {
+    pub(in crate::proxy) fn gift_card_read_needs_upstream(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> bool {
         fields.iter().any(|field| match field.name.as_str() {
             "giftCard" => {
                 let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
@@ -432,7 +442,7 @@ impl DraftProxy {
         cards
     }
 
-    fn hydrate_gift_card_read_state_from_response(
+    pub(in crate::proxy) fn hydrate_gift_card_read_state_from_response(
         &mut self,
         fields: &[RootFieldSelection],
         data: &Value,

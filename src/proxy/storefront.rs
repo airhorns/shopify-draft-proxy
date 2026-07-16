@@ -191,6 +191,551 @@ pub(in crate::proxy) struct StorefrontCustomerAuthLogDetails<'a> {
     pub notes: &'a str,
 }
 
+pub(in crate::proxy) fn storefront_field_resolver_registrations() -> Vec<FieldResolverRegistration>
+{
+    let mut registrations = Vec::new();
+    for (parent_type, fields) in [
+        (
+            "Article",
+            &[
+                "contentHtml",
+                "excerptHtml",
+                "handle",
+                "id",
+                "image",
+                "publishedAt",
+                "tags",
+                "title",
+            ][..],
+        ),
+        ("Blog", &["handle", "id", "title"]),
+        (
+            "Page",
+            &[
+                "body",
+                "bodySummary",
+                "createdAt",
+                "handle",
+                "id",
+                "title",
+                "updatedAt",
+            ],
+        ),
+        (
+            "ArticleAuthor",
+            &["bio", "email", "firstName", "lastName", "name"],
+        ),
+        ("SEO", &["description", "title"]),
+        (
+            "Image",
+            &[
+                "altText",
+                "height",
+                "id",
+                "originalSrc",
+                "src",
+                "thumbhash",
+                "width",
+            ],
+        ),
+        ("SitemapImage", &["alt", "filepath", "updatedAt"]),
+        ("ApiVersion", &["displayName", "handle", "supported"]),
+        (
+            "PaymentSettings",
+            &[
+                "acceptedCardBrands",
+                "cardVaultUrl",
+                "countryCode",
+                "currencyCode",
+                "enabledPresentmentCurrencies",
+                "shopifyPaymentsAccountId",
+                "supportedDigitalWallets",
+            ],
+        ),
+        (
+            "Localization",
+            &[
+                "availableCountries",
+                "availableLanguages",
+                "country",
+                "language",
+                "market",
+            ],
+        ),
+        (
+            "Country",
+            &[
+                "availableLanguages",
+                "currency",
+                "defaultLanguage",
+                "isoCode",
+                "market",
+                "name",
+                "unitSystem",
+            ],
+        ),
+        ("Currency", &["isoCode", "name", "symbol"]),
+        ("Language", &["endonymName", "isoCode", "name"]),
+        ("Market", &["handle", "id"]),
+        ("LocationConnection", &["edges", "nodes", "pageInfo"]),
+        ("LocationEdge", &["cursor", "node"]),
+        ("Location", &["address", "id", "name"]),
+        (
+            "LocationAddress",
+            &[
+                "address1",
+                "address2",
+                "city",
+                "country",
+                "countryCode",
+                "formatted",
+                "latitude",
+                "longitude",
+                "phone",
+                "province",
+                "provinceCode",
+                "zip",
+            ],
+        ),
+        (
+            "Shop",
+            &[
+                "brand",
+                "contactInformation",
+                "customerAccountTranslations",
+                "customerAccountUrl",
+                "description",
+                "id",
+                "legalNotice",
+                "moneyFormat",
+                "name",
+                "paymentSettings",
+                "primaryDomain",
+                "privacyPolicy",
+                "refundPolicy",
+                "shippingPolicy",
+                "shipsToCountries",
+                "shopPayInstallmentsPricing",
+                "socialLoginProviders",
+                "subscriptionPolicy",
+                "termsOfSale",
+                "termsOfService",
+            ],
+        ),
+        (
+            "Brand",
+            &[
+                "colors",
+                "coverImage",
+                "logo",
+                "shortDescription",
+                "slogan",
+                "squareLogo",
+            ],
+        ),
+        ("BrandColors", &["primary", "secondary"]),
+        ("BrandColorGroup", &["background", "foreground"]),
+        ("Domain", &["host", "sslEnabled", "url"]),
+        ("ShopPolicy", &["body", "handle", "id", "title", "url"]),
+        (
+            "ShopPolicyWithDefault",
+            &["body", "handle", "id", "title", "url"],
+        ),
+        ("Translation", &["key", "value"]),
+        ("Menu", &["handle", "id", "items", "itemsCount", "title"]),
+        (
+            "MenuItem",
+            &[
+                "id",
+                "items",
+                "resource",
+                "resourceId",
+                "tags",
+                "title",
+                "type",
+                "url",
+            ],
+        ),
+        ("UrlRedirectConnection", &["edges", "nodes", "pageInfo"]),
+        ("UrlRedirectEdge", &["cursor", "node"]),
+        ("UrlRedirect", &["id", "path", "target"]),
+        ("Count", &["count", "precision"]),
+        ("PaginatedSitemapResources", &["hasNextPage", "items"]),
+        (
+            "SitemapResource",
+            &["handle", "image", "title", "updatedAt"],
+        ),
+        ("ArticleConnection", &["edges", "nodes", "pageInfo"]),
+        ("ArticleEdge", &["cursor", "node"]),
+        ("BlogConnection", &["edges", "nodes", "pageInfo"]),
+        ("BlogEdge", &["cursor", "node"]),
+        ("PageConnection", &["edges", "nodes", "pageInfo"]),
+        ("PageEdge", &["cursor", "node"]),
+        ("CommentConnection", &["edges", "nodes", "pageInfo"]),
+        ("CommentEdge", &["cursor", "node"]),
+        (
+            "PageInfo",
+            &["endCursor", "hasNextPage", "hasPreviousPage", "startCursor"],
+        ),
+    ] {
+        for field in fields {
+            registrations.push(FieldResolverRegistration::property(
+                ApiSurface::Storefront,
+                parent_type,
+                field,
+            ));
+        }
+    }
+    for (parent_type, field, handler) in [
+        (
+            "Blog",
+            "articleByHandle",
+            storefront_blog_article_by_handle_field
+                as crate::resolver_registry::FieldResolverHandler,
+        ),
+        ("Blog", "articles", storefront_blog_articles_field),
+        ("Blog", "authors", storefront_blog_authors_field),
+        ("Blog", "metafield", storefront_null_field),
+        ("Blog", "metafields", storefront_metafields_field),
+        ("Blog", "onlineStoreUrl", storefront_null_field),
+        ("Blog", "seo", storefront_seo_field),
+        ("Article", "author", storefront_article_author_field),
+        ("Article", "authorV2", storefront_article_author_field),
+        ("Article", "blog", storefront_article_blog_field),
+        ("Article", "comments", storefront_empty_connection_field),
+        ("Article", "content", storefront_truncated_content_field),
+        ("Article", "excerpt", storefront_truncated_excerpt_field),
+        ("Article", "metafield", storefront_null_field),
+        ("Article", "metafields", storefront_metafields_field),
+        ("Article", "onlineStoreUrl", storefront_null_field),
+        ("Article", "seo", storefront_seo_field),
+        ("Article", "trackingParameters", storefront_null_field),
+        ("Page", "metafield", storefront_null_field),
+        ("Page", "metafields", storefront_metafields_field),
+        ("Page", "onlineStoreUrl", storefront_null_field),
+        ("Page", "seo", storefront_seo_field),
+        ("Page", "trackingParameters", storefront_null_field),
+        ("Location", "metafield", storefront_null_field),
+        ("Location", "metafields", storefront_metafields_field),
+        ("Market", "metafield", storefront_null_field),
+        ("Market", "metafields", storefront_metafields_field),
+        ("Shop", "metafield", storefront_shop_metafield_field),
+        ("Shop", "metafields", storefront_shop_metafields_field),
+        ("Image", "transformedSrc", storefront_image_url_field),
+        ("Image", "url", storefront_image_url_field),
+        (
+            "Sitemap",
+            "pagesCount",
+            storefront_sitemap_pages_count_field,
+        ),
+        ("Sitemap", "resources", storefront_sitemap_resources_field),
+    ] {
+        let registration = if parent_type == "Shop" && matches!(field, "metafield" | "metafields") {
+            FieldResolverRegistration::explicit_always(
+                ApiSurface::Storefront,
+                parent_type,
+                field,
+                handler,
+            )
+        } else {
+            FieldResolverRegistration::explicit(ApiSurface::Storefront, parent_type, field, handler)
+        };
+        registrations.push(registration);
+    }
+    registrations
+}
+
+fn storefront_parent_string<'a>(
+    invocation: &'a crate::admin_graphql::FieldResolverInvocation,
+    field: &str,
+) -> &'a str {
+    invocation
+        .parent
+        .get(field)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+}
+
+fn storefront_null_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    _invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    Ok(Value::Null)
+}
+
+fn storefront_seo_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    _invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    Ok(storefront_default_seo())
+}
+
+fn storefront_image_url_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(invocation
+        .parent
+        .get("_url")
+        .cloned()
+        .unwrap_or(Value::Null))
+}
+
+fn storefront_metafields_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    let count = invocation
+        .arguments
+        .get("identifiers")
+        .and_then(Value::as_array)
+        .map(Vec::len)
+        .unwrap_or_default();
+    Ok(Value::Array(vec![Value::Null; count]))
+}
+
+fn storefront_shop_metafield_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    let Some(owner_id) = proxy.storefront_shop_owner_id() else {
+        return Ok(Value::Null);
+    };
+    let namespace = invocation
+        .arguments
+        .get("namespace")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let key = invocation
+        .arguments
+        .get("key")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    Ok(proxy
+        .storefront_owner_metafield(&owner_id, namespace, key)
+        .map(storefront_metafield_runtime_value)
+        .unwrap_or(Value::Null))
+}
+
+fn storefront_shop_metafields_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    let Some(owner_id) = proxy.storefront_shop_owner_id() else {
+        return Ok(Value::Array(Vec::new()));
+    };
+    let values = invocation
+        .arguments
+        .get("identifiers")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .map(|identifier| {
+            let namespace = identifier
+                .get("namespace")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let key = identifier
+                .get("key")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            proxy
+                .storefront_owner_metafield(&owner_id, namespace, key)
+                .map(storefront_metafield_runtime_value)
+                .unwrap_or(Value::Null)
+        })
+        .collect();
+    Ok(Value::Array(values))
+}
+
+fn storefront_metafield_runtime_value(mut metafield: Value) -> Value {
+    let list = metafield
+        .get("type")
+        .and_then(Value::as_str)
+        .is_some_and(|field_type| field_type.starts_with("list."));
+    if let Some(object) = metafield.as_object_mut() {
+        object
+            .entry("__typename".to_string())
+            .or_insert_with(|| json!("Metafield"));
+        object.insert("list".to_string(), json!(list));
+        object
+            .entry("description".to_string())
+            .or_insert(Value::Null);
+    }
+    metafield
+}
+
+fn storefront_empty_connection_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    _invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    Ok(connection_json(Vec::new()))
+}
+
+fn storefront_truncated_field(
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+    field: &str,
+) -> Value {
+    let value = invocation.parent.get(field).and_then(Value::as_str);
+    let Some(value) = value else {
+        return Value::Null;
+    };
+    let limit = invocation
+        .arguments
+        .get("truncateAt")
+        .and_then(Value::as_i64)
+        .filter(|limit| *limit >= 0)
+        .map(|limit| limit as usize);
+    Value::String(match limit {
+        Some(limit) => value.chars().take(limit).collect(),
+        None => value.to_string(),
+    })
+}
+
+fn storefront_truncated_content_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    Ok(storefront_truncated_field(invocation, "content"))
+}
+
+fn storefront_truncated_excerpt_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    Ok(storefront_truncated_field(invocation, "excerpt"))
+}
+
+fn storefront_article_author_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    Ok(invocation
+        .parent
+        .get("author")
+        .cloned()
+        .unwrap_or(Value::Null))
+}
+
+fn storefront_article_blog_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    Ok(invocation
+        .parent
+        .get("blogId")
+        .and_then(Value::as_str)
+        .and_then(|blog_id| proxy.storefront_content_by_id(StorefrontContentKind::Blog, blog_id))
+        .unwrap_or(Value::Null))
+}
+
+fn storefront_blog_article_by_handle_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    let blog_id = storefront_parent_string(invocation, "id");
+    let handle = invocation
+        .arguments
+        .get("handle")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    Ok(proxy
+        .storefront_articles_for_blog(blog_id)
+        .into_iter()
+        .find(|article| article.get("handle").and_then(Value::as_str) == Some(handle))
+        .unwrap_or(Value::Null))
+}
+
+fn storefront_blog_articles_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    let blog_id = storefront_parent_string(invocation, "id");
+    Ok(proxy.storefront_content_connection_value(
+        StorefrontContentKind::Article,
+        proxy.storefront_articles_for_blog(blog_id),
+        &invocation.arguments,
+    ))
+}
+
+fn storefront_blog_authors_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation,
+) -> Result<Value, String> {
+    let mut seen = BTreeSet::new();
+    let authors = proxy
+        .storefront_articles_for_blog(storefront_parent_string(invocation, "id"))
+        .into_iter()
+        .filter_map(|article| article.get("author").cloned())
+        .filter(|author| {
+            let name = author
+                .get("name")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            !name.is_empty() && seen.insert(name.to_string())
+        })
+        .collect();
+    Ok(Value::Array(authors))
+}
+
+fn storefront_sitemap_pages_count_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let count = invocation
+        .parent
+        .get("_resources")
+        .and_then(Value::as_array)
+        .map(Vec::len)
+        .unwrap_or_default();
+    Ok(count_object(count))
+}
+
+fn storefront_sitemap_resources_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let resources = invocation
+        .parent
+        .get("_resources")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or_default();
+    let page = invocation
+        .arguments
+        .get("page")
+        .and_then(Value::as_i64)
+        .and_then(|page| (page > 0).then_some(page as usize))
+        .unwrap_or(1);
+    let start = (page - 1) * 250;
+    let end = (start + 250).min(resources.len());
+    let items = if start < resources.len() {
+        resources[start..end].to_vec()
+    } else {
+        Vec::new()
+    };
+    Ok(json!({
+        "hasNextPage": end < resources.len(),
+        "items": items,
+    }))
+}
+
 impl DraftProxy {
     fn storefront_customer_query_root(
         &self,
@@ -1555,35 +2100,57 @@ impl DraftProxy {
 
     pub(crate) fn resolve_storefront_graphql(
         &mut self,
-        execution: RootResolverContext<'_>,
-    ) -> Response {
-        let RootResolverContext {
+        execution: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let RootInvocation {
+            api_surface,
+            api_version,
+            response_key,
+            arguments,
             request,
             query,
             variables,
             operation,
             root_name,
             mode,
+            ..
         } = execution;
+        debug_assert_eq!(api_surface, ApiSurface::Storefront);
+        debug_assert_eq!(api_version.surface(), api_surface);
         if storefront_graphql_version(&request.path) != Some(STOREFRONT_FIRST_SLICE_VERSION)
             || self.config.read_mode == ReadMode::Live
         {
-            return Self::unimplemented_resolver_response(mode, root_name);
+            return ResolverOutcome::error(format!(
+                "Storefront resolver `{root_name}` cannot execute in {} mode for this request",
+                mode.registry_name(),
+            ));
         }
-        let Some(field) = self.execution_root_field(query, variables, root_name) else {
-            return json_error(400, "Could not parse Storefront GraphQL root field");
+        let Some(mut field) =
+            self.execution_root_field_by_response_key(query, variables, response_key)
+        else {
+            return resolver_outcome_from_response(
+                json_error(400, "Could not parse Storefront GraphQL root field"),
+                response_key,
+            );
         };
+        field.arguments = arguments
+            .iter()
+            .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
+            .collect();
         if let Some(error) = storefront_discovery_argument_error(&field) {
             let mut data = serde_json::Map::new();
             data.insert(field.response_key.clone(), Value::Null);
-            return ok_json(json!({
-                "data": Value::Object(data),
-                "errors": [{
-                    "message": error.0,
-                    "path": [field.response_key],
-                    "extensions": error.1
-                }]
-            }));
+            return resolver_outcome_from_response(
+                ok_json(json!({
+                    "data": Value::Object(data),
+                    "errors": [{
+                        "message": error.0,
+                        "path": [field.response_key],
+                        "extensions": error.1
+                    }]
+                })),
+                response_key,
+            );
         }
         match (operation.operation_type, mode) {
             (OperationType::Query, LocalResolverMode::OverlayRead) if root_name == "cart" => {
@@ -1594,7 +2161,7 @@ impl DraftProxy {
                 if !outcome.errors.is_empty() {
                     body["errors"] = Value::Array(outcome.errors);
                 }
-                return ok_json(body);
+                return resolver_outcome_from_response(ok_json(body), response_key);
             }
             (OperationType::Query, LocalResolverMode::OverlayRead) if root_name == "customer" => {
                 let outcome = self.storefront_customer_query_root(&field);
@@ -1604,7 +2171,7 @@ impl DraftProxy {
                 if !outcome.errors.is_empty() {
                     body["errors"] = Value::Array(outcome.errors);
                 }
-                return ok_json(body);
+                return resolver_outcome_from_response(ok_json(body), response_key);
             }
             (OperationType::Mutation, LocalResolverMode::StageLocally)
                 if STOREFRONT_CART_MUTATION_ROOTS.contains(&root_name) =>
@@ -1616,7 +2183,7 @@ impl DraftProxy {
                 if !outcome.errors.is_empty() {
                     body["errors"] = Value::Array(outcome.errors);
                 }
-                return ok_json(body);
+                return resolver_outcome_from_response(ok_json(body), response_key);
             }
             (OperationType::Mutation, LocalResolverMode::StageLocally)
                 if STOREFRONT_CUSTOMER_AUTH_MUTATION_ROOTS.contains(&root_name) =>
@@ -1628,18 +2195,25 @@ impl DraftProxy {
                 if !outcome.errors.is_empty() {
                     body["errors"] = Value::Array(outcome.errors);
                 }
-                return ok_json(body);
+                return resolver_outcome_from_response(ok_json(body), response_key);
             }
             (OperationType::Query, LocalResolverMode::OverlayRead) => {}
-            _ => return Self::unimplemented_resolver_response(mode, root_name),
+            _ => {
+                return resolver_outcome_from_response(
+                    Self::unimplemented_resolver_response(mode, root_name),
+                    response_key,
+                );
+            }
         }
         if self.config.read_mode == ReadMode::LiveHybrid
             && self.storefront_fields_include_catalog(std::slice::from_ref(&field))
             && !self.storefront_catalog_is_locally_ready()
         {
-            return Self::unimplemented_resolver_response(mode, root_name);
+            return resolver_outcome_from_response(
+                Self::unimplemented_resolver_response(mode, root_name),
+                response_key,
+            );
         }
-
         let context = storefront_request_context(query, variables);
         if self.config.read_mode == ReadMode::LiveHybrid
             && STOREFRONT_COLLECTION_ROOTS.contains(&field.name.as_str())
@@ -1654,12 +2228,46 @@ impl DraftProxy {
         }
         if self.config.read_mode == ReadMode::LiveHybrid {
             self.hydrate_storefront_taxonomy_for_fields(request, std::slice::from_ref(&field));
-            self.hydrate_storefront_menus_for_fields(request, std::slice::from_ref(&field));
+            if root_name == "menu" {
+                let handle = arguments
+                    .get("handle")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                if self.storefront_menu_by_handle(handle).is_none() {
+                    self.hydrate_storefront_menu(request, handle);
+                }
+            }
         }
 
-        ok_json(json!({
-            "data": self.storefront_local_query_data(&[field], &context)
-        }))
+        let value = match root_name {
+            // These latest-main domains still return selection-shaped compatibility
+            // values. Keep their behavior intact while their fields are migrated to
+            // the surface-qualified registry below.
+            "shop" => self.storefront_shop_json(&field.selection),
+            "product" => self.storefront_product_field_json(&field, &context),
+            "productByHandle" => self.storefront_product_by_handle_field_json(&field, &context),
+            "productRecommendations" => {
+                self.storefront_product_recommendations_json(&field, &context)
+            }
+            "productTags" => self.storefront_product_taxonomy_connection_json(
+                &field,
+                StorefrontProductTaxonomyKind::Tag,
+            ),
+            "productTypes" => self.storefront_product_taxonomy_connection_json(
+                &field,
+                StorefrontProductTaxonomyKind::ProductType,
+            ),
+            "products" => self.storefront_products_connection_json(&field, &context),
+            "collection" => self.storefront_collection_field_json(&field, &context),
+            "collectionByHandle" => {
+                self.storefront_collection_by_handle_field_json(&field, &context)
+            }
+            "collections" => self.storefront_collections_connection_json(&field, &context),
+            "metaobject" => self.storefront_metaobject_root_json(&field),
+            "metaobjects" => self.storefront_metaobjects_connection_json(&field),
+            _ => self.storefront_root_value(root_name, &arguments, &context),
+        };
+        ResolverOutcome::value(value)
     }
 
     pub(in crate::proxy) fn storefront_fields_are_local(
@@ -2028,22 +2636,6 @@ impl DraftProxy {
         }
     }
 
-    fn hydrate_storefront_menus_for_fields(
-        &mut self,
-        request: &Request,
-        fields: &[RootFieldSelection],
-    ) {
-        for field in fields.iter().filter(|field| field.name == "menu") {
-            let Some(handle) = resolved_string_field(&field.arguments, "handle") else {
-                continue;
-            };
-            if self.storefront_menu_by_handle(&handle).is_some() {
-                continue;
-            }
-            self.hydrate_storefront_menu(request, &handle);
-        }
-    }
-
     fn hydrate_storefront_menu(&mut self, request: &Request, handle: &str) {
         let response = self.storefront_upstream_post(
             request,
@@ -2069,86 +2661,37 @@ impl DraftProxy {
         self.store.base.storefront_menus.insert(id, menu);
     }
 
-    pub(in crate::proxy) fn storefront_local_query_data(
+    fn storefront_root_value(
         &self,
-        fields: &[RootFieldSelection],
+        root_name: &str,
+        arguments: &BTreeMap<String, Value>,
         context: &StorefrontRequestContext,
     ) -> Value {
-        root_payload_json(fields, |field| {
-            Some(match field.name.as_str() {
-                "shop" => self.storefront_shop_json(&field.selection),
-                "cart" => self.storefront_cart_query_root(field).value,
-                "localization" => self.storefront_localization_json(context, &field.selection),
-                "locations" => {
-                    self.storefront_locations_connection_json(&field.arguments, &field.selection)
-                }
-                "paymentSettings" => self.storefront_payment_settings_json(&field.selection),
-                "publicApiVersions" => Value::Array(
-                    self.store
-                        .base
-                        .storefront_public_api_versions
-                        .iter()
-                        .map(|version| selected_json(version, &field.selection))
-                        .collect(),
-                ),
-                "article" => self.storefront_article_root(field),
-                "articles" => self.storefront_content_connection(
-                    StorefrontContentKind::Article,
-                    self.storefront_article_records(),
-                    &field.arguments,
-                    &field.selection,
-                ),
-                "blog" => self.storefront_blog_root(field),
-                "blogByHandle" => self.storefront_blog_by_handle_root(field),
-                "blogs" => self.storefront_content_connection(
-                    StorefrontContentKind::Blog,
-                    self.storefront_blog_records(),
-                    &field.arguments,
-                    &field.selection,
-                ),
-                "page" => self.storefront_page_root(field),
-                "pageByHandle" => self.storefront_page_by_handle_root(field),
-                "pages" => self.storefront_content_connection(
-                    StorefrontContentKind::Page,
-                    self.storefront_page_records(),
-                    &field.arguments,
-                    &field.selection,
-                ),
-                "menu" => self.storefront_menu_root(field),
-                "sitemap" => self.storefront_sitemap_root(field),
-                "urlRedirects" => self
-                    .url_redirect_query_data(std::slice::from_ref(field))
-                    .get(&field.response_key)
-                    .cloned()
-                    .unwrap_or(Value::Null),
-                "product" => self.storefront_product_field_json(field, context),
-                "productByHandle" => self.storefront_product_by_handle_field_json(field, context),
-                "productRecommendations" => {
-                    self.storefront_product_recommendations_json(field, context)
-                }
-                "productTags" => self.storefront_product_taxonomy_connection_json(
-                    field,
-                    StorefrontProductTaxonomyKind::Tag,
-                ),
-                "productTypes" => self.storefront_product_taxonomy_connection_json(
-                    field,
-                    StorefrontProductTaxonomyKind::ProductType,
-                ),
-                "products" => self.storefront_products_connection_json(field, context),
-                "collection" => self.storefront_collection_field_json(field, context),
-                "collectionByHandle" => {
-                    self.storefront_collection_by_handle_field_json(field, context)
-                }
-                "collections" => self.storefront_collections_connection_json(field, context),
-                "metaobject" => self.storefront_metaobject_root_json(field),
-                "metaobjects" => self.storefront_metaobjects_connection_json(field),
-                "node" => self.storefront_node_root_json(field, context),
-                "nodes" => self.storefront_nodes_root_json(field, context),
-                "search" => self.storefront_search_root_json(field, context),
-                "predictiveSearch" => self.storefront_predictive_search_root_json(field, context),
-                _ => Value::Null,
-            })
-        })
+        match root_name {
+            root if STOREFRONT_CONTENT_ROOTS.contains(&root) => {
+                self.storefront_content_root_value(root, arguments)
+            }
+            "localization" => self
+                .store
+                .base
+                .storefront_localizations
+                .get(&context.key())
+                .cloned()
+                .unwrap_or(Value::Null),
+            "locations" => self.storefront_locations_connection_value(arguments),
+            "paymentSettings" => self.storefront_payment_settings_value(),
+            "publicApiVersions" => {
+                Value::Array(self.store.base.storefront_public_api_versions.clone())
+            }
+            "menu" => arguments
+                .get("handle")
+                .and_then(Value::as_str)
+                .and_then(|handle| self.storefront_menu_by_handle(handle))
+                .unwrap_or(Value::Null),
+            "sitemap" => self.storefront_sitemap_value(arguments),
+            "urlRedirects" => self.url_redirect_connection_value(arguments),
+            _ => Value::Null,
+        }
     }
 
     fn storefront_node_root_json(
@@ -3293,17 +3836,11 @@ impl DraftProxy {
             .contains_key(&context.key())
     }
 
-    fn storefront_localization_json(
-        &self,
-        context: &StorefrontRequestContext,
-        selections: &[SelectedField],
-    ) -> Value {
-        self.store
-            .base
-            .storefront_localizations
-            .get(&context.key())
-            .map(|localization| selected_json(localization, selections))
-            .unwrap_or(Value::Null)
+    fn storefront_payment_settings_source(&self) -> Option<Value> {
+        if self.store.base.storefront_payment_settings.is_object() {
+            return Some(self.store.base.storefront_payment_settings.clone());
+        }
+        self.admin_storefront_payment_settings_source()
     }
 
     fn storefront_payment_settings_json(&self, selections: &[SelectedField]) -> Value {
@@ -3312,11 +3849,31 @@ impl DraftProxy {
             .unwrap_or(Value::Null)
     }
 
-    fn storefront_payment_settings_source(&self) -> Option<Value> {
-        if self.store.base.storefront_payment_settings.is_object() {
-            return Some(self.store.base.storefront_payment_settings.clone());
+    fn storefront_payment_settings_value(&self) -> Value {
+        let Some(source) = self.storefront_payment_settings_source() else {
+            return Value::Null;
+        };
+        let mut value = serde_json::Map::new();
+        for field in [
+            "acceptedCardBrands",
+            "cardVaultUrl",
+            "countryCode",
+            "currencyCode",
+            "enabledPresentmentCurrencies",
+            "shopifyPaymentsAccountId",
+            "supportedDigitalWallets",
+        ] {
+            value.insert(
+                field.to_string(),
+                source.get(field).cloned().unwrap_or_else(|| match field {
+                    "acceptedCardBrands"
+                    | "enabledPresentmentCurrencies"
+                    | "supportedDigitalWallets" => json!([]),
+                    _ => Value::Null,
+                }),
+            );
         }
-        self.admin_storefront_payment_settings_source()
+        Value::Object(value)
     }
 
     fn admin_storefront_payment_settings_source(&self) -> Option<Value> {
@@ -3337,22 +3894,20 @@ impl DraftProxy {
         (!settings.is_empty()).then_some(Value::Object(settings))
     }
 
-    fn storefront_locations_connection_json(
-        &self,
-        arguments: &BTreeMap<String, ResolvedValue>,
-        selections: &[SelectedField],
-    ) -> Value {
+    fn storefront_locations_connection_value(&self, arguments: &BTreeMap<String, Value>) -> Value {
+        let arguments = arguments
+            .iter()
+            .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
+            .collect();
         let mut records = self.storefront_location_records();
-        sort_storefront_locations(&mut records, arguments);
+        sort_storefront_locations(&mut records, &arguments);
         let cursor_by_id = self.storefront_location_cursor_map(&records);
-        let (records, page_info) = connection_window(&records, arguments, |location| {
+        let (records, page_info) = connection_window(&records, &arguments, |location| {
             storefront_location_cursor(location, &cursor_by_id)
         });
-        selected_typed_connection_with_page_info(
-            &records,
-            selections,
-            selected_json,
-            |location| storefront_location_cursor(location, &cursor_by_id),
+        connection_json_with_cursor(
+            records,
+            |_, location| storefront_location_cursor(location, &cursor_by_id),
             page_info,
         )
     }
@@ -3399,51 +3954,100 @@ impl DraftProxy {
             .collect()
     }
 
-    fn storefront_article_root(&self, field: &RootFieldSelection) -> Value {
-        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        self.storefront_content_by_id(StorefrontContentKind::Article, &id)
-            .map(|article| self.selected_storefront_article(&article, &field.selection))
-            .unwrap_or(Value::Null)
-    }
-
-    fn storefront_blog_root(&self, field: &RootFieldSelection) -> Value {
-        let record = resolved_string_field(&field.arguments, "id")
-            .and_then(|id| self.storefront_content_by_id(StorefrontContentKind::Blog, &id))
-            .or_else(|| {
-                resolved_string_field(&field.arguments, "handle").and_then(|handle| {
-                    self.storefront_content_by_handle(StorefrontContentKind::Blog, &handle)
+    fn storefront_content_root_value(
+        &self,
+        root_name: &str,
+        arguments: &BTreeMap<String, Value>,
+    ) -> Value {
+        let string_argument = |name: &str| {
+            arguments
+                .get(name)
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+        };
+        match root_name {
+            "article" => self
+                .storefront_content_by_id(StorefrontContentKind::Article, string_argument("id"))
+                .unwrap_or(Value::Null),
+            "articles" => self.storefront_content_connection_value(
+                StorefrontContentKind::Article,
+                self.storefront_article_records(),
+                arguments,
+            ),
+            "blog" => arguments
+                .get("id")
+                .and_then(Value::as_str)
+                .and_then(|id| self.storefront_content_by_id(StorefrontContentKind::Blog, id))
+                .or_else(|| {
+                    arguments
+                        .get("handle")
+                        .and_then(Value::as_str)
+                        .and_then(|handle| {
+                            self.storefront_content_by_handle(StorefrontContentKind::Blog, handle)
+                        })
                 })
-            });
-        record
-            .map(|blog| self.selected_storefront_blog(&blog, &field.selection))
-            .unwrap_or(Value::Null)
-    }
-
-    fn storefront_blog_by_handle_root(&self, field: &RootFieldSelection) -> Value {
-        let handle = resolved_string_field(&field.arguments, "handle").unwrap_or_default();
-        self.storefront_content_by_handle(StorefrontContentKind::Blog, &handle)
-            .map(|blog| self.selected_storefront_blog(&blog, &field.selection))
-            .unwrap_or(Value::Null)
-    }
-
-    fn storefront_page_root(&self, field: &RootFieldSelection) -> Value {
-        let record = resolved_string_field(&field.arguments, "id")
-            .and_then(|id| self.storefront_content_by_id(StorefrontContentKind::Page, &id))
-            .or_else(|| {
-                resolved_string_field(&field.arguments, "handle").and_then(|handle| {
-                    self.storefront_content_by_handle(StorefrontContentKind::Page, &handle)
+                .unwrap_or(Value::Null),
+            "blogByHandle" => self
+                .storefront_content_by_handle(
+                    StorefrontContentKind::Blog,
+                    string_argument("handle"),
+                )
+                .unwrap_or(Value::Null),
+            "blogs" => self.storefront_content_connection_value(
+                StorefrontContentKind::Blog,
+                self.storefront_blog_records(),
+                arguments,
+            ),
+            "page" => arguments
+                .get("id")
+                .and_then(Value::as_str)
+                .and_then(|id| self.storefront_content_by_id(StorefrontContentKind::Page, id))
+                .or_else(|| {
+                    arguments
+                        .get("handle")
+                        .and_then(Value::as_str)
+                        .and_then(|handle| {
+                            self.storefront_content_by_handle(StorefrontContentKind::Page, handle)
+                        })
                 })
-            });
-        record
-            .map(|page| self.selected_storefront_page(&page, &field.selection))
-            .unwrap_or(Value::Null)
+                .unwrap_or(Value::Null),
+            "pageByHandle" => self
+                .storefront_content_by_handle(
+                    StorefrontContentKind::Page,
+                    string_argument("handle"),
+                )
+                .unwrap_or(Value::Null),
+            "pages" => self.storefront_content_connection_value(
+                StorefrontContentKind::Page,
+                self.storefront_page_records(),
+                arguments,
+            ),
+            _ => Value::Null,
+        }
     }
 
-    fn storefront_page_by_handle_root(&self, field: &RootFieldSelection) -> Value {
-        let handle = resolved_string_field(&field.arguments, "handle").unwrap_or_default();
-        self.storefront_content_by_handle(StorefrontContentKind::Page, &handle)
-            .map(|page| self.selected_storefront_page(&page, &field.selection))
-            .unwrap_or(Value::Null)
+    fn storefront_content_connection_value(
+        &self,
+        kind: StorefrontContentKind,
+        records: Vec<Value>,
+        arguments: &BTreeMap<String, Value>,
+    ) -> Value {
+        let arguments = arguments
+            .iter()
+            .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
+            .collect();
+        let result = staged_connection_query(
+            records,
+            &arguments,
+            |record, query| storefront_content_search_decision(kind, record, query),
+            |record, sort_key| storefront_content_sort_key(kind, record, sort_key),
+            value_id_cursor,
+        );
+        connection_json_with_cursor(
+            result.records,
+            |_, record| value_id_cursor(record),
+            result.page_info,
+        )
     }
 
     fn storefront_content_by_id(&self, kind: StorefrontContentKind, id: &str) -> Option<Value> {
@@ -3663,33 +4267,14 @@ impl DraftProxy {
         arguments: &BTreeMap<String, ResolvedValue>,
         selection: &[SelectedField],
     ) -> Value {
-        let result = staged_connection_query(
-            records,
-            arguments,
-            |record, query| storefront_content_search_decision(kind, record, query),
-            |record, sort_key| storefront_content_sort_key(kind, record, sort_key),
-            value_id_cursor,
-        );
-        selected_typed_connection_with_page_info(
-            &result.records,
+        let arguments = arguments
+            .iter()
+            .map(|(name, value)| (name.clone(), resolved_value_json(value)))
+            .collect();
+        selected_json(
+            &self.storefront_content_connection_value(kind, records, &arguments),
             selection,
-            |record, selection| match kind {
-                StorefrontContentKind::Blog => self.selected_storefront_blog(record, selection),
-                StorefrontContentKind::Page => self.selected_storefront_page(record, selection),
-                StorefrontContentKind::Article => {
-                    self.selected_storefront_article(record, selection)
-                }
-            },
-            value_id_cursor,
-            result.page_info,
         )
-    }
-
-    fn storefront_menu_root(&self, field: &RootFieldSelection) -> Value {
-        let handle = resolved_string_field(&field.arguments, "handle").unwrap_or_default();
-        self.storefront_menu_by_handle(&handle)
-            .map(|menu| selected_json(&menu, &field.selection))
-            .unwrap_or(Value::Null)
     }
 
     fn storefront_menu_by_handle(&self, handle: &str) -> Option<Value> {
@@ -3702,22 +4287,13 @@ impl DraftProxy {
             .cloned()
     }
 
-    fn storefront_sitemap_root(&self, field: &RootFieldSelection) -> Value {
-        let sitemap_type = resolved_string_field(&field.arguments, "type").unwrap_or_default();
-        let resources = self.storefront_sitemap_resources(&sitemap_type);
-        selected_payload_json(&field.selection, |selection| {
-            match selection.name.as_str() {
-                "pagesCount" => Some(selected_json(
-                    &count_object(resources.len()),
-                    &selection.selection,
-                )),
-                "resources" => Some(storefront_selected_sitemap_resources(
-                    &resources,
-                    &selection.arguments,
-                    &selection.selection,
-                )),
-                _ => None,
-            }
+    fn storefront_sitemap_value(&self, arguments: &BTreeMap<String, Value>) -> Value {
+        let sitemap_type = arguments
+            .get("type")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        json!({
+            "_resources": self.storefront_sitemap_resources(sitemap_type),
         })
     }
 
@@ -3740,7 +4316,7 @@ impl DraftProxy {
                         .or_else(|| record.get("publishedAt"))
                         .cloned()
                         .unwrap_or(Value::Null),
-                    "image": record.get("image").cloned().unwrap_or(Value::Null)
+                    "image": storefront_sitemap_image(record.get("image"))
                 })
             })
             .collect()
@@ -4556,7 +5132,7 @@ fn storefront_article_record_from_admin(record: &Value) -> Value {
             .or_else(|| record.get("createdAt").cloned())
             .unwrap_or(Value::Null),
         "author": storefront_article_author(record.get("author")),
-        "image": record.get("image").cloned().unwrap_or(Value::Null),
+        "image": storefront_article_image(record.get("image")),
     })
 }
 
@@ -4565,7 +5141,52 @@ fn storefront_article_author(author: Option<&Value>) -> Value {
         .and_then(|author| author.get("name"))
         .and_then(Value::as_str)
         .unwrap_or_default();
-    json!({ "name": name })
+    json!({
+        "bio": author.and_then(|value| value.get("bio")).cloned().unwrap_or(Value::Null),
+        "email": author.and_then(|value| value.get("email")).cloned().unwrap_or(Value::Null),
+        "firstName": author.and_then(|value| value.get("firstName")).cloned().unwrap_or(Value::Null),
+        "lastName": author.and_then(|value| value.get("lastName")).cloned().unwrap_or(Value::Null),
+        "name": name,
+    })
+}
+
+fn storefront_article_image(image: Option<&Value>) -> Value {
+    let Some(image) = image.filter(|image| image.is_object()) else {
+        return Value::Null;
+    };
+    let url = image
+        .get("url")
+        .or_else(|| image.get("originalSrc"))
+        .or_else(|| image.get("src"))
+        .cloned()
+        .unwrap_or(Value::Null);
+    json!({
+        "_url": url,
+        "altText": image.get("altText").or_else(|| image.get("alt")).cloned().unwrap_or(Value::Null),
+        "height": image.get("height").cloned().unwrap_or(Value::Null),
+        "id": image.get("id").cloned().unwrap_or(Value::Null),
+        "originalSrc": url,
+        "src": url,
+        "thumbhash": image.get("thumbhash").cloned().unwrap_or(Value::Null),
+        "width": image.get("width").cloned().unwrap_or(Value::Null),
+    })
+}
+
+fn storefront_sitemap_image(image: Option<&Value>) -> Value {
+    let Some(image) = image.filter(|image| image.is_object()) else {
+        return Value::Null;
+    };
+    json!({
+        "alt": image.get("alt").or_else(|| image.get("altText")).cloned().unwrap_or(Value::Null),
+        "filepath": image
+            .get("filepath")
+            .or_else(|| image.get("url"))
+            .or_else(|| image.get("originalSrc"))
+            .or_else(|| image.get("src"))
+            .cloned()
+            .unwrap_or(Value::Null),
+        "updatedAt": image.get("updatedAt").cloned().unwrap_or(Value::Null),
+    })
 }
 
 fn storefront_content_is_visible(record: &Value) -> bool {
@@ -4580,21 +5201,6 @@ fn storefront_default_seo() -> Value {
         "title": Value::Null,
         "description": Value::Null,
     })
-}
-
-fn storefront_metafields_list(
-    arguments: &BTreeMap<String, ResolvedValue>,
-    selection: &[SelectedField],
-) -> Value {
-    let count = match arguments.get("identifiers") {
-        Some(ResolvedValue::List(values)) => values.len(),
-        _ => 0,
-    };
-    Value::Array(
-        std::iter::repeat_with(|| nullable_selected_json(&Value::Null, selection))
-            .take(count)
-            .collect(),
-    )
 }
 
 fn storefront_collection_observed_products(collection: &Value) -> Vec<Value> {
@@ -4707,15 +5313,6 @@ fn storefront_collection_product_matches_filters(
                     .any(|candidate| candidate.eq_ignore_ascii_case(&tag))
             })
     })
-}
-
-fn storefront_truncated_text(value: &str, arguments: &BTreeMap<String, ResolvedValue>) -> String {
-    let Some(limit) = resolved_int_field(arguments, "truncateAt")
-        .and_then(|limit| (limit >= 0).then_some(limit as usize))
-    else {
-        return value.to_string();
-    };
-    value.chars().take(limit).collect()
 }
 
 fn storefront_strip_html(value: &str) -> String {
@@ -4917,33 +5514,6 @@ fn storefront_record_gid_tail_sort_value(record: &Value) -> StagedSortValue {
     tail.parse::<i64>()
         .map(StagedSortValue::I64)
         .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
-}
-
-fn storefront_selected_sitemap_resources(
-    resources: &[Value],
-    arguments: &BTreeMap<String, ResolvedValue>,
-    selection: &[SelectedField],
-) -> Value {
-    let page = resolved_int_field(arguments, "page")
-        .and_then(|page| (page > 0).then_some(page as usize))
-        .unwrap_or(1);
-    let start = (page - 1) * 250;
-    let end = (start + 250).min(resources.len());
-    let window = if start < resources.len() {
-        &resources[start..end]
-    } else {
-        &[]
-    };
-    selected_payload_json(selection, |field| match field.name.as_str() {
-        "hasNextPage" => Some(json!(end < resources.len())),
-        "items" => Some(Value::Array(
-            window
-                .iter()
-                .map(|resource| selected_json(resource, &field.selection))
-                .collect(),
-        )),
-        _ => None,
-    })
 }
 
 fn storefront_product_json(
@@ -6340,6 +6910,30 @@ fn selection_applies_to_type(selection: &SelectedField, type_name: &str) -> bool
         ),
         Some(condition) => condition == type_name,
     }
+}
+
+fn storefront_metafields_list(
+    arguments: &BTreeMap<String, ResolvedValue>,
+    selection: &[SelectedField],
+) -> Value {
+    let count = match arguments.get("identifiers") {
+        Some(ResolvedValue::List(values)) => values.len(),
+        _ => 0,
+    };
+    Value::Array(
+        std::iter::repeat_with(|| nullable_selected_json(&Value::Null, selection))
+            .take(count)
+            .collect(),
+    )
+}
+
+fn storefront_truncated_text(value: &str, arguments: &BTreeMap<String, ResolvedValue>) -> String {
+    let Some(limit) = resolved_int_field(arguments, "truncateAt")
+        .and_then(|limit| (limit >= 0).then_some(limit as usize))
+    else {
+        return value.to_string();
+    };
+    value.chars().take(limit).collect()
 }
 
 fn storefront_metafield_is_public(metafield: &Value) -> bool {

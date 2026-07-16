@@ -734,7 +734,10 @@ impl DraftProxy {
                 if self.config.read_mode == ReadMode::LiveHybrid
                     && Self::b2b_query_has_catalog_root(&fields)
                 {
-                    let response = (self.upstream_transport)(request.clone());
+                    let response = self
+                        .request_upstream_query_response
+                        .clone()
+                        .unwrap_or_else(|| (self.upstream_transport)(request.clone()));
                     if !(200..300).contains(&response.status) {
                         return Some(response);
                     }
@@ -2820,7 +2823,10 @@ impl DraftProxy {
         })
     }
 
-    fn b2b_query_has_staged_match(&self, fields: &[RootFieldSelection]) -> bool {
+    pub(in crate::proxy) fn b2b_query_has_staged_match(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> bool {
         fields.iter().any(|field| match field.name.as_str() {
             "company" => resolved_string_field(&field.arguments, "id").is_some_and(|id| {
                 self.store.staged.b2b_companies.contains_key(&id)
@@ -2845,7 +2851,7 @@ impl DraftProxy {
         })
     }
 
-    fn b2b_query_has_catalog_root(fields: &[RootFieldSelection]) -> bool {
+    pub(in crate::proxy) fn b2b_query_has_catalog_root(fields: &[RootFieldSelection]) -> bool {
         fields.iter().any(|field| {
             matches!(
                 field.name.as_str(),

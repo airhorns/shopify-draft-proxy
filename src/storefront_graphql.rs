@@ -16,58 +16,23 @@ use crate::{
     graphql::OperationType,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum StorefrontApiVersion {
-    V2026_04,
-}
+pub use crate::graphql_catalog::StorefrontApiVersion;
 
-impl StorefrontApiVersion {
-    pub const ALL: [Self; 1] = [Self::V2026_04];
-
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::V2026_04 => "2026-04",
-        }
-    }
-
-    pub fn from_route(path: &str) -> Option<Self> {
-        let version = path.strip_prefix("/api/")?.strip_suffix("/graphql.json")?;
-        Self::parse(version)
-    }
-
-    pub fn parse(version: &str) -> Option<Self> {
-        match version {
-            "2026-04" => Some(Self::V2026_04),
-            _ => None,
-        }
-    }
-
-    fn introspection_capture(self) -> &'static str {
-        match self {
-            Self::V2026_04 => {
-                include_str!("../config/storefront-graphql/2026-04/schema.json")
-            }
-        }
-    }
-}
-
-impl std::fmt::Display for StorefrontApiVersion {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str(self.as_str())
-    }
-}
-
-static SCHEMA_2026_04: OnceLock<Schema> = OnceLock::new();
-static SDL_2026_04: OnceLock<Result<String, String>> = OnceLock::new();
+static SCHEMAS: [OnceLock<Schema>; StorefrontApiVersion::COUNT] =
+    [const { OnceLock::new() }; StorefrontApiVersion::COUNT];
+static SDLS: [OnceLock<Result<String, String>>; StorefrontApiVersion::COUNT] =
+    [const { OnceLock::new() }; StorefrontApiVersion::COUNT];
 
 pub fn schema(version: StorefrontApiVersion) -> Result<&'static Schema, SchemaBuildError> {
-    let slot = match version {
-        StorefrontApiVersion::V2026_04 => &SCHEMA_2026_04,
-    };
+    let slot = &SCHEMAS[version.index()];
     if let Some(schema) = slot.get() {
         return Ok(schema);
     }
-    let built = build_schema_from_sdl(schema_sdl(version)?, "Storefront")?;
+    let built = build_schema_from_sdl(
+        schema_sdl(version)?,
+        crate::operation_registry::ApiSurface::Storefront,
+        version.as_str(),
+    )?;
     let _ = slot.set(built);
     Ok(slot
         .get()
@@ -93,10 +58,27 @@ pub fn root_field_named_type(
     named_type_from_display(&field.ty)
 }
 
-fn schema_sdl(version: StorefrontApiVersion) -> Result<&'static str, SchemaBuildError> {
-    let slot = match version {
-        StorefrontApiVersion::V2026_04 => &SDL_2026_04,
+pub(crate) fn root_field_names(
+    version: StorefrontApiVersion,
+    operation_type: OperationType,
+) -> Vec<String> {
+    let Ok(schema) = schema(version) else {
+        return Vec::new();
     };
+    let root_name = match operation_type {
+        OperationType::Query => Some(schema.registry().query_type.as_str()),
+        OperationType::Mutation => schema.registry().mutation_type.as_deref(),
+        OperationType::Subscription => schema.registry().subscription_type.as_deref(),
+    };
+    root_name
+        .and_then(|root_name| schema.registry().types.get(root_name))
+        .and_then(async_graphql::registry::MetaType::fields)
+        .map(|fields| fields.keys().cloned().collect())
+        .unwrap_or_default()
+}
+
+fn schema_sdl(version: StorefrontApiVersion) -> Result<&'static str, SchemaBuildError> {
+    let slot = &SDLS[version.index()];
     match slot.get_or_init(|| {
         let capture: Value = serde_json::from_str(version.introspection_capture())
             .map_err(|error| format!("invalid Storefront introspection JSON: {error}"))?;

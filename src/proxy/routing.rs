@@ -1,7 +1,6 @@
 use super::*;
 use crate::admin_graphql::AdminApiVersion;
-
-const SUPPORTED_STOREFRONT_GRAPHQL_VERSIONS: &[&str] = &["2025-01", "2026-04"];
+use crate::graphql_catalog::storefront_route_version_is_accepted;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::proxy) enum Route {
@@ -119,7 +118,7 @@ pub(in crate::proxy) fn supported_admin_graphql_version(version: &str) -> bool {
 }
 
 pub(in crate::proxy) fn supported_storefront_graphql_version(version: &str) -> bool {
-    SUPPORTED_STOREFRONT_GRAPHQL_VERSIONS.contains(&version)
+    storefront_route_version_is_accepted(version)
 }
 
 pub(in crate::proxy) fn latest_supported_admin_graphql_version() -> Option<&'static str> {

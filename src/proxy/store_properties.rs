@@ -45,41 +45,53 @@ pub(in crate::proxy) const SHOP_IDENTITY_HYDRATE_QUERY: &str = r#"#graphql
 "#;
 
 impl DraftProxy {
-    pub(in crate::proxy) fn resolve_store_properties_graphql(
+    pub(crate) fn resolve_store_properties_graphql(
         &mut self,
-        context: RootResolverContext<'_>,
-    ) -> Response {
-        let RootResolverContext {
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let RootInvocation {
+            response_key,
             request,
             query,
             variables,
             root_name,
             mode,
             ..
-        } = context;
-        match mode {
-            LocalResolverMode::OverlayRead => {
-                let fields = match self.root_fields_or_error(query, variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
-                if root_name == "collection" {
-                    if self.should_route_owner_metafields_read(query, variables) {
-                        self.owner_metafields_read(request, query, variables)
-                    } else if self.collection_read_needs_upstream(&fields) {
-                        (self.upstream_transport)(request.clone())
-                    } else {
-                        ok_json(json!({
-                            "data": self.collection_membership_downstream_read_data(&fields)
-                        }))
-                    }
-                } else if root_name == "shop" {
-                    if self.should_route_owner_metafields_read(query, variables) {
-                        return self.owner_metafields_read(request, query, variables);
-                    }
-                    if self.should_handle_shop_policy_query_locally() {
-                        if let Some(data) = self.shop_query_data(&fields, Some(request)) {
-                            ok_json(json!({ "data": data }))
+        } = invocation;
+        let response = (|| -> Response {
+            match mode {
+                LocalResolverMode::OverlayRead => {
+                    let fields = match self.root_fields_or_error(query, variables) {
+                        Ok(fields) => fields,
+                        Err(response) => return response,
+                    };
+                    if root_name == "collection" {
+                        if self.should_route_owner_metafields_read(query, variables) {
+                            self.owner_metafields_read(request, query, variables)
+                        } else if self.collection_read_needs_upstream(&fields) {
+                            (self.upstream_transport)(request.clone())
+                        } else {
+                            ok_json(json!({
+                                "data": self.collection_membership_downstream_read_data(&fields)
+                            }))
+                        }
+                    } else if root_name == "shop" {
+                        if self.should_route_owner_metafields_read(query, variables) {
+                            return self.owner_metafields_read(request, query, variables);
+                        }
+                        if self.should_handle_shop_policy_query_locally() {
+                            if let Some(data) = self.shop_query_data(&fields, Some(request)) {
+                                ok_json(json!({ "data": data }))
+                            } else {
+                                let response = (self.upstream_transport)(request.clone());
+                                if (200..300).contains(&response.status) {
+                                    self.hydrate_shop_state_from_response_data(
+                                        &response.body["data"],
+                                    );
+                                    self.observe_nodes_response(&response);
+                                }
+                                response
+                            }
                         } else {
                             let response = (self.upstream_transport)(request.clone());
                             if (200..300).contains(&response.status) {
@@ -88,60 +100,54 @@ impl DraftProxy {
                             }
                             response
                         }
-                    } else {
-                        let response = (self.upstream_transport)(request.clone());
-                        if (200..300).contains(&response.status) {
-                            self.hydrate_shop_state_from_response_data(&response.body["data"]);
-                            self.observe_nodes_response(&response);
+                    } else if self.has_location_overlay_state()
+                        || !self.location_read_needs_upstream(&fields)
+                    {
+                        let mut response = self.location_read_response(&fields);
+                        if fields.iter().any(|field| {
+                            field.name == "locationsAvailableForDeliveryProfilesConnection"
+                        }) {
+                            shallow_merge_object(
+                                &mut response.body["data"],
+                                self.delivery_profile_locations_read_data(&fields),
+                            );
                         }
                         response
+                    } else {
+                        (self.upstream_transport)(request.clone())
                     }
-                } else if self.has_location_overlay_state()
-                    || !self.location_read_needs_upstream(&fields)
+                }
+                LocalResolverMode::StageLocally
+                    if matches!(
+                        root_name,
+                        "publishablePublish"
+                            | "publishableUnpublish"
+                            | "publishablePublishToCurrentChannel"
+                            | "publishableUnpublishToCurrentChannel"
+                    ) =>
                 {
-                    let mut response = self.location_read_response(&fields);
-                    if fields.iter().any(|field| {
-                        field.name == "locationsAvailableForDeliveryProfilesConnection"
-                    }) {
-                        shallow_merge_object(
-                            &mut response.body["data"],
-                            self.delivery_profile_locations_read_data(&fields),
-                        );
-                    }
-                    response
-                } else {
-                    (self.upstream_transport)(request.clone())
+                    self.product_publishable_mutation(root_name, query, variables, request)
+                }
+                LocalResolverMode::StageLocally if root_name == "shopPolicyUpdate" => {
+                    self.shop_policy_update(request, query, variables)
+                }
+                LocalResolverMode::StageLocally
+                    if matches!(
+                        root_name,
+                        "locationAdd" | "locationEdit" | "locationActivate" | "locationDelete"
+                    ) =>
+                {
+                    self.location_mutation(root_name, query, variables, request)
+                }
+                LocalResolverMode::StageLocally if root_name == "locationDeactivate" => {
+                    self.location_deactivate(query, variables, request)
+                }
+                LocalResolverMode::StageLocally => {
+                    Self::unimplemented_resolver_response(mode, root_name)
                 }
             }
-            LocalResolverMode::StageLocally
-                if matches!(
-                    root_name,
-                    "publishablePublish"
-                        | "publishableUnpublish"
-                        | "publishablePublishToCurrentChannel"
-                        | "publishableUnpublishToCurrentChannel"
-                ) =>
-            {
-                self.product_publishable_mutation(root_name, query, variables, request)
-            }
-            LocalResolverMode::StageLocally if root_name == "shopPolicyUpdate" => {
-                self.shop_policy_update(request, query, variables)
-            }
-            LocalResolverMode::StageLocally
-                if matches!(
-                    root_name,
-                    "locationAdd" | "locationEdit" | "locationActivate" | "locationDelete"
-                ) =>
-            {
-                self.location_mutation(root_name, query, variables, request)
-            }
-            LocalResolverMode::StageLocally if root_name == "locationDeactivate" => {
-                self.location_deactivate(query, variables, request)
-            }
-            LocalResolverMode::StageLocally => {
-                Self::unimplemented_resolver_response(mode, root_name)
-            }
-        }
+        })();
+        resolver_outcome_from_response(response, response_key)
     }
 
     pub(in crate::proxy) fn payload_shop_selection_needs_hydration(

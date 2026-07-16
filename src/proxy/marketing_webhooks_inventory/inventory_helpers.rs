@@ -4,6 +4,60 @@ mod items;
 mod shipments;
 mod transfers;
 
+pub(in crate::proxy) fn inventory_field_resolver_registrations() -> Vec<FieldResolverRegistration> {
+    let mut registrations = ["id", "isActive", "item", "location"]
+        .into_iter()
+        .map(|field| {
+            FieldResolverRegistration::property(ApiSurface::Admin, "InventoryLevel", field)
+        })
+        .collect::<Vec<_>>();
+    registrations.push(FieldResolverRegistration::explicit_always(
+        ApiSurface::Admin,
+        "InventoryLevel",
+        "quantities",
+        inventory_level_quantities_field,
+    ));
+    registrations
+}
+
+pub(in crate::proxy) fn inventory_field_resolver_type_policies() -> Vec<FieldResolverTypePolicy> {
+    vec![FieldResolverTypePolicy::unsupported_remaining(
+        ApiSurface::Admin,
+        "InventoryLevel",
+        "field is not yet modeled by the canonical inventory-level resolver",
+    )]
+}
+
+fn inventory_level_quantities_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let rows = invocation
+        .parent
+        .get("quantities")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let names = invocation
+        .arguments
+        .get("names")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str);
+    Ok(Value::Array(
+        names
+            .map(|name| {
+                rows.iter()
+                    .find(|row| row.get("name").and_then(Value::as_str) == Some(name))
+                    .cloned()
+                    .unwrap_or_else(|| json!({ "name": name, "quantity": 0, "updatedAt": null }))
+            })
+            .collect(),
+    ))
+}
+
 pub(in crate::proxy) struct InventoryLevelViewState<'a> {
     pub inventory_level_ids: &'a BTreeMap<(String, String), String>,
     pub inactive_levels: &'a BTreeSet<(String, String)>,

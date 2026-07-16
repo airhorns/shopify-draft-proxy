@@ -1,4 +1,9 @@
-use crate::graphql::OperationType;
+use crate::{
+    graphql::OperationType,
+    proxy::DraftProxy,
+    resolver_registry::ExecutableRootRegistration,
+    storefront_graphql::{self, StorefrontApiVersion},
+};
 use serde_json::{json, Map, Value};
 use std::collections::BTreeSet;
 use std::sync::OnceLock;
@@ -141,9 +146,17 @@ pub struct OperationCapability {
 }
 
 pub fn default_registry() -> Vec<OperationRegistryEntry> {
-    let mut registry = crate::operation_registry_data::default_registry_entries();
-    registry.extend(storefront_registry_entries());
+    let registry = default_executable_registry()
+        .into_iter()
+        .map(|registration| registration.entry)
+        .collect::<Vec<_>>();
     debug_assert_default_registry_local_routing_contract(&registry);
+    registry
+}
+
+pub(crate) fn default_executable_registry() -> Vec<ExecutableRootRegistration> {
+    let mut registry = crate::operation_registry_data::default_registry_bindings();
+    registry.extend(storefront_registry_bindings());
     registry
 }
 
@@ -265,47 +278,44 @@ fn debug_assert_default_registry_local_routing_contract(registry: &[OperationReg
     });
 }
 
-fn storefront_registry_entries() -> Vec<OperationRegistryEntry> {
-    let inventory = storefront_root_inventory_json("2026-04");
+fn storefront_registry_bindings() -> Vec<ExecutableRootRegistration> {
     let mut entries = Vec::new();
     let mut seen = BTreeSet::new();
-    entries.extend(storefront_registry_entries_for_roots(
-        inventory
-            .pointer("/roots/query")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten(),
+    entries.extend(storefront_registry_bindings_for_roots(
+        storefront_graphql::root_field_names(StorefrontApiVersion::DEFAULT, OperationType::Query),
         OperationType::Query,
         &mut seen,
     ));
-    entries.extend(storefront_registry_entries_for_roots(
-        inventory
-            .pointer("/roots/mutation")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten(),
+    entries.extend(storefront_registry_bindings_for_roots(
+        storefront_graphql::root_field_names(
+            StorefrontApiVersion::DEFAULT,
+            OperationType::Mutation,
+        ),
         OperationType::Mutation,
         &mut seen,
     ));
     entries
 }
 
-fn storefront_registry_entries_for_roots<'a>(
-    roots: impl Iterator<Item = &'a Value>,
+fn storefront_registry_bindings_for_roots(
+    roots: impl IntoIterator<Item = String>,
     operation_type: OperationType,
     seen: &mut BTreeSet<(&'static str, String)>,
-) -> Vec<OperationRegistryEntry> {
+) -> Vec<ExecutableRootRegistration> {
     roots
-        .filter_map(|root| root.get("name").and_then(Value::as_str))
-        .filter(|name| seen.insert((operation_type.keyword(), (*name).to_string())))
-        .map(|name| OperationRegistryEntry {
-            api_surface: ApiSurface::Storefront,
-            name: name.to_string(),
-            operation_type,
-            domain: CapabilityDomain::Storefront,
-            implemented: storefront_root_is_implemented(operation_type, name),
-            match_names: default_match_names(name),
-            runtime_tests: storefront_runtime_tests(operation_type, name),
+        .into_iter()
+        .filter(|name| seen.insert((operation_type.keyword(), name.clone())))
+        .map(|name| ExecutableRootRegistration {
+            entry: OperationRegistryEntry {
+                api_surface: ApiSurface::Storefront,
+                name: name.clone(),
+                operation_type,
+                domain: CapabilityDomain::Storefront,
+                implemented: storefront_root_is_implemented(operation_type, &name),
+                match_names: default_match_names(&name),
+                runtime_tests: storefront_runtime_tests(operation_type, &name),
+            },
+            handler: DraftProxy::resolve_storefront_graphql,
         })
         .collect()
 }
@@ -394,18 +404,6 @@ fn storefront_runtime_tests(operation_type: OperationType, name: &str) -> Vec<St
     } else {
         Vec::new()
     }
-}
-
-fn storefront_root_inventory_json(api_version: &str) -> Value {
-    let raw = match api_version {
-        "2026-04" => {
-            include_str!("../config/storefront-graphql/2026-04/root-inventory.json")
-        }
-        _ => panic!(
-            "unsupported Storefront API version has no captured root inventory: {api_version}"
-        ),
-    };
-    serde_json::from_str(raw).expect("checked-in Storefront root inventory should be valid JSON")
 }
 
 fn default_match_names(name: &str) -> Vec<String> {

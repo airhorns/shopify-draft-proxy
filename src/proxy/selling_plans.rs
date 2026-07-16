@@ -894,6 +894,60 @@ impl DraftProxy {
         groups
     }
 
+    pub(in crate::proxy) fn canonical_product_selling_plan_groups_value(
+        &self,
+        product_id: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let variant_ids = self
+            .store
+            .product_variants_for_product(product_id)
+            .into_iter()
+            .map(|variant| variant.id)
+            .collect::<BTreeSet<_>>();
+        let groups = self.selling_plan_groups_for_nodes_matching(|group| {
+            group.product_ids.iter().any(|id| id == product_id)
+                || group
+                    .product_variant_ids
+                    .iter()
+                    .any(|id| variant_ids.contains(id))
+        });
+        canonical_selling_plan_group_connection(groups, arguments)
+    }
+
+    pub(in crate::proxy) fn canonical_product_selling_plan_groups_count_value(
+        &self,
+        product_id: &str,
+    ) -> Value {
+        count_object(
+            self.direct_group_ids_for_resource(ResourceKind::Product, product_id)
+                .len(),
+        )
+    }
+
+    pub(in crate::proxy) fn canonical_product_variant_selling_plan_groups_value(
+        &self,
+        variant_id: &str,
+        product_id: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let groups = self.selling_plan_groups_for_nodes_matching(|group| {
+            group.product_ids.iter().any(|id| id == product_id)
+                || group.product_variant_ids.iter().any(|id| id == variant_id)
+        });
+        canonical_selling_plan_group_connection(groups, arguments)
+    }
+
+    pub(in crate::proxy) fn canonical_product_variant_selling_plan_groups_count_value(
+        &self,
+        variant_id: &str,
+    ) -> Value {
+        count_object(
+            self.direct_group_ids_for_resource(ResourceKind::ProductVariant, variant_id)
+                .len(),
+        )
+    }
+
     fn selling_plan_group_json(
         &self,
         group: &SellingPlanGroupRecord,
@@ -1070,6 +1124,27 @@ impl DraftProxy {
         }
         Value::Object(object)
     }
+}
+
+fn canonical_selling_plan_group_connection(
+    groups: Vec<SellingPlanGroupRecord>,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> Value {
+    connection_value_with_args(
+        groups
+            .into_iter()
+            .map(|group| {
+                json!({
+                    "__typename": "SellingPlanGroup",
+                    "id": group.id,
+                    "name": group.name,
+                    "merchantCode": group.merchant_code,
+                })
+            })
+            .collect(),
+        arguments,
+        value_id_cursor,
+    )
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

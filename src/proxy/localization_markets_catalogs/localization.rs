@@ -1,89 +1,139 @@
 use super::*;
 
 impl DraftProxy {
-    pub(in crate::proxy) fn resolve_localization_graphql(
+    pub(crate) fn resolve_localization_graphql(
         &mut self,
-        context: RootResolverContext<'_>,
-    ) -> Response {
-        let RootResolverContext {
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let RootInvocation {
+            response_key,
             request,
             query,
             variables,
             root_name,
             mode,
             ..
-        } = context;
-        let fields = match self.root_fields_or_error(query, variables) {
-            Ok(fields) => fields,
-            Err(response) => return response,
-        };
-        match mode {
-            LocalResolverMode::OverlayRead => {
-                let localization_needs_upstream =
-                    self.localization_should_fetch_upstream(root_name);
-                let grouped_markets_need_upstream = fields.len() > 1
-                    && fields.iter().any(|field| field.name == "markets")
-                    && self.markets_should_fetch_upstream(&fields, variables);
-                let grouped_locale_catalog_needs_upstream = fields
-                    .iter()
-                    .any(|field| matches!(field.name.as_str(), "shopLocales" | "availableLocales"));
-                if self.config.read_mode == ReadMode::LiveHybrid
-                    && grouped_markets_need_upstream
-                    && (localization_needs_upstream || grouped_locale_catalog_needs_upstream)
-                {
-                    // One mixed localization/markets request hydrates both stores.
-                    // Render the local graph only when staged localization state
-                    // must overlay the authoritative response.
-                    let response = (self.upstream_transport)(request.clone());
-                    if response.status >= 400 || response.body.get("errors").is_some() {
-                        if localization_needs_upstream {
-                            return response;
-                        }
-                        // Markets and locale-catalog hydration is optional once
-                        // the requested localization resource is already known
-                        // locally. Preserve that staged answer without retrying
-                        // the failed upstream request through the markets field.
+        } = invocation;
+        let response = (|| -> Response {
+            let fields = match self.root_fields_or_error(query, variables) {
+                Ok(fields) => fields,
+                Err(response) => return response,
+            };
+            match mode {
+                LocalResolverMode::OverlayRead => {
+                    let localization_needs_upstream =
+                        self.localization_should_fetch_upstream(root_name);
+                    if self.request_localization_context_preflighted {
                         return ok_json(json!({
                             "data": self.localization_query_data_without_upstream_hydration(
                                 &fields, request
                             )
                         }));
                     }
-                    self.hydrate_markets_from_upstream_for_fields(&response.body, &fields);
-                    self.hydrate_localization_from_upstream(&response.body);
-                    if localization_needs_upstream {
+                    let grouped_markets_need_upstream = fields.len() > 1
+                        && fields.iter().any(|field| field.name == "markets")
+                        && self.markets_should_fetch_upstream(&fields, variables);
+                    let grouped_locale_catalog_needs_upstream = fields.iter().any(|field| {
+                        matches!(field.name.as_str(), "shopLocales" | "availableLocales")
+                    });
+                    if self.config.read_mode == ReadMode::LiveHybrid
+                        && grouped_markets_need_upstream
+                        && (localization_needs_upstream || grouped_locale_catalog_needs_upstream)
+                    {
+                        // One mixed localization/markets request hydrates both stores.
+                        // Render the local graph only when staged localization state
+                        // must overlay the authoritative response.
+                        let response = (self.upstream_transport)(request.clone());
+                        if response.status >= 400 || response.body.get("errors").is_some() {
+                            if localization_needs_upstream {
+                                return response;
+                            }
+                            // Markets and locale-catalog hydration is optional once
+                            // the requested localization resource is already known
+                            // locally. Preserve that staged answer without retrying
+                            // the failed upstream request through the markets field.
+                            return ok_json(json!({
+                                "data": self.localization_query_data_without_upstream_hydration(
+                                    &fields, request
+                                )
+                            }));
+                        }
+                        self.hydrate_markets_from_upstream_for_fields(&response.body, &fields);
+                        self.hydrate_localization_from_upstream(&response.body);
+                        if localization_needs_upstream {
+                            return response;
+                        }
+                        return ok_json(json!({
+                            "data": self.localization_query_data(&fields, request)
+                        }));
+                    }
+                    if self.config.read_mode == ReadMode::LiveHybrid && localization_needs_upstream
+                    {
+                        let response = (self.upstream_transport)(request.clone());
+                        if response.status < 400 {
+                            self.hydrate_localization_from_upstream(&response.body);
+                        }
                         return response;
                     }
-                    return ok_json(json!({
+                    ok_json(json!({
                         "data": self.localization_query_data(&fields, request)
-                    }));
+                    }))
                 }
-                if self.config.read_mode == ReadMode::LiveHybrid && localization_needs_upstream {
-                    let response = (self.upstream_transport)(request.clone());
-                    if response.status < 400 {
-                        self.hydrate_localization_from_upstream(&response.body);
-                    }
-                    return response;
+                LocalResolverMode::StageLocally => {
+                    self.localization_mutation_preflight(&fields, request);
+                    let data = self.localization_mutation_data(&fields);
+                    self.record_mutation_log_entry(
+                        request,
+                        query,
+                        variables,
+                        root_name,
+                        fields
+                            .iter()
+                            .map(|field| field.response_key.clone())
+                            .collect(),
+                    );
+                    ok_json(json!({ "data": data }))
                 }
-                ok_json(json!({
-                    "data": self.localization_query_data(&fields, request)
-                }))
             }
-            LocalResolverMode::StageLocally => {
-                self.localization_mutation_preflight(&fields, request);
-                let data = self.localization_mutation_data(&fields);
-                self.record_mutation_log_entry(
-                    request,
-                    query,
-                    variables,
-                    root_name,
-                    fields
-                        .iter()
-                        .map(|field| field.response_key.clone())
-                        .collect(),
-                );
-                ok_json(json!({ "data": data }))
+        })();
+        resolver_outcome_from_response(response, response_key)
+    }
+
+    pub(in crate::proxy) fn preflight_localization_markets_context(
+        &mut self,
+        request: &Request,
+        fields: &[RootFieldSelection],
+        use_original_request: bool,
+    ) {
+        self.request_localization_context_preflighted = true;
+        self.request_markets_query_preflighted = true;
+        if use_original_request {
+            let response = (self.upstream_transport)(request.clone());
+            if (200..300).contains(&response.status) && response.body.get("errors").is_none() {
+                self.hydrate_markets_from_upstream_for_fields(&response.body, fields);
+                self.hydrate_localization_from_upstream(&response.body);
             }
+            return;
+        }
+        let Some(field) = fields.iter().find(|field| field.name == "markets") else {
+            return;
+        };
+        let first = resolved_int_field(&field.arguments, "first")
+            .unwrap_or(50)
+            .max(0);
+        if first == 0 {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": "query LocalizationMarketsHydrate($first: Int!) { markets(first: $first) { nodes { id name handle status type } } }",
+                "operationName": "LocalizationMarketsHydrate",
+                "variables": { "first": first }
+            }),
+        );
+        if (200..300).contains(&response.status) && response.body.get("errors").is_none() {
+            self.stage_observed_localization_source_data(&response.body["data"]);
         }
     }
 

@@ -18,19 +18,20 @@ const MEDIA_PRODUCTS_HYDRATE_QUERY: &str = "query MediaProductHydrate($ids: [ID!
 const MEDIA_FILE_REFERENCES_HYDRATE_QUERY: &str = "query MediaFileReferencesHydrate($fileIds: [ID!]!) {\n  nodes(ids: $fileIds) {\n    id\n    __typename\n    ... on MediaImage {\n      alt\n      fileStatus\n      mediaContentType\n      status\n      preview { image { url width height } }\n      image { url width height }\n      references(first: 50) {\n        nodes {\n          ... on Product {\n            id\n            title\n            handle\n            status\n            media(first: 50) {\n              nodes {\n                id\n                __typename\n                alt\n                fileStatus\n                mediaContentType\n                status\n                preview { image { url width height } }\n                ... on MediaImage { image { url width height } }\n              }\n            }\n            variants(first: 50) {\n              nodes {\n                id\n                title\n                media(first: 10) { nodes { id alt mediaContentType } }\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}";
 
 impl DraftProxy {
-    pub(in crate::proxy) fn resolve_media_graphql(
+    pub(crate) fn resolve_media_graphql(
         &mut self,
-        context: RootResolverContext<'_>,
-    ) -> Response {
-        let RootResolverContext {
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let RootInvocation {
+            response_key,
             request,
             query,
             variables,
             root_name,
             mode,
             ..
-        } = context;
-        match mode {
+        } = invocation;
+        let response = match mode {
             LocalResolverMode::OverlayRead if root_name == "files" => {
                 self.media_files_read(request, query, variables)
             }
@@ -41,7 +42,8 @@ impl DraftProxy {
             LocalResolverMode::OverlayRead => {
                 Self::unimplemented_resolver_response(mode, root_name)
             }
-        }
+        };
+        resolver_outcome_from_response(response, response_key)
     }
 
     pub(in crate::proxy) fn media_mutation(
@@ -888,7 +890,10 @@ impl DraftProxy {
             .execution_root_fields(query, variables)
             .unwrap_or_default();
         if self.config.read_mode == ReadMode::LiveHybrid {
-            let mut response = (self.upstream_transport)(request.clone());
+            let mut response = self
+                .request_upstream_query_response
+                .clone()
+                .unwrap_or_else(|| (self.upstream_transport)(request.clone()));
             if (200..300).contains(&response.status) {
                 if response.body.get("errors").is_some() {
                     return response;
@@ -940,9 +945,21 @@ impl DraftProxy {
                     );
                 }
                 "fileSavedSearches" => {
+                    let arguments = field
+                        .arguments
+                        .iter()
+                        .map(|(name, value)| (name.clone(), resolved_value_json(value)))
+                        .collect();
                     data.insert(
                         field.response_key.clone(),
-                        self.saved_search_connection_field(field, &api_client_id),
+                        selected_json(
+                            &self.saved_search_connection_value(
+                                &field.name,
+                                &arguments,
+                                &api_client_id,
+                            ),
+                            &field.selection,
+                        ),
                     );
                 }
                 _ => continue,
@@ -990,10 +1007,10 @@ impl DraftProxy {
             let Some(record) = saved_search_record_from_node(&node, "FILE", api_client_id) else {
                 continue;
             };
-            if !self.store.staged.saved_searches.is_tombstoned(&record.id) {
+            if !self.store.saved_searches.staged.is_tombstoned(&record.id) {
                 self.store
-                    .base
                     .saved_searches
+                    .base
                     .insert(record.id.clone(), record);
             }
         }
@@ -1035,13 +1052,13 @@ impl DraftProxy {
             return;
         };
         if record.resource_type != "FILE"
-            || self.store.staged.saved_searches.is_tombstoned(&record.id)
+            || self.store.saved_searches.staged.is_tombstoned(&record.id)
         {
             return;
         }
         self.store
-            .base
             .saved_searches
+            .base
             .insert(record.id.clone(), record);
     }
 

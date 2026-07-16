@@ -8,19 +8,20 @@ use base64::Engine as _;
 const BULK_OPERATION_CURSORS_FIELD: &str = "__shopifyDraftProxyBulkOperationCursors";
 
 impl DraftProxy {
-    pub(in crate::proxy) fn resolve_bulk_operations_graphql(
+    pub(crate) fn resolve_bulk_operations_graphql(
         &mut self,
-        context: RootResolverContext<'_>,
-    ) -> Response {
-        let RootResolverContext {
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let RootInvocation {
+            response_key,
             request,
             query,
             variables,
             root_name,
             mode,
             ..
-        } = context;
-        match mode {
+        } = invocation;
+        let response = match mode {
             LocalResolverMode::OverlayRead => {
                 self.bulk_operation_read_response(request, query, variables, root_name)
             }
@@ -36,7 +37,8 @@ impl DraftProxy {
             LocalResolverMode::StageLocally => {
                 Self::unimplemented_resolver_response(mode, root_name)
             }
-        }
+        };
+        resolver_outcome_from_response(response, response_key)
     }
 }
 

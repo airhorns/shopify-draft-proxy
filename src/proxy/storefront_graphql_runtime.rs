@@ -9,9 +9,12 @@ use super::storefront::{
 };
 use super::*;
 use crate::admin_graphql::{
-    RootExecutionContext, RootFieldError, RootFieldExecutor, RootFieldInvocation, RootFieldResult,
+    FieldResolverInvocation, FieldResolverResult, RootExecutionContext, RootFieldError,
+    RootFieldExecutor, RootFieldInvocation, RootFieldResult,
 };
 use crate::graphql::ParsedOperation;
+use crate::resolver_registry::FieldResolverImplementation;
+use crate::resolver_registry::GraphqlApiVersion;
 use crate::storefront_graphql::{self, StorefrontApiVersion};
 use graphql_parser::query::{parse_query, Definition, OperationDefinition};
 use graphql_parser::Style;
@@ -50,6 +53,7 @@ struct StorefrontRootExecutor {
     original_request: Request,
     logged: std::sync::Mutex<bool>,
     passthrough_response: Arc<std::sync::Mutex<Option<Response>>>,
+    compatibility_root_values: Arc<std::sync::Mutex<BTreeMap<String, Value>>>,
 }
 
 impl StorefrontRootExecutor {
@@ -168,20 +172,47 @@ impl StorefrontRootExecutor {
             )
             .cloned()
             .ok_or_else(|| format!("Storefront root `{root_name}` has no local registration"))?;
-        proxy.engine_root_fields = Some(vec![call.field.clone()]);
-        let response = (registration.handler)(
+        let handler = registration.handler;
+        let outcome = handler(
             &mut proxy,
-            RootResolverContext {
+            RootInvocation {
+                api_surface: ApiSurface::Storefront,
+                api_version: GraphqlApiVersion::Storefront(self.version),
+                response_key,
+                root_name,
+                arguments,
                 request: &call.request,
                 query: &call.query,
                 variables: &call.variables,
                 operation: &call.operation,
-                root_name,
                 mode: LocalResolverMode::from_execution(registration.execution),
             },
         );
-        proxy.engine_root_fields = None;
-        Ok(storefront_root_result(response, response_key, root_name))
+        for draft in outcome.log_drafts {
+            proxy.record_mutation_log_draft(&call.request, &call.query, &call.variables, draft);
+        }
+        if matches!(
+            root_name,
+            "shop"
+                | "product"
+                | "productByHandle"
+                | "products"
+                | "metaobject"
+                | "metaobjects"
+                | "customer"
+        ) || STOREFRONT_CUSTOMER_AUTH_MUTATION_ROOTS.contains(&root_name)
+        {
+            self.compatibility_root_values
+                .lock()
+                .map_err(|_| {
+                    "Storefront GraphQL compatibility-value lock was poisoned".to_string()
+                })?
+                .insert(response_key.to_string(), outcome.value.clone());
+        }
+        Ok(RootFieldResult {
+            value: outcome.value,
+            errors: outcome.errors,
+        })
     }
 
     fn execute_passthrough_root(
@@ -262,6 +293,43 @@ impl RootFieldExecutor for StorefrontRootExecutor {
                 invocation.arguments,
             ),
             StorefrontExecutionMode::SnapshotMutation => Ok(RootFieldResult::default()),
+        }
+    }
+
+    fn execute_field(
+        &self,
+        invocation: FieldResolverInvocation<'_>,
+    ) -> Result<FieldResolverResult, String> {
+        let mut proxy = self
+            .proxy
+            .lock()
+            .map_err(|_| "Storefront GraphQL proxy state lock was poisoned".to_string())?;
+        let implementation = proxy.registry.field_implementation(
+            invocation.api_surface,
+            invocation.api_version,
+            &invocation.parent_type,
+            &invocation.field_name,
+        );
+        match implementation {
+            FieldResolverImplementation::PropertyBacked => Ok(FieldResolverResult::PropertyBacked),
+            FieldResolverImplementation::ExplicitFallbackToProperty(handler) => {
+                if invocation.parent.as_object().is_some_and(|parent| {
+                    parent.contains_key(&invocation.response_key)
+                        || parent.contains_key(&invocation.field_name)
+                }) {
+                    Ok(FieldResolverResult::PropertyBacked)
+                } else {
+                    handler(&mut proxy, &self.original_request, &invocation)
+                        .map(FieldResolverResult::Resolved)
+                }
+            }
+            FieldResolverImplementation::ExplicitAlways(handler) => {
+                handler(&mut proxy, &self.original_request, &invocation)
+                    .map(FieldResolverResult::Resolved)
+            }
+            FieldResolverImplementation::DeliberatelyUnsupported(reason) => Ok(
+                FieldResolverResult::DeliberatelyUnsupported(reason.to_string()),
+            ),
         }
     }
 }
@@ -455,6 +523,8 @@ impl DraftProxy {
             .unwrap_or_default();
         let passthrough_response = Arc::new(std::sync::Mutex::new(None));
         let passthrough_for_executor = Arc::clone(&passthrough_response);
+        let compatibility_root_values = Arc::new(std::sync::Mutex::new(BTreeMap::new()));
+        let compatibility_values_for_executor = Arc::clone(&compatibility_root_values);
         let engine_response = with_request_owned_proxy(self, move |shared_proxy| {
             let executor: Arc<dyn RootFieldExecutor> = Arc::new(StorefrontRootExecutor {
                 proxy: shared_proxy,
@@ -464,6 +534,7 @@ impl DraftProxy {
                 original_request: request.clone(),
                 logged: std::sync::Mutex::new(false),
                 passthrough_response: passthrough_for_executor,
+                compatibility_root_values: compatibility_values_for_executor,
             });
             let mut engine_request = async_graphql::Request::new(engine_query)
                 .variables(async_graphql::Variables::from_json(engine_variables))
@@ -503,19 +574,8 @@ impl DraftProxy {
             prepared.as_ref().map(|(document, _, _)| document),
             selected_query.as_deref().unwrap_or(&graphql_request.query),
         );
-        if mode == StorefrontExecutionMode::LocalRead {
-            if let Some((document, variables, _)) = prepared.as_ref() {
-                let context = storefront_request_context(
-                    selected_query.as_deref().unwrap_or(&graphql_request.query),
-                    variables,
-                );
-                let local_body = json!({
-                    "data": self.storefront_local_query_data(&document.root_fields, &context)
-                });
-                if storefront_errors_only_expand_null_local_values(&body, &local_body) {
-                    body = local_body;
-                }
-            }
+        if let Ok(values) = compatibility_root_values.lock() {
+            repair_nullable_object_list_engine_error(&mut body, &values);
         }
         ok_json(body)
     }
@@ -544,95 +604,35 @@ impl DraftProxy {
     }
 }
 
-fn storefront_errors_only_expand_null_local_values(
-    engine_body: &Value,
-    local_body: &Value,
-) -> bool {
-    let Some(errors) = engine_body.get("errors").and_then(Value::as_array) else {
-        return false;
+fn repair_nullable_object_list_engine_error(
+    body: &mut Value,
+    compatibility_values: &BTreeMap<String, Value>,
+) {
+    let Some(errors) = body.get_mut("errors").and_then(Value::as_array_mut) else {
+        return;
     };
-    !errors.is_empty()
-        && errors.iter().all(|error| {
-            if let Some(path) = error.get("path").and_then(Value::as_array) {
-                let message = error.get("message").and_then(Value::as_str);
-                if message.is_some_and(|message| {
-                    message.starts_with("Storefront snapshot has no value for non-null root")
-                        || message.starts_with("Local resolver did not implement")
-                }) && storefront_path_value(local_body.pointer("/data"), path)
-                    .is_some_and(|value| !value.is_null())
-                {
-                    return true;
-                }
-                return message.is_some_and(|message| {
-                    message.contains("invalid value for interface")
-                        || message.contains("\"null\" is not of the expected type")
-                }) && storefront_path_descends_through_local_null(
-                    local_body.pointer("/data"),
-                    path,
-                );
-            }
-            error
-                .get("message")
-                .and_then(Value::as_str)
-                .is_some_and(|message| message.contains("\"null\" is not of the expected type"))
-                && storefront_local_data_contains_null_list_item(local_body.pointer("/data"))
-        })
-}
-
-fn storefront_path_value<'a>(root: Option<&'a Value>, path: &[Value]) -> Option<&'a Value> {
-    let mut value = root?;
-    for segment in path {
-        value = match value {
-            Value::Object(fields) => fields.get(segment.as_str()?)?,
-            Value::Array(items) => items.get(segment.as_u64()? as usize)?,
-            _ => return None,
-        };
+    let original_len = errors.len();
+    errors.retain(|error| {
+        error.get("message").and_then(Value::as_str)
+            != Some(
+                "internal: \"null\" is not of the expected type \"shopify_draft_proxy::admin_graphql::JsonObject\"",
+            )
+    });
+    if errors.len() == original_len {
+        return;
     }
-    Some(value)
-}
-
-fn storefront_path_descends_through_local_null(root: Option<&Value>, path: &[Value]) -> bool {
-    let Some(mut value) = root else {
-        return false;
-    };
-    for (index, segment) in path.iter().enumerate() {
-        if value.is_null() {
-            return index < path.len();
-        }
-        match value {
-            Value::Object(fields) => {
-                let Some(field) = segment.as_str() else {
-                    return false;
-                };
-                let Some(next) = fields.get(field) else {
-                    return false;
-                };
-                value = next;
-            }
-            Value::Array(items) => {
-                let Some(index) = segment.as_u64().map(|index| index as usize) else {
-                    return false;
-                };
-                let Some(next) = items.get(index) else {
-                    return false;
-                };
-                value = next;
-            }
-            _ => return false,
+    let errors_empty = errors.is_empty();
+    let data = body
+        .as_object_mut()
+        .map(|body| body.entry("data").or_insert_with(|| json!({})))
+        .and_then(Value::as_object_mut);
+    if let Some(data) = data {
+        for (response_key, value) in compatibility_values {
+            data.insert(response_key.clone(), value.clone());
         }
     }
-    value.is_null()
-}
-
-fn storefront_local_data_contains_null_list_item(root: Option<&Value>) -> bool {
-    match root {
-        Some(Value::Array(items)) => items.iter().any(|item| {
-            item.is_null() || storefront_local_data_contains_null_list_item(Some(item))
-        }),
-        Some(Value::Object(fields)) => fields
-            .values()
-            .any(|value| storefront_local_data_contains_null_list_item(Some(value))),
-        _ => false,
+    if errors_empty {
+        body.as_object_mut().map(|body| body.remove("errors"));
     }
 }
 

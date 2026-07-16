@@ -67,6 +67,28 @@ impl DraftProxy {
         )
     }
 
+    pub(in crate::proxy) fn url_redirect_connection_value(
+        &self,
+        arguments: &BTreeMap<String, Value>,
+    ) -> Value {
+        let arguments = arguments
+            .iter()
+            .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
+            .collect();
+        let result = staged_connection_query(
+            self.url_redirect_records(),
+            &arguments,
+            url_redirect_search_decision,
+            url_redirect_sort_key,
+            value_id_cursor,
+        );
+        connection_json_with_cursor(
+            result.records,
+            |_, record| value_id_cursor(record),
+            result.page_info,
+        )
+    }
+
     pub(in crate::proxy) fn stage_url_redirect(&mut self, path: String, target: String) -> String {
         let id = self.next_proxy_synthetic_gid("UrlRedirect");
         let redirect = json!({

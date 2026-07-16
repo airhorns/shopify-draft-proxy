@@ -1,44 +1,64 @@
 use super::*;
 
+pub(in crate::proxy) fn event_field_resolver_registrations() -> Vec<FieldResolverRegistration> {
+    [
+        (
+            "Event",
+            &[
+                "action",
+                "appTitle",
+                "attributeToApp",
+                "attributeToUser",
+                "createdAt",
+                "criticalAlert",
+                "id",
+                "message",
+            ][..],
+        ),
+        ("EventConnection", &["edges", "nodes", "pageInfo"]),
+        ("EventEdge", &["cursor", "node"]),
+        ("Count", &["count", "precision"]),
+    ]
+    .into_iter()
+    .flat_map(|(parent_type, fields)| {
+        fields.iter().map(move |field| {
+            FieldResolverRegistration::property(ApiSurface::Admin, parent_type, field)
+        })
+    })
+    .collect()
+}
+
 impl DraftProxy {
-    pub(in crate::proxy) fn resolve_events_graphql(
+    pub(crate) fn resolve_events_graphql(
         &mut self,
-        context: RootResolverContext<'_>,
-    ) -> Response {
-        let RootResolverContext {
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let RootInvocation {
+            response_key,
             request,
-            query,
-            variables,
             root_name,
             mode,
             ..
-        } = context;
+        } = invocation;
         match mode {
             LocalResolverMode::OverlayRead => {
                 if self.config.read_mode == ReadMode::LiveHybrid {
-                    return (self.upstream_transport)(request.clone());
+                    return resolver_outcome_from_response(
+                        (self.upstream_transport)(request.clone()),
+                        response_key,
+                    );
                 }
-                let fields = match self.root_fields_or_error(query, variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
-                ok_json(json!({ "data": event_empty_read_data(&fields) }))
+                ResolverOutcome::value(match root_name {
+                    "event" => Value::Null,
+                    "events" => connection_json(Vec::new()),
+                    "eventsCount" => count_object(0),
+                    _ => Value::Null,
+                })
             }
-            LocalResolverMode::StageLocally => {
-                Self::unimplemented_resolver_response(mode, root_name)
-            }
+            LocalResolverMode::StageLocally => ResolverOutcome::error(format!(
+                "Events resolver `{root_name}` cannot execute in {} mode",
+                mode.registry_name(),
+            )),
         }
     }
-}
-
-pub(in crate::proxy) fn event_empty_read_data(fields: &[RootFieldSelection]) -> Value {
-    root_payload_json(fields, |field| match field.name.as_str() {
-        "event" => Some(Value::Null),
-        "events" => Some(selected_json(
-            &connection_json(Vec::new()),
-            &field.selection,
-        )),
-        "eventsCount" => Some(selected_count_json(0, &field.selection)),
-        _ => Some(Value::Null),
-    })
 }

@@ -2,44 +2,48 @@ use super::*;
 use std::sync::OnceLock;
 
 impl DraftProxy {
-    pub(in crate::proxy) fn resolve_metaobjects_graphql(
+    pub(crate) fn resolve_metaobjects_graphql(
         &mut self,
-        context: RootResolverContext<'_>,
-    ) -> Response {
-        let RootResolverContext {
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let RootInvocation {
+            response_key,
             request,
             query,
             variables,
             root_name: _,
             mode,
             ..
-        } = context;
-        match mode {
-            LocalResolverMode::OverlayRead => {
-                let fields = match self.root_fields_or_error(query, variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
-                if self.config.read_mode != ReadMode::Snapshot {
-                    self.metaobject_live_hybrid_read(request, &fields)
-                } else {
-                    ok_json(json!({ "data": self.metaobject_query_data(&fields, request) }))
+        } = invocation;
+        let response = (|| -> Response {
+            match mode {
+                LocalResolverMode::OverlayRead => {
+                    let fields = match self.root_fields_or_error(query, variables) {
+                        Ok(fields) => fields,
+                        Err(response) => return response,
+                    };
+                    if self.config.read_mode != ReadMode::Snapshot {
+                        self.metaobject_live_hybrid_read(request, &fields)
+                    } else {
+                        ok_json(json!({ "data": self.metaobject_query_data(&fields, request) }))
+                    }
+                }
+                LocalResolverMode::StageLocally => {
+                    let fields = match self.root_fields_or_error(query, variables) {
+                        Ok(fields) => fields,
+                        Err(response) => return response,
+                    };
+                    if self.metaobject_mutation_is_local(&fields) {
+                        self.metaobject_mutation(&fields, request, query, variables)
+                    } else {
+                        // Target lives upstream (seeded/live-captured): forward so the
+                        // real backend response is replayed instead of a synthetic one.
+                        (self.upstream_transport)(request.clone())
+                    }
                 }
             }
-            LocalResolverMode::StageLocally => {
-                let fields = match self.root_fields_or_error(query, variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
-                if self.metaobject_mutation_is_local(&fields) {
-                    self.metaobject_mutation(&fields, request, query, variables)
-                } else {
-                    // Target lives upstream (seeded/live-captured): forward so the
-                    // real backend response is replayed instead of a synthetic one.
-                    (self.upstream_transport)(request.clone())
-                }
-            }
-        }
+        })();
+        resolver_outcome_from_response(response, response_key)
     }
 }
 
@@ -3082,7 +3086,10 @@ impl DraftProxy {
         request: &Request,
         fields: &[RootFieldSelection],
     ) -> Response {
-        let mut response = (self.upstream_transport)(request.clone());
+        let mut response = self
+            .request_upstream_query_response
+            .clone()
+            .unwrap_or_else(|| (self.upstream_transport)(request.clone()));
         let Some(data) = response.body.get_mut("data").and_then(Value::as_object_mut) else {
             return response;
         };

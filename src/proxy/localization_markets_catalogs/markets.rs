@@ -1,145 +1,158 @@
 use super::*;
 
 impl DraftProxy {
-    pub(in crate::proxy) fn resolve_markets_graphql(
+    pub(crate) fn resolve_markets_graphql(
         &mut self,
-        context: RootResolverContext<'_>,
-    ) -> Response {
-        let RootResolverContext {
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let RootInvocation {
+            response_key,
             request,
             query,
             variables,
             operation,
             root_name,
             mode,
-        } = context;
-        let fields = match self.root_fields_or_error(query, variables) {
-            Ok(fields) => fields,
-            Err(response) => return response,
-        };
-        match mode {
-            LocalResolverMode::OverlayRead => {
-                // Cold LiveHybrid reads hydrate every selected markets family.
-                // Existing staged state is then rendered over that base graph.
-                if self.config.read_mode == ReadMode::LiveHybrid
-                    && self.markets_should_fetch_upstream(&fields, variables)
-                {
-                    let had_markets_overlay_state = self.has_markets_overlay_state();
-                    let response = (self.upstream_transport)(request.clone());
-                    if response.status < 400 {
-                        self.hydrate_markets_from_upstream_for_fields(&response.body, &fields);
-                        self.hydrate_localization_from_upstream(&response.body);
+            ..
+        } = invocation;
+        let response = (|| -> Response {
+            let fields = match self.root_fields_or_error(query, variables) {
+                Ok(fields) => fields,
+                Err(response) => return response,
+            };
+            match mode {
+                LocalResolverMode::OverlayRead => {
+                    // Cold LiveHybrid reads hydrate every selected markets family.
+                    // Existing staged state is then rendered over that base graph.
+                    if self.config.read_mode == ReadMode::LiveHybrid
+                        && (!self.request_markets_query_preflighted
+                            || self.request_upstream_query_response.is_some())
+                        && self.markets_should_fetch_upstream(&fields, variables)
+                    {
+                        let had_markets_overlay_state = self.has_markets_overlay_state();
+                        let response = self
+                            .request_upstream_query_response
+                            .clone()
+                            .unwrap_or_else(|| (self.upstream_transport)(request.clone()));
+                        if response.status < 400 {
+                            self.hydrate_markets_from_upstream_for_fields(&response.body, &fields);
+                            self.hydrate_localization_from_upstream(&response.body);
+                        }
+                        if !had_markets_overlay_state {
+                            return response;
+                        }
                     }
-                    if !had_markets_overlay_state {
+                    if operation
+                        .root_fields
+                        .iter()
+                        .all(|field| field == "webPresences")
+                    {
+                        return self.web_presence_helper_query(query, variables);
+                    }
+                    self.hydrate_markets_resolved_values_pricing_if_selected(request, &fields);
+                    let data = if operation.root_fields.iter().any(|field| {
+                        matches!(
+                            field.as_str(),
+                            "marketLocalizableResource"
+                                | "marketLocalizableResources"
+                                | "marketLocalizableResourcesByIds"
+                        )
+                    }) {
+                        self.market_localization_query_data(&fields, request)
+                    } else {
+                        self.markets_overlay_query_data(&fields)
+                    };
+                    ok_json(json!({ "data": data }))
+                }
+                LocalResolverMode::StageLocally => {
+                    self.hydrate_market_currency_defaults_if_needed(request, &fields);
+                    if let Some(response) = self.market_mutation_wrong_resource_response(&fields) {
                         return response;
                     }
+                    let data = if operation.root_fields.iter().all(|field| {
+                        matches!(
+                            field.as_str(),
+                            "marketLocalizationsRegister" | "marketLocalizationsRemove"
+                        )
+                    }) {
+                        self.market_localization_mutation_preflight(variables, request);
+                        self.market_localization_mutation_data(&fields)
+                    } else if operation.root_fields.iter().all(|field| {
+                        matches!(
+                            field.as_str(),
+                            "webPresenceCreate" | "webPresenceUpdate" | "webPresenceDelete"
+                        )
+                    }) {
+                        self.web_presence_mutation_preflight(variables, request);
+                        return self
+                            .web_presence_helper_mutation(root_name, query, variables, request);
+                    } else if operation
+                        .root_fields
+                        .iter()
+                        .all(|field| field == "quantityPricingByVariantUpdate")
+                    {
+                        self.quantity_pricing_rules_mutation_preflight(request, variables);
+                        return self.quantity_pricing_by_variant_update_response(
+                            query, variables, request,
+                        );
+                    } else if operation.root_fields.iter().all(|field| {
+                        matches!(field.as_str(), "quantityRulesAdd" | "quantityRulesDelete")
+                    }) {
+                        self.quantity_pricing_rules_mutation_preflight(request, variables);
+                        return self.quantity_rules_mutation_response(
+                            root_name, query, variables, request,
+                        );
+                    } else if operation.root_fields.iter().any(|field| {
+                        matches!(
+                            field.as_str(),
+                            "priceListCreate"
+                                | "priceListUpdate"
+                                | "priceListDelete"
+                                | "priceListFixedPricesByProductUpdate"
+                                | "priceListFixedPricesAdd"
+                                | "priceListFixedPricesUpdate"
+                                | "priceListFixedPricesDelete"
+                        )
+                    }) {
+                        return ok_json(
+                            self.price_list_mutation_data(&fields, request, query, variables),
+                        );
+                    } else if operation.root_fields.iter().any(|field| {
+                        matches!(
+                            field.as_str(),
+                            "catalogCreate"
+                                | "catalogUpdate"
+                                | "catalogDelete"
+                                | "catalogContextUpdate"
+                        )
+                    }) {
+                        self.catalog_mutation_data(&fields, request, query, variables)
+                    } else {
+                        self.market_mutation_target_preflight(&fields, request);
+                        self.market_create_mutation_data(&fields, request, query, variables)
+                    };
+                    if operation.root_fields.iter().all(|field| {
+                        matches!(
+                            field.as_str(),
+                            "marketLocalizationsRegister" | "marketLocalizationsRemove"
+                        )
+                    }) {
+                        self.record_mutation_log_entry(
+                            request,
+                            query,
+                            variables,
+                            root_name,
+                            fields
+                                .iter()
+                                .map(|field| field.response_key.clone())
+                                .collect(),
+                        );
+                    }
+                    ok_json(json!({ "data": data }))
                 }
-                if operation
-                    .root_fields
-                    .iter()
-                    .all(|field| field == "webPresences")
-                {
-                    return self.web_presence_helper_query(query, variables);
-                }
-                self.hydrate_markets_resolved_values_pricing_if_selected(request, &fields);
-                let data = if operation.root_fields.iter().any(|field| {
-                    matches!(
-                        field.as_str(),
-                        "marketLocalizableResource"
-                            | "marketLocalizableResources"
-                            | "marketLocalizableResourcesByIds"
-                    )
-                }) {
-                    self.market_localization_query_data(&fields, request)
-                } else {
-                    self.markets_overlay_query_data(&fields)
-                };
-                ok_json(json!({ "data": data }))
             }
-            LocalResolverMode::StageLocally => {
-                self.hydrate_market_currency_defaults_if_needed(request, &fields);
-                if let Some(response) = self.market_mutation_wrong_resource_response(&fields) {
-                    return response;
-                }
-                let data = if operation.root_fields.iter().all(|field| {
-                    matches!(
-                        field.as_str(),
-                        "marketLocalizationsRegister" | "marketLocalizationsRemove"
-                    )
-                }) {
-                    self.market_localization_mutation_preflight(variables, request);
-                    self.market_localization_mutation_data(&fields)
-                } else if operation.root_fields.iter().all(|field| {
-                    matches!(
-                        field.as_str(),
-                        "webPresenceCreate" | "webPresenceUpdate" | "webPresenceDelete"
-                    )
-                }) {
-                    self.web_presence_mutation_preflight(variables, request);
-                    return self.web_presence_helper_mutation(root_name, query, variables, request);
-                } else if operation
-                    .root_fields
-                    .iter()
-                    .all(|field| field == "quantityPricingByVariantUpdate")
-                {
-                    self.quantity_pricing_rules_mutation_preflight(request, variables);
-                    return self
-                        .quantity_pricing_by_variant_update_response(query, variables, request);
-                } else if operation.root_fields.iter().all(|field| {
-                    matches!(field.as_str(), "quantityRulesAdd" | "quantityRulesDelete")
-                }) {
-                    self.quantity_pricing_rules_mutation_preflight(request, variables);
-                    return self
-                        .quantity_rules_mutation_response(root_name, query, variables, request);
-                } else if operation.root_fields.iter().any(|field| {
-                    matches!(
-                        field.as_str(),
-                        "priceListCreate"
-                            | "priceListUpdate"
-                            | "priceListDelete"
-                            | "priceListFixedPricesByProductUpdate"
-                            | "priceListFixedPricesAdd"
-                            | "priceListFixedPricesUpdate"
-                            | "priceListFixedPricesDelete"
-                    )
-                }) {
-                    return ok_json(
-                        self.price_list_mutation_data(&fields, request, query, variables),
-                    );
-                } else if operation.root_fields.iter().any(|field| {
-                    matches!(
-                        field.as_str(),
-                        "catalogCreate"
-                            | "catalogUpdate"
-                            | "catalogDelete"
-                            | "catalogContextUpdate"
-                    )
-                }) {
-                    self.catalog_mutation_data(&fields, request, query, variables)
-                } else {
-                    self.market_mutation_target_preflight(&fields, request);
-                    self.market_create_mutation_data(&fields, request, query, variables)
-                };
-                if operation.root_fields.iter().all(|field| {
-                    matches!(
-                        field.as_str(),
-                        "marketLocalizationsRegister" | "marketLocalizationsRemove"
-                    )
-                }) {
-                    self.record_mutation_log_entry(
-                        request,
-                        query,
-                        variables,
-                        root_name,
-                        fields
-                            .iter()
-                            .map(|field| field.response_key.clone())
-                            .collect(),
-                    );
-                }
-                ok_json(json!({ "data": data }))
-            }
-        }
+        })();
+        resolver_outcome_from_response(response, response_key)
     }
 
     /// Unified Markets overlay read. A single GraphQL query can select several

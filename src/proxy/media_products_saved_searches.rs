@@ -32,7 +32,10 @@ fn gid_tail_sort_key(id: &str) -> StagedSortKey {
     }
 }
 
-fn product_staged_sort_key(product: &ProductRecord, sort_key: Option<&str>) -> StagedSortKey {
+pub(in crate::proxy) fn product_staged_sort_key(
+    product: &ProductRecord,
+    sort_key: Option<&str>,
+) -> StagedSortKey {
     let mut primary = match sort_key {
         None | Some("CREATED_AT") => vec![StagedSortValue::String(product.created_at.clone())],
         Some("TITLE") => vec![normalized_sort_string(&product.title)],
@@ -513,7 +516,7 @@ impl DraftProxy {
         products
     }
 
-    fn product_search_decision(
+    pub(in crate::proxy) fn product_search_decision(
         &self,
         product: &ProductRecord,
         query: Option<&str>,

@@ -9,34 +9,38 @@ mod search;
 pub(in crate::proxy) use self::online_store_helpers::*;
 
 impl DraftProxy {
-    pub(in crate::proxy) fn resolve_online_store_graphql(
+    pub(crate) fn resolve_online_store_graphql(
         &mut self,
-        context: RootResolverContext<'_>,
-    ) -> Response {
-        let RootResolverContext {
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let RootInvocation {
+            response_key,
             request,
             query,
             variables,
             root_name: _,
             mode,
             ..
-        } = context;
-        match mode {
-            LocalResolverMode::OverlayRead => {
-                let fields = match self.root_fields_or_error(query, variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
-                self.online_store_query_response(request, &fields)
+        } = invocation;
+        let response = (|| -> Response {
+            match mode {
+                LocalResolverMode::OverlayRead => {
+                    let fields = match self.root_fields_or_error(query, variables) {
+                        Ok(fields) => fields,
+                        Err(response) => return response,
+                    };
+                    self.online_store_query_response(request, &fields)
+                }
+                LocalResolverMode::StageLocally => {
+                    let fields = match self.root_fields_or_error(query, variables) {
+                        Ok(fields) => fields,
+                        Err(response) => return response,
+                    };
+                    self.online_store_mutation(&fields, request, query, variables)
+                }
             }
-            LocalResolverMode::StageLocally => {
-                let fields = match self.root_fields_or_error(query, variables) {
-                    Ok(fields) => fields,
-                    Err(response) => return response,
-                };
-                self.online_store_mutation(&fields, request, query, variables)
-            }
-        }
+        })();
+        resolver_outcome_from_response(response, response_key)
     }
 }
 

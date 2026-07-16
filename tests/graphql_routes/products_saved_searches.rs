@@ -14780,13 +14780,22 @@ fn product_change_status_rejects_invalid_status_without_staging() {
 
 #[test]
 fn admin_graphql_capability_classification_uses_implemented_registry_entries() {
-    // Implemented synthetic roots are now classified from the registry, but they still fail
-    // closed when no domain dispatcher match arm handles the concrete root. Unimplemented roots
-    // keep the passthrough fallback; in snapshot mode that surfaces as a 400 no-dispatcher error
-    // because there is no upstream transport.
+    // Implemented roots bind only to their directly declared executable owner.
+    // A custom registry can narrow support, but it cannot relabel a root into a
+    // different domain and recover the old domain-dispatch switch behavior.
+    let mismatched_owner = std::panic::catch_unwind(|| {
+        snapshot_proxy().with_registry(vec![registry_entry(
+            "urlRedirectCreate",
+            OperationType::Mutation,
+            true,
+        )])
+    });
+    assert!(mismatched_owner.is_err());
+
+    // Unimplemented roots keep the passthrough fallback; in snapshot mode that
+    // surfaces as a 400 no-dispatcher error because there is no upstream transport.
     let mut proxy = snapshot_proxy().with_registry(vec![
         registry_entry("productVariants", OperationType::Query, true),
-        registry_entry("urlRedirectCreate", OperationType::Mutation, true),
         registry_entry("urlRedirect", OperationType::Query, false),
     ]);
 
@@ -14799,17 +14808,6 @@ fn admin_graphql_capability_classification_uses_implemented_registry_entries() {
         &known_query,
         "productVariants",
         "No Rust overlay-read dispatcher implemented for root field: productVariants",
-    );
-
-    let known_mutation = proxy.process_request(graphql_request(
-        "POST",
-        r#"{"query":"mutation { urlRedirectCreate(urlRedirect: { path: \"/old\", target: \"/new\" }) { urlRedirect { id } userErrors { message } } }"}"#,
-    ));
-    assert_eq!(known_mutation.status, 501);
-    assert_engine_resolver_failure(
-        &known_mutation,
-        "urlRedirectCreate",
-        "No Rust stage-locally dispatcher implemented for root field: urlRedirectCreate",
     );
 
     let unimplemented = proxy.process_request(graphql_request(

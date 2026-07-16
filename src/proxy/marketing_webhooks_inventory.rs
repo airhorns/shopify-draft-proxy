@@ -9,43 +9,47 @@ mod webhook_helpers;
 pub(in crate::proxy) use self::inventory_helpers::*;
 
 impl DraftProxy {
-    pub(in crate::proxy) fn resolve_marketing_graphql(
+    pub(crate) fn resolve_marketing_graphql(
         &mut self,
-        context: RootResolverContext<'_>,
-    ) -> Response {
-        let RootResolverContext {
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let RootInvocation {
+            response_key,
             request,
             query,
             variables,
             root_name,
             mode,
             ..
-        } = context;
-        let fields = match self.root_fields_or_error(query, variables) {
-            Ok(fields) => fields,
-            Err(response) => return response,
-        };
-        match mode {
-            LocalResolverMode::OverlayRead => self.marketing_query_response(request, &fields),
-            LocalResolverMode::StageLocally => {
-                let response = self.marketing_mutation(&fields, request);
-                let staged_ids: Vec<String> = fields
-                    .iter()
-                    .filter_map(|field| {
-                        response.body["data"][field.response_key.as_str()]["marketingActivity"]
-                            ["id"]
-                            .as_str()
-                            .map(ToString::to_string)
-                    })
-                    .collect();
-                if !staged_ids.is_empty() {
-                    self.record_mutation_log_entry(
-                        request, query, variables, root_name, staged_ids,
-                    );
+        } = invocation;
+        let response = (|| -> Response {
+            let fields = match self.root_fields_or_error(query, variables) {
+                Ok(fields) => fields,
+                Err(response) => return response,
+            };
+            match mode {
+                LocalResolverMode::OverlayRead => self.marketing_query_response(request, &fields),
+                LocalResolverMode::StageLocally => {
+                    let response = self.marketing_mutation(&fields, request);
+                    let staged_ids: Vec<String> = fields
+                        .iter()
+                        .filter_map(|field| {
+                            response.body["data"][field.response_key.as_str()]["marketingActivity"]
+                                ["id"]
+                                .as_str()
+                                .map(ToString::to_string)
+                        })
+                        .collect();
+                    if !staged_ids.is_empty() {
+                        self.record_mutation_log_entry(
+                            request, query, variables, root_name, staged_ids,
+                        );
+                    }
+                    response
                 }
-                response
             }
-        }
+        })();
+        resolver_outcome_from_response(response, response_key)
     }
 }
 

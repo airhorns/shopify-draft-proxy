@@ -187,6 +187,33 @@ pub(in crate::proxy) fn connection_json(nodes: Vec<Value>) -> Value {
     )
 }
 
+/// Build a complete, selection-independent connection from typed records. The
+/// GraphQL engine projects `nodes`, `edges`, and `pageInfo`; domain code only
+/// supplies canonical node values and stable cursors.
+pub(in crate::proxy) fn typed_connection_value<T, NodeValue, Cursor>(
+    records: &[T],
+    node_value: NodeValue,
+    cursor: Cursor,
+    page_info: Value,
+) -> Value
+where
+    NodeValue: Fn(&T) -> Value,
+    Cursor: Fn(&T) -> String,
+{
+    let nodes = records.iter().map(&node_value).collect::<Vec<_>>();
+    let edges = records
+        .iter()
+        .zip(nodes.iter())
+        .map(|(record, node)| {
+            json!({
+                "cursor": cursor(record),
+                "node": node,
+            })
+        })
+        .collect::<Vec<_>>();
+    json!({ "nodes": nodes, "edges": edges, "pageInfo": page_info })
+}
+
 pub(in crate::proxy) fn selected_connection_json(
     nodes: Vec<Value>,
     selections: &[SelectedField],
@@ -195,9 +222,23 @@ pub(in crate::proxy) fn selected_connection_json(
 }
 
 pub(in crate::proxy) fn selected_connection_json_with_args<F>(
-    mut nodes: Vec<Value>,
+    nodes: Vec<Value>,
     arguments: &BTreeMap<String, ResolvedValue>,
     selections: &[SelectedField],
+    cursor_for: F,
+) -> Value
+where
+    F: FnMut(&Value) -> String,
+{
+    selected_json(
+        &connection_value_with_args(nodes, arguments, cursor_for),
+        selections,
+    )
+}
+
+pub(in crate::proxy) fn connection_value_with_args<F>(
+    mut nodes: Vec<Value>,
+    arguments: &BTreeMap<String, ResolvedValue>,
     mut cursor_for: F,
 ) -> Value
 where
@@ -207,10 +248,7 @@ where
         nodes.reverse();
     }
     let (nodes, page_info) = connection_window(&nodes, arguments, &mut cursor_for);
-    selected_json(
-        &connection_json_with_cursor(nodes, |_, node| cursor_for(node), page_info),
-        selections,
-    )
+    connection_json_with_cursor(nodes, |_, node| cursor_for(node), page_info)
 }
 
 pub(in crate::proxy) fn selected_empty_connection_json(selections: &[SelectedField]) -> Value {
@@ -388,6 +426,34 @@ where
         total_count,
         page_info,
     }
+}
+
+/// Canonical counterpart to `selected_staged_connection_with_args`. Filtering,
+/// sorting, reversing, and cursor windowing are shared, while output projection
+/// is left entirely to the GraphQL executor.
+pub(in crate::proxy) fn staged_connection_value_with_args<
+    T,
+    Predicate,
+    SortKey,
+    NodeValue,
+    Cursor,
+>(
+    records: Vec<T>,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    predicate: Predicate,
+    sort_key: SortKey,
+    node_value: NodeValue,
+    cursor: Cursor,
+) -> Value
+where
+    T: Clone,
+    Predicate: Fn(&T, Option<&str>) -> StagedSearchDecision,
+    SortKey: Fn(&T, Option<&str>) -> StagedSortKey,
+    NodeValue: Fn(&T) -> Value,
+    Cursor: Fn(&T) -> String + Copy,
+{
+    let result = staged_connection_query(records, arguments, predicate, sort_key, cursor);
+    typed_connection_value(&result.records, node_value, cursor, result.page_info)
 }
 
 pub(in crate::proxy) fn selected_staged_connection_with_args<
