@@ -4312,3 +4312,37 @@ Practical rule:
 - derive direct Node results from effective visible store state and preserve null/order semantics exactly
 - implement computable search grammar, filters, visibility, pagination, resource types, and limit allocation from store state, but use deterministic local relevance and suggestion terms instead of replaying captured rows
 - compare whole selected abstract resource payloads; scope unavoidable differences to synthetic IDs and opaque suggestion scalar values rather than hiding type, visibility, or payload-shape mismatches
+
+## 102. Storefront cart adjustments recalculate in a strict order and keep invalid inputs visible
+
+Authenticated Storefront GraphQL 2026-04 cart capture showed that discount code
+inputs are case-insensitive and duplicate codes collapse, but invalid input text
+is preserved in `discountCodes`. Expired, inapplicable, and unknown codes stay on
+the cart as `applicable: false` and emit distinct persistent warnings. Once the
+cart becomes empty, otherwise active codes switch to
+`DISCOUNT_CODE_NOT_HONOURED`; multiple codes can legitimately produce warnings
+with the same code and cart target, so warning deduplication must also consider
+the message.
+
+Cart-level `discountAllocations` are line allocations rather than one aggregate
+amount. A percentage code applied to two positive-value lines produces one
+allocation per line. Gift cards apply after those discounts, do not debit the
+Admin gift-card balance until checkout, and expose a hypothetical remaining
+balance on `AppliedGiftCard`. Invalid gift-card codes are ignored when another
+valid code applies, case-insensitive duplicates collapse, and remove/update can
+allocate a new opaque applied-gift-card ID.
+
+An invalid buyer customer token returns a cart user error while preserving the
+previous buyer identity. Cart metafield set is atomic for invalid typed values;
+missing deletes return `METAFIELD_DOES_NOT_EXIST`; and identifier-list reads omit
+missing cart metafields rather than returning null placeholders.
+
+Practical rule:
+
+- recalculate line subtotals, per-line discounts, gift-card application, and the
+  final cart total in that order
+- recompute code applicability and warnings from current cart/Admin state on
+  every later cart mutation or read
+- preserve the last valid buyer identity when a new token fails validation
+- keep cart metafields normalized and typed in cart state instead of reusing an
+  owner model that has different identifier-list null behavior

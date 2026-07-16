@@ -7,7 +7,14 @@
     "cartLinesUpdate",
     "cartLinesRemove",
     "cartAttributesUpdate",
-    "cartNoteUpdate"
+    "cartNoteUpdate",
+    "cartBuyerIdentityUpdate",
+    "cartDiscountCodesUpdate",
+    "cartGiftCardCodesAdd",
+    "cartGiftCardCodesRemove",
+    "cartGiftCardCodesUpdate",
+    "cartMetafieldsSet",
+    "cartMetafieldDelete"
   ],
   "scenarioStatus": "captured",
   "assertionKinds": [
@@ -143,8 +150,118 @@
       },
       {
         "path": "$.warnings[*].target",
-        "matcher": "shopify-gid:CartLine",
-        "reason": "Warnings target the proxy's deterministic synthetic CartLine ID."
+        "matcher": "regex:^gid://shopify/(?:Cart|CartLine)/.+$",
+        "reason": "Warnings target the proxy's deterministic synthetic Cart or CartLine ID."
+      },
+      {
+        "path": "$.cart.buyerIdentity.customer.id",
+        "matcher": "shopify-gid:Customer",
+        "reason": "The proxy buyer identity references the locally staged synthetic Customer."
+      },
+      {
+        "path": "$.buyerIdentity.customer.id",
+        "matcher": "shopify-gid:Customer",
+        "reason": "The proxy buyer identity references the locally staged synthetic Customer."
+      },
+      {
+        "path": "$.cart.discountCodes[*].code",
+        "matcher": "any-string",
+        "reason": "Live discount codes are redacted; proxy replay uses explicit safe placeholder codes."
+      },
+      {
+        "path": "$.discountCodes[*].code",
+        "matcher": "any-string",
+        "reason": "Live discount codes are redacted; proxy replay uses explicit safe placeholder codes."
+      },
+      {
+        "path": "$.cart.discountAllocations[*].code",
+        "matcher": "any-string",
+        "reason": "Live discount codes are redacted; proxy replay uses explicit safe placeholder codes."
+      },
+      {
+        "path": "$.discountAllocations[*].code",
+        "matcher": "any-string",
+        "reason": "Live discount codes are redacted; proxy replay uses explicit safe placeholder codes."
+      },
+      {
+        "path": "$.cart.appliedGiftCards[*].id",
+        "matcher": "regex:^gid://shopify/AppliedGiftCard/.+$",
+        "reason": "The proxy allocates a deterministic synthetic applied-gift-card ID."
+      },
+      {
+        "path": "$.appliedGiftCards[*].id",
+        "matcher": "regex:^gid://shopify/AppliedGiftCard/.+$",
+        "reason": "The proxy allocates a deterministic synthetic applied-gift-card ID."
+      },
+      {
+        "path": "$.cart.appliedGiftCards[*].lastCharacters",
+        "matcher": "any-string",
+        "reason": "Live gift-card suffixes are redacted; proxy replay derives the safe placeholder suffix."
+      },
+      {
+        "path": "$.appliedGiftCards[*].lastCharacters",
+        "matcher": "any-string",
+        "reason": "Live gift-card suffixes are redacted; proxy replay derives the safe placeholder suffix."
+      },
+      {
+        "path": "$.cart.metafield.id",
+        "matcher": "shopify-gid:Metafield",
+        "reason": "The proxy allocates a deterministic synthetic cart Metafield ID."
+      },
+      {
+        "path": "$.cart.metafields[*].id",
+        "matcher": "shopify-gid:Metafield",
+        "reason": "The proxy allocates deterministic synthetic cart Metafield IDs."
+      },
+      {
+        "path": "$.metafield.id",
+        "matcher": "shopify-gid:Metafield",
+        "reason": "The proxy allocates a deterministic synthetic cart Metafield ID."
+      },
+      {
+        "path": "$.metafields[*].id",
+        "matcher": "shopify-gid:Metafield",
+        "reason": "The proxy allocates deterministic synthetic cart Metafield IDs."
+      },
+      {
+        "path": "$.cart.metafield.createdAt",
+        "matcher": "iso-timestamp",
+        "reason": "The proxy uses its injected runtime clock for cart metafield timestamps."
+      },
+      {
+        "path": "$.cart.metafield.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "The proxy uses its injected runtime clock for cart metafield timestamps."
+      },
+      {
+        "path": "$.cart.metafields[*].createdAt",
+        "matcher": "iso-timestamp",
+        "reason": "The proxy uses its injected runtime clock for cart metafield timestamps."
+      },
+      {
+        "path": "$.cart.metafields[*].updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "The proxy uses its injected runtime clock for cart metafield timestamps."
+      },
+      {
+        "path": "$.metafields[*].createdAt",
+        "matcher": "iso-timestamp",
+        "reason": "The proxy uses its injected runtime clock for cart metafield timestamps."
+      },
+      {
+        "path": "$.metafields[*].updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "The proxy uses its injected runtime clock for cart metafield timestamps."
+      },
+      {
+        "path": "$.metafield.createdAt",
+        "matcher": "iso-timestamp",
+        "reason": "The proxy uses its injected runtime clock for cart metafield timestamps."
+      },
+      {
+        "path": "$.metafield.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "The proxy uses its injected runtime clock for cart metafield timestamps."
       },
       {
         "path": "$.userErrors[*].message",
@@ -295,6 +412,193 @@
         ]
       },
       {
+        "name": "admin-active-discount-stages-cart-code",
+        "capturePath": "$.adminDiscountCreate.response.body.data.discountCodeBasicCreate",
+        "proxyPath": "$.data.discountCodeBasicCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-cart-discount-create-admin.graphql",
+          "variables": {
+            "input": { "fromCapturePath": "$.adminDiscountCreate.variables.input" }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.codeDiscountNode.id",
+            "matcher": "shopify-gid:DiscountCodeNode",
+            "reason": "The proxy stages a synthetic discount node ID."
+          },
+          {
+            "path": "$.codeDiscountNode.codeDiscount.codes.nodes[*].id",
+            "matcher": "shopify-gid:DiscountRedeemCode",
+            "reason": "The proxy stages a synthetic discount redeem-code ID."
+          },
+          {
+            "path": "$.codeDiscountNode.codeDiscount.startsAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify normalizes the live timestamp while the proxy preserves an equivalent ISO timestamp."
+          }
+        ]
+      },
+      {
+        "name": "admin-expired-discount-stages-cart-code",
+        "capturePath": "$.adminExpiredDiscountCreate.response.body.data.discountCodeBasicCreate",
+        "proxyPath": "$.data.discountCodeBasicCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-cart-discount-create-admin.graphql",
+          "variables": {
+            "input": { "fromCapturePath": "$.adminExpiredDiscountCreate.variables.input" }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.codeDiscountNode.id",
+            "matcher": "shopify-gid:DiscountCodeNode",
+            "reason": "The proxy stages a synthetic discount node ID."
+          },
+          {
+            "path": "$.codeDiscountNode.codeDiscount.codes.nodes[*].id",
+            "matcher": "shopify-gid:DiscountRedeemCode",
+            "reason": "The proxy stages a synthetic discount redeem-code ID."
+          },
+          {
+            "path": "$.codeDiscountNode.codeDiscount.startsAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify normalizes the live timestamp while the proxy preserves an equivalent ISO timestamp."
+          },
+          {
+            "path": "$.codeDiscountNode.codeDiscount.endsAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify normalizes the live timestamp while the proxy preserves an equivalent ISO timestamp."
+          }
+        ]
+      },
+      {
+        "name": "admin-inapplicable-discount-stages-cart-code",
+        "capturePath": "$.adminInapplicableDiscountCreate.response.body.data.discountCodeBasicCreate",
+        "proxyPath": "$.data.discountCodeBasicCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-cart-discount-create-admin.graphql",
+          "variables": {
+            "input": { "fromCapturePath": "$.adminInapplicableDiscountCreate.variables.input" }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.codeDiscountNode.id",
+            "matcher": "shopify-gid:DiscountCodeNode",
+            "reason": "The proxy stages a synthetic discount node ID."
+          },
+          {
+            "path": "$.codeDiscountNode.codeDiscount.codes.nodes[*].id",
+            "matcher": "shopify-gid:DiscountRedeemCode",
+            "reason": "The proxy stages a synthetic discount redeem-code ID."
+          },
+          {
+            "path": "$.codeDiscountNode.codeDiscount.startsAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify normalizes the live timestamp while the proxy preserves an equivalent ISO timestamp."
+          }
+        ]
+      },
+      {
+        "name": "admin-gift-card-stages-cart-balance",
+        "capturePath": "$.adminGiftCardCreate.response.body.data.giftCardCreate",
+        "proxyPath": "$.data.giftCardCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-cart-gift-card-create-admin.graphql",
+          "variables": {
+            "input": {
+              "initialValue": { "fromCapturePath": "$.adminGiftCardCreate.variables.input.initialValue" },
+              "code": "proxycartgift123",
+              "note": { "fromCapturePath": "$.adminGiftCardCreate.variables.input.note" }
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.giftCard.id",
+            "matcher": "shopify-gid:GiftCard",
+            "reason": "The proxy stages a synthetic GiftCard ID."
+          },
+          {
+            "path": "$.giftCard.lastCharacters",
+            "matcher": "any-string",
+            "reason": "The live gift-card suffix is redacted; the proxy derives the safe placeholder suffix."
+          },
+          {
+            "path": "$.giftCard.maskedCode",
+            "matcher": "any-string",
+            "reason": "The live masked gift-card code is redacted; the proxy masks the safe placeholder code."
+          },
+          {
+            "path": "$.giftCardCode",
+            "matcher": "any-string",
+            "reason": "The live gift-card code is redacted; the proxy returns the safe placeholder code."
+          }
+        ]
+      },
+      {
+        "name": "storefront-customer-create-stages-cart-buyer",
+        "capturePath": "$.storefrontCustomerCreate.response.body.data.customerCreate",
+        "proxyPath": "$.data.customerCreate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-auth-create.graphql",
+          "operationName": "StorefrontCustomerAuthCreate",
+          "variables": {
+            "input": { "fromCapturePath": "$.storefrontCustomerCreate.variables.input" }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.customer.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The proxy stages a synthetic Customer ID."
+          },
+          {
+            "path": "$.customer.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its injected runtime clock."
+          },
+          {
+            "path": "$.customer.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its injected runtime clock."
+          }
+        ]
+      },
+      {
+        "name": "storefront-customer-token-stages-cart-buyer-context",
+        "capturePath": "$.storefrontCustomerTokenCreate.response.body.data.customerAccessTokenCreate",
+        "proxyPath": "$.data.customerAccessTokenCreate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-auth-token-create.graphql",
+          "operationName": "StorefrontCustomerAuthTokenCreate",
+          "variables": {
+            "input": { "fromCapturePath": "$.storefrontCustomerTokenCreate.variables.input" }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.customerAccessToken.accessToken",
+            "matcher": "storefront-access-token",
+            "reason": "The live customer token is redacted; proxy replay issues its own deterministic secret-safe token."
+          },
+          {
+            "path": "$.customerAccessToken.expiresAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy derives expiry from its injected runtime clock."
+          }
+        ]
+      },
+      {
         "name": "cart-create-whole-payload",
         "capturePath": "$.cartCreate.response.body.data.cartCreate",
         "proxyPath": "$.data.cartCreate",
@@ -306,6 +610,7 @@
             "input": {
               "attributes": { "fromCapturePath": "$.cartCreate.variables.input.attributes" },
               "note": { "fromCapturePath": "$.cartCreate.variables.input.note" },
+              "buyerIdentity": { "fromCapturePath": "$.cartCreate.variables.input.buyerIdentity" },
               "lines": [
                 {
                   "merchandiseId": {
@@ -324,6 +629,286 @@
       {
         "name": "cart-read-after-create-whole-resource",
         "capturePath": "$.cartReadAfterCreate.response.body.data.cart",
+        "proxyPath": "$.data.cart",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-read.graphql",
+          "variables": {
+            "id": { "fromProxyResponse": "cart-create-whole-payload", "path": "$.data.cartCreate.cart.id" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-buyer-identity-valid-customer-context",
+        "capturePath": "$.cartBuyerIdentityUpdate.response.body.data.cartBuyerIdentityUpdate",
+        "proxyPath": "$.data.cartBuyerIdentityUpdate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-buyer-identity-update.graphql",
+          "operationName": "StorefrontCartBuyerIdentityUpdate",
+          "variables": {
+            "cartId": {
+              "fromProxyResponse": "cart-create-whole-payload",
+              "path": "$.data.cartCreate.cart.id"
+            },
+            "buyerIdentity": {
+              "countryCode": {
+                "fromCapturePath": "$.cartBuyerIdentityUpdate.variables.buyerIdentity.countryCode"
+              },
+              "email": { "fromCapturePath": "$.cartBuyerIdentityUpdate.variables.buyerIdentity.email" },
+              "phone": { "fromCapturePath": "$.cartBuyerIdentityUpdate.variables.buyerIdentity.phone" },
+              "customerAccessToken": {
+                "fromProxyResponse": "storefront-customer-token-stages-cart-buyer-context",
+                "path": "$.data.customerAccessTokenCreate.customerAccessToken.accessToken"
+              }
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-buyer-identity-invalid-token-preserves-existing-identity",
+        "capturePath": "$.cartBuyerIdentityUpdateInvalidToken.response.body.data.cartBuyerIdentityUpdate",
+        "proxyPath": "$.data.cartBuyerIdentityUpdate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-buyer-identity-update.graphql",
+          "operationName": "StorefrontCartBuyerIdentityUpdate",
+          "variables": {
+            "cartId": {
+              "fromProxyResponse": "cart-create-whole-payload",
+              "path": "$.data.cartCreate.cart.id"
+            },
+            "buyerIdentity": {
+              "fromCapturePath": "$.cartBuyerIdentityUpdateInvalidToken.variables.buyerIdentity"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-discount-valid-code-recalculates-cost",
+        "capturePath": "$.cartDiscountCodesUpdateValid.response.body.data.cartDiscountCodesUpdate",
+        "proxyPath": "$.data.cartDiscountCodesUpdate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-discount-codes-update.graphql",
+          "operationName": "StorefrontCartDiscountCodesUpdate",
+          "variables": {
+            "cartId": {
+              "fromProxyResponse": "cart-create-whole-payload",
+              "path": "$.data.cartCreate.cart.id"
+            },
+            "discountCodes": { "fromCapturePath": "$.cartDiscountCodesUpdateValid.variables.discountCodes" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-discount-normalization-expired-inapplicable-and-invalid-warnings",
+        "capturePath": "$.cartDiscountCodesUpdateMixed.response.body.data.cartDiscountCodesUpdate",
+        "proxyPath": "$.data.cartDiscountCodesUpdate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-discount-codes-update.graphql",
+          "operationName": "StorefrontCartDiscountCodesUpdate",
+          "variables": {
+            "cartId": {
+              "fromProxyResponse": "cart-create-whole-payload",
+              "path": "$.data.cartCreate.cart.id"
+            },
+            "discountCodes": { "fromCapturePath": "$.cartDiscountCodesUpdateMixed.variables.discountCodes" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-gift-card-add-applies-balance-after-discount",
+        "capturePath": "$.cartGiftCardCodesAdd.response.body.data.cartGiftCardCodesAdd",
+        "proxyPath": "$.data.cartGiftCardCodesAdd",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-gift-card-codes-add.graphql",
+          "operationName": "StorefrontCartGiftCardCodesAdd",
+          "variables": {
+            "cartId": {
+              "fromProxyResponse": "cart-create-whole-payload",
+              "path": "$.data.cartCreate.cart.id"
+            },
+            "giftCardCodes": ["proxycartgift123", "NOT-A-REAL-GIFT-CARD"]
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-gift-card-remove-restores-discounted-total",
+        "capturePath": "$.cartGiftCardCodesRemove.response.body.data.cartGiftCardCodesRemove",
+        "proxyPath": "$.data.cartGiftCardCodesRemove",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-gift-card-codes-remove.graphql",
+          "operationName": "StorefrontCartGiftCardCodesRemove",
+          "variables": {
+            "cartId": {
+              "fromProxyResponse": "cart-create-whole-payload",
+              "path": "$.data.cartCreate.cart.id"
+            },
+            "appliedGiftCardIds": [
+              {
+                "fromProxyResponse": "cart-gift-card-add-applies-balance-after-discount",
+                "path": "$.data.cartGiftCardCodesAdd.cart.appliedGiftCards[0].id"
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-gift-card-update-collapses-case-insensitive-duplicates",
+        "capturePath": "$.cartGiftCardCodesUpdate.response.body.data.cartGiftCardCodesUpdate",
+        "proxyPath": "$.data.cartGiftCardCodesUpdate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-gift-card-codes-update.graphql",
+          "operationName": "StorefrontCartGiftCardCodesUpdate",
+          "variables": {
+            "cartId": {
+              "fromProxyResponse": "cart-create-whole-payload",
+              "path": "$.data.cartCreate.cart.id"
+            },
+            "giftCardCodes": ["PROXYCARTGIFT123", "proxycartgift123"]
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-metafields-set-whole-payload",
+        "capturePath": "$.cartMetafieldsSet.response.body.data.cartMetafieldsSet",
+        "proxyPath": "$.data.cartMetafieldsSet",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-metafields-set.graphql",
+          "operationName": "StorefrontCartMetafieldsSet",
+          "variables": {
+            "metafields": [
+              {
+                "ownerId": {
+                  "fromProxyResponse": "cart-create-whole-payload",
+                  "path": "$.data.cartCreate.cart.id"
+                },
+                "key": { "fromCapturePath": "$.cartMetafieldsSet.variables.metafields[0].key" },
+                "type": { "fromCapturePath": "$.cartMetafieldsSet.variables.metafields[0].type" },
+                "value": { "fromCapturePath": "$.cartMetafieldsSet.variables.metafields[0].value" }
+              },
+              {
+                "ownerId": {
+                  "fromProxyResponse": "cart-create-whole-payload",
+                  "path": "$.data.cartCreate.cart.id"
+                },
+                "key": { "fromCapturePath": "$.cartMetafieldsSet.variables.metafields[1].key" },
+                "type": { "fromCapturePath": "$.cartMetafieldsSet.variables.metafields[1].type" },
+                "value": { "fromCapturePath": "$.cartMetafieldsSet.variables.metafields[1].value" }
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metafields[*].parentResource.id",
+            "matcher": "shopify-gid:Cart",
+            "reason": "The proxy cart metafields reference the synthetic Cart ID."
+          }
+        ]
+      },
+      {
+        "name": "cart-metafields-invalid-integer-is-atomic",
+        "capturePath": "$.cartMetafieldsSetInvalidValue.response.body.data.cartMetafieldsSet",
+        "proxyPath": "$.data.cartMetafieldsSet",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-metafields-set.graphql",
+          "operationName": "StorefrontCartMetafieldsSet",
+          "variables": {
+            "metafields": [
+              {
+                "ownerId": {
+                  "fromProxyResponse": "cart-create-whole-payload",
+                  "path": "$.data.cartCreate.cart.id"
+                },
+                "key": { "fromCapturePath": "$.cartMetafieldsSetInvalidValue.variables.metafields[0].key" },
+                "type": { "fromCapturePath": "$.cartMetafieldsSetInvalidValue.variables.metafields[0].type" },
+                "value": { "fromCapturePath": "$.cartMetafieldsSetInvalidValue.variables.metafields[0].value" }
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-read-after-adjustments-whole-resource",
+        "capturePath": "$.cartReadAfterAdjustments.response.body.data.cart",
+        "proxyPath": "$.data.cart",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-read.graphql",
+          "variables": {
+            "id": { "fromProxyResponse": "cart-create-whole-payload", "path": "$.data.cartCreate.cart.id" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-metafield-delete-existing",
+        "capturePath": "$.cartMetafieldDelete.response.body.data.cartMetafieldDelete",
+        "proxyPath": "$.data.cartMetafieldDelete",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-metafield-delete.graphql",
+          "operationName": "StorefrontCartMetafieldDelete",
+          "variables": {
+            "input": {
+              "ownerId": {
+                "fromProxyResponse": "cart-create-whole-payload",
+                "path": "$.data.cartCreate.cart.id"
+              },
+              "key": { "fromCapturePath": "$.cartMetafieldDelete.variables.input.key" }
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deletedId",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy deletes its synthetic cart Metafield ID."
+          }
+        ]
+      },
+      {
+        "name": "cart-metafield-delete-missing-user-error",
+        "capturePath": "$.cartMetafieldDeleteMissing.response.body.data.cartMetafieldDelete",
+        "proxyPath": "$.data.cartMetafieldDelete",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-metafield-delete.graphql",
+          "operationName": "StorefrontCartMetafieldDelete",
+          "variables": {
+            "input": {
+              "ownerId": {
+                "fromProxyResponse": "cart-create-whole-payload",
+                "path": "$.data.cartCreate.cart.id"
+              },
+              "key": { "fromCapturePath": "$.cartMetafieldDeleteMissing.variables.input.key" }
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-read-after-metafield-delete-whole-resource",
+        "capturePath": "$.cartReadAfterMetafieldDelete.response.body.data.cart",
         "proxyPath": "$.data.cart",
         "proxyRequest": {
           "apiSurface": "storefront",
@@ -700,5 +1285,5 @@
       }
     ]
   },
-  "notes": "Live 2026-04 Storefront evidence creates disposable catalog merchandise and a real cart, waits for inventory availability, exercises the full scoped lifecycle and captured error/warning branches, deletes the product during cleanup, and consistently redacts live cart GID/checkout tokens and keys. Proxy replay stages all scoped cart writes locally from shared product, variant, inventory, publication, and money state. Checkout, delivery, discounts, gift cards, buyer/customer identity, and completion remain deferred."
+  "notes": "Live 2026-04 Storefront evidence creates disposable catalog merchandise, discounts, a gift card, a customer, and a real cart; exercises cart core plus buyer identity, discount, gift-card, metafield, recalculation, warning, and error branches; and cleans up every Admin resource. Cart secrets, discount and gift-card codes, gift-card suffixes, passwords, and customer tokens are consistently redacted. Proxy replay stages every scoped write locally from shared product, inventory, publication, money, discount, gift-card, customer, market-context, and metafield semantics. Checkout, payment capture, and order creation remain intentionally unsupported."
 }

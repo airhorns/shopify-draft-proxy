@@ -1893,7 +1893,7 @@ impl DraftProxy {
         delta
     }
 
-    fn effective_discount_status(&self, record: &Value) -> &'static str {
+    pub(in crate::proxy) fn effective_discount_status(&self, record: &Value) -> &'static str {
         let starts_at = record
             .get("startsAt")
             .and_then(Value::as_str)
@@ -2221,7 +2221,7 @@ impl DraftProxy {
         effective_get(&self.store.base.discounts, &self.store.staged.discounts, id)
     }
 
-    fn discount_record_by_code(&self, code: &str) -> Option<&Value> {
+    pub(in crate::proxy) fn discount_record_by_code(&self, code: &str) -> Option<&Value> {
         let normalized = code.to_ascii_uppercase();
         if let Some(id) = self.store.staged.discount_code_index.get(&normalized) {
             return self.discount_record(id);

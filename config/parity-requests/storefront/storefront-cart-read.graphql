@@ -15,6 +15,87 @@ fragment StorefrontCartFields on Cart {
     key
     value
   }
+  buyerIdentity {
+    countryCode
+    email
+    phone
+    customer {
+      id
+      email
+      firstName
+      lastName
+      displayName
+    }
+    purchasingCompany {
+      company {
+        id
+        name
+      }
+      location {
+        id
+        name
+      }
+    }
+  }
+  discountCodes {
+    code
+    applicable
+  }
+  discountAllocations {
+    __typename
+    discountedAmount {
+      amount
+      currencyCode
+    }
+    targetType
+    ... on CartCodeDiscountAllocation {
+      code
+    }
+    ... on CartAutomaticDiscountAllocation {
+      title
+    }
+    ... on CartCustomDiscountAllocation {
+      title
+    }
+  }
+  appliedGiftCards {
+    id
+    lastCharacters
+    amountUsed {
+      amount
+      currencyCode
+    }
+    presentmentAmountUsed {
+      amount
+      currencyCode
+    }
+    balance {
+      amount
+      currencyCode
+    }
+  }
+  metafield(namespace: "custom", key: "note") {
+    id
+    namespace
+    key
+    value
+    type
+    list
+    createdAt
+    updatedAt
+  }
+  metafields(
+    identifiers: [{ namespace: "custom", key: "note" }, { namespace: "custom", key: "count" }]
+  ) {
+    id
+    namespace
+    key
+    value
+    type
+    list
+    createdAt
+    updatedAt
+  }
   lines(first: 50) {
     edges {
       cursor

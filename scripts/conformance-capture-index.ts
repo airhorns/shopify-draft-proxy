@@ -7067,10 +7067,13 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-storefront-cart-conformance.mts',
     purpose:
-      'Authenticated Storefront cart lifecycle evidence for cart creation, reads, lines, attributes, notes, totals, warnings, limits, and stale or missing resource branches.',
+      'Authenticated Storefront cart lifecycle evidence for cart creation, reads, lines, attributes, notes, buyer identity, discounts, gift cards, cart metafields, totals, warnings, limits, and stale or missing resource branches.',
     requiredAuthScopes: [
       'read_products and write_products for disposable Admin catalog setup and cleanup',
       'read_inventory and write_inventory for available quantity setup',
+      'read_discounts and write_discounts for disposable code-discount setup and cleanup',
+      'read_gift_cards and write_gift_cards for disposable gift-card setup and deactivation',
+      'read_customers and write_customers for disposable buyer setup and cleanup',
       'stored Storefront access token with unauthenticated_read_checkouts and unauthenticated_write_checkouts',
     ],
     fixtureOutputs: [
@@ -7083,12 +7086,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/storefront/storefront-cart-lines-remove.graphql',
       'config/parity-requests/storefront/storefront-cart-attributes-update.graphql',
       'config/parity-requests/storefront/storefront-cart-note-update.graphql',
+      'config/parity-requests/storefront/storefront-cart-buyer-identity-update.graphql',
+      'config/parity-requests/storefront/storefront-cart-discount-codes-update.graphql',
+      'config/parity-requests/storefront/storefront-cart-gift-card-codes-add.graphql',
+      'config/parity-requests/storefront/storefront-cart-gift-card-codes-remove.graphql',
+      'config/parity-requests/storefront/storefront-cart-gift-card-codes-update.graphql',
+      'config/parity-requests/storefront/storefront-cart-metafields-set.graphql',
+      'config/parity-requests/storefront/storefront-cart-metafield-delete.graphql',
+      'config/parity-requests/storefront/storefront-cart-discount-create-admin.graphql',
+      'config/parity-requests/storefront/storefront-cart-discount-delete-admin.graphql',
+      'config/parity-requests/storefront/storefront-cart-gift-card-create-admin.graphql',
+      'config/parity-requests/storefront/storefront-cart-gift-card-deactivate-admin.graphql',
     ],
     cleanupBehavior:
-      'Creates one disposable active product with inventory, one disposable location for public-surface proxy replay, and one or more real Storefront carts. Deletes the product and location during cleanup; Storefront has no cart deletion mutation, so live cart tokens and keys are redacted and discarded.',
+      'Creates one disposable active product with inventory, one disposable location, three code discounts, one gift card, one customer, and real Storefront carts. Deletes the product, location, discounts, and customer and deactivates the gift card during cleanup; Storefront has no cart deletion mutation, so live cart tokens and keys are redacted and discarded.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
-      'Every cart request uses the exact checked-in Storefront document. The recorder sends real variables live, then consistently redacts the opaque Cart GID token/key and checkout URL token/key before writing the fixture.',
+      'Every cart request uses the exact checked-in Storefront document. The recorder sends real variables live, then consistently redacts opaque cart secrets, discount and gift-card codes, gift-card suffixes, passwords, and customer access tokens before writing the fixture.',
   },
   {
     domain: 'storefront',

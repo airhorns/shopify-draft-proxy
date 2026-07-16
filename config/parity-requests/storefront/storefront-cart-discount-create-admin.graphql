@@ -1,0 +1,28 @@
+mutation StorefrontCartDiscountCreate($input: DiscountCodeBasicInput!) {
+  discountCodeBasicCreate(basicCodeDiscount: $input) {
+    codeDiscountNode {
+      id
+      codeDiscount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+          status
+          startsAt
+          endsAt
+          codes(first: 1) {
+            nodes {
+              id
+              code
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

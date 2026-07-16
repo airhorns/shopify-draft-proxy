@@ -1,0 +1,59 @@
+mutation StorefrontCartDiscountCodesUpdate($cartId: ID!, $discountCodes: [String!]!) {
+  cartDiscountCodesUpdate(cartId: $cartId, discountCodes: $discountCodes) {
+    cart {
+      id
+      updatedAt
+      discountCodes {
+        code
+        applicable
+      }
+      discountAllocations {
+        __typename
+        discountedAmount {
+          amount
+          currencyCode
+        }
+        targetType
+        ... on CartCodeDiscountAllocation {
+          code
+        }
+        ... on CartAutomaticDiscountAllocation {
+          title
+        }
+        ... on CartCustomDiscountAllocation {
+          title
+        }
+      }
+      cost {
+        subtotalAmount {
+          amount
+          currencyCode
+        }
+        totalAmount {
+          amount
+          currencyCode
+        }
+      }
+      estimatedCost {
+        subtotalAmount {
+          amount
+          currencyCode
+        }
+        totalAmount {
+          amount
+          currencyCode
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+    warnings {
+      code
+      message
+      target
+    }
+  }
+}

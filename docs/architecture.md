@@ -134,7 +134,7 @@ selected root.
 - bridge engine root invocations to surface-qualified Storefront registrations, or forward one unchanged request when the complete operation is passthrough-only
 - preserve the original operation for Storefront context interpretation while validating an engine-only copy without `@inContext`
 - own Storefront hydration, context-keyed state, local projections, and schema-enforced snapshot no-data/null behavior
-- keep normalized Storefront cart/line staging, shared catalog/money projection, inventory warnings, opaque synthetic cart identity, and secret-redacted cart observability in a dedicated domain module
+- keep normalized Storefront cart, line, buyer, adjustment, and cart-metafield staging; shared catalog/money projection; inventory and discount warnings; opaque synthetic cart identity; and secret-redacted cart observability in a dedicated domain module
 
 ### `src/resolver_registry.rs`, `src/node_resolver_inventory.rs`, `src/proxy/node_registry.rs`
 

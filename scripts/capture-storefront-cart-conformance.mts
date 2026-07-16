@@ -73,7 +73,21 @@ const documentPaths = {
   linesUpdate: 'config/parity-requests/storefront/storefront-cart-lines-update.graphql',
   linesRemove: 'config/parity-requests/storefront/storefront-cart-lines-remove.graphql',
   attributesUpdate: 'config/parity-requests/storefront/storefront-cart-attributes-update.graphql',
+  buyerIdentityUpdate: 'config/parity-requests/storefront/storefront-cart-buyer-identity-update.graphql',
   noteUpdate: 'config/parity-requests/storefront/storefront-cart-note-update.graphql',
+  discountCodesUpdate: 'config/parity-requests/storefront/storefront-cart-discount-codes-update.graphql',
+  giftCardCodesAdd: 'config/parity-requests/storefront/storefront-cart-gift-card-codes-add.graphql',
+  giftCardCodesRemove: 'config/parity-requests/storefront/storefront-cart-gift-card-codes-remove.graphql',
+  giftCardCodesUpdate: 'config/parity-requests/storefront/storefront-cart-gift-card-codes-update.graphql',
+  metafieldsSet: 'config/parity-requests/storefront/storefront-cart-metafields-set.graphql',
+  metafieldDelete: 'config/parity-requests/storefront/storefront-cart-metafield-delete.graphql',
+  discountCreate: 'config/parity-requests/storefront/storefront-cart-discount-create-admin.graphql',
+  discountDelete: 'config/parity-requests/storefront/storefront-cart-discount-delete-admin.graphql',
+  giftCardCreate: 'config/parity-requests/storefront/storefront-cart-gift-card-create-admin.graphql',
+  giftCardDeactivate: 'config/parity-requests/storefront/storefront-cart-gift-card-deactivate-admin.graphql',
+  customerCreate: 'config/parity-requests/storefront/storefront-customer-auth-create.graphql',
+  customerTokenCreate: 'config/parity-requests/storefront/storefront-customer-auth-token-create.graphql',
+  customerDelete: 'config/parity-requests/storefront/storefront-customer-auth-admin-delete.graphql',
 } as const;
 const documents = Object.fromEntries(
   await Promise.all(
@@ -83,6 +97,20 @@ const documents = Object.fromEntries(
 
 const cartSecrets = new Set<string>();
 const redactedCartSecret = '<redacted:storefront-cart-secret>';
+const secretReplacements = new Map<string, string>();
+const redactedDiscountCode = '<redacted:storefront-cart-active-discount-code>';
+const redactedExpiredDiscountCode = '<redacted:storefront-cart-expired-discount-code>';
+const redactedInapplicableDiscountCode = '<redacted:storefront-cart-inapplicable-discount-code>';
+const redactedGiftCardCode = '<redacted:storefront-cart-gift-card-code>';
+const redactedGiftCardSuffix = '<redacted:storefront-cart-gift-card-suffix>';
+const redactedCustomerAuth = '<redacted:storefront-cart-customer-auth>';
+
+function registerSecret(secret: string, marker: string): void {
+  if (secret.length === 0) return;
+  secretReplacements.set(secret, marker);
+  secretReplacements.set(secret.toLocaleLowerCase('en-US'), marker);
+  secretReplacements.set(secret.toLocaleUpperCase('en-US'), marker);
+}
 
 function registerCartSecrets(value: unknown): void {
   if (typeof value === 'string') {
@@ -106,15 +134,29 @@ function registerCartSecrets(value: unknown): void {
   }
 }
 
-function redactCartSecrets(value: unknown): unknown {
+function redactCartSecrets(value: unknown, key?: string): unknown {
+  if (
+    typeof value === 'string' &&
+    key !== undefined &&
+    ['accessToken', 'customerAccessToken', 'password'].includes(key)
+  ) {
+    return redactedCustomerAuth;
+  }
+  if (typeof value === 'string' && key === 'giftCardCode') return redactedGiftCardCode;
+  if (typeof value === 'string' && ['lastCharacters', 'maskedCode'].includes(key ?? '')) {
+    return redactedGiftCardSuffix;
+  }
   if (typeof value === 'string') {
     let redacted = value;
     for (const secret of cartSecrets) redacted = redacted.replaceAll(secret, redactedCartSecret);
+    for (const [secret, marker] of secretReplacements) redacted = redacted.replaceAll(secret, marker);
     return redacted;
   }
-  if (Array.isArray(value)) return value.map((entry) => redactCartSecrets(entry));
+  if (Array.isArray(value)) return value.map((entry) => redactCartSecrets(entry, key));
   if (typeof value === 'object' && value !== null) {
-    return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, redactCartSecrets(child)]));
+    return Object.fromEntries(
+      Object.entries(value).map(([childKey, child]) => [childKey, redactCartSecrets(child, childKey)]),
+    );
   }
   return value;
 }
@@ -197,8 +239,8 @@ async function recordAdmin(
       authMode: 'admin-access-token',
       operationName,
       query,
-      variables,
-      response: { status: response.status, body: response.payload },
+      variables: redactCartSecrets(variables) as JsonRecord,
+      response: { status: response.status, body: redactCartSecrets(response.payload) },
     },
     raw: response.payload,
   };
@@ -240,6 +282,16 @@ async function recordStorefront(
 }
 
 const suffix = new Date().toISOString().replace(/\D/gu, '').slice(0, 14);
+const discountCode = `CARTD${suffix}`;
+const expiredDiscountCode = `CARTX${suffix}`;
+const inapplicableDiscountCode = `CARTI${suffix}`;
+const giftCardCode = `CARTG${suffix}`;
+const customerEmail = `storefront-cart-${suffix}@example.com`;
+const customerPassword = `Cart-${suffix}-Aa1!`;
+registerSecret(discountCode, redactedDiscountCode);
+registerSecret(expiredDiscountCode, redactedExpiredDiscountCode);
+registerSecret(inapplicableDiscountCode, redactedInapplicableDiscountCode);
+registerSecret(giftCardCode, redactedGiftCardCode);
 const productVariables = {
   product: {
     title: `Storefront Cart Product ${suffix}`,
@@ -257,6 +309,9 @@ const storefrontRecords: Record<string, GraphqlRecord> = {};
 const cleanup: GraphqlRecord[] = [];
 let productId: string | undefined;
 let disposableLocationId: string | undefined;
+const discountIds: string[] = [];
+let giftCardId: string | undefined;
+let customerId: string | undefined;
 
 const locationDeactivateMutation = `#graphql
   mutation StorefrontCartLocationDeactivateCleanup($locationId: ID!, $idempotencyKey: String!) {
@@ -367,6 +422,111 @@ try {
   assertNoTopLevelErrors(publish.raw, 'publishablePublish');
   assertNoUserErrors(publish.raw, ['data', 'publishablePublish', 'userErrors'], 'publishablePublish');
 
+  const activeStartsAt = new Date(Date.now() - 60_000).toISOString();
+  const expiredStartsAt = new Date(Date.now() - 7_200_000).toISOString();
+  const expiredEndsAt = new Date(Date.now() - 3_600_000).toISOString();
+  const discountInputs = [
+    {
+      key: 'adminDiscountCreate',
+      title: `Storefront cart active ${suffix}`,
+      code: discountCode,
+      startsAt: activeStartsAt,
+      minimumRequirement: { subtotal: { greaterThanOrEqualToSubtotal: '1.00' } },
+    },
+    {
+      key: 'adminExpiredDiscountCreate',
+      title: `Storefront cart expired ${suffix}`,
+      code: expiredDiscountCode,
+      startsAt: expiredStartsAt,
+      endsAt: expiredEndsAt,
+      minimumRequirement: { subtotal: { greaterThanOrEqualToSubtotal: '1.00' } },
+    },
+    {
+      key: 'adminInapplicableDiscountCreate',
+      title: `Storefront cart inapplicable ${suffix}`,
+      code: inapplicableDiscountCode,
+      startsAt: activeStartsAt,
+      minimumRequirement: { subtotal: { greaterThanOrEqualToSubtotal: '1000.00' } },
+    },
+  ] as const;
+  for (const discountInput of discountInputs) {
+    const createdDiscount = await recordAdmin(
+      discountInput.key,
+      'StorefrontCartDiscountCreate',
+      documents.discountCreate,
+      {
+        input: {
+          title: discountInput.title,
+          code: discountInput.code,
+          startsAt: discountInput.startsAt,
+          ...('endsAt' in discountInput ? { endsAt: discountInput.endsAt } : {}),
+          combinesWith: { productDiscounts: false, orderDiscounts: true, shippingDiscounts: false },
+          context: { all: 'ALL' },
+          minimumRequirement: discountInput.minimumRequirement,
+          customerGets: { value: { percentage: 0.2 }, items: { all: true } },
+        },
+      },
+    );
+    adminRecords[discountInput.key] = createdDiscount.record;
+    assertNoTopLevelErrors(createdDiscount.raw, discountInput.key);
+    assertNoUserErrors(createdDiscount.raw, ['data', 'discountCodeBasicCreate', 'userErrors'], discountInput.key);
+    discountIds.push(
+      requiredString(
+        createdDiscount.raw,
+        ['data', 'discountCodeBasicCreate', 'codeDiscountNode', 'id'],
+        `${discountInput.key} id`,
+      ),
+    );
+  }
+
+  const createdGiftCard = await recordAdmin(
+    'adminGiftCardCreate',
+    'StorefrontCartGiftCardCreate',
+    documents.giftCardCreate,
+    { input: { initialValue: '40.00', code: giftCardCode, note: `Storefront cart ${suffix}` } },
+  );
+  adminRecords['adminGiftCardCreate'] = createdGiftCard.record;
+  assertNoTopLevelErrors(createdGiftCard.raw, 'giftCardCreate');
+  assertNoUserErrors(createdGiftCard.raw, ['data', 'giftCardCreate', 'userErrors'], 'giftCardCreate');
+  giftCardId = requiredString(createdGiftCard.raw, ['data', 'giftCardCreate', 'giftCard', 'id'], 'gift card id');
+
+  const createdCustomer = await recordStorefront(
+    'storefrontCustomerCreate',
+    'StorefrontCustomerAuthCreate',
+    documents.customerCreate,
+    {
+      input: {
+        email: customerEmail,
+        password: customerPassword,
+        firstName: 'Cart',
+        lastName: 'Buyer',
+      },
+    },
+  );
+  storefrontRecords['storefrontCustomerCreate'] = createdCustomer.record;
+  assertNoTopLevelErrors(createdCustomer.raw, 'customerCreate');
+  assertNoUserErrors(createdCustomer.raw, ['data', 'customerCreate', 'userErrors'], 'customerCreate');
+  customerId = requiredString(createdCustomer.raw, ['data', 'customerCreate', 'customer', 'id'], 'customer id');
+
+  const customerToken = await recordStorefront(
+    'storefrontCustomerTokenCreate',
+    'StorefrontCustomerAuthTokenCreate',
+    documents.customerTokenCreate,
+    { input: { email: customerEmail, password: customerPassword } },
+  );
+  storefrontRecords['storefrontCustomerTokenCreate'] = customerToken.record;
+  assertNoTopLevelErrors(customerToken.raw, 'customerAccessTokenCreate');
+  assertNoUserErrors(
+    customerToken.raw,
+    ['data', 'customerAccessTokenCreate', 'userErrors'],
+    'customerAccessTokenCreate',
+  );
+  const customerAccessToken = requiredString(
+    customerToken.raw,
+    ['data', 'customerAccessTokenCreate', 'customerAccessToken', 'accessToken'],
+    'customer access token',
+  );
+
   let catalogReady: { record: GraphqlRecord; raw: unknown } | undefined;
   for (let attempt = 1; attempt <= 45; attempt += 1) {
     const candidate = await recordStorefront(
@@ -397,6 +557,7 @@ try {
     input: {
       attributes: [{ key: 'channel', value: 'conformance' }],
       note: 'Initial cart note',
+      buyerIdentity: { countryCode: 'CA' },
       lines: [
         {
           merchandiseId: variantId,
@@ -423,6 +584,77 @@ try {
   };
 
   await capture('cartReadAfterCreate', 'StorefrontCartRead', documents.read, { id: cartId });
+  await capture('cartBuyerIdentityUpdate', 'StorefrontCartBuyerIdentityUpdate', documents.buyerIdentityUpdate, {
+    cartId,
+    buyerIdentity: {
+      countryCode: 'CA',
+      email: customerEmail,
+      phone: '+12025550123',
+      customerAccessToken,
+    },
+  });
+  await capture(
+    'cartBuyerIdentityUpdateInvalidToken',
+    'StorefrontCartBuyerIdentityUpdate',
+    documents.buyerIdentityUpdate,
+    {
+      cartId,
+      buyerIdentity: { countryCode: 'CA', customerAccessToken: `invalid-${suffix}` },
+    },
+  );
+  await capture('cartDiscountCodesUpdateValid', 'StorefrontCartDiscountCodesUpdate', documents.discountCodesUpdate, {
+    cartId,
+    discountCodes: [discountCode.toLocaleLowerCase('en-US')],
+  });
+  await capture('cartDiscountCodesUpdateMixed', 'StorefrontCartDiscountCodesUpdate', documents.discountCodesUpdate, {
+    cartId,
+    discountCodes: [
+      discountCode.toLocaleUpperCase('en-US'),
+      discountCode.toLocaleLowerCase('en-US'),
+      expiredDiscountCode,
+      inapplicableDiscountCode,
+      ' NOT-A-REAL-CODE ',
+    ],
+  });
+  const giftCardAdd = await capture(
+    'cartGiftCardCodesAdd',
+    'StorefrontCartGiftCardCodesAdd',
+    documents.giftCardCodesAdd,
+    {
+      cartId,
+      giftCardCodes: [giftCardCode.toLocaleLowerCase('en-US'), 'NOT-A-REAL-GIFT-CARD'],
+    },
+  );
+  const appliedGiftCardId = requiredString(
+    giftCardAdd,
+    ['data', 'cartGiftCardCodesAdd', 'cart', 'appliedGiftCards', '0', 'id'],
+    'applied gift card id',
+  );
+  await capture('cartGiftCardCodesRemove', 'StorefrontCartGiftCardCodesRemove', documents.giftCardCodesRemove, {
+    cartId,
+    appliedGiftCardIds: [appliedGiftCardId],
+  });
+  await capture('cartGiftCardCodesUpdate', 'StorefrontCartGiftCardCodesUpdate', documents.giftCardCodesUpdate, {
+    cartId,
+    giftCardCodes: [giftCardCode.toLocaleUpperCase('en-US'), giftCardCode.toLocaleLowerCase('en-US')],
+  });
+  await capture('cartMetafieldsSet', 'StorefrontCartMetafieldsSet', documents.metafieldsSet, {
+    metafields: [
+      { ownerId: cartId, key: 'custom.note', type: 'single_line_text_field', value: 'Cart note value' },
+      { ownerId: cartId, key: 'custom.count', type: 'number_integer', value: '2' },
+    ],
+  });
+  await capture('cartMetafieldsSetInvalidValue', 'StorefrontCartMetafieldsSet', documents.metafieldsSet, {
+    metafields: [{ ownerId: cartId, key: 'custom.count', type: 'number_integer', value: 'not-a-number' }],
+  });
+  await capture('cartReadAfterAdjustments', 'StorefrontCartRead', documents.read, { id: cartId });
+  await capture('cartMetafieldDelete', 'StorefrontCartMetafieldDelete', documents.metafieldDelete, {
+    input: { ownerId: cartId, key: 'custom.note' },
+  });
+  await capture('cartMetafieldDeleteMissing', 'StorefrontCartMetafieldDelete', documents.metafieldDelete, {
+    input: { ownerId: cartId, key: 'custom.missing' },
+  });
+  await capture('cartReadAfterMetafieldDelete', 'StorefrontCartRead', documents.read, { id: cartId });
   await capture('cartLinesAddMerge', 'StorefrontCartLinesAdd', documents.linesAdd, {
     cartId,
     lines: [
@@ -548,6 +780,33 @@ try {
   }
   await capture('cartReadEmpty', 'StorefrontCartRead', documents.read, { id: cartId });
 } finally {
+  for (const id of discountIds) {
+    const deleted = await recordAdmin(
+      'adminDiscountDeleteCleanup',
+      'StorefrontCartDiscountDelete',
+      documents.discountDelete,
+      { id },
+    );
+    cleanup.push(deleted.record);
+  }
+  if (giftCardId) {
+    const deactivated = await recordAdmin(
+      'adminGiftCardDeactivateCleanup',
+      'StorefrontCartGiftCardDeactivate',
+      documents.giftCardDeactivate,
+      { id: giftCardId },
+    );
+    cleanup.push(deactivated.record);
+  }
+  if (customerId) {
+    const deleted = await recordAdmin(
+      'adminCustomerDeleteCleanup',
+      'StorefrontCustomerAuthAdminDelete',
+      documents.customerDelete,
+      { input: { id: customerId } },
+    );
+    cleanup.push(deleted.record);
+  }
   if (productId) {
     const deleted = await recordAdmin(
       'adminProductDeleteCleanup',
@@ -594,7 +853,24 @@ const fixture = {
   },
   redactions: {
     marker: redactedCartSecret,
-    fields: ['Cart.id token', 'Cart.id key', 'Cart.checkoutUrl token', 'Cart.checkoutUrl key'],
+    fields: [
+      'Cart.id token',
+      'Cart.id key',
+      'Cart.checkoutUrl token',
+      'Cart.checkoutUrl key',
+      'discount codes',
+      'gift card codes and suffixes',
+      'customer passwords and access tokens',
+    ],
+    markers: {
+      cart: redactedCartSecret,
+      discountCode: redactedDiscountCode,
+      expiredDiscountCode: redactedExpiredDiscountCode,
+      inapplicableDiscountCode: redactedInapplicableDiscountCode,
+      giftCardCode: redactedGiftCardCode,
+      giftCardSuffix: redactedGiftCardSuffix,
+      customerAuth: redactedCustomerAuth,
+    },
   },
   ...adminRecords,
   ...storefrontRecords,
@@ -602,12 +878,16 @@ const fixture = {
   upstreamCalls: [adminRecords['adminStockLocationHydrate'], adminRecords['adminPublicationHydrate']],
   notes: [
     'All Storefront documents and variables were sent exactly as recorded; live cart tokens and keys are replaced consistently in the checked-in artifact.',
-    'The recorder creates disposable real carts only during recording. Storefront exposes no cart deletion mutation, so product setup is cleaned up and cart secrets are discarded.',
+    'Discount codes, gift card codes and suffixes, customer passwords, and customer access tokens are redacted before the artifact is written.',
+    'The recorder creates disposable products, discounts, gift cards, customers, and carts. Admin resources are deleted or deactivated during cleanup; Storefront exposes no cart deletion mutation, so cart secrets are discarded.',
   ],
 };
 const fixtureText = `${JSON.stringify(fixture, null, 2)}\n`;
 for (const secret of cartSecrets) {
   if (fixtureText.includes(secret)) throw new Error('A live cart secret survived fixture redaction.');
+}
+for (const secret of secretReplacements.keys()) {
+  if (fixtureText.includes(secret)) throw new Error('A live adjustment secret survived fixture redaction.');
 }
 if (cartSecrets.size === 0) throw new Error('The capture returned no cart secrets to redact.');
 
