@@ -1,0 +1,27 @@
+mutation StorefrontCustomerAdminOrderCreate($order: OrderCreateOrderInput!) {
+  orderCreate(order: $order) {
+    order {
+      id
+      name
+      email
+      customer {
+        id
+        email
+      }
+      currentTotalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      displayFinancialStatus
+      displayFulfillmentStatus
+      processedAt
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -1,0 +1,31 @@
+mutation StorefrontCustomerAddressUpdate($token: String!, $id: ID!, $address: MailingAddressInput!) {
+  customerAddressUpdate(customerAccessToken: $token, id: $id, address: $address) {
+    customerAddress {
+      id
+      firstName
+      lastName
+      address1
+      address2
+      city
+      company
+      province
+      provinceCode
+      country
+      countryCode
+      countryCodeV2
+      zip
+      phone
+      name
+      formattedArea
+    }
+    customerUserErrors {
+      field
+      message
+      code
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

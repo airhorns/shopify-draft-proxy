@@ -1,0 +1,801 @@
+{
+  "scenarioId": "storefront-customer-profile-address-order-lifecycle",
+  "operationNames": [
+    "customer",
+    "customerCreate",
+    "customerAccessTokenCreate",
+    "customerUpdate",
+    "customerAddressCreate",
+    "customerAddressUpdate",
+    "customerAddressDelete",
+    "customerDefaultAddressUpdate",
+    "orderCreate"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "downstream-read-parity",
+    "storefront-api-local-overlay",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/storefront/storefront-customer-profile-address-order-lifecycle.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/storefront.rs"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "apiSurface": "storefront",
+    "apiVersion": "2026-04",
+    "documentPath": "config/parity-requests/storefront/storefront-customer-auth-create.graphql",
+    "operationName": "StorefrontCustomerAuthCreate",
+    "variables": {
+      "input": {
+        "email": {
+          "fromCapturePath": "$.disposableInputs.email"
+        },
+        "password": "CodexPass123!",
+        "firstName": "Storefront",
+        "lastName": "Profile",
+        "acceptsMarketing": false
+      }
+    }
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "storefront-profile-customer-create",
+        "capturePath": "$.captures.storefrontCreate.response.body.data.customerCreate",
+        "proxyPath": "$.data.customerCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.customer.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The proxy stages a deterministic synthetic Customer ID instead of Shopify's live Customer ID."
+          },
+          {
+            "path": "$.customer.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic local mutation timestamp for the staged customer."
+          },
+          {
+            "path": "$.customer.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic local mutation timestamp for the staged customer."
+          }
+        ]
+      },
+      {
+        "name": "storefront-profile-token-create",
+        "capturePath": "$.captures.tokenCreate.response.body.data.customerAccessTokenCreate",
+        "proxyPath": "$.data.customerAccessTokenCreate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-auth-token-create.graphql",
+          "operationName": "StorefrontCustomerAuthTokenCreate",
+          "variables": {
+            "input": {
+              "email": {
+                "fromCapturePath": "$.disposableInputs.email"
+              },
+              "password": "CodexPass123!"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.customerAccessToken.accessToken",
+            "matcher": "storefront-access-token",
+            "reason": "The live Storefront customer access token is redacted; the proxy returns its own opaque local token."
+          },
+          {
+            "path": "$.customerAccessToken.expiresAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy expiry is derived from the local runtime clock while the live capture expiry is derived from Shopify's capture time."
+          }
+        ]
+      },
+      {
+        "name": "storefront-profile-email-update-denied",
+        "capturePath": "$.captures.profileEmailUpdateDenied.response.body.data.customerUpdate",
+        "proxyPath": "$.data.customerUpdate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-profile-update.graphql",
+          "operationName": "StorefrontCustomerProfileUpdate",
+          "variables": {
+            "token": {
+              "fromProxyResponse": "storefront-profile-token-create",
+              "path": "$.data.customerAccessTokenCreate.customerAccessToken.accessToken"
+            },
+            "customer": {
+              "email": {
+                "fromCapturePath": "$.disposableInputs.updatedEmail"
+              },
+              "firstName": "Denied",
+              "acceptsMarketing": true
+            }
+          }
+        }
+      },
+      {
+        "name": "storefront-profile-update-fields",
+        "capturePath": "$.captures.profileUpdate.response.body.data.customerUpdate",
+        "proxyPath": "$.data.customerUpdate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-profile-update.graphql",
+          "operationName": "StorefrontCustomerProfileUpdate",
+          "variables": {
+            "token": {
+              "fromProxyResponse": "storefront-profile-token-create",
+              "path": "$.data.customerAccessTokenCreate.customerAccessToken.accessToken"
+            },
+            "customer": {
+              "firstName": "Updated",
+              "lastName": "Profile",
+              "phone": {
+                "fromCapturePath": "$.disposableInputs.updatedPhone"
+              },
+              "acceptsMarketing": true
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.customer.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The proxy returns the locally staged Customer ID."
+          },
+          {
+            "path": "$.customer.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic local creation timestamp."
+          },
+          {
+            "path": "$.customer.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic local update timestamp."
+          }
+        ]
+      },
+      {
+        "name": "storefront-address-create-first",
+        "capturePath": "$.captures.addressCreateOne.response.body.data.customerAddressCreate",
+        "proxyPath": "$.data.customerAddressCreate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-address-create.graphql",
+          "operationName": "StorefrontCustomerAddressCreate",
+          "variables": {
+            "token": {
+              "fromProxyResponse": "storefront-profile-token-create",
+              "path": "$.data.customerAccessTokenCreate.customerAccessToken.accessToken"
+            },
+            "address": {
+              "address1": "1 Storefront Main St",
+              "city": "Ottawa",
+              "province": "Ontario",
+              "country": "Canada",
+              "zip": "K1A 0B1",
+              "phone": "+1 (613) 555-0199"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.customerAddress.id",
+            "matcher": "shopify-gid:MailingAddress",
+            "reason": "The proxy uses a deterministic synthetic MailingAddress ID."
+          }
+        ]
+      },
+      {
+        "name": "storefront-address-create-second",
+        "capturePath": "$.captures.addressCreateTwo.response.body.data.customerAddressCreate",
+        "proxyPath": "$.data.customerAddressCreate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-address-create.graphql",
+          "operationName": "StorefrontCustomerAddressCreate",
+          "variables": {
+            "token": {
+              "fromProxyResponse": "storefront-profile-token-create",
+              "path": "$.data.customerAccessTokenCreate.customerAccessToken.accessToken"
+            },
+            "address": {
+              "firstName": "Second",
+              "lastName": "Address",
+              "address1": "2 Storefront Side St",
+              "city": "Toronto",
+              "province": "Ontario",
+              "country": "Canada",
+              "zip": "M5V 2T6"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.customerAddress.id",
+            "matcher": "shopify-gid:MailingAddress",
+            "reason": "The proxy uses a deterministic synthetic MailingAddress ID."
+          }
+        ]
+      },
+      {
+        "name": "storefront-default-address-update",
+        "capturePath": "$.captures.defaultAddressUpdate.response.body.data.customerDefaultAddressUpdate",
+        "proxyPath": "$.data.customerDefaultAddressUpdate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-default-address-update.graphql",
+          "operationName": "StorefrontCustomerDefaultAddressUpdate",
+          "variables": {
+            "token": {
+              "fromProxyResponse": "storefront-profile-token-create",
+              "path": "$.data.customerAccessTokenCreate.customerAccessToken.accessToken"
+            },
+            "addressId": {
+              "fromProxyResponse": "storefront-address-create-second",
+              "path": "$.data.customerAddressCreate.customerAddress.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.customer.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The proxy returns the locally staged Customer ID."
+          },
+          {
+            "path": "$.customer.defaultAddress.id",
+            "matcher": "shopify-gid:MailingAddress",
+            "reason": "The proxy returns the locally staged default MailingAddress ID."
+          },
+          {
+            "path": "$.customer.addresses.nodes[0].id",
+            "matcher": "shopify-gid:MailingAddress",
+            "reason": "The proxy returns locally staged MailingAddress IDs."
+          },
+          {
+            "path": "$.customer.addresses.nodes[1].id",
+            "matcher": "shopify-gid:MailingAddress",
+            "reason": "The proxy returns locally staged MailingAddress IDs."
+          },
+          {
+            "path": "$.customer.addresses.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable address cursors."
+          },
+          {
+            "path": "$.customer.addresses.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable address cursors."
+          }
+        ]
+      },
+      {
+        "name": "storefront-address-update-first",
+        "capturePath": "$.captures.addressUpdate.response.body.data.customerAddressUpdate",
+        "proxyPath": "$.data.customerAddressUpdate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-address-update.graphql",
+          "operationName": "StorefrontCustomerAddressUpdate",
+          "variables": {
+            "token": {
+              "fromProxyResponse": "storefront-profile-token-create",
+              "path": "$.data.customerAccessTokenCreate.customerAccessToken.accessToken"
+            },
+            "id": {
+              "fromProxyResponse": "storefront-address-create-first",
+              "path": "$.data.customerAddressCreate.customerAddress.id"
+            },
+            "address": {
+              "address1": "10 Storefront Main St",
+              "city": "Gatineau",
+              "province": "Quebec",
+              "country": "Canada",
+              "zip": "J8X 2X1"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.customerAddress.id",
+            "matcher": "shopify-gid:MailingAddress",
+            "reason": "The proxy returns the locally staged MailingAddress ID."
+          }
+        ]
+      },
+      {
+        "name": "storefront-address-delete-default-reassign",
+        "capturePath": "$.captures.addressDelete.response.body.data.customerAddressDelete",
+        "proxyPath": "$.data.customerAddressDelete",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-address-delete.graphql",
+          "operationName": "StorefrontCustomerAddressDelete",
+          "variables": {
+            "token": {
+              "fromProxyResponse": "storefront-profile-token-create",
+              "path": "$.data.customerAccessTokenCreate.customerAccessToken.accessToken"
+            },
+            "id": {
+              "fromProxyResponse": "storefront-address-create-second",
+              "path": "$.data.customerAddressCreate.customerAddress.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deletedCustomerAddressId",
+            "matcher": "shopify-gid:MailingAddress",
+            "reason": "The proxy deletes the locally staged MailingAddress ID."
+          }
+        ]
+      },
+      {
+        "name": "admin-read-after-storefront-profile-address",
+        "capturePath": "$.captures.adminReadAfterStorefront.response.body.data.customer",
+        "proxyPath": "$.data.customer",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-admin-read.graphql",
+          "operationName": "StorefrontCustomerAdminRead",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "storefront-profile-customer-create",
+              "path": "$.data.customerCreate.customer.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The proxy reads the locally staged Customer ID."
+          },
+          {
+            "path": "$.defaultAddress.id",
+            "matcher": "shopify-gid:MailingAddress",
+            "reason": "The proxy returns the locally staged default MailingAddress ID."
+          },
+          {
+            "path": "$.addressesV2.nodes[0].id",
+            "matcher": "shopify-gid:MailingAddress",
+            "reason": "The proxy returns locally staged MailingAddress IDs."
+          },
+          {
+            "path": "$.addressesV2.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify Admin cursors are opaque; the proxy uses stable address cursors."
+          },
+          {
+            "path": "$.addressesV2.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify Admin cursors are opaque; the proxy uses stable address cursors."
+          }
+        ]
+      },
+      {
+        "name": "admin-update-cross-surface-profile",
+        "capturePath": "$.captures.adminUpdate.response.body.data.customerUpdate",
+        "proxyPath": "$.data.customerUpdate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-auth-admin-update.graphql",
+          "operationName": "StorefrontCustomerAuthAdminUpdate",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "storefront-profile-customer-create",
+                "path": "$.data.customerCreate.customer.id"
+              },
+              "firstName": "Admin",
+              "lastName": "Visible",
+              "email": {
+                "fromCapturePath": "$.disposableInputs.updatedEmail"
+              }
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.customer.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The proxy updates the locally staged Customer ID."
+          },
+          {
+            "path": "$.customer.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic local update timestamp."
+          }
+        ]
+      },
+      {
+        "name": "admin-address-create-visible-storefront",
+        "capturePath": "$.captures.adminAddressCreate.response.body.data.customerAddressCreate",
+        "proxyPath": "$.data.customerAddressCreate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-admin-address-create.graphql",
+          "operationName": "StorefrontCustomerAdminAddressCreate",
+          "variables": {
+            "customerId": {
+              "fromProxyResponse": "storefront-profile-customer-create",
+              "path": "$.data.customerCreate.customer.id"
+            },
+            "address": {
+              "firstName": "Admin",
+              "lastName": "Address",
+              "address1": "50 Admin Way",
+              "city": "Montreal",
+              "province": "Quebec",
+              "country": "Canada",
+              "zip": "H2Y 1C6"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.address.id",
+            "matcher": "shopify-gid:MailingAddress",
+            "reason": "The proxy creates a deterministic local MailingAddress ID."
+          }
+        ]
+      },
+      {
+        "name": "admin-order-create-customer-visible",
+        "capturePath": "$.captures.orderCreate.response.body.data.orderCreate",
+        "proxyPath": "$.data.orderCreate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-admin-order-create.graphql",
+          "operationName": "StorefrontCustomerAdminOrderCreate",
+          "variables": {
+            "order": {
+              "email": {
+                "fromCapturePath": "$.disposableInputs.orderEmail"
+              },
+              "customerId": {
+                "fromProxyResponse": "storefront-profile-customer-create",
+                "path": "$.data.customerCreate.customer.id"
+              },
+              "test": true,
+              "currency": "CAD",
+              "lineItems": [
+                {
+                  "title": "Storefront customer visible order",
+                  "quantity": 1,
+                  "priceSet": {
+                    "shopMoney": {
+                      "amount": "19.90",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "requiresShipping": false,
+                  "taxable": false,
+                  "sku": "SFP-PROXY"
+                }
+              ],
+              "transactions": [
+                {
+                  "kind": "AUTHORIZATION",
+                  "status": "SUCCESS",
+                  "gateway": "external",
+                  "test": true,
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "19.90",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.order.id",
+            "matcher": "shopify-gid:Order",
+            "reason": "The proxy creates a deterministic local Order ID."
+          },
+          {
+            "path": "$.order.name",
+            "matcher": "non-empty-string",
+            "reason": "Live order names are assigned by Shopify's shop sequence; the proxy uses a deterministic local name."
+          },
+          {
+            "path": "$.order.customer.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The proxy associates the order to the locally staged Customer ID."
+          },
+          {
+            "path": "$.order.processedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic local order timestamp."
+          }
+        ]
+      },
+      {
+        "name": "storefront-read-after-admin-profile-address-order",
+        "capturePath": "$.captures.storefrontReadAfterAdmin.response.body.data.customer",
+        "proxyPath": "$.data.customer",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-profile-address-order-read.graphql",
+          "operationName": "StorefrontCustomerProfileAddressOrderRead",
+          "variables": {
+            "token": {
+              "fromProxyResponse": "storefront-profile-token-create",
+              "path": "$.data.customerAccessTokenCreate.customerAccessToken.accessToken"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The proxy returns the locally staged Customer ID."
+          },
+          {
+            "path": "$.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic local creation timestamp."
+          },
+          {
+            "path": "$.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic local update timestamp."
+          },
+          {
+            "path": "$.defaultAddress.id",
+            "matcher": "shopify-gid:MailingAddress",
+            "reason": "The proxy returns the locally staged default MailingAddress ID."
+          },
+          {
+            "path": "$.addresses.nodes[0].id",
+            "matcher": "shopify-gid:MailingAddress",
+            "reason": "The proxy returns locally staged MailingAddress IDs."
+          },
+          {
+            "path": "$.addresses.nodes[1].id",
+            "matcher": "shopify-gid:MailingAddress",
+            "reason": "The proxy returns locally staged MailingAddress IDs."
+          },
+          {
+            "path": "$.addresses.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable address cursors."
+          },
+          {
+            "path": "$.addresses.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable address cursors."
+          },
+          {
+            "path": "$.orders.nodes[0].id",
+            "matcher": "shopify-gid:Order",
+            "reason": "The proxy returns the locally staged Order ID."
+          },
+          {
+            "path": "$.orders.nodes[0].name",
+            "matcher": "non-empty-string",
+            "reason": "Live order names are assigned by Shopify's shop sequence; the proxy uses a deterministic local name."
+          },
+          {
+            "path": "$.orders.nodes[0].processedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic local order timestamp."
+          },
+          {
+            "path": "$.orders.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable order cursors."
+          },
+          {
+            "path": "$.orders.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable order cursors."
+          }
+        ]
+      },
+      {
+        "name": "storefront-password-update-rotates-token",
+        "capturePath": "$.captures.passwordUpdate.response.body.data.customerUpdate",
+        "proxyPath": "$.data.customerUpdate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-profile-update.graphql",
+          "operationName": "StorefrontCustomerProfileUpdate",
+          "variables": {
+            "token": {
+              "fromProxyResponse": "storefront-profile-token-create",
+              "path": "$.data.customerAccessTokenCreate.customerAccessToken.accessToken"
+            },
+            "customer": {
+              "password": "NewCodexPass123!"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.customer.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The proxy returns the locally staged Customer ID."
+          },
+          {
+            "path": "$.customer.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic local creation timestamp."
+          },
+          {
+            "path": "$.customer.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic local password-update timestamp."
+          },
+          {
+            "path": "$.customerAccessToken.accessToken",
+            "matcher": "storefront-access-token",
+            "reason": "The live rotated token is redacted; the proxy returns its own new local token."
+          },
+          {
+            "path": "$.customerAccessToken.expiresAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy expiry is derived from the local runtime clock."
+          }
+        ]
+      },
+      {
+        "name": "storefront-old-token-invalid-after-password-update",
+        "capturePath": "$.captures.readWithOldTokenAfterPassword.response.body.data.customer",
+        "proxyPath": "$.data.customer",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-profile-address-order-read.graphql",
+          "operationName": "StorefrontCustomerProfileAddressOrderRead",
+          "variables": {
+            "token": {
+              "fromProxyResponse": "storefront-profile-token-create",
+              "path": "$.data.customerAccessTokenCreate.customerAccessToken.accessToken"
+            }
+          }
+        }
+      },
+      {
+        "name": "storefront-rotated-token-read-after-password-update",
+        "capturePath": "$.captures.readWithRotatedToken.response.body.data.customer",
+        "proxyPath": "$.data.customer",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-profile-address-order-read.graphql",
+          "operationName": "StorefrontCustomerProfileAddressOrderRead",
+          "variables": {
+            "token": {
+              "fromProxyResponse": "storefront-password-update-rotates-token",
+              "path": "$.data.customerUpdate.customerAccessToken.accessToken"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The proxy returns the locally staged Customer ID."
+          },
+          {
+            "path": "$.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic local creation timestamp."
+          },
+          {
+            "path": "$.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic local password-update timestamp."
+          },
+          {
+            "path": "$.defaultAddress.id",
+            "matcher": "shopify-gid:MailingAddress",
+            "reason": "The proxy returns the locally staged default MailingAddress ID."
+          },
+          {
+            "path": "$.addresses.nodes[0].id",
+            "matcher": "shopify-gid:MailingAddress",
+            "reason": "The proxy returns locally staged MailingAddress IDs."
+          },
+          {
+            "path": "$.addresses.nodes[1].id",
+            "matcher": "shopify-gid:MailingAddress",
+            "reason": "The proxy returns locally staged MailingAddress IDs."
+          },
+          {
+            "path": "$.addresses.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable address cursors."
+          },
+          {
+            "path": "$.addresses.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable address cursors."
+          },
+          {
+            "path": "$.orders.nodes[0].id",
+            "matcher": "shopify-gid:Order",
+            "reason": "The proxy returns the locally staged Order ID."
+          },
+          {
+            "path": "$.orders.nodes[0].name",
+            "matcher": "non-empty-string",
+            "reason": "Live order names are assigned by Shopify's shop sequence; the proxy uses a deterministic local name."
+          },
+          {
+            "path": "$.orders.nodes[0].processedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic local order timestamp."
+          },
+          {
+            "path": "$.orders.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable order cursors."
+          },
+          {
+            "path": "$.orders.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable order cursors."
+          }
+        ]
+      },
+      {
+        "name": "storefront-address-create-invalid-token",
+        "capturePath": "$.captures.invalidTokenAddressCreate.response.body.data.customerAddressCreate",
+        "proxyPath": "$.data.customerAddressCreate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-address-create.graphql",
+          "operationName": "StorefrontCustomerAddressCreate",
+          "variables": {
+            "token": "not-a-valid-token",
+            "address": {
+              "address1": "3 Invalid Token St"
+            }
+          }
+        }
+      },
+      {
+        "name": "storefront-address-create-invalid-token-errors",
+        "capturePath": "$.captures.invalidTokenAddressCreate.response.body.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-address-create.graphql",
+          "operationName": "StorefrontCustomerAddressCreate",
+          "variables": {
+            "token": "not-a-valid-token",
+            "address": {
+              "address1": "3 Invalid Token St"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Live Storefront customer profile/address/order fixture captured a disposable Storefront-created customer, Storefront profile update, address create/update/default/delete behavior, Admin read-after-Storefront write, Admin profile/address/order setup, Storefront read-after-Admin write, password-update token invalidation, and invalid-token address userErrors. The fixture redacts passwords and Storefront access tokens and cleans up the disposable order and customer."
+}

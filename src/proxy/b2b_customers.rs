@@ -7,10 +7,13 @@ mod customers;
 mod merge_erasure;
 
 use self::addresses::{
-    customer_address_contains_url, customer_address_cursor, customer_address_dedup_key,
-    customer_address_field_path, customer_address_nodes, customer_address_string,
-    customer_country_from_input, customer_mailing_addresses, customer_rebuild_addresses,
-    customer_update_mailing_address, selected_customer_addresses_connection,
+    customer_address_contains_url, customer_address_field_path, customer_address_string,
+    customer_country_from_input, customer_mailing_addresses, customer_update_mailing_address,
+    selected_customer_addresses_connection,
+};
+pub(in crate::proxy) use self::addresses::{
+    customer_address_cursor, customer_address_dedup_key, customer_address_input_node,
+    customer_address_nodes, customer_rebuild_addresses,
 };
 pub(in crate::proxy) use self::companies::*;
 pub(in crate::proxy) use self::consent::{

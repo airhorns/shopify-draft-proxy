@@ -1,0 +1,61 @@
+query StorefrontCustomerAdminRead($id: ID!) {
+  customer(id: $id) {
+    id
+    email
+    firstName
+    lastName
+    displayName
+    phone
+    defaultAddress {
+      id
+      firstName
+      lastName
+      address1
+      city
+      province
+      provinceCode
+      country
+      countryCodeV2
+      zip
+      phone
+      name
+      formattedArea
+    }
+    addressesV2(first: 5) {
+      nodes {
+        id
+        firstName
+        lastName
+        address1
+        city
+        province
+        provinceCode
+        country
+        countryCodeV2
+        zip
+        phone
+        name
+        formattedArea
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    orders(first: 5) {
+      nodes {
+        id
+        name
+        email
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+}

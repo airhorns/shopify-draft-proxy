@@ -1,0 +1,28 @@
+mutation StorefrontCustomerProfileUpdate($token: String!, $customer: CustomerUpdateInput!) {
+  customerUpdate(customerAccessToken: $token, customer: $customer) {
+    customer {
+      id
+      email
+      firstName
+      lastName
+      displayName
+      phone
+      acceptsMarketing
+      createdAt
+      updatedAt
+    }
+    customerAccessToken {
+      accessToken
+      expiresAt
+    }
+    customerUserErrors {
+      field
+      message
+      code
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
