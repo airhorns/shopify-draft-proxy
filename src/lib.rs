@@ -1,4 +1,4 @@
-#![recursion_limit = "256"]
+#![recursion_limit = "512"]
 pub mod admin_graphql;
 pub mod graphql;
 pub mod node_resolver_inventory;
