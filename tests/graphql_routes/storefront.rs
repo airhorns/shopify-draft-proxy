@@ -1342,6 +1342,465 @@ fn storefront_shop_can_observe_admin_hydrated_store_state_without_storefront_ups
 }
 
 #[test]
+fn storefront_metaobjects_resolve_public_active_admin_staged_entries() {
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(|_| {
+        panic!("staged Storefront custom-data reads should stay local in live-hybrid mode")
+    });
+
+    stage_storefront_metaobject_definition(
+        &mut proxy,
+        "codex_storefront_public",
+        "PUBLIC_READ",
+        true,
+    );
+    let entry = stage_storefront_metaobject(
+        &mut proxy,
+        "codex_storefront_public",
+        "visible-entry",
+        "ACTIVE",
+        "Visible Storefront Entry",
+    );
+
+    let response = proxy.process_request(storefront_graphql_request(
+        r#"
+        query StorefrontPublicMetaobjects($handle: MetaobjectHandleInput!) {
+          byHandle: metaobject(handle: $handle) {
+            ...StorefrontMetaobjectFields
+            title: field(key: "title") { key type value }
+          }
+          entries: metaobjects(type: "codex_storefront_public", first: 2, sortKey: "updated_at") {
+            edges { cursor node { ...StorefrontMetaobjectFields } }
+            nodes { ...StorefrontMetaobjectFields }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+
+        fragment StorefrontMetaobjectFields on Metaobject {
+          id
+          handle
+          type
+          updatedAt
+          fields { key type value }
+        }
+        "#,
+        json!({
+            "handle": {
+                "type": "codex_storefront_public",
+                "handle": "visible-entry"
+            }
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    let expected_node = json!({
+        "id": entry["id"],
+        "handle": "visible-entry",
+        "type": "codex_storefront_public",
+        "updatedAt": entry["updatedAt"],
+        "fields": [
+            { "key": "body", "type": "multi_line_text_field", "value": "Body for Visible Storefront Entry" },
+            { "key": "title", "type": "single_line_text_field", "value": "Visible Storefront Entry" }
+        ]
+    });
+    assert_eq!(response.body["data"]["byHandle"]["id"], entry["id"]);
+    assert_eq!(
+        response.body["data"]["byHandle"]["title"],
+        json!({ "key": "title", "type": "single_line_text_field", "value": "Visible Storefront Entry" })
+    );
+    assert_eq!(
+        response.body["data"]["entries"]["nodes"],
+        json!([expected_node])
+    );
+    assert_eq!(
+        response.body["data"]["entries"]["edges"][0]["node"]["handle"],
+        json!("visible-entry")
+    );
+    assert_eq!(
+        response.body["data"]["entries"]["pageInfo"]["hasNextPage"],
+        json!(false)
+    );
+}
+
+#[test]
+fn storefront_metaobject_fields_resolve_visible_nested_references() {
+    let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|_| panic!("snapshot Storefront reads should stay local"));
+
+    stage_storefront_metaobject_definition(
+        &mut proxy,
+        "codex_storefront_reference_target",
+        "PUBLIC_READ",
+        true,
+    );
+    let visible_target = stage_storefront_metaobject(
+        &mut proxy,
+        "codex_storefront_reference_target",
+        "visible-target",
+        "ACTIVE",
+        "Visible Target",
+    );
+    let draft_target = stage_storefront_metaobject(
+        &mut proxy,
+        "codex_storefront_reference_target",
+        "draft-target",
+        "DRAFT",
+        "Draft Target",
+    );
+    stage_storefront_reference_definition(&mut proxy, "codex_storefront_reference_source");
+    stage_storefront_reference_metaobject(
+        &mut proxy,
+        visible_target["id"].as_str().unwrap(),
+        draft_target["id"].as_str().unwrap(),
+    );
+
+    let response = proxy.process_request(storefront_graphql_request(
+        r#"
+        query StorefrontReferenceFields {
+          source: metaobject(handle: {
+            type: "codex_storefront_reference_source",
+            handle: "source-entry"
+          }) {
+            featured: field(key: "featured") {
+              key
+              type
+              value
+              reference { ... on Metaobject { handle type } }
+            }
+            related: field(key: "related") {
+              key
+              type
+              references(first: 5) {
+                nodes { ... on Metaobject { handle type } }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["source"]["featured"]["reference"],
+        json!({
+            "handle": "visible-target",
+            "type": "codex_storefront_reference_target"
+        })
+    );
+    assert_eq!(
+        response.body["data"]["source"]["related"]["references"]["nodes"],
+        json!([{
+            "handle": "visible-target",
+            "type": "codex_storefront_reference_target"
+        }])
+    );
+    assert_eq!(
+        response.body["data"]["source"]["related"]["references"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": visible_target["id"],
+            "endCursor": visible_target["id"]
+        })
+    );
+}
+
+#[test]
+fn storefront_metaobjects_hide_non_public_draft_and_deleted_entries() {
+    let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|_| panic!("snapshot Storefront reads should stay local"));
+
+    stage_storefront_metaobject_definition(
+        &mut proxy,
+        "codex_storefront_public",
+        "PUBLIC_READ",
+        true,
+    );
+    let active = stage_storefront_metaobject(
+        &mut proxy,
+        "codex_storefront_public",
+        "active-entry",
+        "ACTIVE",
+        "Active Entry",
+    );
+    stage_storefront_metaobject(
+        &mut proxy,
+        "codex_storefront_public",
+        "draft-entry",
+        "DRAFT",
+        "Draft Entry",
+    );
+    stage_storefront_metaobject_definition(&mut proxy, "codex_storefront_private", "NONE", true);
+    stage_storefront_metaobject(
+        &mut proxy,
+        "codex_storefront_private",
+        "private-entry",
+        "ACTIVE",
+        "Private Entry",
+    );
+
+    let before_delete = proxy.process_request(storefront_graphql_request(
+        r#"
+        query StorefrontVisibility {
+          active: metaobject(handle: { type: "codex_storefront_public", handle: "active-entry" }) { id handle }
+          draft: metaobject(handle: { type: "codex_storefront_public", handle: "draft-entry" }) { id handle }
+          privateEntry: metaobject(handle: { type: "codex_storefront_private", handle: "private-entry" }) { id handle }
+          publicEntries: metaobjects(type: "codex_storefront_public", first: 10) { nodes { handle } }
+          privateEntries: metaobjects(type: "codex_storefront_private", first: 10) { nodes { handle } }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(before_delete.status, 200);
+    assert_eq!(
+        before_delete.body["data"]["active"]["handle"],
+        json!("active-entry")
+    );
+    assert_eq!(before_delete.body["data"]["draft"], Value::Null);
+    assert_eq!(before_delete.body["data"]["privateEntry"], Value::Null);
+    assert_eq!(
+        before_delete.body["data"]["publicEntries"]["nodes"],
+        json!([{ "handle": "active-entry" }])
+    );
+    assert_eq!(
+        before_delete.body["data"]["privateEntries"]["nodes"],
+        json!([])
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteMetaobject($id: ID!) {
+          metaobjectDelete(id: $id) {
+            deletedId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": active["id"] }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["metaobjectDelete"]["userErrors"],
+        json!([])
+    );
+
+    let after_delete = proxy.process_request(storefront_graphql_request(
+        r#"
+        query StorefrontAfterDelete {
+          active: metaobject(handle: { type: "codex_storefront_public", handle: "active-entry" }) { id handle }
+          publicEntries: metaobjects(type: "codex_storefront_public", first: 10) { nodes { handle } }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(after_delete.status, 200);
+    assert_eq!(after_delete.body["data"]["active"], Value::Null);
+    assert_eq!(
+        after_delete.body["data"]["publicEntries"]["nodes"],
+        json!([])
+    );
+}
+
+#[test]
+fn storefront_shop_metafields_require_storefront_definition_access() {
+    let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|_| panic!("snapshot Storefront reads should stay local"));
+    restore_state_with(&mut proxy, |state| {
+        state["baseState"]["shop"] = json!({
+            "id": "gid://shopify/Shop/storefront-metafields",
+            "name": "Storefront metafields shop"
+        });
+    });
+
+    stage_metafield_definition(
+        &mut proxy,
+        "SHOP",
+        "custom",
+        "visible",
+        "single_line_text_field",
+        "PUBLIC_READ",
+    );
+    stage_metafield_definition(
+        &mut proxy,
+        "SHOP",
+        "custom",
+        "hidden",
+        "single_line_text_field",
+        "NONE",
+    );
+    stage_metafields_set(
+        &mut proxy,
+        "gid://shopify/Shop/storefront-metafields",
+        json!([
+            {
+                "namespace": "custom",
+                "key": "visible",
+                "type": "single_line_text_field",
+                "value": "Visible tagline"
+            },
+            {
+                "namespace": "custom",
+                "key": "hidden",
+                "type": "single_line_text_field",
+                "value": "Hidden tagline"
+            }
+        ]),
+    );
+
+    let response = proxy.process_request(storefront_graphql_request(
+        r#"
+        query StorefrontShopMetafields {
+          shop {
+            name
+            visible: metafield(namespace: "custom", key: "visible") {
+              namespace
+              key
+              type
+              value
+              list
+              description
+            }
+            hidden: metafield(namespace: "custom", key: "hidden") { key value }
+            selected: metafields(identifiers: [
+              { namespace: "custom", key: "visible" },
+              { namespace: "custom", key: "hidden" },
+              { namespace: "custom", key: "missing" }
+            ]) {
+              key
+              value
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["shop"]["visible"],
+        json!({
+            "namespace": "custom",
+            "key": "visible",
+            "type": "single_line_text_field",
+            "value": "Visible tagline",
+            "list": false,
+            "description": null
+        })
+    );
+    assert_eq!(response.body["data"]["shop"]["hidden"], Value::Null);
+    assert_eq!(
+        response.body["data"]["shop"]["selected"],
+        json!([{ "key": "visible", "value": "Visible tagline" }, null, null])
+    );
+}
+
+#[test]
+fn storefront_shop_metafields_use_staged_shop_owner_without_hydration() {
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(UnsupportedMutationMode::Passthrough),
+    );
+
+    stage_metafield_definition(
+        &mut proxy,
+        "SHOP",
+        "custom",
+        "visible",
+        "single_line_text_field",
+        "PUBLIC_READ",
+    );
+    stage_metafield_definition(
+        &mut proxy,
+        "SHOP",
+        "custom",
+        "hidden",
+        "single_line_text_field",
+        "NONE",
+    );
+    stage_metafields_set(
+        &mut proxy,
+        "gid://shopify/Shop/storefront-metafields-no-hydrate",
+        json!([
+            {
+                "namespace": "custom",
+                "key": "visible",
+                "type": "single_line_text_field",
+                "value": "Visible tagline"
+            },
+            {
+                "namespace": "custom",
+                "key": "hidden",
+                "type": "single_line_text_field",
+                "value": "Hidden tagline"
+            }
+        ]),
+    );
+    let mut proxy = proxy.with_upstream_transport(|_| {
+        panic!("staged Storefront shop metafields should not require first-slice hydration")
+    });
+
+    let response = proxy.process_request(storefront_graphql_request(
+        r#"
+        query StorefrontShopMetafieldsWithoutHydration {
+          shop {
+            visible: metafield(namespace: "custom", key: "visible") {
+              namespace
+              key
+              type
+              value
+              list
+            }
+            hidden: metafield(namespace: "custom", key: "hidden") { key value }
+            selected: metafields(identifiers: [
+              { namespace: "custom", key: "visible" },
+              { namespace: "custom", key: "hidden" },
+              { namespace: "custom", key: "missing" }
+            ]) {
+              namespace
+              key
+              type
+              value
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["shop"],
+        json!({
+            "visible": {
+                "namespace": "custom",
+                "key": "visible",
+                "type": "single_line_text_field",
+                "value": "Visible tagline",
+                "list": false
+            },
+            "hidden": null,
+            "selected": [
+                {
+                    "namespace": "custom",
+                    "key": "visible",
+                    "type": "single_line_text_field",
+                    "value": "Visible tagline"
+                },
+                null,
+                null
+            ]
+        })
+    );
+}
+
+#[test]
 fn storefront_graphql_passthrough_does_not_enter_admin_staging_or_commit() {
     let observed_requests = Arc::new(Mutex::new(Vec::<Request>::new()));
     let observed_for_proxy = Arc::clone(&observed_requests);
@@ -1737,11 +2196,273 @@ fn storefront_menu_projects_restored_captured_base_state_without_snapshot_fabric
     );
 }
 
-fn storefront_graphql_request(query: &str, variables: serde_json::Value) -> Request {
+fn storefront_graphql_request(query: &str, variables: Value) -> Request {
     Request {
         method: "POST".to_string(),
         path: "/api/2026-04/graphql.json".to_string(),
         headers: Default::default(),
         body: json!({ "query": query, "variables": variables }).to_string(),
     }
+}
+
+fn stage_storefront_metaobject_definition(
+    proxy: &mut DraftProxy,
+    meta_type: &str,
+    storefront_access: &str,
+    publishable_enabled: bool,
+) -> Value {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition {
+              id
+              type
+              access { storefront }
+              capabilities { publishable { enabled } }
+              fieldDefinitions { key type { name } required }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "definition": {
+                "type": meta_type,
+                "name": meta_type.replace('_', " "),
+                "access": { "storefront": storefront_access },
+                "capabilities": { "publishable": { "enabled": publishable_enabled } },
+                "displayNameKey": "title",
+                "fieldDefinitions": [
+                    {
+                        "key": "title",
+                        "name": "Title",
+                        "type": "single_line_text_field",
+                        "required": true
+                    },
+                    {
+                        "key": "body",
+                        "name": "Body",
+                        "type": "multi_line_text_field",
+                        "required": false
+                    }
+                ]
+            }
+        }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["metaobjectDefinitionCreate"]["metaobjectDefinition"].clone()
+}
+
+fn stage_storefront_metaobject(
+    proxy: &mut DraftProxy,
+    meta_type: &str,
+    handle: &str,
+    status: &str,
+    title: &str,
+) -> Value {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMetaobject($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject {
+              id
+              handle
+              type
+              updatedAt
+              capabilities { publishable { status } }
+              fields { key type value jsonValue }
+            }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({
+            "metaobject": {
+                "type": meta_type,
+                "handle": handle,
+                "capabilities": { "publishable": { "status": status } },
+                "fields": [
+                    { "key": "title", "value": title },
+                    { "key": "body", "value": format!("Body for {title}") }
+                ]
+            }
+        }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["metaobjectCreate"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["metaobjectCreate"]["metaobject"].clone()
+}
+
+fn stage_storefront_reference_definition(proxy: &mut DraftProxy, meta_type: &str) -> Value {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateReferenceDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition {
+              id
+              type
+              access { storefront }
+              fieldDefinitions { key type { name } }
+            }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({
+            "definition": {
+                "type": meta_type,
+                "name": "codex storefront reference source",
+                "access": { "storefront": "PUBLIC_READ" },
+                "capabilities": { "publishable": { "enabled": true } },
+                "displayNameKey": "title",
+                "fieldDefinitions": [
+                    {
+                        "key": "title",
+                        "name": "Title",
+                        "type": "single_line_text_field",
+                        "required": true
+                    },
+                    {
+                        "key": "featured",
+                        "name": "Featured",
+                        "type": "metaobject_reference",
+                        "required": false
+                    },
+                    {
+                        "key": "related",
+                        "name": "Related",
+                        "type": "list.metaobject_reference",
+                        "required": false
+                    }
+                ]
+            }
+        }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["metaobjectDefinitionCreate"]["metaobjectDefinition"].clone()
+}
+
+fn stage_storefront_reference_metaobject(
+    proxy: &mut DraftProxy,
+    visible_target_id: &str,
+    draft_target_id: &str,
+) -> Value {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateReferenceMetaobject($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject {
+              id
+              handle
+              type
+              fields { key type value jsonValue }
+            }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({
+            "metaobject": {
+                "type": "codex_storefront_reference_source",
+                "handle": "source-entry",
+                "capabilities": { "publishable": { "status": "ACTIVE" } },
+                "fields": [
+                    { "key": "title", "value": "Source Entry" },
+                    { "key": "featured", "value": visible_target_id },
+                    { "key": "related", "value": json!([visible_target_id, draft_target_id]).to_string() }
+                ]
+            }
+        }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["metaobjectCreate"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["metaobjectCreate"]["metaobject"].clone()
+}
+
+fn stage_metafield_definition(
+    proxy: &mut DraftProxy,
+    owner_type: &str,
+    namespace: &str,
+    key: &str,
+    field_type: &str,
+    storefront_access: &str,
+) -> Value {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMetafieldDefinition($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition {
+              id
+              ownerType
+              namespace
+              key
+              type { name }
+              access { storefront }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "definition": {
+                "ownerType": owner_type,
+                "namespace": namespace,
+                "key": key,
+                "name": key.replace('_', " "),
+                "type": field_type,
+                "access": { "storefront": storefront_access }
+            }
+        }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["metafieldDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["metafieldDefinitionCreate"]["createdDefinition"].clone()
+}
+
+fn stage_metafields_set(proxy: &mut DraftProxy, owner_id: &str, metafields: Value) -> Value {
+    let metafields = metafields
+        .as_array()
+        .expect("test metafields must be an array")
+        .iter()
+        .map(|metafield| {
+            let mut metafield = metafield.clone();
+            metafield["ownerId"] = json!(owner_id);
+            metafield
+        })
+        .collect::<Vec<_>>();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SetMetafields($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { id namespace key type value }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({ "metafields": metafields }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["metafieldsSet"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["metafieldsSet"]["metafields"].clone()
 }

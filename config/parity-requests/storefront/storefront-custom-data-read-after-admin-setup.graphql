@@ -1,0 +1,131 @@
+query StorefrontCustomDataReadAfterAdminSetup(
+  $targetHandle: MetaobjectHandleInput!
+  $sourceHandle: MetaobjectHandleInput!
+  $draftHandle: MetaobjectHandleInput!
+  $privateHandle: MetaobjectHandleInput!
+  $targetType: String!
+  $metafieldNamespace: String!
+) {
+  byHandle: metaobject(handle: $targetHandle) {
+    id
+    handle
+    type
+    updatedAt
+    title: field(key: "title") {
+      key
+      type
+      value
+    }
+    fields {
+      key
+      type
+      value
+    }
+  }
+  entries: metaobjects(type: $targetType, first: 5, sortKey: "updated_at") {
+    nodes {
+      id
+      handle
+      type
+      updatedAt
+      fields {
+        key
+        type
+        value
+      }
+    }
+    edges {
+      cursor
+      node {
+        handle
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  source: metaobject(handle: $sourceHandle) {
+    handle
+    featured: field(key: "featured") {
+      key
+      type
+      value
+      reference {
+        __typename
+        ... on Metaobject {
+          handle
+          type
+        }
+      }
+    }
+    draftFeatured: field(key: "draft_featured") {
+      key
+      type
+      value
+      reference {
+        __typename
+        ... on Metaobject {
+          handle
+          type
+        }
+      }
+    }
+    related: field(key: "related") {
+      key
+      type
+      value
+      references(first: 5) {
+        nodes {
+          __typename
+          ... on Metaobject {
+            handle
+            type
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+  }
+  draft: metaobject(handle: $draftHandle) {
+    id
+    handle
+  }
+  privateEntry: metaobject(handle: $privateHandle) {
+    id
+    handle
+  }
+  shop {
+    visible: metafield(namespace: $metafieldNamespace, key: "visible") {
+      namespace
+      key
+      type
+      value
+      list
+      description
+    }
+    hidden: metafield(namespace: $metafieldNamespace, key: "hidden") {
+      key
+      value
+    }
+    selected: metafields(
+      identifiers: [
+        { namespace: $metafieldNamespace, key: "visible" }
+        { namespace: $metafieldNamespace, key: "hidden" }
+        { namespace: $metafieldNamespace, key: "missing" }
+      ]
+    ) {
+      namespace
+      key
+      type
+      value
+    }
+  }
+}
