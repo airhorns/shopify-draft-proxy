@@ -435,6 +435,8 @@ impl DraftProxy {
                 "orderCountBaselines": self.store.base.order_count_baselines.clone(),
                 "discounts": self.store.base.discounts.records.clone(),
                 "discountOrder": self.store.base.discounts.order,
+                "segments": self.store.base.segments.records.clone(),
+                "segmentOrder": self.store.base.segments.order,
                 "giftCards": self.store.base.gift_cards.clone(),
                 "giftCardConfiguration": self.store.base.gift_card_configuration.clone().unwrap_or(Value::Null),
                 "giftCardCompleteQueries": self.store.base.gift_card_complete_queries.iter().cloned().collect::<Vec<_>>(),
@@ -520,6 +522,9 @@ impl DraftProxy {
                 "deliveryCustomizations": self.store.staged.delivery_customizations.records.clone(),
                 "deliveryCustomizationOrder": self.store.staged.delivery_customizations.order.clone(),
                 "deletedDeliveryCustomizationIds": self.store.staged.delivery_customizations.tombstones.iter().cloned().collect::<Vec<_>>(),
+                "segments": self.store.staged.segments.records.clone(),
+                "segmentOrder": self.store.staged.segments.order.clone(),
+                "deletedSegmentIds": self.store.staged.segments.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "publicationIds": self.store.staged.publication_ids.iter().cloned().collect::<Vec<_>>(),
                 "createdPublicationIds": self.store.staged.created_publication_ids.iter().cloned().collect::<Vec<_>>(),
                 "publications": self.store.staged.publications.clone(),
@@ -1520,6 +1525,13 @@ impl DraftProxy {
                 .map(string_array_from_json)
                 .unwrap_or_default(),
         );
+        self.store.base.segments.replace_with_order(
+            value_map_from_json(state["baseState"].get("segments")),
+            state["baseState"]
+                .get("segmentOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
         self.store.base.gift_cards = value_map_from_json(state["baseState"].get("giftCards"));
         self.store.base.gift_card_configuration = state["baseState"]
             .get("giftCardConfiguration")
@@ -2104,6 +2116,13 @@ impl DraftProxy {
             "deliveryCustomizations",
             Some("deliveryCustomizationOrder"),
             Some("deletedDeliveryCustomizationIds"),
+        );
+        replace_staged_value_records(
+            &mut self.store.staged.segments,
+            &state["stagedState"],
+            "segments",
+            Some("segmentOrder"),
+            Some("deletedSegmentIds"),
         );
         self.store.staged.fulfillment_order_cursors = state["stagedState"]
             .get("fulfillmentOrderCursors")

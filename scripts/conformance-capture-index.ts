@@ -6786,6 +6786,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'segments',
+    captureId: 'segment-live-hybrid-overlay',
+    scriptPath: 'scripts/capture-segment-live-hybrid-overlay-conformance.ts',
+    purpose: 'LiveHybrid segment(id), segments, and segmentsCount overlay evidence after local segmentCreate staging.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'customer segment access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}segment-live-hybrid-overlay.json`,
+      'config/parity-specs/segments/segment-live-hybrid-overlay.json',
+      'config/parity-requests/segments/segment-live-hybrid-overlay-create.graphql',
+      'config/parity-requests/segments/segment-live-hybrid-overlay-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable segments, records a base-only read before the second segment exists, records the final read after the second segment exists, then deletes both segments.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'segments',
     captureId: 'segment-query-grammar',
     scriptPath: 'scripts/capture-segment-query-grammar-conformance.ts',
     purpose:

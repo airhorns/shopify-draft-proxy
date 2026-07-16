@@ -558,9 +558,7 @@ pub(crate) fn load_segment(
 ) -> Option<Value> {
     proxy
         .store
-        .staged
-        .segments
-        .get(id)
+        .segment_by_id(id)
         .map(|record| selected_json(record, selection))
 }
 
