@@ -1,0 +1,9 @@
+mutation StorefrontCustomerAuthAdminActivationUrl($customerId: ID!) {
+  customerGenerateAccountActivationUrl(customerId: $customerId) {
+    accountActivationUrl
+    userErrors {
+      field
+      message
+    }
+  }
+}
