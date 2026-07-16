@@ -1,0 +1,12 @@
+mutation StorefrontCustomerAuthTokenRenew($token: String!) {
+  customerAccessTokenRenew(customerAccessToken: $token) {
+    customerAccessToken {
+      accessToken
+      expiresAt
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

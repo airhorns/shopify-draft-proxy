@@ -180,6 +180,7 @@ describe('operation registry', () => {
       'blog',
       'blogByHandle',
       'blogs',
+      'customer',
       'localization',
       'locations',
       'menu',
@@ -213,16 +214,29 @@ describe('operation registry', () => {
         runtimeTests: [],
       }),
     );
-    expect(storefrontEntries).toContainEqual(
-      expect.objectContaining({
-        apiSurface: 'storefront',
-        name: 'customerCreate',
-        type: 'mutation',
-        domain: 'storefront',
-        implemented: false,
-        runtimeTests: [],
-      }),
-    );
+    for (const root of [
+      'customerAccessTokenCreate',
+      'customerAccessTokenCreateWithMultipass',
+      'customerAccessTokenDelete',
+      'customerAccessTokenRenew',
+      'customerActivate',
+      'customerActivateByUrl',
+      'customerCreate',
+      'customerRecover',
+      'customerReset',
+      'customerResetByUrl',
+    ]) {
+      expect(storefrontEntries).toContainEqual(
+        expect.objectContaining({
+          apiSurface: 'storefront',
+          name: root,
+          type: 'mutation',
+          domain: 'storefront',
+          implemented: true,
+          runtimeTests: ['tests/graphql_routes/storefront.rs'],
+        }),
+      );
+    }
     expect(listOperationRegistryEntries()).toContainEqual(
       expect.objectContaining({
         apiSurface: 'admin',
