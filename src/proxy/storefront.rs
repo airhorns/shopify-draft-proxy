@@ -416,7 +416,7 @@ impl DraftProxy {
         self.store.base.storefront_menus.insert(id, menu);
     }
 
-    fn storefront_local_query_data(
+    pub(in crate::proxy) fn storefront_local_query_data(
         &self,
         fields: &[RootFieldSelection],
         context: &StorefrontRequestContext,
@@ -1664,7 +1664,7 @@ fn storefront_selected_sitemap_resources(
     })
 }
 
-fn storefront_request_context(
+pub(in crate::proxy) fn storefront_request_context(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
 ) -> StorefrontRequestContext {

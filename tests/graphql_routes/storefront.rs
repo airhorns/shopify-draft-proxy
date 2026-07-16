@@ -1842,7 +1842,7 @@ fn stage_metafields_set(proxy: &mut DraftProxy, owner_id: &str, metafields: Valu
         mutation SetMetafields($metafields: [MetafieldsSetInput!]!) {
           metafieldsSet(metafields: $metafields) {
             metafields { id namespace key type value }
-            userErrors { field message code elementKey elementIndex }
+            userErrors { field message code elementIndex }
           }
         }
         "#,
