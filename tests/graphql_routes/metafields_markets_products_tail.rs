@@ -9531,6 +9531,151 @@ fn markets_overlay_serves_catalogs_count_and_resolved_values_after_catalog_write
 }
 
 #[test]
+fn catalogs_count_does_not_double_count_created_catalog_in_upstream_echo() {
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(
+                query.contains("catalog(id: $id)") && query.contains("catalogsCount"),
+                "only the downstream catalog/count read should fetch upstream: {query}"
+            );
+            captured_bodies.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "catalog": {
+                            "title": "Remove Only Catalog",
+                            "status": "ACTIVE",
+                            "markets": {
+                                "nodes": [{ "name": "Remaining Market" }]
+                            }
+                        },
+                        "catalogsCount": { "count": 1, "precision": "EXACT" }
+                    }
+                }),
+            }
+        });
+
+    let market_create_query = r#"
+        mutation CatalogCountEchoMarketCreate($input: MarketCreateInput!) {
+          marketCreate(input: $input) {
+            market { id name }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let target_market = proxy.process_request(json_graphql_request(
+        market_create_query,
+        json!({"input": {"name": "Target Market", "regions": [{"countryCode": "CA"}]}}),
+    ));
+    assert_eq!(
+        target_market.body["data"]["marketCreate"]["userErrors"],
+        json!([])
+    );
+    let target_market_id = target_market.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let remaining_market = proxy.process_request(json_graphql_request(
+        market_create_query,
+        json!({"input": {"name": "Remaining Market", "regions": [{"countryCode": "FR"}]}}),
+    ));
+    assert_eq!(
+        remaining_market.body["data"]["marketCreate"]["userErrors"],
+        json!([])
+    );
+    let remaining_market_id = remaining_market.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let catalog = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CatalogCountEchoCatalogCreate($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) {
+            catalog {
+              id
+              title
+              ... on MarketCatalog { markets(first: 5) { nodes { id name } } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Remove Only Catalog",
+                "status": "ACTIVE",
+                "context": { "marketIds": [target_market_id, remaining_market_id] }
+            }
+        }),
+    ));
+    assert_eq!(
+        catalog.body["data"]["catalogCreate"]["userErrors"],
+        json!([])
+    );
+    let catalog_id = catalog.body["data"]["catalogCreate"]["catalog"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CatalogCountEchoContextUpdate($catalogId: ID!, $marketId: ID!) {
+          catalogContextUpdate(
+            catalogId: $catalogId
+            contextsToRemove: { marketIds: [$marketId] }
+          ) {
+            catalog {
+              title
+              ... on MarketCatalog { markets(first: 5) { nodes { name } } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"catalogId": catalog_id, "marketId": target_market_id}),
+    ));
+    assert_eq!(
+        update.body["data"]["catalogContextUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query CatalogCountEchoRead($id: ID!) {
+          catalog(id: $id) {
+            title
+            status
+            ... on MarketCatalog { markets(first: 5) { nodes { name } } }
+          }
+          catalogsCount(type: MARKET) {
+            count
+            precision
+          }
+        }
+        "#,
+        json!({"id": catalog_id}),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(upstream_bodies.lock().unwrap().len(), 1);
+    assert_eq!(
+        read.body["data"]["catalogsCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["catalog"]["markets"]["nodes"],
+        json!([{ "name": "Remaining Market" }])
+    );
+}
+
+#[test]
 fn markets_resolved_values_falls_back_to_observed_shop_tax_inclusivity() {
     let mut proxy = snapshot_proxy();
     let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));

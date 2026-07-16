@@ -1468,12 +1468,52 @@ impl DraftProxy {
                 .and_then(|value| value.get("precision"))
                 .and_then(Value::as_str)
                 .unwrap_or("EXACT");
+            let represented_created = if precision == "EXACT" {
+                self.created_catalogs_represented_in_upstream_response(
+                    data,
+                    fields,
+                    &field.arguments,
+                ) as u64
+            } else {
+                0
+            };
             let key = markets_hydration_scope_key("catalogs", &field.arguments);
-            self.store
-                .staged
-                .markets_upstream_counts
-                .insert(key, count_object_with_precision(count, precision));
+            self.store.staged.markets_upstream_counts.insert(
+                key,
+                count_object_with_precision(count.saturating_sub(represented_created), precision),
+            );
         }
+    }
+
+    fn created_catalogs_represented_in_upstream_response(
+        &self,
+        data: &serde_json::Map<String, Value>,
+        fields: &[RootFieldSelection],
+        count_arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> usize {
+        let type_filter = resolved_string_field(count_arguments, "type");
+        let query = resolved_string_field(count_arguments, "query");
+        fields
+            .iter()
+            .filter(|field| field.name == "catalog")
+            .filter_map(|field| {
+                let id = resolved_string_field(&field.arguments, "id")?;
+                let catalog = self.store.staged.catalogs.get(&id)?;
+                if !self.store.staged.created_catalog_ids.contains(&id) {
+                    return None;
+                }
+                if !matches!(
+                    catalog_search_decision(catalog, query.as_deref(), type_filter.as_deref()),
+                    StagedSearchDecision::Match
+                ) {
+                    return None;
+                }
+                data.get(&field.response_key)
+                    .filter(|value| value.is_object())
+                    .map(|_| id)
+            })
+            .collect::<BTreeSet<_>>()
+            .len()
     }
 
     #[allow(dead_code)]
