@@ -14,8 +14,8 @@ use crate::graphql::{
     ResolvedValue, RootFieldSelection, SelectedField, SourceLocation,
 };
 use crate::operation_registry::{
-    default_registry, operation_capability, ApiSurface, CapabilityDomain, CapabilityExecution,
-    OperationRegistryEntry,
+    default_registry, operation_capability_for_surface, ApiSurface, CapabilityDomain,
+    CapabilityExecution, OperationRegistryEntry,
 };
 use crate::resolver_registry::ResolverRegistry;
 pub(in crate::proxy) use crate::resolver_registry::{LocalResolverMode, RootResolverContext};
@@ -255,11 +255,15 @@ struct BaseState {
     saved_searches: OrderedRecords<SavedSearchRecord>,
     shop_policies: OrderedRecords<ShopPolicyRecord>,
     delivery_profiles: OrderedRecords<Value>,
+    delivery_promise_providers: OrderedRecords<Value>,
+    delivery_promise_participants: OrderedRecords<Value>,
     orders: OrderedRecords<Value>,
     order_count_baselines: BTreeMap<String, Value>,
     discounts: OrderedRecords<Value>,
+    discount_count_baselines: BTreeMap<String, Value>,
     marketing_activities: OrderedRecords<Value>,
     marketing_events: OrderedRecords<Value>,
+    segments: OrderedRecords<Value>,
     gift_cards: BTreeMap<String, Value>,
     gift_card_configuration: Option<Value>,
     gift_card_complete_queries: BTreeSet<String>,
@@ -288,10 +292,12 @@ struct BaseState {
     function_cart_transforms_catalog_hydrated: bool,
     function_fulfillment_constraint_rules: BTreeMap<String, Value>,
     function_fulfillment_constraint_rule_order: Vec<String>,
+    function_fulfillment_constraint_rules_catalog_hydrated: bool,
     metafield_definitions: BTreeMap<MetafieldDefinitionKey, Value>,
     metafield_definition_owner_catalogs: BTreeSet<String>,
     metafield_definition_namespaces: BTreeSet<(String, String)>,
     b2b_companies: OrderedRecords<Value>,
+    b2b_company_count_baselines: BTreeMap<String, Value>,
     b2b_locations: OrderedRecords<Value>,
     b2b_contacts: OrderedRecords<Value>,
     b2b_contact_roles: OrderedRecords<Value>,
@@ -319,6 +325,10 @@ struct StagedState {
     customer_merge_requests: BTreeMap<String, Value>,
     customer_data_erasure_requests: BTreeMap<String, Value>,
     locally_created_customer_ids: BTreeSet<String>,
+    storefront_customer_email_index: BTreeMap<String, String>,
+    storefront_customer_access_tokens: BTreeMap<String, Value>,
+    next_storefront_customer_access_token_id: u64,
+    next_storefront_customer_reset_token_id: u64,
     // Store-wide total customer count baseline reported by `customersCount`.
     // The live shop's total is store-specific and cannot be reconstructed from
     // the handful of customers a scenario stages, so a scenario seeds the
@@ -343,22 +353,14 @@ struct StagedState {
     fulfillment_services: StagedRecords<Value>,
     fulfillment_service_locations: StagedRecords<Value>,
     delivery_profiles: StagedRecords<Value>,
+    delivery_promise_providers: StagedRecords<Value>,
+    delivery_promise_participants: StagedRecords<Value>,
     observed_shipping_locations: BTreeMap<String, Value>,
     observed_shipping_location_order: Vec<String>,
     locations: StagedRecords<Value>,
     location_limit_reached: bool,
     delivery_customizations: StagedRecords<Value>,
-    segments: BTreeMap<String, Value>,
-    // Recorded segment-catalog read baselines, keyed by root field name
-    // (`segments` / `segmentsCount` / `segmentFilters` / `segmentFilterSuggestions`
-    // / `segmentValueSuggestions` / `segmentMigrations`). These roots expose
-    // Shopify-internal catalog/derived data whose opaque pagination cursors encode
-    // backend-private values (microsecond timestamps, customer ids) that cannot be
-    // reconstructed from arbitrary store state, so a scenario seeds the recorded
-    // connection values and the read resolver projects the requested selection over
-    // them. Empty for every scenario that does not seed a catalog, leaving the
-    // generic staged-segment read path untouched.
-    segment_catalog: BTreeMap<String, Value>,
+    segments: StagedRecords<Value>,
     collections: StagedRecords<Value>,
     deleted_collection_handles: BTreeSet<String>,
     collection_jobs: BTreeMap<String, Value>,
@@ -809,6 +811,8 @@ impl StagedState {
             order_edit_variant_catalog: Value::Object(serde_json::Map::new()),
             next_b2b_contact_id: 1,
             next_b2b_contact_role_assignment_id: 1,
+            next_storefront_customer_access_token_id: 1,
+            next_storefront_customer_reset_token_id: 1,
             ..Default::default()
         }
     }
@@ -1169,6 +1173,17 @@ impl Store {
                 })
     }
 
+    fn product_is_published_on_known_publication(&self, product: &ProductRecord) -> bool {
+        if product.status != "ACTIVE" || !self.has_known_publication_catalog() {
+            return false;
+        }
+
+        self.staged
+            .resource_publications
+            .get(&product.id)
+            .is_some_and(|publications| publications.iter().any(|id| self.has_publication_id(id)))
+    }
+
     fn publication_id_for_channel_id(&self, channel_id: &str) -> Option<String> {
         self.staged.publications.iter().find_map(|(id, record)| {
             let matches = record
@@ -1253,6 +1268,41 @@ impl Store {
         effective_records(&self.base.orders, &self.staged.orders)
     }
 
+    fn segment_by_id(&self, id: &str) -> Option<&Value> {
+        effective_get(&self.base.segments, &self.staged.segments, id)
+    }
+
+    fn effective_segment_count(&self) -> usize {
+        self.base
+            .segments
+            .records
+            .keys()
+            .filter(|id| !self.staged.segments.is_tombstoned(id))
+            .count()
+            + self
+                .staged
+                .segments
+                .records
+                .keys()
+                .filter(|id| !self.base.segments.records.contains_key(*id))
+                .filter(|id| !self.staged.segments.is_tombstoned(id))
+                .count()
+    }
+
+    fn observe_base_segment(&mut self, segment: Value) {
+        let Some(id) = segment
+            .get("id")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+        else {
+            return;
+        };
+        if self.staged.segments.is_tombstoned(&id) || self.staged.segments.contains_staged(&id) {
+            return;
+        }
+        self.base.segments.insert(id, segment);
+    }
+
     fn observe_base_order(&mut self, order: Value) {
         let Some(id) = order.get("id").and_then(Value::as_str).map(str::to_string) else {
             return;
@@ -1269,6 +1319,10 @@ impl Store {
 
     fn order_count_baseline(&self, key: &str) -> Option<&Value> {
         self.base.order_count_baselines.get(key)
+    }
+
+    fn observe_discount_count_baseline(&mut self, key: String, count: Value) {
+        self.base.discount_count_baselines.insert(key, count);
     }
 
     fn domain_by_id(&self, id: &str) -> Option<Value> {
@@ -2198,6 +2252,7 @@ pub(in crate::proxy) use self::markets_catalog_helpers::*;
 pub(in crate::proxy) use self::media_products_saved_searches::*;
 pub(in crate::proxy) use self::metafield_metaobject_definitions::*;
 pub(in crate::proxy) use self::metafields_orders_payments::*;
+pub(in crate::proxy) use self::metaobjects::metaobject_cursor;
 pub(in crate::proxy) use self::money::*;
 pub(in crate::proxy) use self::orders_payments_fulfillment::*;
 pub(in crate::proxy) use self::phone::*;
@@ -2216,10 +2271,14 @@ mod upstream_guard_tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    fn graphql_request(query: String) -> Request {
+    fn graphql_request(query: String, api_surface: ApiSurface) -> Request {
+        let path = match api_surface {
+            ApiSurface::Admin => "/admin/api/2026-04/graphql.json",
+            ApiSurface::Storefront => "/api/2026-04/graphql.json",
+        };
         Request {
             method: "POST".to_string(),
-            path: "/admin/api/2026-04/graphql.json".to_string(),
+            path: path.to_string(),
             headers: BTreeMap::new(),
             body: json!({ "query": query }).to_string(),
         }
@@ -2245,10 +2304,13 @@ mod upstream_guard_tests {
                     ok_json(json!({ "data": { "unexpected": true } }))
                 }
             });
-            let response = transport(graphql_request(format!(
-                "mutation UpstreamSafetyRegression {{ {} {{ __typename }} }}",
-                entry.name
-            )));
+            let response = transport(graphql_request(
+                format!(
+                    "mutation UpstreamSafetyRegression {{ {} {{ __typename }} }}",
+                    entry.name
+                ),
+                entry.api_surface,
+            ));
 
             assert_eq!(
                 forwarded.load(Ordering::SeqCst),
@@ -2282,12 +2344,14 @@ mod upstream_guard_tests {
         let query_response = transport(graphql_request(
             r#"query HydrateOrderForLocalMutation { order(id: "gid://shopify/Order/1") { id } }"#
                 .to_string(),
+            ApiSurface::Admin,
         ));
         assert_eq!(query_response.status, 200);
         assert_eq!(forwarded.load(Ordering::SeqCst), 1);
 
         let unknown_mutation_response = transport(graphql_request(
             "mutation UnsupportedMutationPassthrough { definitelyUnknownRoot { id } }".to_string(),
+            ApiSurface::Admin,
         ));
         assert_eq!(unknown_mutation_response.status, 200);
         assert_eq!(forwarded.load(Ordering::SeqCst), 2);

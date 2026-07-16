@@ -1860,6 +1860,141 @@ fn b2b_companies_cold_live_hybrid_read_forwards_upstream() {
 }
 
 #[test]
+fn b2b_companies_count_uses_upstream_total_with_staged_delta() {
+    let upstream_responses = Arc::new(Mutex::new(std::collections::VecDeque::from([
+        json!({
+            "data": {
+                "companiesCount": {
+                    "count": 40,
+                    "precision": "EXACT"
+                }
+            }
+        }),
+        json!({
+            "data": {
+                "companiesCount": {
+                    "count": 10,
+                    "precision": "AT_LEAST"
+                }
+            }
+        }),
+    ])));
+    let captured = Arc::new(Mutex::new(Vec::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let captured = Arc::clone(&captured);
+        let upstream_responses = Arc::clone(&upstream_responses);
+        move |request| {
+            captured.lock().expect("captured upstream").push(request);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: upstream_responses
+                    .lock()
+                    .expect("upstream responses")
+                    .pop_front()
+                    .expect("next upstream response"),
+            }
+        }
+    });
+
+    create_b2b_company(&mut proxy, "Staged Buyer");
+
+    let count_only = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BCompaniesCountOnly {
+          companiesCount(limit: null) { count precision }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(count_only.status, 200);
+    assert_eq!(
+        count_only.body["data"]["companiesCount"],
+        json!({ "count": 41, "precision": "EXACT" })
+    );
+
+    let limited = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BCompaniesCountLimited {
+          companiesCount(limit: 10) { count precision }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(limited.status, 200);
+    assert_eq!(
+        limited.body["data"]["companiesCount"],
+        json!({ "count": 10, "precision": "AT_LEAST" })
+    );
+    assert_eq!(captured.lock().expect("captured upstream").len(), 2);
+}
+
+#[test]
+fn b2b_companies_count_uses_count_root_not_page_limited_connection() {
+    let base_companies = (0..5)
+        .map(|index| {
+            json!({
+                "id": format!("gid://shopify/Company/{}", 700000 + index),
+                "name": format!("Baseline Buyer {}", index)
+            })
+        })
+        .collect::<Vec<_>>();
+    let upstream_body = json!({
+        "data": {
+            "companies": {
+                "nodes": base_companies,
+                "pageInfo": {
+                    "hasNextPage": true,
+                    "hasPreviousPage": false,
+                    "startCursor": "gid://shopify/Company/700000",
+                    "endCursor": "gid://shopify/Company/700004"
+                }
+            },
+            "companiesCount": {
+                "count": 40,
+                "precision": "EXACT"
+            }
+        }
+    });
+    let captured = Arc::new(Mutex::new(Vec::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let captured = Arc::clone(&captured);
+        let upstream_body = upstream_body.clone();
+        move |request| {
+            captured.lock().expect("captured upstream").push(request);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: upstream_body.clone(),
+            }
+        }
+    });
+
+    create_b2b_company(&mut proxy, "Staged Buyer");
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BCompaniesSmallPageAndCount {
+          companies(first: 5) { nodes { id name } }
+          companiesCount(limit: null) { count precision }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["companiesCount"],
+        json!({ "count": 41, "precision": "EXACT" })
+    );
+    assert_eq!(
+        captured.lock().expect("captured upstream").len(),
+        1,
+        "one co-selected read should hydrate the page and the independent count"
+    );
+}
+
+#[test]
 fn b2b_live_hybrid_merges_upstream_catalog_with_staged_company_and_location() {
     // Regression: once a B2B row is staged, unrelated upstream rows must stay visible.
     let base_company_id = "gid://shopify/Company/700001";
@@ -2023,6 +2158,59 @@ fn b2b_live_hybrid_merges_upstream_catalog_with_staged_company_and_location() {
     assert_eq!(calls.len(), 1);
     assert!(calls[0].body.contains("query B2BMixedCatalog"));
     assert!(calls.iter().all(|call| !call.body.contains("mutation")));
+}
+
+#[test]
+fn b2b_count_only_live_hybrid_preserves_upstream_total_with_staged_delta() {
+    let captured = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let captured = Arc::clone(&captured);
+        move |request| {
+            assert!(
+                !request.body.contains("mutation"),
+                "B2B supported mutations must not be forwarded upstream: {}",
+                request.body
+            );
+            captured.lock().expect("captured upstream").push(request);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "companiesCount": {
+                            "count": 2,
+                            "precision": "EXACT"
+                        }
+                    }
+                }),
+            }
+        }
+    });
+
+    let staged_company_id = create_b2b_company(&mut proxy, "Count Only Buyer");
+    assert!(staged_company_id.contains("shopify-draft-proxy=synthetic"));
+    assert!(
+        captured.lock().expect("captured upstream").is_empty(),
+        "companyCreate should stage without upstream calls"
+    );
+
+    let count = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BCountOnly {
+          companiesCount { count precision }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(count.status, 200);
+    assert_eq!(
+        count.body["data"]["companiesCount"],
+        json!({ "count": 3, "precision": "EXACT" })
+    );
+    let calls = captured.lock().expect("captured upstream");
+    assert_eq!(calls.len(), 1);
+    assert!(calls[0].body.contains("query B2BCountOnly"));
 }
 
 #[test]

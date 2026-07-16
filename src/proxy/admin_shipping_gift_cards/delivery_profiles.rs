@@ -896,7 +896,11 @@ impl DraftProxy {
         })
     }
 
-    fn hydrate_delivery_profile_locations(&mut self, location_ids: &[String], request: &Request) {
+    pub(in crate::proxy) fn hydrate_delivery_profile_locations(
+        &mut self,
+        location_ids: &[String],
+        request: &Request,
+    ) {
         if self.config.read_mode == ReadMode::Snapshot {
             return;
         }

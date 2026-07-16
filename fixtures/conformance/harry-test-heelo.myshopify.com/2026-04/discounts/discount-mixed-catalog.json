@@ -2,28 +2,28 @@
   "scenarioId": "discount-mixed-catalog",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "runId": "1783743200352",
+  "runId": "1784161980618",
   "variables": {
     "query": "status:scheduled",
     "first": 20,
     "countLimit": 2,
-    "startsAt": "2026-07-25T04:13:20.352Z",
-    "upstreamCode": "zzzzzz SDP mixed 1783743200352 Z upstream code",
-    "localCode": "zzzzzz SDP mixed 1783743200352 Y local code",
-    "upstreamCodeId": "gid://shopify/DiscountCodeNode/1659531362610",
-    "localCodeId": "gid://shopify/DiscountCodeNode/1659531428146",
-    "upstreamAutomaticId": "gid://shopify/DiscountAutomaticNode/1659531395378",
-    "upstreamAutomatic": "zzzzzz SDP mixed 1783743200352 X upstream automatic",
-    "upstreamAutomaticUpdated": "zzzzzz SDP mixed 1783743200352 X upstream automatic updated"
+    "startsAt": "2026-07-30T00:33:00.618Z",
+    "upstreamCodeId": "gid://shopify/DiscountCodeNode/1660460007730",
+    "localCodeId": "gid://shopify/DiscountCodeNode/1660460073266",
+    "upstreamAutomaticId": "gid://shopify/DiscountAutomaticNode/1660460040498",
+    "upstreamCode": "zzzzzz SDP mixed 1784161980618 Z upstream code",
+    "localCode": "zzzzzz SDP mixed 1784161980618 Y local code",
+    "upstreamAutomatic": "zzzzzz SDP mixed 1784161980618 X upstream automatic",
+    "upstreamAutomaticUpdated": "zzzzzz SDP mixed 1784161980618 X upstream automatic updated"
   },
   "requests": {
     "upstreamCodeCreate": {
       "query": "mutation DiscountMixedCatalogCreate($input: DiscountCodeBasicInput!) {\n  discountCodeBasicCreate(basicCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          codes(first: 2) {\n            nodes {\n              code\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "title": "zzzzzz SDP mixed 1783743200352 Z upstream code",
-          "code": "SDPMIXUP1783743200352",
-          "startsAt": "2026-07-25T04:13:20.352Z",
+          "title": "zzzzzz SDP mixed 1784161980618 Z upstream code",
+          "code": "SDPMIXUP1784161980618",
+          "startsAt": "2026-07-30T00:33:00.618Z",
           "combinesWith": {
             "productDiscounts": false,
             "orderDiscounts": true,
@@ -46,8 +46,8 @@
     "upstreamAutomaticCreate": {
       "variables": {
         "input": {
-          "title": "zzzzzz SDP mixed 1783743200352 X upstream automatic",
-          "startsAt": "2026-07-25T04:13:20.352Z",
+          "title": "zzzzzz SDP mixed 1784161980618 X upstream automatic",
+          "startsAt": "2026-07-30T00:33:00.618Z",
           "combinesWith": {
             "productDiscounts": false,
             "orderDiscounts": true,
@@ -67,7 +67,7 @@
     "uniquenessBeforeLocal": {
       "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
       "variables": {
-        "code": "SDPMIXLOCAL1783743200352"
+        "code": "SDPMIXLOCAL1784161980618"
       }
     },
     "baselineRead": {
@@ -76,8 +76,8 @@
         "query": "status:scheduled",
         "first": 20,
         "countLimit": 2,
-        "upstreamCode": "SDPMIXUP1783743200352",
-        "upstreamAutomaticId": "gid://shopify/DiscountAutomaticNode/1659531395378"
+        "upstreamCode": "SDPMIXUP1784161980618",
+        "upstreamAutomaticId": "gid://shopify/DiscountAutomaticNode/1660460040498"
       }
     },
     "baselineReadForAfterMutations": {
@@ -85,17 +85,23 @@
       "variables": {
         "query": "status:scheduled",
         "first": 20,
-        "upstreamCode": "SDPMIXUP1783743200352",
-        "upstreamAutomaticId": "gid://shopify/DiscountAutomaticNode/1659531395378"
+        "upstreamCode": "SDPMIXUP1784161980618",
+        "upstreamAutomaticId": "gid://shopify/DiscountAutomaticNode/1660460040498"
+      }
+    },
+    "baselineCountOnlyRead": {
+      "query": "query DiscountMixedCatalogCountOnly($query: String!) {\n  discountNodesCount(query: $query) {\n    count\n    precision\n  }\n}\n",
+      "variables": {
+        "query": "status:scheduled"
       }
     },
     "localCreate": {
       "query": "mutation DiscountMixedCatalogCreate($input: DiscountCodeBasicInput!) {\n  discountCodeBasicCreate(basicCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          codes(first: 2) {\n            nodes {\n              code\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "title": "zzzzzz SDP mixed 1783743200352 Y local code",
-          "code": "SDPMIXLOCAL1783743200352",
-          "startsAt": "2026-07-25T04:13:20.352Z",
+          "title": "zzzzzz SDP mixed 1784161980618 Y local code",
+          "code": "SDPMIXLOCAL1784161980618",
+          "startsAt": "2026-07-30T00:33:00.618Z",
           "combinesWith": {
             "productDiscounts": false,
             "orderDiscounts": true,
@@ -121,17 +127,23 @@
         "query": "status:scheduled",
         "first": 20,
         "countLimit": 2,
-        "upstreamCode": "SDPMIXUP1783743200352",
-        "upstreamAutomaticId": "gid://shopify/DiscountAutomaticNode/1659531395378"
+        "upstreamCode": "SDPMIXUP1784161980618",
+        "upstreamAutomaticId": "gid://shopify/DiscountAutomaticNode/1660460040498"
+      }
+    },
+    "countOnlyReadAfterCreate": {
+      "query": "query DiscountMixedCatalogCountOnly($query: String!) {\n  discountNodesCount(query: $query) {\n    count\n    precision\n  }\n}\n",
+      "variables": {
+        "query": "status:scheduled"
       }
     },
     "updateAutomatic": {
       "query": "mutation DiscountMixedCatalogUpdateAutomatic($id: ID!, $input: DiscountAutomaticBasicInput!) {\n  discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $input) {\n    automaticDiscountNode {\n      id\n      automaticDiscount {\n        __typename\n        ... on DiscountAutomaticBasic {\n          title\n          status\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/DiscountAutomaticNode/1659531395378",
+        "id": "gid://shopify/DiscountAutomaticNode/1660460040498",
         "input": {
-          "title": "zzzzzz SDP mixed 1783743200352 X upstream automatic updated",
-          "startsAt": "2026-07-25T04:13:20.352Z",
+          "title": "zzzzzz SDP mixed 1784161980618 X upstream automatic updated",
+          "startsAt": "2026-07-30T00:33:00.618Z",
           "combinesWith": {
             "productDiscounts": false,
             "orderDiscounts": true,
@@ -151,7 +163,7 @@
     "deleteCode": {
       "query": "mutation DiscountMixedCatalogDeleteCode($id: ID!) {\n  discountCodeDelete(id: $id) {\n    deletedCodeDiscountId\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/DiscountCodeNode/1659531362610"
+        "id": "gid://shopify/DiscountCodeNode/1660460007730"
       }
     },
     "readAfterMutations": {
@@ -159,8 +171,8 @@
       "variables": {
         "query": "status:scheduled",
         "first": 20,
-        "upstreamCode": "SDPMIXUP1783743200352",
-        "upstreamAutomaticId": "gid://shopify/DiscountAutomaticNode/1659531395378"
+        "upstreamCode": "SDPMIXUP1784161980618",
+        "upstreamAutomaticId": "gid://shopify/DiscountAutomaticNode/1660460040498"
       }
     }
   },
@@ -274,15 +286,15 @@
         "data": {
           "discountCodeBasicCreate": {
             "codeDiscountNode": {
-              "id": "gid://shopify/DiscountCodeNode/1659531362610",
+              "id": "gid://shopify/DiscountCodeNode/1660460007730",
               "codeDiscount": {
                 "__typename": "DiscountCodeBasic",
-                "title": "zzzzzz SDP mixed 1783743200352 Z upstream code",
+                "title": "zzzzzz SDP mixed 1784161980618 Z upstream code",
                 "status": "SCHEDULED",
                 "codes": {
                   "nodes": [
                     {
-                      "code": "SDPMIXUP1783743200352"
+                      "code": "SDPMIXUP1784161980618"
                     }
                   ]
                 }
@@ -310,10 +322,10 @@
         "data": {
           "discountAutomaticBasicCreate": {
             "automaticDiscountNode": {
-              "id": "gid://shopify/DiscountAutomaticNode/1659531395378",
+              "id": "gid://shopify/DiscountAutomaticNode/1660460040498",
               "automaticDiscount": {
                 "__typename": "DiscountAutomaticBasic",
-                "title": "zzzzzz SDP mixed 1783743200352 X upstream automatic",
+                "title": "zzzzzz SDP mixed 1784161980618 X upstream automatic",
                 "status": "SCHEDULED"
               }
             },
@@ -359,29 +371,29 @@
           "reverseCatalog": {
             "nodes": [
               {
-                "id": "gid://shopify/DiscountCodeNode/1659531362610",
+                "id": "gid://shopify/DiscountCodeNode/1660460007730",
                 "discount": {
                   "__typename": "DiscountCodeBasic",
-                  "title": "zzzzzz SDP mixed 1783743200352 Z upstream code",
+                  "title": "zzzzzz SDP mixed 1784161980618 Z upstream code",
                   "status": "SCHEDULED",
-                  "startsAt": "2026-07-25T04:13:20Z",
+                  "startsAt": "2026-07-30T00:33:00Z",
                   "endsAt": null,
                   "codes": {
                     "nodes": [
                       {
-                        "code": "SDPMIXUP1783743200352"
+                        "code": "SDPMIXUP1784161980618"
                       }
                     ]
                   }
                 }
               },
               {
-                "id": "gid://shopify/DiscountAutomaticNode/1659531395378",
+                "id": "gid://shopify/DiscountAutomaticNode/1660460040498",
                 "discount": {
                   "__typename": "DiscountAutomaticBasic",
-                  "title": "zzzzzz SDP mixed 1783743200352 X upstream automatic",
+                  "title": "zzzzzz SDP mixed 1784161980618 X upstream automatic",
                   "status": "SCHEDULED",
-                  "startsAt": "2026-07-25T04:13:20Z",
+                  "startsAt": "2026-07-30T00:33:00Z",
                   "endsAt": null
                 }
               }
@@ -389,34 +401,34 @@
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false,
-              "startCursor": "eyJsYXN0X2lkIjoxNjU5NTMxMzYyNjEwLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzgzNzQzMjAwMzUyIHogdXBzdHJlYW0gY29kZSJ9",
-              "endCursor": "eyJsYXN0X2lkIjoxNjU5NTMxMzk1Mzc4LCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzgzNzQzMjAwMzUyIHggdXBzdHJlYW0gYXV0b21hdGljIn0="
+              "startCursor": "eyJsYXN0X2lkIjoxNjYwNDYwMDA3NzMwLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzg0MTYxOTgwNjE4IHogdXBzdHJlYW0gY29kZSJ9",
+              "endCursor": "eyJsYXN0X2lkIjoxNjYwNDYwMDQwNDk4LCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzg0MTYxOTgwNjE4IHggdXBzdHJlYW0gYXV0b21hdGljIn0="
             }
           },
           "forwardCatalog": {
             "nodes": [
               {
-                "id": "gid://shopify/DiscountAutomaticNode/1659531395378",
+                "id": "gid://shopify/DiscountAutomaticNode/1660460040498",
                 "discount": {
                   "__typename": "DiscountAutomaticBasic",
-                  "title": "zzzzzz SDP mixed 1783743200352 X upstream automatic",
+                  "title": "zzzzzz SDP mixed 1784161980618 X upstream automatic",
                   "status": "SCHEDULED",
-                  "startsAt": "2026-07-25T04:13:20Z",
+                  "startsAt": "2026-07-30T00:33:00Z",
                   "endsAt": null
                 }
               },
               {
-                "id": "gid://shopify/DiscountCodeNode/1659531362610",
+                "id": "gid://shopify/DiscountCodeNode/1660460007730",
                 "discount": {
                   "__typename": "DiscountCodeBasic",
-                  "title": "zzzzzz SDP mixed 1783743200352 Z upstream code",
+                  "title": "zzzzzz SDP mixed 1784161980618 Z upstream code",
                   "status": "SCHEDULED",
-                  "startsAt": "2026-07-25T04:13:20Z",
+                  "startsAt": "2026-07-30T00:33:00Z",
                   "endsAt": null,
                   "codes": {
                     "nodes": [
                       {
-                        "code": "SDPMIXUP1783743200352"
+                        "code": "SDPMIXUP1784161980618"
                       }
                     ]
                   }
@@ -426,24 +438,24 @@
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false,
-              "startCursor": "eyJsYXN0X2lkIjoxNjU5NTMxMzk1Mzc4LCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzgzNzQzMjAwMzUyIHggdXBzdHJlYW0gYXV0b21hdGljIn0=",
-              "endCursor": "eyJsYXN0X2lkIjoxNjU5NTMxMzYyNjEwLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzgzNzQzMjAwMzUyIHogdXBzdHJlYW0gY29kZSJ9"
+              "startCursor": "eyJsYXN0X2lkIjoxNjYwNDYwMDQwNDk4LCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzg0MTYxOTgwNjE4IHggdXBzdHJlYW0gYXV0b21hdGljIn0=",
+              "endCursor": "eyJsYXN0X2lkIjoxNjYwNDYwMDA3NzMwLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzg0MTYxOTgwNjE4IHogdXBzdHJlYW0gY29kZSJ9"
             }
           },
           "codeCatalog": {
             "nodes": [
               {
-                "id": "gid://shopify/DiscountCodeNode/1659531362610",
+                "id": "gid://shopify/DiscountCodeNode/1660460007730",
                 "codeDiscount": {
                   "__typename": "DiscountCodeBasic",
-                  "title": "zzzzzz SDP mixed 1783743200352 Z upstream code",
+                  "title": "zzzzzz SDP mixed 1784161980618 Z upstream code",
                   "status": "SCHEDULED",
-                  "startsAt": "2026-07-25T04:13:20Z",
+                  "startsAt": "2026-07-30T00:33:00Z",
                   "endsAt": null,
                   "codes": {
                     "nodes": [
                       {
-                        "code": "SDPMIXUP1783743200352"
+                        "code": "SDPMIXUP1784161980618"
                       }
                     ]
                   }
@@ -453,19 +465,19 @@
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false,
-              "startCursor": "eyJsYXN0X2lkIjoxNjU5NTMxMzYyNjEwLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzgzNzQzMjAwMzUyIHogdXBzdHJlYW0gY29kZSJ9",
-              "endCursor": "eyJsYXN0X2lkIjoxNjU5NTMxMzYyNjEwLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzgzNzQzMjAwMzUyIHogdXBzdHJlYW0gY29kZSJ9"
+              "startCursor": "eyJsYXN0X2lkIjoxNjYwNDYwMDA3NzMwLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzg0MTYxOTgwNjE4IHogdXBzdHJlYW0gY29kZSJ9",
+              "endCursor": "eyJsYXN0X2lkIjoxNjYwNDYwMDA3NzMwLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzg0MTYxOTgwNjE4IHogdXBzdHJlYW0gY29kZSJ9"
             }
           },
           "automaticCatalog": {
             "nodes": [
               {
-                "id": "gid://shopify/DiscountAutomaticNode/1659531395378",
+                "id": "gid://shopify/DiscountAutomaticNode/1660460040498",
                 "automaticDiscount": {
                   "__typename": "DiscountAutomaticBasic",
-                  "title": "zzzzzz SDP mixed 1783743200352 X upstream automatic",
+                  "title": "zzzzzz SDP mixed 1784161980618 X upstream automatic",
                   "status": "SCHEDULED",
-                  "startsAt": "2026-07-25T04:13:20Z",
+                  "startsAt": "2026-07-30T00:33:00Z",
                   "endsAt": null
                 }
               }
@@ -473,8 +485,8 @@
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false,
-              "startCursor": "eyJsYXN0X2lkIjoxNjU5NTMxMzk1Mzc4LCJsYXN0X3ZhbHVlIjoxNzgzNzQzMjAwMDAwfQ==",
-              "endCursor": "eyJsYXN0X2lkIjoxNjU5NTMxMzk1Mzc4LCJsYXN0X3ZhbHVlIjoxNzgzNzQzMjAwMDAwfQ=="
+              "startCursor": "eyJsYXN0X2lkIjoxNjYwNDYwMDQwNDk4LCJsYXN0X3ZhbHVlIjoxNzg0MTYxOTgwMDAwfQ==",
+              "endCursor": "eyJsYXN0X2lkIjoxNjYwNDYwMDQwNDk4LCJsYXN0X3ZhbHVlIjoxNzg0MTYxOTgwMDAwfQ=="
             }
           },
           "limitedCount": {
@@ -482,29 +494,29 @@
             "precision": "AT_LEAST"
           },
           "upstreamByCode": {
-            "id": "gid://shopify/DiscountCodeNode/1659531362610",
+            "id": "gid://shopify/DiscountCodeNode/1660460007730",
             "codeDiscount": {
               "__typename": "DiscountCodeBasic",
-              "title": "zzzzzz SDP mixed 1783743200352 Z upstream code",
+              "title": "zzzzzz SDP mixed 1784161980618 Z upstream code",
               "status": "SCHEDULED",
-              "startsAt": "2026-07-25T04:13:20Z",
+              "startsAt": "2026-07-30T00:33:00Z",
               "endsAt": null,
               "codes": {
                 "nodes": [
                   {
-                    "code": "SDPMIXUP1783743200352"
+                    "code": "SDPMIXUP1784161980618"
                   }
                 ]
               }
             }
           },
           "upstreamAutomatic": {
-            "id": "gid://shopify/DiscountAutomaticNode/1659531395378",
+            "id": "gid://shopify/DiscountAutomaticNode/1660460040498",
             "automaticDiscount": {
               "__typename": "DiscountAutomaticBasic",
-              "title": "zzzzzz SDP mixed 1783743200352 X upstream automatic",
+              "title": "zzzzzz SDP mixed 1784161980618 X upstream automatic",
               "status": "SCHEDULED",
-              "startsAt": "2026-07-25T04:13:20Z",
+              "startsAt": "2026-07-30T00:33:00Z",
               "endsAt": null
             }
           }
@@ -529,29 +541,29 @@
           "reverseCatalog": {
             "nodes": [
               {
-                "id": "gid://shopify/DiscountCodeNode/1659531362610",
+                "id": "gid://shopify/DiscountCodeNode/1660460007730",
                 "discount": {
                   "__typename": "DiscountCodeBasic",
-                  "title": "zzzzzz SDP mixed 1783743200352 Z upstream code",
+                  "title": "zzzzzz SDP mixed 1784161980618 Z upstream code",
                   "status": "SCHEDULED",
-                  "startsAt": "2026-07-25T04:13:20Z",
+                  "startsAt": "2026-07-30T00:33:00Z",
                   "endsAt": null,
                   "codes": {
                     "nodes": [
                       {
-                        "code": "SDPMIXUP1783743200352"
+                        "code": "SDPMIXUP1784161980618"
                       }
                     ]
                   }
                 }
               },
               {
-                "id": "gid://shopify/DiscountAutomaticNode/1659531395378",
+                "id": "gid://shopify/DiscountAutomaticNode/1660460040498",
                 "discount": {
                   "__typename": "DiscountAutomaticBasic",
-                  "title": "zzzzzz SDP mixed 1783743200352 X upstream automatic",
+                  "title": "zzzzzz SDP mixed 1784161980618 X upstream automatic",
                   "status": "SCHEDULED",
-                  "startsAt": "2026-07-25T04:13:20Z",
+                  "startsAt": "2026-07-30T00:33:00Z",
                   "endsAt": null
                 }
               }
@@ -559,24 +571,24 @@
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false,
-              "startCursor": "eyJsYXN0X2lkIjoxNjU5NTMxMzYyNjEwLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzgzNzQzMjAwMzUyIHogdXBzdHJlYW0gY29kZSJ9",
-              "endCursor": "eyJsYXN0X2lkIjoxNjU5NTMxMzk1Mzc4LCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzgzNzQzMjAwMzUyIHggdXBzdHJlYW0gYXV0b21hdGljIn0="
+              "startCursor": "eyJsYXN0X2lkIjoxNjYwNDYwMDA3NzMwLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzg0MTYxOTgwNjE4IHogdXBzdHJlYW0gY29kZSJ9",
+              "endCursor": "eyJsYXN0X2lkIjoxNjYwNDYwMDQwNDk4LCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzg0MTYxOTgwNjE4IHggdXBzdHJlYW0gYXV0b21hdGljIn0="
             }
           },
           "codeCatalog": {
             "nodes": [
               {
-                "id": "gid://shopify/DiscountCodeNode/1659531362610",
+                "id": "gid://shopify/DiscountCodeNode/1660460007730",
                 "codeDiscount": {
                   "__typename": "DiscountCodeBasic",
-                  "title": "zzzzzz SDP mixed 1783743200352 Z upstream code",
+                  "title": "zzzzzz SDP mixed 1784161980618 Z upstream code",
                   "status": "SCHEDULED",
-                  "startsAt": "2026-07-25T04:13:20Z",
+                  "startsAt": "2026-07-30T00:33:00Z",
                   "endsAt": null,
                   "codes": {
                     "nodes": [
                       {
-                        "code": "SDPMIXUP1783743200352"
+                        "code": "SDPMIXUP1784161980618"
                       }
                     ]
                   }
@@ -587,34 +599,34 @@
           "automaticCatalog": {
             "nodes": [
               {
-                "id": "gid://shopify/DiscountAutomaticNode/1659531395378",
+                "id": "gid://shopify/DiscountAutomaticNode/1660460040498",
                 "automaticDiscount": {
                   "__typename": "DiscountAutomaticBasic",
-                  "title": "zzzzzz SDP mixed 1783743200352 X upstream automatic",
+                  "title": "zzzzzz SDP mixed 1784161980618 X upstream automatic",
                   "status": "SCHEDULED",
-                  "startsAt": "2026-07-25T04:13:20Z",
+                  "startsAt": "2026-07-30T00:33:00Z",
                   "endsAt": null
                 }
               }
             ]
           },
           "tombstonedByCode": {
-            "id": "gid://shopify/DiscountCodeNode/1659531362610",
+            "id": "gid://shopify/DiscountCodeNode/1660460007730",
             "codeDiscount": {
               "__typename": "DiscountCodeBasic",
-              "title": "zzzzzz SDP mixed 1783743200352 Z upstream code",
+              "title": "zzzzzz SDP mixed 1784161980618 Z upstream code",
               "status": "SCHEDULED",
-              "startsAt": "2026-07-25T04:13:20Z",
+              "startsAt": "2026-07-30T00:33:00Z",
               "endsAt": null
             }
           },
           "updatedAutomatic": {
-            "id": "gid://shopify/DiscountAutomaticNode/1659531395378",
+            "id": "gid://shopify/DiscountAutomaticNode/1660460040498",
             "automaticDiscount": {
               "__typename": "DiscountAutomaticBasic",
-              "title": "zzzzzz SDP mixed 1783743200352 X upstream automatic",
+              "title": "zzzzzz SDP mixed 1784161980618 X upstream automatic",
               "status": "SCHEDULED",
-              "startsAt": "2026-07-25T04:13:20Z",
+              "startsAt": "2026-07-30T00:33:00Z",
               "endsAt": null
             }
           }
@@ -631,6 +643,28 @@
           }
         }
       }
+    },
+    "baselineCountOnlyRead": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "discountNodesCount": {
+            "count": 2,
+            "precision": "EXACT"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1969,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
     }
   },
   "localCreate": {
@@ -639,15 +673,15 @@
       "data": {
         "discountCodeBasicCreate": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1659531428146",
+            "id": "gid://shopify/DiscountCodeNode/1660460073266",
             "codeDiscount": {
               "__typename": "DiscountCodeBasic",
-              "title": "zzzzzz SDP mixed 1783743200352 Y local code",
+              "title": "zzzzzz SDP mixed 1784161980618 Y local code",
               "status": "SCHEDULED",
               "codes": {
                 "nodes": [
                   {
-                    "code": "SDPMIXLOCAL1783743200352"
+                    "code": "SDPMIXLOCAL1784161980618"
                   }
                 ]
               }
@@ -662,7 +696,7 @@
           "actualQueryCost": 14,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1961,
+            "currentlyAvailable": 1964,
             "restoreRate": 100
           }
         }
@@ -676,46 +710,46 @@
         "reverseCatalog": {
           "nodes": [
             {
-              "id": "gid://shopify/DiscountCodeNode/1659531362610",
+              "id": "gid://shopify/DiscountCodeNode/1660460007730",
               "discount": {
                 "__typename": "DiscountCodeBasic",
-                "title": "zzzzzz SDP mixed 1783743200352 Z upstream code",
+                "title": "zzzzzz SDP mixed 1784161980618 Z upstream code",
                 "status": "SCHEDULED",
-                "startsAt": "2026-07-25T04:13:20Z",
+                "startsAt": "2026-07-30T00:33:00Z",
                 "endsAt": null,
                 "codes": {
                   "nodes": [
                     {
-                      "code": "SDPMIXUP1783743200352"
+                      "code": "SDPMIXUP1784161980618"
                     }
                   ]
                 }
               }
             },
             {
-              "id": "gid://shopify/DiscountCodeNode/1659531428146",
+              "id": "gid://shopify/DiscountCodeNode/1660460073266",
               "discount": {
                 "__typename": "DiscountCodeBasic",
-                "title": "zzzzzz SDP mixed 1783743200352 Y local code",
+                "title": "zzzzzz SDP mixed 1784161980618 Y local code",
                 "status": "SCHEDULED",
-                "startsAt": "2026-07-25T04:13:20Z",
+                "startsAt": "2026-07-30T00:33:00Z",
                 "endsAt": null,
                 "codes": {
                   "nodes": [
                     {
-                      "code": "SDPMIXLOCAL1783743200352"
+                      "code": "SDPMIXLOCAL1784161980618"
                     }
                   ]
                 }
               }
             },
             {
-              "id": "gid://shopify/DiscountAutomaticNode/1659531395378",
+              "id": "gid://shopify/DiscountAutomaticNode/1660460040498",
               "discount": {
                 "__typename": "DiscountAutomaticBasic",
-                "title": "zzzzzz SDP mixed 1783743200352 X upstream automatic",
+                "title": "zzzzzz SDP mixed 1784161980618 X upstream automatic",
                 "status": "SCHEDULED",
-                "startsAt": "2026-07-25T04:13:20Z",
+                "startsAt": "2026-07-30T00:33:00Z",
                 "endsAt": null
               }
             }
@@ -723,34 +757,34 @@
           "pageInfo": {
             "hasNextPage": false,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjoxNjU5NTMxMzYyNjEwLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzgzNzQzMjAwMzUyIHogdXBzdHJlYW0gY29kZSJ9",
-            "endCursor": "eyJsYXN0X2lkIjoxNjU5NTMxMzk1Mzc4LCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzgzNzQzMjAwMzUyIHggdXBzdHJlYW0gYXV0b21hdGljIn0="
+            "startCursor": "eyJsYXN0X2lkIjoxNjYwNDYwMDA3NzMwLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzg0MTYxOTgwNjE4IHogdXBzdHJlYW0gY29kZSJ9",
+            "endCursor": "eyJsYXN0X2lkIjoxNjYwNDYwMDQwNDk4LCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzg0MTYxOTgwNjE4IHggdXBzdHJlYW0gYXV0b21hdGljIn0="
           }
         },
         "forwardCatalog": {
           "nodes": [
             {
-              "id": "gid://shopify/DiscountAutomaticNode/1659531395378",
+              "id": "gid://shopify/DiscountAutomaticNode/1660460040498",
               "discount": {
                 "__typename": "DiscountAutomaticBasic",
-                "title": "zzzzzz SDP mixed 1783743200352 X upstream automatic",
+                "title": "zzzzzz SDP mixed 1784161980618 X upstream automatic",
                 "status": "SCHEDULED",
-                "startsAt": "2026-07-25T04:13:20Z",
+                "startsAt": "2026-07-30T00:33:00Z",
                 "endsAt": null
               }
             },
             {
-              "id": "gid://shopify/DiscountCodeNode/1659531428146",
+              "id": "gid://shopify/DiscountCodeNode/1660460073266",
               "discount": {
                 "__typename": "DiscountCodeBasic",
-                "title": "zzzzzz SDP mixed 1783743200352 Y local code",
+                "title": "zzzzzz SDP mixed 1784161980618 Y local code",
                 "status": "SCHEDULED",
-                "startsAt": "2026-07-25T04:13:20Z",
+                "startsAt": "2026-07-30T00:33:00Z",
                 "endsAt": null,
                 "codes": {
                   "nodes": [
                     {
-                      "code": "SDPMIXLOCAL1783743200352"
+                      "code": "SDPMIXLOCAL1784161980618"
                     }
                   ]
                 }
@@ -760,41 +794,41 @@
           "pageInfo": {
             "hasNextPage": true,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjoxNjU5NTMxMzk1Mzc4LCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzgzNzQzMjAwMzUyIHggdXBzdHJlYW0gYXV0b21hdGljIn0=",
-            "endCursor": "eyJsYXN0X2lkIjoxNjU5NTMxNDI4MTQ2LCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzgzNzQzMjAwMzUyIHkgbG9jYWwgY29kZSJ9"
+            "startCursor": "eyJsYXN0X2lkIjoxNjYwNDYwMDQwNDk4LCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzg0MTYxOTgwNjE4IHggdXBzdHJlYW0gYXV0b21hdGljIn0=",
+            "endCursor": "eyJsYXN0X2lkIjoxNjYwNDYwMDczMjY2LCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzg0MTYxOTgwNjE4IHkgbG9jYWwgY29kZSJ9"
           }
         },
         "codeCatalog": {
           "nodes": [
             {
-              "id": "gid://shopify/DiscountCodeNode/1659531362610",
+              "id": "gid://shopify/DiscountCodeNode/1660460007730",
               "codeDiscount": {
                 "__typename": "DiscountCodeBasic",
-                "title": "zzzzzz SDP mixed 1783743200352 Z upstream code",
+                "title": "zzzzzz SDP mixed 1784161980618 Z upstream code",
                 "status": "SCHEDULED",
-                "startsAt": "2026-07-25T04:13:20Z",
+                "startsAt": "2026-07-30T00:33:00Z",
                 "endsAt": null,
                 "codes": {
                   "nodes": [
                     {
-                      "code": "SDPMIXUP1783743200352"
+                      "code": "SDPMIXUP1784161980618"
                     }
                   ]
                 }
               }
             },
             {
-              "id": "gid://shopify/DiscountCodeNode/1659531428146",
+              "id": "gid://shopify/DiscountCodeNode/1660460073266",
               "codeDiscount": {
                 "__typename": "DiscountCodeBasic",
-                "title": "zzzzzz SDP mixed 1783743200352 Y local code",
+                "title": "zzzzzz SDP mixed 1784161980618 Y local code",
                 "status": "SCHEDULED",
-                "startsAt": "2026-07-25T04:13:20Z",
+                "startsAt": "2026-07-30T00:33:00Z",
                 "endsAt": null,
                 "codes": {
                   "nodes": [
                     {
-                      "code": "SDPMIXLOCAL1783743200352"
+                      "code": "SDPMIXLOCAL1784161980618"
                     }
                   ]
                 }
@@ -804,19 +838,19 @@
           "pageInfo": {
             "hasNextPage": false,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjoxNjU5NTMxMzYyNjEwLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzgzNzQzMjAwMzUyIHogdXBzdHJlYW0gY29kZSJ9",
-            "endCursor": "eyJsYXN0X2lkIjoxNjU5NTMxNDI4MTQ2LCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzgzNzQzMjAwMzUyIHkgbG9jYWwgY29kZSJ9"
+            "startCursor": "eyJsYXN0X2lkIjoxNjYwNDYwMDA3NzMwLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzg0MTYxOTgwNjE4IHogdXBzdHJlYW0gY29kZSJ9",
+            "endCursor": "eyJsYXN0X2lkIjoxNjYwNDYwMDczMjY2LCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzg0MTYxOTgwNjE4IHkgbG9jYWwgY29kZSJ9"
           }
         },
         "automaticCatalog": {
           "nodes": [
             {
-              "id": "gid://shopify/DiscountAutomaticNode/1659531395378",
+              "id": "gid://shopify/DiscountAutomaticNode/1660460040498",
               "automaticDiscount": {
                 "__typename": "DiscountAutomaticBasic",
-                "title": "zzzzzz SDP mixed 1783743200352 X upstream automatic",
+                "title": "zzzzzz SDP mixed 1784161980618 X upstream automatic",
                 "status": "SCHEDULED",
-                "startsAt": "2026-07-25T04:13:20Z",
+                "startsAt": "2026-07-30T00:33:00Z",
                 "endsAt": null
               }
             }
@@ -824,8 +858,8 @@
           "pageInfo": {
             "hasNextPage": false,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjoxNjU5NTMxMzk1Mzc4LCJsYXN0X3ZhbHVlIjoxNzgzNzQzMjAwMDAwfQ==",
-            "endCursor": "eyJsYXN0X2lkIjoxNjU5NTMxMzk1Mzc4LCJsYXN0X3ZhbHVlIjoxNzgzNzQzMjAwMDAwfQ=="
+            "startCursor": "eyJsYXN0X2lkIjoxNjYwNDYwMDQwNDk4LCJsYXN0X3ZhbHVlIjoxNzg0MTYxOTgwMDAwfQ==",
+            "endCursor": "eyJsYXN0X2lkIjoxNjYwNDYwMDQwNDk4LCJsYXN0X3ZhbHVlIjoxNzg0MTYxOTgwMDAwfQ=="
           }
         },
         "limitedCount": {
@@ -833,29 +867,29 @@
           "precision": "AT_LEAST"
         },
         "upstreamByCode": {
-          "id": "gid://shopify/DiscountCodeNode/1659531362610",
+          "id": "gid://shopify/DiscountCodeNode/1660460007730",
           "codeDiscount": {
             "__typename": "DiscountCodeBasic",
-            "title": "zzzzzz SDP mixed 1783743200352 Z upstream code",
+            "title": "zzzzzz SDP mixed 1784161980618 Z upstream code",
             "status": "SCHEDULED",
-            "startsAt": "2026-07-25T04:13:20Z",
+            "startsAt": "2026-07-30T00:33:00Z",
             "endsAt": null,
             "codes": {
               "nodes": [
                 {
-                  "code": "SDPMIXUP1783743200352"
+                  "code": "SDPMIXUP1784161980618"
                 }
               ]
             }
           }
         },
         "upstreamAutomatic": {
-          "id": "gid://shopify/DiscountAutomaticNode/1659531395378",
+          "id": "gid://shopify/DiscountAutomaticNode/1660460040498",
           "automaticDiscount": {
             "__typename": "DiscountAutomaticBasic",
-            "title": "zzzzzz SDP mixed 1783743200352 X upstream automatic",
+            "title": "zzzzzz SDP mixed 1784161980618 X upstream automatic",
             "status": "SCHEDULED",
-            "startsAt": "2026-07-25T04:13:20Z",
+            "startsAt": "2026-07-30T00:33:00Z",
             "endsAt": null
           }
         }
@@ -873,16 +907,38 @@
       }
     }
   },
+  "countOnlyReadAfterCreate": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountNodesCount": {
+          "count": 3,
+          "precision": "EXACT"
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1976,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
   "updateAutomatic": {
     "status": 200,
     "payload": {
       "data": {
         "discountAutomaticBasicUpdate": {
           "automaticDiscountNode": {
-            "id": "gid://shopify/DiscountAutomaticNode/1659531395378",
+            "id": "gid://shopify/DiscountAutomaticNode/1660460040498",
             "automaticDiscount": {
               "__typename": "DiscountAutomaticBasic",
-              "title": "zzzzzz SDP mixed 1783743200352 X upstream automatic updated",
+              "title": "zzzzzz SDP mixed 1784161980618 X upstream automatic updated",
               "status": "SCHEDULED"
             }
           },
@@ -895,7 +951,7 @@
           "actualQueryCost": 11,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1965,
+            "currentlyAvailable": 1973,
             "restoreRate": 100
           }
         }
@@ -907,7 +963,7 @@
     "payload": {
       "data": {
         "discountCodeDelete": {
-          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1659531362610",
+          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1660460007730",
           "userErrors": []
         }
       },
@@ -917,7 +973,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1968,
+            "currentlyAvailable": 1979,
             "restoreRate": 100
           }
         }
@@ -931,29 +987,29 @@
         "reverseCatalog": {
           "nodes": [
             {
-              "id": "gid://shopify/DiscountCodeNode/1659531428146",
+              "id": "gid://shopify/DiscountCodeNode/1660460073266",
               "discount": {
                 "__typename": "DiscountCodeBasic",
-                "title": "zzzzzz SDP mixed 1783743200352 Y local code",
+                "title": "zzzzzz SDP mixed 1784161980618 Y local code",
                 "status": "SCHEDULED",
-                "startsAt": "2026-07-25T04:13:20Z",
+                "startsAt": "2026-07-30T00:33:00Z",
                 "endsAt": null,
                 "codes": {
                   "nodes": [
                     {
-                      "code": "SDPMIXLOCAL1783743200352"
+                      "code": "SDPMIXLOCAL1784161980618"
                     }
                   ]
                 }
               }
             },
             {
-              "id": "gid://shopify/DiscountAutomaticNode/1659531395378",
+              "id": "gid://shopify/DiscountAutomaticNode/1660460040498",
               "discount": {
                 "__typename": "DiscountAutomaticBasic",
-                "title": "zzzzzz SDP mixed 1783743200352 X upstream automatic updated",
+                "title": "zzzzzz SDP mixed 1784161980618 X upstream automatic updated",
                 "status": "SCHEDULED",
-                "startsAt": "2026-07-25T04:13:20Z",
+                "startsAt": "2026-07-30T00:33:00Z",
                 "endsAt": null
               }
             }
@@ -961,24 +1017,24 @@
           "pageInfo": {
             "hasNextPage": false,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjoxNjU5NTMxMzYyNjEwLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzgzNzQzMjAwMzUyIHogdXBzdHJlYW0gY29kZSJ9",
-            "endCursor": "eyJsYXN0X2lkIjoxNjU5NTMxNDI4MTQ2LCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzgzNzQzMjAwMzUyIHkgbG9jYWwgY29kZSJ9"
+            "startCursor": "eyJsYXN0X2lkIjoxNjYwNDYwMDA3NzMwLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzg0MTYxOTgwNjE4IHogdXBzdHJlYW0gY29kZSJ9",
+            "endCursor": "eyJsYXN0X2lkIjoxNjYwNDYwMDczMjY2LCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzg0MTYxOTgwNjE4IHkgbG9jYWwgY29kZSJ9"
           }
         },
         "codeCatalog": {
           "nodes": [
             {
-              "id": "gid://shopify/DiscountCodeNode/1659531428146",
+              "id": "gid://shopify/DiscountCodeNode/1660460073266",
               "codeDiscount": {
                 "__typename": "DiscountCodeBasic",
-                "title": "zzzzzz SDP mixed 1783743200352 Y local code",
+                "title": "zzzzzz SDP mixed 1784161980618 Y local code",
                 "status": "SCHEDULED",
-                "startsAt": "2026-07-25T04:13:20Z",
+                "startsAt": "2026-07-30T00:33:00Z",
                 "endsAt": null,
                 "codes": {
                   "nodes": [
                     {
-                      "code": "SDPMIXLOCAL1783743200352"
+                      "code": "SDPMIXLOCAL1784161980618"
                     }
                   ]
                 }
@@ -989,12 +1045,12 @@
         "automaticCatalog": {
           "nodes": [
             {
-              "id": "gid://shopify/DiscountAutomaticNode/1659531395378",
+              "id": "gid://shopify/DiscountAutomaticNode/1660460040498",
               "automaticDiscount": {
                 "__typename": "DiscountAutomaticBasic",
-                "title": "zzzzzz SDP mixed 1783743200352 X upstream automatic updated",
+                "title": "zzzzzz SDP mixed 1784161980618 X upstream automatic updated",
                 "status": "SCHEDULED",
-                "startsAt": "2026-07-25T04:13:20Z",
+                "startsAt": "2026-07-30T00:33:00Z",
                 "endsAt": null
               }
             }
@@ -1002,12 +1058,12 @@
         },
         "tombstonedByCode": null,
         "updatedAutomatic": {
-          "id": "gid://shopify/DiscountAutomaticNode/1659531395378",
+          "id": "gid://shopify/DiscountAutomaticNode/1660460040498",
           "automaticDiscount": {
             "__typename": "DiscountAutomaticBasic",
-            "title": "zzzzzz SDP mixed 1783743200352 X upstream automatic updated",
+            "title": "zzzzzz SDP mixed 1784161980618 X upstream automatic updated",
             "status": "SCHEDULED",
-            "startsAt": "2026-07-25T04:13:20Z",
+            "startsAt": "2026-07-30T00:33:00Z",
             "endsAt": null
           }
         }
@@ -1018,7 +1074,7 @@
           "actualQueryCost": 19,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1966,
+            "currentlyAvailable": 1980,
             "restoreRate": 100
           }
         }
@@ -1031,7 +1087,7 @@
       "payload": {
         "data": {
           "discountCodeDelete": {
-            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1659531428146",
+            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1660460073266",
             "userErrors": []
           }
         },
@@ -1041,7 +1097,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1972,
+              "currentlyAvailable": 1987,
               "restoreRate": 100
             }
           }
@@ -1053,7 +1109,7 @@
       "payload": {
         "data": {
           "discountAutomaticDelete": {
-            "deletedAutomaticDiscountId": "gid://shopify/DiscountAutomaticNode/1659531395378",
+            "deletedAutomaticDiscountId": "gid://shopify/DiscountAutomaticNode/1660460040498",
             "userErrors": []
           }
         },
@@ -1063,7 +1119,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1980,
+              "currentlyAvailable": 1990,
               "restoreRate": 100
             }
           }
@@ -1075,7 +1131,7 @@
     {
       "operationName": "DiscountUniquenessCheck",
       "variables": {
-        "code": "SDPMIXLOCAL1783743200352"
+        "code": "SDPMIXLOCAL1784161980618"
       },
       "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
       "response": {
@@ -1099,13 +1155,42 @@
       }
     },
     {
+      "operationName": "DiscountMixedCatalogCountOnly",
+      "variables": {
+        "query": "status:scheduled"
+      },
+      "query": "query DiscountMixedCatalogCountOnly($query: String!) {\n  discountNodesCount(query: $query) {\n    count\n    precision\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "discountNodesCount": {
+              "count": 2,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1969,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
       "operationName": "DiscountMixedCatalogRead",
       "variables": {
         "query": "status:scheduled",
         "first": 20,
         "countLimit": 2,
-        "upstreamCode": "SDPMIXUP1783743200352",
-        "upstreamAutomaticId": "gid://shopify/DiscountAutomaticNode/1659531395378"
+        "upstreamCode": "SDPMIXUP1784161980618",
+        "upstreamAutomaticId": "gid://shopify/DiscountAutomaticNode/1660460040498"
       },
       "query": "query DiscountMixedCatalogRead(\n  $query: String!\n  $first: Int!\n  $countLimit: Int!\n  $upstreamCode: String!\n  $upstreamAutomaticId: ID!\n) {\n  reverseCatalog: discountNodes(first: $first, query: $query, sortKey: TITLE, reverse: true) {\n    nodes {\n      id\n      discount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          startsAt\n          endsAt\n          codes(first: 2) {\n            nodes {\n              code\n            }\n          }\n        }\n        ... on DiscountAutomaticBasic {\n          title\n          status\n          startsAt\n          endsAt\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  forwardCatalog: discountNodes(first: 2, query: $query, sortKey: TITLE, reverse: false) {\n    nodes {\n      id\n      discount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          startsAt\n          endsAt\n          codes(first: 2) {\n            nodes {\n              code\n            }\n          }\n        }\n        ... on DiscountAutomaticBasic {\n          title\n          status\n          startsAt\n          endsAt\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  codeCatalog: codeDiscountNodes(first: $first, query: $query, sortKey: TITLE, reverse: true) {\n    nodes {\n      id\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          startsAt\n          endsAt\n          codes(first: 2) {\n            nodes {\n              code\n            }\n          }\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  automaticCatalog: automaticDiscountNodes(first: $first, query: $query, sortKey: CREATED_AT, reverse: true) {\n    nodes {\n      id\n      automaticDiscount {\n        __typename\n        ... on DiscountAutomaticBasic {\n          title\n          status\n          startsAt\n          endsAt\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  limitedCount: discountNodesCount(query: $query, limit: $countLimit) {\n    count\n    precision\n  }\n  upstreamByCode: codeDiscountNodeByCode(code: $upstreamCode) {\n    id\n    codeDiscount {\n      __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          startsAt\n          endsAt\n          codes(first: 2) {\n          nodes {\n            code\n          }\n        }\n      }\n    }\n  }\n  upstreamAutomatic: automaticDiscountNode(id: $upstreamAutomaticId) {\n    id\n    automaticDiscount {\n      __typename\n        ... on DiscountAutomaticBasic {\n          title\n          status\n          startsAt\n          endsAt\n        }\n    }\n  }\n}\n",
       "response": {
@@ -1115,29 +1200,29 @@
             "reverseCatalog": {
               "nodes": [
                 {
-                  "id": "gid://shopify/DiscountCodeNode/1659531362610",
+                  "id": "gid://shopify/DiscountCodeNode/1660460007730",
                   "discount": {
                     "__typename": "DiscountCodeBasic",
-                    "title": "zzzzzz SDP mixed 1783743200352 Z upstream code",
+                    "title": "zzzzzz SDP mixed 1784161980618 Z upstream code",
                     "status": "SCHEDULED",
-                    "startsAt": "2026-07-25T04:13:20Z",
+                    "startsAt": "2026-07-30T00:33:00Z",
                     "endsAt": null,
                     "codes": {
                       "nodes": [
                         {
-                          "code": "SDPMIXUP1783743200352"
+                          "code": "SDPMIXUP1784161980618"
                         }
                       ]
                     }
                   }
                 },
                 {
-                  "id": "gid://shopify/DiscountAutomaticNode/1659531395378",
+                  "id": "gid://shopify/DiscountAutomaticNode/1660460040498",
                   "discount": {
                     "__typename": "DiscountAutomaticBasic",
-                    "title": "zzzzzz SDP mixed 1783743200352 X upstream automatic",
+                    "title": "zzzzzz SDP mixed 1784161980618 X upstream automatic",
                     "status": "SCHEDULED",
-                    "startsAt": "2026-07-25T04:13:20Z",
+                    "startsAt": "2026-07-30T00:33:00Z",
                     "endsAt": null
                   }
                 }
@@ -1145,34 +1230,34 @@
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjoxNjU5NTMxMzYyNjEwLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzgzNzQzMjAwMzUyIHogdXBzdHJlYW0gY29kZSJ9",
-                "endCursor": "eyJsYXN0X2lkIjoxNjU5NTMxMzk1Mzc4LCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzgzNzQzMjAwMzUyIHggdXBzdHJlYW0gYXV0b21hdGljIn0="
+                "startCursor": "eyJsYXN0X2lkIjoxNjYwNDYwMDA3NzMwLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzg0MTYxOTgwNjE4IHogdXBzdHJlYW0gY29kZSJ9",
+                "endCursor": "eyJsYXN0X2lkIjoxNjYwNDYwMDQwNDk4LCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzg0MTYxOTgwNjE4IHggdXBzdHJlYW0gYXV0b21hdGljIn0="
               }
             },
             "forwardCatalog": {
               "nodes": [
                 {
-                  "id": "gid://shopify/DiscountAutomaticNode/1659531395378",
+                  "id": "gid://shopify/DiscountAutomaticNode/1660460040498",
                   "discount": {
                     "__typename": "DiscountAutomaticBasic",
-                    "title": "zzzzzz SDP mixed 1783743200352 X upstream automatic",
+                    "title": "zzzzzz SDP mixed 1784161980618 X upstream automatic",
                     "status": "SCHEDULED",
-                    "startsAt": "2026-07-25T04:13:20Z",
+                    "startsAt": "2026-07-30T00:33:00Z",
                     "endsAt": null
                   }
                 },
                 {
-                  "id": "gid://shopify/DiscountCodeNode/1659531362610",
+                  "id": "gid://shopify/DiscountCodeNode/1660460007730",
                   "discount": {
                     "__typename": "DiscountCodeBasic",
-                    "title": "zzzzzz SDP mixed 1783743200352 Z upstream code",
+                    "title": "zzzzzz SDP mixed 1784161980618 Z upstream code",
                     "status": "SCHEDULED",
-                    "startsAt": "2026-07-25T04:13:20Z",
+                    "startsAt": "2026-07-30T00:33:00Z",
                     "endsAt": null,
                     "codes": {
                       "nodes": [
                         {
-                          "code": "SDPMIXUP1783743200352"
+                          "code": "SDPMIXUP1784161980618"
                         }
                       ]
                     }
@@ -1182,24 +1267,24 @@
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjoxNjU5NTMxMzk1Mzc4LCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzgzNzQzMjAwMzUyIHggdXBzdHJlYW0gYXV0b21hdGljIn0=",
-                "endCursor": "eyJsYXN0X2lkIjoxNjU5NTMxMzYyNjEwLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzgzNzQzMjAwMzUyIHogdXBzdHJlYW0gY29kZSJ9"
+                "startCursor": "eyJsYXN0X2lkIjoxNjYwNDYwMDQwNDk4LCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzg0MTYxOTgwNjE4IHggdXBzdHJlYW0gYXV0b21hdGljIn0=",
+                "endCursor": "eyJsYXN0X2lkIjoxNjYwNDYwMDA3NzMwLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzg0MTYxOTgwNjE4IHogdXBzdHJlYW0gY29kZSJ9"
               }
             },
             "codeCatalog": {
               "nodes": [
                 {
-                  "id": "gid://shopify/DiscountCodeNode/1659531362610",
+                  "id": "gid://shopify/DiscountCodeNode/1660460007730",
                   "codeDiscount": {
                     "__typename": "DiscountCodeBasic",
-                    "title": "zzzzzz SDP mixed 1783743200352 Z upstream code",
+                    "title": "zzzzzz SDP mixed 1784161980618 Z upstream code",
                     "status": "SCHEDULED",
-                    "startsAt": "2026-07-25T04:13:20Z",
+                    "startsAt": "2026-07-30T00:33:00Z",
                     "endsAt": null,
                     "codes": {
                       "nodes": [
                         {
-                          "code": "SDPMIXUP1783743200352"
+                          "code": "SDPMIXUP1784161980618"
                         }
                       ]
                     }
@@ -1209,19 +1294,19 @@
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjoxNjU5NTMxMzYyNjEwLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzgzNzQzMjAwMzUyIHogdXBzdHJlYW0gY29kZSJ9",
-                "endCursor": "eyJsYXN0X2lkIjoxNjU5NTMxMzYyNjEwLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzgzNzQzMjAwMzUyIHogdXBzdHJlYW0gY29kZSJ9"
+                "startCursor": "eyJsYXN0X2lkIjoxNjYwNDYwMDA3NzMwLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzg0MTYxOTgwNjE4IHogdXBzdHJlYW0gY29kZSJ9",
+                "endCursor": "eyJsYXN0X2lkIjoxNjYwNDYwMDA3NzMwLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzg0MTYxOTgwNjE4IHogdXBzdHJlYW0gY29kZSJ9"
               }
             },
             "automaticCatalog": {
               "nodes": [
                 {
-                  "id": "gid://shopify/DiscountAutomaticNode/1659531395378",
+                  "id": "gid://shopify/DiscountAutomaticNode/1660460040498",
                   "automaticDiscount": {
                     "__typename": "DiscountAutomaticBasic",
-                    "title": "zzzzzz SDP mixed 1783743200352 X upstream automatic",
+                    "title": "zzzzzz SDP mixed 1784161980618 X upstream automatic",
                     "status": "SCHEDULED",
-                    "startsAt": "2026-07-25T04:13:20Z",
+                    "startsAt": "2026-07-30T00:33:00Z",
                     "endsAt": null
                   }
                 }
@@ -1229,8 +1314,8 @@
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjoxNjU5NTMxMzk1Mzc4LCJsYXN0X3ZhbHVlIjoxNzgzNzQzMjAwMDAwfQ==",
-                "endCursor": "eyJsYXN0X2lkIjoxNjU5NTMxMzk1Mzc4LCJsYXN0X3ZhbHVlIjoxNzgzNzQzMjAwMDAwfQ=="
+                "startCursor": "eyJsYXN0X2lkIjoxNjYwNDYwMDQwNDk4LCJsYXN0X3ZhbHVlIjoxNzg0MTYxOTgwMDAwfQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxNjYwNDYwMDQwNDk4LCJsYXN0X3ZhbHVlIjoxNzg0MTYxOTgwMDAwfQ=="
               }
             },
             "limitedCount": {
@@ -1238,29 +1323,29 @@
               "precision": "AT_LEAST"
             },
             "upstreamByCode": {
-              "id": "gid://shopify/DiscountCodeNode/1659531362610",
+              "id": "gid://shopify/DiscountCodeNode/1660460007730",
               "codeDiscount": {
                 "__typename": "DiscountCodeBasic",
-                "title": "zzzzzz SDP mixed 1783743200352 Z upstream code",
+                "title": "zzzzzz SDP mixed 1784161980618 Z upstream code",
                 "status": "SCHEDULED",
-                "startsAt": "2026-07-25T04:13:20Z",
+                "startsAt": "2026-07-30T00:33:00Z",
                 "endsAt": null,
                 "codes": {
                   "nodes": [
                     {
-                      "code": "SDPMIXUP1783743200352"
+                      "code": "SDPMIXUP1784161980618"
                     }
                   ]
                 }
               }
             },
             "upstreamAutomatic": {
-              "id": "gid://shopify/DiscountAutomaticNode/1659531395378",
+              "id": "gid://shopify/DiscountAutomaticNode/1660460040498",
               "automaticDiscount": {
                 "__typename": "DiscountAutomaticBasic",
-                "title": "zzzzzz SDP mixed 1783743200352 X upstream automatic",
+                "title": "zzzzzz SDP mixed 1784161980618 X upstream automatic",
                 "status": "SCHEDULED",
-                "startsAt": "2026-07-25T04:13:20Z",
+                "startsAt": "2026-07-30T00:33:00Z",
                 "endsAt": null
               }
             }
@@ -1284,8 +1369,8 @@
       "variables": {
         "query": "status:scheduled",
         "first": 20,
-        "upstreamCode": "SDPMIXUP1783743200352",
-        "upstreamAutomaticId": "gid://shopify/DiscountAutomaticNode/1659531395378"
+        "upstreamCode": "SDPMIXUP1784161980618",
+        "upstreamAutomaticId": "gid://shopify/DiscountAutomaticNode/1660460040498"
       },
       "query": "query DiscountMixedCatalogReadAfterMutations(\n  $query: String!\n  $first: Int!\n  $upstreamCode: String!\n  $upstreamAutomaticId: ID!\n) {\n  reverseCatalog: discountNodes(first: $first, query: $query, sortKey: TITLE, reverse: true) {\n    nodes {\n      id\n      discount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          startsAt\n          endsAt\n          codes(first: 2) {\n            nodes {\n              code\n            }\n          }\n        }\n        ... on DiscountAutomaticBasic {\n          title\n          status\n          startsAt\n          endsAt\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  codeCatalog: codeDiscountNodes(first: $first, query: $query, sortKey: TITLE, reverse: true) {\n    nodes {\n      id\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          startsAt\n          endsAt\n          codes(first: 2) {\n            nodes {\n              code\n            }\n          }\n        }\n      }\n    }\n  }\n  automaticCatalog: automaticDiscountNodes(first: $first, query: $query, sortKey: CREATED_AT, reverse: true) {\n    nodes {\n      id\n      automaticDiscount {\n        __typename\n        ... on DiscountAutomaticBasic {\n          title\n          status\n          startsAt\n          endsAt\n        }\n      }\n    }\n  }\n  tombstonedByCode: codeDiscountNodeByCode(code: $upstreamCode) {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n        status\n        startsAt\n        endsAt\n      }\n    }\n  }\n  updatedAutomatic: automaticDiscountNode(id: $upstreamAutomaticId) {\n    id\n    automaticDiscount {\n      __typename\n      ... on DiscountAutomaticBasic {\n        title\n        status\n        startsAt\n        endsAt\n      }\n    }\n  }\n}\n",
       "response": {
@@ -1295,29 +1380,29 @@
             "reverseCatalog": {
               "nodes": [
                 {
-                  "id": "gid://shopify/DiscountCodeNode/1659531362610",
+                  "id": "gid://shopify/DiscountCodeNode/1660460007730",
                   "discount": {
                     "__typename": "DiscountCodeBasic",
-                    "title": "zzzzzz SDP mixed 1783743200352 Z upstream code",
+                    "title": "zzzzzz SDP mixed 1784161980618 Z upstream code",
                     "status": "SCHEDULED",
-                    "startsAt": "2026-07-25T04:13:20Z",
+                    "startsAt": "2026-07-30T00:33:00Z",
                     "endsAt": null,
                     "codes": {
                       "nodes": [
                         {
-                          "code": "SDPMIXUP1783743200352"
+                          "code": "SDPMIXUP1784161980618"
                         }
                       ]
                     }
                   }
                 },
                 {
-                  "id": "gid://shopify/DiscountAutomaticNode/1659531395378",
+                  "id": "gid://shopify/DiscountAutomaticNode/1660460040498",
                   "discount": {
                     "__typename": "DiscountAutomaticBasic",
-                    "title": "zzzzzz SDP mixed 1783743200352 X upstream automatic",
+                    "title": "zzzzzz SDP mixed 1784161980618 X upstream automatic",
                     "status": "SCHEDULED",
-                    "startsAt": "2026-07-25T04:13:20Z",
+                    "startsAt": "2026-07-30T00:33:00Z",
                     "endsAt": null
                   }
                 }
@@ -1325,24 +1410,24 @@
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjoxNjU5NTMxMzYyNjEwLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzgzNzQzMjAwMzUyIHogdXBzdHJlYW0gY29kZSJ9",
-                "endCursor": "eyJsYXN0X2lkIjoxNjU5NTMxMzk1Mzc4LCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzgzNzQzMjAwMzUyIHggdXBzdHJlYW0gYXV0b21hdGljIn0="
+                "startCursor": "eyJsYXN0X2lkIjoxNjYwNDYwMDA3NzMwLCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzg0MTYxOTgwNjE4IHogdXBzdHJlYW0gY29kZSJ9",
+                "endCursor": "eyJsYXN0X2lkIjoxNjYwNDYwMDQwNDk4LCJsYXN0X3ZhbHVlIjoienp6enp6IHNkcCBtaXhlZCAxNzg0MTYxOTgwNjE4IHggdXBzdHJlYW0gYXV0b21hdGljIn0="
               }
             },
             "codeCatalog": {
               "nodes": [
                 {
-                  "id": "gid://shopify/DiscountCodeNode/1659531362610",
+                  "id": "gid://shopify/DiscountCodeNode/1660460007730",
                   "codeDiscount": {
                     "__typename": "DiscountCodeBasic",
-                    "title": "zzzzzz SDP mixed 1783743200352 Z upstream code",
+                    "title": "zzzzzz SDP mixed 1784161980618 Z upstream code",
                     "status": "SCHEDULED",
-                    "startsAt": "2026-07-25T04:13:20Z",
+                    "startsAt": "2026-07-30T00:33:00Z",
                     "endsAt": null,
                     "codes": {
                       "nodes": [
                         {
-                          "code": "SDPMIXUP1783743200352"
+                          "code": "SDPMIXUP1784161980618"
                         }
                       ]
                     }
@@ -1353,34 +1438,34 @@
             "automaticCatalog": {
               "nodes": [
                 {
-                  "id": "gid://shopify/DiscountAutomaticNode/1659531395378",
+                  "id": "gid://shopify/DiscountAutomaticNode/1660460040498",
                   "automaticDiscount": {
                     "__typename": "DiscountAutomaticBasic",
-                    "title": "zzzzzz SDP mixed 1783743200352 X upstream automatic",
+                    "title": "zzzzzz SDP mixed 1784161980618 X upstream automatic",
                     "status": "SCHEDULED",
-                    "startsAt": "2026-07-25T04:13:20Z",
+                    "startsAt": "2026-07-30T00:33:00Z",
                     "endsAt": null
                   }
                 }
               ]
             },
             "tombstonedByCode": {
-              "id": "gid://shopify/DiscountCodeNode/1659531362610",
+              "id": "gid://shopify/DiscountCodeNode/1660460007730",
               "codeDiscount": {
                 "__typename": "DiscountCodeBasic",
-                "title": "zzzzzz SDP mixed 1783743200352 Z upstream code",
+                "title": "zzzzzz SDP mixed 1784161980618 Z upstream code",
                 "status": "SCHEDULED",
-                "startsAt": "2026-07-25T04:13:20Z",
+                "startsAt": "2026-07-30T00:33:00Z",
                 "endsAt": null
               }
             },
             "updatedAutomatic": {
-              "id": "gid://shopify/DiscountAutomaticNode/1659531395378",
+              "id": "gid://shopify/DiscountAutomaticNode/1660460040498",
               "automaticDiscount": {
                 "__typename": "DiscountAutomaticBasic",
-                "title": "zzzzzz SDP mixed 1783743200352 X upstream automatic",
+                "title": "zzzzzz SDP mixed 1784161980618 X upstream automatic",
                 "status": "SCHEDULED",
-                "startsAt": "2026-07-25T04:13:20Z",
+                "startsAt": "2026-07-30T00:33:00Z",
                 "endsAt": null
               }
             }

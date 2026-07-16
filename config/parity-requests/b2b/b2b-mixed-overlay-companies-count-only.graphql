@@ -1,0 +1,6 @@
+query B2BMixedOverlayCompaniesCountOnly {
+  companiesCount {
+    count
+    precision
+  }
+}

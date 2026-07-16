@@ -11423,6 +11423,11 @@ fn saved_search_roots_live_hybrid_hydrate_base_rows_before_defaults() {
 
 #[test]
 fn staged_segment_reads_preserve_upstream_catalog_roots() {
+    let real_segment = json!({
+        "id": "gid://shopify/Segment/1000",
+        "name": "Upstream segment",
+        "query": "number_of_orders >= 2"
+    });
     let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
     let captured_requests = Arc::clone(&upstream_requests);
     let mut proxy =
@@ -11435,14 +11440,10 @@ fn staged_segment_reads_preserve_upstream_catalog_roots() {
                 body: json!({
                     "data": {
                         "segments": {
-                            "nodes": [
-                                {
-                                    "id": "gid://shopify/Segment/1000",
-                                    "name": "Upstream segment",
-                                    "query": "number_of_orders >= 2"
-                                }
-                            ]
+                            "nodes": [real_segment.clone()]
                         },
+                        "realSegment": real_segment.clone(),
+                        "segmentsCount": { "count": 1, "precision": "EXACT" },
                         "suggestions": {
                             "nodes": [
                                 {
@@ -11494,6 +11495,12 @@ fn staged_segment_reads_preserve_upstream_catalog_roots() {
           segments(first: 10) {
             nodes { id name query }
           }
+          realSegment: segment(id: "gid://shopify/Segment/1000") {
+            id
+            name
+            query
+          }
+          segmentsCount { count precision }
           suggestions: segmentFilterSuggestions(first: 2, search: "email") {
             nodes { __typename queryName localizedName multiValue }
             pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
@@ -11506,7 +11513,26 @@ fn staged_segment_reads_preserve_upstream_catalog_roots() {
     assert_eq!(read.status, 200);
     assert_eq!(
         read.body["data"]["segments"]["nodes"],
-        json!([created_segment])
+        json!([
+            {
+                "id": "gid://shopify/Segment/1000",
+                "name": "Upstream segment",
+                "query": "number_of_orders >= 2"
+            },
+            created_segment
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["realSegment"],
+        json!({
+            "id": "gid://shopify/Segment/1000",
+            "name": "Upstream segment",
+            "query": "number_of_orders >= 2"
+        })
+    );
+    assert_eq!(
+        read.body["data"]["segmentsCount"],
+        json!({ "count": 2, "precision": "EXACT" })
     );
     assert_eq!(
         read.body["data"]["suggestions"],
@@ -11528,13 +11554,127 @@ fn staged_segment_reads_preserve_upstream_catalog_roots() {
         })
     );
     let calls = upstream_requests.lock().unwrap();
-    assert_eq!(calls.len(), 1);
+    assert!(!calls.is_empty());
     assert!(
-        calls[0]["query"]
+        calls.iter().any(|call| call["query"]
             .as_str()
             .unwrap()
-            .contains("segmentFilterSuggestions"),
+            .contains("segmentFilterSuggestions")),
         "catalog query should be forwarded upstream when local segment overlay has no catalog seed"
+    );
+}
+
+#[test]
+fn staged_segment_detail_miss_forwards_upstream_and_tombstone_wins() {
+    let real_segment_id = "gid://shopify/Segment/2000";
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_requests.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "realSegment": {
+                            "id": real_segment_id,
+                            "name": "Forwarded real segment",
+                            "query": "number_of_orders >= 3"
+                        }
+                    }
+                }),
+            }
+        });
+
+    let created = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageSegmentBeforeDetailMiss($name: String!, $query: String!) {
+          segmentCreate(name: $name, query: $query) {
+            segment { id name query }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "name": "Local by-id miss forwarding segment",
+            "query": "number_of_orders >= 1"
+        }),
+    ));
+    assert_eq!(
+        created.body["data"]["segmentCreate"]["userErrors"],
+        json!([])
+    );
+    assert!(
+        upstream_requests.lock().unwrap().is_empty(),
+        "segmentCreate should stage locally without upstream passthrough"
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ForwardRealSegmentAfterLocalCreate($id: ID!) {
+          realSegment: segment(id: $id) {
+            id
+            name
+            query
+          }
+        }
+        "#,
+        json!({ "id": real_segment_id }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["realSegment"],
+        json!({
+            "id": real_segment_id,
+            "name": "Forwarded real segment",
+            "query": "number_of_orders >= 3"
+        })
+    );
+    assert_eq!(
+        upstream_requests.lock().unwrap().len(),
+        1,
+        "detail miss should forward upstream instead of fabricating NOT_FOUND"
+    );
+
+    let deleted = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteObservedRealSegment($id: ID!) {
+          segmentDelete(id: $id) {
+            deletedSegmentId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": real_segment_id }),
+    ));
+    assert_eq!(
+        deleted.body["data"]["segmentDelete"],
+        json!({
+            "deletedSegmentId": real_segment_id,
+            "userErrors": []
+        })
+    );
+
+    let after_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query TombstonedRealSegmentDoesNotHydrate($id: ID!) {
+          realSegment: segment(id: $id) {
+            id
+            name
+            query
+          }
+        }
+        "#,
+        json!({ "id": real_segment_id }),
+    ));
+    assert_eq!(after_delete.status, 200);
+    assert_eq!(after_delete.body["data"]["realSegment"], Value::Null);
+    assert_eq!(
+        upstream_requests.lock().unwrap().len(),
+        1,
+        "local segment tombstone should be authoritative"
     );
 }
 

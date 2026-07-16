@@ -1,0 +1,27 @@
+mutation StorefrontCatalogVariantUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+  updateVariant: productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+    productVariants {
+      id
+      title
+      sku
+      barcode
+      price
+      compareAtPrice
+      inventoryQuantity
+      selectedOptions {
+        name
+        value
+      }
+      inventoryItem {
+        id
+        tracked
+        requiresShipping
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

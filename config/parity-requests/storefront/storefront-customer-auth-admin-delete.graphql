@@ -1,0 +1,9 @@
+mutation StorefrontCustomerAuthAdminDelete($input: CustomerDeleteInput!) {
+  customerDelete(input: $input) {
+    deletedCustomerId
+    userErrors {
+      field
+      message
+    }
+  }
+}

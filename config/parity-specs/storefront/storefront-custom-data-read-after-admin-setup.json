@@ -1,0 +1,500 @@
+{
+  "scenarioId": "storefront-custom-data-read-after-admin-setup",
+  "operationNames": ["metaobject", "metaobjects", "shop"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "downstream-read-parity",
+    "pagination-parity",
+    "storefront-api-local-overlay",
+    "authenticated-read",
+    "custom-data-access-parity",
+    "reference-parity"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/storefront/storefront-custom-data-read-after-admin-setup.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/storefront.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/storefront/storefront-custom-data-primary-setup-admin.graphql",
+    "variablesCapturePath": "$.primarySetup.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "admin-primary-custom-data-setup-stages-locally",
+        "capturePath": "$.primarySetup.response.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.hiddenMetafieldDefinition.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic MetafieldDefinition ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.privateDefinition.metaobjectDefinition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The proxy stages a deterministic synthetic MetaobjectDefinition ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.targetDefinition.metaobjectDefinition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The proxy stages a deterministic synthetic MetaobjectDefinition ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.visibleMetafieldDefinition.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic MetafieldDefinition ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "admin-target-metaobjects-setup-stages-locally",
+        "capturePath": "$.targetEntriesSetup.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-custom-data-target-entries-setup-admin.graphql",
+          "variablesCapturePath": "$.targetEntriesSetup.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.draftTarget.metaobject.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The proxy stages a deterministic synthetic Metaobject ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.draftTarget.metaobject.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged metaobjects."
+          },
+          {
+            "path": "$.privateEntry.metaobject.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The proxy stages a deterministic synthetic Metaobject ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.privateEntry.metaobject.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged metaobjects."
+          },
+          {
+            "path": "$.visibleTarget.metaobject.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The proxy stages a deterministic synthetic Metaobject ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.visibleTarget.metaobject.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged metaobjects."
+          }
+        ]
+      },
+      {
+        "name": "admin-source-definition-setup-references-proxy-target-definition",
+        "capturePath": "$.sourceDefinitionSetup.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-custom-data-source-definition-setup-admin.graphql",
+          "variables": {
+            "sourceDefinition": {
+              "type": {
+                "fromCapturePath": "$.sourceDefinitionSetup.request.variables.sourceDefinition.type"
+              },
+              "name": {
+                "fromCapturePath": "$.sourceDefinitionSetup.request.variables.sourceDefinition.name"
+              },
+              "access": {
+                "fromCapturePath": "$.sourceDefinitionSetup.request.variables.sourceDefinition.access"
+              },
+              "capabilities": {
+                "fromCapturePath": "$.sourceDefinitionSetup.request.variables.sourceDefinition.capabilities"
+              },
+              "displayNameKey": {
+                "fromCapturePath": "$.sourceDefinitionSetup.request.variables.sourceDefinition.displayNameKey"
+              },
+              "fieldDefinitions": [
+                {
+                  "fromCapturePath": "$.sourceDefinitionSetup.request.variables.sourceDefinition.fieldDefinitions[0]"
+                },
+                {
+                  "key": {
+                    "fromCapturePath": "$.sourceDefinitionSetup.request.variables.sourceDefinition.fieldDefinitions[1].key"
+                  },
+                  "name": {
+                    "fromCapturePath": "$.sourceDefinitionSetup.request.variables.sourceDefinition.fieldDefinitions[1].name"
+                  },
+                  "type": {
+                    "fromCapturePath": "$.sourceDefinitionSetup.request.variables.sourceDefinition.fieldDefinitions[1].type"
+                  },
+                  "required": {
+                    "fromCapturePath": "$.sourceDefinitionSetup.request.variables.sourceDefinition.fieldDefinitions[1].required"
+                  },
+                  "validations": [
+                    {
+                      "name": "metaobject_definition_id",
+                      "value": {
+                        "fromPrimaryProxyPath": "$.data.targetDefinition.metaobjectDefinition.id"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "key": {
+                    "fromCapturePath": "$.sourceDefinitionSetup.request.variables.sourceDefinition.fieldDefinitions[2].key"
+                  },
+                  "name": {
+                    "fromCapturePath": "$.sourceDefinitionSetup.request.variables.sourceDefinition.fieldDefinitions[2].name"
+                  },
+                  "type": {
+                    "fromCapturePath": "$.sourceDefinitionSetup.request.variables.sourceDefinition.fieldDefinitions[2].type"
+                  },
+                  "required": {
+                    "fromCapturePath": "$.sourceDefinitionSetup.request.variables.sourceDefinition.fieldDefinitions[2].required"
+                  },
+                  "validations": [
+                    {
+                      "name": "metaobject_definition_id",
+                      "value": {
+                        "fromPrimaryProxyPath": "$.data.targetDefinition.metaobjectDefinition.id"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "key": {
+                    "fromCapturePath": "$.sourceDefinitionSetup.request.variables.sourceDefinition.fieldDefinitions[3].key"
+                  },
+                  "name": {
+                    "fromCapturePath": "$.sourceDefinitionSetup.request.variables.sourceDefinition.fieldDefinitions[3].name"
+                  },
+                  "type": {
+                    "fromCapturePath": "$.sourceDefinitionSetup.request.variables.sourceDefinition.fieldDefinitions[3].type"
+                  },
+                  "required": {
+                    "fromCapturePath": "$.sourceDefinitionSetup.request.variables.sourceDefinition.fieldDefinitions[3].required"
+                  },
+                  "validations": [
+                    {
+                      "name": "metaobject_definition_id",
+                      "value": {
+                        "fromPrimaryProxyPath": "$.data.targetDefinition.metaobjectDefinition.id"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.sourceDefinition.metaobjectDefinition.fieldDefinitions[1].validations[0].value",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The proxy source definition references the locally staged target definition ID."
+          },
+          {
+            "path": "$.sourceDefinition.metaobjectDefinition.fieldDefinitions[2].validations[0].value",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The proxy source definition references the locally staged target definition ID."
+          },
+          {
+            "path": "$.sourceDefinition.metaobjectDefinition.fieldDefinitions[3].validations[0].value",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The proxy source definition references the locally staged target definition ID."
+          },
+          {
+            "path": "$.sourceDefinition.metaobjectDefinition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The proxy stages a deterministic synthetic MetaobjectDefinition ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "admin-source-entry-setup-references-proxy-targets",
+        "capturePath": "$.sourceEntrySetup.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-custom-data-source-entry-setup-admin.graphql",
+          "variables": {
+            "sourceEntry": {
+              "type": {
+                "fromCapturePath": "$.sourceEntrySetup.request.variables.sourceEntry.type"
+              },
+              "handle": {
+                "fromCapturePath": "$.sourceEntrySetup.request.variables.sourceEntry.handle"
+              },
+              "capabilities": {
+                "fromCapturePath": "$.sourceEntrySetup.request.variables.sourceEntry.capabilities"
+              },
+              "fields": [
+                {
+                  "fromCapturePath": "$.sourceEntrySetup.request.variables.sourceEntry.fields[0]"
+                },
+                {
+                  "key": {
+                    "fromCapturePath": "$.sourceEntrySetup.request.variables.sourceEntry.fields[1].key"
+                  },
+                  "value": {
+                    "fromProxyResponse": "admin-target-metaobjects-setup-stages-locally",
+                    "path": "$.data.visibleTarget.metaobject.id"
+                  }
+                },
+                {
+                  "key": {
+                    "fromCapturePath": "$.sourceEntrySetup.request.variables.sourceEntry.fields[2].key"
+                  },
+                  "value": {
+                    "fromProxyResponse": "admin-target-metaobjects-setup-stages-locally",
+                    "path": "$.data.draftTarget.metaobject.id"
+                  }
+                },
+                {
+                  "key": {
+                    "fromCapturePath": "$.sourceEntrySetup.request.variables.sourceEntry.fields[3].key"
+                  },
+                  "value": {
+                    "fromProxyResponse": "admin-target-metaobjects-setup-stages-locally",
+                    "path": "$.data.visibleTarget.metaobject.id",
+                    "prefix": "[\"",
+                    "suffix": "\"]"
+                  }
+                }
+              ]
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.sourceEntry.metaobject.fields[1].jsonValue",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The proxy source entry references the locally staged visible target ID."
+          },
+          {
+            "path": "$.sourceEntry.metaobject.fields[1].value",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The proxy source entry references the locally staged visible target ID."
+          },
+          {
+            "path": "$.sourceEntry.metaobject.fields[2].jsonValue",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The proxy source entry references the locally staged draft target ID."
+          },
+          {
+            "path": "$.sourceEntry.metaobject.fields[2].value",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The proxy source entry references the locally staged draft target ID."
+          },
+          {
+            "path": "$.sourceEntry.metaobject.fields[3].jsonValue[0]",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The proxy source entry list references the locally staged visible target ID."
+          },
+          {
+            "path": "$.sourceEntry.metaobject.fields[3].value",
+            "matcher": "regex:^\\[\"gid://shopify/Metaobject/.+\"\\]$",
+            "reason": "The proxy source entry list value serializes the locally staged visible target ID."
+          },
+          {
+            "path": "$.sourceEntry.metaobject.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The proxy stages a deterministic synthetic Metaobject ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.sourceEntry.metaobject.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged metaobjects."
+          }
+        ]
+      },
+      {
+        "name": "admin-shop-metafields-set-stages-locally",
+        "capturePath": "$.shopMetafieldsSet.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-custom-data-shop-metafields-set-admin.graphql",
+          "variables": {
+            "metafields": [
+              {
+                "ownerId": {
+                  "fromCapturePath": "$.adminShop.response.data.shop.id"
+                },
+                "namespace": {
+                  "fromCapturePath": "$.shopMetafieldsSet.request.variables.metafields[0].namespace"
+                },
+                "key": {
+                  "fromCapturePath": "$.shopMetafieldsSet.request.variables.metafields[0].key"
+                },
+                "type": {
+                  "fromCapturePath": "$.shopMetafieldsSet.request.variables.metafields[0].type"
+                },
+                "value": {
+                  "fromCapturePath": "$.shopMetafieldsSet.request.variables.metafields[0].value"
+                }
+              },
+              {
+                "ownerId": {
+                  "fromCapturePath": "$.adminShop.response.data.shop.id"
+                },
+                "namespace": {
+                  "fromCapturePath": "$.shopMetafieldsSet.request.variables.metafields[1].namespace"
+                },
+                "key": {
+                  "fromCapturePath": "$.shopMetafieldsSet.request.variables.metafields[1].key"
+                },
+                "type": {
+                  "fromCapturePath": "$.shopMetafieldsSet.request.variables.metafields[1].type"
+                },
+                "value": {
+                  "fromCapturePath": "$.shopMetafieldsSet.request.variables.metafields[1].value"
+                }
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metafieldsSet.metafields[0].id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy stages a deterministic synthetic Metafield ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.metafieldsSet.metafields[1].id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy stages a deterministic synthetic Metafield ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "storefront-custom-data-read-after-admin-setup-selected-payload",
+        "capturePath": "$.storefrontRead.response.body.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-custom-data-read-after-admin-setup.graphql",
+          "operationName": "StorefrontCustomDataReadAfterAdminSetup",
+          "variables": {
+            "targetHandle": {
+              "type": {
+                "fromProxyResponse": "admin-target-metaobjects-setup-stages-locally",
+                "path": "$.data.visibleTarget.metaobject.type"
+              },
+              "handle": {
+                "fromProxyResponse": "admin-target-metaobjects-setup-stages-locally",
+                "path": "$.data.visibleTarget.metaobject.handle"
+              }
+            },
+            "sourceHandle": {
+              "type": {
+                "fromProxyResponse": "admin-source-entry-setup-references-proxy-targets",
+                "path": "$.data.sourceEntry.metaobject.type"
+              },
+              "handle": {
+                "fromProxyResponse": "admin-source-entry-setup-references-proxy-targets",
+                "path": "$.data.sourceEntry.metaobject.handle"
+              }
+            },
+            "draftHandle": {
+              "type": {
+                "fromProxyResponse": "admin-target-metaobjects-setup-stages-locally",
+                "path": "$.data.draftTarget.metaobject.type"
+              },
+              "handle": {
+                "fromProxyResponse": "admin-target-metaobjects-setup-stages-locally",
+                "path": "$.data.draftTarget.metaobject.handle"
+              }
+            },
+            "privateHandle": {
+              "type": {
+                "fromProxyResponse": "admin-target-metaobjects-setup-stages-locally",
+                "path": "$.data.privateEntry.metaobject.type"
+              },
+              "handle": {
+                "fromProxyResponse": "admin-target-metaobjects-setup-stages-locally",
+                "path": "$.data.privateEntry.metaobject.handle"
+              }
+            },
+            "targetType": {
+              "fromProxyResponse": "admin-target-metaobjects-setup-stages-locally",
+              "path": "$.data.visibleTarget.metaobject.type"
+            },
+            "metafieldNamespace": {
+              "fromCapturePath": "$.storefrontRead.variables.metafieldNamespace"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.byHandle.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The proxy projects the locally staged visible target ID."
+          },
+          {
+            "path": "$.byHandle.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy projects the locally staged visible target timestamp from its deterministic clock."
+          },
+          {
+            "path": "$.entries.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable staged-resource cursors."
+          },
+          {
+            "path": "$.entries.nodes[0].id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The proxy projects the locally staged visible target ID."
+          },
+          {
+            "path": "$.entries.nodes[0].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy projects the locally staged visible target timestamp from its deterministic clock."
+          },
+          {
+            "path": "$.entries.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable staged-resource cursors."
+          },
+          {
+            "path": "$.entries.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable staged-resource cursors."
+          },
+          {
+            "path": "$.source.draftFeatured.value",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The proxy field value references the locally staged draft target ID while the Storefront reference remains hidden."
+          },
+          {
+            "path": "$.source.featured.value",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The proxy field value references the locally staged visible target ID."
+          },
+          {
+            "path": "$.source.related.references.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify Storefront reference cursors are opaque; the proxy uses stable staged-resource cursors."
+          },
+          {
+            "path": "$.source.related.references.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify Storefront reference cursors are opaque; the proxy uses stable staged-resource cursors."
+          },
+          {
+            "path": "$.source.related.value",
+            "matcher": "regex:^\\[\"gid://shopify/Metaobject/.+\"\\]$",
+            "reason": "The proxy list-reference value serializes the locally staged visible target ID."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Authenticated Storefront 2026-04 custom-data capture. Admin setup and cleanup are exact live Admin calls; Storefront metaobject/metaobjects/shop metafield reads are exact authenticated Storefront requests. The final target proves Storefront-public active metaobjects are visible, draft/private entries are hidden, scalar and list references resolve only visible targets, and Shop metafields honor Storefront definition access."
+}

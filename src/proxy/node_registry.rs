@@ -527,6 +527,15 @@ pub(crate) fn load_delivery_customization(
     ))
 }
 
+pub(crate) fn load_delivery_promise(
+    proxy: &DraftProxy,
+    id: &str,
+    selection: &[SelectedField],
+    _request: Option<&Request>,
+) -> Option<Value> {
+    proxy.delivery_promise_node_value_by_id(id, selection)
+}
+
 simple_loader!(load_product_feed, product_tail_feed_node_value);
 simple_loader!(
     load_product_delete_operation,
@@ -558,9 +567,7 @@ pub(crate) fn load_segment(
 ) -> Option<Value> {
     proxy
         .store
-        .staged
-        .segments
-        .get(id)
+        .segment_by_id(id)
         .map(|record| selected_json(record, selection))
 }
 

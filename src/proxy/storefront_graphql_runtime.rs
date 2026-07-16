@@ -2,6 +2,10 @@
 
 use super::graphql_error_compat::shopify_storefront_engine_response;
 use super::graphql_runtime::with_request_owned_proxy;
+use super::storefront::{
+    storefront_request_context, StorefrontCustomerAuthLogDetails,
+    STOREFRONT_CUSTOMER_AUTH_MUTATION_ROOTS,
+};
 use super::*;
 use crate::admin_graphql::{
     RootExecutionContext, RootFieldError, RootFieldExecutor, RootFieldInvocation, RootFieldResult,
@@ -20,9 +24,18 @@ struct PreparedStorefrontRootCall {
     field: RootFieldSelection,
 }
 
+#[derive(Debug, Clone)]
+struct StorefrontCustomerAuthLogContext {
+    query: String,
+    variables: BTreeMap<String, ResolvedValue>,
+    fields: Vec<RootFieldSelection>,
+    execution: &'static str,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum StorefrontExecutionMode {
-    Local,
+    LocalRead,
+    LocalStage,
     Passthrough,
     SnapshotQuery,
     SnapshotMutation,
@@ -39,6 +52,39 @@ struct StorefrontRootExecutor {
 }
 
 impl StorefrontRootExecutor {
+    fn customer_auth_log_context(&self) -> Option<StorefrontCustomerAuthLogContext> {
+        if self.calls.is_empty() {
+            return None;
+        }
+        let first = self.calls.values().next()?;
+        let is_customer_auth_call =
+            |call: &PreparedStorefrontRootCall| match call.operation.operation_type {
+                OperationType::Query => call.field.name == "customer",
+                OperationType::Mutation => {
+                    STOREFRONT_CUSTOMER_AUTH_MUTATION_ROOTS.contains(&call.field.name.as_str())
+                }
+                OperationType::Subscription => false,
+            };
+        if !self.calls.values().any(is_customer_auth_call) {
+            return None;
+        }
+        let fields = self
+            .calls
+            .values()
+            .map(|call| call.field.clone())
+            .collect::<Vec<_>>();
+        let execution = match first.operation.operation_type {
+            OperationType::Mutation => "stage-locally",
+            _ => "overlay-read",
+        };
+        Some(StorefrontCustomerAuthLogContext {
+            query: first.query.clone(),
+            variables: first.variables.clone(),
+            fields,
+            execution,
+        })
+    }
+
     fn record_execution_once(&self) -> Result<(), String> {
         let mut logged = self
             .logged
@@ -47,11 +93,34 @@ impl StorefrontRootExecutor {
         if *logged {
             return Ok(());
         }
+        if let Some(context) = self.customer_auth_log_context() {
+            self.proxy
+                .lock()
+                .map_err(|_| "Storefront GraphQL proxy state lock was poisoned".to_string())?
+                .record_storefront_customer_auth_log_entry(
+                    &self.original_request,
+                    &context.query,
+                    &context.variables,
+                    &context.fields,
+                    StorefrontCustomerAuthLogDetails {
+                        status: "handled",
+                        execution: context.execution,
+                        notes: "Storefront customer-auth roots were resolved locally without Shopify writes or email delivery.",
+                    },
+                );
+            *logged = true;
+            return Ok(());
+        }
         let (status, execution, notes) = match self.mode {
-            StorefrontExecutionMode::Local => (
+            StorefrontExecutionMode::LocalRead => (
                 "handled",
                 "overlay-read",
                 "Storefront roots were resolved locally from shared proxy store state.",
+            ),
+            StorefrontExecutionMode::LocalStage => (
+                "handled",
+                "stage-locally",
+                "Storefront roots were staged locally from shared proxy store state.",
             ),
             StorefrontExecutionMode::Passthrough => (
                 "proxied",
@@ -177,11 +246,12 @@ impl RootFieldExecutor for StorefrontRootExecutor {
     fn execute_root(&self, invocation: RootFieldInvocation) -> Result<RootFieldResult, String> {
         self.record_execution_once()?;
         match self.mode {
-            StorefrontExecutionMode::Local => self.execute_local_root(
-                &invocation.response_key,
-                &invocation.root_name,
-                invocation.arguments,
-            ),
+            StorefrontExecutionMode::LocalRead | StorefrontExecutionMode::LocalStage => self
+                .execute_local_root(
+                    &invocation.response_key,
+                    &invocation.root_name,
+                    invocation.arguments,
+                ),
             StorefrontExecutionMode::Passthrough => {
                 self.execute_passthrough_root(&invocation.response_key, &invocation.root_name)
             }
@@ -266,19 +336,57 @@ impl DraftProxy {
             && capabilities.iter().all(|capability| {
                 capability.api_surface == ApiSurface::Storefront
                     && capability.domain == CapabilityDomain::Storefront
-                    && capability.execution == CapabilityExecution::OverlayRead
+                    && capability.execution != CapabilityExecution::Passthrough
             })
-            && prepared.as_ref().is_some_and(|(document, _, _)| {
-                self.storefront_fields_are_local(&document.root_fields)
-            });
+            && prepared
+                .as_ref()
+                .is_some_and(|(document, _, _)| match document.operation_type {
+                    OperationType::Query => self.storefront_fields_are_local(&document.root_fields),
+                    OperationType::Mutation => {
+                        self.storefront_mutation_fields_are_local(&document.root_fields)
+                    }
+                    OperationType::Subscription => false,
+                });
+        if prepared.as_ref().is_some_and(|(document, _, _)| {
+            document.operation_type == OperationType::Mutation
+                && document.root_fields.iter().any(|field| {
+                    STOREFRONT_CUSTOMER_AUTH_MUTATION_ROOTS.contains(&field.name.as_str())
+                })
+                && !all_local
+        }) {
+            let (document, variables, _) = prepared
+                .as_ref()
+                .expect("prepared document should exist for mixed customer-auth rejection");
+            self.record_storefront_customer_auth_log_entry(
+                request,
+                selected_query.as_deref().unwrap_or(&graphql_request.query),
+                variables,
+                &document.root_fields,
+                StorefrontCustomerAuthLogDetails {
+                    status: "rejected",
+                    execution: "stage-locally",
+                    notes: "Storefront customer-auth mutations cannot be mixed with unsupported Storefront roots.",
+                },
+            );
+            return json_error(
+                400,
+                "Storefront customer-auth mutations cannot be mixed with unsupported Storefront roots",
+            );
+        }
         let mode = match (self.config.read_mode.clone(), operation_type, all_local) {
-            (ReadMode::Snapshot, Some(OperationType::Mutation), _) => {
+            (ReadMode::Snapshot, Some(OperationType::Mutation), true) => {
+                StorefrontExecutionMode::LocalStage
+            }
+            (ReadMode::Snapshot, Some(OperationType::Mutation), false) => {
                 StorefrontExecutionMode::SnapshotMutation
             }
-            (ReadMode::Snapshot, _, true) => StorefrontExecutionMode::Local,
+            (ReadMode::Snapshot, _, true) => StorefrontExecutionMode::LocalRead,
             (ReadMode::Snapshot, _, false) => StorefrontExecutionMode::SnapshotQuery,
             (ReadMode::LiveHybrid, Some(OperationType::Query), true) => {
-                StorefrontExecutionMode::Local
+                StorefrontExecutionMode::LocalRead
+            }
+            (ReadMode::LiveHybrid, Some(OperationType::Mutation), true) => {
+                StorefrontExecutionMode::LocalStage
             }
             _ => StorefrontExecutionMode::Passthrough,
         };
@@ -335,11 +443,26 @@ impl DraftProxy {
             );
         }
 
-        ok_json(shopify_storefront_engine_response(
+        let mut body = shopify_storefront_engine_response(
             engine_response,
             prepared.as_ref().map(|(document, _, _)| document),
             selected_query.as_deref().unwrap_or(&graphql_request.query),
-        ))
+        );
+        if mode == StorefrontExecutionMode::LocalRead {
+            if let Some((document, variables, _)) = prepared.as_ref() {
+                let context = storefront_request_context(
+                    selected_query.as_deref().unwrap_or(&graphql_request.query),
+                    variables,
+                );
+                let local_body = json!({
+                    "data": self.storefront_local_query_data(&document.root_fields, &context)
+                });
+                if storefront_errors_only_expand_null_local_values(&body, &local_body) {
+                    body = local_body;
+                }
+            }
+        }
+        ok_json(body)
     }
 
     fn execute_legacy_storefront_graphql(
@@ -363,6 +486,74 @@ impl DraftProxy {
         )
         .unwrap_or_else(|_| graphql_request.variables.clone());
         self.storefront_snapshot_graphql_response(&graphql_request.query, &variables, None)
+    }
+}
+
+fn storefront_errors_only_expand_null_local_values(
+    engine_body: &Value,
+    local_body: &Value,
+) -> bool {
+    let Some(errors) = engine_body.get("errors").and_then(Value::as_array) else {
+        return false;
+    };
+    !errors.is_empty()
+        && errors.iter().all(|error| {
+            if let Some(path) = error.get("path").and_then(Value::as_array) {
+                return storefront_path_descends_through_local_null(
+                    local_body.pointer("/data"),
+                    path,
+                );
+            }
+            error
+                .get("message")
+                .and_then(Value::as_str)
+                .is_some_and(|message| message.contains("\"null\" is not of the expected type"))
+                && storefront_local_data_contains_null_list_item(local_body.pointer("/data"))
+        })
+}
+
+fn storefront_path_descends_through_local_null(root: Option<&Value>, path: &[Value]) -> bool {
+    let Some(mut value) = root else {
+        return false;
+    };
+    for (index, segment) in path.iter().enumerate() {
+        if value.is_null() {
+            return index < path.len();
+        }
+        match value {
+            Value::Object(fields) => {
+                let Some(field) = segment.as_str() else {
+                    return false;
+                };
+                let Some(next) = fields.get(field) else {
+                    return false;
+                };
+                value = next;
+            }
+            Value::Array(items) => {
+                let Some(index) = segment.as_u64().map(|index| index as usize) else {
+                    return false;
+                };
+                let Some(next) = items.get(index) else {
+                    return false;
+                };
+                value = next;
+            }
+            _ => return false,
+        }
+    }
+    false
+}
+
+fn storefront_local_data_contains_null_list_item(root: Option<&Value>) -> bool {
+    match root {
+        Some(Value::Array(items)) => items.iter().any(|item| {
+            item.is_null() || storefront_local_data_contains_null_list_item(Some(item))
+        }),
+        Some(Value::Object(fields)) => fields
+            .values()
+            .any(|value| storefront_local_data_contains_null_list_item(Some(value))),
+        _ => false,
     }
 }
 

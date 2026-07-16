@@ -21,6 +21,8 @@ The implemented read roots are:
 
 - `deliveryCustomization`
 - `deliveryCustomizations`
+- `deliveryPromiseParticipants`
+- `deliveryPromiseProvider`
 - `locationsAvailableForDeliveryProfilesConnection`
 
 The implemented mutation roots are:
@@ -32,6 +34,8 @@ The implemented mutation roots are:
 - `deliveryCustomizationCreate`
 - `deliveryCustomizationDelete`
 - `deliveryCustomizationUpdate`
+- `deliveryPromiseParticipantsUpdate`
+- `deliveryPromiseProviderUpsert`
 - `fulfillmentEventCreate`
 - `fulfillmentOrderLineItemsPreparedForPickup`
 - `fulfillmentServiceCreate`
@@ -59,8 +63,6 @@ The registry-only read roots are:
 - `availableCarrierServices`
 - `carrierService`
 - `carrierServices`
-- `deliveryPromiseParticipants`
-- `deliveryPromiseProvider`
 - `deliveryPromiseSettings`
 - `deliverySettings`
 - `deliveryProfile`
@@ -82,8 +84,6 @@ The registry-only mutation roots are:
 - `fulfillmentOrderReschedule`
 - `fulfillmentOrdersReroute`
 - `fulfillmentOrdersSetFulfillmentDeadline`
-- `deliveryPromiseParticipantsUpdate`
-- `deliveryPromiseProviderUpsert`
 - `deliverySettingUpdate`
 - `orderEditAddShippingLine`
 - `orderEditRemoveShippingLine`
@@ -251,21 +251,49 @@ staged lifecycle changes immediately, preserve duplicate/order semantics for
 Delivery settings and delivery promise settings are read-only in snapshot mode
 and return the captured empty/no-feature shape there. Live modes forward those
 shop-wide settings reads upstream so the app sees the real merchant
-configuration. Delivery profiles have fixture-backed read and bounded write
-slices for create/update/remove, validation, variant dissociation, async removal
-payloads, and downstream null reads after removal. Custom profiles are fully
-staged from create/update inputs covered by the delivery-profile parity
-requests. In LiveHybrid mode, `deliveryProfileUpdate` can hydrate an existing
-default profile and stage proxy-modelable updates without writing to Shopify at
-runtime. Captured Admin GraphQL 2026-04 behavior accepts a default-profile name
-input with empty `userErrors` while preserving the public default display name
-and incrementing `version`; unsupported side effects such as rate recalculation
+configuration.
+
+Delivery-promise provider and participant roots model the provider/participant
+lifecycle locally. `deliveryPromiseProviderUpsert(locationId:)` stages one
+normalized `DeliveryPromiseProvider` per app-owned fulfillment-service location,
+updates the same provider ID on repeated upserts, preserves omitted configuration
+fields from the existing provider, and returns typed provider user errors for
+unknown locations, non-app-owned locations, invalid time zones, and overlong
+time-zone input. `deliveryPromiseParticipantsUpdate(brandedPromiseHandle:)`
+stages `DeliveryPromiseParticipant` membership for existing `ProductVariant`
+owners, de-duplicates repeated add/remove IDs, treats removal of unknown members
+as a no-op, tombstones removed participant IDs, and rejects invalid add owners
+without staging. Any delivery-promise mutation batch with user errors is
+atomic for the local model: no provider/participant state is staged and no
+mutation-log entry is appended. Successful delivery-promise mutations retain the
+original raw GraphQL request for commit replay and never write to Shopify during
+normal proxy runtime.
+`deliveryPromiseProvider(locationId:)`, `deliveryPromiseParticipants(...)`, and
+generic `node(id:)` / `nodes(ids:)` read from the same effective delivery-promise
+state, apply selected fields, aliases, inline fragments, `ownerIds`, `reverse`,
+and cursor windows, preserve `nodes(ids:)` input order and duplicates, and return
+`null` / empty connections for missing, removed, or unsupported IDs. In
+LiveHybrid mode, cold provider/participant reads forward upstream until local
+delivery-promise state exists; staged overlays serve immediate read-after-write
+behavior. Live Shopify parity capture for these roots currently requires
+delivery-promise app scopes, so the local contract is covered by focused Rust
+runtime tests until those scopes are available.
+
+Delivery profiles have fixture-backed read and bounded write slices for
+create/update/remove, validation, variant dissociation, async removal payloads,
+and downstream null reads after removal. Custom profiles are fully staged from
+create/update inputs covered by the delivery-profile parity requests. In
+LiveHybrid mode, `deliveryProfileUpdate` can hydrate an existing default profile
+and stage proxy-modelable updates without writing to Shopify at runtime.
+Captured Admin GraphQL 2026-04 behavior accepts a default-profile name input
+with empty `userErrors` while preserving the public default display name and
+incrementing `version`; unsupported side effects such as rate recalculation
 remain outside this slice. Delivery profile name validation accepts exactly 128
 characters and rejects 129-character names on both create and update with a
 public `UserError` payload containing `field` and `message`; `code` is not
-selectable on the captured Admin GraphQL 2026-04 `UserError` type. Location
-IDs supplied in delivery-profile location groups must resolve from staged,
-observed, or LiveHybrid-hydrated location state; unknown IDs return the public
+selectable on the captured Admin GraphQL 2026-04 `UserError` type. Location IDs
+supplied in delivery-profile location groups must resolve from staged, observed,
+or LiveHybrid-hydrated location state; unknown IDs return the public
 `The Location could not be found for this shop.` userError instead of creating a
 synthetic location. Delivery-profile `variantsToAssociate` inputs add
 associations only for `ProductVariant` IDs resolved from staged/base product

@@ -1,0 +1,504 @@
+{
+  "scenarioId": "storefront-catalog-read-after-admin-setup",
+  "operationNames": ["product", "productByHandle", "products"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "downstream-read-parity",
+    "pagination-parity",
+    "search-parity",
+    "storefront-api-local-overlay",
+    "authenticated-read"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/storefront/storefront-catalog-read-after-admin-setup.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/storefront.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/storefront/storefront-catalog-product-create-admin.graphql",
+    "variablesCapturePath": "$.adminProductCreate.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "admin-product-create-stages-catalog-product",
+        "capturePath": "$.adminProductCreate.response.data.productCreate",
+        "proxyPath": "$.data.productCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy stages a deterministic synthetic Product ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.product.variants.nodes[*].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "The proxy stages deterministic synthetic ProductVariant IDs instead of Shopify's live IDs."
+          },
+          {
+            "path": "$.product.variants.nodes[*].inventoryItem.id",
+            "matcher": "shopify-gid:InventoryItem",
+            "reason": "The proxy stages deterministic synthetic InventoryItem IDs instead of Shopify's live IDs."
+          }
+        ]
+      },
+      {
+        "name": "admin-variant-update-stages-storefront-variant-fields",
+        "capturePath": "$.adminVariantUpdate.response.data.updateVariant",
+        "proxyPath": "$.data.updateVariant",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-catalog-variant-update-admin.graphql",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "variants": [
+              {
+                "id": {
+                  "fromPrimaryProxyPath": "$.data.productCreate.product.variants.nodes[0].id"
+                },
+                "barcode": {
+                  "fromCapturePath": "$.adminVariantUpdate.request.variables.variants[0].barcode"
+                },
+                "price": {
+                  "fromCapturePath": "$.adminVariantUpdate.request.variables.variants[0].price"
+                },
+                "compareAtPrice": {
+                  "fromCapturePath": "$.adminVariantUpdate.request.variables.variants[0].compareAtPrice"
+                },
+                "inventoryItem": {
+                  "fromCapturePath": "$.adminVariantUpdate.request.variables.variants[0].inventoryItem"
+                }
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.productVariants[0].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "The proxy updates the staged synthetic ProductVariant ID."
+          },
+          {
+            "path": "$.productVariants[0].inventoryItem.id",
+            "matcher": "shopify-gid:InventoryItem",
+            "reason": "The proxy updates the staged synthetic InventoryItem ID."
+          }
+        ]
+      },
+      {
+        "name": "admin-location-add-stages-inventory-location",
+        "capturePath": "$.adminLocationAdd.response.data.locationAdd",
+        "proxyPath": "$.data.locationAdd",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-catalog-location-add-admin.graphql",
+          "variablesCapturePath": "$.adminLocationAdd.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy stages a deterministic synthetic Location ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "admin-inventory-set-stages-available-quantity",
+        "capturePath": "$.adminInventorySet.response.data.inventorySetQuantities.userErrors",
+        "proxyPath": "$.data.inventorySetQuantities.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-catalog-inventory-set-admin.graphql",
+          "variables": {
+            "input": {
+              "name": {
+                "fromCapturePath": "$.adminInventorySet.request.variables.input.name"
+              },
+              "reason": {
+                "fromCapturePath": "$.adminInventorySet.request.variables.input.reason"
+              },
+              "referenceDocumentUri": {
+                "fromCapturePath": "$.adminInventorySet.request.variables.input.referenceDocumentUri"
+              },
+              "quantities": [
+                {
+                  "inventoryItemId": {
+                    "fromProxyResponse": "admin-variant-update-stages-storefront-variant-fields",
+                    "path": "$.data.updateVariant.productVariants[0].inventoryItem.id"
+                  },
+                  "locationId": {
+                    "fromProxyResponse": "admin-location-add-stages-inventory-location",
+                    "path": "$.data.locationAdd.location.id"
+                  },
+                  "quantity": {
+                    "fromCapturePath": "$.adminInventorySet.request.variables.input.quantities[0].quantity"
+                  },
+                  "changeFromQuantity": {
+                    "fromCapturePath": "$.adminInventorySet.request.variables.input.quantities[0].changeFromQuantity"
+                  }
+                }
+              ]
+            },
+            "idempotencyKey": {
+              "fromCapturePath": "$.adminInventorySet.request.variables.idempotencyKey"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "admin-publish-storefront-makes-catalog-product-visible",
+        "capturePath": "$.adminPublishStorefront.response.data.publishablePublish",
+        "proxyPath": "$.data.publishablePublish",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-catalog-publish-admin.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "input": {
+              "fromCapturePath": "$.adminPublishStorefront.request.variables.input"
+            },
+            "publicationId": {
+              "fromCapturePath": "$.adminPublishStorefront.request.variables.publicationId"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.publishable.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy publishes the staged synthetic Product ID."
+          }
+        ]
+      },
+      {
+        "name": "storefront-catalog-read-after-admin-setup-selected-payload",
+        "capturePath": "$.storefrontRead.response.body.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-catalog-read-after-admin-setup.graphql",
+          "operationName": "StorefrontCatalogReadAfterAdminSetup",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "handle": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.handle"
+            },
+            "query": {
+              "fromCapturePath": "$.storefrontRead.variables.query"
+            },
+            "selectedOptions": {
+              "fromCapturePath": "$.storefrontRead.variables.selectedOptions"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.byId.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy projects the staged synthetic Product ID."
+          },
+          {
+            "path": "$.byId.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic product creation time."
+          },
+          {
+            "path": "$.byId.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic product update time."
+          },
+          {
+            "path": "$.byId.publishedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic current-channel publish time."
+          },
+          {
+            "path": "$.byId.variants.edges[*].cursor",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable staged-resource cursors."
+          },
+          {
+            "path": "$.byId.variants.pageInfo.startCursor",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable staged-resource cursors."
+          },
+          {
+            "path": "$.byId.variants.pageInfo.endCursor",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable staged-resource cursors."
+          },
+          {
+            "path": "$.byId.variants.edges[*].node.id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "The proxy projects staged synthetic ProductVariant IDs."
+          },
+          {
+            "path": "$.byId.variantsReverse.nodes[*].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "The proxy projects staged synthetic ProductVariant IDs."
+          },
+          {
+            "path": "$.byId.variantsReverse.pageInfo.startCursor",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable staged-resource cursors."
+          },
+          {
+            "path": "$.byId.variantsReverse.pageInfo.endCursor",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable staged-resource cursors."
+          },
+          {
+            "path": "$.byId.selectedOrFirstAvailableVariant.id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "The proxy projects the staged synthetic first available variant ID."
+          },
+          {
+            "path": "$.byId.variantBySelectedOptions.id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "The proxy projects the staged synthetic selected variant ID."
+          },
+          {
+            "path": "$.byHandle.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy projects the staged synthetic Product ID."
+          },
+          {
+            "path": "$.products.edges[*].cursor",
+            "matcher": "shopify-gid:Product",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable staged-resource cursors."
+          },
+          {
+            "path": "$.products.edges[*].node.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy projects staged synthetic Product IDs."
+          },
+          {
+            "path": "$.products.pageInfo.startCursor",
+            "matcher": "shopify-gid:Product",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable staged-resource cursors."
+          },
+          {
+            "path": "$.products.pageInfo.endCursor",
+            "matcher": "shopify-gid:Product",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable staged-resource cursors."
+          },
+          {
+            "path": "$.productsReverse.nodes[*].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy projects staged synthetic Product IDs."
+          },
+          {
+            "path": "$.productsReverse.pageInfo.startCursor",
+            "matcher": "shopify-gid:Product",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable staged-resource cursors."
+          },
+          {
+            "path": "$.productsReverse.pageInfo.endCursor",
+            "matcher": "shopify-gid:Product",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable staged-resource cursors."
+          }
+        ]
+      },
+      {
+        "name": "admin-product-update-refreshes-storefront-handle",
+        "capturePath": "$.adminProductUpdate.response.data.productUpdate",
+        "proxyPath": "$.data.productUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-catalog-product-update-admin.graphql",
+          "variables": {
+            "product": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+              },
+              "title": {
+                "fromCapturePath": "$.adminProductUpdate.request.variables.product.title"
+              },
+              "handle": {
+                "fromCapturePath": "$.adminProductUpdate.request.variables.product.handle"
+              }
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy updates the staged synthetic Product ID."
+          },
+          {
+            "path": "$.product.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic update time."
+          }
+        ]
+      },
+      {
+        "name": "storefront-catalog-updated-read-uses-new-handle",
+        "capturePath": "$.storefrontUpdatedRead.response.body.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-catalog-updated-read.graphql",
+          "operationName": "StorefrontCatalogUpdatedRead",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "oldHandle": {
+              "fromCapturePath": "$.storefrontUpdatedRead.variables.oldHandle"
+            },
+            "newHandle": {
+              "fromProxyResponse": "admin-product-update-refreshes-storefront-handle",
+              "path": "$.data.productUpdate.product.handle"
+            },
+            "query": {
+              "fromCapturePath": "$.storefrontUpdatedRead.variables.query"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.byId.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy projects the staged synthetic Product ID."
+          },
+          {
+            "path": "$.byId.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic update time."
+          },
+          {
+            "path": "$.byNewHandle.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy projects the staged synthetic Product ID."
+          },
+          {
+            "path": "$.products.nodes[*].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy projects staged synthetic Product IDs."
+          },
+          {
+            "path": "$.products.pageInfo.startCursor",
+            "matcher": "shopify-gid:Product",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable staged-resource cursors."
+          },
+          {
+            "path": "$.products.pageInfo.endCursor",
+            "matcher": "shopify-gid:Product",
+            "reason": "Shopify Storefront cursors are opaque; the proxy uses stable staged-resource cursors."
+          }
+        ]
+      },
+      {
+        "name": "admin-unpublish-storefront-hides-catalog-product",
+        "capturePath": "$.adminUnpublishStorefront.response.data.publishableUnpublish",
+        "proxyPath": "$.data.publishableUnpublish",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-catalog-unpublish-admin.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "input": {
+              "fromCapturePath": "$.adminUnpublishStorefront.request.variables.input"
+            },
+            "publicationId": {
+              "fromCapturePath": "$.adminUnpublishStorefront.request.variables.publicationId"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.publishable.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy unpublishes the staged synthetic Product ID."
+          }
+        ]
+      },
+      {
+        "name": "storefront-catalog-unpublished-read-no-data",
+        "capturePath": "$.storefrontUnpublishedRead.response.body.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-catalog-hidden-read.graphql",
+          "operationName": "StorefrontCatalogHiddenRead",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "handle": {
+              "fromProxyResponse": "admin-product-update-refreshes-storefront-handle",
+              "path": "$.data.productUpdate.product.handle"
+            },
+            "query": {
+              "fromCapturePath": "$.storefrontUnpublishedRead.variables.query"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "admin-product-delete-tombstones-catalog-product",
+        "capturePath": "$.adminProductDelete.response.data.productDelete",
+        "proxyPath": "$.data.productDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-catalog-product-delete-admin.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+              }
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deletedProductId",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy tombstones the staged synthetic Product ID."
+          }
+        ]
+      },
+      {
+        "name": "storefront-catalog-deleted-read-no-data",
+        "capturePath": "$.storefrontDeletedRead.response.body.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-catalog-hidden-read.graphql",
+          "operationName": "StorefrontCatalogHiddenRead",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "handle": {
+              "fromProxyResponse": "admin-product-update-refreshes-storefront-handle",
+              "path": "$.data.productUpdate.product.handle"
+            },
+            "query": {
+              "fromCapturePath": "$.storefrontDeletedRead.variables.query"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Authenticated Storefront 2026-04 catalog capture. Admin setup creates a disposable product, variant inventory quantity, current-channel publication, update, unpublish, and delete through public Admin GraphQL. Storefront reads are authenticated Storefront GraphQL requests. The main Storefront target compares the whole selected Product/ProductVariant payload with path-scoped volatile exclusions for staged IDs, timestamps, and opaque cursors."
+}

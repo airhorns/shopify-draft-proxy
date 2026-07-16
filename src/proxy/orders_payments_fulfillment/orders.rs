@@ -1755,13 +1755,13 @@ impl DraftProxy {
     fn effective_orders_count_value(&self, arguments: &BTreeMap<String, ResolvedValue>) -> Value {
         let baseline_key = order_count_baseline_key(arguments);
         let Some(baseline) = self.store.order_count_baseline(&baseline_key) else {
-            return staged_count_with_limit_precision(
+            return snapshot_count_with_limit_precision(
                 self.matching_orders_query(arguments).total_count,
                 arguments,
             );
         };
         let Some(base_count) = baseline.get("count").and_then(Value::as_u64) else {
-            return staged_count_with_limit_precision(
+            return snapshot_count_with_limit_precision(
                 self.matching_orders_query(arguments).total_count,
                 arguments,
             );
@@ -1772,11 +1772,7 @@ impl DraftProxy {
         } else {
             (base_count as usize).saturating_add(delta as usize)
         };
-        let mut count = staged_count_with_limit_precision(effective_total, arguments);
-        if baseline.get("precision").and_then(Value::as_str) == Some("AT_LEAST") {
-            count["precision"] = json!("AT_LEAST");
-        }
-        count
+        snapshot_count_with_limit_precision(effective_total, arguments)
     }
 
     fn staged_order_count_delta(&self, arguments: &BTreeMap<String, ResolvedValue>) -> isize {

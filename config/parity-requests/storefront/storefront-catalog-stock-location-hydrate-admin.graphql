@@ -1,0 +1,11 @@
+query StorefrontCatalogStockLocationHydrate {
+  locations(first: 100, includeInactive: false) {
+    nodes {
+      id
+      name
+      isActive
+      fulfillsOnlineOrders
+      shipsInventory
+    }
+  }
+}

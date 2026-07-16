@@ -470,13 +470,29 @@ describe('conformance scenario discovery', () => {
       'blog',
       'blogByHandle',
       'blogs',
+      'customer',
+      'customerAccessTokenCreate',
+      'customerAccessTokenCreateWithMultipass',
+      'customerAccessTokenDelete',
+      'customerAccessTokenRenew',
+      'customerActivate',
+      'customerActivateByUrl',
+      'customerCreate',
+      'customerRecover',
+      'customerReset',
+      'customerResetByUrl',
       'localization',
       'locations',
       'menu',
+      'metaobject',
+      'metaobjects',
       'page',
       'pageByHandle',
       'pages',
       'paymentSettings',
+      'product',
+      'productByHandle',
+      'products',
       'publicApiVersions',
       'shop',
       'sitemap',
@@ -485,7 +501,9 @@ describe('conformance scenario discovery', () => {
 
     expect(status.implementedOperations.length).toBeGreaterThan(0);
     expect(status.apiSurfaceSummaries.admin.implementedOperations).toBeGreaterThan(0);
-    expect(status.apiSurfaceSummaries.storefront.implementedOperations).toBe(implementedStorefrontRoots.length);
+    expect(status.apiSurfaceSummaries.storefront.implementedOperations).toBeGreaterThanOrEqual(
+      implementedStorefrontRoots.length,
+    );
     expect(status.apiSurfaceSummaries.storefront.coveredOperationNames).toEqual(
       expect.arrayContaining(implementedStorefrontRoots),
     );

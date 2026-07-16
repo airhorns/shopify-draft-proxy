@@ -1,5 +1,6 @@
 use super::*;
 use crate::graphql::operation_directive_invocations;
+use sha2::{Digest, Sha256};
 
 const STOREFRONT_FIRST_SLICE_VERSION: &str = "2026-04";
 const STOREFRONT_FIRST_SLICE_ROOTS: &[&str] = &[
@@ -8,6 +9,9 @@ const STOREFRONT_FIRST_SLICE_ROOTS: &[&str] = &[
     "locations",
     "paymentSettings",
     "publicApiVersions",
+    "product",
+    "productByHandle",
+    "products",
 ];
 const STOREFRONT_CONTENT_ROOTS: &[&str] = &[
     "article",
@@ -32,7 +36,24 @@ const STOREFRONT_LOCAL_CONTENT_ROOTS: &[&str] = &[
     "sitemap",
     "urlRedirects",
 ];
+const STOREFRONT_CUSTOM_DATA_ROOTS: &[&str] = &["metaobject", "metaobjects"];
+pub(in crate::proxy) const STOREFRONT_CUSTOMER_AUTH_MUTATION_ROOTS: &[&str] = &[
+    "customerCreate",
+    "customerAccessTokenCreate",
+    "customerAccessTokenRenew",
+    "customerAccessTokenDelete",
+    "customerActivate",
+    "customerActivateByUrl",
+    "customerRecover",
+    "customerReset",
+    "customerResetByUrl",
+    "customerAccessTokenCreateWithMultipass",
+];
 const STOREFRONT_DEFAULT_CONTEXT_KEY: &str = "country=*;language=*";
+const STOREFRONT_CUSTOMER_PASSWORD_FINGERPRINT_FIELD: &str = "__storefrontPasswordFingerprint";
+const STOREFRONT_CUSTOMER_RESET_TOKEN_HASH_FIELD: &str = "__storefrontResetTokenHash";
+const STOREFRONT_CUSTOMER_RESET_REQUESTED_AT_FIELD: &str = "__storefrontResetRequestedAt";
+const STOREFRONT_CUSTOMER_ACTIVATION_TOKEN_FIELD: &str = "__proxyAccountActivationToken";
 
 const STOREFRONT_FIRST_SLICE_HYDRATE_QUERY: &str =
     include_str!("../../config/parity-requests/storefront/storefront-first-slice-hydrate.graphql");
@@ -72,7 +93,749 @@ impl StorefrontRequestContext {
     }
 }
 
+struct StorefrontCustomerAuthOutcome {
+    value: Value,
+    errors: Vec<Value>,
+}
+
+pub(in crate::proxy) struct StorefrontCustomerAuthLogDetails<'a> {
+    pub status: &'a str,
+    pub execution: &'a str,
+    pub notes: &'a str,
+}
+
 impl DraftProxy {
+    fn storefront_customer_query_root(
+        &self,
+        field: &RootFieldSelection,
+    ) -> StorefrontCustomerAuthOutcome {
+        let token =
+            resolved_string_field(&field.arguments, "customerAccessToken").unwrap_or_default();
+        let customer = self
+            .storefront_customer_id_for_access_token(&token)
+            .and_then(|customer_id| self.storefront_customer_by_id(&customer_id))
+            .map(|customer| storefront_customer_json(&customer));
+        StorefrontCustomerAuthOutcome {
+            value: customer
+                .map(|customer| selected_json(&customer, &field.selection))
+                .unwrap_or(Value::Null),
+            errors: Vec::new(),
+        }
+    }
+
+    fn storefront_customer_mutation_root(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> StorefrontCustomerAuthOutcome {
+        match field.name.as_str() {
+            "customerCreate" => self.storefront_customer_create(field),
+            "customerAccessTokenCreate" => self.storefront_customer_access_token_create(field),
+            "customerAccessTokenRenew" => self.storefront_customer_access_token_renew(field),
+            "customerAccessTokenDelete" => self.storefront_customer_access_token_delete(field),
+            "customerActivate" => self.storefront_customer_activate(field),
+            "customerActivateByUrl" => self.storefront_customer_activate_by_url(field),
+            "customerRecover" => self.storefront_customer_recover(field),
+            "customerReset" => self.storefront_customer_reset(field),
+            "customerResetByUrl" => self.storefront_customer_reset_by_url(field),
+            "customerAccessTokenCreateWithMultipass" => {
+                self.storefront_customer_access_token_create_with_multipass(field)
+            }
+            _ => StorefrontCustomerAuthOutcome {
+                value: Value::Null,
+                errors: Vec::new(),
+            },
+        }
+    }
+
+    fn storefront_customer_create(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> StorefrontCustomerAuthOutcome {
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let email = resolved_string_field(&input, "email").unwrap_or_default();
+        let password = resolved_string_field(&input, "password").unwrap_or_default();
+        let normalized_email = storefront_customer_email_key(&email);
+        let mut errors = Vec::new();
+        if password.is_empty() {
+            errors.push(storefront_customer_user_error(
+                ["input", "password"],
+                "Password can't be blank",
+                Some("BLANK"),
+            ));
+        }
+        if !storefront_email_looks_valid(&email) {
+            errors.push(storefront_customer_user_error(
+                ["input", "email"],
+                "Email is invalid",
+                Some("INVALID"),
+            ));
+        }
+        if self
+            .storefront_customer_id_by_email(&normalized_email)
+            .is_some()
+        {
+            errors.push(storefront_customer_user_error(
+                ["input", "email"],
+                "Email has already been taken",
+                Some("TAKEN"),
+            ));
+        }
+        for (field_name, message, code) in [
+            (
+                "firstName",
+                "First name cannot contain HTML tags",
+                "CONTAINS_HTML_TAGS",
+            ),
+            (
+                "lastName",
+                "Last name cannot contain HTML tags",
+                "CONTAINS_HTML_TAGS",
+            ),
+        ] {
+            if resolved_string_field(&input, field_name)
+                .is_some_and(|value| storefront_customer_contains_html_tag(&value))
+            {
+                errors.push(storefront_customer_user_error(
+                    ["input", field_name],
+                    message,
+                    Some(code),
+                ));
+            }
+        }
+        if !errors.is_empty() {
+            return StorefrontCustomerAuthOutcome {
+                value: selected_json(
+                    &storefront_customer_payload(Value::Null, Value::Null, errors),
+                    &field.selection,
+                ),
+                errors: Vec::new(),
+            };
+        }
+
+        let id = self.next_synthetic_gid("Customer");
+        let timestamp = self.next_product_timestamp();
+        let accepts_marketing = resolved_bool_field(&input, "acceptsMarketing").unwrap_or(false);
+        let first_name =
+            resolved_string_field(&input, "firstName").filter(|value| !value.is_empty());
+        let last_name = resolved_string_field(&input, "lastName").filter(|value| !value.is_empty());
+        let phone = resolved_string_field(&input, "phone").filter(|value| !value.is_empty());
+        let mut customer = storefront_customer_shared_record(
+            &id,
+            first_name.as_deref(),
+            last_name.as_deref(),
+            &email,
+            phone.as_deref(),
+            accepts_marketing,
+            &timestamp,
+        );
+        customer[STOREFRONT_CUSTOMER_PASSWORD_FINGERPRINT_FIELD] =
+            json!(storefront_password_fingerprint(&id, &password));
+        self.store
+            .staged
+            .customers
+            .insert(id.clone(), customer.clone());
+        self.store
+            .staged
+            .locally_created_customer_ids
+            .insert(id.clone());
+        self.store
+            .staged
+            .storefront_customer_email_index
+            .insert(normalized_email, id);
+
+        StorefrontCustomerAuthOutcome {
+            value: selected_json(
+                &storefront_customer_payload(
+                    storefront_customer_json(&customer),
+                    Value::Null,
+                    Vec::new(),
+                ),
+                &field.selection,
+            ),
+            errors: Vec::new(),
+        }
+    }
+
+    fn storefront_customer_access_token_create(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> StorefrontCustomerAuthOutcome {
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let email = resolved_string_field(&input, "email").unwrap_or_default();
+        let password = resolved_string_field(&input, "password").unwrap_or_default();
+        let payload = match self
+            .storefront_customer_id_by_email(&storefront_customer_email_key(&email))
+            .and_then(|customer_id| self.storefront_customer_by_id(&customer_id))
+        {
+            Some(customer) if storefront_customer_password_matches(&customer, &password) => {
+                if storefront_customer_state(&customer) == "DISABLED" {
+                    storefront_customer_token_payload(
+                        Value::Null,
+                        vec![storefront_customer_user_error(
+                            Value::Null,
+                            "Customer is disabled",
+                            Some("CUSTOMER_DISABLED"),
+                        )],
+                    )
+                } else {
+                    let customer_id = customer["id"].as_str().unwrap_or_default().to_string();
+                    let token = self.issue_storefront_customer_access_token(&customer_id);
+                    storefront_customer_token_payload(token, Vec::new())
+                }
+            }
+            _ => storefront_customer_token_payload(
+                Value::Null,
+                vec![storefront_customer_user_error(
+                    Value::Null,
+                    "Unidentified customer",
+                    Some("UNIDENTIFIED_CUSTOMER"),
+                )],
+            ),
+        };
+
+        StorefrontCustomerAuthOutcome {
+            value: selected_json(&payload, &field.selection),
+            errors: Vec::new(),
+        }
+    }
+
+    fn storefront_customer_access_token_renew(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> StorefrontCustomerAuthOutcome {
+        let token =
+            resolved_string_field(&field.arguments, "customerAccessToken").unwrap_or_default();
+        let token_hash = storefront_token_hash(&token);
+        let payload = if self.storefront_access_token_is_active(&token_hash) {
+            let expires_at = self.store.staged.storefront_customer_access_tokens[&token_hash]
+                ["expiresAt"]
+                .clone();
+            json!({
+                "customerAccessToken": {
+                    "accessToken": token,
+                    "expiresAt": expires_at
+                },
+                "userErrors": []
+            })
+        } else {
+            json!({
+                "customerAccessToken": null,
+                "userErrors": [{
+                    "field": ["customerAccessToken"],
+                    "message": "access token does not exist"
+                }]
+            })
+        };
+        StorefrontCustomerAuthOutcome {
+            value: selected_json(&payload, &field.selection),
+            errors: Vec::new(),
+        }
+    }
+
+    fn storefront_customer_access_token_delete(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> StorefrontCustomerAuthOutcome {
+        let token =
+            resolved_string_field(&field.arguments, "customerAccessToken").unwrap_or_default();
+        let token_hash = storefront_token_hash(&token);
+        if !self.storefront_access_token_is_active(&token_hash) {
+            return StorefrontCustomerAuthOutcome {
+                value: Value::Null,
+                errors: vec![storefront_access_denied_error(&field.response_key)],
+            };
+        }
+        let token_id =
+            self.store.staged.storefront_customer_access_tokens[&token_hash]["id"].clone();
+        if let Some(record) = self
+            .store
+            .staged
+            .storefront_customer_access_tokens
+            .get_mut(&token_hash)
+        {
+            record["revoked"] = json!(true);
+        }
+        let payload = json!({
+            "deletedAccessToken": token,
+            "deletedCustomerAccessTokenId": token_id,
+            "userErrors": []
+        });
+        StorefrontCustomerAuthOutcome {
+            value: selected_json(&payload, &field.selection),
+            errors: Vec::new(),
+        }
+    }
+
+    fn storefront_customer_activate(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> StorefrontCustomerAuthOutcome {
+        let customer_id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let activation_token = resolved_string_field(&input, "activationToken").unwrap_or_default();
+        let password = resolved_string_field(&input, "password").unwrap_or_default();
+        self.storefront_activate_customer_with_token(
+            field,
+            &customer_id,
+            &activation_token,
+            &password,
+            ["input"],
+        )
+    }
+
+    fn storefront_customer_activate_by_url(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> StorefrontCustomerAuthOutcome {
+        let activation_url =
+            resolved_string_field(&field.arguments, "activationUrl").unwrap_or_default();
+        let password = resolved_string_field(&field.arguments, "password").unwrap_or_default();
+        let Some((customer_id, token)) =
+            self.storefront_customer_activation_url_parts(&activation_url)
+        else {
+            return StorefrontCustomerAuthOutcome {
+                value: selected_json(
+                    &storefront_customer_activation_payload(
+                        Value::Null,
+                        Value::Null,
+                        vec![storefront_customer_user_error(
+                            ["activationUrl"],
+                            "Invalid activation url",
+                            Some("INVALID"),
+                        )],
+                        false,
+                    ),
+                    &field.selection,
+                ),
+                errors: Vec::new(),
+            };
+        };
+        self.storefront_activate_customer_with_token(
+            field,
+            &customer_id,
+            &token,
+            &password,
+            ["activationUrl"],
+        )
+    }
+
+    fn storefront_activate_customer_with_token<const N: usize>(
+        &mut self,
+        field: &RootFieldSelection,
+        customer_id: &str,
+        activation_token: &str,
+        password: &str,
+        invalid_field: [&str; N],
+    ) -> StorefrontCustomerAuthOutcome {
+        let Some(mut customer) = self.storefront_customer_by_id(customer_id) else {
+            return StorefrontCustomerAuthOutcome {
+                value: selected_json(
+                    &storefront_customer_activation_payload(
+                        Value::Null,
+                        Value::Null,
+                        vec![storefront_customer_user_error(
+                            invalid_field.to_vec(),
+                            "Invalid activation token",
+                            Some("TOKEN_INVALID"),
+                        )],
+                        true,
+                    ),
+                    &field.selection,
+                ),
+                errors: Vec::new(),
+            };
+        };
+        if storefront_customer_state(&customer) == "ENABLED" {
+            return StorefrontCustomerAuthOutcome {
+                value: selected_json(
+                    &storefront_customer_activation_payload(
+                        Value::Null,
+                        Value::Null,
+                        vec![storefront_customer_user_error(
+                            Value::Null,
+                            "Customer already enabled",
+                            Some("ALREADY_ENABLED"),
+                        )],
+                        true,
+                    ),
+                    &field.selection,
+                ),
+                errors: Vec::new(),
+            };
+        }
+        if activation_token != storefront_customer_activation_token_for_id(customer_id)
+            && customer
+                .get(STOREFRONT_CUSTOMER_ACTIVATION_TOKEN_FIELD)
+                .and_then(Value::as_str)
+                != Some(activation_token)
+        {
+            return StorefrontCustomerAuthOutcome {
+                value: selected_json(
+                    &storefront_customer_activation_payload(
+                        Value::Null,
+                        Value::Null,
+                        vec![storefront_customer_user_error(
+                            invalid_field.to_vec(),
+                            "Invalid activation token",
+                            Some("TOKEN_INVALID"),
+                        )],
+                        true,
+                    ),
+                    &field.selection,
+                ),
+                errors: Vec::new(),
+            };
+        }
+
+        customer["state"] = json!("ENABLED");
+        customer["updatedAt"] = json!(self.next_product_timestamp());
+        customer[STOREFRONT_CUSTOMER_PASSWORD_FINGERPRINT_FIELD] =
+            json!(storefront_password_fingerprint(customer_id, password));
+        self.store
+            .staged
+            .customers
+            .stage(customer_id.to_string(), customer.clone());
+        if let Some(email) = customer.get("email").and_then(Value::as_str) {
+            self.store.staged.storefront_customer_email_index.insert(
+                storefront_customer_email_key(email),
+                customer_id.to_string(),
+            );
+        }
+        let token = self.issue_storefront_customer_access_token(customer_id);
+        StorefrontCustomerAuthOutcome {
+            value: selected_json(
+                &storefront_customer_activation_payload(
+                    storefront_customer_json(&customer),
+                    token,
+                    Vec::new(),
+                    true,
+                ),
+                &field.selection,
+            ),
+            errors: Vec::new(),
+        }
+    }
+
+    fn storefront_customer_recover(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> StorefrontCustomerAuthOutcome {
+        let email = resolved_string_field(&field.arguments, "email").unwrap_or_default();
+        let payload = if let Some(customer_id) =
+            self.storefront_customer_id_by_email(&storefront_customer_email_key(&email))
+        {
+            if let Some(mut customer) = self.storefront_customer_by_id(&customer_id) {
+                let reset_token = self.next_storefront_customer_reset_token(&customer_id);
+                customer[STOREFRONT_CUSTOMER_RESET_TOKEN_HASH_FIELD] =
+                    json!(storefront_token_hash(&reset_token));
+                customer[STOREFRONT_CUSTOMER_RESET_REQUESTED_AT_FIELD] =
+                    json!(self.next_product_timestamp());
+                self.store.staged.customers.stage(customer_id, customer);
+            }
+            json!({ "customerUserErrors": [], "userErrors": [] })
+        } else {
+            let errors = vec![storefront_customer_user_error(
+                ["email"],
+                "Could not find customer",
+                Some("UNIDENTIFIED_CUSTOMER"),
+            )];
+            json!({
+                "customerUserErrors": errors,
+                "userErrors": storefront_user_errors_without_code(&errors)
+            })
+        };
+        StorefrontCustomerAuthOutcome {
+            value: selected_json(&payload, &field.selection),
+            errors: Vec::new(),
+        }
+    }
+
+    fn storefront_customer_reset(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> StorefrontCustomerAuthOutcome {
+        let customer_id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let reset_token = resolved_string_field(&input, "resetToken").unwrap_or_default();
+        let password = resolved_string_field(&input, "password").unwrap_or_default();
+        self.storefront_reset_customer_with_token(
+            field,
+            &customer_id,
+            &reset_token,
+            &password,
+            true,
+        )
+    }
+
+    fn storefront_customer_reset_by_url(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> StorefrontCustomerAuthOutcome {
+        let reset_url = resolved_string_field(&field.arguments, "resetUrl").unwrap_or_default();
+        let password = resolved_string_field(&field.arguments, "password").unwrap_or_default();
+        let Some((customer_id, token)) = self.storefront_customer_reset_url_parts(&reset_url)
+        else {
+            return StorefrontCustomerAuthOutcome {
+                value: Value::Null,
+                errors: vec![storefront_not_found_error(&field.response_key)],
+            };
+        };
+        self.storefront_reset_customer_with_token(field, &customer_id, &token, &password, true)
+    }
+
+    fn storefront_reset_customer_with_token(
+        &mut self,
+        field: &RootFieldSelection,
+        customer_id: &str,
+        reset_token: &str,
+        password: &str,
+        include_user_errors: bool,
+    ) -> StorefrontCustomerAuthOutcome {
+        let Some(mut customer) = self.storefront_customer_by_id(customer_id) else {
+            return StorefrontCustomerAuthOutcome {
+                value: Value::Null,
+                errors: vec![storefront_not_found_error(&field.response_key)],
+            };
+        };
+        let reset_hash = storefront_token_hash(reset_token);
+        let expected_hash = customer
+            .get(STOREFRONT_CUSTOMER_RESET_TOKEN_HASH_FIELD)
+            .and_then(Value::as_str);
+        if expected_hash != Some(reset_hash.as_str()) {
+            return StorefrontCustomerAuthOutcome {
+                value: selected_json(
+                    &storefront_customer_activation_payload(
+                        Value::Null,
+                        Value::Null,
+                        vec![storefront_customer_user_error(
+                            ["input"],
+                            "Invalid reset token",
+                            Some("TOKEN_INVALID"),
+                        )],
+                        include_user_errors,
+                    ),
+                    &field.selection,
+                ),
+                errors: Vec::new(),
+            };
+        }
+        customer["state"] = json!("ENABLED");
+        customer["updatedAt"] = json!(self.next_product_timestamp());
+        customer[STOREFRONT_CUSTOMER_PASSWORD_FINGERPRINT_FIELD] =
+            json!(storefront_password_fingerprint(customer_id, password));
+        if let Some(object) = customer.as_object_mut() {
+            object.remove(STOREFRONT_CUSTOMER_RESET_TOKEN_HASH_FIELD);
+            object.remove(STOREFRONT_CUSTOMER_RESET_REQUESTED_AT_FIELD);
+        }
+        self.store
+            .staged
+            .customers
+            .stage(customer_id.to_string(), customer.clone());
+        let token = self.issue_storefront_customer_access_token(customer_id);
+        StorefrontCustomerAuthOutcome {
+            value: selected_json(
+                &storefront_customer_activation_payload(
+                    storefront_customer_json(&customer),
+                    token,
+                    Vec::new(),
+                    include_user_errors,
+                ),
+                &field.selection,
+            ),
+            errors: Vec::new(),
+        }
+    }
+
+    fn storefront_customer_access_token_create_with_multipass(
+        &self,
+        field: &RootFieldSelection,
+    ) -> StorefrontCustomerAuthOutcome {
+        let payload = storefront_customer_token_payload(
+            Value::Null,
+            vec![storefront_customer_user_error(
+                ["multipassToken"],
+                "Invalid Multipass request",
+                Some("INVALID_MULTIPASS_REQUEST"),
+            )],
+        );
+        StorefrontCustomerAuthOutcome {
+            value: selected_json(&payload, &field.selection),
+            errors: Vec::new(),
+        }
+    }
+
+    fn issue_storefront_customer_access_token(&mut self, customer_id: &str) -> Value {
+        let sequence = self.store.staged.next_storefront_customer_access_token_id;
+        self.store.staged.next_storefront_customer_access_token_id += 1;
+        let issued_at = self.current_time();
+        let expires_at = issued_at + time::Duration::days(42);
+        let expires_at = storefront_format_timestamp(expires_at);
+        let token = storefront_access_token_value(customer_id, sequence, &expires_at);
+        let token_hash = storefront_token_hash(&token);
+        let token_id = format!("gid://shopify/CustomerAccessToken/{sequence}");
+        self.store.staged.storefront_customer_access_tokens.insert(
+            token_hash,
+            json!({
+                "id": token_id,
+                "customerId": customer_id,
+                "expiresAt": expires_at,
+                "revoked": false
+            }),
+        );
+        json!({
+            "accessToken": token,
+            "expiresAt": expires_at
+        })
+    }
+
+    fn next_storefront_customer_reset_token(&mut self, customer_id: &str) -> String {
+        let sequence = self.store.staged.next_storefront_customer_reset_token_id;
+        self.store.staged.next_storefront_customer_reset_token_id += 1;
+        format!("sdp-reset-{}-{sequence}", resource_id_tail(customer_id))
+    }
+
+    fn storefront_access_token_is_active(&self, token_hash: &str) -> bool {
+        let Some(record) = self
+            .store
+            .staged
+            .storefront_customer_access_tokens
+            .get(token_hash)
+        else {
+            return false;
+        };
+        if record["revoked"].as_bool().unwrap_or(false) {
+            return false;
+        }
+        let Some(expires_at) = record["expiresAt"].as_str() else {
+            return false;
+        };
+        storefront_timestamp_is_future(expires_at, self.current_time())
+    }
+
+    fn storefront_customer_id_for_access_token(&self, token: &str) -> Option<String> {
+        let token_hash = storefront_token_hash(token);
+        if !self.storefront_access_token_is_active(&token_hash) {
+            return None;
+        }
+        self.store
+            .staged
+            .storefront_customer_access_tokens
+            .get(&token_hash)?
+            .get("customerId")?
+            .as_str()
+            .map(str::to_string)
+    }
+
+    fn storefront_customer_by_id(&self, customer_id: &str) -> Option<Value> {
+        if self.store.staged.customers.is_tombstoned(customer_id) {
+            return None;
+        }
+        self.store.staged.customers.get(customer_id).cloned()
+    }
+
+    fn storefront_customer_id_by_email(&self, normalized_email: &str) -> Option<String> {
+        if let Some(customer_id) = self
+            .store
+            .staged
+            .storefront_customer_email_index
+            .get(normalized_email)
+            .filter(|customer_id| self.storefront_customer_by_id(customer_id).is_some())
+        {
+            return Some(customer_id.clone());
+        }
+        self.store
+            .staged
+            .customers
+            .iter()
+            .find_map(|(customer_id, customer)| {
+                let email = customer.get("email").and_then(Value::as_str)?;
+                (storefront_customer_email_key(email) == normalized_email)
+                    .then(|| customer_id.clone())
+            })
+    }
+
+    fn storefront_customer_activation_url_parts(&self, url: &str) -> Option<(String, String)> {
+        let token = url.rsplit('/').next()?.to_string();
+        if token.is_empty() {
+            return None;
+        }
+        let customer_id = self
+            .store
+            .staged
+            .customers
+            .iter()
+            .find_map(|(id, customer)| {
+                let deterministic = storefront_customer_activation_token_for_id(id);
+                let stored = customer
+                    .get(STOREFRONT_CUSTOMER_ACTIVATION_TOKEN_FIELD)
+                    .and_then(Value::as_str);
+                (token == deterministic || stored == Some(token.as_str())).then(|| id.clone())
+            })?;
+        Some((customer_id, token))
+    }
+
+    fn storefront_customer_reset_url_parts(&self, url: &str) -> Option<(String, String)> {
+        let token = url.rsplit('/').next()?.to_string();
+        if token.is_empty() {
+            return None;
+        }
+        let token_hash = storefront_token_hash(&token);
+        let customer_id = self
+            .store
+            .staged
+            .customers
+            .iter()
+            .find_map(|(id, customer)| {
+                (customer
+                    .get(STOREFRONT_CUSTOMER_RESET_TOKEN_HASH_FIELD)
+                    .and_then(Value::as_str)
+                    == Some(token_hash.as_str()))
+                .then(|| id.clone())
+            })?;
+        Some((customer_id, token))
+    }
+
+    pub(in crate::proxy) fn record_storefront_customer_auth_log_entry(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        fields: &[RootFieldSelection],
+        details: StorefrontCustomerAuthLogDetails<'_>,
+    ) {
+        let operation = parse_operation_with_variables(query, variables);
+        let id = format!("log-{}", self.log_entries.len() + 1);
+        let root_fields = fields
+            .iter()
+            .map(|field| field.name.clone())
+            .collect::<Vec<_>>();
+        let primary_root_field = root_fields.first().cloned().unwrap_or_default();
+        let operation_type = operation
+            .as_ref()
+            .map(|operation| operation.operation_type.keyword())
+            .unwrap_or("unknown");
+        self.log_entries.push(json!({
+            "id": id,
+            "operationName": Value::Null,
+            "apiSurface": "storefront",
+            "status": details.status,
+            "path": request.path,
+            "query": "<redacted:storefront-customer-auth-query>",
+            "variables": storefront_redacted_variables_json(variables),
+            "rawBody": "<redacted:storefront-customer-auth-request>",
+            "interpreted": {
+                "operationType": operation_type,
+                "rootFields": root_fields,
+                "primaryRootField": primary_root_field,
+                "capability": {
+                    "domain": "storefront",
+                    "execution": details.execution
+                }
+            },
+            "notes": details.notes
+        }));
+    }
+
     pub(crate) fn resolve_storefront_graphql(
         &mut self,
         execution: RootResolverContext<'_>,
@@ -87,14 +850,44 @@ impl DraftProxy {
         } = execution;
         if storefront_graphql_version(&request.path) != Some(STOREFRONT_FIRST_SLICE_VERSION)
             || self.config.read_mode == ReadMode::Live
-            || operation.operation_type != OperationType::Query
-            || mode != LocalResolverMode::OverlayRead
         {
             return Self::unimplemented_resolver_response(mode, root_name);
         }
         let Some(field) = self.execution_root_field(query, variables, root_name) else {
             return json_error(400, "Could not parse Storefront GraphQL root field");
         };
+        match (operation.operation_type, mode) {
+            (OperationType::Query, LocalResolverMode::OverlayRead) if root_name == "customer" => {
+                let outcome = self.storefront_customer_query_root(&field);
+                let mut data = serde_json::Map::new();
+                data.insert(field.response_key.clone(), outcome.value);
+                let mut body = json!({ "data": Value::Object(data) });
+                if !outcome.errors.is_empty() {
+                    body["errors"] = Value::Array(outcome.errors);
+                }
+                return ok_json(body);
+            }
+            (OperationType::Mutation, LocalResolverMode::StageLocally)
+                if STOREFRONT_CUSTOMER_AUTH_MUTATION_ROOTS.contains(&root_name) =>
+            {
+                let outcome = self.storefront_customer_mutation_root(&field);
+                let mut data = serde_json::Map::new();
+                data.insert(field.response_key.clone(), outcome.value);
+                let mut body = json!({ "data": Value::Object(data) });
+                if !outcome.errors.is_empty() {
+                    body["errors"] = Value::Array(outcome.errors);
+                }
+                return ok_json(body);
+            }
+            (OperationType::Query, LocalResolverMode::OverlayRead) => {}
+            _ => return Self::unimplemented_resolver_response(mode, root_name),
+        }
+        if self.config.read_mode == ReadMode::LiveHybrid
+            && self.storefront_fields_include_catalog(std::slice::from_ref(&field))
+            && !self.storefront_catalog_is_locally_ready()
+        {
+            return Self::unimplemented_resolver_response(mode, root_name);
+        }
 
         let context = storefront_request_context(query, variables);
         if self.config.read_mode == ReadMode::LiveHybrid
@@ -115,20 +908,66 @@ impl DraftProxy {
         &self,
         fields: &[RootFieldSelection],
     ) -> bool {
+        if self.config.read_mode == ReadMode::LiveHybrid
+            && self.storefront_fields_include_catalog(fields)
+            && !self.storefront_catalog_is_locally_ready()
+        {
+            return false;
+        }
+        fields
+            .iter()
+            .all(|field| self.storefront_field_is_local(field))
+    }
+
+    fn storefront_field_is_local(&self, field: &RootFieldSelection) -> bool {
+        let capability = self.registry.resolve_for_surface(
+            ApiSurface::Storefront,
+            OperationType::Query,
+            &field.name,
+        );
+        capability.domain == CapabilityDomain::Storefront
+            && self.storefront_root_is_promoted(&field.name)
+            && self.storefront_root_has_local_backing(field)
+    }
+
+    fn storefront_custom_data_field_has_local_effect(&self, field: &RootFieldSelection) -> bool {
+        match field.name.as_str() {
+            "metaobject" => self.has_local_metaobject_state(),
+            "metaobjects" => {
+                let meta_type = resolved_string_field(&field.arguments, "type").unwrap_or_default();
+                meta_type.is_empty()
+                    || self.metaobject_definition_by_type(&meta_type).is_some()
+                    || self.store.staged.metaobjects.values().any(|record| {
+                        record.get("type").and_then(Value::as_str) == Some(meta_type.as_str())
+                    })
+            }
+            _ => false,
+        }
+    }
+
+    pub(in crate::proxy) fn storefront_mutation_fields_are_local(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> bool {
         fields.iter().all(|field| {
-            self.storefront_root_is_promoted(&field.name)
-                && self.storefront_root_has_local_backing(field)
+            STOREFRONT_CUSTOMER_AUTH_MUTATION_ROOTS.contains(&field.name.as_str())
                 && self
                     .registry
-                    .resolve_for_surface(ApiSurface::Storefront, OperationType::Query, &field.name)
-                    .domain
-                    == CapabilityDomain::Storefront
+                    .resolve_for_surface(
+                        ApiSurface::Storefront,
+                        OperationType::Mutation,
+                        &field.name,
+                    )
+                    .execution
+                    == CapabilityExecution::StageLocally
         })
     }
 
     fn storefront_root_is_promoted(&self, root: &str) -> bool {
-        STOREFRONT_FIRST_SLICE_ROOTS.contains(&root)
+        root == "customer"
+            || STOREFRONT_FIRST_SLICE_ROOTS.contains(&root)
             || STOREFRONT_LOCAL_CONTENT_ROOTS.contains(&root)
+            || STOREFRONT_CUSTOM_DATA_ROOTS.contains(&root)
     }
 
     fn storefront_root_has_local_backing(&self, field: &RootFieldSelection) -> bool {
@@ -138,14 +977,33 @@ impl DraftProxy {
             return true;
         }
         match field.name.as_str() {
+            "customer" => true,
             root if STOREFRONT_CONTENT_ROOTS.contains(&root) => {
                 self.has_online_store_content_state()
             }
             "sitemap" => self.has_online_store_content_state(),
             "urlRedirects" => self.has_staged_url_redirects(),
             "menu" => true,
+            root if STOREFRONT_CUSTOM_DATA_ROOTS.contains(&root) => {
+                self.storefront_custom_data_field_has_local_effect(field)
+            }
             _ => false,
         }
+    }
+
+    fn storefront_fields_include_catalog(&self, fields: &[RootFieldSelection]) -> bool {
+        fields.iter().any(|field| {
+            matches!(
+                field.name.as_str(),
+                "product" | "productByHandle" | "products"
+            )
+        })
+    }
+
+    fn storefront_catalog_is_locally_ready(&self) -> bool {
+        self.store.has_product_state()
+            && (self.store.staged.current_channel_publication_resolved
+                || self.store.has_known_publication_catalog())
     }
 
     fn storefront_first_slice_needs_hydration(
@@ -161,6 +1019,7 @@ impl DraftProxy {
                 .storefront_payment_settings_source()
                 .is_none_or(|settings| !settings.is_object()),
             "publicApiVersions" => self.store.base.storefront_public_api_versions.is_empty(),
+            "product" | "productByHandle" | "products" => false,
             _ => false,
         })
     }
@@ -175,12 +1034,51 @@ impl DraftProxy {
             Value::Null
         };
         if !admin_shop.is_object() {
-            return true;
+            return !self.storefront_shop_selection_uses_only_local_metafields(selections);
         }
         selections
             .iter()
             .filter(|selection| selection_applies_to_type(selection, "Shop"))
             .any(|selection| !self.storefront_shop_field_has_admin_source(&admin_shop, selection))
+    }
+
+    fn storefront_shop_selection_uses_only_local_metafields(
+        &self,
+        selections: &[SelectedField],
+    ) -> bool {
+        let mut has_metafield_selection = false;
+        for selection in selections
+            .iter()
+            .filter(|selection| selection_applies_to_type(selection, "Shop"))
+        {
+            match selection.name.as_str() {
+                "__typename" => {}
+                "metafield" | "metafields" => {
+                    if !self.storefront_has_local_shop_metafield_state() {
+                        return false;
+                    }
+                    has_metafield_selection = true;
+                }
+                _ => return false,
+            }
+        }
+        has_metafield_selection
+    }
+
+    fn storefront_has_local_shop_metafield_state(&self) -> bool {
+        self.storefront_shop_owner_id().is_some_and(|owner_id| {
+            self.store
+                .staged
+                .owner_metafields
+                .get(&owner_id)
+                .is_some_and(|records| !records.is_empty())
+                || self
+                    .store
+                    .staged
+                    .deleted_owner_metafields
+                    .iter()
+                    .any(|(deleted_owner_id, _, _)| deleted_owner_id == &owner_id)
+        })
     }
 
     fn storefront_shop_field_has_admin_source(
@@ -206,6 +1104,7 @@ impl DraftProxy {
                 .shop_policy_by_type("CONTACT_INFORMATION")
                 .is_some(),
             "moneyFormat" => self.store.shop_money_format().is_some(),
+            "metafield" | "metafields" => self.storefront_has_local_shop_metafield_state(),
             _ => false,
         }
     }
@@ -351,7 +1250,7 @@ impl DraftProxy {
         self.store.base.storefront_menus.insert(id, menu);
     }
 
-    fn storefront_local_query_data(
+    pub(in crate::proxy) fn storefront_local_query_data(
         &self,
         fields: &[RootFieldSelection],
         context: &StorefrontRequestContext,
@@ -402,9 +1301,116 @@ impl DraftProxy {
                     .get(&field.response_key)
                     .cloned()
                     .unwrap_or(Value::Null),
+                "product" => self.storefront_product_field_json(field),
+                "productByHandle" => self.storefront_product_by_handle_field_json(field),
+                "products" => self.storefront_products_connection_json(field),
+                "metaobject" => self.storefront_metaobject_root_json(field),
+                "metaobjects" => self.storefront_metaobjects_connection_json(field),
                 _ => Value::Null,
             })
         })
+    }
+
+    fn storefront_product_field_json(&self, field: &RootFieldSelection) -> Value {
+        let product = resolved_string_field(&field.arguments, "id")
+            .and_then(|id| self.store.product_by_id(&id))
+            .or_else(|| {
+                resolved_string_field(&field.arguments, "handle")
+                    .and_then(|handle| self.store.product_by_handle(&handle))
+            });
+        self.storefront_visible_product_json(product, &field.selection)
+    }
+
+    fn storefront_product_by_handle_field_json(&self, field: &RootFieldSelection) -> Value {
+        let product = resolved_string_field(&field.arguments, "handle")
+            .and_then(|handle| self.store.product_by_handle(&handle));
+        self.storefront_visible_product_json(product, &field.selection)
+    }
+
+    fn storefront_visible_product_json(
+        &self,
+        product: Option<&ProductRecord>,
+        selections: &[SelectedField],
+    ) -> Value {
+        let Some(product) = product.filter(|product| self.storefront_product_is_visible(product))
+        else {
+            return Value::Null;
+        };
+        let variants = self.store.product_variants_for_product(&product.id);
+        storefront_product_json(
+            product,
+            &variants,
+            &self.storefront_currency_code(),
+            selections,
+        )
+    }
+
+    fn storefront_products_connection_json(&self, field: &RootFieldSelection) -> Value {
+        selected_staged_connection_with_args(
+            self.storefront_visible_products(),
+            &field.arguments,
+            &field.selection,
+            |product, query| self.storefront_product_search_decision(product, query),
+            |product, sort_key| self.storefront_product_sort_key(product, sort_key),
+            |product, selections| {
+                let variants = self.store.product_variants_for_product(&product.id);
+                storefront_product_json(
+                    product,
+                    &variants,
+                    &self.storefront_currency_code(),
+                    selections,
+                )
+            },
+            |product| product_cursor(product).to_string(),
+        )
+    }
+
+    fn storefront_visible_products(&self) -> Vec<ProductRecord> {
+        self.store
+            .products()
+            .into_iter()
+            .filter(|product| self.storefront_product_is_visible(product))
+            .collect()
+    }
+
+    fn storefront_product_is_visible(&self, product: &ProductRecord) -> bool {
+        if product.status != "ACTIVE" {
+            return false;
+        }
+        if self.store.staged.current_channel_publication_resolved {
+            return self
+                .store
+                .product_is_published_on_current_publication(product);
+        }
+        self.store
+            .product_is_published_on_known_publication(product)
+    }
+
+    fn storefront_product_search_decision(
+        &self,
+        product: &ProductRecord,
+        query: Option<&str>,
+    ) -> StagedSearchDecision {
+        let Some(query) = query else {
+            return StagedSearchDecision::Match;
+        };
+        let variants = self.store.product_variants_for_product(&product.id);
+        StagedSearchDecision::from_bool(product_matches_search_query(product, &variants, query))
+    }
+
+    fn storefront_product_sort_key(
+        &self,
+        product: &ProductRecord,
+        sort_key: Option<&str>,
+    ) -> StagedSortKey {
+        let variants = self.store.product_variants_for_product(&product.id);
+        storefront_product_sort_key(product, &variants, sort_key)
+    }
+
+    fn storefront_currency_code(&self) -> String {
+        self.store
+            .observed_shop_currency_code()
+            .unwrap_or_else(|| "USD".to_string())
     }
 
     fn storefront_shop_json(&self, selections: &[SelectedField]) -> Value {
@@ -414,7 +1420,9 @@ impl DraftProxy {
         } else {
             Value::Null
         };
-        let has_shop = storefront_shop.is_object() || admin_shop.is_object();
+        let has_shop = storefront_shop.is_object()
+            || admin_shop.is_object()
+            || self.storefront_shop_selection_uses_only_local_metafields(selections);
         if !has_shop {
             return Value::Null;
         }
@@ -475,6 +1483,8 @@ impl DraftProxy {
                 "moneyFormat" => self
                     .storefront_shop_field(&storefront_shop, &admin_shop, "moneyFormat")
                     .or_else(|| self.store.shop_money_format().map(Value::String)),
+                "metafield" => Some(self.storefront_shop_metafield_json(selection)),
+                "metafields" => Some(self.storefront_shop_metafields_json(selection)),
                 _ => self
                     .storefront_shop_field(&storefront_shop, &admin_shop, &selection.name)
                     .map(|value| nullable_selected_json(&value, &selection.selection))
@@ -953,6 +1963,305 @@ impl DraftProxy {
             })
             .collect()
     }
+
+    fn storefront_metaobject_root_json(&self, field: &RootFieldSelection) -> Value {
+        let record = if let Some(id) = resolved_string_field(&field.arguments, "id") {
+            self.metaobject_by_id(&id)
+        } else if let Some(handle) = resolved_object_field(&field.arguments, "handle") {
+            let meta_type = resolved_string_field(&handle, "type").unwrap_or_default();
+            let meta_handle = resolved_string_field(&handle, "handle").unwrap_or_default();
+            self.metaobject_by_type_and_handle(&meta_type, &meta_handle)
+        } else {
+            None
+        };
+        record
+            .and_then(|record| self.storefront_visible_metaobject(&record))
+            .map(|record| self.storefront_selected_metaobject(&record, &field.selection))
+            .unwrap_or(Value::Null)
+    }
+
+    fn storefront_metaobjects_connection_json(&self, field: &RootFieldSelection) -> Value {
+        let meta_type = resolved_string_field(&field.arguments, "type").unwrap_or_default();
+        let records =
+            self.store
+                .staged
+                .metaobjects
+                .values()
+                .filter(|record| {
+                    record.get("type").and_then(Value::as_str) == Some(meta_type.as_str())
+                        && !self.store.staged.metaobjects.is_tombstoned(
+                            record.get("id").and_then(Value::as_str).unwrap_or_default(),
+                        )
+                })
+                .filter_map(|record| self.storefront_visible_metaobject(record))
+                .filter(|record| self.metaobject_visible_in_catalog(record))
+                .collect::<Vec<_>>();
+        selected_staged_connection_with_args(
+            records,
+            &field.arguments,
+            &field.selection,
+            |_record, _query| StagedSearchDecision::Match,
+            storefront_metaobject_sort_key,
+            |record, selections| self.storefront_selected_metaobject(record, selections),
+            metaobject_cursor,
+        )
+    }
+
+    fn storefront_visible_metaobject(&self, record: &Value) -> Option<Value> {
+        let projected = self.project_metaobject_against_definition(record);
+        let meta_type = projected.get("type").and_then(Value::as_str)?;
+        let definition = self.metaobject_definition_by_type(meta_type)?;
+        if definition
+            .pointer("/access/storefront")
+            .and_then(Value::as_str)
+            != Some("PUBLIC_READ")
+        {
+            return None;
+        }
+        if definition
+            .pointer("/capabilities/publishable/enabled")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+            && projected
+                .pointer("/capabilities/publishable/status")
+                .and_then(Value::as_str)
+                != Some("ACTIVE")
+        {
+            return None;
+        }
+        Some(projected)
+    }
+
+    fn storefront_selected_metaobject(
+        &self,
+        record: &Value,
+        selections: &[SelectedField],
+    ) -> Value {
+        selected_payload_json(selections, |selection| {
+            if !selection_applies_to_type(selection, "Metaobject") {
+                return None;
+            }
+            match selection.name.as_str() {
+                "__typename" => Some(json!("Metaobject")),
+                "field" => {
+                    let key =
+                        resolved_string_field(&selection.arguments, "key").unwrap_or_default();
+                    let field =
+                        record["fields"]
+                            .as_array()
+                            .into_iter()
+                            .flatten()
+                            .find(|candidate| {
+                                candidate.get("key").and_then(Value::as_str) == Some(key.as_str())
+                            })?;
+                    Some(self.storefront_selected_metaobject_field(field, &selection.selection))
+                }
+                "fields" => {
+                    let fields = storefront_metaobject_fields(record);
+                    Some(Value::Array(
+                        fields
+                            .as_array()
+                            .into_iter()
+                            .flatten()
+                            .map(|field| {
+                                self.storefront_selected_metaobject_field(
+                                    field,
+                                    &selection.selection,
+                                )
+                            })
+                            .collect(),
+                    ))
+                }
+                "onlineStoreUrl" | "seo" => Some(
+                    record
+                        .get(&selection.name)
+                        .map(|value| nullable_selected_json(value, &selection.selection))
+                        .unwrap_or(Value::Null),
+                ),
+                _ => record
+                    .get(&selection.name)
+                    .map(|value| nullable_selected_json(value, &selection.selection)),
+            }
+        })
+    }
+
+    fn storefront_selected_metaobject_field(
+        &self,
+        record: &Value,
+        selections: &[SelectedField],
+    ) -> Value {
+        selected_payload_json(selections, |selection| match selection.name.as_str() {
+            "reference" => Some(self.storefront_selected_scalar_reference_json(record, selection)),
+            "references" => {
+                Some(self.storefront_selected_reference_connection_json(record, selection))
+            }
+            _ => record
+                .get(&selection.name)
+                .map(|value| nullable_selected_json(value, &selection.selection)),
+        })
+    }
+
+    fn storefront_shop_metafield_json(&self, selection: &SelectedField) -> Value {
+        let Some(owner_id) = self.storefront_shop_owner_id() else {
+            return Value::Null;
+        };
+        let namespace =
+            resolved_string_field(&selection.arguments, "namespace").unwrap_or_default();
+        let key = resolved_string_field(&selection.arguments, "key").unwrap_or_default();
+        self.storefront_owner_metafield(&owner_id, &namespace, &key)
+            .map(|metafield| self.storefront_selected_metafield(&metafield, &selection.selection))
+            .unwrap_or(Value::Null)
+    }
+
+    fn storefront_shop_metafields_json(&self, selection: &SelectedField) -> Value {
+        let Some(owner_id) = self.storefront_shop_owner_id() else {
+            return Value::Array(Vec::new());
+        };
+        Value::Array(
+            resolved_object_list_field(&selection.arguments, "identifiers")
+                .into_iter()
+                .map(|identifier| {
+                    let namespace =
+                        resolved_string_field(&identifier, "namespace").unwrap_or_default();
+                    let key = resolved_string_field(&identifier, "key").unwrap_or_default();
+                    self.storefront_owner_metafield(&owner_id, &namespace, &key)
+                        .map(|metafield| {
+                            self.storefront_selected_metafield(&metafield, &selection.selection)
+                        })
+                        .unwrap_or(Value::Null)
+                })
+                .collect(),
+        )
+    }
+
+    fn storefront_owner_metafield(
+        &self,
+        owner_id: &str,
+        namespace: &str,
+        key: &str,
+    ) -> Option<Value> {
+        let keys = vec![(namespace.to_string(), key.to_string())];
+        self.owner_metafields(owner_id, Some(namespace), Some(&keys))
+            .into_iter()
+            .find(|metafield| {
+                metafield.get("namespace").and_then(Value::as_str) == Some(namespace)
+                    && metafield.get("key").and_then(Value::as_str) == Some(key)
+            })
+            .filter(storefront_metafield_is_public)
+    }
+
+    fn storefront_selected_metafield(&self, record: &Value, selections: &[SelectedField]) -> Value {
+        selected_payload_json(selections, |selection| {
+            if !selection_applies_to_type(selection, "Metafield") {
+                return None;
+            }
+            match selection.name.as_str() {
+                "__typename" => Some(json!("Metafield")),
+                "list" => Some(json!(record
+                    .get("type")
+                    .and_then(Value::as_str)
+                    .is_some_and(|field_type| field_type.starts_with("list.")))),
+                "description" => Some(Value::Null),
+                "reference" => {
+                    Some(self.storefront_selected_scalar_reference_json(record, selection))
+                }
+                "references" => {
+                    Some(self.storefront_selected_reference_connection_json(record, selection))
+                }
+                "parentResource" => {
+                    Some(self.storefront_selected_metafield_parent(record, selection))
+                }
+                _ => record
+                    .get(&selection.name)
+                    .map(|value| nullable_selected_json(value, &selection.selection)),
+            }
+        })
+    }
+
+    fn storefront_selected_metafield_parent(
+        &self,
+        record: &Value,
+        selection: &SelectedField,
+    ) -> Value {
+        let Some(owner_id) = record.pointer("/owner/id").and_then(Value::as_str) else {
+            return Value::Null;
+        };
+        self.storefront_selected_reference_node_json(owner_id, &selection.selection)
+            .unwrap_or(Value::Null)
+    }
+
+    fn storefront_selected_scalar_reference_json(
+        &self,
+        record: &Value,
+        selection: &SelectedField,
+    ) -> Value {
+        let Some(id) = scalar_reference_id(record) else {
+            return Value::Null;
+        };
+        self.storefront_selected_reference_node_json(&id, &selection.selection)
+            .unwrap_or(Value::Null)
+    }
+
+    fn storefront_selected_reference_connection_json(
+        &self,
+        record: &Value,
+        selection: &SelectedField,
+    ) -> Value {
+        let ids = list_reference_ids(record)
+            .into_iter()
+            .filter(|id| {
+                self.storefront_selected_reference_node_json(id, &[])
+                    .is_some()
+            })
+            .collect::<Vec<_>>();
+        let (ids, page_info) = connection_window(&ids, &selection.arguments, |id| id.clone());
+        selected_typed_connection_with_page_info(
+            &ids,
+            &selection.selection,
+            |id, selections| {
+                self.storefront_selected_reference_node_json(id, selections)
+                    .unwrap_or(Value::Null)
+            },
+            |id| id.clone(),
+            page_info,
+        )
+    }
+
+    fn storefront_selected_reference_node_json(
+        &self,
+        id: &str,
+        selections: &[SelectedField],
+    ) -> Option<Value> {
+        match shopify_gid_resource_type(id) {
+            Some("Metaobject") => {
+                let record = self.metaobject_by_id(id)?;
+                let record = self.storefront_visible_metaobject(&record)?;
+                Some(self.storefront_selected_metaobject(&record, selections))
+            }
+            Some("Shop") => {
+                let shop = self.store.effective_shop();
+                (shop.get("id").and_then(Value::as_str) == Some(id))
+                    .then(|| self.storefront_shop_json(selections))
+            }
+            _ => None,
+        }
+    }
+
+    fn storefront_shop_owner_id(&self) -> Option<String> {
+        self.store
+            .effective_shop()
+            .get("id")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .or_else(|| {
+                self.store
+                    .staged
+                    .owner_metafields
+                    .keys()
+                    .find(|id| shopify_gid_resource_type(id.as_str()) == Some("Shop"))
+                    .cloned()
+            })
+    }
 }
 
 fn storefront_blog_record_from_admin(record: &Value) -> Value {
@@ -1229,8 +2538,8 @@ fn storefront_content_sort_key(
 ) -> StagedSortKey {
     let normalized = sort_key.unwrap_or("ID").to_ascii_uppercase();
     let primary = match normalized.as_str() {
-        "TITLE" => storefront_sort_string(record, "title"),
-        "HANDLE" => storefront_sort_string(record, "handle"),
+        "TITLE" => storefront_record_sort_string(record, "title"),
+        "HANDLE" => storefront_record_sort_string(record, "handle"),
         "AUTHOR" if kind == StorefrontContentKind::Article => record
             .get("author")
             .and_then(|author| author.get("name"))
@@ -1238,15 +2547,15 @@ fn storefront_content_sort_key(
             .map(|value| StagedSortValue::String(value.to_ascii_lowercase()))
             .unwrap_or(StagedSortValue::Null),
         "PUBLISHED_AT" if kind == StorefrontContentKind::Article => {
-            storefront_sort_string(record, "publishedAt")
+            storefront_record_sort_string(record, "publishedAt")
         }
-        "UPDATED_AT" => storefront_sort_string(record, "updatedAt"),
-        _ => storefront_gid_tail_sort_value(record),
+        "UPDATED_AT" => storefront_record_sort_string(record, "updatedAt"),
+        _ => storefront_record_gid_tail_sort_value(record),
     };
-    vec![primary, storefront_gid_tail_sort_value(record)]
+    vec![primary, storefront_record_gid_tail_sort_value(record)]
 }
 
-fn storefront_sort_string(record: &Value, field: &str) -> StagedSortValue {
+fn storefront_record_sort_string(record: &Value, field: &str) -> StagedSortValue {
     record
         .get(field)
         .and_then(Value::as_str)
@@ -1254,7 +2563,7 @@ fn storefront_sort_string(record: &Value, field: &str) -> StagedSortValue {
         .unwrap_or(StagedSortValue::Null)
 }
 
-fn storefront_gid_tail_sort_value(record: &Value) -> StagedSortValue {
+fn storefront_record_gid_tail_sort_value(record: &Value) -> StagedSortValue {
     let id = record.get("id").and_then(Value::as_str).unwrap_or_default();
     let tail = resource_id_tail(id);
     tail.parse::<i64>()
@@ -1289,7 +2598,816 @@ fn storefront_selected_sitemap_resources(
     })
 }
 
-fn storefront_request_context(
+fn storefront_product_json(
+    product: &ProductRecord,
+    variants: &[ProductVariantRecord],
+    currency_code: &str,
+    selections: &[SelectedField],
+) -> Value {
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "__typename" => Some(json!("Product")),
+        "id" => Some(json!(product.id)),
+        "title" => Some(json!(product.title)),
+        "handle" => Some(json!(product.handle)),
+        "createdAt" => Some(json!(product.created_at)),
+        "updatedAt" => Some(json!(product.updated_at)),
+        "description" => Some(json!(storefront_product_description(product, selection))),
+        "descriptionHtml" => Some(json!(product.description_html)),
+        "availableForSale" => Some(json!(storefront_product_available_for_sale(
+            product, variants
+        ))),
+        "totalInventory" => Some(json!(storefront_product_total_inventory(product, variants))),
+        "vendor" => Some(json!(product.vendor)),
+        "productType" => Some(json!(product.product_type)),
+        "tags" => Some(json!(product.tags)),
+        "publishedAt" => Some(storefront_product_published_at(product)),
+        "requiresSellingPlan" => Some(
+            product
+                .extra_fields
+                .get("requiresSellingPlan")
+                .cloned()
+                .unwrap_or(Value::Bool(false)),
+        ),
+        "isGiftCard" => Some(
+            product
+                .extra_fields
+                .get("isGiftCard")
+                .cloned()
+                .unwrap_or(Value::Bool(false)),
+        ),
+        "seo" => Some(product_seo_json(product, &selection.selection)),
+        "options" => Some(storefront_product_options_json(
+            product, variants, selection,
+        )),
+        "variants" => Some(storefront_product_variants_connection_json(
+            product,
+            variants,
+            currency_code,
+            &selection.arguments,
+            &selection.selection,
+        )),
+        "variantsCount" => Some(selected_count_json(
+            storefront_product_variant_count(product, variants),
+            &selection.selection,
+        )),
+        "priceRange" => Some(storefront_product_price_range_json(
+            product,
+            variants,
+            currency_code,
+            &selection.selection,
+            StorefrontPriceRangeKind::Price,
+        )),
+        "compareAtPriceRange" => Some(storefront_product_price_range_json(
+            product,
+            variants,
+            currency_code,
+            &selection.selection,
+            StorefrontPriceRangeKind::CompareAtPrice,
+        )),
+        "featuredImage" => Some(
+            product
+                .media
+                .iter()
+                .find_map(product_image_json_from_media)
+                .map(|image| selected_json(&image, &selection.selection))
+                .unwrap_or(Value::Null),
+        ),
+        "images" => Some(storefront_product_images_connection_json(
+            product,
+            &selection.arguments,
+            &selection.selection,
+        )),
+        "media" => Some(storefront_product_media_connection_json(
+            product,
+            &selection.arguments,
+            &selection.selection,
+        )),
+        "onlineStoreUrl" => Some(
+            product
+                .extra_fields
+                .get("onlineStoreUrl")
+                .cloned()
+                .unwrap_or(Value::Null),
+        ),
+        "selectedOrFirstAvailableVariant" => {
+            Some(storefront_selected_or_first_available_variant_json(
+                product,
+                variants,
+                currency_code,
+                selection,
+            ))
+        }
+        "variantBySelectedOptions" => Some(storefront_variant_by_selected_options_json(
+            product,
+            variants,
+            currency_code,
+            selection,
+        )),
+        "metafield" => Some(Value::Null),
+        "metafields" => Some(Value::Array(Vec::new())),
+        _ => product
+            .extra_fields
+            .get(&selection.name)
+            .map(|value| nullable_selected_json(value, &selection.selection)),
+    })
+}
+
+fn storefront_product_description(product: &ProductRecord, selection: &SelectedField) -> String {
+    let mut description = product
+        .extra_fields
+        .get("description")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .unwrap_or_else(|| strip_html_tags(&product.description_html));
+    if let Some(ResolvedValue::Int(limit)) = selection.arguments.get("truncateAt") {
+        if *limit >= 0 {
+            description = description.chars().take(*limit as usize).collect();
+        }
+    }
+    description
+}
+
+fn strip_html_tags(value: &str) -> String {
+    let mut text = String::new();
+    let mut in_tag = false;
+    for ch in value.chars() {
+        match ch {
+            '<' => in_tag = true,
+            '>' => in_tag = false,
+            _ if !in_tag => text.push(ch),
+            _ => {}
+        }
+    }
+    text
+}
+
+fn storefront_product_available_for_sale(
+    product: &ProductRecord,
+    variants: &[ProductVariantRecord],
+) -> bool {
+    if !variants.is_empty() {
+        return variants.iter().any(storefront_variant_available_for_sale);
+    }
+    if !product.variants.is_empty() {
+        return product
+            .variants
+            .iter()
+            .any(storefront_raw_variant_available);
+    }
+    !product.tracks_inventory || product.total_inventory > 0
+}
+
+fn storefront_product_total_inventory(
+    product: &ProductRecord,
+    variants: &[ProductVariantRecord],
+) -> i64 {
+    if variants.is_empty() {
+        return product.total_inventory;
+    }
+    variants
+        .iter()
+        .filter(|variant| variant.inventory_item.tracked)
+        .map(|variant| variant.inventory_quantity)
+        .sum()
+}
+
+fn storefront_variant_available_for_sale(variant: &ProductVariantRecord) -> bool {
+    !variant.inventory_item.tracked
+        || variant.inventory_quantity > 0
+        || variant.inventory_policy == "CONTINUE"
+}
+
+fn storefront_raw_variant_available(variant: &Value) -> bool {
+    variant
+        .get("availableForSale")
+        .and_then(Value::as_bool)
+        .or_else(|| variant.get("available").and_then(Value::as_bool))
+        .unwrap_or_else(|| {
+            let tracked = variant
+                .get("inventoryItem")
+                .and_then(|item| item.get("tracked"))
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+            let quantity = variant
+                .get("inventoryQuantity")
+                .or_else(|| variant.get("quantityAvailable"))
+                .and_then(Value::as_i64)
+                .unwrap_or(0);
+            let policy = variant
+                .get("inventoryPolicy")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            !tracked || quantity > 0 || policy == "CONTINUE"
+        })
+}
+
+fn storefront_product_published_at(product: &ProductRecord) -> Value {
+    product
+        .extra_fields
+        .get("publishedAt")
+        .cloned()
+        .or_else(|| {
+            product_publication_entries(product)
+                .into_iter()
+                .filter_map(|entry| entry.published_at.or(entry.publish_date))
+                .min()
+                .map(Value::String)
+        })
+        .unwrap_or(Value::Null)
+}
+
+fn storefront_product_variant_count(
+    product: &ProductRecord,
+    variants: &[ProductVariantRecord],
+) -> usize {
+    if !variants.is_empty() {
+        variants.len()
+    } else {
+        product.variants.len()
+    }
+}
+
+fn storefront_product_options_json(
+    product: &ProductRecord,
+    variants: &[ProductVariantRecord],
+    selection: &SelectedField,
+) -> Value {
+    let mut options = product
+        .extra_fields
+        .get("options")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_else(|| storefront_options_from_variants(product, variants));
+    if let Some(ResolvedValue::Int(first)) = selection.arguments.get("first") {
+        if *first >= 0 && options.len() > *first as usize {
+            options.truncate(*first as usize);
+        }
+    }
+    Value::Array(
+        options
+            .iter()
+            .map(|option| storefront_product_option_json(option, &selection.selection))
+            .collect(),
+    )
+}
+
+fn storefront_options_from_variants(
+    product: &ProductRecord,
+    variants: &[ProductVariantRecord],
+) -> Vec<Value> {
+    let mut values_by_name = BTreeMap::<String, Vec<String>>::new();
+    for variant in variants {
+        for option in &variant.selected_options {
+            let values = values_by_name.entry(option.name.clone()).or_default();
+            if !values.contains(&option.value) {
+                values.push(option.value.clone());
+            }
+        }
+    }
+    for variant in &product.variants {
+        if let Some(options) = variant.get("selectedOptions").and_then(Value::as_array) {
+            for option in options {
+                let Some(name) = option.get("name").and_then(Value::as_str) else {
+                    continue;
+                };
+                let Some(value) = option.get("value").and_then(Value::as_str) else {
+                    continue;
+                };
+                let values = values_by_name.entry(name.to_string()).or_default();
+                if !values.iter().any(|existing| existing == value) {
+                    values.push(value.to_string());
+                }
+            }
+        }
+    }
+    values_by_name
+        .into_iter()
+        .enumerate()
+        .map(|(index, (name, values))| {
+            json!({
+                "id": format!("{}/options/{}", product.id, index + 1),
+                "name": name,
+                "values": values,
+                "optionValues": values
+                    .iter()
+                    .map(|value| json!({ "id": Value::Null, "name": value, "swatch": Value::Null }))
+                    .collect::<Vec<_>>()
+            })
+        })
+        .collect()
+}
+
+fn storefront_product_option_json(option: &Value, selections: &[SelectedField]) -> Value {
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "__typename" => Some(json!("ProductOption")),
+        "id" => option.get("id").cloned(),
+        "name" => option.get("name").cloned(),
+        "values" => option.get("values").cloned().or_else(|| {
+            option
+                .get("optionValues")
+                .and_then(Value::as_array)
+                .map(|values| {
+                    Value::Array(
+                        values
+                            .iter()
+                            .filter_map(|value| value.get("name").cloned())
+                            .collect(),
+                    )
+                })
+        }),
+        "optionValues" => option.get("optionValues").cloned().map(|values| {
+            if let Some(values) = values.as_array() {
+                Value::Array(
+                    values
+                        .iter()
+                        .map(|value| selected_json(value, &selection.selection))
+                        .collect(),
+                )
+            } else {
+                Value::Array(Vec::new())
+            }
+        }),
+        _ => None,
+    })
+}
+
+fn storefront_product_variants_connection_json(
+    product: &ProductRecord,
+    variants: &[ProductVariantRecord],
+    currency_code: &str,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    selections: &[SelectedField],
+) -> Value {
+    if variants.is_empty() {
+        let raw_variants = sorted_storefront_raw_variants(product.variants.clone(), arguments);
+        return selected_typed_connection_with_args(
+            &raw_variants,
+            arguments,
+            selections,
+            selected_json,
+            value_id_cursor,
+        );
+    }
+    let variants = sorted_storefront_variants(variants.to_vec(), arguments);
+    selected_typed_connection_with_args(
+        &variants,
+        arguments,
+        selections,
+        |variant, selections| {
+            storefront_product_variant_json(variant, Some(product), currency_code, selections)
+        },
+        |variant| variant.id.clone(),
+    )
+}
+
+fn sorted_storefront_variants(
+    variants: Vec<ProductVariantRecord>,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> Vec<ProductVariantRecord> {
+    let sort_key_name = resolved_string_field(arguments, "sortKey");
+    sorted_indexed_records(
+        variants,
+        resolved_bool_field(arguments, "reverse").unwrap_or(false),
+        |variant, index| storefront_variant_sort_key(variant, sort_key_name.as_deref(), index),
+        |variant| variant.id.clone(),
+    )
+}
+
+fn sorted_storefront_raw_variants(
+    variants: Vec<Value>,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> Vec<Value> {
+    let sort_key_name = resolved_string_field(arguments, "sortKey");
+    sorted_indexed_records(
+        variants,
+        resolved_bool_field(arguments, "reverse").unwrap_or(false),
+        |variant, index| storefront_raw_variant_sort_key(variant, sort_key_name.as_deref(), index),
+        value_id_cursor,
+    )
+}
+
+fn storefront_variant_sort_key(
+    variant: &ProductVariantRecord,
+    sort_key: Option<&str>,
+    index: usize,
+) -> StagedSortKey {
+    match sort_key {
+        Some("ID") => storefront_gid_sort_key(&variant.id),
+        Some("SKU") => vec![storefront_sort_string(&variant.sku)],
+        Some("TITLE") => vec![storefront_sort_string(&variant.title)],
+        Some("POSITION") | Some("RELEVANCE") | None => vec![StagedSortValue::I64(
+            product_variant_position(variant).unwrap_or(index as i64),
+        )],
+        _ => vec![StagedSortValue::I64(index as i64)],
+    }
+}
+
+fn storefront_raw_variant_sort_key(
+    variant: &Value,
+    sort_key: Option<&str>,
+    index: usize,
+) -> StagedSortKey {
+    match sort_key {
+        Some("ID") => variant
+            .get("id")
+            .and_then(Value::as_str)
+            .map(storefront_gid_sort_key)
+            .unwrap_or_else(|| vec![StagedSortValue::Null]),
+        Some("SKU") => vec![storefront_sort_string(
+            variant
+                .get("sku")
+                .and_then(Value::as_str)
+                .unwrap_or_default(),
+        )],
+        Some("TITLE") => vec![storefront_sort_string(
+            variant
+                .get("title")
+                .and_then(Value::as_str)
+                .unwrap_or_default(),
+        )],
+        Some("POSITION") | Some("RELEVANCE") | None => {
+            let position = variant
+                .get("position")
+                .and_then(Value::as_i64)
+                .unwrap_or(index as i64);
+            vec![StagedSortValue::I64(position)]
+        }
+        _ => vec![StagedSortValue::I64(index as i64)],
+    }
+}
+
+fn storefront_product_variant_json(
+    variant: &ProductVariantRecord,
+    product: Option<&ProductRecord>,
+    currency_code: &str,
+    selections: &[SelectedField],
+) -> Value {
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "__typename" => Some(json!("ProductVariant")),
+        "id" => Some(json!(variant.id)),
+        "title" => Some(json!(variant.title)),
+        "sku" => Some(if variant.sku.is_empty() {
+            Value::Null
+        } else {
+            json!(variant.sku)
+        }),
+        "barcode" => Some(
+            variant
+                .barcode
+                .as_ref()
+                .map(|value| json!(value))
+                .unwrap_or(Value::Null),
+        ),
+        "availableForSale" => Some(json!(storefront_variant_available_for_sale(variant))),
+        "currentlyNotInStock" => Some(json!(
+            variant.inventory_item.tracked
+                && variant.inventory_quantity <= 0
+                && variant.inventory_policy == "CONTINUE"
+        )),
+        "quantityAvailable" => Some(if variant.inventory_item.tracked {
+            json!(variant.inventory_quantity.max(0))
+        } else {
+            Value::Null
+        }),
+        "requiresShipping" => Some(json!(variant.inventory_item.requires_shipping)),
+        "taxable" => Some(json!(variant.taxable)),
+        "price" | "priceV2" => Some(storefront_money_json(
+            &variant.price,
+            currency_code,
+            &selection.selection,
+        )),
+        "compareAtPrice" | "compareAtPriceV2" => Some(
+            variant
+                .compare_at_price
+                .as_ref()
+                .map(|price| storefront_money_json(price, currency_code, &selection.selection))
+                .unwrap_or(Value::Null),
+        ),
+        "selectedOptions" => Some(Value::Array(
+            variant
+                .selected_options
+                .iter()
+                .map(|option| {
+                    selected_json(
+                        &json!({ "name": option.name, "value": option.value }),
+                        &selection.selection,
+                    )
+                })
+                .collect(),
+        )),
+        "image" => Some(
+            product
+                .and_then(|product| {
+                    variant.media_ids.iter().find_map(|media_id| {
+                        product
+                            .media
+                            .iter()
+                            .find(|media| {
+                                media.get("id").and_then(Value::as_str) == Some(media_id.as_str())
+                            })
+                            .and_then(product_image_json_from_media)
+                    })
+                })
+                .map(|image| selected_json(&image, &selection.selection))
+                .unwrap_or(Value::Null),
+        ),
+        "product" => Some(match product {
+            Some(product) => {
+                storefront_product_json(product, &[], currency_code, &selection.selection)
+            }
+            None => Value::Null,
+        }),
+        "metafield" | "unitPrice" | "unitPriceMeasurement" | "shopPayInstallmentsPricing" => {
+            Some(Value::Null)
+        }
+        "metafields" => Some(Value::Array(Vec::new())),
+        "sellingPlanAllocations"
+        | "components"
+        | "groupedBy"
+        | "quantityPriceBreaks"
+        | "storeAvailability" => Some(selected_empty_connection_json(&selection.selection)),
+        "quantityRule" => Some(selected_json(
+            &json!({ "increment": 1, "maximum": Value::Null, "minimum": 1 }),
+            &selection.selection,
+        )),
+        "requiresComponents" => Some(Value::Bool(false)),
+        "weight" => variant
+            .extra_fields
+            .get("weight")
+            .cloned()
+            .or(Some(Value::Null)),
+        "weightUnit" => variant
+            .extra_fields
+            .get("weightUnit")
+            .cloned()
+            .or_else(|| Some(json!("KILOGRAMS"))),
+        _ => variant
+            .extra_fields
+            .get(&selection.name)
+            .map(|value| nullable_selected_json(value, &selection.selection)),
+    })
+}
+
+fn storefront_selected_or_first_available_variant_json(
+    product: &ProductRecord,
+    variants: &[ProductVariantRecord],
+    currency_code: &str,
+    selection: &SelectedField,
+) -> Value {
+    let selected = storefront_variant_matching_selected_options(variants, selection)
+        .or_else(|| {
+            variants
+                .iter()
+                .find(|variant| storefront_variant_available_for_sale(variant))
+        })
+        .or_else(|| variants.first());
+    selected
+        .map(|variant| {
+            storefront_product_variant_json(
+                variant,
+                Some(product),
+                currency_code,
+                &selection.selection,
+            )
+        })
+        .unwrap_or(Value::Null)
+}
+
+fn storefront_variant_by_selected_options_json(
+    product: &ProductRecord,
+    variants: &[ProductVariantRecord],
+    currency_code: &str,
+    selection: &SelectedField,
+) -> Value {
+    storefront_variant_matching_selected_options(variants, selection)
+        .map(|variant| {
+            storefront_product_variant_json(
+                variant,
+                Some(product),
+                currency_code,
+                &selection.selection,
+            )
+        })
+        .unwrap_or(Value::Null)
+}
+
+fn storefront_variant_matching_selected_options<'a>(
+    variants: &'a [ProductVariantRecord],
+    selection: &SelectedField,
+) -> Option<&'a ProductVariantRecord> {
+    let selected = resolved_object_list_field(&selection.arguments, "selectedOptions")
+        .into_iter()
+        .filter_map(|option| {
+            Some((
+                resolved_string_field(&option, "name")?,
+                resolved_string_field(&option, "value")?,
+            ))
+        })
+        .collect::<Vec<_>>();
+    if selected.is_empty() {
+        return None;
+    }
+    let case_insensitive =
+        resolved_bool_field(&selection.arguments, "caseInsensitiveMatch").unwrap_or(false);
+    variants.iter().find(|variant| {
+        selected.iter().all(|(name, value)| {
+            variant.selected_options.iter().any(|option| {
+                if case_insensitive {
+                    option.name.eq_ignore_ascii_case(name)
+                        && option.value.eq_ignore_ascii_case(value)
+                } else {
+                    option.name == *name && option.value == *value
+                }
+            })
+        })
+    })
+}
+
+#[derive(Clone, Copy)]
+enum StorefrontPriceRangeKind {
+    Price,
+    CompareAtPrice,
+}
+
+fn storefront_product_price_range_json(
+    product: &ProductRecord,
+    variants: &[ProductVariantRecord],
+    currency_code: &str,
+    selections: &[SelectedField],
+    kind: StorefrontPriceRangeKind,
+) -> Value {
+    let prices = match kind {
+        StorefrontPriceRangeKind::Price => storefront_product_variant_prices(product, variants),
+        StorefrontPriceRangeKind::CompareAtPrice => {
+            storefront_product_variant_compare_at_prices(product, variants)
+        }
+    };
+    let (min_price, max_price) = storefront_price_bounds(prices).unwrap_or((0.0, 0.0));
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "__typename" => Some(json!("ProductPriceRange")),
+        "minVariantPrice" => Some(storefront_money_json(
+            &format!("{min_price:.2}"),
+            currency_code,
+            &selection.selection,
+        )),
+        "maxVariantPrice" => Some(storefront_money_json(
+            &format!("{max_price:.2}"),
+            currency_code,
+            &selection.selection,
+        )),
+        _ => None,
+    })
+}
+
+fn storefront_product_variant_prices(
+    product: &ProductRecord,
+    variants: &[ProductVariantRecord],
+) -> Vec<f64> {
+    if !variants.is_empty() {
+        return variants
+            .iter()
+            .filter_map(|variant| storefront_parse_price(&variant.price))
+            .collect();
+    }
+    product
+        .variants
+        .iter()
+        .filter_map(|variant| variant.get("price").and_then(Value::as_str))
+        .filter_map(storefront_parse_price)
+        .collect()
+}
+
+fn storefront_product_variant_compare_at_prices(
+    product: &ProductRecord,
+    variants: &[ProductVariantRecord],
+) -> Vec<f64> {
+    if !variants.is_empty() {
+        return variants
+            .iter()
+            .filter_map(|variant| variant.compare_at_price.as_deref())
+            .filter_map(storefront_parse_price)
+            .collect();
+    }
+    product
+        .variants
+        .iter()
+        .filter_map(|variant| variant.get("compareAtPrice").and_then(Value::as_str))
+        .filter_map(storefront_parse_price)
+        .collect()
+}
+
+fn storefront_price_bounds(prices: Vec<f64>) -> Option<(f64, f64)> {
+    let mut iter = prices.into_iter();
+    let first = iter.next()?;
+    let mut min_price = first;
+    let mut max_price = first;
+    for price in iter {
+        if price < min_price {
+            min_price = price;
+        }
+        if price > max_price {
+            max_price = price;
+        }
+    }
+    Some((min_price, max_price))
+}
+
+fn storefront_parse_price(price: &str) -> Option<f64> {
+    price.trim().parse::<f64>().ok()
+}
+
+fn storefront_money_json(price: &str, currency_code: &str, selections: &[SelectedField]) -> Value {
+    let amount = normalize_money_amount(price);
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "__typename" => Some(json!("MoneyV2")),
+        "amount" => Some(json!(amount)),
+        "currencyCode" => Some(json!(currency_code)),
+        _ => None,
+    })
+}
+
+fn storefront_product_images_connection_json(
+    product: &ProductRecord,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    selections: &[SelectedField],
+) -> Value {
+    let images = product
+        .media
+        .iter()
+        .filter_map(product_image_json_from_media)
+        .collect::<Vec<_>>();
+    selected_connection_json_with_args(images, arguments, selections, value_id_cursor)
+}
+
+fn storefront_product_media_connection_json(
+    product: &ProductRecord,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    selections: &[SelectedField],
+) -> Value {
+    selected_connection_json_with_args(
+        product.media.clone(),
+        arguments,
+        selections,
+        value_id_cursor,
+    )
+}
+
+fn storefront_product_sort_key(
+    product: &ProductRecord,
+    variants: &[ProductVariantRecord],
+    sort_key: Option<&str>,
+) -> StagedSortKey {
+    let primary = match sort_key {
+        Some("TITLE") => storefront_sort_string(&product.title),
+        Some("PRODUCT_TYPE") => storefront_sort_string(&product.product_type),
+        Some("VENDOR") => storefront_sort_string(&product.vendor),
+        Some("UPDATED_AT") => StagedSortValue::String(product.updated_at.clone()),
+        None | Some("CREATED_AT") | Some("BEST_SELLING") | Some("RELEVANCE") => {
+            StagedSortValue::String(product.created_at.clone())
+        }
+        Some("PRICE") => {
+            let prices = if variants.is_empty() {
+                product
+                    .variants
+                    .iter()
+                    .filter_map(|variant| variant.get("price").and_then(Value::as_str))
+                    .filter_map(storefront_parse_price)
+                    .collect::<Vec<_>>()
+            } else {
+                variants
+                    .iter()
+                    .filter_map(|variant| storefront_parse_price(&variant.price))
+                    .collect::<Vec<_>>()
+            };
+            storefront_price_bounds(prices)
+                .map(|(min_price, _)| StagedSortValue::String(format!("{min_price:020.4}")))
+                .unwrap_or(StagedSortValue::Null)
+        }
+        Some("ID") => return storefront_gid_sort_key(&product.id),
+        Some(_) => storefront_gid_sort_key(&product.id)
+            .into_iter()
+            .next()
+            .unwrap_or(StagedSortValue::Null),
+    };
+    vec![primary, storefront_gid_tail_sort_value(&product.id)]
+}
+
+fn storefront_gid_sort_key(id: &str) -> StagedSortKey {
+    vec![storefront_gid_tail_sort_value(id)]
+}
+
+fn storefront_gid_tail_sort_value(id: &str) -> StagedSortValue {
+    let tail = resource_id_tail(id);
+    tail.parse::<i64>()
+        .map(StagedSortValue::I64)
+        .unwrap_or_else(|_| storefront_sort_string(tail))
+}
+
+fn storefront_sort_string(value: impl AsRef<str>) -> StagedSortValue {
+    StagedSortValue::String(value.as_ref().to_ascii_lowercase())
+}
+
+pub(in crate::proxy) fn storefront_request_context(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
 ) -> StorefrontRequestContext {
@@ -1338,8 +3456,95 @@ fn selection_applies_to_type(selection: &SelectedField, type_name: &str) -> bool
     match selection.type_condition.as_deref() {
         None => true,
         Some("Node") => true,
+        Some("HasMetafields") => matches!(
+            type_name,
+            "Article"
+                | "Blog"
+                | "Collection"
+                | "Customer"
+                | "Page"
+                | "Product"
+                | "ProductVariant"
+                | "Shop"
+        ),
+        Some("OnlineStorePublishable") => type_name == "Metaobject",
+        Some("MetafieldReference") => matches!(
+            type_name,
+            "Article"
+                | "Collection"
+                | "GenericFile"
+                | "MediaImage"
+                | "Metaobject"
+                | "Model3d"
+                | "Page"
+                | "Product"
+                | "ProductVariant"
+                | "Video"
+        ),
+        Some("MetafieldParentResource") => matches!(
+            type_name,
+            "Article"
+                | "Blog"
+                | "Cart"
+                | "Collection"
+                | "Company"
+                | "CompanyLocation"
+                | "Customer"
+                | "Location"
+                | "Market"
+                | "Order"
+                | "Page"
+                | "Product"
+                | "ProductVariant"
+                | "SellingPlan"
+                | "Shop"
+        ),
         Some(condition) => condition == type_name,
     }
+}
+
+fn storefront_metafield_is_public(metafield: &Value) -> bool {
+    metafield
+        .pointer("/definition/access/storefront")
+        .and_then(Value::as_str)
+        == Some("PUBLIC_READ")
+}
+
+fn storefront_metaobject_fields(record: &Value) -> Value {
+    let mut fields = record["fields"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .cloned()
+        .collect::<Vec<_>>();
+    fields.sort_by(|left, right| {
+        left.get("key")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .cmp(right.get("key").and_then(Value::as_str).unwrap_or_default())
+    });
+    Value::Array(fields)
+}
+
+fn storefront_metaobject_sort_key(record: &Value, sort_key: Option<&str>) -> StagedSortKey {
+    let sort_key = sort_key
+        .unwrap_or("id")
+        .replace('-', "_")
+        .to_ascii_lowercase();
+    let primary = match sort_key.as_str() {
+        "updated_at" | "updatedat" => StagedSortValue::String(
+            record
+                .get("updatedAt")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string(),
+        ),
+        _ => resource_id_tail_sort_value(record.get("id").and_then(Value::as_str)),
+    };
+    vec![
+        primary,
+        resource_id_tail_sort_value(record.get("id").and_then(Value::as_str)),
+    ]
 }
 
 fn storefront_policy_from_admin(policy: &ShopPolicyRecord) -> Value {
@@ -1449,4 +3654,341 @@ fn storefront_location_cursor(location: &Value, cursor_by_id: &BTreeMap<String, 
         .and_then(Value::as_str)
         .and_then(|id| cursor_by_id.get(id).cloned())
         .unwrap_or_default()
+}
+
+fn storefront_customer_shared_record(
+    id: &str,
+    first_name: Option<&str>,
+    last_name: Option<&str>,
+    email: &str,
+    phone: Option<&str>,
+    accepts_marketing: bool,
+    timestamp: &str,
+) -> Value {
+    let display_name = storefront_customer_display_name(first_name, last_name, Some(email));
+    json!({
+        "id": id,
+        "firstName": first_name,
+        "lastName": last_name,
+        "displayName": display_name,
+        "email": email,
+        "phone": phone,
+        "locale": Value::Null,
+        "note": Value::Null,
+        "verifiedEmail": true,
+        "taxExempt": false,
+        "taxExemptions": [],
+        "tags": [],
+        "state": "ENABLED",
+        "dataSaleOptOut": false,
+        "canDelete": true,
+        "acceptsMarketing": accepts_marketing,
+        "metafield": Value::Null,
+        "metafields": [],
+        "defaultEmailAddress": { "emailAddress": email },
+        "defaultPhoneNumber": Value::Null,
+        "emailMarketingConsent": {
+            "marketingState": if accepts_marketing { "SUBSCRIBED" } else { "NOT_SUBSCRIBED" },
+            "marketingOptInLevel": Value::Null,
+            "consentUpdatedAt": timestamp
+        },
+        "smsMarketingConsent": Value::Null,
+        "defaultAddress": Value::Null,
+        "addressesV2": connection_json_with_empty_edges(Vec::new()),
+        "orders": connection_json_with_empty_edges(Vec::new()),
+        "numberOfOrders": "0",
+        "createdAt": timestamp,
+        "updatedAt": timestamp
+    })
+}
+
+fn storefront_customer_json(customer: &Value) -> Value {
+    let email = customer.get("email").and_then(Value::as_str);
+    let first_name = customer.get("firstName").and_then(Value::as_str);
+    let last_name = customer.get("lastName").and_then(Value::as_str);
+    let display_name = customer
+        .get("displayName")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .unwrap_or_else(|| storefront_customer_display_name(first_name, last_name, email));
+    let accepts_marketing = customer
+        .get("acceptsMarketing")
+        .and_then(Value::as_bool)
+        .unwrap_or_else(|| {
+            customer
+                .pointer("/emailMarketingConsent/marketingState")
+                .and_then(Value::as_str)
+                == Some("SUBSCRIBED")
+        });
+    json!({
+        "id": customer.get("id").cloned().unwrap_or(Value::Null),
+        "email": customer.get("email").cloned().unwrap_or(Value::Null),
+        "firstName": customer.get("firstName").cloned().unwrap_or(Value::Null),
+        "lastName": customer.get("lastName").cloned().unwrap_or(Value::Null),
+        "displayName": display_name,
+        "phone": customer.get("phone").cloned().unwrap_or(Value::Null),
+        "acceptsMarketing": accepts_marketing,
+        "createdAt": customer.get("createdAt").cloned().unwrap_or(Value::Null),
+        "updatedAt": customer.get("updatedAt").cloned().unwrap_or(Value::Null),
+        "numberOfOrders": customer.get("numberOfOrders").cloned().unwrap_or_else(|| json!("0")),
+        "tags": customer.get("tags").cloned().unwrap_or_else(|| json!([])),
+        "defaultAddress": Value::Null,
+        "addresses": connection_json_with_empty_edges(Vec::new()),
+        "orders": connection_json_with_empty_edges(Vec::new()),
+        "avatarUrl": Value::Null,
+        "socialLoginProvider": Value::Null,
+        "metafield": Value::Null,
+        "metafields": []
+    })
+}
+
+fn storefront_customer_payload(
+    customer: Value,
+    _unused: Value,
+    customer_user_errors: Vec<Value>,
+) -> Value {
+    let user_errors = storefront_user_errors_without_code(&customer_user_errors);
+    json!({
+        "customer": customer,
+        "customerUserErrors": customer_user_errors,
+        "userErrors": user_errors
+    })
+}
+
+fn storefront_customer_token_payload(
+    customer_access_token: Value,
+    customer_user_errors: Vec<Value>,
+) -> Value {
+    let user_errors = storefront_user_errors_without_code(&customer_user_errors);
+    json!({
+        "customerAccessToken": customer_access_token,
+        "customerUserErrors": customer_user_errors,
+        "userErrors": user_errors
+    })
+}
+
+fn storefront_customer_activation_payload(
+    customer: Value,
+    customer_access_token: Value,
+    customer_user_errors: Vec<Value>,
+    include_user_errors: bool,
+) -> Value {
+    let mut payload = json!({
+        "customer": customer,
+        "customerAccessToken": customer_access_token,
+        "customerUserErrors": customer_user_errors
+    });
+    if include_user_errors {
+        payload["userErrors"] = storefront_plain_user_errors_with_null_field(
+            payload["customerUserErrors"]
+                .as_array()
+                .map(Vec::as_slice)
+                .unwrap_or(&[]),
+        );
+    }
+    payload
+}
+
+fn storefront_plain_user_errors_with_null_field(errors: &[Value]) -> Value {
+    Value::Array(
+        errors
+            .iter()
+            .map(|error| {
+                json!({
+                    "field": Value::Null,
+                    "message": error.get("message").cloned().unwrap_or(Value::Null)
+                })
+            })
+            .collect(),
+    )
+}
+
+fn storefront_user_errors_without_code(errors: &[Value]) -> Value {
+    Value::Array(
+        errors
+            .iter()
+            .map(|error| {
+                json!({
+                    "field": error.get("field").cloned().unwrap_or(Value::Null),
+                    "message": error.get("message").cloned().unwrap_or(Value::Null)
+                })
+            })
+            .collect(),
+    )
+}
+
+fn storefront_customer_user_error(
+    field: impl serde::Serialize,
+    message: &str,
+    code: Option<&str>,
+) -> Value {
+    json!({
+        "field": field,
+        "message": message,
+        "code": code
+    })
+}
+
+fn storefront_access_denied_error(response_key: &str) -> Value {
+    json!({
+        "message": "Access denied for customerAccessTokenDelete field. Required access: `unauthenticated_write_customers` access scope. Also: Requires valid customer access token.",
+        "path": [response_key],
+        "locations": [],
+        "extensions": {
+            "code": "ACCESS_DENIED",
+            "documentation": "https://shopify.dev/api/usage/access-scopes",
+            "requiredAccess": "`unauthenticated_write_customers` access scope. Also: Requires valid customer access token."
+        }
+    })
+}
+
+fn storefront_not_found_error(response_key: &str) -> Value {
+    json!({
+        "message": "Unidentified customer",
+        "path": [response_key],
+        "locations": [],
+        "extensions": { "code": "NOT_FOUND" }
+    })
+}
+
+fn storefront_customer_display_name(
+    first_name: Option<&str>,
+    last_name: Option<&str>,
+    email: Option<&str>,
+) -> String {
+    let name = [first_name, last_name]
+        .into_iter()
+        .flatten()
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+    if !name.is_empty() {
+        return name;
+    }
+    email.unwrap_or_default().to_string()
+}
+
+fn storefront_customer_state(customer: &Value) -> &str {
+    customer
+        .get("state")
+        .and_then(Value::as_str)
+        .unwrap_or("DISABLED")
+}
+
+fn storefront_customer_password_matches(customer: &Value, password: &str) -> bool {
+    let Some(customer_id) = customer.get("id").and_then(Value::as_str) else {
+        return false;
+    };
+    customer
+        .get(STOREFRONT_CUSTOMER_PASSWORD_FINGERPRINT_FIELD)
+        .and_then(Value::as_str)
+        == Some(storefront_password_fingerprint(customer_id, password).as_str())
+}
+
+fn storefront_customer_activation_token_for_id(customer_id: &str) -> String {
+    let stable_tail = resource_id_tail(customer_id)
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric())
+        .collect::<String>();
+    if stable_tail.is_empty() {
+        "sdp-activation-token".to_string()
+    } else {
+        format!("sdp-activation-{stable_tail}")
+    }
+}
+
+fn storefront_access_token_value(customer_id: &str, sequence: u64, expires_at: &str) -> String {
+    let seed = format!("{customer_id}:{sequence}:{expires_at}");
+    format!(
+        "sdp_ca_{}_{}",
+        sequence,
+        &storefront_sha256_hex(&seed)[..24]
+    )
+}
+
+fn storefront_password_fingerprint(customer_id: &str, password: &str) -> String {
+    storefront_sha256_hex(&format!("storefront-password:{customer_id}:{password}"))
+}
+
+fn storefront_token_hash(token: &str) -> String {
+    storefront_sha256_hex(&format!("storefront-token:{token}"))
+}
+
+fn storefront_sha256_hex(value: &str) -> String {
+    let digest = Sha256::digest(value.as_bytes());
+    digest.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+fn storefront_format_timestamp(timestamp: time::OffsetDateTime) -> String {
+    timestamp
+        .format(&time::format_description::well_known::Rfc3339)
+        .expect("UTC timestamps should format as RFC3339")
+}
+
+fn storefront_timestamp_is_future(value: &str, now: time::OffsetDateTime) -> bool {
+    time::OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339)
+        .map(|expires_at| expires_at > now)
+        .unwrap_or(false)
+}
+
+fn storefront_email_looks_valid(email: &str) -> bool {
+    let Some((local, domain)) = email.split_once('@') else {
+        return false;
+    };
+    !local.is_empty() && domain.contains('.') && !domain.starts_with('.') && !domain.ends_with('.')
+}
+
+fn storefront_customer_email_key(email: &str) -> String {
+    email.trim().to_ascii_lowercase()
+}
+
+fn storefront_customer_contains_html_tag(value: &str) -> bool {
+    let Some(start) = value.find('<') else {
+        return false;
+    };
+    value[start..].contains('>')
+}
+
+fn storefront_redacted_variables_json(variables: &BTreeMap<String, ResolvedValue>) -> Value {
+    let value = resolved_variables_json(variables);
+    storefront_redact_sensitive_json(value, None)
+}
+
+fn storefront_redact_sensitive_json(value: Value, key: Option<&str>) -> Value {
+    if key.is_some_and(storefront_sensitive_customer_auth_key) {
+        return json!("<redacted:storefront-customer-auth>");
+    }
+    match value {
+        Value::Array(values) => Value::Array(
+            values
+                .into_iter()
+                .map(|value| storefront_redact_sensitive_json(value, None))
+                .collect(),
+        ),
+        Value::Object(object) => Value::Object(
+            object
+                .into_iter()
+                .map(|(key, value)| {
+                    let redacted = storefront_redact_sensitive_json(value, Some(&key));
+                    (key, redacted)
+                })
+                .collect(),
+        ),
+        other => other,
+    }
+}
+
+fn storefront_sensitive_customer_auth_key(key: &str) -> bool {
+    matches!(
+        key,
+        "password"
+            | "customerAccessToken"
+            | "accessToken"
+            | "activationToken"
+            | "activationUrl"
+            | "resetToken"
+            | "resetUrl"
+            | "token"
+            | "multipassToken"
+    )
 }
