@@ -4651,7 +4651,7 @@ impl DraftProxy {
     /// `metaobjects(type:)` catalog read. Rows missing a value for a required display
     /// field are omitted, matching Shopify's behaviour where such rows are not yet
     /// surfaced by the Admin search index.
-    fn metaobject_visible_in_catalog(&self, projected: &Value) -> bool {
+    pub(in crate::proxy) fn metaobject_visible_in_catalog(&self, projected: &Value) -> bool {
         let Some(meta_type) = projected.get("type").and_then(Value::as_str) else {
             return true;
         };
@@ -4987,12 +4987,12 @@ impl DraftProxy {
         )
     }
 
-    fn metaobject_definition_by_id(&self, id: &str) -> Option<Value> {
+    pub(in crate::proxy) fn metaobject_definition_by_id(&self, id: &str) -> Option<Value> {
         let key = self.metaobject_definition_staged_key_by_id(id)?;
         self.store.staged.metaobject_definitions.get(&key).cloned()
     }
 
-    fn metaobject_definition_by_type(&self, meta_type: &str) -> Option<Value> {
+    pub(in crate::proxy) fn metaobject_definition_by_type(&self, meta_type: &str) -> Option<Value> {
         self.store
             .staged
             .metaobject_definitions

@@ -263,6 +263,7 @@ struct BaseState {
     discount_count_baselines: BTreeMap<String, Value>,
     marketing_activities: OrderedRecords<Value>,
     marketing_events: OrderedRecords<Value>,
+    segments: OrderedRecords<Value>,
     gift_cards: BTreeMap<String, Value>,
     gift_card_configuration: Option<Value>,
     gift_card_complete_queries: BTreeSet<String>,
@@ -291,6 +292,7 @@ struct BaseState {
     function_cart_transforms_catalog_hydrated: bool,
     function_fulfillment_constraint_rules: BTreeMap<String, Value>,
     function_fulfillment_constraint_rule_order: Vec<String>,
+    function_fulfillment_constraint_rules_catalog_hydrated: bool,
     metafield_definitions: BTreeMap<MetafieldDefinitionKey, Value>,
     metafield_definition_owner_catalogs: BTreeSet<String>,
     metafield_definition_namespaces: BTreeSet<(String, String)>,
@@ -357,17 +359,7 @@ struct StagedState {
     locations: StagedRecords<Value>,
     location_limit_reached: bool,
     delivery_customizations: StagedRecords<Value>,
-    segments: BTreeMap<String, Value>,
-    // Recorded segment-catalog read baselines, keyed by root field name
-    // (`segments` / `segmentsCount` / `segmentFilters` / `segmentFilterSuggestions`
-    // / `segmentValueSuggestions` / `segmentMigrations`). These roots expose
-    // Shopify-internal catalog/derived data whose opaque pagination cursors encode
-    // backend-private values (microsecond timestamps, customer ids) that cannot be
-    // reconstructed from arbitrary store state, so a scenario seeds the recorded
-    // connection values and the read resolver projects the requested selection over
-    // them. Empty for every scenario that does not seed a catalog, leaving the
-    // generic staged-segment read path untouched.
-    segment_catalog: BTreeMap<String, Value>,
+    segments: StagedRecords<Value>,
     collections: StagedRecords<Value>,
     collection_jobs: BTreeMap<String, Value>,
     fulfillment_order_deadlines: BTreeMap<String, String>,
@@ -1174,6 +1166,17 @@ impl Store {
                 })
     }
 
+    fn product_is_published_on_known_publication(&self, product: &ProductRecord) -> bool {
+        if product.status != "ACTIVE" || !self.has_known_publication_catalog() {
+            return false;
+        }
+
+        self.staged
+            .resource_publications
+            .get(&product.id)
+            .is_some_and(|publications| publications.iter().any(|id| self.has_publication_id(id)))
+    }
+
     fn publication_id_for_channel_id(&self, channel_id: &str) -> Option<String> {
         self.staged.publications.iter().find_map(|(id, record)| {
             let matches = record
@@ -1258,6 +1261,41 @@ impl Store {
         effective_records(&self.base.orders, &self.staged.orders)
     }
 
+    fn segment_by_id(&self, id: &str) -> Option<&Value> {
+        effective_get(&self.base.segments, &self.staged.segments, id)
+    }
+
+    fn effective_segment_count(&self) -> usize {
+        self.base
+            .segments
+            .records
+            .keys()
+            .filter(|id| !self.staged.segments.is_tombstoned(id))
+            .count()
+            + self
+                .staged
+                .segments
+                .records
+                .keys()
+                .filter(|id| !self.base.segments.records.contains_key(*id))
+                .filter(|id| !self.staged.segments.is_tombstoned(id))
+                .count()
+    }
+
+    fn observe_base_segment(&mut self, segment: Value) {
+        let Some(id) = segment
+            .get("id")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+        else {
+            return;
+        };
+        if self.staged.segments.is_tombstoned(&id) || self.staged.segments.contains_staged(&id) {
+            return;
+        }
+        self.base.segments.insert(id, segment);
+    }
+
     fn observe_base_order(&mut self, order: Value) {
         let Some(id) = order.get("id").and_then(Value::as_str).map(str::to_string) else {
             return;
@@ -1278,10 +1316,6 @@ impl Store {
 
     fn observe_discount_count_baseline(&mut self, key: String, count: Value) {
         self.base.discount_count_baselines.insert(key, count);
-    }
-
-    fn discount_count_baseline(&self, key: &str) -> Option<&Value> {
-        self.base.discount_count_baselines.get(key)
     }
 
     fn domain_by_id(&self, id: &str) -> Option<Value> {
@@ -2180,6 +2214,7 @@ pub(in crate::proxy) use self::markets_catalog_helpers::*;
 pub(in crate::proxy) use self::media_products_saved_searches::*;
 pub(in crate::proxy) use self::metafield_metaobject_definitions::*;
 pub(in crate::proxy) use self::metafields_orders_payments::*;
+pub(in crate::proxy) use self::metaobjects::metaobject_cursor;
 pub(in crate::proxy) use self::money::*;
 pub(in crate::proxy) use self::orders_payments_fulfillment::*;
 pub(in crate::proxy) use self::phone::*;

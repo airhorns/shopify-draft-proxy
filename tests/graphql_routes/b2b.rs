@@ -2026,6 +2026,59 @@ fn b2b_live_hybrid_merges_upstream_catalog_with_staged_company_and_location() {
 }
 
 #[test]
+fn b2b_count_only_live_hybrid_preserves_upstream_total_with_staged_delta() {
+    let captured = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let captured = Arc::clone(&captured);
+        move |request| {
+            assert!(
+                !request.body.contains("mutation"),
+                "B2B supported mutations must not be forwarded upstream: {}",
+                request.body
+            );
+            captured.lock().expect("captured upstream").push(request);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "companiesCount": {
+                            "count": 2,
+                            "precision": "EXACT"
+                        }
+                    }
+                }),
+            }
+        }
+    });
+
+    let staged_company_id = create_b2b_company(&mut proxy, "Count Only Buyer");
+    assert!(staged_company_id.contains("shopify-draft-proxy=synthetic"));
+    assert!(
+        captured.lock().expect("captured upstream").is_empty(),
+        "companyCreate should stage without upstream calls"
+    );
+
+    let count = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BCountOnly {
+          companiesCount { count precision }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(count.status, 200);
+    assert_eq!(
+        count.body["data"]["companiesCount"],
+        json!({ "count": 3, "precision": "EXACT" })
+    );
+    let calls = captured.lock().expect("captured upstream");
+    assert_eq!(calls.len(), 1);
+    assert!(calls[0].body.contains("query B2BCountOnly"));
+}
+
+#[test]
 fn b2b_live_hybrid_overlays_updates_and_deletes_on_hydrated_baseline() {
     let updated_company_id = "gid://shopify/Company/710001";
     let deleted_company_id = "gid://shopify/Company/710002";

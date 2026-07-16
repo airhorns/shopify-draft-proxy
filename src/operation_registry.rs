@@ -325,12 +325,17 @@ fn storefront_root_is_implemented(operation_type: OperationType, name: &str) -> 
                 | "pageByHandle"
                 | "pages"
                 | "paymentSettings"
+                | "product"
+                | "productByHandle"
+                | "products"
                 | "publicApiVersions"
                 | "localization"
                 | "locations"
                 | "shop"
                 | "sitemap"
                 | "urlRedirects"
+                | "metaobject"
+                | "metaobjects"
         ),
         OperationType::Mutation => matches!(
             name,

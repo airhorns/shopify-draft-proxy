@@ -1,0 +1,111 @@
+{
+  "scenarioId": "segment-live-hybrid-overlay",
+  "operationNames": ["segmentCreate", "segment", "segments", "segmentsCount"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "downstream-read-parity",
+    "read-after-write",
+    "search-filter-semantics",
+    "pagination-shape",
+    "count-precision"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-live-hybrid-overlay.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
+  "proxyConfig": {
+    "readMode": "live-hybrid"
+  },
+  "proxyRequest": {
+    "apiVersion": "2025-01",
+    "documentPath": "config/parity-requests/segments/segment-live-hybrid-overlay-create.graphql",
+    "variablesCapturePath": "$.proxyVariables.create"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict replay of a Shopify-backed LiveHybrid segment overlay scenario. The recorder creates a disposable real/base segment, records a base-only upstream segment(id:)/segments/segmentsCount read before the staged-equivalent segment exists, then creates the staged-equivalent segment in Shopify and captures the final read. Proxy replay stages only the second segment locally through public segmentCreate and must overlay it with the base upstream catalog without hidden state seeding.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "stage-create-user-errors",
+        "capturePath": "$.liveStagedCreate.response.body.data.segmentCreate.userErrors",
+        "proxyPath": "$.data.segmentCreate.userErrors"
+      },
+      {
+        "name": "live-hybrid-overlay-read-data",
+        "capturePath": "$.finalRead.response.body.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiVersion": "2025-01",
+          "documentPath": "config/parity-requests/segments/segment-live-hybrid-overlay-read.graphql",
+          "variablesCapturePath": "$.proxyVariables.read"
+        },
+        "selectedPaths": [
+          "$.realSegment",
+          "$.baseWindow",
+          "$.stagedWindow",
+          "$.combinedWindow.pageInfo",
+          "$.totalCount"
+        ],
+        "expectedDifferences": [
+          {
+            "path": "$.baseWindow.edges[0].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque segment cursors while the overlay uses stable local cursors."
+          },
+          {
+            "path": "$.baseWindow.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque segment cursors while the overlay uses stable local cursors."
+          },
+          {
+            "path": "$.baseWindow.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque segment cursors while the overlay uses stable local cursors."
+          },
+          {
+            "path": "$.stagedWindow.edges[0].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque segment cursors while the overlay uses stable local cursors."
+          },
+          {
+            "path": "$.stagedWindow.edges[0].node.id",
+            "matcher": "shopify-gid:Segment",
+            "reason": "The proxy stages a synthetic segment id while Shopify capture records the materialized live segment id."
+          },
+          {
+            "path": "$.stagedWindow.edges[0].node.creationDate",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic synthetic timestamps while Shopify capture records live timestamps."
+          },
+          {
+            "path": "$.stagedWindow.edges[0].node.lastEditDate",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic synthetic timestamps while Shopify capture records live timestamps."
+          },
+          {
+            "path": "$.stagedWindow.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque segment cursors while the overlay uses stable local cursors."
+          },
+          {
+            "path": "$.stagedWindow.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque segment cursors while the overlay uses stable local cursors."
+          },
+          {
+            "path": "$.combinedWindow.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque segment cursors while the overlay uses stable local cursors."
+          },
+          {
+            "path": "$.combinedWindow.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque segment cursors while the overlay uses stable local cursors."
+          }
+        ]
+      }
+    ]
+  }
+}

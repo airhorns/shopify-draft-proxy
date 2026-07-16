@@ -1,23 +1,23 @@
 {
-  "capturedAt": "2026-07-11T04:59:53.750Z",
+  "capturedAt": "2026-07-16T00:32:34.990Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "scope": "B2B LiveHybrid baseline company/location catalog plus staged lifecycle overlay",
-  "token": "ZZZB2BMIX20260711045940",
+  "token": "ZZZB2BMIX20260716003220",
   "cases": [
     {
-      "name": "companyCreate ZZZB2BMIX20260711045940 Alpha Buyer",
+      "name": "companyCreate ZZZB2BMIX20260716003220 Alpha Buyer",
       "query": "mutation B2BMixedOverlayCompanyCreate($input: CompanyCreateInput!) {\n  companyCreate(input: $input) {\n    company {\n      id\n      name\n      externalId\n      locations(first: 5, sortKey: NAME) {\n        nodes {\n          id\n          name\n          externalId\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "input": {
           "company": {
-            "name": "ZZZB2BMIX20260711045940 Alpha Buyer",
-            "externalId": "ZZZB2BMIX20260711045940-ALPHA",
+            "name": "ZZZB2BMIX20260716003220 Alpha Buyer",
+            "externalId": "ZZZB2BMIX20260716003220-ALPHA",
             "note": "B2B mixed overlay parity"
           },
           "companyLocation": {
-            "name": "ZZZB2BMIX20260711045940 Alpha HQ",
-            "externalId": "ZZZB2BMIX20260711045940-ALPHA-HQ"
+            "name": "ZZZB2BMIX20260716003220 Alpha HQ",
+            "externalId": "ZZZB2BMIX20260716003220-ALPHA-HQ"
           }
         }
       },
@@ -27,9 +27,9 @@
           "data": {
             "companyCreate": {
               "company": {
-                "id": "gid://shopify/Company/5743247666",
-                "name": "ZZZB2BMIX20260711045940 Alpha Buyer",
-                "externalId": "ZZZB2BMIX20260711045940-ALPHA",
+                "id": "gid://shopify/Company/5750653234",
+                "name": "ZZZB2BMIX20260716003220 Alpha Buyer",
+                "externalId": "ZZZB2BMIX20260716003220-ALPHA",
                 "locations": {
                   "nodes": []
                 }
@@ -52,13 +52,13 @@
       }
     },
     {
-      "name": "companyLocationCreate ZZZB2BMIX20260711045940 Alpha Annex",
+      "name": "companyLocationCreate ZZZB2BMIX20260716003220 Alpha Annex",
       "query": "mutation B2BMixedOverlayLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n  companyLocationCreate(companyId: $companyId, input: $input) {\n    companyLocation {\n      id\n      name\n      externalId\n      company {\n        id\n        name\n        externalId\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5743247666",
+        "companyId": "gid://shopify/Company/5750653234",
         "input": {
-          "name": "ZZZB2BMIX20260711045940 Alpha Annex",
-          "externalId": "ZZZB2BMIX20260711045940-ALPHA-ANNEX"
+          "name": "ZZZB2BMIX20260716003220 Alpha Annex",
+          "externalId": "ZZZB2BMIX20260716003220-ALPHA-ANNEX"
         }
       },
       "response": {
@@ -67,13 +67,13 @@
           "data": {
             "companyLocationCreate": {
               "companyLocation": {
-                "id": "gid://shopify/CompanyLocation/8616673586",
-                "name": "ZZZB2BMIX20260711045940 Alpha Annex",
-                "externalId": "ZZZB2BMIX20260711045940-ALPHA-ANNEX",
+                "id": "gid://shopify/CompanyLocation/8624439602",
+                "name": "ZZZB2BMIX20260716003220 Alpha Annex",
+                "externalId": "ZZZB2BMIX20260716003220-ALPHA-ANNEX",
                 "company": {
-                  "id": "gid://shopify/Company/5743247666",
-                  "name": "ZZZB2BMIX20260711045940 Alpha Buyer",
-                  "externalId": "ZZZB2BMIX20260711045940-ALPHA"
+                  "id": "gid://shopify/Company/5750653234",
+                  "name": "ZZZB2BMIX20260716003220 Alpha Buyer",
+                  "externalId": "ZZZB2BMIX20260716003220-ALPHA"
                 }
               },
               "userErrors": []
@@ -94,18 +94,18 @@
       }
     },
     {
-      "name": "companyCreate ZZZB2BMIX20260711045940 Beta Buyer",
+      "name": "companyCreate ZZZB2BMIX20260716003220 Beta Buyer",
       "query": "mutation B2BMixedOverlayCompanyCreate($input: CompanyCreateInput!) {\n  companyCreate(input: $input) {\n    company {\n      id\n      name\n      externalId\n      locations(first: 5, sortKey: NAME) {\n        nodes {\n          id\n          name\n          externalId\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "input": {
           "company": {
-            "name": "ZZZB2BMIX20260711045940 Beta Buyer",
-            "externalId": "ZZZB2BMIX20260711045940-BETA",
+            "name": "ZZZB2BMIX20260716003220 Beta Buyer",
+            "externalId": "ZZZB2BMIX20260716003220-BETA",
             "note": "B2B mixed overlay parity"
           },
           "companyLocation": {
-            "name": "ZZZB2BMIX20260711045940 Beta HQ",
-            "externalId": "ZZZB2BMIX20260711045940-BETA-HQ"
+            "name": "ZZZB2BMIX20260716003220 Beta HQ",
+            "externalId": "ZZZB2BMIX20260716003220-BETA-HQ"
           }
         }
       },
@@ -115,9 +115,9 @@
           "data": {
             "companyCreate": {
               "company": {
-                "id": "gid://shopify/Company/5743280434",
-                "name": "ZZZB2BMIX20260711045940 Beta Buyer",
-                "externalId": "ZZZB2BMIX20260711045940-BETA",
+                "id": "gid://shopify/Company/5750686002",
+                "name": "ZZZB2BMIX20260716003220 Beta Buyer",
+                "externalId": "ZZZB2BMIX20260716003220-BETA",
                 "locations": {
                   "nodes": []
                 }
@@ -143,8 +143,8 @@
       "name": "baseline B2B mixed read before staged overlay",
       "query": "query B2BMixedOverlayRead(\n  $companyQuery: String!\n  $locationQuery: String!\n  $companiesFirst: Int!\n  $locationsFirst: Int!\n  $nestedLocationsFirst: Int!\n) {\n  companies(first: $companiesFirst, query: $companyQuery, sortKey: NAME) {\n    nodes {\n      id\n      name\n      externalId\n      locations(first: $nestedLocationsFirst, sortKey: NAME) {\n        nodes {\n          id\n          name\n          externalId\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  companiesCount(limit: 1) {\n    count\n    precision\n  }\n  companyLocations(first: $locationsFirst, query: $locationQuery, sortKey: NAME) {\n    nodes {\n      id\n      name\n      externalId\n      company {\n        id\n        name\n        externalId\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
       "variables": {
-        "companyQuery": "name:ZZZB2BMIX20260711045940",
-        "locationQuery": "name:ZZZB2BMIX20260711045940",
+        "companyQuery": "name:ZZZB2BMIX20260716003220",
+        "locationQuery": "name:ZZZB2BMIX20260716003220",
         "companiesFirst": 10,
         "locationsFirst": 10,
         "nestedLocationsFirst": 10
@@ -156,47 +156,47 @@
             "companies": {
               "nodes": [
                 {
-                  "id": "gid://shopify/Company/5743247666",
-                  "name": "ZZZB2BMIX20260711045940 Alpha Buyer",
-                  "externalId": "ZZZB2BMIX20260711045940-ALPHA",
+                  "id": "gid://shopify/Company/5750653234",
+                  "name": "ZZZB2BMIX20260716003220 Alpha Buyer",
+                  "externalId": "ZZZB2BMIX20260716003220-ALPHA",
                   "locations": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/CompanyLocation/8616673586",
-                        "name": "ZZZB2BMIX20260711045940 Alpha Annex",
-                        "externalId": "ZZZB2BMIX20260711045940-ALPHA-ANNEX"
+                        "id": "gid://shopify/CompanyLocation/8624439602",
+                        "name": "ZZZB2BMIX20260716003220 Alpha Annex",
+                        "externalId": "ZZZB2BMIX20260716003220-ALPHA-ANNEX"
                       },
                       {
-                        "id": "gid://shopify/CompanyLocation/8616640818",
-                        "name": "ZZZB2BMIX20260711045940 Alpha HQ",
-                        "externalId": "ZZZB2BMIX20260711045940-ALPHA-HQ"
+                        "id": "gid://shopify/CompanyLocation/8624406834",
+                        "name": "ZZZB2BMIX20260716003220 Alpha HQ",
+                        "externalId": "ZZZB2BMIX20260716003220-ALPHA-HQ"
                       }
                     ],
                     "pageInfo": {
                       "hasNextPage": false,
                       "hasPreviousPage": false,
-                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjY3MzU4NiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjY0MDgxOCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBocSJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
+                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQzOTYwMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQwNjgzNCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBocSJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
                     }
                   }
                 },
                 {
-                  "id": "gid://shopify/Company/5743280434",
-                  "name": "ZZZB2BMIX20260711045940 Beta Buyer",
-                  "externalId": "ZZZB2BMIX20260711045940-BETA",
+                  "id": "gid://shopify/Company/5750686002",
+                  "name": "ZZZB2BMIX20260716003220 Beta Buyer",
+                  "externalId": "ZZZB2BMIX20260716003220-BETA",
                   "locations": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/CompanyLocation/8616706354",
-                        "name": "ZZZB2BMIX20260711045940 Beta HQ",
-                        "externalId": "ZZZB2BMIX20260711045940-BETA-HQ"
+                        "id": "gid://shopify/CompanyLocation/8624472370",
+                        "name": "ZZZB2BMIX20260716003220 Beta HQ",
+                        "externalId": "ZZZB2BMIX20260716003220-BETA-HQ"
                       }
                     ],
                     "pageInfo": {
                       "hasNextPage": false,
                       "hasPreviousPage": false,
-                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjcwNjM1NCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ==",
-                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjcwNjM1NCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
+                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQ3MjM3MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ==",
+                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQ3MjM3MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
                     }
                   }
                 }
@@ -204,8 +204,8 @@
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc0MzI0NzY2NiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBidXllciJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc0MzI4MDQzNCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBiZXRhIGJ1eWVyIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
+                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc1MDY1MzIzNCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBidXllciJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc1MDY4NjAwMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBiZXRhIGJ1eWVyIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
               }
             },
             "companiesCount": {
@@ -215,41 +215,41 @@
             "companyLocations": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyLocation/8616673586",
-                  "name": "ZZZB2BMIX20260711045940 Alpha Annex",
-                  "externalId": "ZZZB2BMIX20260711045940-ALPHA-ANNEX",
+                  "id": "gid://shopify/CompanyLocation/8624439602",
+                  "name": "ZZZB2BMIX20260716003220 Alpha Annex",
+                  "externalId": "ZZZB2BMIX20260716003220-ALPHA-ANNEX",
                   "company": {
-                    "id": "gid://shopify/Company/5743247666",
-                    "name": "ZZZB2BMIX20260711045940 Alpha Buyer",
-                    "externalId": "ZZZB2BMIX20260711045940-ALPHA"
+                    "id": "gid://shopify/Company/5750653234",
+                    "name": "ZZZB2BMIX20260716003220 Alpha Buyer",
+                    "externalId": "ZZZB2BMIX20260716003220-ALPHA"
                   }
                 },
                 {
-                  "id": "gid://shopify/CompanyLocation/8616640818",
-                  "name": "ZZZB2BMIX20260711045940 Alpha HQ",
-                  "externalId": "ZZZB2BMIX20260711045940-ALPHA-HQ",
+                  "id": "gid://shopify/CompanyLocation/8624406834",
+                  "name": "ZZZB2BMIX20260716003220 Alpha HQ",
+                  "externalId": "ZZZB2BMIX20260716003220-ALPHA-HQ",
                   "company": {
-                    "id": "gid://shopify/Company/5743247666",
-                    "name": "ZZZB2BMIX20260711045940 Alpha Buyer",
-                    "externalId": "ZZZB2BMIX20260711045940-ALPHA"
+                    "id": "gid://shopify/Company/5750653234",
+                    "name": "ZZZB2BMIX20260716003220 Alpha Buyer",
+                    "externalId": "ZZZB2BMIX20260716003220-ALPHA"
                   }
                 },
                 {
-                  "id": "gid://shopify/CompanyLocation/8616706354",
-                  "name": "ZZZB2BMIX20260711045940 Beta HQ",
-                  "externalId": "ZZZB2BMIX20260711045940-BETA-HQ",
+                  "id": "gid://shopify/CompanyLocation/8624472370",
+                  "name": "ZZZB2BMIX20260716003220 Beta HQ",
+                  "externalId": "ZZZB2BMIX20260716003220-BETA-HQ",
                   "company": {
-                    "id": "gid://shopify/Company/5743280434",
-                    "name": "ZZZB2BMIX20260711045940 Beta Buyer",
-                    "externalId": "ZZZB2BMIX20260711045940-BETA"
+                    "id": "gid://shopify/Company/5750686002",
+                    "name": "ZZZB2BMIX20260716003220 Beta Buyer",
+                    "externalId": "ZZZB2BMIX20260716003220-BETA"
                   }
                 }
               ],
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjY3MzU4NiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjcwNjM1NCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
+                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQzOTYwMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQ3MjM3MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
               }
             }
           },
@@ -268,18 +268,18 @@
       }
     },
     {
-      "name": "companyCreate ZZZB2BMIX20260711045940 Gamma Buyer",
+      "name": "companyCreate ZZZB2BMIX20260716003220 Gamma Buyer",
       "query": "mutation B2BMixedOverlayCompanyCreate($input: CompanyCreateInput!) {\n  companyCreate(input: $input) {\n    company {\n      id\n      name\n      externalId\n      locations(first: 5, sortKey: NAME) {\n        nodes {\n          id\n          name\n          externalId\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "input": {
           "company": {
-            "name": "ZZZB2BMIX20260711045940 Gamma Buyer",
-            "externalId": "ZZZB2BMIX20260711045940-GAMMA",
+            "name": "ZZZB2BMIX20260716003220 Gamma Buyer",
+            "externalId": "ZZZB2BMIX20260716003220-GAMMA",
             "note": "B2B mixed overlay parity"
           },
           "companyLocation": {
-            "name": "ZZZB2BMIX20260711045940 Gamma HQ",
-            "externalId": "ZZZB2BMIX20260711045940-GAMMA-HQ"
+            "name": "ZZZB2BMIX20260716003220 Gamma HQ",
+            "externalId": "ZZZB2BMIX20260716003220-GAMMA-HQ"
           }
         }
       },
@@ -289,9 +289,9 @@
           "data": {
             "companyCreate": {
               "company": {
-                "id": "gid://shopify/Company/5743313202",
-                "name": "ZZZB2BMIX20260711045940 Gamma Buyer",
-                "externalId": "ZZZB2BMIX20260711045940-GAMMA",
+                "id": "gid://shopify/Company/5750718770",
+                "name": "ZZZB2BMIX20260716003220 Gamma Buyer",
+                "externalId": "ZZZB2BMIX20260716003220-GAMMA",
                 "locations": {
                   "nodes": []
                 }
@@ -305,7 +305,7 @@
               "actualQueryCost": 15,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1976,
+                "currentlyAvailable": 1979,
                 "restoreRate": 100
               }
             }
@@ -314,13 +314,13 @@
       }
     },
     {
-      "name": "companyLocationCreate ZZZB2BMIX20260711045940 Gamma Remote",
+      "name": "companyLocationCreate ZZZB2BMIX20260716003220 Gamma Remote",
       "query": "mutation B2BMixedOverlayLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n  companyLocationCreate(companyId: $companyId, input: $input) {\n    companyLocation {\n      id\n      name\n      externalId\n      company {\n        id\n        name\n        externalId\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5743313202",
+        "companyId": "gid://shopify/Company/5750718770",
         "input": {
-          "name": "ZZZB2BMIX20260711045940 Gamma Remote",
-          "externalId": "ZZZB2BMIX20260711045940-GAMMA-REMOTE"
+          "name": "ZZZB2BMIX20260716003220 Gamma Remote",
+          "externalId": "ZZZB2BMIX20260716003220-GAMMA-REMOTE"
         }
       },
       "response": {
@@ -329,13 +329,13 @@
           "data": {
             "companyLocationCreate": {
               "companyLocation": {
-                "id": "gid://shopify/CompanyLocation/8616771890",
-                "name": "ZZZB2BMIX20260711045940 Gamma Remote",
-                "externalId": "ZZZB2BMIX20260711045940-GAMMA-REMOTE",
+                "id": "gid://shopify/CompanyLocation/8624537906",
+                "name": "ZZZB2BMIX20260716003220 Gamma Remote",
+                "externalId": "ZZZB2BMIX20260716003220-GAMMA-REMOTE",
                 "company": {
-                  "id": "gid://shopify/Company/5743313202",
-                  "name": "ZZZB2BMIX20260711045940 Gamma Buyer",
-                  "externalId": "ZZZB2BMIX20260711045940-GAMMA"
+                  "id": "gid://shopify/Company/5750718770",
+                  "name": "ZZZB2BMIX20260716003220 Gamma Buyer",
+                  "externalId": "ZZZB2BMIX20260716003220-GAMMA"
                 }
               },
               "userErrors": []
@@ -347,7 +347,7 @@
               "actualQueryCost": 11,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1987,
+                "currentlyAvailable": 1988,
                 "restoreRate": 100
               }
             }
@@ -359,8 +359,8 @@
       "name": "B2B mixed read after staged company and location create",
       "query": "query B2BMixedOverlayRead(\n  $companyQuery: String!\n  $locationQuery: String!\n  $companiesFirst: Int!\n  $locationsFirst: Int!\n  $nestedLocationsFirst: Int!\n) {\n  companies(first: $companiesFirst, query: $companyQuery, sortKey: NAME) {\n    nodes {\n      id\n      name\n      externalId\n      locations(first: $nestedLocationsFirst, sortKey: NAME) {\n        nodes {\n          id\n          name\n          externalId\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  companiesCount(limit: 1) {\n    count\n    precision\n  }\n  companyLocations(first: $locationsFirst, query: $locationQuery, sortKey: NAME) {\n    nodes {\n      id\n      name\n      externalId\n      company {\n        id\n        name\n        externalId\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
       "variables": {
-        "companyQuery": "name:ZZZB2BMIX20260711045940",
-        "locationQuery": "name:ZZZB2BMIX20260711045940",
+        "companyQuery": "name:ZZZB2BMIX20260716003220",
+        "locationQuery": "name:ZZZB2BMIX20260716003220",
         "companiesFirst": 10,
         "locationsFirst": 10,
         "nestedLocationsFirst": 10
@@ -372,72 +372,72 @@
             "companies": {
               "nodes": [
                 {
-                  "id": "gid://shopify/Company/5743247666",
-                  "name": "ZZZB2BMIX20260711045940 Alpha Buyer",
-                  "externalId": "ZZZB2BMIX20260711045940-ALPHA",
+                  "id": "gid://shopify/Company/5750653234",
+                  "name": "ZZZB2BMIX20260716003220 Alpha Buyer",
+                  "externalId": "ZZZB2BMIX20260716003220-ALPHA",
                   "locations": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/CompanyLocation/8616673586",
-                        "name": "ZZZB2BMIX20260711045940 Alpha Annex",
-                        "externalId": "ZZZB2BMIX20260711045940-ALPHA-ANNEX"
+                        "id": "gid://shopify/CompanyLocation/8624439602",
+                        "name": "ZZZB2BMIX20260716003220 Alpha Annex",
+                        "externalId": "ZZZB2BMIX20260716003220-ALPHA-ANNEX"
                       },
                       {
-                        "id": "gid://shopify/CompanyLocation/8616640818",
-                        "name": "ZZZB2BMIX20260711045940 Alpha HQ",
-                        "externalId": "ZZZB2BMIX20260711045940-ALPHA-HQ"
+                        "id": "gid://shopify/CompanyLocation/8624406834",
+                        "name": "ZZZB2BMIX20260716003220 Alpha HQ",
+                        "externalId": "ZZZB2BMIX20260716003220-ALPHA-HQ"
                       }
                     ],
                     "pageInfo": {
                       "hasNextPage": false,
                       "hasPreviousPage": false,
-                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjY3MzU4NiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjY0MDgxOCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBocSJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
+                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQzOTYwMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQwNjgzNCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBocSJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
                     }
                   }
                 },
                 {
-                  "id": "gid://shopify/Company/5743280434",
-                  "name": "ZZZB2BMIX20260711045940 Beta Buyer",
-                  "externalId": "ZZZB2BMIX20260711045940-BETA",
+                  "id": "gid://shopify/Company/5750686002",
+                  "name": "ZZZB2BMIX20260716003220 Beta Buyer",
+                  "externalId": "ZZZB2BMIX20260716003220-BETA",
                   "locations": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/CompanyLocation/8616706354",
-                        "name": "ZZZB2BMIX20260711045940 Beta HQ",
-                        "externalId": "ZZZB2BMIX20260711045940-BETA-HQ"
+                        "id": "gid://shopify/CompanyLocation/8624472370",
+                        "name": "ZZZB2BMIX20260716003220 Beta HQ",
+                        "externalId": "ZZZB2BMIX20260716003220-BETA-HQ"
                       }
                     ],
                     "pageInfo": {
                       "hasNextPage": false,
                       "hasPreviousPage": false,
-                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjcwNjM1NCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ==",
-                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjcwNjM1NCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
+                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQ3MjM3MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ==",
+                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQ3MjM3MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
                     }
                   }
                 },
                 {
-                  "id": "gid://shopify/Company/5743313202",
-                  "name": "ZZZB2BMIX20260711045940 Gamma Buyer",
-                  "externalId": "ZZZB2BMIX20260711045940-GAMMA",
+                  "id": "gid://shopify/Company/5750718770",
+                  "name": "ZZZB2BMIX20260716003220 Gamma Buyer",
+                  "externalId": "ZZZB2BMIX20260716003220-GAMMA",
                   "locations": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/CompanyLocation/8616739122",
-                        "name": "ZZZB2BMIX20260711045940 Gamma HQ",
-                        "externalId": "ZZZB2BMIX20260711045940-GAMMA-HQ"
+                        "id": "gid://shopify/CompanyLocation/8624505138",
+                        "name": "ZZZB2BMIX20260716003220 Gamma HQ",
+                        "externalId": "ZZZB2BMIX20260716003220-GAMMA-HQ"
                       },
                       {
-                        "id": "gid://shopify/CompanyLocation/8616771890",
-                        "name": "ZZZB2BMIX20260711045940 Gamma Remote",
-                        "externalId": "ZZZB2BMIX20260711045940-GAMMA-REMOTE"
+                        "id": "gid://shopify/CompanyLocation/8624537906",
+                        "name": "ZZZB2BMIX20260716003220 Gamma Remote",
+                        "externalId": "ZZZB2BMIX20260716003220-GAMMA-REMOTE"
                       }
                     ],
                     "pageInfo": {
                       "hasNextPage": false,
                       "hasPreviousPage": false,
-                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjczOTEyMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBnYW1tYSBocSJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjc3MTg5MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBnYW1tYSByZW1vdGUiXSwiZGlyZWN0aW9uIjoibmV4dCJ9"
+                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDUwNTEzOCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBnYW1tYSBocSJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDUzNzkwNiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBnYW1tYSByZW1vdGUiXSwiZGlyZWN0aW9uIjoibmV4dCJ9"
                     }
                   }
                 }
@@ -445,8 +445,8 @@
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc0MzI0NzY2NiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBidXllciJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc0MzMxMzIwMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBnYW1tYSBidXllciJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
+                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc1MDY1MzIzNCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBidXllciJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc1MDcxODc3MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBnYW1tYSBidXllciJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
               }
             },
             "companiesCount": {
@@ -456,61 +456,61 @@
             "companyLocations": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyLocation/8616673586",
-                  "name": "ZZZB2BMIX20260711045940 Alpha Annex",
-                  "externalId": "ZZZB2BMIX20260711045940-ALPHA-ANNEX",
+                  "id": "gid://shopify/CompanyLocation/8624439602",
+                  "name": "ZZZB2BMIX20260716003220 Alpha Annex",
+                  "externalId": "ZZZB2BMIX20260716003220-ALPHA-ANNEX",
                   "company": {
-                    "id": "gid://shopify/Company/5743247666",
-                    "name": "ZZZB2BMIX20260711045940 Alpha Buyer",
-                    "externalId": "ZZZB2BMIX20260711045940-ALPHA"
+                    "id": "gid://shopify/Company/5750653234",
+                    "name": "ZZZB2BMIX20260716003220 Alpha Buyer",
+                    "externalId": "ZZZB2BMIX20260716003220-ALPHA"
                   }
                 },
                 {
-                  "id": "gid://shopify/CompanyLocation/8616640818",
-                  "name": "ZZZB2BMIX20260711045940 Alpha HQ",
-                  "externalId": "ZZZB2BMIX20260711045940-ALPHA-HQ",
+                  "id": "gid://shopify/CompanyLocation/8624406834",
+                  "name": "ZZZB2BMIX20260716003220 Alpha HQ",
+                  "externalId": "ZZZB2BMIX20260716003220-ALPHA-HQ",
                   "company": {
-                    "id": "gid://shopify/Company/5743247666",
-                    "name": "ZZZB2BMIX20260711045940 Alpha Buyer",
-                    "externalId": "ZZZB2BMIX20260711045940-ALPHA"
+                    "id": "gid://shopify/Company/5750653234",
+                    "name": "ZZZB2BMIX20260716003220 Alpha Buyer",
+                    "externalId": "ZZZB2BMIX20260716003220-ALPHA"
                   }
                 },
                 {
-                  "id": "gid://shopify/CompanyLocation/8616706354",
-                  "name": "ZZZB2BMIX20260711045940 Beta HQ",
-                  "externalId": "ZZZB2BMIX20260711045940-BETA-HQ",
+                  "id": "gid://shopify/CompanyLocation/8624472370",
+                  "name": "ZZZB2BMIX20260716003220 Beta HQ",
+                  "externalId": "ZZZB2BMIX20260716003220-BETA-HQ",
                   "company": {
-                    "id": "gid://shopify/Company/5743280434",
-                    "name": "ZZZB2BMIX20260711045940 Beta Buyer",
-                    "externalId": "ZZZB2BMIX20260711045940-BETA"
+                    "id": "gid://shopify/Company/5750686002",
+                    "name": "ZZZB2BMIX20260716003220 Beta Buyer",
+                    "externalId": "ZZZB2BMIX20260716003220-BETA"
                   }
                 },
                 {
-                  "id": "gid://shopify/CompanyLocation/8616739122",
-                  "name": "ZZZB2BMIX20260711045940 Gamma HQ",
-                  "externalId": "ZZZB2BMIX20260711045940-GAMMA-HQ",
+                  "id": "gid://shopify/CompanyLocation/8624505138",
+                  "name": "ZZZB2BMIX20260716003220 Gamma HQ",
+                  "externalId": "ZZZB2BMIX20260716003220-GAMMA-HQ",
                   "company": {
-                    "id": "gid://shopify/Company/5743313202",
-                    "name": "ZZZB2BMIX20260711045940 Gamma Buyer",
-                    "externalId": "ZZZB2BMIX20260711045940-GAMMA"
+                    "id": "gid://shopify/Company/5750718770",
+                    "name": "ZZZB2BMIX20260716003220 Gamma Buyer",
+                    "externalId": "ZZZB2BMIX20260716003220-GAMMA"
                   }
                 },
                 {
-                  "id": "gid://shopify/CompanyLocation/8616771890",
-                  "name": "ZZZB2BMIX20260711045940 Gamma Remote",
-                  "externalId": "ZZZB2BMIX20260711045940-GAMMA-REMOTE",
+                  "id": "gid://shopify/CompanyLocation/8624537906",
+                  "name": "ZZZB2BMIX20260716003220 Gamma Remote",
+                  "externalId": "ZZZB2BMIX20260716003220-GAMMA-REMOTE",
                   "company": {
-                    "id": "gid://shopify/Company/5743313202",
-                    "name": "ZZZB2BMIX20260711045940 Gamma Buyer",
-                    "externalId": "ZZZB2BMIX20260711045940-GAMMA"
+                    "id": "gid://shopify/Company/5750718770",
+                    "name": "ZZZB2BMIX20260716003220 Gamma Buyer",
+                    "externalId": "ZZZB2BMIX20260716003220-GAMMA"
                   }
                 }
               ],
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjY3MzU4NiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjc3MTg5MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBnYW1tYSByZW1vdGUiXSwiZGlyZWN0aW9uIjoibmV4dCJ9"
+                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQzOTYwMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDUzNzkwNiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBnYW1tYSByZW1vdGUiXSwiZGlyZWN0aW9uIjoibmV4dCJ9"
               }
             }
           },
@@ -532,10 +532,10 @@
       "name": "companyUpdate baseline Alpha",
       "query": "mutation B2BMixedOverlayCompanyUpdate($companyId: ID!, $input: CompanyInput!) {\n  companyUpdate(companyId: $companyId, input: $input) {\n    company {\n      id\n      name\n      externalId\n      locations(first: 5, sortKey: NAME) {\n        nodes {\n          id\n          name\n          externalId\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5743247666",
+        "companyId": "gid://shopify/Company/5750653234",
         "input": {
-          "name": "ZZZB2BMIX20260711045940 Alpha Buyer Updated",
-          "externalId": "ZZZB2BMIX20260711045940-ALPHA-UPDATED"
+          "name": "ZZZB2BMIX20260716003220 Alpha Buyer Updated",
+          "externalId": "ZZZB2BMIX20260716003220-ALPHA-UPDATED"
         }
       },
       "response": {
@@ -544,20 +544,20 @@
           "data": {
             "companyUpdate": {
               "company": {
-                "id": "gid://shopify/Company/5743247666",
-                "name": "ZZZB2BMIX20260711045940 Alpha Buyer Updated",
-                "externalId": "ZZZB2BMIX20260711045940-ALPHA-UPDATED",
+                "id": "gid://shopify/Company/5750653234",
+                "name": "ZZZB2BMIX20260716003220 Alpha Buyer Updated",
+                "externalId": "ZZZB2BMIX20260716003220-ALPHA-UPDATED",
                 "locations": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/CompanyLocation/8616673586",
-                      "name": "ZZZB2BMIX20260711045940 Alpha Annex",
-                      "externalId": "ZZZB2BMIX20260711045940-ALPHA-ANNEX"
+                      "id": "gid://shopify/CompanyLocation/8624439602",
+                      "name": "ZZZB2BMIX20260716003220 Alpha Annex",
+                      "externalId": "ZZZB2BMIX20260716003220-ALPHA-ANNEX"
                     },
                     {
-                      "id": "gid://shopify/CompanyLocation/8616640818",
-                      "name": "ZZZB2BMIX20260711045940 Alpha HQ",
-                      "externalId": "ZZZB2BMIX20260711045940-ALPHA-HQ"
+                      "id": "gid://shopify/CompanyLocation/8624406834",
+                      "name": "ZZZB2BMIX20260716003220 Alpha HQ",
+                      "externalId": "ZZZB2BMIX20260716003220-ALPHA-HQ"
                     }
                   ]
                 }
@@ -571,7 +571,7 @@
               "actualQueryCost": 14,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1975,
+                "currentlyAvailable": 1978,
                 "restoreRate": 100
               }
             }
@@ -583,8 +583,8 @@
       "name": "B2B mixed read after baseline company update",
       "query": "query B2BMixedOverlayRead(\n  $companyQuery: String!\n  $locationQuery: String!\n  $companiesFirst: Int!\n  $locationsFirst: Int!\n  $nestedLocationsFirst: Int!\n) {\n  companies(first: $companiesFirst, query: $companyQuery, sortKey: NAME) {\n    nodes {\n      id\n      name\n      externalId\n      locations(first: $nestedLocationsFirst, sortKey: NAME) {\n        nodes {\n          id\n          name\n          externalId\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  companiesCount(limit: 1) {\n    count\n    precision\n  }\n  companyLocations(first: $locationsFirst, query: $locationQuery, sortKey: NAME) {\n    nodes {\n      id\n      name\n      externalId\n      company {\n        id\n        name\n        externalId\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
       "variables": {
-        "companyQuery": "name:ZZZB2BMIX20260711045940",
-        "locationQuery": "name:ZZZB2BMIX20260711045940",
+        "companyQuery": "name:ZZZB2BMIX20260716003220",
+        "locationQuery": "name:ZZZB2BMIX20260716003220",
         "companiesFirst": 10,
         "locationsFirst": 10,
         "nestedLocationsFirst": 10
@@ -596,72 +596,72 @@
             "companies": {
               "nodes": [
                 {
-                  "id": "gid://shopify/Company/5743247666",
-                  "name": "ZZZB2BMIX20260711045940 Alpha Buyer Updated",
-                  "externalId": "ZZZB2BMIX20260711045940-ALPHA-UPDATED",
+                  "id": "gid://shopify/Company/5750653234",
+                  "name": "ZZZB2BMIX20260716003220 Alpha Buyer Updated",
+                  "externalId": "ZZZB2BMIX20260716003220-ALPHA-UPDATED",
                   "locations": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/CompanyLocation/8616673586",
-                        "name": "ZZZB2BMIX20260711045940 Alpha Annex",
-                        "externalId": "ZZZB2BMIX20260711045940-ALPHA-ANNEX"
+                        "id": "gid://shopify/CompanyLocation/8624439602",
+                        "name": "ZZZB2BMIX20260716003220 Alpha Annex",
+                        "externalId": "ZZZB2BMIX20260716003220-ALPHA-ANNEX"
                       },
                       {
-                        "id": "gid://shopify/CompanyLocation/8616640818",
-                        "name": "ZZZB2BMIX20260711045940 Alpha HQ",
-                        "externalId": "ZZZB2BMIX20260711045940-ALPHA-HQ"
+                        "id": "gid://shopify/CompanyLocation/8624406834",
+                        "name": "ZZZB2BMIX20260716003220 Alpha HQ",
+                        "externalId": "ZZZB2BMIX20260716003220-ALPHA-HQ"
                       }
                     ],
                     "pageInfo": {
                       "hasNextPage": false,
                       "hasPreviousPage": false,
-                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjY3MzU4NiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjY0MDgxOCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBocSJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
+                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQzOTYwMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQwNjgzNCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBocSJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
                     }
                   }
                 },
                 {
-                  "id": "gid://shopify/Company/5743280434",
-                  "name": "ZZZB2BMIX20260711045940 Beta Buyer",
-                  "externalId": "ZZZB2BMIX20260711045940-BETA",
+                  "id": "gid://shopify/Company/5750686002",
+                  "name": "ZZZB2BMIX20260716003220 Beta Buyer",
+                  "externalId": "ZZZB2BMIX20260716003220-BETA",
                   "locations": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/CompanyLocation/8616706354",
-                        "name": "ZZZB2BMIX20260711045940 Beta HQ",
-                        "externalId": "ZZZB2BMIX20260711045940-BETA-HQ"
+                        "id": "gid://shopify/CompanyLocation/8624472370",
+                        "name": "ZZZB2BMIX20260716003220 Beta HQ",
+                        "externalId": "ZZZB2BMIX20260716003220-BETA-HQ"
                       }
                     ],
                     "pageInfo": {
                       "hasNextPage": false,
                       "hasPreviousPage": false,
-                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjcwNjM1NCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ==",
-                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjcwNjM1NCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
+                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQ3MjM3MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ==",
+                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQ3MjM3MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
                     }
                   }
                 },
                 {
-                  "id": "gid://shopify/Company/5743313202",
-                  "name": "ZZZB2BMIX20260711045940 Gamma Buyer",
-                  "externalId": "ZZZB2BMIX20260711045940-GAMMA",
+                  "id": "gid://shopify/Company/5750718770",
+                  "name": "ZZZB2BMIX20260716003220 Gamma Buyer",
+                  "externalId": "ZZZB2BMIX20260716003220-GAMMA",
                   "locations": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/CompanyLocation/8616739122",
-                        "name": "ZZZB2BMIX20260711045940 Gamma HQ",
-                        "externalId": "ZZZB2BMIX20260711045940-GAMMA-HQ"
+                        "id": "gid://shopify/CompanyLocation/8624505138",
+                        "name": "ZZZB2BMIX20260716003220 Gamma HQ",
+                        "externalId": "ZZZB2BMIX20260716003220-GAMMA-HQ"
                       },
                       {
-                        "id": "gid://shopify/CompanyLocation/8616771890",
-                        "name": "ZZZB2BMIX20260711045940 Gamma Remote",
-                        "externalId": "ZZZB2BMIX20260711045940-GAMMA-REMOTE"
+                        "id": "gid://shopify/CompanyLocation/8624537906",
+                        "name": "ZZZB2BMIX20260716003220 Gamma Remote",
+                        "externalId": "ZZZB2BMIX20260716003220-GAMMA-REMOTE"
                       }
                     ],
                     "pageInfo": {
                       "hasNextPage": false,
                       "hasPreviousPage": false,
-                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjczOTEyMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBnYW1tYSBocSJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjc3MTg5MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBnYW1tYSByZW1vdGUiXSwiZGlyZWN0aW9uIjoibmV4dCJ9"
+                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDUwNTEzOCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBnYW1tYSBocSJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDUzNzkwNiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBnYW1tYSByZW1vdGUiXSwiZGlyZWN0aW9uIjoibmV4dCJ9"
                     }
                   }
                 }
@@ -669,8 +669,8 @@
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc0MzI0NzY2NiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBidXllciJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc0MzMxMzIwMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBnYW1tYSBidXllciJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
+                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc1MDY1MzIzNCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBidXllciJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc1MDcxODc3MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBnYW1tYSBidXllciJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
               }
             },
             "companiesCount": {
@@ -680,61 +680,61 @@
             "companyLocations": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyLocation/8616673586",
-                  "name": "ZZZB2BMIX20260711045940 Alpha Annex",
-                  "externalId": "ZZZB2BMIX20260711045940-ALPHA-ANNEX",
+                  "id": "gid://shopify/CompanyLocation/8624439602",
+                  "name": "ZZZB2BMIX20260716003220 Alpha Annex",
+                  "externalId": "ZZZB2BMIX20260716003220-ALPHA-ANNEX",
                   "company": {
-                    "id": "gid://shopify/Company/5743247666",
-                    "name": "ZZZB2BMIX20260711045940 Alpha Buyer Updated",
-                    "externalId": "ZZZB2BMIX20260711045940-ALPHA-UPDATED"
+                    "id": "gid://shopify/Company/5750653234",
+                    "name": "ZZZB2BMIX20260716003220 Alpha Buyer Updated",
+                    "externalId": "ZZZB2BMIX20260716003220-ALPHA-UPDATED"
                   }
                 },
                 {
-                  "id": "gid://shopify/CompanyLocation/8616640818",
-                  "name": "ZZZB2BMIX20260711045940 Alpha HQ",
-                  "externalId": "ZZZB2BMIX20260711045940-ALPHA-HQ",
+                  "id": "gid://shopify/CompanyLocation/8624406834",
+                  "name": "ZZZB2BMIX20260716003220 Alpha HQ",
+                  "externalId": "ZZZB2BMIX20260716003220-ALPHA-HQ",
                   "company": {
-                    "id": "gid://shopify/Company/5743247666",
-                    "name": "ZZZB2BMIX20260711045940 Alpha Buyer Updated",
-                    "externalId": "ZZZB2BMIX20260711045940-ALPHA-UPDATED"
+                    "id": "gid://shopify/Company/5750653234",
+                    "name": "ZZZB2BMIX20260716003220 Alpha Buyer Updated",
+                    "externalId": "ZZZB2BMIX20260716003220-ALPHA-UPDATED"
                   }
                 },
                 {
-                  "id": "gid://shopify/CompanyLocation/8616706354",
-                  "name": "ZZZB2BMIX20260711045940 Beta HQ",
-                  "externalId": "ZZZB2BMIX20260711045940-BETA-HQ",
+                  "id": "gid://shopify/CompanyLocation/8624472370",
+                  "name": "ZZZB2BMIX20260716003220 Beta HQ",
+                  "externalId": "ZZZB2BMIX20260716003220-BETA-HQ",
                   "company": {
-                    "id": "gid://shopify/Company/5743280434",
-                    "name": "ZZZB2BMIX20260711045940 Beta Buyer",
-                    "externalId": "ZZZB2BMIX20260711045940-BETA"
+                    "id": "gid://shopify/Company/5750686002",
+                    "name": "ZZZB2BMIX20260716003220 Beta Buyer",
+                    "externalId": "ZZZB2BMIX20260716003220-BETA"
                   }
                 },
                 {
-                  "id": "gid://shopify/CompanyLocation/8616739122",
-                  "name": "ZZZB2BMIX20260711045940 Gamma HQ",
-                  "externalId": "ZZZB2BMIX20260711045940-GAMMA-HQ",
+                  "id": "gid://shopify/CompanyLocation/8624505138",
+                  "name": "ZZZB2BMIX20260716003220 Gamma HQ",
+                  "externalId": "ZZZB2BMIX20260716003220-GAMMA-HQ",
                   "company": {
-                    "id": "gid://shopify/Company/5743313202",
-                    "name": "ZZZB2BMIX20260711045940 Gamma Buyer",
-                    "externalId": "ZZZB2BMIX20260711045940-GAMMA"
+                    "id": "gid://shopify/Company/5750718770",
+                    "name": "ZZZB2BMIX20260716003220 Gamma Buyer",
+                    "externalId": "ZZZB2BMIX20260716003220-GAMMA"
                   }
                 },
                 {
-                  "id": "gid://shopify/CompanyLocation/8616771890",
-                  "name": "ZZZB2BMIX20260711045940 Gamma Remote",
-                  "externalId": "ZZZB2BMIX20260711045940-GAMMA-REMOTE",
+                  "id": "gid://shopify/CompanyLocation/8624537906",
+                  "name": "ZZZB2BMIX20260716003220 Gamma Remote",
+                  "externalId": "ZZZB2BMIX20260716003220-GAMMA-REMOTE",
                   "company": {
-                    "id": "gid://shopify/Company/5743313202",
-                    "name": "ZZZB2BMIX20260711045940 Gamma Buyer",
-                    "externalId": "ZZZB2BMIX20260711045940-GAMMA"
+                    "id": "gid://shopify/Company/5750718770",
+                    "name": "ZZZB2BMIX20260716003220 Gamma Buyer",
+                    "externalId": "ZZZB2BMIX20260716003220-GAMMA"
                   }
                 }
               ],
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjY3MzU4NiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjc3MTg5MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBnYW1tYSByZW1vdGUiXSwiZGlyZWN0aW9uIjoibmV4dCJ9"
+                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQzOTYwMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDUzNzkwNiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBnYW1tYSByZW1vdGUiXSwiZGlyZWN0aW9uIjoibmV4dCJ9"
               }
             }
           },
@@ -744,7 +744,7 @@
               "actualQueryCost": 25,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1963,
+                "currentlyAvailable": 1967,
                 "restoreRate": 100
               }
             }
@@ -756,10 +756,10 @@
       "name": "companyLocationUpdate baseline Alpha HQ",
       "query": "mutation B2BMixedOverlayLocationUpdate($companyLocationId: ID!, $input: CompanyLocationUpdateInput!) {\n  companyLocationUpdate(companyLocationId: $companyLocationId, input: $input) {\n    companyLocation {\n      id\n      name\n      externalId\n      company {\n        id\n        name\n        externalId\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "companyLocationId": "gid://shopify/CompanyLocation/8616640818",
+        "companyLocationId": "gid://shopify/CompanyLocation/8624406834",
         "input": {
-          "name": "ZZZB2BMIX20260711045940 Alpha HQ Updated",
-          "externalId": "ZZZB2BMIX20260711045940-ALPHA-HQ-UPDATED"
+          "name": "ZZZB2BMIX20260716003220 Alpha HQ Updated",
+          "externalId": "ZZZB2BMIX20260716003220-ALPHA-HQ-UPDATED"
         }
       },
       "response": {
@@ -768,13 +768,13 @@
           "data": {
             "companyLocationUpdate": {
               "companyLocation": {
-                "id": "gid://shopify/CompanyLocation/8616640818",
-                "name": "ZZZB2BMIX20260711045940 Alpha HQ Updated",
-                "externalId": "ZZZB2BMIX20260711045940-ALPHA-HQ-UPDATED",
+                "id": "gid://shopify/CompanyLocation/8624406834",
+                "name": "ZZZB2BMIX20260716003220 Alpha HQ Updated",
+                "externalId": "ZZZB2BMIX20260716003220-ALPHA-HQ-UPDATED",
                 "company": {
-                  "id": "gid://shopify/Company/5743247666",
-                  "name": "ZZZB2BMIX20260711045940 Alpha Buyer Updated",
-                  "externalId": "ZZZB2BMIX20260711045940-ALPHA-UPDATED"
+                  "id": "gid://shopify/Company/5750653234",
+                  "name": "ZZZB2BMIX20260716003220 Alpha Buyer Updated",
+                  "externalId": "ZZZB2BMIX20260716003220-ALPHA-UPDATED"
                 }
               },
               "userErrors": []
@@ -786,7 +786,7 @@
               "actualQueryCost": 11,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1966,
+                "currentlyAvailable": 1974,
                 "restoreRate": 100
               }
             }
@@ -798,8 +798,8 @@
       "name": "B2B mixed read after baseline location update",
       "query": "query B2BMixedOverlayRead(\n  $companyQuery: String!\n  $locationQuery: String!\n  $companiesFirst: Int!\n  $locationsFirst: Int!\n  $nestedLocationsFirst: Int!\n) {\n  companies(first: $companiesFirst, query: $companyQuery, sortKey: NAME) {\n    nodes {\n      id\n      name\n      externalId\n      locations(first: $nestedLocationsFirst, sortKey: NAME) {\n        nodes {\n          id\n          name\n          externalId\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  companiesCount(limit: 1) {\n    count\n    precision\n  }\n  companyLocations(first: $locationsFirst, query: $locationQuery, sortKey: NAME) {\n    nodes {\n      id\n      name\n      externalId\n      company {\n        id\n        name\n        externalId\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
       "variables": {
-        "companyQuery": "name:ZZZB2BMIX20260711045940",
-        "locationQuery": "name:ZZZB2BMIX20260711045940",
+        "companyQuery": "name:ZZZB2BMIX20260716003220",
+        "locationQuery": "name:ZZZB2BMIX20260716003220",
         "companiesFirst": 10,
         "locationsFirst": 10,
         "nestedLocationsFirst": 10
@@ -811,72 +811,72 @@
             "companies": {
               "nodes": [
                 {
-                  "id": "gid://shopify/Company/5743247666",
-                  "name": "ZZZB2BMIX20260711045940 Alpha Buyer Updated",
-                  "externalId": "ZZZB2BMIX20260711045940-ALPHA-UPDATED",
+                  "id": "gid://shopify/Company/5750653234",
+                  "name": "ZZZB2BMIX20260716003220 Alpha Buyer Updated",
+                  "externalId": "ZZZB2BMIX20260716003220-ALPHA-UPDATED",
                   "locations": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/CompanyLocation/8616673586",
-                        "name": "ZZZB2BMIX20260711045940 Alpha Annex",
-                        "externalId": "ZZZB2BMIX20260711045940-ALPHA-ANNEX"
+                        "id": "gid://shopify/CompanyLocation/8624439602",
+                        "name": "ZZZB2BMIX20260716003220 Alpha Annex",
+                        "externalId": "ZZZB2BMIX20260716003220-ALPHA-ANNEX"
                       },
                       {
-                        "id": "gid://shopify/CompanyLocation/8616640818",
-                        "name": "ZZZB2BMIX20260711045940 Alpha HQ Updated",
-                        "externalId": "ZZZB2BMIX20260711045940-ALPHA-HQ-UPDATED"
+                        "id": "gid://shopify/CompanyLocation/8624406834",
+                        "name": "ZZZB2BMIX20260716003220 Alpha HQ Updated",
+                        "externalId": "ZZZB2BMIX20260716003220-ALPHA-HQ-UPDATED"
                       }
                     ],
                     "pageInfo": {
                       "hasNextPage": false,
                       "hasPreviousPage": false,
-                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjY3MzU4NiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjY0MDgxOCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBocSJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
+                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQzOTYwMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQwNjgzNCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBocSJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
                     }
                   }
                 },
                 {
-                  "id": "gid://shopify/Company/5743280434",
-                  "name": "ZZZB2BMIX20260711045940 Beta Buyer",
-                  "externalId": "ZZZB2BMIX20260711045940-BETA",
+                  "id": "gid://shopify/Company/5750686002",
+                  "name": "ZZZB2BMIX20260716003220 Beta Buyer",
+                  "externalId": "ZZZB2BMIX20260716003220-BETA",
                   "locations": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/CompanyLocation/8616706354",
-                        "name": "ZZZB2BMIX20260711045940 Beta HQ",
-                        "externalId": "ZZZB2BMIX20260711045940-BETA-HQ"
+                        "id": "gid://shopify/CompanyLocation/8624472370",
+                        "name": "ZZZB2BMIX20260716003220 Beta HQ",
+                        "externalId": "ZZZB2BMIX20260716003220-BETA-HQ"
                       }
                     ],
                     "pageInfo": {
                       "hasNextPage": false,
                       "hasPreviousPage": false,
-                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjcwNjM1NCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ==",
-                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjcwNjM1NCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
+                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQ3MjM3MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ==",
+                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQ3MjM3MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
                     }
                   }
                 },
                 {
-                  "id": "gid://shopify/Company/5743313202",
-                  "name": "ZZZB2BMIX20260711045940 Gamma Buyer",
-                  "externalId": "ZZZB2BMIX20260711045940-GAMMA",
+                  "id": "gid://shopify/Company/5750718770",
+                  "name": "ZZZB2BMIX20260716003220 Gamma Buyer",
+                  "externalId": "ZZZB2BMIX20260716003220-GAMMA",
                   "locations": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/CompanyLocation/8616739122",
-                        "name": "ZZZB2BMIX20260711045940 Gamma HQ",
-                        "externalId": "ZZZB2BMIX20260711045940-GAMMA-HQ"
+                        "id": "gid://shopify/CompanyLocation/8624505138",
+                        "name": "ZZZB2BMIX20260716003220 Gamma HQ",
+                        "externalId": "ZZZB2BMIX20260716003220-GAMMA-HQ"
                       },
                       {
-                        "id": "gid://shopify/CompanyLocation/8616771890",
-                        "name": "ZZZB2BMIX20260711045940 Gamma Remote",
-                        "externalId": "ZZZB2BMIX20260711045940-GAMMA-REMOTE"
+                        "id": "gid://shopify/CompanyLocation/8624537906",
+                        "name": "ZZZB2BMIX20260716003220 Gamma Remote",
+                        "externalId": "ZZZB2BMIX20260716003220-GAMMA-REMOTE"
                       }
                     ],
                     "pageInfo": {
                       "hasNextPage": false,
                       "hasPreviousPage": false,
-                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjczOTEyMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBnYW1tYSBocSJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjc3MTg5MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBnYW1tYSByZW1vdGUiXSwiZGlyZWN0aW9uIjoibmV4dCJ9"
+                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDUwNTEzOCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBnYW1tYSBocSJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDUzNzkwNiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBnYW1tYSByZW1vdGUiXSwiZGlyZWN0aW9uIjoibmV4dCJ9"
                     }
                   }
                 }
@@ -884,8 +884,8 @@
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc0MzI0NzY2NiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBidXllciJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc0MzMxMzIwMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBnYW1tYSBidXllciJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
+                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc1MDY1MzIzNCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBidXllciJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc1MDcxODc3MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBnYW1tYSBidXllciJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
               }
             },
             "companiesCount": {
@@ -895,61 +895,61 @@
             "companyLocations": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyLocation/8616673586",
-                  "name": "ZZZB2BMIX20260711045940 Alpha Annex",
-                  "externalId": "ZZZB2BMIX20260711045940-ALPHA-ANNEX",
+                  "id": "gid://shopify/CompanyLocation/8624439602",
+                  "name": "ZZZB2BMIX20260716003220 Alpha Annex",
+                  "externalId": "ZZZB2BMIX20260716003220-ALPHA-ANNEX",
                   "company": {
-                    "id": "gid://shopify/Company/5743247666",
-                    "name": "ZZZB2BMIX20260711045940 Alpha Buyer Updated",
-                    "externalId": "ZZZB2BMIX20260711045940-ALPHA-UPDATED"
+                    "id": "gid://shopify/Company/5750653234",
+                    "name": "ZZZB2BMIX20260716003220 Alpha Buyer Updated",
+                    "externalId": "ZZZB2BMIX20260716003220-ALPHA-UPDATED"
                   }
                 },
                 {
-                  "id": "gid://shopify/CompanyLocation/8616640818",
-                  "name": "ZZZB2BMIX20260711045940 Alpha HQ Updated",
-                  "externalId": "ZZZB2BMIX20260711045940-ALPHA-HQ-UPDATED",
+                  "id": "gid://shopify/CompanyLocation/8624406834",
+                  "name": "ZZZB2BMIX20260716003220 Alpha HQ Updated",
+                  "externalId": "ZZZB2BMIX20260716003220-ALPHA-HQ-UPDATED",
                   "company": {
-                    "id": "gid://shopify/Company/5743247666",
-                    "name": "ZZZB2BMIX20260711045940 Alpha Buyer Updated",
-                    "externalId": "ZZZB2BMIX20260711045940-ALPHA-UPDATED"
+                    "id": "gid://shopify/Company/5750653234",
+                    "name": "ZZZB2BMIX20260716003220 Alpha Buyer Updated",
+                    "externalId": "ZZZB2BMIX20260716003220-ALPHA-UPDATED"
                   }
                 },
                 {
-                  "id": "gid://shopify/CompanyLocation/8616706354",
-                  "name": "ZZZB2BMIX20260711045940 Beta HQ",
-                  "externalId": "ZZZB2BMIX20260711045940-BETA-HQ",
+                  "id": "gid://shopify/CompanyLocation/8624472370",
+                  "name": "ZZZB2BMIX20260716003220 Beta HQ",
+                  "externalId": "ZZZB2BMIX20260716003220-BETA-HQ",
                   "company": {
-                    "id": "gid://shopify/Company/5743280434",
-                    "name": "ZZZB2BMIX20260711045940 Beta Buyer",
-                    "externalId": "ZZZB2BMIX20260711045940-BETA"
+                    "id": "gid://shopify/Company/5750686002",
+                    "name": "ZZZB2BMIX20260716003220 Beta Buyer",
+                    "externalId": "ZZZB2BMIX20260716003220-BETA"
                   }
                 },
                 {
-                  "id": "gid://shopify/CompanyLocation/8616739122",
-                  "name": "ZZZB2BMIX20260711045940 Gamma HQ",
-                  "externalId": "ZZZB2BMIX20260711045940-GAMMA-HQ",
+                  "id": "gid://shopify/CompanyLocation/8624505138",
+                  "name": "ZZZB2BMIX20260716003220 Gamma HQ",
+                  "externalId": "ZZZB2BMIX20260716003220-GAMMA-HQ",
                   "company": {
-                    "id": "gid://shopify/Company/5743313202",
-                    "name": "ZZZB2BMIX20260711045940 Gamma Buyer",
-                    "externalId": "ZZZB2BMIX20260711045940-GAMMA"
+                    "id": "gid://shopify/Company/5750718770",
+                    "name": "ZZZB2BMIX20260716003220 Gamma Buyer",
+                    "externalId": "ZZZB2BMIX20260716003220-GAMMA"
                   }
                 },
                 {
-                  "id": "gid://shopify/CompanyLocation/8616771890",
-                  "name": "ZZZB2BMIX20260711045940 Gamma Remote",
-                  "externalId": "ZZZB2BMIX20260711045940-GAMMA-REMOTE",
+                  "id": "gid://shopify/CompanyLocation/8624537906",
+                  "name": "ZZZB2BMIX20260716003220 Gamma Remote",
+                  "externalId": "ZZZB2BMIX20260716003220-GAMMA-REMOTE",
                   "company": {
-                    "id": "gid://shopify/Company/5743313202",
-                    "name": "ZZZB2BMIX20260711045940 Gamma Buyer",
-                    "externalId": "ZZZB2BMIX20260711045940-GAMMA"
+                    "id": "gid://shopify/Company/5750718770",
+                    "name": "ZZZB2BMIX20260716003220 Gamma Buyer",
+                    "externalId": "ZZZB2BMIX20260716003220-GAMMA"
                   }
                 }
               ],
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjY3MzU4NiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjc3MTg5MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBnYW1tYSByZW1vdGUiXSwiZGlyZWN0aW9uIjoibmV4dCJ9"
+                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQzOTYwMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDUzNzkwNiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBnYW1tYSByZW1vdGUiXSwiZGlyZWN0aW9uIjoibmV4dCJ9"
               }
             }
           },
@@ -959,7 +959,7 @@
               "actualQueryCost": 25,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1975,
+                "currentlyAvailable": 1967,
                 "restoreRate": 100
               }
             }
@@ -971,14 +971,14 @@
       "name": "companyLocationDelete baseline Alpha Annex",
       "query": "mutation B2BMixedOverlayLocationDelete($companyLocationId: ID!) {\n  companyLocationDelete(companyLocationId: $companyLocationId) {\n    deletedCompanyLocationId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "companyLocationId": "gid://shopify/CompanyLocation/8616673586"
+        "companyLocationId": "gid://shopify/CompanyLocation/8624439602"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "companyLocationDelete": {
-              "deletedCompanyLocationId": "gid://shopify/CompanyLocation/8616673586",
+              "deletedCompanyLocationId": "gid://shopify/CompanyLocation/8624439602",
               "userErrors": []
             }
           },
@@ -988,7 +988,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1978,
+                "currentlyAvailable": 1974,
                 "restoreRate": 100
               }
             }
@@ -1000,8 +1000,8 @@
       "name": "B2B mixed read after baseline location delete",
       "query": "query B2BMixedOverlayRead(\n  $companyQuery: String!\n  $locationQuery: String!\n  $companiesFirst: Int!\n  $locationsFirst: Int!\n  $nestedLocationsFirst: Int!\n) {\n  companies(first: $companiesFirst, query: $companyQuery, sortKey: NAME) {\n    nodes {\n      id\n      name\n      externalId\n      locations(first: $nestedLocationsFirst, sortKey: NAME) {\n        nodes {\n          id\n          name\n          externalId\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  companiesCount(limit: 1) {\n    count\n    precision\n  }\n  companyLocations(first: $locationsFirst, query: $locationQuery, sortKey: NAME) {\n    nodes {\n      id\n      name\n      externalId\n      company {\n        id\n        name\n        externalId\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
       "variables": {
-        "companyQuery": "name:ZZZB2BMIX20260711045940",
-        "locationQuery": "name:ZZZB2BMIX20260711045940",
+        "companyQuery": "name:ZZZB2BMIX20260716003220",
+        "locationQuery": "name:ZZZB2BMIX20260716003220",
         "companiesFirst": 10,
         "locationsFirst": 10,
         "nestedLocationsFirst": 10
@@ -1013,67 +1013,67 @@
             "companies": {
               "nodes": [
                 {
-                  "id": "gid://shopify/Company/5743247666",
-                  "name": "ZZZB2BMIX20260711045940 Alpha Buyer Updated",
-                  "externalId": "ZZZB2BMIX20260711045940-ALPHA-UPDATED",
+                  "id": "gid://shopify/Company/5750653234",
+                  "name": "ZZZB2BMIX20260716003220 Alpha Buyer Updated",
+                  "externalId": "ZZZB2BMIX20260716003220-ALPHA-UPDATED",
                   "locations": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/CompanyLocation/8616640818",
-                        "name": "ZZZB2BMIX20260711045940 Alpha HQ Updated",
-                        "externalId": "ZZZB2BMIX20260711045940-ALPHA-HQ-UPDATED"
+                        "id": "gid://shopify/CompanyLocation/8624406834",
+                        "name": "ZZZB2BMIX20260716003220 Alpha HQ Updated",
+                        "externalId": "ZZZB2BMIX20260716003220-ALPHA-HQ-UPDATED"
                       }
                     ],
                     "pageInfo": {
                       "hasNextPage": false,
                       "hasPreviousPage": false,
-                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjY3MzU4NiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjY3MzU4NiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
+                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQzOTYwMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQzOTYwMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
                     }
                   }
                 },
                 {
-                  "id": "gid://shopify/Company/5743280434",
-                  "name": "ZZZB2BMIX20260711045940 Beta Buyer",
-                  "externalId": "ZZZB2BMIX20260711045940-BETA",
+                  "id": "gid://shopify/Company/5750686002",
+                  "name": "ZZZB2BMIX20260716003220 Beta Buyer",
+                  "externalId": "ZZZB2BMIX20260716003220-BETA",
                   "locations": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/CompanyLocation/8616706354",
-                        "name": "ZZZB2BMIX20260711045940 Beta HQ",
-                        "externalId": "ZZZB2BMIX20260711045940-BETA-HQ"
+                        "id": "gid://shopify/CompanyLocation/8624472370",
+                        "name": "ZZZB2BMIX20260716003220 Beta HQ",
+                        "externalId": "ZZZB2BMIX20260716003220-BETA-HQ"
                       }
                     ],
                     "pageInfo": {
                       "hasNextPage": false,
                       "hasPreviousPage": false,
-                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjcwNjM1NCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ==",
-                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjcwNjM1NCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
+                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQ3MjM3MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ==",
+                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQ3MjM3MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
                     }
                   }
                 },
                 {
-                  "id": "gid://shopify/Company/5743313202",
-                  "name": "ZZZB2BMIX20260711045940 Gamma Buyer",
-                  "externalId": "ZZZB2BMIX20260711045940-GAMMA",
+                  "id": "gid://shopify/Company/5750718770",
+                  "name": "ZZZB2BMIX20260716003220 Gamma Buyer",
+                  "externalId": "ZZZB2BMIX20260716003220-GAMMA",
                   "locations": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/CompanyLocation/8616739122",
-                        "name": "ZZZB2BMIX20260711045940 Gamma HQ",
-                        "externalId": "ZZZB2BMIX20260711045940-GAMMA-HQ"
+                        "id": "gid://shopify/CompanyLocation/8624505138",
+                        "name": "ZZZB2BMIX20260716003220 Gamma HQ",
+                        "externalId": "ZZZB2BMIX20260716003220-GAMMA-HQ"
                       },
                       {
-                        "id": "gid://shopify/CompanyLocation/8616771890",
-                        "name": "ZZZB2BMIX20260711045940 Gamma Remote",
-                        "externalId": "ZZZB2BMIX20260711045940-GAMMA-REMOTE"
+                        "id": "gid://shopify/CompanyLocation/8624537906",
+                        "name": "ZZZB2BMIX20260716003220 Gamma Remote",
+                        "externalId": "ZZZB2BMIX20260716003220-GAMMA-REMOTE"
                       }
                     ],
                     "pageInfo": {
                       "hasNextPage": false,
                       "hasPreviousPage": false,
-                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjczOTEyMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBnYW1tYSBocSJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjc3MTg5MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBnYW1tYSByZW1vdGUiXSwiZGlyZWN0aW9uIjoibmV4dCJ9"
+                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDUwNTEzOCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBnYW1tYSBocSJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDUzNzkwNiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBnYW1tYSByZW1vdGUiXSwiZGlyZWN0aW9uIjoibmV4dCJ9"
                     }
                   }
                 }
@@ -1081,8 +1081,8 @@
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc0MzI0NzY2NiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBidXllciJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc0MzMxMzIwMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBnYW1tYSBidXllciJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
+                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc1MDY1MzIzNCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBidXllciJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc1MDcxODc3MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBnYW1tYSBidXllciJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
               }
             },
             "companiesCount": {
@@ -1092,51 +1092,51 @@
             "companyLocations": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyLocation/8616640818",
-                  "name": "ZZZB2BMIX20260711045940 Alpha HQ Updated",
-                  "externalId": "ZZZB2BMIX20260711045940-ALPHA-HQ-UPDATED",
+                  "id": "gid://shopify/CompanyLocation/8624406834",
+                  "name": "ZZZB2BMIX20260716003220 Alpha HQ Updated",
+                  "externalId": "ZZZB2BMIX20260716003220-ALPHA-HQ-UPDATED",
                   "company": {
-                    "id": "gid://shopify/Company/5743247666",
-                    "name": "ZZZB2BMIX20260711045940 Alpha Buyer Updated",
-                    "externalId": "ZZZB2BMIX20260711045940-ALPHA-UPDATED"
+                    "id": "gid://shopify/Company/5750653234",
+                    "name": "ZZZB2BMIX20260716003220 Alpha Buyer Updated",
+                    "externalId": "ZZZB2BMIX20260716003220-ALPHA-UPDATED"
                   }
                 },
                 {
-                  "id": "gid://shopify/CompanyLocation/8616706354",
-                  "name": "ZZZB2BMIX20260711045940 Beta HQ",
-                  "externalId": "ZZZB2BMIX20260711045940-BETA-HQ",
+                  "id": "gid://shopify/CompanyLocation/8624472370",
+                  "name": "ZZZB2BMIX20260716003220 Beta HQ",
+                  "externalId": "ZZZB2BMIX20260716003220-BETA-HQ",
                   "company": {
-                    "id": "gid://shopify/Company/5743280434",
-                    "name": "ZZZB2BMIX20260711045940 Beta Buyer",
-                    "externalId": "ZZZB2BMIX20260711045940-BETA"
+                    "id": "gid://shopify/Company/5750686002",
+                    "name": "ZZZB2BMIX20260716003220 Beta Buyer",
+                    "externalId": "ZZZB2BMIX20260716003220-BETA"
                   }
                 },
                 {
-                  "id": "gid://shopify/CompanyLocation/8616739122",
-                  "name": "ZZZB2BMIX20260711045940 Gamma HQ",
-                  "externalId": "ZZZB2BMIX20260711045940-GAMMA-HQ",
+                  "id": "gid://shopify/CompanyLocation/8624505138",
+                  "name": "ZZZB2BMIX20260716003220 Gamma HQ",
+                  "externalId": "ZZZB2BMIX20260716003220-GAMMA-HQ",
                   "company": {
-                    "id": "gid://shopify/Company/5743313202",
-                    "name": "ZZZB2BMIX20260711045940 Gamma Buyer",
-                    "externalId": "ZZZB2BMIX20260711045940-GAMMA"
+                    "id": "gid://shopify/Company/5750718770",
+                    "name": "ZZZB2BMIX20260716003220 Gamma Buyer",
+                    "externalId": "ZZZB2BMIX20260716003220-GAMMA"
                   }
                 },
                 {
-                  "id": "gid://shopify/CompanyLocation/8616771890",
-                  "name": "ZZZB2BMIX20260711045940 Gamma Remote",
-                  "externalId": "ZZZB2BMIX20260711045940-GAMMA-REMOTE",
+                  "id": "gid://shopify/CompanyLocation/8624537906",
+                  "name": "ZZZB2BMIX20260716003220 Gamma Remote",
+                  "externalId": "ZZZB2BMIX20260716003220-GAMMA-REMOTE",
                   "company": {
-                    "id": "gid://shopify/Company/5743313202",
-                    "name": "ZZZB2BMIX20260711045940 Gamma Buyer",
-                    "externalId": "ZZZB2BMIX20260711045940-GAMMA"
+                    "id": "gid://shopify/Company/5750718770",
+                    "name": "ZZZB2BMIX20260716003220 Gamma Buyer",
+                    "externalId": "ZZZB2BMIX20260716003220-GAMMA"
                   }
                 }
               ],
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjY3MzU4NiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjczOTEyMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBnYW1tYSBocSJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
+                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQzOTYwMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDUwNTEzOCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBnYW1tYSBocSJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
               }
             }
           },
@@ -1146,7 +1146,7 @@
               "actualQueryCost": 24,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1971,
+                "currentlyAvailable": 1969,
                 "restoreRate": 100
               }
             }
@@ -1158,14 +1158,14 @@
       "name": "companyDelete baseline Beta",
       "query": "mutation B2BMixedOverlayCompanyDelete($id: ID!) {\n  companyDelete(id: $id) {\n    deletedCompanyId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/Company/5743280434"
+        "id": "gid://shopify/Company/5750686002"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "companyDelete": {
-              "deletedCompanyId": "gid://shopify/Company/5743280434",
+              "deletedCompanyId": "gid://shopify/Company/5750686002",
               "userErrors": []
             }
           },
@@ -1175,7 +1175,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1976,
+                "currentlyAvailable": 1974,
                 "restoreRate": 100
               }
             }
@@ -1187,8 +1187,8 @@
       "name": "B2B mixed read after baseline company delete",
       "query": "query B2BMixedOverlayRead(\n  $companyQuery: String!\n  $locationQuery: String!\n  $companiesFirst: Int!\n  $locationsFirst: Int!\n  $nestedLocationsFirst: Int!\n) {\n  companies(first: $companiesFirst, query: $companyQuery, sortKey: NAME) {\n    nodes {\n      id\n      name\n      externalId\n      locations(first: $nestedLocationsFirst, sortKey: NAME) {\n        nodes {\n          id\n          name\n          externalId\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  companiesCount(limit: 1) {\n    count\n    precision\n  }\n  companyLocations(first: $locationsFirst, query: $locationQuery, sortKey: NAME) {\n    nodes {\n      id\n      name\n      externalId\n      company {\n        id\n        name\n        externalId\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
       "variables": {
-        "companyQuery": "name:ZZZB2BMIX20260711045940",
-        "locationQuery": "name:ZZZB2BMIX20260711045940",
+        "companyQuery": "name:ZZZB2BMIX20260716003220",
+        "locationQuery": "name:ZZZB2BMIX20260716003220",
         "companiesFirst": 10,
         "locationsFirst": 10,
         "nestedLocationsFirst": 10
@@ -1200,47 +1200,47 @@
             "companies": {
               "nodes": [
                 {
-                  "id": "gid://shopify/Company/5743247666",
-                  "name": "ZZZB2BMIX20260711045940 Alpha Buyer Updated",
-                  "externalId": "ZZZB2BMIX20260711045940-ALPHA-UPDATED",
+                  "id": "gid://shopify/Company/5750653234",
+                  "name": "ZZZB2BMIX20260716003220 Alpha Buyer Updated",
+                  "externalId": "ZZZB2BMIX20260716003220-ALPHA-UPDATED",
                   "locations": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/CompanyLocation/8616640818",
-                        "name": "ZZZB2BMIX20260711045940 Alpha HQ Updated",
-                        "externalId": "ZZZB2BMIX20260711045940-ALPHA-HQ-UPDATED"
+                        "id": "gid://shopify/CompanyLocation/8624406834",
+                        "name": "ZZZB2BMIX20260716003220 Alpha HQ Updated",
+                        "externalId": "ZZZB2BMIX20260716003220-ALPHA-HQ-UPDATED"
                       }
                     ],
                     "pageInfo": {
                       "hasNextPage": false,
                       "hasPreviousPage": false,
-                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjY3MzU4NiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjY3MzU4NiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
+                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQzOTYwMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQzOTYwMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
                     }
                   }
                 },
                 {
-                  "id": "gid://shopify/Company/5743313202",
-                  "name": "ZZZB2BMIX20260711045940 Gamma Buyer",
-                  "externalId": "ZZZB2BMIX20260711045940-GAMMA",
+                  "id": "gid://shopify/Company/5750718770",
+                  "name": "ZZZB2BMIX20260716003220 Gamma Buyer",
+                  "externalId": "ZZZB2BMIX20260716003220-GAMMA",
                   "locations": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/CompanyLocation/8616739122",
-                        "name": "ZZZB2BMIX20260711045940 Gamma HQ",
-                        "externalId": "ZZZB2BMIX20260711045940-GAMMA-HQ"
+                        "id": "gid://shopify/CompanyLocation/8624505138",
+                        "name": "ZZZB2BMIX20260716003220 Gamma HQ",
+                        "externalId": "ZZZB2BMIX20260716003220-GAMMA-HQ"
                       },
                       {
-                        "id": "gid://shopify/CompanyLocation/8616771890",
-                        "name": "ZZZB2BMIX20260711045940 Gamma Remote",
-                        "externalId": "ZZZB2BMIX20260711045940-GAMMA-REMOTE"
+                        "id": "gid://shopify/CompanyLocation/8624537906",
+                        "name": "ZZZB2BMIX20260716003220 Gamma Remote",
+                        "externalId": "ZZZB2BMIX20260716003220-GAMMA-REMOTE"
                       }
                     ],
                     "pageInfo": {
                       "hasNextPage": false,
                       "hasPreviousPage": false,
-                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjczOTEyMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBnYW1tYSBocSJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjc3MTg5MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBnYW1tYSByZW1vdGUiXSwiZGlyZWN0aW9uIjoibmV4dCJ9"
+                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDUwNTEzOCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBnYW1tYSBocSJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDUzNzkwNiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBnYW1tYSByZW1vdGUiXSwiZGlyZWN0aW9uIjoibmV4dCJ9"
                     }
                   }
                 }
@@ -1248,8 +1248,8 @@
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc0MzI0NzY2NiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBidXllciJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc0MzI4MDQzNCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBiZXRhIGJ1eWVyIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
+                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc1MDY1MzIzNCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBidXllciJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc1MDY4NjAwMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBiZXRhIGJ1eWVyIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
               }
             },
             "companiesCount": {
@@ -1259,41 +1259,41 @@
             "companyLocations": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyLocation/8616640818",
-                  "name": "ZZZB2BMIX20260711045940 Alpha HQ Updated",
-                  "externalId": "ZZZB2BMIX20260711045940-ALPHA-HQ-UPDATED",
+                  "id": "gid://shopify/CompanyLocation/8624406834",
+                  "name": "ZZZB2BMIX20260716003220 Alpha HQ Updated",
+                  "externalId": "ZZZB2BMIX20260716003220-ALPHA-HQ-UPDATED",
                   "company": {
-                    "id": "gid://shopify/Company/5743247666",
-                    "name": "ZZZB2BMIX20260711045940 Alpha Buyer Updated",
-                    "externalId": "ZZZB2BMIX20260711045940-ALPHA-UPDATED"
+                    "id": "gid://shopify/Company/5750653234",
+                    "name": "ZZZB2BMIX20260716003220 Alpha Buyer Updated",
+                    "externalId": "ZZZB2BMIX20260716003220-ALPHA-UPDATED"
                   }
                 },
                 {
-                  "id": "gid://shopify/CompanyLocation/8616739122",
-                  "name": "ZZZB2BMIX20260711045940 Gamma HQ",
-                  "externalId": "ZZZB2BMIX20260711045940-GAMMA-HQ",
+                  "id": "gid://shopify/CompanyLocation/8624505138",
+                  "name": "ZZZB2BMIX20260716003220 Gamma HQ",
+                  "externalId": "ZZZB2BMIX20260716003220-GAMMA-HQ",
                   "company": {
-                    "id": "gid://shopify/Company/5743313202",
-                    "name": "ZZZB2BMIX20260711045940 Gamma Buyer",
-                    "externalId": "ZZZB2BMIX20260711045940-GAMMA"
+                    "id": "gid://shopify/Company/5750718770",
+                    "name": "ZZZB2BMIX20260716003220 Gamma Buyer",
+                    "externalId": "ZZZB2BMIX20260716003220-GAMMA"
                   }
                 },
                 {
-                  "id": "gid://shopify/CompanyLocation/8616771890",
-                  "name": "ZZZB2BMIX20260711045940 Gamma Remote",
-                  "externalId": "ZZZB2BMIX20260711045940-GAMMA-REMOTE",
+                  "id": "gid://shopify/CompanyLocation/8624537906",
+                  "name": "ZZZB2BMIX20260716003220 Gamma Remote",
+                  "externalId": "ZZZB2BMIX20260716003220-GAMMA-REMOTE",
                   "company": {
-                    "id": "gid://shopify/Company/5743313202",
-                    "name": "ZZZB2BMIX20260711045940 Gamma Buyer",
-                    "externalId": "ZZZB2BMIX20260711045940-GAMMA"
+                    "id": "gid://shopify/Company/5750718770",
+                    "name": "ZZZB2BMIX20260716003220 Gamma Buyer",
+                    "externalId": "ZZZB2BMIX20260716003220-GAMMA"
                   }
                 }
               ],
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjY3MzU4NiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjcwNjM1NCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
+                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQzOTYwMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQ3MjM3MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
               }
             }
           },
@@ -1303,7 +1303,7 @@
               "actualQueryCost": 22,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1977,
+                "currentlyAvailable": 1978,
                 "restoreRate": 100
               }
             }
@@ -1312,16 +1312,72 @@
       }
     }
   ],
+  "countOnly": {
+    "baseline": {
+      "name": "baseline B2B companiesCount count-only before staged overlay",
+      "query": "query B2BMixedOverlayCompaniesCountOnly {\n  companiesCount {\n    count\n    precision\n  }\n}\n",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "companiesCount": {
+              "count": 17,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "afterStagedCreate": {
+      "name": "B2B companiesCount count-only after staged company create",
+      "query": "query B2BMixedOverlayCompaniesCountOnly {\n  companiesCount {\n    count\n    precision\n  }\n}\n",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "companiesCount": {
+              "count": 18,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
   "cleanup": [
     {
       "type": "company",
-      "id": "gid://shopify/Company/5743313202",
+      "id": "gid://shopify/Company/5750718770",
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "companyDelete": {
-              "deletedCompanyId": "gid://shopify/Company/5743313202",
+              "deletedCompanyId": "gid://shopify/Company/5750718770",
               "userErrors": []
             }
           },
@@ -1331,7 +1387,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1981,
+                "currentlyAvailable": 1985,
                 "restoreRate": 100
               }
             }
@@ -1341,13 +1397,13 @@
     },
     {
       "type": "company",
-      "id": "gid://shopify/Company/5743247666",
+      "id": "gid://shopify/Company/5750653234",
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "companyDelete": {
-              "deletedCompanyId": "gid://shopify/Company/5743247666",
+              "deletedCompanyId": "gid://shopify/Company/5750653234",
               "userErrors": []
             }
           },
@@ -1368,10 +1424,37 @@
   ],
   "upstreamCalls": [
     {
+      "operationName": "B2BMixedOverlayCompaniesCountOnly",
+      "variables": {},
+      "query": "query B2BMixedOverlayCompaniesCountOnly {\n  companiesCount {\n    count\n    precision\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "companiesCount": {
+              "count": 17,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
       "operationName": "B2BMixedOverlayRead",
       "variables": {
-        "companyQuery": "name:ZZZB2BMIX20260711045940",
-        "locationQuery": "name:ZZZB2BMIX20260711045940",
+        "companyQuery": "name:ZZZB2BMIX20260716003220",
+        "locationQuery": "name:ZZZB2BMIX20260716003220",
         "companiesFirst": 10,
         "locationsFirst": 10,
         "nestedLocationsFirst": 10
@@ -1384,47 +1467,47 @@
             "companies": {
               "nodes": [
                 {
-                  "id": "gid://shopify/Company/5743247666",
-                  "name": "ZZZB2BMIX20260711045940 Alpha Buyer",
-                  "externalId": "ZZZB2BMIX20260711045940-ALPHA",
+                  "id": "gid://shopify/Company/5750653234",
+                  "name": "ZZZB2BMIX20260716003220 Alpha Buyer",
+                  "externalId": "ZZZB2BMIX20260716003220-ALPHA",
                   "locations": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/CompanyLocation/8616673586",
-                        "name": "ZZZB2BMIX20260711045940 Alpha Annex",
-                        "externalId": "ZZZB2BMIX20260711045940-ALPHA-ANNEX"
+                        "id": "gid://shopify/CompanyLocation/8624439602",
+                        "name": "ZZZB2BMIX20260716003220 Alpha Annex",
+                        "externalId": "ZZZB2BMIX20260716003220-ALPHA-ANNEX"
                       },
                       {
-                        "id": "gid://shopify/CompanyLocation/8616640818",
-                        "name": "ZZZB2BMIX20260711045940 Alpha HQ",
-                        "externalId": "ZZZB2BMIX20260711045940-ALPHA-HQ"
+                        "id": "gid://shopify/CompanyLocation/8624406834",
+                        "name": "ZZZB2BMIX20260716003220 Alpha HQ",
+                        "externalId": "ZZZB2BMIX20260716003220-ALPHA-HQ"
                       }
                     ],
                     "pageInfo": {
                       "hasNextPage": false,
                       "hasPreviousPage": false,
-                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjY3MzU4NiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjY0MDgxOCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBocSJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
+                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQzOTYwMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQwNjgzNCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBocSJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
                     }
                   }
                 },
                 {
-                  "id": "gid://shopify/Company/5743280434",
-                  "name": "ZZZB2BMIX20260711045940 Beta Buyer",
-                  "externalId": "ZZZB2BMIX20260711045940-BETA",
+                  "id": "gid://shopify/Company/5750686002",
+                  "name": "ZZZB2BMIX20260716003220 Beta Buyer",
+                  "externalId": "ZZZB2BMIX20260716003220-BETA",
                   "locations": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/CompanyLocation/8616706354",
-                        "name": "ZZZB2BMIX20260711045940 Beta HQ",
-                        "externalId": "ZZZB2BMIX20260711045940-BETA-HQ"
+                        "id": "gid://shopify/CompanyLocation/8624472370",
+                        "name": "ZZZB2BMIX20260716003220 Beta HQ",
+                        "externalId": "ZZZB2BMIX20260716003220-BETA-HQ"
                       }
                     ],
                     "pageInfo": {
                       "hasNextPage": false,
                       "hasPreviousPage": false,
-                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjcwNjM1NCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ==",
-                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjcwNjM1NCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
+                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQ3MjM3MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ==",
+                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQ3MjM3MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
                     }
                   }
                 }
@@ -1432,8 +1515,8 @@
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc0MzI0NzY2NiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBidXllciJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc0MzI4MDQzNCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBiZXRhIGJ1eWVyIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
+                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc1MDY1MzIzNCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBidXllciJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc1MDY4NjAwMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBiZXRhIGJ1eWVyIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
               }
             },
             "companiesCount": {
@@ -1443,41 +1526,41 @@
             "companyLocations": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyLocation/8616673586",
-                  "name": "ZZZB2BMIX20260711045940 Alpha Annex",
-                  "externalId": "ZZZB2BMIX20260711045940-ALPHA-ANNEX",
+                  "id": "gid://shopify/CompanyLocation/8624439602",
+                  "name": "ZZZB2BMIX20260716003220 Alpha Annex",
+                  "externalId": "ZZZB2BMIX20260716003220-ALPHA-ANNEX",
                   "company": {
-                    "id": "gid://shopify/Company/5743247666",
-                    "name": "ZZZB2BMIX20260711045940 Alpha Buyer",
-                    "externalId": "ZZZB2BMIX20260711045940-ALPHA"
+                    "id": "gid://shopify/Company/5750653234",
+                    "name": "ZZZB2BMIX20260716003220 Alpha Buyer",
+                    "externalId": "ZZZB2BMIX20260716003220-ALPHA"
                   }
                 },
                 {
-                  "id": "gid://shopify/CompanyLocation/8616640818",
-                  "name": "ZZZB2BMIX20260711045940 Alpha HQ",
-                  "externalId": "ZZZB2BMIX20260711045940-ALPHA-HQ",
+                  "id": "gid://shopify/CompanyLocation/8624406834",
+                  "name": "ZZZB2BMIX20260716003220 Alpha HQ",
+                  "externalId": "ZZZB2BMIX20260716003220-ALPHA-HQ",
                   "company": {
-                    "id": "gid://shopify/Company/5743247666",
-                    "name": "ZZZB2BMIX20260711045940 Alpha Buyer",
-                    "externalId": "ZZZB2BMIX20260711045940-ALPHA"
+                    "id": "gid://shopify/Company/5750653234",
+                    "name": "ZZZB2BMIX20260716003220 Alpha Buyer",
+                    "externalId": "ZZZB2BMIX20260716003220-ALPHA"
                   }
                 },
                 {
-                  "id": "gid://shopify/CompanyLocation/8616706354",
-                  "name": "ZZZB2BMIX20260711045940 Beta HQ",
-                  "externalId": "ZZZB2BMIX20260711045940-BETA-HQ",
+                  "id": "gid://shopify/CompanyLocation/8624472370",
+                  "name": "ZZZB2BMIX20260716003220 Beta HQ",
+                  "externalId": "ZZZB2BMIX20260716003220-BETA-HQ",
                   "company": {
-                    "id": "gid://shopify/Company/5743280434",
-                    "name": "ZZZB2BMIX20260711045940 Beta Buyer",
-                    "externalId": "ZZZB2BMIX20260711045940-BETA"
+                    "id": "gid://shopify/Company/5750686002",
+                    "name": "ZZZB2BMIX20260716003220 Beta Buyer",
+                    "externalId": "ZZZB2BMIX20260716003220-BETA"
                   }
                 }
               ],
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjY3MzU4NiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjcwNjM1NCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
+                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQzOTYwMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQ3MjM3MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
               }
             }
           },
@@ -1498,8 +1581,8 @@
     {
       "operationName": "B2BMixedOverlayRead",
       "variables": {
-        "companyQuery": "name:ZZZB2BMIX20260711045940",
-        "locationQuery": "name:ZZZB2BMIX20260711045940",
+        "companyQuery": "name:ZZZB2BMIX20260716003220",
+        "locationQuery": "name:ZZZB2BMIX20260716003220",
         "companiesFirst": 10,
         "locationsFirst": 10,
         "nestedLocationsFirst": 10
@@ -1512,47 +1595,47 @@
             "companies": {
               "nodes": [
                 {
-                  "id": "gid://shopify/Company/5743247666",
-                  "name": "ZZZB2BMIX20260711045940 Alpha Buyer",
-                  "externalId": "ZZZB2BMIX20260711045940-ALPHA",
+                  "id": "gid://shopify/Company/5750653234",
+                  "name": "ZZZB2BMIX20260716003220 Alpha Buyer",
+                  "externalId": "ZZZB2BMIX20260716003220-ALPHA",
                   "locations": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/CompanyLocation/8616673586",
-                        "name": "ZZZB2BMIX20260711045940 Alpha Annex",
-                        "externalId": "ZZZB2BMIX20260711045940-ALPHA-ANNEX"
+                        "id": "gid://shopify/CompanyLocation/8624439602",
+                        "name": "ZZZB2BMIX20260716003220 Alpha Annex",
+                        "externalId": "ZZZB2BMIX20260716003220-ALPHA-ANNEX"
                       },
                       {
-                        "id": "gid://shopify/CompanyLocation/8616640818",
-                        "name": "ZZZB2BMIX20260711045940 Alpha HQ",
-                        "externalId": "ZZZB2BMIX20260711045940-ALPHA-HQ"
+                        "id": "gid://shopify/CompanyLocation/8624406834",
+                        "name": "ZZZB2BMIX20260716003220 Alpha HQ",
+                        "externalId": "ZZZB2BMIX20260716003220-ALPHA-HQ"
                       }
                     ],
                     "pageInfo": {
                       "hasNextPage": false,
                       "hasPreviousPage": false,
-                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjY3MzU4NiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjY0MDgxOCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBocSJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
+                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQzOTYwMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQwNjgzNCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBocSJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
                     }
                   }
                 },
                 {
-                  "id": "gid://shopify/Company/5743280434",
-                  "name": "ZZZB2BMIX20260711045940 Beta Buyer",
-                  "externalId": "ZZZB2BMIX20260711045940-BETA",
+                  "id": "gid://shopify/Company/5750686002",
+                  "name": "ZZZB2BMIX20260716003220 Beta Buyer",
+                  "externalId": "ZZZB2BMIX20260716003220-BETA",
                   "locations": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/CompanyLocation/8616706354",
-                        "name": "ZZZB2BMIX20260711045940 Beta HQ",
-                        "externalId": "ZZZB2BMIX20260711045940-BETA-HQ"
+                        "id": "gid://shopify/CompanyLocation/8624472370",
+                        "name": "ZZZB2BMIX20260716003220 Beta HQ",
+                        "externalId": "ZZZB2BMIX20260716003220-BETA-HQ"
                       }
                     ],
                     "pageInfo": {
                       "hasNextPage": false,
                       "hasPreviousPage": false,
-                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjcwNjM1NCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ==",
-                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjcwNjM1NCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
+                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQ3MjM3MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ==",
+                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQ3MjM3MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
                     }
                   }
                 }
@@ -1560,8 +1643,8 @@
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc0MzI0NzY2NiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBidXllciJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc0MzI4MDQzNCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBiZXRhIGJ1eWVyIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
+                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc1MDY1MzIzNCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBidXllciJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc1MDY4NjAwMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBiZXRhIGJ1eWVyIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
               }
             },
             "companiesCount": {
@@ -1571,41 +1654,41 @@
             "companyLocations": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyLocation/8616673586",
-                  "name": "ZZZB2BMIX20260711045940 Alpha Annex",
-                  "externalId": "ZZZB2BMIX20260711045940-ALPHA-ANNEX",
+                  "id": "gid://shopify/CompanyLocation/8624439602",
+                  "name": "ZZZB2BMIX20260716003220 Alpha Annex",
+                  "externalId": "ZZZB2BMIX20260716003220-ALPHA-ANNEX",
                   "company": {
-                    "id": "gid://shopify/Company/5743247666",
-                    "name": "ZZZB2BMIX20260711045940 Alpha Buyer",
-                    "externalId": "ZZZB2BMIX20260711045940-ALPHA"
+                    "id": "gid://shopify/Company/5750653234",
+                    "name": "ZZZB2BMIX20260716003220 Alpha Buyer",
+                    "externalId": "ZZZB2BMIX20260716003220-ALPHA"
                   }
                 },
                 {
-                  "id": "gid://shopify/CompanyLocation/8616640818",
-                  "name": "ZZZB2BMIX20260711045940 Alpha HQ",
-                  "externalId": "ZZZB2BMIX20260711045940-ALPHA-HQ",
+                  "id": "gid://shopify/CompanyLocation/8624406834",
+                  "name": "ZZZB2BMIX20260716003220 Alpha HQ",
+                  "externalId": "ZZZB2BMIX20260716003220-ALPHA-HQ",
                   "company": {
-                    "id": "gid://shopify/Company/5743247666",
-                    "name": "ZZZB2BMIX20260711045940 Alpha Buyer",
-                    "externalId": "ZZZB2BMIX20260711045940-ALPHA"
+                    "id": "gid://shopify/Company/5750653234",
+                    "name": "ZZZB2BMIX20260716003220 Alpha Buyer",
+                    "externalId": "ZZZB2BMIX20260716003220-ALPHA"
                   }
                 },
                 {
-                  "id": "gid://shopify/CompanyLocation/8616706354",
-                  "name": "ZZZB2BMIX20260711045940 Beta HQ",
-                  "externalId": "ZZZB2BMIX20260711045940-BETA-HQ",
+                  "id": "gid://shopify/CompanyLocation/8624472370",
+                  "name": "ZZZB2BMIX20260716003220 Beta HQ",
+                  "externalId": "ZZZB2BMIX20260716003220-BETA-HQ",
                   "company": {
-                    "id": "gid://shopify/Company/5743280434",
-                    "name": "ZZZB2BMIX20260711045940 Beta Buyer",
-                    "externalId": "ZZZB2BMIX20260711045940-BETA"
+                    "id": "gid://shopify/Company/5750686002",
+                    "name": "ZZZB2BMIX20260716003220 Beta Buyer",
+                    "externalId": "ZZZB2BMIX20260716003220-BETA"
                   }
                 }
               ],
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjY3MzU4NiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjcwNjM1NCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
+                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQzOTYwMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQ3MjM3MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
               }
             }
           },
@@ -1626,8 +1709,8 @@
     {
       "operationName": "B2BMixedOverlayRead",
       "variables": {
-        "companyQuery": "name:ZZZB2BMIX20260711045940",
-        "locationQuery": "name:ZZZB2BMIX20260711045940",
+        "companyQuery": "name:ZZZB2BMIX20260716003220",
+        "locationQuery": "name:ZZZB2BMIX20260716003220",
         "companiesFirst": 10,
         "locationsFirst": 10,
         "nestedLocationsFirst": 10
@@ -1640,47 +1723,47 @@
             "companies": {
               "nodes": [
                 {
-                  "id": "gid://shopify/Company/5743247666",
-                  "name": "ZZZB2BMIX20260711045940 Alpha Buyer",
-                  "externalId": "ZZZB2BMIX20260711045940-ALPHA",
+                  "id": "gid://shopify/Company/5750653234",
+                  "name": "ZZZB2BMIX20260716003220 Alpha Buyer",
+                  "externalId": "ZZZB2BMIX20260716003220-ALPHA",
                   "locations": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/CompanyLocation/8616673586",
-                        "name": "ZZZB2BMIX20260711045940 Alpha Annex",
-                        "externalId": "ZZZB2BMIX20260711045940-ALPHA-ANNEX"
+                        "id": "gid://shopify/CompanyLocation/8624439602",
+                        "name": "ZZZB2BMIX20260716003220 Alpha Annex",
+                        "externalId": "ZZZB2BMIX20260716003220-ALPHA-ANNEX"
                       },
                       {
-                        "id": "gid://shopify/CompanyLocation/8616640818",
-                        "name": "ZZZB2BMIX20260711045940 Alpha HQ",
-                        "externalId": "ZZZB2BMIX20260711045940-ALPHA-HQ"
+                        "id": "gid://shopify/CompanyLocation/8624406834",
+                        "name": "ZZZB2BMIX20260716003220 Alpha HQ",
+                        "externalId": "ZZZB2BMIX20260716003220-ALPHA-HQ"
                       }
                     ],
                     "pageInfo": {
                       "hasNextPage": false,
                       "hasPreviousPage": false,
-                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjY3MzU4NiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjY0MDgxOCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBocSJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
+                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQzOTYwMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQwNjgzNCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBocSJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
                     }
                   }
                 },
                 {
-                  "id": "gid://shopify/Company/5743280434",
-                  "name": "ZZZB2BMIX20260711045940 Beta Buyer",
-                  "externalId": "ZZZB2BMIX20260711045940-BETA",
+                  "id": "gid://shopify/Company/5750686002",
+                  "name": "ZZZB2BMIX20260716003220 Beta Buyer",
+                  "externalId": "ZZZB2BMIX20260716003220-BETA",
                   "locations": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/CompanyLocation/8616706354",
-                        "name": "ZZZB2BMIX20260711045940 Beta HQ",
-                        "externalId": "ZZZB2BMIX20260711045940-BETA-HQ"
+                        "id": "gid://shopify/CompanyLocation/8624472370",
+                        "name": "ZZZB2BMIX20260716003220 Beta HQ",
+                        "externalId": "ZZZB2BMIX20260716003220-BETA-HQ"
                       }
                     ],
                     "pageInfo": {
                       "hasNextPage": false,
                       "hasPreviousPage": false,
-                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjcwNjM1NCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ==",
-                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjcwNjM1NCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
+                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQ3MjM3MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ==",
+                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQ3MjM3MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
                     }
                   }
                 }
@@ -1688,8 +1771,8 @@
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc0MzI0NzY2NiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBidXllciJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc0MzI4MDQzNCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBiZXRhIGJ1eWVyIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
+                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc1MDY1MzIzNCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBidXllciJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc1MDY4NjAwMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBiZXRhIGJ1eWVyIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
               }
             },
             "companiesCount": {
@@ -1699,41 +1782,41 @@
             "companyLocations": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyLocation/8616673586",
-                  "name": "ZZZB2BMIX20260711045940 Alpha Annex",
-                  "externalId": "ZZZB2BMIX20260711045940-ALPHA-ANNEX",
+                  "id": "gid://shopify/CompanyLocation/8624439602",
+                  "name": "ZZZB2BMIX20260716003220 Alpha Annex",
+                  "externalId": "ZZZB2BMIX20260716003220-ALPHA-ANNEX",
                   "company": {
-                    "id": "gid://shopify/Company/5743247666",
-                    "name": "ZZZB2BMIX20260711045940 Alpha Buyer",
-                    "externalId": "ZZZB2BMIX20260711045940-ALPHA"
+                    "id": "gid://shopify/Company/5750653234",
+                    "name": "ZZZB2BMIX20260716003220 Alpha Buyer",
+                    "externalId": "ZZZB2BMIX20260716003220-ALPHA"
                   }
                 },
                 {
-                  "id": "gid://shopify/CompanyLocation/8616640818",
-                  "name": "ZZZB2BMIX20260711045940 Alpha HQ",
-                  "externalId": "ZZZB2BMIX20260711045940-ALPHA-HQ",
+                  "id": "gid://shopify/CompanyLocation/8624406834",
+                  "name": "ZZZB2BMIX20260716003220 Alpha HQ",
+                  "externalId": "ZZZB2BMIX20260716003220-ALPHA-HQ",
                   "company": {
-                    "id": "gid://shopify/Company/5743247666",
-                    "name": "ZZZB2BMIX20260711045940 Alpha Buyer",
-                    "externalId": "ZZZB2BMIX20260711045940-ALPHA"
+                    "id": "gid://shopify/Company/5750653234",
+                    "name": "ZZZB2BMIX20260716003220 Alpha Buyer",
+                    "externalId": "ZZZB2BMIX20260716003220-ALPHA"
                   }
                 },
                 {
-                  "id": "gid://shopify/CompanyLocation/8616706354",
-                  "name": "ZZZB2BMIX20260711045940 Beta HQ",
-                  "externalId": "ZZZB2BMIX20260711045940-BETA-HQ",
+                  "id": "gid://shopify/CompanyLocation/8624472370",
+                  "name": "ZZZB2BMIX20260716003220 Beta HQ",
+                  "externalId": "ZZZB2BMIX20260716003220-BETA-HQ",
                   "company": {
-                    "id": "gid://shopify/Company/5743280434",
-                    "name": "ZZZB2BMIX20260711045940 Beta Buyer",
-                    "externalId": "ZZZB2BMIX20260711045940-BETA"
+                    "id": "gid://shopify/Company/5750686002",
+                    "name": "ZZZB2BMIX20260716003220 Beta Buyer",
+                    "externalId": "ZZZB2BMIX20260716003220-BETA"
                   }
                 }
               ],
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjY3MzU4NiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjcwNjM1NCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
+                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQzOTYwMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQ3MjM3MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
               }
             }
           },
@@ -1754,8 +1837,8 @@
     {
       "operationName": "B2BMixedOverlayRead",
       "variables": {
-        "companyQuery": "name:ZZZB2BMIX20260711045940",
-        "locationQuery": "name:ZZZB2BMIX20260711045940",
+        "companyQuery": "name:ZZZB2BMIX20260716003220",
+        "locationQuery": "name:ZZZB2BMIX20260716003220",
         "companiesFirst": 10,
         "locationsFirst": 10,
         "nestedLocationsFirst": 10
@@ -1768,47 +1851,47 @@
             "companies": {
               "nodes": [
                 {
-                  "id": "gid://shopify/Company/5743247666",
-                  "name": "ZZZB2BMIX20260711045940 Alpha Buyer",
-                  "externalId": "ZZZB2BMIX20260711045940-ALPHA",
+                  "id": "gid://shopify/Company/5750653234",
+                  "name": "ZZZB2BMIX20260716003220 Alpha Buyer",
+                  "externalId": "ZZZB2BMIX20260716003220-ALPHA",
                   "locations": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/CompanyLocation/8616673586",
-                        "name": "ZZZB2BMIX20260711045940 Alpha Annex",
-                        "externalId": "ZZZB2BMIX20260711045940-ALPHA-ANNEX"
+                        "id": "gid://shopify/CompanyLocation/8624439602",
+                        "name": "ZZZB2BMIX20260716003220 Alpha Annex",
+                        "externalId": "ZZZB2BMIX20260716003220-ALPHA-ANNEX"
                       },
                       {
-                        "id": "gid://shopify/CompanyLocation/8616640818",
-                        "name": "ZZZB2BMIX20260711045940 Alpha HQ",
-                        "externalId": "ZZZB2BMIX20260711045940-ALPHA-HQ"
+                        "id": "gid://shopify/CompanyLocation/8624406834",
+                        "name": "ZZZB2BMIX20260716003220 Alpha HQ",
+                        "externalId": "ZZZB2BMIX20260716003220-ALPHA-HQ"
                       }
                     ],
                     "pageInfo": {
                       "hasNextPage": false,
                       "hasPreviousPage": false,
-                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjY3MzU4NiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjY0MDgxOCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBocSJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
+                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQzOTYwMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQwNjgzNCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBocSJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
                     }
                   }
                 },
                 {
-                  "id": "gid://shopify/Company/5743280434",
-                  "name": "ZZZB2BMIX20260711045940 Beta Buyer",
-                  "externalId": "ZZZB2BMIX20260711045940-BETA",
+                  "id": "gid://shopify/Company/5750686002",
+                  "name": "ZZZB2BMIX20260716003220 Beta Buyer",
+                  "externalId": "ZZZB2BMIX20260716003220-BETA",
                   "locations": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/CompanyLocation/8616706354",
-                        "name": "ZZZB2BMIX20260711045940 Beta HQ",
-                        "externalId": "ZZZB2BMIX20260711045940-BETA-HQ"
+                        "id": "gid://shopify/CompanyLocation/8624472370",
+                        "name": "ZZZB2BMIX20260716003220 Beta HQ",
+                        "externalId": "ZZZB2BMIX20260716003220-BETA-HQ"
                       }
                     ],
                     "pageInfo": {
                       "hasNextPage": false,
                       "hasPreviousPage": false,
-                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjcwNjM1NCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ==",
-                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjcwNjM1NCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
+                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQ3MjM3MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ==",
+                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQ3MjM3MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
                     }
                   }
                 }
@@ -1816,8 +1899,8 @@
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc0MzI0NzY2NiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBidXllciJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc0MzI4MDQzNCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBiZXRhIGJ1eWVyIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
+                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc1MDY1MzIzNCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBidXllciJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc1MDY4NjAwMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBiZXRhIGJ1eWVyIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
               }
             },
             "companiesCount": {
@@ -1827,41 +1910,41 @@
             "companyLocations": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyLocation/8616673586",
-                  "name": "ZZZB2BMIX20260711045940 Alpha Annex",
-                  "externalId": "ZZZB2BMIX20260711045940-ALPHA-ANNEX",
+                  "id": "gid://shopify/CompanyLocation/8624439602",
+                  "name": "ZZZB2BMIX20260716003220 Alpha Annex",
+                  "externalId": "ZZZB2BMIX20260716003220-ALPHA-ANNEX",
                   "company": {
-                    "id": "gid://shopify/Company/5743247666",
-                    "name": "ZZZB2BMIX20260711045940 Alpha Buyer",
-                    "externalId": "ZZZB2BMIX20260711045940-ALPHA"
+                    "id": "gid://shopify/Company/5750653234",
+                    "name": "ZZZB2BMIX20260716003220 Alpha Buyer",
+                    "externalId": "ZZZB2BMIX20260716003220-ALPHA"
                   }
                 },
                 {
-                  "id": "gid://shopify/CompanyLocation/8616640818",
-                  "name": "ZZZB2BMIX20260711045940 Alpha HQ",
-                  "externalId": "ZZZB2BMIX20260711045940-ALPHA-HQ",
+                  "id": "gid://shopify/CompanyLocation/8624406834",
+                  "name": "ZZZB2BMIX20260716003220 Alpha HQ",
+                  "externalId": "ZZZB2BMIX20260716003220-ALPHA-HQ",
                   "company": {
-                    "id": "gid://shopify/Company/5743247666",
-                    "name": "ZZZB2BMIX20260711045940 Alpha Buyer",
-                    "externalId": "ZZZB2BMIX20260711045940-ALPHA"
+                    "id": "gid://shopify/Company/5750653234",
+                    "name": "ZZZB2BMIX20260716003220 Alpha Buyer",
+                    "externalId": "ZZZB2BMIX20260716003220-ALPHA"
                   }
                 },
                 {
-                  "id": "gid://shopify/CompanyLocation/8616706354",
-                  "name": "ZZZB2BMIX20260711045940 Beta HQ",
-                  "externalId": "ZZZB2BMIX20260711045940-BETA-HQ",
+                  "id": "gid://shopify/CompanyLocation/8624472370",
+                  "name": "ZZZB2BMIX20260716003220 Beta HQ",
+                  "externalId": "ZZZB2BMIX20260716003220-BETA-HQ",
                   "company": {
-                    "id": "gid://shopify/Company/5743280434",
-                    "name": "ZZZB2BMIX20260711045940 Beta Buyer",
-                    "externalId": "ZZZB2BMIX20260711045940-BETA"
+                    "id": "gid://shopify/Company/5750686002",
+                    "name": "ZZZB2BMIX20260716003220 Beta Buyer",
+                    "externalId": "ZZZB2BMIX20260716003220-BETA"
                   }
                 }
               ],
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjY3MzU4NiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjcwNjM1NCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
+                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQzOTYwMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQ3MjM3MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
               }
             }
           },
@@ -1882,8 +1965,8 @@
     {
       "operationName": "B2BMixedOverlayRead",
       "variables": {
-        "companyQuery": "name:ZZZB2BMIX20260711045940",
-        "locationQuery": "name:ZZZB2BMIX20260711045940",
+        "companyQuery": "name:ZZZB2BMIX20260716003220",
+        "locationQuery": "name:ZZZB2BMIX20260716003220",
         "companiesFirst": 10,
         "locationsFirst": 10,
         "nestedLocationsFirst": 10
@@ -1896,47 +1979,47 @@
             "companies": {
               "nodes": [
                 {
-                  "id": "gid://shopify/Company/5743247666",
-                  "name": "ZZZB2BMIX20260711045940 Alpha Buyer",
-                  "externalId": "ZZZB2BMIX20260711045940-ALPHA",
+                  "id": "gid://shopify/Company/5750653234",
+                  "name": "ZZZB2BMIX20260716003220 Alpha Buyer",
+                  "externalId": "ZZZB2BMIX20260716003220-ALPHA",
                   "locations": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/CompanyLocation/8616673586",
-                        "name": "ZZZB2BMIX20260711045940 Alpha Annex",
-                        "externalId": "ZZZB2BMIX20260711045940-ALPHA-ANNEX"
+                        "id": "gid://shopify/CompanyLocation/8624439602",
+                        "name": "ZZZB2BMIX20260716003220 Alpha Annex",
+                        "externalId": "ZZZB2BMIX20260716003220-ALPHA-ANNEX"
                       },
                       {
-                        "id": "gid://shopify/CompanyLocation/8616640818",
-                        "name": "ZZZB2BMIX20260711045940 Alpha HQ",
-                        "externalId": "ZZZB2BMIX20260711045940-ALPHA-HQ"
+                        "id": "gid://shopify/CompanyLocation/8624406834",
+                        "name": "ZZZB2BMIX20260716003220 Alpha HQ",
+                        "externalId": "ZZZB2BMIX20260716003220-ALPHA-HQ"
                       }
                     ],
                     "pageInfo": {
                       "hasNextPage": false,
                       "hasPreviousPage": false,
-                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjY3MzU4NiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjY0MDgxOCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBocSJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
+                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQzOTYwMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQwNjgzNCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBocSJdLCJkaXJlY3Rpb24iOiJuZXh0In0="
                     }
                   }
                 },
                 {
-                  "id": "gid://shopify/Company/5743280434",
-                  "name": "ZZZB2BMIX20260711045940 Beta Buyer",
-                  "externalId": "ZZZB2BMIX20260711045940-BETA",
+                  "id": "gid://shopify/Company/5750686002",
+                  "name": "ZZZB2BMIX20260716003220 Beta Buyer",
+                  "externalId": "ZZZB2BMIX20260716003220-BETA",
                   "locations": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/CompanyLocation/8616706354",
-                        "name": "ZZZB2BMIX20260711045940 Beta HQ",
-                        "externalId": "ZZZB2BMIX20260711045940-BETA-HQ"
+                        "id": "gid://shopify/CompanyLocation/8624472370",
+                        "name": "ZZZB2BMIX20260716003220 Beta HQ",
+                        "externalId": "ZZZB2BMIX20260716003220-BETA-HQ"
                       }
                     ],
                     "pageInfo": {
                       "hasNextPage": false,
                       "hasPreviousPage": false,
-                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjcwNjM1NCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ==",
-                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjcwNjM1NCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
+                      "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQ3MjM3MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ==",
+                      "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQ3MjM3MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
                     }
                   }
                 }
@@ -1944,8 +2027,8 @@
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc0MzI0NzY2NiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBidXllciJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc0MzI4MDQzNCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBiZXRhIGJ1eWVyIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
+                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc1MDY1MzIzNCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBidXllciJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6NTc1MDY4NjAwMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBiZXRhIGJ1eWVyIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
               }
             },
             "companiesCount": {
@@ -1955,41 +2038,41 @@
             "companyLocations": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyLocation/8616673586",
-                  "name": "ZZZB2BMIX20260711045940 Alpha Annex",
-                  "externalId": "ZZZB2BMIX20260711045940-ALPHA-ANNEX",
+                  "id": "gid://shopify/CompanyLocation/8624439602",
+                  "name": "ZZZB2BMIX20260716003220 Alpha Annex",
+                  "externalId": "ZZZB2BMIX20260716003220-ALPHA-ANNEX",
                   "company": {
-                    "id": "gid://shopify/Company/5743247666",
-                    "name": "ZZZB2BMIX20260711045940 Alpha Buyer",
-                    "externalId": "ZZZB2BMIX20260711045940-ALPHA"
+                    "id": "gid://shopify/Company/5750653234",
+                    "name": "ZZZB2BMIX20260716003220 Alpha Buyer",
+                    "externalId": "ZZZB2BMIX20260716003220-ALPHA"
                   }
                 },
                 {
-                  "id": "gid://shopify/CompanyLocation/8616640818",
-                  "name": "ZZZB2BMIX20260711045940 Alpha HQ",
-                  "externalId": "ZZZB2BMIX20260711045940-ALPHA-HQ",
+                  "id": "gid://shopify/CompanyLocation/8624406834",
+                  "name": "ZZZB2BMIX20260716003220 Alpha HQ",
+                  "externalId": "ZZZB2BMIX20260716003220-ALPHA-HQ",
                   "company": {
-                    "id": "gid://shopify/Company/5743247666",
-                    "name": "ZZZB2BMIX20260711045940 Alpha Buyer",
-                    "externalId": "ZZZB2BMIX20260711045940-ALPHA"
+                    "id": "gid://shopify/Company/5750653234",
+                    "name": "ZZZB2BMIX20260716003220 Alpha Buyer",
+                    "externalId": "ZZZB2BMIX20260716003220-ALPHA"
                   }
                 },
                 {
-                  "id": "gid://shopify/CompanyLocation/8616706354",
-                  "name": "ZZZB2BMIX20260711045940 Beta HQ",
-                  "externalId": "ZZZB2BMIX20260711045940-BETA-HQ",
+                  "id": "gid://shopify/CompanyLocation/8624472370",
+                  "name": "ZZZB2BMIX20260716003220 Beta HQ",
+                  "externalId": "ZZZB2BMIX20260716003220-BETA-HQ",
                   "company": {
-                    "id": "gid://shopify/Company/5743280434",
-                    "name": "ZZZB2BMIX20260711045940 Beta Buyer",
-                    "externalId": "ZZZB2BMIX20260711045940-BETA"
+                    "id": "gid://shopify/Company/5750686002",
+                    "name": "ZZZB2BMIX20260716003220 Beta Buyer",
+                    "externalId": "ZZZB2BMIX20260716003220-BETA"
                   }
                 }
               ],
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjY3MzU4NiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
-                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYxNjcwNjM1NCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxMTA0NTk0MCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
+                "startCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQzOTYwMiwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBhbHBoYSBhbm5leCJdLCJkaXJlY3Rpb24iOiJuZXh0In0=",
+                "endCursor": "eyJsaW1pdCI6MTAsInNvcnRfZmllbGRzIjoibmFtZSIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6ODYyNDQ3MjM3MCwibGFzdF92YWx1ZSI6WyJ6enpiMmJtaXgyMDI2MDcxNjAwMzIyMCBiZXRhIGhxIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
               }
             }
           },
