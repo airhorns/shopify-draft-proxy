@@ -3,6 +3,9 @@ use super::owner_metafields::{
     owner_metafields_connection_keys,
 };
 use super::*;
+use base64::Engine as _;
+
+const BULK_OPERATION_CURSORS_FIELD: &str = "__shopifyDraftProxyBulkOperationCursors";
 
 impl DraftProxy {
     pub(in crate::proxy) fn resolve_bulk_operations_graphql(
@@ -405,7 +408,7 @@ impl DraftProxy {
             {
                 return self.bulk_operation_local_read_response(&fields);
             }
-            return response;
+            return self.bulk_operation_response_with_local_missing_roots(&fields, response);
         }
         self.bulk_operation_local_read_response(&fields)
     }
@@ -419,6 +422,42 @@ impl DraftProxy {
         ok_json(body)
     }
 
+    fn bulk_operation_response_with_local_missing_roots(
+        &self,
+        fields: &[RootFieldSelection],
+        mut response: Response,
+    ) -> Response {
+        let needs_local_fill = response
+            .body
+            .get("data")
+            .and_then(Value::as_object)
+            .is_some_and(|data| {
+                fields
+                    .iter()
+                    .any(|field| !data.contains_key(&field.response_key))
+            });
+        if !needs_local_fill {
+            return response;
+        }
+
+        let local_data = self.bulk_operation_read_data(fields);
+        let Some(local_data) = local_data.as_object() else {
+            return response;
+        };
+        let Some(data) = response.body.get_mut("data").and_then(Value::as_object_mut) else {
+            return response;
+        };
+        for field in fields {
+            if data.contains_key(&field.response_key) {
+                continue;
+            }
+            if let Some(value) = local_data.get(&field.response_key) {
+                data.insert(field.response_key.clone(), value.clone());
+            }
+        }
+        response
+    }
+
     fn bulk_operation_read_needs_upstream(&self, fields: &[RootFieldSelection]) -> bool {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return false;
@@ -428,7 +467,7 @@ impl DraftProxy {
                 let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                 self.bulk_operation_by_id(&id).is_none()
             }
-            "bulkOperations" => !self.store.base.bulk_operations_observed,
+            "bulkOperations" => self.bulk_operations_connection_needs_upstream(field),
             "currentBulkOperation" => {
                 let operation_type = resolved_string_field(&field.arguments, "type")
                     .unwrap_or_else(|| "QUERY".to_string());
@@ -436,6 +475,22 @@ impl DraftProxy {
             }
             _ => false,
         })
+    }
+
+    fn bulk_operations_connection_needs_upstream(&self, field: &RootFieldSelection) -> bool {
+        if !self.store.base.bulk_operations_observed {
+            return true;
+        }
+        if !self.store.staged.bulk_operations.is_empty() {
+            return false;
+        }
+        let sort_key = bulk_operation_connection_sort_key(field);
+        self.store
+            .base
+            .bulk_operations
+            .ordered_values()
+            .into_iter()
+            .any(|operation| bulk_operation_observed_cursor(operation, &sort_key).is_none())
     }
 
     fn observe_bulk_operation_read_response(
@@ -456,29 +511,66 @@ impl DraftProxy {
                 }
                 "bulkOperations" => {
                     self.store.base.bulk_operations_observed = true;
-                    self.observe_bulk_operations_connection(value);
+                    self.observe_bulk_operations_connection(field, value);
                 }
                 _ => {}
             }
         }
     }
 
-    fn observe_bulk_operations_connection(&mut self, connection: &Value) {
+    fn observe_bulk_operations_connection(
+        &mut self,
+        field: &RootFieldSelection,
+        connection: &Value,
+    ) {
+        let sort_key = bulk_operation_connection_sort_key(field);
         if let Some(edges) = connection.get("edges").and_then(Value::as_array) {
             for edge in edges {
                 if let Some(node) = edge.get("node") {
-                    self.observe_bulk_operation_value(node);
+                    self.observe_bulk_operation_value_with_cursor(
+                        node,
+                        edge.get("cursor")
+                            .and_then(Value::as_str)
+                            .map(|cursor| (sort_key.as_str(), cursor)),
+                    );
                 }
             }
         }
         if let Some(nodes) = connection.get("nodes").and_then(Value::as_array) {
-            for node in nodes {
-                self.observe_bulk_operation_value(node);
+            let start_cursor = connection
+                .get("pageInfo")
+                .and_then(|page_info| page_info.get("startCursor"))
+                .and_then(Value::as_str);
+            let end_cursor = connection
+                .get("pageInfo")
+                .and_then(|page_info| page_info.get("endCursor"))
+                .and_then(Value::as_str);
+            let last_index = nodes.len().saturating_sub(1);
+            for (index, node) in nodes.iter().enumerate() {
+                let cursor = if index == 0 {
+                    start_cursor
+                } else if index == last_index {
+                    end_cursor
+                } else {
+                    None
+                };
+                self.observe_bulk_operation_value_with_cursor(
+                    node,
+                    cursor.map(|cursor| (sort_key.as_str(), cursor)),
+                );
             }
         }
     }
 
     fn observe_bulk_operation_value(&mut self, operation: &Value) {
+        self.observe_bulk_operation_value_with_cursor(operation, None);
+    }
+
+    fn observe_bulk_operation_value_with_cursor(
+        &mut self,
+        operation: &Value,
+        cursor: Option<(&str, &str)>,
+    ) {
         if !operation.is_object() {
             return;
         }
@@ -488,10 +580,33 @@ impl DraftProxy {
         if shopify_gid_resource_type(id) != Some("BulkOperation") {
             return;
         }
+        let mut operation = operation.clone();
+        if let Some(object) = operation.as_object_mut() {
+            if let Some(existing_cursors) = self
+                .store
+                .base
+                .bulk_operations
+                .get(id)
+                .and_then(|operation| operation.get(BULK_OPERATION_CURSORS_FIELD))
+            {
+                object.insert(
+                    BULK_OPERATION_CURSORS_FIELD.to_string(),
+                    existing_cursors.clone(),
+                );
+            }
+            if let Some((sort_key, cursor)) = cursor {
+                let cursors = object
+                    .entry(BULK_OPERATION_CURSORS_FIELD.to_string())
+                    .or_insert_with(|| json!({}));
+                if let Some(cursors) = cursors.as_object_mut() {
+                    cursors.insert(sort_key.to_string(), json!(cursor));
+                }
+            }
+        }
         self.store
             .base
             .bulk_operations
-            .insert(id.to_string(), operation.clone());
+            .insert(id.to_string(), operation);
     }
 
     pub(in crate::proxy) fn bulk_operation_read_data(
@@ -569,8 +684,7 @@ impl DraftProxy {
         let mut operations = self.effective_bulk_operations();
         operations.retain(|operation| bulk_operation_matches_query(operation, &field.arguments));
 
-        let sort_key = resolved_string_field(&field.arguments, "sortKey")
-            .unwrap_or_else(|| "CREATED_AT".to_string());
+        let sort_key = bulk_operation_connection_sort_key(field);
         operations.sort_by(|left, right| {
             bulk_operation_sort_value(right, &sort_key)
                 .cmp(&bulk_operation_sort_value(left, &sort_key))
@@ -585,13 +699,7 @@ impl DraftProxy {
             operations,
             &field.arguments,
             &field.selection,
-            |operation| {
-                operation
-                    .get("id")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default()
-                    .to_string()
-            },
+            |operation| bulk_operation_connection_cursor(operation, &sort_key),
         )
     }
 
@@ -3216,6 +3324,51 @@ fn bulk_operation_sort_value(operation: &Value, sort_key: &str) -> String {
         .and_then(Value::as_str)
         .unwrap_or("")
         .to_string()
+}
+
+fn bulk_operation_connection_sort_key(field: &RootFieldSelection) -> String {
+    resolved_string_field(&field.arguments, "sortKey").unwrap_or_else(|| "CREATED_AT".to_string())
+}
+
+fn bulk_operation_connection_cursor(operation: &Value, sort_key: &str) -> String {
+    bulk_operation_observed_cursor(operation, sort_key)
+        .unwrap_or_else(|| bulk_operation_synthetic_cursor(operation, sort_key))
+}
+
+fn bulk_operation_observed_cursor(operation: &Value, sort_key: &str) -> Option<String> {
+    operation
+        .get(BULK_OPERATION_CURSORS_FIELD)
+        .and_then(|cursors| cursors.get(sort_key))
+        .and_then(Value::as_str)
+        .map(str::to_string)
+}
+
+fn bulk_operation_synthetic_cursor(operation: &Value, sort_key: &str) -> String {
+    let id = operation
+        .get("id")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let tail = resource_id_tail(id);
+    let last_id = tail
+        .parse::<u64>()
+        .map(Value::from)
+        .unwrap_or_else(|_| json!(tail));
+    let mut cursor = serde_json::Map::new();
+    cursor.insert("last_id".to_string(), last_id);
+
+    let sort_value = bulk_operation_sort_value(operation, sort_key);
+    if !sort_value.is_empty() {
+        cursor.insert(
+            "last_value".to_string(),
+            json!(bulk_operation_cursor_timestamp(&sort_value)),
+        );
+    }
+
+    base64::engine::general_purpose::STANDARD.encode(Value::Object(cursor).to_string())
+}
+
+fn bulk_operation_cursor_timestamp(value: &str) -> String {
+    value.strip_suffix('Z').unwrap_or(value).replace('T', " ")
 }
 
 fn bulk_operation_concurrent_limit(request: &Request) -> usize {
