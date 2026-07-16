@@ -613,32 +613,32 @@ fn storefront_catalog_reflects_admin_staged_lifecycle_and_variant_inventory() {
 
     let update_variant = proxy.process_request(json_graphql_request(
         r#"
-        mutation StorefrontVariantUpdate($input: ProductVariantInput!) {
-          productVariantUpdate(input: $input) {
-            productVariant { id sku barcode price compareAtPrice selectedOptions { name value } inventoryItem { tracked requiresShipping } }
+        mutation StorefrontVariantUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+          productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+            productVariants { id sku barcode price compareAtPrice selectedOptions { name value } inventoryItem { tracked requiresShipping } }
             userErrors { field message }
           }
         }
         "#,
         json!({
-            "input": {
+            "productId": product_id,
+            "variants": [{
                 "id": variant_id,
-                "title": "Storefront Red",
-                "sku": "STAGE-RED",
                 "barcode": "stage-barcode",
                 "price": "14.25",
                 "compareAtPrice": "18.00",
-                "selectedOptions": [{ "name": "Color", "value": "Red" }],
+                "optionValues": [{ "optionName": "Title", "name": "Storefront Red" }],
                 "inventoryItem": {
+                    "sku": "STAGE-RED",
                     "tracked": true,
                     "requiresShipping": false
                 }
-            }
+            }]
         }),
     ));
     assert_eq!(update_variant.status, 200);
     assert_eq!(
-        update_variant.body["data"]["productVariantUpdate"]["userErrors"],
+        update_variant.body["data"]["productVariantsBulkUpdate"]["userErrors"],
         json!([])
     );
 
@@ -655,11 +655,11 @@ fn storefront_catalog_reflects_admin_staged_lifecycle_and_variant_inventory() {
             "input": {
                 "name": "available",
                 "reason": "correction",
-                "ignoreCompareQuantity": true,
                 "quantities": [{
                     "inventoryItemId": inventory_item_id,
                     "locationId": location_id,
-                    "quantity": 5
+                    "quantity": 5,
+                    "changeFromQuantity": null
                 }]
             }
         }),
@@ -726,7 +726,7 @@ fn storefront_catalog_reflects_admin_staged_lifecycle_and_variant_inventory() {
                     "requiresShipping": false,
                     "price": { "amount": "14.25", "currencyCode": "USD" },
                     "compareAtPrice": { "amount": "18.0", "currencyCode": "USD" },
-                    "selectedOptions": [{ "name": "Color", "value": "Red" }]
+                    "selectedOptions": [{ "name": "Title", "value": "Storefront Red" }]
                 }]
             }
         })
