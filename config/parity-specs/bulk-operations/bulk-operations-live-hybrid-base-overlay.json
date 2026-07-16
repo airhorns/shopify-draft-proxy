@@ -1,0 +1,55 @@
+{
+  "scenarioId": "bulk-operations-live-hybrid-base-overlay",
+  "operationNames": ["bulkOperationRunQuery", "bulkOperations"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "live-hybrid-overlay-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operations-live-hybrid-base-overlay.json"
+  ],
+  "runtimeTestFiles": ["src/proxy/media_products_saved_searches/bulk_operations.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/bulk-operations/bulk-operations-base-overlay-run-query.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.run.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captures a real bulkOperations window before and after bulkOperationRunQuery. The post-run parity target stages the mutation locally, hydrates the recorded Shopify post-run window through the LiveHybrid upstream cassette, and strictly compares the captured upstream nodes so historical BulkOperation records remain visible instead of being hidden by staged local jobs.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "run-query-created-operation",
+        "capturePath": "$.run.response.data.bulkOperationRunQuery.bulkOperation",
+        "proxyPath": "$.data.bulkOperationRunQuery.bulkOperation",
+        "expectedDifferences": [
+          {
+            "path": "$.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy stages a new synthetic BulkOperation instead of reusing Shopify's captured timestamp."
+          },
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:BulkOperation",
+            "reason": "BulkOperation IDs are shop-generated in Shopify and synthetic in the local proxy."
+          }
+        ]
+      },
+      {
+        "name": "run-query-user-errors",
+        "capturePath": "$.run.response.data.bulkOperationRunQuery.userErrors",
+        "proxyPath": "$.data.bulkOperationRunQuery.userErrors"
+      },
+      {
+        "name": "post-run-window-keeps-upstream-bulk-operations",
+        "capturePath": "$.postRunWindow.response.data.bulkOperations.nodes",
+        "proxyPath": "$.data.bulkOperations.nodes",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operations-base-overlay-post-run.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.postRunWindow.variables"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,9 @@
+mutation StorefrontCollectionsDelete($input: CollectionDeleteInput!) {
+  collectionDelete(input: $input) {
+    deletedCollectionId
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -1,0 +1,452 @@
+{
+  "scenarioId": "bulk-operations-live-hybrid-base-overlay",
+  "capturedAt": "2026-07-16T01:10:50.988Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "pollConfig": {
+    "pollIntervalMs": 1500,
+    "maxPolls": 8,
+    "postRunPollCount": 1
+  },
+  "runBulkOperationId": "gid://shopify/BulkOperation/8052023623986",
+  "historicalIdsStillVisible": [
+    "gid://shopify/BulkOperation/8027183612210",
+    "gid://shopify/BulkOperation/8027183546674",
+    "gid://shopify/BulkOperation/8027175289138",
+    "gid://shopify/BulkOperation/8027175190834"
+  ],
+  "preRunWindow": {
+    "operationName": "BulkOperationsBaseOverlayPreRun",
+    "query": "#graphql\nquery BulkOperationsBaseOverlayPreRun($first: Int!, $sortKey: BulkOperationsSortKeys, $reverse: Boolean) {\n  bulkOperations(first: $first, sortKey: $sortKey, reverse: $reverse) {\n    nodes {\n      \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+    "variables": {
+      "first": 10,
+      "sortKey": "CREATED_AT",
+      "reverse": false
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "bulkOperations": {
+          "nodes": [
+            {
+              "id": "gid://shopify/BulkOperation/8027183612210",
+              "status": "COMPLETED",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-07-09T22:20:53Z",
+              "completedAt": "2026-07-09T22:20:54Z",
+              "objectCount": "3",
+              "rootObjectCount": "1",
+              "fileSize": "528",
+              "url": "https://storage.googleapis.com/shopify-tiers-assets-prod-us-east1/bulk-operation-outputs/fa4e964b220ad282d987be98f5e5?GoogleAccessId=assets-us-prod%40shopify-tiers.iam.gserviceaccount.com&Expires=1784240454&Signature=KvLEPwHzpAQQSn3mKHJ%2FSQMIHEvkhmP1m8wHWtkU986%2BnfVx%2FX2gEWCTho1moBWZIjtRFniqvhztuWDvpuJ50iRkC64MZCSspXwb3cmF5%2FC2lWcw0epdOQ6ez%2B5MFCxOzN5F1%2FdACHXQLZQbSvdMgLiw536W44fFN%2FS7Lnur4uBgamZZioWpPQp3f45DOWNzzrQ4nHyzlSgN1RzEht4%2B1RvXbLxAhqfne4PUn9Y72P6blS255QrDYAKvzr1NAxKXHR5o5H1dnP5ZELoHerpkstYcthvhH5yN8bWzbPtNmUwgC7CHOoGZQljzt5fMQ%2BALsaKIv6oYvnEpfrteJqV5Pw%3D%3D&response-content-disposition=attachment%3B+filename%3D%22staging-bulk-8027183612210.jsonl%22%3B+filename%2A%3DUTF-8%27%27staging-bulk-8027183612210.jsonl&response-content-type=application%2Fjsonl",
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  productVariants(query: \"sku:bulk-variant-bulk-root-mre2ls4g-161dh\") {\n    edges {\n      node {\n        id\n        sku\n        media {\n          edges {\n            node {\n              id\n              alt\n              mediaContentType\n            }\n          }\n        }\n        metafields(namespace: \"custom\") {\n          edges {\n            node {\n              id\n              namespace\n              key\n              value\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+            },
+            {
+              "id": "gid://shopify/BulkOperation/8027183546674",
+              "status": "COMPLETED",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-07-09T22:20:51Z",
+              "completedAt": "2026-07-09T22:20:52Z",
+              "objectCount": "4",
+              "rootObjectCount": "1",
+              "fileSize": "679",
+              "url": "https://storage.googleapis.com/shopify-tiers-assets-prod-us-east1/bulk-operation-outputs/e0558bb00b64a1b0bd6d1f2d000a?GoogleAccessId=assets-us-prod%40shopify-tiers.iam.gserviceaccount.com&Expires=1784240452&Signature=Uahts69BcyyTUtkqMak31OJujGpmJrRTETLzIyQco7QDhak75VXy7MZGk2pGjRtGHebji9NRxhNh%2F%2B7c7q2%2BE7SHQL8IzZsxHqkffzn2y%2BdTOKZkkeKqLRzSsinwy8yGFQaWo3fmhxpXPKer9h4uktwW2AU0XIvv3xs3P1v6XFXA%2FdSoMFUGsv7V0a5Gtv6m6h2HPPoAYt9iQ304q0U1AhRempM0ovJiPczvlzDQ8rzTP0qACdC8zbfFuSegAyLiu3CR29jh0DbUDQJjGWHSiu03EDwfYjBtXySldybqSFhFntvxfasR3T4as22Vbccj1E01vz4qZsjf44QWRruc6g%3D%3D&response-content-disposition=attachment%3B+filename%3D%22staging-bulk-8027183546674.jsonl%22%3B+filename%2A%3DUTF-8%27%27staging-bulk-8027183546674.jsonl&response-content-type=application%2Fjsonl",
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  products(query: \"tag:conformance-bulk-root-mre2ls4g-161dh\") {\n    edges {\n      node {\n        id\n        title\n        variants {\n          edges {\n            node {\n              id\n              title\n              sku\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n              alt\n              mediaContentType\n            }\n          }\n        }\n        metafields(namespace: \"custom\") {\n          edges {\n            node {\n              id\n              namespace\n              key\n              value\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+            },
+            {
+              "id": "gid://shopify/BulkOperation/8027175289138",
+              "status": "COMPLETED",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-07-09T22:17:22Z",
+              "completedAt": "2026-07-09T22:17:23Z",
+              "objectCount": "3",
+              "rootObjectCount": "1",
+              "fileSize": "528",
+              "url": "https://storage.googleapis.com/shopify-tiers-assets-prod-us-east1/bulk-operation-outputs/6cb7f188e66990b6c2129ed39501?GoogleAccessId=assets-us-prod%40shopify-tiers.iam.gserviceaccount.com&Expires=1784240243&Signature=lWi%2FZUMnYlSwwZSSrvaKONEAVlYSZQOXI2RsWzhxAN8yHAfjYqjsc8lkAhc7kyUr5N5olj5yorn8%2FdwytsWzIULFRd9yStmZNO0ocseYp59g%2FWKQirEtbzOJUVIS7LVKx%2BvjQYC8K0OBep1jsAij%2Fc6oUGMHEERoy8wLmXFkBqErF6s7erF9WMHyR57cQuADzag%2BWlW0PxyNQLv9NlRuuAg3jl68Emy%2FUkmyKVRzUuNnSelVUh7PRioCU2aZL8L%2F2AdSX1%2FsFDI%2FQ%2BTwaPwQH48xiOSpdnI6y9tdUlnu8OZnnRHN4rOLpY0RA3hHjvP%2FDnw%2FUNNd7iZHDt3zQG5HLg%3D%3D&response-content-disposition=attachment%3B+filename%3D%22staging-bulk-8027175289138.jsonl%22%3B+filename%2A%3DUTF-8%27%27staging-bulk-8027175289138.jsonl&response-content-type=application%2Fjsonl",
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  productVariants(query: \"sku:bulk-variant-bulk-root-mre2hdg7-15xjb\") {\n    edges {\n      node {\n        id\n        sku\n        media {\n          edges {\n            node {\n              id\n              alt\n              mediaContentType\n            }\n          }\n        }\n        metafields(namespace: \"custom\") {\n          edges {\n            node {\n              id\n              namespace\n              key\n              value\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+            },
+            {
+              "id": "gid://shopify/BulkOperation/8027175190834",
+              "status": "COMPLETED",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-07-09T22:17:20Z",
+              "completedAt": "2026-07-09T22:17:21Z",
+              "objectCount": "4",
+              "rootObjectCount": "1",
+              "fileSize": "679",
+              "url": "https://storage.googleapis.com/shopify-tiers-assets-prod-us-east1/bulk-operation-outputs/51f9769a50539778247a2266ea59?GoogleAccessId=assets-us-prod%40shopify-tiers.iam.gserviceaccount.com&Expires=1784240241&Signature=qX95389ci4FXyPjXFLvPtRtpFr6ox7uTpc7jSAYRljdKPu8OG%2BWcyATPEAgKjX1zqerkzg1d6hO6m2prQwWGvH9sSkcxUv6b20FOa0xUNfPPcrfs%2FHDNAq%2FX%2FjT6WoVfWf1S5psiv67mFlZyo7b8R0m%2BkFhZevrZlYb5KPF24fn2fnOPyOAepSTJmlXwcPoL2JjTd0w4GhjXULLwnj9kexp2W2YMdnLK8%2FbUqpUpmKfOh2bR4Rkir6YRpflbgjydB%2F%2FztQ05UAWhMtlGixYSvnM6oa%2FEsBlWasyjrB9r2%2FfLt0NWijp0gHcGP17lYRJAbzJi6QrYaCT4vufRX2oR8A%3D%3D&response-content-disposition=attachment%3B+filename%3D%22staging-bulk-8027175190834.jsonl%22%3B+filename%2A%3DUTF-8%27%27staging-bulk-8027175190834.jsonl&response-content-type=application%2Fjsonl",
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  products(query: \"tag:conformance-bulk-root-mre2hdg7-15xjb\") {\n    edges {\n      node {\n        id\n        title\n        variants {\n          edges {\n            node {\n              id\n              title\n              sku\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n              alt\n              mediaContentType\n            }\n          }\n        }\n        metafields(namespace: \"custom\") {\n          edges {\n            node {\n              id\n              namespace\n              key\n              value\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjo4MDI3MTgzNjEyMjEwLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wOSAyMjoyMDo1My4xOTU5MjcifQ==",
+            "endCursor": "eyJsYXN0X2lkIjo4MDI3MTc1MTkwODM0LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wOSAyMjoxNzoyMC45MTgxOTkifQ=="
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 6,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1996,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "run": {
+    "operationName": "BulkOperationRunQueryBaseOverlay",
+    "query": "#graphql\nmutation BulkOperationRunQueryBaseOverlay($query: String!) {\n  bulkOperationRunQuery(query: $query) {\n    bulkOperation {\n      \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "query": "{ products { edges { node { id } } } }"
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "bulkOperationRunQuery": {
+          "bulkOperation": {
+            "id": "gid://shopify/BulkOperation/8052023623986",
+            "status": "CREATED",
+            "type": "QUERY",
+            "errorCode": null,
+            "createdAt": "2026-07-16T01:10:50Z",
+            "completedAt": null,
+            "objectCount": "0",
+            "rootObjectCount": "0",
+            "fileSize": null,
+            "url": null,
+            "partialDataUrl": null,
+            "query": "{ products { edges { node { id } } } }"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "postRunWindow": {
+    "operationName": "BulkOperationsBaseOverlayPostRun",
+    "query": "#graphql\nquery BulkOperationsBaseOverlayPostRun($first: Int!, $sortKey: BulkOperationsSortKeys, $reverse: Boolean) {\n  bulkOperations(first: $first, sortKey: $sortKey, reverse: $reverse) {\n    nodes {\n      \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+    "variables": {
+      "first": 5,
+      "sortKey": "CREATED_AT",
+      "reverse": false
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "bulkOperations": {
+          "nodes": [
+            {
+              "id": "gid://shopify/BulkOperation/8052023623986",
+              "status": "CREATED",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-07-16T01:10:50Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "{ products { edges { node { id } } } }"
+            },
+            {
+              "id": "gid://shopify/BulkOperation/8027183612210",
+              "status": "COMPLETED",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-07-09T22:20:53Z",
+              "completedAt": "2026-07-09T22:20:54Z",
+              "objectCount": "3",
+              "rootObjectCount": "1",
+              "fileSize": "528",
+              "url": "https://storage.googleapis.com/shopify-tiers-assets-prod-us-east1/bulk-operation-outputs/fa4e964b220ad282d987be98f5e5?GoogleAccessId=assets-us-prod%40shopify-tiers.iam.gserviceaccount.com&Expires=1784240454&Signature=KvLEPwHzpAQQSn3mKHJ%2FSQMIHEvkhmP1m8wHWtkU986%2BnfVx%2FX2gEWCTho1moBWZIjtRFniqvhztuWDvpuJ50iRkC64MZCSspXwb3cmF5%2FC2lWcw0epdOQ6ez%2B5MFCxOzN5F1%2FdACHXQLZQbSvdMgLiw536W44fFN%2FS7Lnur4uBgamZZioWpPQp3f45DOWNzzrQ4nHyzlSgN1RzEht4%2B1RvXbLxAhqfne4PUn9Y72P6blS255QrDYAKvzr1NAxKXHR5o5H1dnP5ZELoHerpkstYcthvhH5yN8bWzbPtNmUwgC7CHOoGZQljzt5fMQ%2BALsaKIv6oYvnEpfrteJqV5Pw%3D%3D&response-content-disposition=attachment%3B+filename%3D%22staging-bulk-8027183612210.jsonl%22%3B+filename%2A%3DUTF-8%27%27staging-bulk-8027183612210.jsonl&response-content-type=application%2Fjsonl",
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  productVariants(query: \"sku:bulk-variant-bulk-root-mre2ls4g-161dh\") {\n    edges {\n      node {\n        id\n        sku\n        media {\n          edges {\n            node {\n              id\n              alt\n              mediaContentType\n            }\n          }\n        }\n        metafields(namespace: \"custom\") {\n          edges {\n            node {\n              id\n              namespace\n              key\n              value\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+            },
+            {
+              "id": "gid://shopify/BulkOperation/8027183546674",
+              "status": "COMPLETED",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-07-09T22:20:51Z",
+              "completedAt": "2026-07-09T22:20:52Z",
+              "objectCount": "4",
+              "rootObjectCount": "1",
+              "fileSize": "679",
+              "url": "https://storage.googleapis.com/shopify-tiers-assets-prod-us-east1/bulk-operation-outputs/e0558bb00b64a1b0bd6d1f2d000a?GoogleAccessId=assets-us-prod%40shopify-tiers.iam.gserviceaccount.com&Expires=1784240452&Signature=Uahts69BcyyTUtkqMak31OJujGpmJrRTETLzIyQco7QDhak75VXy7MZGk2pGjRtGHebji9NRxhNh%2F%2B7c7q2%2BE7SHQL8IzZsxHqkffzn2y%2BdTOKZkkeKqLRzSsinwy8yGFQaWo3fmhxpXPKer9h4uktwW2AU0XIvv3xs3P1v6XFXA%2FdSoMFUGsv7V0a5Gtv6m6h2HPPoAYt9iQ304q0U1AhRempM0ovJiPczvlzDQ8rzTP0qACdC8zbfFuSegAyLiu3CR29jh0DbUDQJjGWHSiu03EDwfYjBtXySldybqSFhFntvxfasR3T4as22Vbccj1E01vz4qZsjf44QWRruc6g%3D%3D&response-content-disposition=attachment%3B+filename%3D%22staging-bulk-8027183546674.jsonl%22%3B+filename%2A%3DUTF-8%27%27staging-bulk-8027183546674.jsonl&response-content-type=application%2Fjsonl",
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  products(query: \"tag:conformance-bulk-root-mre2ls4g-161dh\") {\n    edges {\n      node {\n        id\n        title\n        variants {\n          edges {\n            node {\n              id\n              title\n              sku\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n              alt\n              mediaContentType\n            }\n          }\n        }\n        metafields(namespace: \"custom\") {\n          edges {\n            node {\n              id\n              namespace\n              key\n              value\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+            },
+            {
+              "id": "gid://shopify/BulkOperation/8027175289138",
+              "status": "COMPLETED",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-07-09T22:17:22Z",
+              "completedAt": "2026-07-09T22:17:23Z",
+              "objectCount": "3",
+              "rootObjectCount": "1",
+              "fileSize": "528",
+              "url": "https://storage.googleapis.com/shopify-tiers-assets-prod-us-east1/bulk-operation-outputs/6cb7f188e66990b6c2129ed39501?GoogleAccessId=assets-us-prod%40shopify-tiers.iam.gserviceaccount.com&Expires=1784240243&Signature=lWi%2FZUMnYlSwwZSSrvaKONEAVlYSZQOXI2RsWzhxAN8yHAfjYqjsc8lkAhc7kyUr5N5olj5yorn8%2FdwytsWzIULFRd9yStmZNO0ocseYp59g%2FWKQirEtbzOJUVIS7LVKx%2BvjQYC8K0OBep1jsAij%2Fc6oUGMHEERoy8wLmXFkBqErF6s7erF9WMHyR57cQuADzag%2BWlW0PxyNQLv9NlRuuAg3jl68Emy%2FUkmyKVRzUuNnSelVUh7PRioCU2aZL8L%2F2AdSX1%2FsFDI%2FQ%2BTwaPwQH48xiOSpdnI6y9tdUlnu8OZnnRHN4rOLpY0RA3hHjvP%2FDnw%2FUNNd7iZHDt3zQG5HLg%3D%3D&response-content-disposition=attachment%3B+filename%3D%22staging-bulk-8027175289138.jsonl%22%3B+filename%2A%3DUTF-8%27%27staging-bulk-8027175289138.jsonl&response-content-type=application%2Fjsonl",
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  productVariants(query: \"sku:bulk-variant-bulk-root-mre2hdg7-15xjb\") {\n    edges {\n      node {\n        id\n        sku\n        media {\n          edges {\n            node {\n              id\n              alt\n              mediaContentType\n            }\n          }\n        }\n        metafields(namespace: \"custom\") {\n          edges {\n            node {\n              id\n              namespace\n              key\n              value\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+            },
+            {
+              "id": "gid://shopify/BulkOperation/8027175190834",
+              "status": "COMPLETED",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-07-09T22:17:20Z",
+              "completedAt": "2026-07-09T22:17:21Z",
+              "objectCount": "4",
+              "rootObjectCount": "1",
+              "fileSize": "679",
+              "url": "https://storage.googleapis.com/shopify-tiers-assets-prod-us-east1/bulk-operation-outputs/51f9769a50539778247a2266ea59?GoogleAccessId=assets-us-prod%40shopify-tiers.iam.gserviceaccount.com&Expires=1784240241&Signature=qX95389ci4FXyPjXFLvPtRtpFr6ox7uTpc7jSAYRljdKPu8OG%2BWcyATPEAgKjX1zqerkzg1d6hO6m2prQwWGvH9sSkcxUv6b20FOa0xUNfPPcrfs%2FHDNAq%2FX%2FjT6WoVfWf1S5psiv67mFlZyo7b8R0m%2BkFhZevrZlYb5KPF24fn2fnOPyOAepSTJmlXwcPoL2JjTd0w4GhjXULLwnj9kexp2W2YMdnLK8%2FbUqpUpmKfOh2bR4Rkir6YRpflbgjydB%2F%2FztQ05UAWhMtlGixYSvnM6oa%2FEsBlWasyjrB9r2%2FfLt0NWijp0gHcGP17lYRJAbzJi6QrYaCT4vufRX2oR8A%3D%3D&response-content-disposition=attachment%3B+filename%3D%22staging-bulk-8027175190834.jsonl%22%3B+filename%2A%3DUTF-8%27%27staging-bulk-8027175190834.jsonl&response-content-type=application%2Fjsonl",
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  products(query: \"tag:conformance-bulk-root-mre2hdg7-15xjb\") {\n    edges {\n      node {\n        id\n        title\n        variants {\n          edges {\n            node {\n              id\n              title\n              sku\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n              alt\n              mediaContentType\n            }\n          }\n        }\n        metafields(namespace: \"custom\") {\n          edges {\n            node {\n              id\n              namespace\n              key\n              value\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjo4MDUyMDIzNjIzOTg2LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0xNiAwMToxMDo1MC44MDA4MzMifQ==",
+            "endCursor": "eyJsYXN0X2lkIjo4MDI3MTc1MTkwODM0LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wOSAyMjoxNzoyMC45MTgxOTkifQ=="
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 5,
+          "actualQueryCost": 5,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1995,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "BulkOperationsBaseOverlayPreRun",
+      "query": "#graphql\nquery BulkOperationsBaseOverlayPreRun($first: Int!, $sortKey: BulkOperationsSortKeys, $reverse: Boolean) {\n  bulkOperations(first: $first, sortKey: $sortKey, reverse: $reverse) {\n    nodes {\n      \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "first": 10,
+        "sortKey": "CREATED_AT",
+        "reverse": false
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperations": {
+            "nodes": [
+              {
+                "id": "gid://shopify/BulkOperation/8027183612210",
+                "status": "COMPLETED",
+                "type": "QUERY",
+                "errorCode": null,
+                "createdAt": "2026-07-09T22:20:53Z",
+                "completedAt": "2026-07-09T22:20:54Z",
+                "objectCount": "3",
+                "rootObjectCount": "1",
+                "fileSize": "528",
+                "url": "https://storage.googleapis.com/shopify-tiers-assets-prod-us-east1/bulk-operation-outputs/fa4e964b220ad282d987be98f5e5?GoogleAccessId=assets-us-prod%40shopify-tiers.iam.gserviceaccount.com&Expires=1784240454&Signature=KvLEPwHzpAQQSn3mKHJ%2FSQMIHEvkhmP1m8wHWtkU986%2BnfVx%2FX2gEWCTho1moBWZIjtRFniqvhztuWDvpuJ50iRkC64MZCSspXwb3cmF5%2FC2lWcw0epdOQ6ez%2B5MFCxOzN5F1%2FdACHXQLZQbSvdMgLiw536W44fFN%2FS7Lnur4uBgamZZioWpPQp3f45DOWNzzrQ4nHyzlSgN1RzEht4%2B1RvXbLxAhqfne4PUn9Y72P6blS255QrDYAKvzr1NAxKXHR5o5H1dnP5ZELoHerpkstYcthvhH5yN8bWzbPtNmUwgC7CHOoGZQljzt5fMQ%2BALsaKIv6oYvnEpfrteJqV5Pw%3D%3D&response-content-disposition=attachment%3B+filename%3D%22staging-bulk-8027183612210.jsonl%22%3B+filename%2A%3DUTF-8%27%27staging-bulk-8027183612210.jsonl&response-content-type=application%2Fjsonl",
+                "partialDataUrl": null,
+                "query": "#graphql\n{\n  productVariants(query: \"sku:bulk-variant-bulk-root-mre2ls4g-161dh\") {\n    edges {\n      node {\n        id\n        sku\n        media {\n          edges {\n            node {\n              id\n              alt\n              mediaContentType\n            }\n          }\n        }\n        metafields(namespace: \"custom\") {\n          edges {\n            node {\n              id\n              namespace\n              key\n              value\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+              },
+              {
+                "id": "gid://shopify/BulkOperation/8027183546674",
+                "status": "COMPLETED",
+                "type": "QUERY",
+                "errorCode": null,
+                "createdAt": "2026-07-09T22:20:51Z",
+                "completedAt": "2026-07-09T22:20:52Z",
+                "objectCount": "4",
+                "rootObjectCount": "1",
+                "fileSize": "679",
+                "url": "https://storage.googleapis.com/shopify-tiers-assets-prod-us-east1/bulk-operation-outputs/e0558bb00b64a1b0bd6d1f2d000a?GoogleAccessId=assets-us-prod%40shopify-tiers.iam.gserviceaccount.com&Expires=1784240452&Signature=Uahts69BcyyTUtkqMak31OJujGpmJrRTETLzIyQco7QDhak75VXy7MZGk2pGjRtGHebji9NRxhNh%2F%2B7c7q2%2BE7SHQL8IzZsxHqkffzn2y%2BdTOKZkkeKqLRzSsinwy8yGFQaWo3fmhxpXPKer9h4uktwW2AU0XIvv3xs3P1v6XFXA%2FdSoMFUGsv7V0a5Gtv6m6h2HPPoAYt9iQ304q0U1AhRempM0ovJiPczvlzDQ8rzTP0qACdC8zbfFuSegAyLiu3CR29jh0DbUDQJjGWHSiu03EDwfYjBtXySldybqSFhFntvxfasR3T4as22Vbccj1E01vz4qZsjf44QWRruc6g%3D%3D&response-content-disposition=attachment%3B+filename%3D%22staging-bulk-8027183546674.jsonl%22%3B+filename%2A%3DUTF-8%27%27staging-bulk-8027183546674.jsonl&response-content-type=application%2Fjsonl",
+                "partialDataUrl": null,
+                "query": "#graphql\n{\n  products(query: \"tag:conformance-bulk-root-mre2ls4g-161dh\") {\n    edges {\n      node {\n        id\n        title\n        variants {\n          edges {\n            node {\n              id\n              title\n              sku\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n              alt\n              mediaContentType\n            }\n          }\n        }\n        metafields(namespace: \"custom\") {\n          edges {\n            node {\n              id\n              namespace\n              key\n              value\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+              },
+              {
+                "id": "gid://shopify/BulkOperation/8027175289138",
+                "status": "COMPLETED",
+                "type": "QUERY",
+                "errorCode": null,
+                "createdAt": "2026-07-09T22:17:22Z",
+                "completedAt": "2026-07-09T22:17:23Z",
+                "objectCount": "3",
+                "rootObjectCount": "1",
+                "fileSize": "528",
+                "url": "https://storage.googleapis.com/shopify-tiers-assets-prod-us-east1/bulk-operation-outputs/6cb7f188e66990b6c2129ed39501?GoogleAccessId=assets-us-prod%40shopify-tiers.iam.gserviceaccount.com&Expires=1784240243&Signature=lWi%2FZUMnYlSwwZSSrvaKONEAVlYSZQOXI2RsWzhxAN8yHAfjYqjsc8lkAhc7kyUr5N5olj5yorn8%2FdwytsWzIULFRd9yStmZNO0ocseYp59g%2FWKQirEtbzOJUVIS7LVKx%2BvjQYC8K0OBep1jsAij%2Fc6oUGMHEERoy8wLmXFkBqErF6s7erF9WMHyR57cQuADzag%2BWlW0PxyNQLv9NlRuuAg3jl68Emy%2FUkmyKVRzUuNnSelVUh7PRioCU2aZL8L%2F2AdSX1%2FsFDI%2FQ%2BTwaPwQH48xiOSpdnI6y9tdUlnu8OZnnRHN4rOLpY0RA3hHjvP%2FDnw%2FUNNd7iZHDt3zQG5HLg%3D%3D&response-content-disposition=attachment%3B+filename%3D%22staging-bulk-8027175289138.jsonl%22%3B+filename%2A%3DUTF-8%27%27staging-bulk-8027175289138.jsonl&response-content-type=application%2Fjsonl",
+                "partialDataUrl": null,
+                "query": "#graphql\n{\n  productVariants(query: \"sku:bulk-variant-bulk-root-mre2hdg7-15xjb\") {\n    edges {\n      node {\n        id\n        sku\n        media {\n          edges {\n            node {\n              id\n              alt\n              mediaContentType\n            }\n          }\n        }\n        metafields(namespace: \"custom\") {\n          edges {\n            node {\n              id\n              namespace\n              key\n              value\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+              },
+              {
+                "id": "gid://shopify/BulkOperation/8027175190834",
+                "status": "COMPLETED",
+                "type": "QUERY",
+                "errorCode": null,
+                "createdAt": "2026-07-09T22:17:20Z",
+                "completedAt": "2026-07-09T22:17:21Z",
+                "objectCount": "4",
+                "rootObjectCount": "1",
+                "fileSize": "679",
+                "url": "https://storage.googleapis.com/shopify-tiers-assets-prod-us-east1/bulk-operation-outputs/51f9769a50539778247a2266ea59?GoogleAccessId=assets-us-prod%40shopify-tiers.iam.gserviceaccount.com&Expires=1784240241&Signature=qX95389ci4FXyPjXFLvPtRtpFr6ox7uTpc7jSAYRljdKPu8OG%2BWcyATPEAgKjX1zqerkzg1d6hO6m2prQwWGvH9sSkcxUv6b20FOa0xUNfPPcrfs%2FHDNAq%2FX%2FjT6WoVfWf1S5psiv67mFlZyo7b8R0m%2BkFhZevrZlYb5KPF24fn2fnOPyOAepSTJmlXwcPoL2JjTd0w4GhjXULLwnj9kexp2W2YMdnLK8%2FbUqpUpmKfOh2bR4Rkir6YRpflbgjydB%2F%2FztQ05UAWhMtlGixYSvnM6oa%2FEsBlWasyjrB9r2%2FfLt0NWijp0gHcGP17lYRJAbzJi6QrYaCT4vufRX2oR8A%3D%3D&response-content-disposition=attachment%3B+filename%3D%22staging-bulk-8027175190834.jsonl%22%3B+filename%2A%3DUTF-8%27%27staging-bulk-8027175190834.jsonl&response-content-type=application%2Fjsonl",
+                "partialDataUrl": null,
+                "query": "#graphql\n{\n  products(query: \"tag:conformance-bulk-root-mre2hdg7-15xjb\") {\n    edges {\n      node {\n        id\n        title\n        variants {\n          edges {\n            node {\n              id\n              title\n              sku\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n              alt\n              mediaContentType\n            }\n          }\n        }\n        metafields(namespace: \"custom\") {\n          edges {\n            node {\n              id\n              namespace\n              key\n              value\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjo4MDI3MTgzNjEyMjEwLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wOSAyMjoyMDo1My4xOTU5MjcifQ==",
+              "endCursor": "eyJsYXN0X2lkIjo4MDI3MTc1MTkwODM0LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wOSAyMjoxNzoyMC45MTgxOTkifQ=="
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 6,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1996,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "BulkOperationsBaseOverlayPostRun",
+      "query": "#graphql\nquery BulkOperationsBaseOverlayPostRun($first: Int!, $sortKey: BulkOperationsSortKeys, $reverse: Boolean) {\n  bulkOperations(first: $first, sortKey: $sortKey, reverse: $reverse) {\n    nodes {\n      \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "first": 5,
+        "sortKey": "CREATED_AT",
+        "reverse": false
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperations": {
+            "nodes": [
+              {
+                "id": "gid://shopify/BulkOperation/8052023623986",
+                "status": "CREATED",
+                "type": "QUERY",
+                "errorCode": null,
+                "createdAt": "2026-07-16T01:10:50Z",
+                "completedAt": null,
+                "objectCount": "0",
+                "rootObjectCount": "0",
+                "fileSize": null,
+                "url": null,
+                "partialDataUrl": null,
+                "query": "{ products { edges { node { id } } } }"
+              },
+              {
+                "id": "gid://shopify/BulkOperation/8027183612210",
+                "status": "COMPLETED",
+                "type": "QUERY",
+                "errorCode": null,
+                "createdAt": "2026-07-09T22:20:53Z",
+                "completedAt": "2026-07-09T22:20:54Z",
+                "objectCount": "3",
+                "rootObjectCount": "1",
+                "fileSize": "528",
+                "url": "https://storage.googleapis.com/shopify-tiers-assets-prod-us-east1/bulk-operation-outputs/fa4e964b220ad282d987be98f5e5?GoogleAccessId=assets-us-prod%40shopify-tiers.iam.gserviceaccount.com&Expires=1784240454&Signature=KvLEPwHzpAQQSn3mKHJ%2FSQMIHEvkhmP1m8wHWtkU986%2BnfVx%2FX2gEWCTho1moBWZIjtRFniqvhztuWDvpuJ50iRkC64MZCSspXwb3cmF5%2FC2lWcw0epdOQ6ez%2B5MFCxOzN5F1%2FdACHXQLZQbSvdMgLiw536W44fFN%2FS7Lnur4uBgamZZioWpPQp3f45DOWNzzrQ4nHyzlSgN1RzEht4%2B1RvXbLxAhqfne4PUn9Y72P6blS255QrDYAKvzr1NAxKXHR5o5H1dnP5ZELoHerpkstYcthvhH5yN8bWzbPtNmUwgC7CHOoGZQljzt5fMQ%2BALsaKIv6oYvnEpfrteJqV5Pw%3D%3D&response-content-disposition=attachment%3B+filename%3D%22staging-bulk-8027183612210.jsonl%22%3B+filename%2A%3DUTF-8%27%27staging-bulk-8027183612210.jsonl&response-content-type=application%2Fjsonl",
+                "partialDataUrl": null,
+                "query": "#graphql\n{\n  productVariants(query: \"sku:bulk-variant-bulk-root-mre2ls4g-161dh\") {\n    edges {\n      node {\n        id\n        sku\n        media {\n          edges {\n            node {\n              id\n              alt\n              mediaContentType\n            }\n          }\n        }\n        metafields(namespace: \"custom\") {\n          edges {\n            node {\n              id\n              namespace\n              key\n              value\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+              },
+              {
+                "id": "gid://shopify/BulkOperation/8027183546674",
+                "status": "COMPLETED",
+                "type": "QUERY",
+                "errorCode": null,
+                "createdAt": "2026-07-09T22:20:51Z",
+                "completedAt": "2026-07-09T22:20:52Z",
+                "objectCount": "4",
+                "rootObjectCount": "1",
+                "fileSize": "679",
+                "url": "https://storage.googleapis.com/shopify-tiers-assets-prod-us-east1/bulk-operation-outputs/e0558bb00b64a1b0bd6d1f2d000a?GoogleAccessId=assets-us-prod%40shopify-tiers.iam.gserviceaccount.com&Expires=1784240452&Signature=Uahts69BcyyTUtkqMak31OJujGpmJrRTETLzIyQco7QDhak75VXy7MZGk2pGjRtGHebji9NRxhNh%2F%2B7c7q2%2BE7SHQL8IzZsxHqkffzn2y%2BdTOKZkkeKqLRzSsinwy8yGFQaWo3fmhxpXPKer9h4uktwW2AU0XIvv3xs3P1v6XFXA%2FdSoMFUGsv7V0a5Gtv6m6h2HPPoAYt9iQ304q0U1AhRempM0ovJiPczvlzDQ8rzTP0qACdC8zbfFuSegAyLiu3CR29jh0DbUDQJjGWHSiu03EDwfYjBtXySldybqSFhFntvxfasR3T4as22Vbccj1E01vz4qZsjf44QWRruc6g%3D%3D&response-content-disposition=attachment%3B+filename%3D%22staging-bulk-8027183546674.jsonl%22%3B+filename%2A%3DUTF-8%27%27staging-bulk-8027183546674.jsonl&response-content-type=application%2Fjsonl",
+                "partialDataUrl": null,
+                "query": "#graphql\n{\n  products(query: \"tag:conformance-bulk-root-mre2ls4g-161dh\") {\n    edges {\n      node {\n        id\n        title\n        variants {\n          edges {\n            node {\n              id\n              title\n              sku\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n              alt\n              mediaContentType\n            }\n          }\n        }\n        metafields(namespace: \"custom\") {\n          edges {\n            node {\n              id\n              namespace\n              key\n              value\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+              },
+              {
+                "id": "gid://shopify/BulkOperation/8027175289138",
+                "status": "COMPLETED",
+                "type": "QUERY",
+                "errorCode": null,
+                "createdAt": "2026-07-09T22:17:22Z",
+                "completedAt": "2026-07-09T22:17:23Z",
+                "objectCount": "3",
+                "rootObjectCount": "1",
+                "fileSize": "528",
+                "url": "https://storage.googleapis.com/shopify-tiers-assets-prod-us-east1/bulk-operation-outputs/6cb7f188e66990b6c2129ed39501?GoogleAccessId=assets-us-prod%40shopify-tiers.iam.gserviceaccount.com&Expires=1784240243&Signature=lWi%2FZUMnYlSwwZSSrvaKONEAVlYSZQOXI2RsWzhxAN8yHAfjYqjsc8lkAhc7kyUr5N5olj5yorn8%2FdwytsWzIULFRd9yStmZNO0ocseYp59g%2FWKQirEtbzOJUVIS7LVKx%2BvjQYC8K0OBep1jsAij%2Fc6oUGMHEERoy8wLmXFkBqErF6s7erF9WMHyR57cQuADzag%2BWlW0PxyNQLv9NlRuuAg3jl68Emy%2FUkmyKVRzUuNnSelVUh7PRioCU2aZL8L%2F2AdSX1%2FsFDI%2FQ%2BTwaPwQH48xiOSpdnI6y9tdUlnu8OZnnRHN4rOLpY0RA3hHjvP%2FDnw%2FUNNd7iZHDt3zQG5HLg%3D%3D&response-content-disposition=attachment%3B+filename%3D%22staging-bulk-8027175289138.jsonl%22%3B+filename%2A%3DUTF-8%27%27staging-bulk-8027175289138.jsonl&response-content-type=application%2Fjsonl",
+                "partialDataUrl": null,
+                "query": "#graphql\n{\n  productVariants(query: \"sku:bulk-variant-bulk-root-mre2hdg7-15xjb\") {\n    edges {\n      node {\n        id\n        sku\n        media {\n          edges {\n            node {\n              id\n              alt\n              mediaContentType\n            }\n          }\n        }\n        metafields(namespace: \"custom\") {\n          edges {\n            node {\n              id\n              namespace\n              key\n              value\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+              },
+              {
+                "id": "gid://shopify/BulkOperation/8027175190834",
+                "status": "COMPLETED",
+                "type": "QUERY",
+                "errorCode": null,
+                "createdAt": "2026-07-09T22:17:20Z",
+                "completedAt": "2026-07-09T22:17:21Z",
+                "objectCount": "4",
+                "rootObjectCount": "1",
+                "fileSize": "679",
+                "url": "https://storage.googleapis.com/shopify-tiers-assets-prod-us-east1/bulk-operation-outputs/51f9769a50539778247a2266ea59?GoogleAccessId=assets-us-prod%40shopify-tiers.iam.gserviceaccount.com&Expires=1784240241&Signature=qX95389ci4FXyPjXFLvPtRtpFr6ox7uTpc7jSAYRljdKPu8OG%2BWcyATPEAgKjX1zqerkzg1d6hO6m2prQwWGvH9sSkcxUv6b20FOa0xUNfPPcrfs%2FHDNAq%2FX%2FjT6WoVfWf1S5psiv67mFlZyo7b8R0m%2BkFhZevrZlYb5KPF24fn2fnOPyOAepSTJmlXwcPoL2JjTd0w4GhjXULLwnj9kexp2W2YMdnLK8%2FbUqpUpmKfOh2bR4Rkir6YRpflbgjydB%2F%2FztQ05UAWhMtlGixYSvnM6oa%2FEsBlWasyjrB9r2%2FfLt0NWijp0gHcGP17lYRJAbzJi6QrYaCT4vufRX2oR8A%3D%3D&response-content-disposition=attachment%3B+filename%3D%22staging-bulk-8027175190834.jsonl%22%3B+filename%2A%3DUTF-8%27%27staging-bulk-8027175190834.jsonl&response-content-type=application%2Fjsonl",
+                "partialDataUrl": null,
+                "query": "#graphql\n{\n  products(query: \"tag:conformance-bulk-root-mre2hdg7-15xjb\") {\n    edges {\n      node {\n        id\n        title\n        variants {\n          edges {\n            node {\n              id\n              title\n              sku\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n              alt\n              mediaContentType\n            }\n          }\n        }\n        metafields(namespace: \"custom\") {\n          edges {\n            node {\n              id\n              namespace\n              key\n              value\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjo4MDUyMDIzNjIzOTg2LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0xNiAwMToxMDo1MC44MDA4MzMifQ==",
+              "endCursor": "eyJsYXN0X2lkIjo4MDI3MTc1MTkwODM0LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wOSAyMjoxNzoyMC45MTgxOTkifQ=="
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 5,
+            "actualQueryCost": 5,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1995,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ]
+}

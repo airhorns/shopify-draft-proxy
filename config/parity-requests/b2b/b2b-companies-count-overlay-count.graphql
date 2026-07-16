@@ -1,0 +1,6 @@
+query B2BCompaniesCountOverlayCountOnly {
+  companiesCount(limit: null) {
+    count
+    precision
+  }
+}

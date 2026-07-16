@@ -1002,7 +1002,11 @@ impl DraftProxy {
             .collect()
     }
 
-    fn stage_observed_owner_metafields(&mut self, owner_id: &str, node: &Value) {
+    pub(in crate::proxy) fn stage_observed_owner_metafields(
+        &mut self,
+        owner_id: &str,
+        node: &Value,
+    ) {
         let mut records = node
             .get("metafields")
             .map(connection_nodes)

@@ -1,0 +1,54 @@
+mutation StorefrontCollectionsProductsCreate(
+  $alpha: ProductCreateInput!
+  $beta: ProductCreateInput!
+  $gamma: ProductCreateInput!
+) {
+  alpha: productCreate(product: $alpha) {
+    product {
+      id
+      title
+      handle
+      variants(first: 1) {
+        nodes {
+          id
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  beta: productCreate(product: $beta) {
+    product {
+      id
+      title
+      handle
+      variants(first: 1) {
+        nodes {
+          id
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  gamma: productCreate(product: $gamma) {
+    product {
+      id
+      title
+      handle
+      variants(first: 1) {
+        nodes {
+          id
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

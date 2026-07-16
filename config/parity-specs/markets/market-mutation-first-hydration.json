@@ -1,12 +1,23 @@
 {
   "scenarioId": "market-mutation-first-hydration",
-  "operationNames": ["marketUpdate", "marketDelete", "market", "catalog", "webPresences"],
+  "operationNames": [
+    "marketUpdate",
+    "marketDelete",
+    "market",
+    "catalog",
+    "markets",
+    "catalogs",
+    "catalogsCount",
+    "priceLists",
+    "webPresences"
+  ],
   "scenarioStatus": "captured",
   "assertionKinds": [
     "payload-shape",
     "downstream-read-parity",
     "local-staging",
     "delete-cascade",
+    "count-shape",
     "user-errors-parity"
   ],
   "liveCaptureFiles": [
@@ -19,7 +30,7 @@
     "variablesCapturePath": "$.mutationFirstUpdate.update.request.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live Admin GraphQL 2026-04 capture creates disposable non-primary Markets with MarketCatalog and MarketWebPresence relations, records the exact read-only preflight the proxy uses for mutation-first marketUpdate and marketDelete, and verifies downstream market/catalog readback plus unknown Market ID and wrong-resource validation.",
+  "notes": "Live Admin GraphQL 2026-04 capture creates disposable non-primary Markets with MarketCatalog, PriceList, and MarketWebPresence relations, records the exact read-only preflight the proxy uses for mutation-first marketUpdate and marketDelete, and verifies downstream singular reads plus top-level markets/catalogs/catalogsCount/priceLists/webPresences readback after a by-ID marketUpdate.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -48,6 +59,25 @@
           "apiVersion": "2026-04",
           "variablesCapturePath": "$.mutationFirstUpdate.downstreamRead.request.variables"
         }
+      },
+      {
+        "name": "mutation-first-update-top-level-lists-keep-upstream-baseline",
+        "capturePath": "$.mutationFirstUpdate.topLevelRead.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-mutation-first-update-top-level-read.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.mutationFirstUpdate.topLevelRead.request.variables"
+        },
+        "selectedPaths": [
+          "$.primaryMarketFromList.nodes",
+          "$.updateMarketFromList.nodes",
+          "$.otherMarketFromList.nodes",
+          "$.catalogs.nodes",
+          "$.catalogsCount",
+          "$.priceLists.nodes",
+          "$.webPresences.nodes"
+        ]
       },
       {
         "name": "mutation-first-delete-payload",
