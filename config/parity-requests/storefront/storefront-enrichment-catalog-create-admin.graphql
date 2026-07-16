@@ -1,0 +1,29 @@
+mutation StorefrontEnrichmentCatalogCreate($input: CatalogCreateInput!) {
+  catalogCreate(input: $input) {
+    catalog {
+      id
+      title
+      status
+      ... on MarketCatalog {
+        markets(first: 5) {
+          nodes {
+            id
+            name
+          }
+        }
+      }
+      priceList {
+        id
+        currency
+      }
+      publication {
+        id
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

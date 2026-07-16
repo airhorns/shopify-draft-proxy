@@ -561,6 +561,513 @@ fn storefront_catalog_roots_read_visible_products_from_shared_state() {
 }
 
 #[test]
+fn storefront_catalog_enrichment_roots_use_visible_shared_state_with_pagination_and_fragments() {
+    let publication_id = "gid://shopify/Publication/storefront-enrichment";
+    let source_id = "gid://shopify/Product/storefront-enrichment-source";
+    let candidate_id = "gid://shopify/Product/storefront-enrichment-candidate";
+    let outsider_id = "gid://shopify/Product/storefront-enrichment-outsider";
+    let mut source = storefront_product_fixture(
+        source_id,
+        "Source product",
+        "source-product",
+        Some(publication_id),
+    );
+    source.product_type = "Shirt".to_string();
+    source.tags = vec!["shared".to_string(), "source".to_string()];
+    let mut candidate = storefront_product_fixture(
+        candidate_id,
+        "Best candidate",
+        "best-candidate",
+        Some(publication_id),
+    );
+    candidate.product_type = "Shirt".to_string();
+    candidate.tags = vec!["shared".to_string(), "candidate".to_string()];
+    let mut outsider = storefront_product_fixture(
+        outsider_id,
+        "Outside candidate",
+        "outside-candidate",
+        Some(publication_id),
+    );
+    outsider.vendor = "Other vendor".to_string();
+    outsider.product_type = "Other".to_string();
+    outsider.tags = vec!["other".to_string()];
+    let mut hidden = storefront_product_fixture(
+        "gid://shopify/Product/storefront-enrichment-hidden",
+        "Hidden candidate",
+        "hidden-candidate",
+        None,
+    );
+    hidden.tags = vec!["hidden".to_string()];
+
+    let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|_| panic!("snapshot enrichment roots must stay local"))
+        .with_base_products(vec![source, candidate, outsider, hidden]);
+    restore_storefront_current_publication(&mut proxy, publication_id);
+
+    let response = proxy.process_request(storefront_graphql_request(
+        r#"
+        query StorefrontEnrichmentRoots($sourceId: ID!, $missingId: ID!) {
+          tags: productTags(first: 2) {
+            edges { cursor node }
+            nodes
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          types: productTypes(first: 2) { nodes }
+          recommendations: productRecommendations(productId: $sourceId, intent: RELATED) {
+            ...RecommendationFields
+          }
+          recommendationsByHandle: productRecommendations(productHandle: "source-product", intent: RELATED) {
+            ...RecommendationFields
+          }
+          missing: productRecommendations(productId: $missingId, intent: RELATED) { id }
+        }
+        fragment RecommendationFields on Product { id title handle productType tags }
+        "#,
+        json!({
+            "sourceId": source_id,
+            "missingId": "gid://shopify/Product/missing"
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["tags"]["nodes"],
+        json!(["candidate", "other"]),
+        "{:#?}",
+        response.body
+    );
+    assert_eq!(
+        response.body["data"]["tags"]["edges"][0]["node"],
+        json!("candidate")
+    );
+    assert_eq!(
+        response.body["data"]["tags"]["pageInfo"]["hasNextPage"],
+        json!(true)
+    );
+    assert_eq!(
+        response.body["data"]["types"]["nodes"],
+        json!(["Other", "Shirt"])
+    );
+    assert_eq!(
+        response.body["data"]["recommendations"][0]["id"],
+        json!(candidate_id)
+    );
+    assert_eq!(
+        response.body["data"]["recommendations"][1]["id"],
+        json!(outsider_id)
+    );
+    assert_eq!(
+        response.body["data"]["recommendationsByHandle"],
+        response.body["data"]["recommendations"]
+    );
+    assert_eq!(response.body["data"]["missing"], Value::Null);
+    assert!(!response.body.to_string().contains("hidden-candidate"));
+}
+
+#[test]
+fn storefront_catalog_enrichment_projects_staged_media_metafields_and_selling_plans() {
+    let publication_id = "gid://shopify/Publication/storefront-enrichment";
+    let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|_| panic!("staged Storefront enrichment must stay local"));
+    restore_state_with(&mut proxy, |state| {
+        state["baseState"]["shop"] = json!({ "currencyCode": "CAD" });
+        state["baseState"]["publicationIds"] = json!([publication_id]);
+        state["baseState"]["publicationCount"] = json!(1);
+        state["stagedState"]["currentChannelPublicationId"] = json!(publication_id);
+        state["stagedState"]["currentChannelPublicationResolved"] = json!(true);
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateStorefrontEnrichment($product: ProductCreateInput!, $media: [CreateMediaInput!]) {
+          productCreate(product: $product, media: $media) {
+            product { id handle variants(first: 1) { nodes { id } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "title": "Staged enrichment product",
+                "handle": "staged-enrichment-product",
+                "status": "ACTIVE",
+                "vendor": "Hermes",
+                "productType": "Subscription",
+                "tags": ["staged", "enrichment"],
+                "productOptions": [{ "name": "Color", "values": [{ "name": "Blue" }] }]
+            },
+            "media": [{
+                "alt": "Staged enrichment image",
+                "mediaContentType": "IMAGE",
+                "originalSource": "https://placehold.co/640x480/png?text=enrichment"
+            }]
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let product_id = create.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let variant_id = create.body["data"]["productCreate"]["product"]["variants"]["nodes"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    publish_to_current_storefront_channel(&mut proxy, &product_id);
+
+    stage_metafield_definition(
+        &mut proxy,
+        "PRODUCT",
+        "custom",
+        "visible",
+        "single_line_text_field",
+        "PUBLIC_READ",
+    );
+    stage_metafield_definition(
+        &mut proxy,
+        "PRODUCT",
+        "custom",
+        "hidden",
+        "single_line_text_field",
+        "NONE",
+    );
+    stage_metafield_definition(
+        &mut proxy,
+        "PRODUCTVARIANT",
+        "custom",
+        "variant_visible",
+        "single_line_text_field",
+        "PUBLIC_READ",
+    );
+    stage_metafields_set(
+        &mut proxy,
+        &product_id,
+        json!([
+            { "namespace": "custom", "key": "visible", "type": "single_line_text_field", "value": "public value" },
+            { "namespace": "custom", "key": "hidden", "type": "single_line_text_field", "value": "private value" }
+        ]),
+    );
+    stage_metafields_set(
+        &mut proxy,
+        &variant_id,
+        json!([
+            { "namespace": "custom", "key": "variant_visible", "type": "single_line_text_field", "value": "variant value" }
+        ]),
+    );
+
+    let selling_plan = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateStorefrontSellingPlan($input: SellingPlanGroupInput!, $resources: SellingPlanGroupResourceInput!) {
+          sellingPlanGroupCreate(input: $input, resources: $resources) {
+            sellingPlanGroup { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Subscribe and save",
+                "merchantCode": "subscribe-save",
+                "options": ["Delivery frequency"],
+                "position": 1,
+                "sellingPlansToCreate": [{
+                    "name": "Monthly",
+                    "description": "Monthly delivery",
+                    "options": ["Every month"],
+                    "position": 1,
+                    "category": "SUBSCRIPTION",
+                    "billingPolicy": { "recurring": { "interval": "MONTH", "intervalCount": 1 } },
+                    "deliveryPolicy": { "recurring": { "interval": "MONTH", "intervalCount": 1 } },
+                    "pricingPolicies": [{
+                        "fixed": {
+                            "adjustmentType": "PERCENTAGE",
+                            "adjustmentValue": { "percentage": 15 }
+                        }
+                    }]
+                }]
+            },
+            "resources": { "productIds": [product_id] }
+        }),
+    ));
+    assert_eq!(selling_plan.status, 200);
+    assert_eq!(
+        selling_plan.body["data"]["sellingPlanGroupCreate"]["userErrors"],
+        json!([])
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PriceStorefrontVariant($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+          productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+            productVariants { id price compareAtPrice }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "variants": [{ "id": variant_id, "price": "149.00", "compareAtPrice": "179.00" }]
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["productVariantsBulkUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let response = proxy.process_request(storefront_graphql_request(
+        r#"
+        query StagedStorefrontEnrichment($id: ID!) {
+          product(id: $id) {
+            featuredImage { id url altText width height }
+            images(first: 1) { nodes { id width height } }
+            media(first: 1) { nodes { __typename id mediaContentType previewImage { url width height } } }
+            visible: metafield(namespace: "custom", key: "visible") { key value }
+            hidden: metafield(namespace: "custom", key: "hidden") { key value }
+            selected: metafields(identifiers: [
+              { namespace: "custom", key: "visible" }
+              { namespace: "custom", key: "hidden" }
+            ]) { key value }
+            sellingPlanGroups(first: 1) {
+              nodes { name sellingPlans(first: 1) { nodes { name recurringDeliveries } } }
+            }
+            variants(first: 1) {
+              nodes {
+                image { width height }
+                metafield(namespace: "custom", key: "variant_visible") { key value }
+                sellingPlanAllocations(first: 1) {
+                  nodes {
+                    checkoutChargeAmount { amount currencyCode }
+                    remainingBalanceChargeAmount { amount currencyCode }
+                    sellingPlan { name }
+                  }
+                }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "id": product_id }),
+    ));
+
+    assert_eq!(response.status, 200);
+    let product = &response.body["data"]["product"];
+    assert_eq!(
+        product["featuredImage"]["width"],
+        json!(640),
+        "{:#?}",
+        response.body
+    );
+    assert_eq!(product["featuredImage"]["height"], json!(480));
+    assert_eq!(
+        product["media"]["nodes"][0]["mediaContentType"],
+        json!("IMAGE")
+    );
+    assert_eq!(
+        product["visible"],
+        json!({ "key": "visible", "value": "public value" })
+    );
+    assert_eq!(product["hidden"], Value::Null);
+    assert_eq!(product["selected"][1], Value::Null);
+    assert_eq!(
+        product["variants"]["nodes"][0]["metafield"]["value"],
+        json!("variant value")
+    );
+    assert_eq!(
+        product["variants"]["nodes"][0]["sellingPlanAllocations"]["nodes"][0]
+            ["checkoutChargeAmount"],
+        json!({ "amount": "126.65", "currencyCode": "CAD" })
+    );
+    assert_eq!(
+        product["sellingPlanGroups"]["nodes"][0]["sellingPlans"]["nodes"][0]["recurringDeliveries"],
+        json!(true)
+    );
+}
+
+#[test]
+fn storefront_catalog_enrichment_hydrates_taxonomy_and_isolates_extended_contexts() {
+    let observed = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let observed_for_transport = Arc::clone(&observed);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body).unwrap();
+        observed_for_transport.lock().unwrap().push(body.clone());
+        let query = body["query"].as_str().unwrap_or_default();
+        if query.contains("StorefrontEnrichmentTaxonomyHydrate") {
+            return Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "productTags": {
+                            "edges": [
+                                { "cursor": "QWxwaGE=", "node": "Alpha" },
+                                { "cursor": "QmV0YQ==", "node": "Beta" }
+                            ],
+                            "nodes": ["Alpha", "Beta"],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": "QWxwaGE=",
+                                "endCursor": "QmV0YQ=="
+                            }
+                        },
+                        "productTypes": {
+                            "edges": [{ "cursor": "U2hpcnQ=", "node": "Shirt" }],
+                            "nodes": ["Shirt"],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": "U2hpcnQ=",
+                                "endCursor": "U2hpcnQ="
+                            }
+                        }
+                    }
+                }),
+            };
+        }
+        if query.contains("StorefrontEnrichmentContextHydrate") {
+            let country = body["variables"]["country"].as_str().unwrap_or("AE");
+            let (currency, market_id, handle) = if country == "DK" {
+                ("DKK", "gid://shopify/Market/denmark", "denmark")
+            } else {
+                ("CAD", "gid://shopify/Market/international", "international")
+            };
+            return Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "localization": {
+                            "country": { "isoCode": country, "currency": { "isoCode": currency } },
+                            "language": { "isoCode": "EN" },
+                            "market": { "id": market_id, "handle": handle }
+                        }
+                    }
+                }),
+            };
+        }
+        panic!("unexpected Storefront enrichment hydrate: {query}");
+    });
+
+    let taxonomy = proxy.process_request(storefront_graphql_request(
+        r#"
+        query HydratedStorefrontTaxonomy {
+          productTags(first: 1) {
+            edges { cursor node }
+            nodes
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          productTypes(first: 5) { nodes }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(taxonomy.status, 200);
+    assert_eq!(
+        taxonomy.body["data"]["productTags"]["nodes"],
+        json!(["Alpha"])
+    );
+    assert_eq!(
+        taxonomy.body["data"]["productTags"]["pageInfo"]["hasNextPage"],
+        json!(true)
+    );
+    assert_eq!(
+        taxonomy.body["data"]["productTypes"]["nodes"],
+        json!(["Shirt"])
+    );
+
+    let context_query = r#"
+        query HydratedStorefrontContext(
+          $country: CountryCode
+          $language: LanguageCode
+          $preferredLocationId: ID
+          $buyer: BuyerInput
+        ) @inContext(
+          country: $country
+          language: $language
+          preferredLocationId: $preferredLocationId
+          buyer: $buyer
+        ) {
+          localization {
+            country { isoCode currency { isoCode } }
+            language { isoCode }
+            market { id handle }
+          }
+        }
+    "#;
+    let default_context = proxy.process_request(storefront_graphql_request(
+        context_query,
+        json!({
+            "country": null,
+            "language": null,
+            "preferredLocationId": null,
+            "buyer": null
+        }),
+    ));
+    let denmark_context = proxy.process_request(storefront_graphql_request(
+        context_query,
+        json!({
+            "country": "DK",
+            "language": "EN",
+            "preferredLocationId": null,
+            "buyer": null
+        }),
+    ));
+    let preferred_context = proxy.process_request(storefront_graphql_request(
+        context_query,
+        json!({
+            "country": "DK",
+            "language": "EN",
+            "preferredLocationId": "gid://shopify/Location/local-synthetic",
+            "buyer": null
+        }),
+    ));
+    assert_eq!(
+        default_context.body["data"]["localization"]["country"]["currency"]["isoCode"],
+        json!("CAD")
+    );
+    assert_eq!(
+        denmark_context.body["data"]["localization"]["country"]["currency"]["isoCode"],
+        json!("DKK")
+    );
+    assert_eq!(preferred_context.body["data"], denmark_context.body["data"]);
+
+    let invalid_buyer = proxy.process_request(storefront_graphql_request(
+        context_query,
+        json!({
+            "country": "DK",
+            "language": "EN",
+            "preferredLocationId": null,
+            "buyer": {
+                "customerAccessToken": "invalid-token",
+                "companyLocationId": "gid://shopify/CompanyLocation/1"
+            }
+        }),
+    ));
+    assert_eq!(
+        invalid_buyer.body,
+        json!({ "errors": [{ "message": "The token provided is not valid" }] })
+    );
+
+    let observed = observed.lock().unwrap();
+    assert_eq!(observed.len(), 3);
+    assert!(observed[0]["query"]
+        .as_str()
+        .unwrap()
+        .contains("StorefrontEnrichmentTaxonomyHydrate"));
+    assert_eq!(observed[1]["variables"]["preferredLocationId"], Value::Null);
+    assert_eq!(observed[2]["variables"]["country"], json!("DK"));
+    assert_eq!(observed[2]["variables"]["preferredLocationId"], Value::Null);
+}
+
+#[test]
 fn storefront_catalog_reflects_admin_staged_lifecycle_and_variant_inventory() {
     let current_publication_id = "gid://shopify/Publication/current-storefront";
     let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
@@ -568,6 +1075,9 @@ fn storefront_catalog_reflects_admin_staged_lifecycle_and_variant_inventory() {
             panic!("snapshot Storefront catalog should not call upstream")
         });
     restore_storefront_current_publication(&mut proxy, current_publication_id);
+    restore_state_with(&mut proxy, |state| {
+        state["baseState"]["shop"] = json!({ "currencyCode": "USD" });
+    });
 
     let create = proxy.process_request(json_graphql_request(
         r#"

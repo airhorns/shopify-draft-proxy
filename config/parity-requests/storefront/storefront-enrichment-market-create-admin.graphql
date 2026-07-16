@@ -1,0 +1,31 @@
+mutation StorefrontEnrichmentMarketCreate($input: MarketCreateInput!) {
+  marketCreate(input: $input) {
+    market {
+      id
+      name
+      handle
+      status
+      enabled
+      currencySettings {
+        baseCurrency {
+          currencyCode
+        }
+        localCurrencies
+      }
+      regions(first: 5) {
+        nodes {
+          id
+          ... on MarketRegionCountry {
+            code
+            name
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

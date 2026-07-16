@@ -332,6 +332,16 @@ impl DraftProxy {
         let market_id = value_string(market, "id");
         selected_record_with_connections(market, selections, |selection| {
             match selection.name.as_str() {
+                "regions" => Some(selected_connection_json_with_args(
+                    market
+                        .pointer("/conditions/regionsCondition/regions/nodes")
+                        .and_then(Value::as_array)
+                        .cloned()
+                        .unwrap_or_default(),
+                    &selection.arguments,
+                    &selection.selection,
+                    value_id_cursor,
+                )),
                 "catalogs" => Some(selected_market_relation_connection(
                     self.store.staged.catalogs.values(),
                     market_id,

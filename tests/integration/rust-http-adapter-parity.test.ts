@@ -213,6 +213,8 @@ describe('Rust HTTP adapter route surface', { timeout: adapterTestTimeoutMs }, (
             metafieldDefinitionNamespaces: [],
             storefrontShop: null,
             storefrontLocalizations: {},
+            storefrontProductTags: null,
+            storefrontProductTypes: null,
             storefrontPaymentSettings: null,
             storefrontLocations: {},
             storefrontLocationOrder: [],

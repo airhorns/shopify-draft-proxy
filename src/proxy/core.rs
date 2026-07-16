@@ -239,14 +239,33 @@ impl DraftProxy {
             .as_ref()
             .map(|operation| operation.operation_type.keyword())
             .unwrap_or("unknown");
-        let query = parsed_body
+        let raw_query = parsed_body
             .as_ref()
-            .map(|body| json!(body.query.clone()))
-            .unwrap_or(Value::Null);
-        let variables = parsed_body
+            .map(|body| body.query.clone())
+            .unwrap_or_default();
+        let raw_variables = parsed_body
             .as_ref()
             .map(|body| resolved_variables_json(&body.variables))
             .unwrap_or_else(|| json!({}));
+        let variables =
+            super::storefront::storefront_redact_sensitive_json(raw_variables.clone(), None);
+        let contains_sensitive_context = variables != raw_variables
+            || raw_query.contains("customerAccessToken")
+            || raw_query.contains("multipassToken")
+            || raw_query.contains("resetToken")
+            || raw_query.contains("activationToken");
+        let query = if contains_sensitive_context {
+            json!("<redacted:storefront-sensitive-query>")
+        } else if raw_query.is_empty() {
+            Value::Null
+        } else {
+            json!(raw_query)
+        };
+        let raw_body = if contains_sensitive_context {
+            json!("<redacted:storefront-sensitive-request>")
+        } else {
+            json!(request.body)
+        };
         self.log_entries.push(json!({
             "id": id,
             "operationName": Value::Null,
@@ -255,7 +274,7 @@ impl DraftProxy {
             "path": request.path,
             "query": query,
             "variables": variables,
-            "rawBody": request.body,
+            "rawBody": raw_body,
             "interpreted": {
                 "operationType": operation_type,
                 "rootFields": root_fields,
@@ -460,6 +479,8 @@ impl DraftProxy {
                 "shop": self.store.base.shop.clone(),
                 "storefrontShop": self.store.base.storefront_shop.clone(),
                 "storefrontLocalizations": self.store.base.storefront_localizations.clone(),
+                "storefrontProductTags": self.store.base.storefront_product_tags.clone(),
+                "storefrontProductTypes": self.store.base.storefront_product_types.clone(),
                 "storefrontPaymentSettings": self.store.base.storefront_payment_settings.clone(),
                 "storefrontLocations": self.store.base.storefront_locations.records.clone(),
                 "storefrontLocationOrder": self.store.base.storefront_locations.order.clone(),
@@ -1669,6 +1690,16 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
+        self.store.base.storefront_product_tags = state["baseState"]
+            .get("storefrontProductTags")
+            .filter(|connection| connection.is_object() || connection.is_null())
+            .cloned()
+            .unwrap_or(Value::Null);
+        self.store.base.storefront_product_types = state["baseState"]
+            .get("storefrontProductTypes")
+            .filter(|connection| connection.is_object() || connection.is_null())
+            .cloned()
+            .unwrap_or(Value::Null);
         self.store.base.storefront_payment_settings = state["baseState"]
             .get("storefrontPaymentSettings")
             .filter(|settings| settings.is_object() || settings.is_null())
