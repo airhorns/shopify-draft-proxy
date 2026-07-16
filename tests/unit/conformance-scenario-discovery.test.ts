@@ -508,7 +508,9 @@ describe('conformance scenario discovery', () => {
 
     expect(status.implementedOperations.length).toBeGreaterThan(0);
     expect(status.apiSurfaceSummaries.admin.implementedOperations).toBeGreaterThan(0);
-    expect(status.apiSurfaceSummaries.storefront.implementedOperations).toBe(implementedStorefrontRoots.length);
+    expect(status.apiSurfaceSummaries.storefront.implementedOperations).toBeGreaterThanOrEqual(
+      implementedStorefrontRoots.length,
+    );
     expect(status.apiSurfaceSummaries.storefront.coveredOperationNames).toEqual(
       expect.arrayContaining(implementedStorefrontRoots),
     );

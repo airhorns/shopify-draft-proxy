@@ -1,0 +1,350 @@
+/* oxlint-disable no-console -- CLI scripts intentionally write status and error output to stdio. */
+import 'dotenv/config';
+
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+
+import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './conformance-graphql-client.js';
+import { readConformanceScriptConfig } from './conformance-script-config.js';
+import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
+
+type JsonObject = Record<string, unknown>;
+
+type CapturedStep = {
+  operationName: string;
+  query: string;
+  variables: JsonObject;
+  response: {
+    status: number;
+    body: unknown;
+  };
+};
+
+const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
+  exitOnMissing: true,
+});
+const adminAccessToken = await getValidConformanceAccessToken({
+  adminOrigin,
+  apiVersion,
+});
+const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'segments');
+const outputPath = path.join(outputDir, 'segment-live-hybrid-overlay.json');
+const parityRequestDir = path.join('config', 'parity-requests', 'segments');
+const createDocument = await readFile(
+  path.join(parityRequestDir, 'segment-live-hybrid-overlay-create.graphql'),
+  'utf8',
+);
+const readDocument = await readFile(path.join(parityRequestDir, 'segment-live-hybrid-overlay-read.graphql'), 'utf8');
+
+const { runGraphqlRequest } = createAdminGraphqlClient({
+  adminOrigin,
+  apiVersion,
+  headers: buildAdminAuthHeaders(adminAccessToken),
+});
+
+const cleanupDocument = `#graphql
+mutation SegmentLiveHybridOverlayCleanup($id: ID!) {
+  segmentDelete(id: $id) {
+    deletedSegmentId
+    userErrors {
+      field
+      message
+    }
+  }
+}
+`;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function randomSuffix(): string {
+  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function assertGraphqlOk(label: string, result: ConformanceGraphqlResult): void {
+  if (result.status < 200 || result.status >= 300 || result.payload.errors) {
+    throw new Error(`${label} failed: ${JSON.stringify(result, null, 2)}`);
+  }
+}
+
+async function captureStep(operationName: string, query: string, variables: JsonObject): Promise<CapturedStep> {
+  const result = await runGraphqlRequest(query, variables);
+  assertGraphqlOk(operationName, result);
+  return {
+    operationName,
+    query,
+    variables,
+    response: {
+      status: result.status,
+      body: result.payload,
+    },
+  };
+}
+
+function responseBody(step: CapturedStep): JsonObject {
+  if (typeof step.response.body === 'object' && step.response.body !== null) {
+    return step.response.body as JsonObject;
+  }
+  throw new Error(`${step.operationName} response body was not an object`);
+}
+
+function responseData(step: CapturedStep): JsonObject {
+  const body = responseBody(step);
+  if (typeof body['data'] === 'object' && body['data'] !== null) {
+    return body['data'] as JsonObject;
+  }
+  throw new Error(`${step.operationName} response body did not contain data`);
+}
+
+function readSegmentId(step: CapturedStep, rootField = 'segmentCreate'): string {
+  const root = responseData(step)[rootField];
+  if (typeof root !== 'object' || root === null) {
+    throw new Error(`${step.operationName} did not return ${rootField}`);
+  }
+  const segment = (root as JsonObject)['segment'];
+  if (typeof segment !== 'object' || segment === null) {
+    throw new Error(`${step.operationName} did not return a segment`);
+  }
+  const id = (segment as JsonObject)['id'];
+  if (typeof id !== 'string' || id.length === 0) {
+    throw new Error(`${step.operationName} did not return a segment id`);
+  }
+  return id;
+}
+
+function assertNoCreateUserErrors(step: CapturedStep): void {
+  const segmentCreate = responseData(step)['segmentCreate'] as JsonObject | undefined;
+  const userErrors = segmentCreate?.['userErrors'];
+  if (!Array.isArray(userErrors) || userErrors.length > 0) {
+    throw new Error(`${step.operationName} returned userErrors: ${JSON.stringify(userErrors, null, 2)}`);
+  }
+}
+
+function connectionNames(data: JsonObject, key: string): string[] {
+  const connection = data[key];
+  if (typeof connection !== 'object' || connection === null) return [];
+  const edges = (connection as JsonObject)['edges'];
+  if (!Array.isArray(edges)) return [];
+  return edges
+    .map((edge) => {
+      if (typeof edge !== 'object' || edge === null) return null;
+      const node = (edge as JsonObject)['node'];
+      if (typeof node !== 'object' || node === null) return null;
+      const name = (node as JsonObject)['name'];
+      return typeof name === 'string' ? name : null;
+    })
+    .filter((name): name is string => name !== null);
+}
+
+function readCount(data: JsonObject, key: string): number | null {
+  const countObject = data[key];
+  if (typeof countObject !== 'object' || countObject === null) return null;
+  const count = (countObject as JsonObject)['count'];
+  return typeof count === 'number' ? count : null;
+}
+
+function readPrecision(data: JsonObject, key: string): string | null {
+  const countObject = data[key];
+  if (typeof countObject !== 'object' || countObject === null) return null;
+  const precision = (countObject as JsonObject)['precision'];
+  return typeof precision === 'string' ? precision : null;
+}
+
+function readRealSegmentName(data: JsonObject): string | null {
+  const realSegment = data['realSegment'];
+  if (typeof realSegment !== 'object' || realSegment === null) return null;
+  const name = (realSegment as JsonObject)['name'];
+  return typeof name === 'string' ? name : null;
+}
+
+function readHasNextPage(data: JsonObject, key: string): boolean | null {
+  const connection = data[key];
+  if (typeof connection !== 'object' || connection === null) return null;
+  const pageInfo = (connection as JsonObject)['pageInfo'];
+  if (typeof pageInfo !== 'object' || pageInfo === null) return null;
+  const hasNextPage = (pageInfo as JsonObject)['hasNextPage'];
+  return typeof hasNextPage === 'boolean' ? hasNextPage : null;
+}
+
+function baseReadMatches(step: CapturedStep, baseName: string, stagedName: string): boolean {
+  const data = responseData(step);
+  return (
+    readRealSegmentName(data) === baseName &&
+    connectionNames(data, 'baseWindow').join('|') === baseName &&
+    connectionNames(data, 'stagedWindow').length === 0 &&
+    readCount(data, 'totalCount') !== null &&
+    readPrecision(data, 'totalCount') === 'EXACT' &&
+    readHasNextPage(data, 'combinedWindow') === false &&
+    !connectionNames(data, 'combinedWindow').includes(stagedName)
+  );
+}
+
+function finalReadMatches(step: CapturedStep, baseName: string, stagedName: string, baseTotalCount: number): boolean {
+  const data = responseData(step);
+  return (
+    readRealSegmentName(data) === baseName &&
+    connectionNames(data, 'baseWindow').join('|') === baseName &&
+    connectionNames(data, 'stagedWindow').join('|') === stagedName &&
+    readCount(data, 'totalCount') === baseTotalCount + 1 &&
+    readPrecision(data, 'totalCount') === 'EXACT' &&
+    readHasNextPage(data, 'combinedWindow') === true
+  );
+}
+
+async function captureUntil(
+  label: string,
+  operationName: string,
+  query: string,
+  variables: JsonObject,
+  matches: (step: CapturedStep) => boolean,
+): Promise<CapturedStep> {
+  let lastStep: CapturedStep | null = null;
+  for (let attempt = 1; attempt <= 24; attempt += 1) {
+    lastStep = await captureStep(`${operationName}Attempt${attempt}`, query, variables);
+    lastStep.operationName = operationName;
+    if (matches(lastStep)) return lastStep;
+    await sleep(1500);
+  }
+  throw new Error(`${label} did not observe expected indexed state: ${JSON.stringify(lastStep, null, 2)}`);
+}
+
+async function cleanupSegment(id: string | null): Promise<unknown> {
+  if (!id) return null;
+  try {
+    const result = await runGraphqlRequest(cleanupDocument, { id });
+    return {
+      query: cleanupDocument,
+      variables: { id },
+      response: {
+        status: result.status,
+        body: result.payload,
+      },
+    };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+function upstreamCall(step: CapturedStep): JsonObject {
+  return {
+    method: 'POST',
+    path: `/admin/api/${apiVersion}/graphql.json`,
+    apiSurface: 'admin',
+    apiVersion,
+    operationName: step.operationName,
+    variables: step.variables,
+    query: step.query,
+    response: step.response,
+  };
+}
+
+const marker = `segmentlivehybridoverlay${randomSuffix()}`;
+const baseName = `Live Hybrid Base ${marker}`;
+const stagedName = `Live Hybrid Staged ${marker}`;
+const baseCreateVariables = {
+  name: baseName,
+  query: `customer_tags CONTAINS '${marker}-base'`,
+};
+const stagedCreateVariables = {
+  name: stagedName,
+  query: `customer_tags CONTAINS '${marker}-staged'`,
+};
+
+let baseSegmentId: string | null = null;
+let liveStagedSegmentId: string | null = null;
+
+try {
+  const baseCreate = await captureStep('SegmentLiveHybridOverlayBaseCreate', createDocument, baseCreateVariables);
+  assertNoCreateUserErrors(baseCreate);
+  baseSegmentId = readSegmentId(baseCreate);
+
+  const readVariables = {
+    realId: baseSegmentId,
+    catalogQuery: marker,
+    baseQuery: baseName,
+    stagedQuery: stagedName,
+    first: 5,
+  };
+
+  const baseRead = await captureUntil(
+    'base segment overlay read',
+    'SegmentLiveHybridOverlayRead',
+    readDocument,
+    readVariables,
+    (step) => baseReadMatches(step, baseName, stagedName),
+  );
+  const baseTotalCount = readCount(responseData(baseRead), 'totalCount');
+  if (baseTotalCount === null) {
+    throw new Error(`base read did not return totalCount: ${JSON.stringify(baseRead, null, 2)}`);
+  }
+
+  const liveStagedCreate = await captureStep('SegmentLiveHybridOverlayCreate', createDocument, stagedCreateVariables);
+  assertNoCreateUserErrors(liveStagedCreate);
+  liveStagedSegmentId = readSegmentId(liveStagedCreate);
+
+  const finalRead = await captureUntil(
+    'final segment overlay read',
+    'SegmentLiveHybridOverlayRead',
+    readDocument,
+    readVariables,
+    (step) => finalReadMatches(step, baseName, stagedName, baseTotalCount),
+  );
+
+  const cleanup = {
+    staged: await cleanupSegment(liveStagedSegmentId),
+    base: await cleanupSegment(baseSegmentId),
+  };
+
+  await mkdir(outputDir, { recursive: true });
+  await writeFile(
+    outputPath,
+    `${JSON.stringify(
+      {
+        capturedAt: new Date().toISOString(),
+        scenarioId: 'segment-live-hybrid-overlay',
+        storeDomain,
+        apiVersion,
+        proxyVariables: {
+          create: stagedCreateVariables,
+          read: readVariables,
+        },
+        setup: {
+          baseCreate,
+          baseRead,
+        },
+        liveStagedCreate,
+        finalRead,
+        cleanup,
+        upstreamCalls: [baseRead].map(upstreamCall),
+        notes: [
+          'Live Shopify evidence for LiveHybrid segment overlay after segmentCreate.',
+          'Proxy replay stages only the second segment locally, while the upstreamCalls cassette records the base-only segment(id:)/segments/segmentsCount read captured before the second segment existed.',
+        ],
+      },
+      null,
+      2,
+    )}\n`,
+    'utf8',
+  );
+
+  console.log(
+    JSON.stringify(
+      {
+        ok: true,
+        outputPath,
+        baseName,
+        stagedName,
+      },
+      null,
+      2,
+    ),
+  );
+} catch (error) {
+  const cleanup = {
+    staged: await cleanupSegment(liveStagedSegmentId),
+    base: await cleanupSegment(baseSegmentId),
+  };
+  console.error(JSON.stringify({ ok: false, cleanup }, null, 2));
+  throw error;
+}

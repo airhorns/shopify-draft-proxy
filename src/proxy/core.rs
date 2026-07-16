@@ -444,8 +444,7 @@ impl DraftProxy {
         let base_metafield_definition_namespaces_value =
             json!(base_metafield_definition_namespaces);
         let deleted_metafield_definitions_value = json!(deleted_metafield_definitions);
-        let mut snapshot = json!({
-            "baseState": {
+        let base_state = json!({
                 "products": product_state_map_json(&self.store.base.products.records),
                 "productOrder": self.store.base.products.order,
                 "productVariants": product_variant_state_map_json(&self.store.base.product_variants.records),
@@ -466,6 +465,8 @@ impl DraftProxy {
                 "discounts": self.store.base.discounts.records.clone(),
                 "discountOrder": self.store.base.discounts.order,
                 "discountCountBaselines": self.store.base.discount_count_baselines.clone(),
+                "segments": self.store.base.segments.records.clone(),
+                "segmentOrder": self.store.base.segments.order,
                 "giftCards": self.store.base.gift_cards.clone(),
                 "giftCardConfiguration": self.store.base.gift_card_configuration.clone().unwrap_or(Value::Null),
                 "giftCardCompleteQueries": self.store.base.gift_card_complete_queries.iter().cloned().collect::<Vec<_>>(),
@@ -484,8 +485,8 @@ impl DraftProxy {
                 "availableLocales": available_locales,
                 "shopLocales": self.store.base.shop_locales.clone(),
                 "localizationProductIds": self.store.base.localization_product_ids.iter().cloned().collect::<Vec<_>>()
-            },
-            "stagedState": {
+        });
+        let staged_state = json!({
                 "products": product_state_map_json(&self.store.staged.products.records),
                 "productOrder": self.store.staged.products.order,
                 "deletedProductIds": self.store.staged.products.tombstones.iter().cloned().collect::<Vec<_>>(),
@@ -567,6 +568,9 @@ impl DraftProxy {
                 "deliveryCustomizations": self.store.staged.delivery_customizations.records.clone(),
                 "deliveryCustomizationOrder": self.store.staged.delivery_customizations.order.clone(),
                 "deletedDeliveryCustomizationIds": self.store.staged.delivery_customizations.tombstones.iter().cloned().collect::<Vec<_>>(),
+                "segments": self.store.staged.segments.records.clone(),
+                "segmentOrder": self.store.staged.segments.order.clone(),
+                "deletedSegmentIds": self.store.staged.segments.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "publicationIds": self.store.staged.publication_ids.iter().cloned().collect::<Vec<_>>(),
                 "createdPublicationIds": self.store.staged.created_publication_ids.iter().cloned().collect::<Vec<_>>(),
                 "publications": self.store.staged.publications.clone(),
@@ -582,7 +586,10 @@ impl DraftProxy {
                 "discountRedeemCodeBulkCreations": self.store.staged.discount_redeem_code_bulk_creations.clone(),
                 "ownerMetafields": self.store.staged.owner_metafields.clone(),
                 "deletedOwnerMetafields": deleted_owner_metafields
-            }
+        });
+        let mut snapshot = json!({
+            "baseState": base_state,
+            "stagedState": staged_state
         });
         snapshot["baseState"]["metafieldDefinitions"] = base_metafield_definitions_value;
         snapshot["baseState"]["metafieldDefinitionOwnerCatalogs"] =
@@ -593,11 +600,14 @@ impl DraftProxy {
             deleted_metafield_definitions_value;
         if !self.store.base.b2b_companies.records.is_empty()
             || !self.store.base.b2b_companies.order.is_empty()
+            || !self.store.base.b2b_company_count_baselines.is_empty()
         {
             snapshot["baseState"]["b2bCompanies"] =
                 json!(self.store.base.b2b_companies.records.clone());
             snapshot["baseState"]["b2bCompanyOrder"] =
                 json!(self.store.base.b2b_companies.order.clone());
+            snapshot["baseState"]["b2bCompanyCountBaselines"] =
+                json!(self.store.base.b2b_company_count_baselines.clone());
         }
         if !self.store.base.b2b_locations.records.is_empty()
             || !self.store.base.b2b_locations.order.is_empty()
@@ -1577,6 +1587,13 @@ impl DraftProxy {
                 .map(string_array_from_json)
                 .unwrap_or_default(),
         );
+        self.store.base.segments.replace_with_order(
+            value_map_from_json(state["baseState"].get("segments")),
+            state["baseState"]
+                .get("segmentOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
         self.store.base.gift_cards = value_map_from_json(state["baseState"].get("giftCards"));
         self.store.base.gift_card_configuration = state["baseState"]
             .get("giftCardConfiguration")
@@ -1822,6 +1839,8 @@ impl DraftProxy {
                 .map(string_array_from_json)
                 .unwrap_or_default(),
         );
+        self.store.base.b2b_company_count_baselines =
+            value_map_from_json(state["baseState"].get("b2bCompanyCountBaselines"));
         self.store.base.b2b_locations.replace_with_order(
             value_map_from_json(state["baseState"].get("b2bLocations")),
             state["baseState"]
@@ -2253,6 +2272,13 @@ impl DraftProxy {
             "deliveryCustomizations",
             Some("deliveryCustomizationOrder"),
             Some("deletedDeliveryCustomizationIds"),
+        );
+        replace_staged_value_records(
+            &mut self.store.staged.segments,
+            &state["stagedState"],
+            "segments",
+            Some("segmentOrder"),
+            Some("deletedSegmentIds"),
         );
         self.store.staged.fulfillment_order_cursors = state["stagedState"]
             .get("fulfillmentOrderCursors")

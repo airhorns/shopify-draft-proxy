@@ -462,6 +462,37 @@ fn store_dump_restore_round_trips_order_and_tombstones() {
     body["state"]["stagedState"]["deletedCustomerIds"] = json!(["gid://shopify/Customer/deleted"]);
     body["state"]["stagedState"]["deletedCollectionIds"] =
         json!(["gid://shopify/Collection/deleted"]);
+    body["state"]["baseState"]["segments"] = json!({
+        "gid://shopify/Segment/base-1": {
+            "id": "gid://shopify/Segment/base-1",
+            "name": "Base segment one",
+            "query": "number_of_orders >= 1"
+        },
+        "gid://shopify/Segment/base-2": {
+            "id": "gid://shopify/Segment/base-2",
+            "name": "Base segment two",
+            "query": "number_of_orders >= 2"
+        }
+    });
+    body["state"]["baseState"]["segmentOrder"] = json!([
+        "gid://shopify/Segment/base-1",
+        "gid://shopify/Segment/base-2"
+    ]);
+    body["state"]["stagedState"]["segments"] = json!({
+        "gid://shopify/Segment/base-1": {
+            "id": "gid://shopify/Segment/base-1",
+            "name": "Updated segment one",
+            "query": "number_of_orders >= 3"
+        },
+        "gid://shopify/Segment/new": {
+            "id": "gid://shopify/Segment/new",
+            "name": "New segment",
+            "query": "customer_tags CONTAINS 'new'"
+        }
+    });
+    body["state"]["stagedState"]["segmentOrder"] =
+        json!(["gid://shopify/Segment/base-1", "gid://shopify/Segment/new"]);
+    body["state"]["stagedState"]["deletedSegmentIds"] = json!(["gid://shopify/Segment/base-2"]);
 
     let mut restored = snapshot_proxy();
     restore(&mut restored, &body);
@@ -518,6 +549,21 @@ fn store_dump_restore_round_trips_order_and_tombstones() {
         round_trip["state"]["stagedState"]["deletedCollectionIds"],
         json!(["gid://shopify/Collection/deleted"])
     );
+    assert_eq!(
+        round_trip["state"]["baseState"]["segmentOrder"],
+        json!([
+            "gid://shopify/Segment/base-1",
+            "gid://shopify/Segment/base-2"
+        ])
+    );
+    assert_eq!(
+        round_trip["state"]["stagedState"]["segmentOrder"],
+        json!(["gid://shopify/Segment/base-1", "gid://shopify/Segment/new"])
+    );
+    assert_eq!(
+        round_trip["state"]["stagedState"]["deletedSegmentIds"],
+        json!(["gid://shopify/Segment/base-2"])
+    );
 
     let products = restored.process_request(graphql_request(
         r#"
@@ -565,6 +611,36 @@ fn store_dump_restore_round_trips_order_and_tombstones() {
             "query": "tag:promo",
             "resourceType": "PRODUCT"
         }])
+    );
+
+    let segments = restored.process_request(graphql_request(
+        r#"
+        query RestoredSegmentRead {
+          segments(first: 10, sortKey: ID) { nodes { id name query } }
+          segmentsCount { count precision }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(segments.status, 200);
+    assert_eq!(
+        segments.body["data"]["segments"]["nodes"],
+        json!([
+            {
+                "id": "gid://shopify/Segment/base-1",
+                "name": "Updated segment one",
+                "query": "number_of_orders >= 3"
+            },
+            {
+                "id": "gid://shopify/Segment/new",
+                "name": "New segment",
+                "query": "customer_tags CONTAINS 'new'"
+            }
+        ])
+    );
+    assert_eq!(
+        segments.body["data"]["segmentsCount"],
+        json!({ "count": 2, "precision": "EXACT" })
     );
 }
 

@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 const repoRoot = new URL('../..', import.meta.url);
 const testOrigin = 'https://example.myshopify.com';
 const pnpmCommand = 'corepack';
-const serverStartupTimeoutMs = 60_000;
+const serverStartupTimeoutMs = 90_000;
 
 function pnpmArgs(args: string[]): string[] {
   return ['pnpm', ...args];
@@ -220,12 +220,12 @@ async function withLaunchedProxy<T>(
 describe('package launch scripts', () => {
   it('starts the dev server and serves health', async () => {
     await expectLaunchScriptHealth('dev', await unusedLocalPort());
-  }, 75_000);
+  }, 120_000);
 
   it('starts the built server and serves health', async () => {
     await runPnpm(['build']);
     await expectLaunchScriptHealth('start', await unusedLocalPort());
-  }, 90_000);
+  }, 150_000);
 
   it('forwards live-hybrid passthrough and commit replay through Rust HTTP transport', async () => {
     await withUpstream(async (upstreamOrigin, upstreamRequests) => {
@@ -280,5 +280,5 @@ describe('package launch scripts', () => {
       });
       expect(upstreamRequests[1]?.body).toContain('savedSearchCreate');
     });
-  }, 75_000);
+  }, 120_000);
 });

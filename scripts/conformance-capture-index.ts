@@ -358,6 +358,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'b2b',
+    captureId: 'b2b-companies-count-overlay',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-companies-count-overlay-conformance.mts',
+    purpose:
+      'B2B companiesCount count-only and small-page-plus-count overlay evidence against a live company catalog larger than the selected page.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-companies-count-overlay.json`,
+      'config/parity-specs/b2b/b2b-companies-count-overlay.json',
+      'config/parity-requests/b2b/b2b-companies-count-overlay-create.graphql',
+      'config/parity-requests/b2b/b2b-companies-count-overlay-count.graphql',
+      'config/parity-requests/b2b/b2b-companies-count-overlay-small-page.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable baseline B2B companies and one disposable staged-delta company, captures count readback, then deletes all created companies.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'b2b',
     captureId: 'b2b-update-unknown-id-resource-not-found',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-update-unknown-id-resource-not-found-conformance.mts',
@@ -6783,6 +6802,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates one disposable segment, records a mixed segments/catalog read, then deletes the disposable segment.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'segments',
+    captureId: 'segment-live-hybrid-overlay',
+    scriptPath: 'scripts/capture-segment-live-hybrid-overlay-conformance.ts',
+    purpose: 'LiveHybrid segment(id), segments, and segmentsCount overlay evidence after local segmentCreate staging.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'customer segment access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}segment-live-hybrid-overlay.json`,
+      'config/parity-specs/segments/segment-live-hybrid-overlay.json',
+      'config/parity-requests/segments/segment-live-hybrid-overlay-create.graphql',
+      'config/parity-requests/segments/segment-live-hybrid-overlay-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable segments, records a base-only read before the second segment exists, records the final read after the second segment exists, then deletes both segments.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
