@@ -1,0 +1,23 @@
+mutation StorefrontCustomerAdminAddressCreate($customerId: ID!, $address: MailingAddressInput!) {
+  customerAddressCreate(customerId: $customerId, address: $address, setAsDefault: true) {
+    address {
+      id
+      firstName
+      lastName
+      address1
+      city
+      province
+      provinceCode
+      country
+      countryCodeV2
+      zip
+      phone
+      name
+      formattedArea
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

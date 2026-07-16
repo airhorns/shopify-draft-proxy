@@ -5022,6 +5022,13 @@ fn customer_delete_shop_payload_hydrates_live_shop_state_when_selected() {
 #[test]
 fn customer_delete_order_precondition_blocks_only_when_order_exists() {
     let mut proxy = snapshot_proxy();
+    let admin_2025_01_graphql_request = |query: &str, variables: Value| {
+        request_with_body(
+            "POST",
+            "/admin/api/2025-01/graphql.json",
+            &json!({ "query": query, "variables": variables }).to_string(),
+        )
+    };
 
     let create_query = r#"
         mutation CustomerDeleteOrderPreconditionCustomerCreate($input: CustomerInput!) {
@@ -5031,7 +5038,7 @@ fn customer_delete_order_precondition_blocks_only_when_order_exists() {
           }
         }
         "#;
-    let create = proxy.process_request(json_graphql_request(
+    let create = proxy.process_request(admin_2025_01_graphql_request(
         create_query,
         json!({
             "input": {
@@ -5054,7 +5061,7 @@ fn customer_delete_order_precondition_blocks_only_when_order_exists() {
         json!(true)
     );
 
-    let order = proxy.process_request(json_graphql_request(
+    let order = proxy.process_request(admin_2025_01_graphql_request(
         r#"
         mutation CustomerDeleteOrderPreconditionOrderCreate($order: OrderCreateOrderInput!) {
           orderCreate(order: $order) {
@@ -5073,8 +5080,12 @@ fn customer_delete_order_precondition_blocks_only_when_order_exists() {
         }),
     ));
     assert_eq!(order.body["data"]["orderCreate"]["userErrors"], json!([]));
+    assert_eq!(
+        order.body["data"]["orderCreate"]["order"]["customer"]["email"],
+        json!("customer-delete-blocked@example.test")
+    );
 
-    let blocked = proxy.process_request(json_graphql_request(
+    let blocked = proxy.process_request(admin_2025_01_graphql_request(
         r#"
         mutation CustomerDeleteOrderPreconditionDelete($input: CustomerDeleteInput!) {
           customerDelete(input: $input) { deletedCustomerId userErrors { field message } }
@@ -5090,7 +5101,7 @@ fn customer_delete_order_precondition_blocks_only_when_order_exists() {
         })
     );
 
-    let read = proxy.process_request(json_graphql_request(
+    let read = proxy.process_request(admin_2025_01_graphql_request(
         r#"
         query CustomerDeleteOrderPreconditionRead($id: ID!) {
           customer(id: $id) {
@@ -5103,6 +5114,14 @@ fn customer_delete_order_precondition_blocks_only_when_order_exists() {
     ));
     assert_eq!(read.body["data"]["customer"]["id"], json!(customer_id));
     assert_eq!(read.body["data"]["customer"]["canDelete"], json!(false));
+    assert_eq!(
+        read.body["data"]["customer"]["email"],
+        json!("customer-delete-blocked@example.test")
+    );
+    assert_eq!(
+        read.body["data"]["customer"]["orders"]["nodes"][0]["customer"]["email"],
+        json!("customer-delete-blocked@example.test")
+    );
     assert_eq!(
         read.body["data"]["customer"]["orders"]["nodes"]
             .as_array()

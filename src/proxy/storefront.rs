@@ -1,3 +1,7 @@
+use super::b2b_customers::{
+    customer_address_cursor, customer_address_dedup_key, customer_address_input_node,
+    customer_address_nodes, customer_rebuild_addresses,
+};
 use super::*;
 use crate::graphql::operation_directive_invocations;
 use sha2::{Digest, Sha256};
@@ -51,6 +55,11 @@ pub(in crate::proxy) const STOREFRONT_CUSTOMER_AUTH_MUTATION_ROOTS: &[&str] = &[
     "customerReset",
     "customerResetByUrl",
     "customerAccessTokenCreateWithMultipass",
+    "customerUpdate",
+    "customerAddressCreate",
+    "customerAddressUpdate",
+    "customerAddressDelete",
+    "customerDefaultAddressUpdate",
 ];
 const STOREFRONT_DEFAULT_CONTEXT_KEY: &str = "country=*;language=*";
 const STOREFRONT_CUSTOMER_PASSWORD_FINGERPRINT_FIELD: &str = "__storefrontPasswordFingerprint";
@@ -116,12 +125,18 @@ impl DraftProxy {
             resolved_string_field(&field.arguments, "customerAccessToken").unwrap_or_default();
         let customer = self
             .storefront_customer_id_for_access_token(&token)
-            .and_then(|customer_id| self.storefront_customer_by_id(&customer_id))
-            .map(|customer| storefront_customer_json(&customer));
+            .and_then(|customer_id| {
+                self.storefront_customer_by_id(&customer_id)
+                    .map(|customer| {
+                        self.storefront_customer_selected_json(
+                            &customer_id,
+                            &customer,
+                            &field.selection,
+                        )
+                    })
+            });
         StorefrontCustomerAuthOutcome {
-            value: customer
-                .map(|customer| selected_json(&customer, &field.selection))
-                .unwrap_or(Value::Null),
+            value: customer.unwrap_or(Value::Null),
             errors: Vec::new(),
         }
     }
@@ -142,6 +157,13 @@ impl DraftProxy {
             "customerResetByUrl" => self.storefront_customer_reset_by_url(field),
             "customerAccessTokenCreateWithMultipass" => {
                 self.storefront_customer_access_token_create_with_multipass(field)
+            }
+            "customerUpdate" => self.storefront_customer_update(field),
+            "customerAddressCreate" => self.storefront_customer_address_create(field),
+            "customerAddressUpdate" => self.storefront_customer_address_update(field),
+            "customerAddressDelete" => self.storefront_customer_address_delete(field),
+            "customerDefaultAddressUpdate" => {
+                self.storefront_customer_default_address_update(field)
             }
             _ => StorefrontCustomerAuthOutcome {
                 value: Value::Null,
@@ -667,6 +689,478 @@ impl DraftProxy {
         }
     }
 
+    fn storefront_customer_update(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> StorefrontCustomerAuthOutcome {
+        let token =
+            resolved_string_field(&field.arguments, "customerAccessToken").unwrap_or_default();
+        let input = resolved_object_field(&field.arguments, "customer").unwrap_or_default();
+        let Some(customer_id) = self.storefront_customer_id_for_access_token(&token) else {
+            return StorefrontCustomerAuthOutcome {
+                value: self.storefront_customer_update_payload(
+                    None,
+                    Value::Null,
+                    storefront_invalid_customer_access_token_errors(),
+                    &field.selection,
+                ),
+                errors: Vec::new(),
+            };
+        };
+        let Some(mut customer) = self.storefront_customer_by_id(&customer_id) else {
+            return StorefrontCustomerAuthOutcome {
+                value: self.storefront_customer_update_payload(
+                    None,
+                    Value::Null,
+                    storefront_invalid_customer_access_token_errors(),
+                    &field.selection,
+                ),
+                errors: Vec::new(),
+            };
+        };
+
+        let mut errors = Vec::new();
+        if input.contains_key("email") {
+            return StorefrontCustomerAuthOutcome {
+                value: self.storefront_customer_update_payload(
+                    None,
+                    Value::Null,
+                    vec![storefront_customer_user_error(
+                        ["customer", "email"],
+                        "CustomerUpdate access denied",
+                        Some("INVALID"),
+                    )],
+                    &field.selection,
+                ),
+                errors: Vec::new(),
+            };
+        }
+        if input.contains_key("password")
+            && resolved_string_field(&input, "password")
+                .unwrap_or_default()
+                .is_empty()
+        {
+            errors.push(storefront_customer_user_error(
+                ["customer", "password"],
+                "Password can't be blank",
+                Some("BLANK"),
+            ));
+        }
+        for (field_name, message, code) in [
+            (
+                "firstName",
+                "First name cannot contain HTML tags",
+                "CONTAINS_HTML_TAGS",
+            ),
+            (
+                "lastName",
+                "Last name cannot contain HTML tags",
+                "CONTAINS_HTML_TAGS",
+            ),
+        ] {
+            if resolved_string_field(&input, field_name)
+                .is_some_and(|value| storefront_customer_contains_html_tag(&value))
+            {
+                errors.push(storefront_customer_user_error(
+                    ["customer", field_name],
+                    message,
+                    Some(code),
+                ));
+            }
+        }
+        if !errors.is_empty() {
+            return StorefrontCustomerAuthOutcome {
+                value: self.storefront_customer_update_payload(
+                    None,
+                    Value::Null,
+                    errors,
+                    &field.selection,
+                ),
+                errors: Vec::new(),
+            };
+        }
+
+        let old_email = customer
+            .get("email")
+            .and_then(Value::as_str)
+            .map(storefront_customer_email_key);
+        for string_field in ["firstName", "lastName", "email"] {
+            if input.contains_key(string_field) {
+                let value = resolved_string_field(&input, string_field)
+                    .filter(|value| !value.is_empty())
+                    .map(Value::String)
+                    .unwrap_or(Value::Null);
+                customer[string_field] = value;
+            }
+        }
+        if input.contains_key("phone") {
+            let phone = resolved_string_field(&input, "phone")
+                .filter(|value| !value.is_empty())
+                .map(Value::String)
+                .unwrap_or(Value::Null);
+            customer["phone"] = phone.clone();
+            customer["defaultPhoneNumber"] = if phone.is_null() {
+                Value::Null
+            } else {
+                json!({ "phoneNumber": phone })
+            };
+        }
+        if let Some(accepts_marketing) = resolved_bool_field(&input, "acceptsMarketing") {
+            customer["acceptsMarketing"] = json!(accepts_marketing);
+            customer["emailMarketingConsent"] = json!({
+                "marketingState": if accepts_marketing { "SUBSCRIBED" } else { "NOT_SUBSCRIBED" },
+                "marketingOptInLevel": Value::Null,
+                "consentUpdatedAt": self.next_product_timestamp()
+            });
+        }
+        let first_name = customer.get("firstName").and_then(Value::as_str);
+        let last_name = customer.get("lastName").and_then(Value::as_str);
+        let email = customer.get("email").and_then(Value::as_str);
+        customer["displayName"] = json!(storefront_customer_display_name(
+            first_name, last_name, email
+        ));
+        customer["updatedAt"] = json!(self.next_product_timestamp());
+
+        let mut new_access_token = Value::Null;
+        if let Some(password) = resolved_string_field(&input, "password") {
+            customer[STOREFRONT_CUSTOMER_PASSWORD_FINGERPRINT_FIELD] =
+                json!(storefront_password_fingerprint(&customer_id, &password));
+            self.revoke_storefront_customer_access_tokens_for_customer(&customer_id);
+            new_access_token = self.issue_storefront_customer_access_token(&customer_id);
+        }
+
+        if let Some(old_email) = old_email {
+            self.store
+                .staged
+                .storefront_customer_email_index
+                .remove(&old_email);
+        }
+        if let Some(email) = customer.get("email").and_then(Value::as_str) {
+            self.store
+                .staged
+                .storefront_customer_email_index
+                .insert(storefront_customer_email_key(email), customer_id.clone());
+        }
+        self.store
+            .staged
+            .customers
+            .stage(customer_id.clone(), customer.clone());
+
+        StorefrontCustomerAuthOutcome {
+            value: self.storefront_customer_update_payload(
+                Some((&customer_id, &customer)),
+                new_access_token,
+                Vec::new(),
+                &field.selection,
+            ),
+            errors: Vec::new(),
+        }
+    }
+
+    fn storefront_customer_address_create(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> StorefrontCustomerAuthOutcome {
+        let token =
+            resolved_string_field(&field.arguments, "customerAccessToken").unwrap_or_default();
+        let address_input = resolved_object_field(&field.arguments, "address").unwrap_or_default();
+        let Some(customer_id) = self.storefront_customer_id_for_access_token(&token) else {
+            return StorefrontCustomerAuthOutcome {
+                value: Value::Null,
+                errors: vec![storefront_access_denied_error(&field.response_key)],
+            };
+        };
+        let Some(customer) = self.storefront_customer_by_id(&customer_id) else {
+            return StorefrontCustomerAuthOutcome {
+                value: storefront_customer_address_payload_selected(
+                    "customerAddress",
+                    Value::Null,
+                    storefront_invalid_customer_access_token_errors(),
+                    &field.selection,
+                ),
+                errors: Vec::new(),
+            };
+        };
+        let new_id = self.next_proxy_synthetic_gid("MailingAddress");
+        let existing_nodes = customer_address_nodes(&customer);
+        let (node, errors) = customer_address_input_node(
+            &address_input,
+            None,
+            customer.get("firstName").and_then(Value::as_str),
+            customer.get("lastName").and_then(Value::as_str),
+            &new_id,
+        );
+        if !errors.is_empty() {
+            return StorefrontCustomerAuthOutcome {
+                value: storefront_customer_address_payload_selected(
+                    "customerAddress",
+                    Value::Null,
+                    storefront_customer_user_errors_with_codes(errors),
+                    &field.selection,
+                ),
+                errors: Vec::new(),
+            };
+        }
+        let mut node = node.unwrap_or(Value::Null);
+        preserve_storefront_address_phone(&mut node, &address_input);
+        let new_key = customer_address_dedup_key(&node);
+        if existing_nodes
+            .iter()
+            .any(|existing| customer_address_dedup_key(existing) == new_key)
+        {
+            return StorefrontCustomerAuthOutcome {
+                value: storefront_customer_address_payload_selected(
+                    "customerAddress",
+                    Value::Null,
+                    vec![storefront_customer_user_error(
+                        ["address"],
+                        "Address already exists",
+                        None,
+                    )],
+                    &field.selection,
+                ),
+                errors: Vec::new(),
+            };
+        }
+        let mut nodes = existing_nodes;
+        let was_empty = nodes.is_empty();
+        nodes.push(node.clone());
+        let default_id = if was_empty {
+            Some(new_id.as_str())
+        } else {
+            storefront_customer_default_address_id(&customer)
+        };
+        let updated_at = self.next_product_timestamp();
+        if let Some(customer) = self.store.staged.customers.get_mut(&customer_id) {
+            customer_rebuild_addresses(customer, nodes, default_id);
+            customer["updatedAt"] = json!(updated_at);
+        }
+        StorefrontCustomerAuthOutcome {
+            value: storefront_customer_address_payload_selected(
+                "customerAddress",
+                node,
+                Vec::new(),
+                &field.selection,
+            ),
+            errors: Vec::new(),
+        }
+    }
+
+    fn storefront_customer_address_update(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> StorefrontCustomerAuthOutcome {
+        let token =
+            resolved_string_field(&field.arguments, "customerAccessToken").unwrap_or_default();
+        let address_id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        let address_input = resolved_object_field(&field.arguments, "address").unwrap_or_default();
+        let Some(customer_id) = self.storefront_customer_id_for_access_token(&token) else {
+            return StorefrontCustomerAuthOutcome {
+                value: storefront_customer_address_payload_selected(
+                    "customerAddress",
+                    Value::Null,
+                    storefront_invalid_customer_access_token_errors(),
+                    &field.selection,
+                ),
+                errors: Vec::new(),
+            };
+        };
+        let Some(customer) = self.storefront_customer_by_id(&customer_id) else {
+            return StorefrontCustomerAuthOutcome {
+                value: storefront_customer_address_payload_selected(
+                    "customerAddress",
+                    Value::Null,
+                    storefront_invalid_customer_access_token_errors(),
+                    &field.selection,
+                ),
+                errors: Vec::new(),
+            };
+        };
+        let existing_nodes = customer_address_nodes(&customer);
+        let Some(index) = storefront_customer_address_node_index(&existing_nodes, &address_id)
+        else {
+            return StorefrontCustomerAuthOutcome {
+                value: storefront_customer_address_payload_selected(
+                    "customerAddress",
+                    Value::Null,
+                    vec![storefront_customer_user_error(
+                        ["id"],
+                        "Address does not exist",
+                        Some("NOT_FOUND"),
+                    )],
+                    &field.selection,
+                ),
+                errors: Vec::new(),
+            };
+        };
+        let (node, errors) = customer_address_input_node(
+            &address_input,
+            Some(&existing_nodes[index]),
+            customer.get("firstName").and_then(Value::as_str),
+            customer.get("lastName").and_then(Value::as_str),
+            &address_id,
+        );
+        if !errors.is_empty() {
+            return StorefrontCustomerAuthOutcome {
+                value: storefront_customer_address_payload_selected(
+                    "customerAddress",
+                    Value::Null,
+                    storefront_customer_user_errors_with_codes(errors),
+                    &field.selection,
+                ),
+                errors: Vec::new(),
+            };
+        }
+        let mut node = node.unwrap_or(Value::Null);
+        preserve_storefront_address_phone(&mut node, &address_input);
+        let mut nodes = existing_nodes;
+        nodes[index] = node.clone();
+        let default_id = storefront_customer_default_address_id(&customer);
+        let updated_at = self.next_product_timestamp();
+        if let Some(customer) = self.store.staged.customers.get_mut(&customer_id) {
+            customer_rebuild_addresses(customer, nodes, default_id);
+            customer["updatedAt"] = json!(updated_at);
+        }
+        StorefrontCustomerAuthOutcome {
+            value: storefront_customer_address_payload_selected(
+                "customerAddress",
+                node,
+                Vec::new(),
+                &field.selection,
+            ),
+            errors: Vec::new(),
+        }
+    }
+
+    fn storefront_customer_address_delete(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> StorefrontCustomerAuthOutcome {
+        let token =
+            resolved_string_field(&field.arguments, "customerAccessToken").unwrap_or_default();
+        let address_id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        let Some(customer_id) = self.storefront_customer_id_for_access_token(&token) else {
+            return StorefrontCustomerAuthOutcome {
+                value: storefront_customer_address_delete_payload_selected(
+                    Value::Null,
+                    storefront_invalid_customer_access_token_errors(),
+                    &field.selection,
+                ),
+                errors: Vec::new(),
+            };
+        };
+        let Some(customer) = self.storefront_customer_by_id(&customer_id) else {
+            return StorefrontCustomerAuthOutcome {
+                value: storefront_customer_address_delete_payload_selected(
+                    Value::Null,
+                    storefront_invalid_customer_access_token_errors(),
+                    &field.selection,
+                ),
+                errors: Vec::new(),
+            };
+        };
+        let mut nodes = customer_address_nodes(&customer);
+        let Some(index) = storefront_customer_address_node_index(&nodes, &address_id) else {
+            return StorefrontCustomerAuthOutcome {
+                value: storefront_customer_address_delete_payload_selected(
+                    Value::Null,
+                    vec![storefront_customer_user_error(
+                        ["id"],
+                        "Address does not exist",
+                        Some("NOT_FOUND"),
+                    )],
+                    &field.selection,
+                ),
+                errors: Vec::new(),
+            };
+        };
+        let was_default =
+            storefront_customer_default_address_id(&customer) == Some(address_id.as_str());
+        nodes.remove(index);
+        let default_id = if was_default {
+            nodes
+                .first()
+                .and_then(|node: &Value| node.get("id"))
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        } else {
+            storefront_customer_default_address_id(&customer).map(str::to_string)
+        };
+        let updated_at = self.next_product_timestamp();
+        if let Some(customer) = self.store.staged.customers.get_mut(&customer_id) {
+            customer_rebuild_addresses(customer, nodes, default_id.as_deref());
+            customer["updatedAt"] = json!(updated_at);
+        }
+        StorefrontCustomerAuthOutcome {
+            value: storefront_customer_address_delete_payload_selected(
+                json!(address_id),
+                Vec::new(),
+                &field.selection,
+            ),
+            errors: Vec::new(),
+        }
+    }
+
+    fn storefront_customer_default_address_update(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> StorefrontCustomerAuthOutcome {
+        let token =
+            resolved_string_field(&field.arguments, "customerAccessToken").unwrap_or_default();
+        let address_id = resolved_string_field(&field.arguments, "addressId").unwrap_or_default();
+        let Some(customer_id) = self.storefront_customer_id_for_access_token(&token) else {
+            return StorefrontCustomerAuthOutcome {
+                value: self.storefront_customer_default_address_payload(
+                    None,
+                    storefront_invalid_customer_access_token_errors(),
+                    &field.selection,
+                ),
+                errors: Vec::new(),
+            };
+        };
+        let Some(customer) = self.storefront_customer_by_id(&customer_id) else {
+            return StorefrontCustomerAuthOutcome {
+                value: self.storefront_customer_default_address_payload(
+                    None,
+                    storefront_invalid_customer_access_token_errors(),
+                    &field.selection,
+                ),
+                errors: Vec::new(),
+            };
+        };
+        let nodes = customer_address_nodes(&customer);
+        if storefront_customer_address_node_index(&nodes, &address_id).is_none() {
+            return StorefrontCustomerAuthOutcome {
+                value: self.storefront_customer_default_address_payload(
+                    Some((&customer_id, &customer)),
+                    vec![storefront_customer_user_error(
+                        ["addressId"],
+                        "Address does not exist",
+                        Some("NOT_FOUND"),
+                    )],
+                    &field.selection,
+                ),
+                errors: Vec::new(),
+            };
+        }
+        let updated_at = self.next_product_timestamp();
+        if let Some(customer) = self.store.staged.customers.get_mut(&customer_id) {
+            customer_rebuild_addresses(customer, nodes, Some(address_id.as_str()));
+            customer["updatedAt"] = json!(updated_at);
+        }
+        let customer = self
+            .storefront_customer_by_id(&customer_id)
+            .unwrap_or(Value::Null);
+        StorefrontCustomerAuthOutcome {
+            value: self.storefront_customer_default_address_payload(
+                Some((&customer_id, &customer)),
+                Vec::new(),
+                &field.selection,
+            ),
+            errors: Vec::new(),
+        }
+    }
+
     fn issue_storefront_customer_access_token(&mut self, customer_id: &str) -> Value {
         let sequence = self.store.staged.next_storefront_customer_access_token_id;
         self.store.staged.next_storefront_customer_access_token_id += 1;
@@ -734,6 +1228,148 @@ impl DraftProxy {
             return None;
         }
         self.store.staged.customers.get(customer_id).cloned()
+    }
+
+    fn revoke_storefront_customer_access_tokens_for_customer(&mut self, customer_id: &str) {
+        for record in self
+            .store
+            .staged
+            .storefront_customer_access_tokens
+            .values_mut()
+        {
+            if record.get("customerId").and_then(Value::as_str) == Some(customer_id) {
+                record["revoked"] = json!(true);
+            }
+        }
+    }
+
+    fn storefront_customer_selected_json(
+        &self,
+        customer_id: &str,
+        customer: &Value,
+        selection: &[SelectedField],
+    ) -> Value {
+        let base = storefront_customer_json(customer);
+        selected_payload_json(selection, |field| match field.name.as_str() {
+            "__typename" => Some(json!("Customer")),
+            "defaultAddress" => {
+                let address = customer
+                    .get("defaultAddress")
+                    .cloned()
+                    .unwrap_or(Value::Null);
+                Some(storefront_mailing_address_selected_json(
+                    &address,
+                    &field.selection,
+                ))
+            }
+            "addresses" => Some(storefront_customer_addresses_connection(
+                customer,
+                &field.arguments,
+                &field.selection,
+            )),
+            "orders" => Some(self.storefront_customer_orders_connection(
+                customer_id,
+                customer,
+                &field.arguments,
+                &field.selection,
+            )),
+            _ => selected_json(&base, std::slice::from_ref(field))
+                .as_object()
+                .and_then(|object| object.get(&field.response_key).cloned()),
+        })
+    }
+
+    fn storefront_customer_update_payload(
+        &self,
+        customer: Option<(&str, &Value)>,
+        customer_access_token: Value,
+        customer_user_errors: Vec<Value>,
+        selection: &[SelectedField],
+    ) -> Value {
+        let customer_user_errors = storefront_customer_user_errors_with_codes(customer_user_errors);
+        selected_payload_json(selection, |field| match field.name.as_str() {
+            "customer" => Some(
+                customer
+                    .map(|(customer_id, customer)| {
+                        self.storefront_customer_selected_json(
+                            customer_id,
+                            customer,
+                            &field.selection,
+                        )
+                    })
+                    .unwrap_or(Value::Null),
+            ),
+            "customerAccessToken" => Some(selected_json(&customer_access_token, &field.selection)),
+            "customerUserErrors" => Some(selected_user_errors(
+                &customer_user_errors,
+                &field.selection,
+            )),
+            "userErrors" => {
+                let errors = storefront_user_errors_without_code(&customer_user_errors);
+                Some(selected_user_errors(
+                    errors.as_array().map(Vec::as_slice).unwrap_or(&[]),
+                    &field.selection,
+                ))
+            }
+            _ => None,
+        })
+    }
+
+    fn storefront_customer_default_address_payload(
+        &self,
+        customer: Option<(&str, &Value)>,
+        customer_user_errors: Vec<Value>,
+        selection: &[SelectedField],
+    ) -> Value {
+        let customer_user_errors = storefront_customer_user_errors_with_codes(customer_user_errors);
+        selected_payload_json(selection, |field| match field.name.as_str() {
+            "customer" => Some(
+                customer
+                    .map(|(customer_id, customer)| {
+                        self.storefront_customer_selected_json(
+                            customer_id,
+                            customer,
+                            &field.selection,
+                        )
+                    })
+                    .unwrap_or(Value::Null),
+            ),
+            "customerUserErrors" => Some(selected_user_errors(
+                &customer_user_errors,
+                &field.selection,
+            )),
+            "userErrors" => {
+                let errors = storefront_user_errors_without_code(&customer_user_errors);
+                Some(selected_user_errors(
+                    errors.as_array().map(Vec::as_slice).unwrap_or(&[]),
+                    &field.selection,
+                ))
+            }
+            _ => None,
+        })
+    }
+
+    fn storefront_customer_orders_connection(
+        &self,
+        customer_id: &str,
+        customer: &Value,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        selection: &[SelectedField],
+    ) -> Value {
+        let orders = self
+            .store
+            .staged
+            .customer_orders
+            .get(customer_id)
+            .cloned()
+            .unwrap_or_else(|| connection_nodes(&customer["orders"]));
+        selected_typed_connection_with_args(
+            &orders,
+            arguments,
+            selection,
+            |order, order_selection| selected_json(&storefront_order_json(order), order_selection),
+            storefront_order_cursor,
+        )
     }
 
     fn storefront_customer_id_by_email(&self, normalized_email: &str) -> Option<String> {
@@ -4170,16 +4806,208 @@ fn storefront_customer_json(customer: &Value) -> Value {
     })
 }
 
+fn storefront_customer_addresses_connection(
+    customer: &Value,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    selection: &[SelectedField],
+) -> Value {
+    let addresses = customer_address_nodes(customer);
+    selected_typed_connection_with_args(
+        &addresses,
+        arguments,
+        selection,
+        |address, address_selection| {
+            storefront_mailing_address_selected_json(address, address_selection)
+        },
+        |address| customer_address_cursor(address).unwrap_or_default(),
+    )
+}
+
+fn storefront_mailing_address_selected_json(address: &Value, selection: &[SelectedField]) -> Value {
+    if address.is_null() {
+        return Value::Null;
+    }
+    selected_json(&storefront_mailing_address_json(address), selection)
+}
+
+fn storefront_mailing_address_json(address: &Value) -> Value {
+    if address.is_null() {
+        return Value::Null;
+    }
+    let mut projected = address.clone();
+    if let Some(object) = projected.as_object_mut() {
+        if !object.contains_key("countryCode") {
+            object.insert(
+                "countryCode".to_string(),
+                address.get("countryCodeV2").cloned().unwrap_or(Value::Null),
+            );
+        }
+        object
+            .entry("formatted".to_string())
+            .or_insert_with(|| storefront_formatted_address_lines(address));
+        object.entry("latitude".to_string()).or_insert(Value::Null);
+        object.entry("longitude".to_string()).or_insert(Value::Null);
+    }
+    projected
+}
+
+fn storefront_formatted_address_lines(address: &Value) -> Value {
+    let mut lines = Vec::new();
+    for field in ["address1", "address2"] {
+        if let Some(value) = address.get(field).and_then(Value::as_str) {
+            if !value.is_empty() {
+                lines.push(json!(value));
+            }
+        }
+    }
+    let locality = ["city", "province", "zip"]
+        .into_iter()
+        .filter_map(|field| address.get(field).and_then(Value::as_str))
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>()
+        .join(", ");
+    if !locality.is_empty() {
+        lines.push(json!(locality));
+    }
+    if let Some(country) = address.get("country").and_then(Value::as_str) {
+        if !country.is_empty() {
+            lines.push(json!(country));
+        }
+    }
+    Value::Array(lines)
+}
+
+fn storefront_order_json(order: &Value) -> Value {
+    let currency_code = order
+        .get("currencyCode")
+        .or_else(|| order.pointer("/currentTotalPriceSet/shopMoney/currencyCode"))
+        .or_else(|| order.pointer("/totalPriceSet/shopMoney/currencyCode"))
+        .cloned()
+        .unwrap_or_else(|| json!("USD"));
+    let total_price = order
+        .get("totalPriceV2")
+        .or_else(|| order.pointer("/currentTotalPriceSet/shopMoney"))
+        .or_else(|| order.pointer("/totalPriceSet/shopMoney"))
+        .cloned()
+        .unwrap_or_else(|| json!({ "amount": "0.0", "currencyCode": currency_code.clone() }));
+    json!({
+        "__typename": "Order",
+        "id": order.get("id").cloned().unwrap_or(Value::Null),
+        "name": order.get("name").cloned().unwrap_or_else(|| json!("")),
+        "email": order.get("email").cloned().unwrap_or(Value::Null),
+        "phone": order.get("phone").cloned().unwrap_or(Value::Null),
+        "currencyCode": currency_code,
+        "customerUrl": order.get("customerUrl").cloned().unwrap_or(Value::Null),
+        "financialStatus": order.get("displayFinancialStatus").or_else(|| order.get("financialStatus")).cloned().unwrap_or(Value::Null),
+        "fulfillmentStatus": order.get("displayFulfillmentStatus").or_else(|| order.get("fulfillmentStatus")).cloned().unwrap_or_else(|| json!("UNFULFILLED")),
+        "orderNumber": storefront_order_number(order),
+        "processedAt": order.get("processedAt").or_else(|| order.get("createdAt")).cloned().unwrap_or_else(|| json!("1970-01-01T00:00:00Z")),
+        "subtotalPriceV2": order.get("subtotalPriceV2").or_else(|| order.pointer("/subtotalPriceSet/shopMoney")).cloned().unwrap_or(Value::Null),
+        "totalPrice": total_price.clone(),
+        "totalPriceV2": total_price,
+        "lineItems": order.get("lineItems").cloned().unwrap_or_else(|| connection_json_with_empty_edges(Vec::new()))
+    })
+}
+
+fn storefront_order_number(order: &Value) -> Value {
+    if let Some(number) = order.get("orderNumber").and_then(Value::as_i64) {
+        return json!(number);
+    }
+    let digits = order
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .chars()
+        .filter(|ch| ch.is_ascii_digit())
+        .collect::<String>();
+    digits
+        .parse::<i64>()
+        .map(Value::from)
+        .unwrap_or_else(|_| json!(0))
+}
+
+fn storefront_order_cursor(order: &Value) -> String {
+    order
+        .get("id")
+        .and_then(Value::as_str)
+        .map(|id| format!("cursor:{id}"))
+        .unwrap_or_default()
+}
+
+fn storefront_customer_address_node_index(nodes: &[Value], address_id: &str) -> Option<usize> {
+    nodes
+        .iter()
+        .position(|node| node.get("id").and_then(Value::as_str) == Some(address_id))
+}
+
+fn storefront_customer_default_address_id(customer: &Value) -> Option<&str> {
+    customer
+        .get("defaultAddress")
+        .and_then(|address| address.get("id"))
+        .and_then(Value::as_str)
+}
+
 fn storefront_customer_payload(
     customer: Value,
-    _unused: Value,
+    customer_access_token: Value,
     customer_user_errors: Vec<Value>,
 ) -> Value {
     let user_errors = storefront_user_errors_without_code(&customer_user_errors);
     json!({
         "customer": customer,
+        "customerAccessToken": customer_access_token,
         "customerUserErrors": customer_user_errors,
         "userErrors": user_errors
+    })
+}
+
+fn storefront_customer_address_payload_selected(
+    address_field: &str,
+    address: Value,
+    customer_user_errors: Vec<Value>,
+    selection: &[SelectedField],
+) -> Value {
+    let customer_user_errors = storefront_customer_user_errors_with_codes(customer_user_errors);
+    selected_payload_json(selection, |field| match field.name.as_str() {
+        name if name == address_field => Some(storefront_mailing_address_selected_json(
+            &address,
+            &field.selection,
+        )),
+        "customerUserErrors" => Some(selected_user_errors(
+            &customer_user_errors,
+            &field.selection,
+        )),
+        "userErrors" => {
+            let errors = storefront_user_errors_without_code(&customer_user_errors);
+            Some(selected_user_errors(
+                errors.as_array().map(Vec::as_slice).unwrap_or(&[]),
+                &field.selection,
+            ))
+        }
+        _ => None,
+    })
+}
+
+fn storefront_customer_address_delete_payload_selected(
+    deleted_customer_address_id: Value,
+    customer_user_errors: Vec<Value>,
+    selection: &[SelectedField],
+) -> Value {
+    let customer_user_errors = storefront_customer_user_errors_with_codes(customer_user_errors);
+    selected_payload_json(selection, |field| match field.name.as_str() {
+        "deletedCustomerAddressId" => Some(deleted_customer_address_id.clone()),
+        "customerUserErrors" => Some(selected_user_errors(
+            &customer_user_errors,
+            &field.selection,
+        )),
+        "userErrors" => {
+            let errors = storefront_user_errors_without_code(&customer_user_errors);
+            Some(selected_user_errors(
+                errors.as_array().map(Vec::as_slice).unwrap_or(&[]),
+                &field.selection,
+            ))
+        }
+        _ => None,
     })
 }
 
@@ -4245,6 +5073,18 @@ fn storefront_user_errors_without_code(errors: &[Value]) -> Value {
     )
 }
 
+fn storefront_customer_user_errors_with_codes(errors: Vec<Value>) -> Vec<Value> {
+    errors
+        .into_iter()
+        .map(|mut error| {
+            if let Some(object) = error.as_object_mut() {
+                object.entry("code".to_string()).or_insert(Value::Null);
+            }
+            error
+        })
+        .collect()
+}
+
 fn storefront_customer_user_error(
     field: impl serde::Serialize,
     message: &str,
@@ -4257,9 +5097,20 @@ fn storefront_customer_user_error(
     })
 }
 
+fn storefront_invalid_customer_access_token_errors() -> Vec<Value> {
+    vec![storefront_customer_user_error(
+        ["customerAccessToken"],
+        "Invalid customer access token",
+        Some("INVALID"),
+    )]
+}
+
 fn storefront_access_denied_error(response_key: &str) -> Value {
+    let message = format!(
+        "Access denied for {response_key} field. Required access: `unauthenticated_write_customers` access scope. Also: Requires valid customer access token."
+    );
     json!({
-        "message": "Access denied for customerAccessTokenDelete field. Required access: `unauthenticated_write_customers` access scope. Also: Requires valid customer access token.",
+        "message": message,
         "path": [response_key],
         "locations": [],
         "extensions": {
@@ -4268,6 +5119,23 @@ fn storefront_access_denied_error(response_key: &str) -> Value {
             "requiredAccess": "`unauthenticated_write_customers` access scope. Also: Requires valid customer access token."
         }
     })
+}
+
+fn preserve_storefront_address_phone(
+    node: &mut Value,
+    address_input: &BTreeMap<String, ResolvedValue>,
+) {
+    if !address_input.contains_key("phone") {
+        return;
+    }
+    let phone = resolved_string_field(address_input, "phone")
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .map(Value::String)
+        .unwrap_or(Value::Null);
+    if let Some(object) = node.as_object_mut() {
+        object.insert("phone".to_string(), phone);
+    }
 }
 
 fn storefront_not_found_error(response_key: &str) -> Value {
@@ -4366,7 +5234,7 @@ fn storefront_email_looks_valid(email: &str) -> bool {
     !local.is_empty() && domain.contains('.') && !domain.starts_with('.') && !domain.ends_with('.')
 }
 
-fn storefront_customer_email_key(email: &str) -> String {
+pub(in crate::proxy) fn storefront_customer_email_key(email: &str) -> String {
     email.trim().to_ascii_lowercase()
 }
 

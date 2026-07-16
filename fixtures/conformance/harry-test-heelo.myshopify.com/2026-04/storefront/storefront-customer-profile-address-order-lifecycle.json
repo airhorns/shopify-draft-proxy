@@ -1,0 +1,1255 @@
+{
+  "scenarioId": "storefront-customer-profile-address-order-lifecycle",
+  "capturedAt": "2026-07-16T02:10:35.811Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "apiSurface": "storefront",
+  "authMode": "storefront-access-token-and-admin-access-token",
+  "storefrontToken": {
+    "id": "gid://shopify/StorefrontAccessToken/130666922290",
+    "title": "hermes-conformance-storefront-recording",
+    "accessScopes": [
+      "unauthenticated_read_checkouts",
+      "unauthenticated_read_content",
+      "unauthenticated_read_customer_tags",
+      "unauthenticated_read_customers",
+      "unauthenticated_read_metaobjects",
+      "unauthenticated_read_product_inventory",
+      "unauthenticated_read_product_listings",
+      "unauthenticated_read_product_pickup_locations",
+      "unauthenticated_read_product_tags",
+      "unauthenticated_read_selling_plans",
+      "unauthenticated_write_checkouts",
+      "unauthenticated_write_customers"
+    ],
+    "obtainedAt": "2026-07-14T23:55:26.161Z"
+  },
+  "disposableInputs": {
+    "email": "hermes-storefront-profile-mrmvglfj-a25a18cb@example.com",
+    "updatedEmail": "hermes-storefront-updated-mrmvglfj-a25a18cb@example.com",
+    "orderEmail": "hermes-storefront-order-mrmvglfj-a25a18cb@example.com",
+    "updatedPhone": "+16135552518"
+  },
+  "captures": {
+    "storefrontCreate": {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCustomerAuthCreate",
+      "query": "mutation StorefrontCustomerAuthCreate($input: CustomerCreateInput!) {\n  customerCreate(input: $input) {\n    customer {\n      id\n      email\n      firstName\n      lastName\n      displayName\n      acceptsMarketing\n      createdAt\n      updatedAt\n      numberOfOrders\n      tags\n      addresses(first: 2) {\n        nodes {\n          id\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n        }\n      }\n    }\n    customerUserErrors {\n      field\n      message\n      code\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "email": "hermes-storefront-profile-mrmvglfj-a25a18cb@example.com",
+          "password": "<redacted:storefront-customer-profile-address-order>",
+          "firstName": "Storefront",
+          "lastName": "Profile",
+          "acceptsMarketing": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerCreate": {
+              "customer": {
+                "id": "gid://shopify/Customer/10965467300146",
+                "email": "hermes-storefront-profile-mrmvglfj-a25a18cb@example.com",
+                "firstName": "Storefront",
+                "lastName": "Profile",
+                "displayName": "Storefront Profile",
+                "acceptsMarketing": false,
+                "createdAt": "2026-07-16T02:10:31Z",
+                "updatedAt": "2026-07-16T02:10:31Z",
+                "numberOfOrders": "0",
+                "tags": [],
+                "addresses": {
+                  "nodes": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                }
+              },
+              "customerUserErrors": [],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16
+            }
+          }
+        }
+      }
+    },
+    "tokenCreate": {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCustomerAuthTokenCreate",
+      "query": "mutation StorefrontCustomerAuthTokenCreate($input: CustomerAccessTokenCreateInput!) {\n  customerAccessTokenCreate(input: $input) {\n    customerAccessToken {\n      accessToken\n      expiresAt\n    }\n    customerUserErrors {\n      field\n      message\n      code\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "email": "hermes-storefront-profile-mrmvglfj-a25a18cb@example.com",
+          "password": "<redacted:storefront-customer-profile-address-order>"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerAccessTokenCreate": {
+              "customerAccessToken": {
+                "accessToken": "<redacted:storefront-customer-profile-address-order>",
+                "expiresAt": "2026-08-27T02:10:32Z"
+              },
+              "customerUserErrors": [],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13
+            }
+          }
+        }
+      }
+    },
+    "profileEmailUpdateDenied": {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCustomerProfileUpdate",
+      "query": "mutation StorefrontCustomerProfileUpdate($token: String!, $customer: CustomerUpdateInput!) {\n  customerUpdate(customerAccessToken: $token, customer: $customer) {\n    customer {\n      id\n      email\n      firstName\n      lastName\n      displayName\n      phone\n      acceptsMarketing\n      createdAt\n      updatedAt\n    }\n    customerAccessToken {\n      accessToken\n      expiresAt\n    }\n    customerUserErrors {\n      field\n      message\n      code\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "token": "<redacted:storefront-customer-profile-address-order>",
+        "customer": {
+          "email": "hermes-storefront-updated-mrmvglfj-a25a18cb@example.com",
+          "firstName": "Denied",
+          "acceptsMarketing": true
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerUpdate": {
+              "customer": null,
+              "customerAccessToken": null,
+              "customerUserErrors": [
+                {
+                  "field": ["customer", "email"],
+                  "message": "CustomerUpdate access denied",
+                  "code": "INVALID"
+                }
+              ],
+              "userErrors": [
+                {
+                  "field": ["customer", "email"],
+                  "message": "CustomerUpdate access denied"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 14
+            }
+          }
+        }
+      }
+    },
+    "profileUpdate": {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCustomerProfileUpdate",
+      "query": "mutation StorefrontCustomerProfileUpdate($token: String!, $customer: CustomerUpdateInput!) {\n  customerUpdate(customerAccessToken: $token, customer: $customer) {\n    customer {\n      id\n      email\n      firstName\n      lastName\n      displayName\n      phone\n      acceptsMarketing\n      createdAt\n      updatedAt\n    }\n    customerAccessToken {\n      accessToken\n      expiresAt\n    }\n    customerUserErrors {\n      field\n      message\n      code\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "token": "<redacted:storefront-customer-profile-address-order>",
+        "customer": {
+          "firstName": "Updated",
+          "lastName": "Profile",
+          "phone": "+16135552518",
+          "acceptsMarketing": true
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerUpdate": {
+              "customer": {
+                "id": "gid://shopify/Customer/10965467300146",
+                "email": "hermes-storefront-profile-mrmvglfj-a25a18cb@example.com",
+                "firstName": "Updated",
+                "lastName": "Profile",
+                "displayName": "Updated Profile",
+                "phone": "+16135552518",
+                "acceptsMarketing": true,
+                "createdAt": "2026-07-16T02:10:31Z",
+                "updatedAt": "2026-07-16T02:10:32Z"
+              },
+              "customerAccessToken": null,
+              "customerUserErrors": [],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 14
+            }
+          }
+        }
+      }
+    },
+    "addressCreateOne": {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCustomerAddressCreate",
+      "query": "mutation StorefrontCustomerAddressCreate($token: String!, $address: MailingAddressInput!) {\n  customerAddressCreate(customerAccessToken: $token, address: $address) {\n    customerAddress {\n      id\n      firstName\n      lastName\n      address1\n      address2\n      city\n      company\n      province\n      provinceCode\n      country\n      countryCode\n      countryCodeV2\n      zip\n      phone\n      name\n      formattedArea\n    }\n    customerUserErrors {\n      field\n      message\n      code\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "token": "<redacted:storefront-customer-profile-address-order>",
+        "address": {
+          "address1": "1 Storefront Main St",
+          "city": "Ottawa",
+          "province": "Ontario",
+          "country": "Canada",
+          "zip": "K1A 0B1",
+          "phone": "+1 (613) 555-0199"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerAddressCreate": {
+              "customerAddress": {
+                "id": "gid://shopify/MailingAddress/12304836591922?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
+                "firstName": "Updated",
+                "lastName": "Profile",
+                "address1": "1 Storefront Main St",
+                "address2": null,
+                "city": "Ottawa",
+                "company": null,
+                "province": "Ontario",
+                "provinceCode": "ON",
+                "country": "Canada",
+                "countryCode": "CA",
+                "countryCodeV2": "CA",
+                "zip": "K1A 0B1",
+                "phone": "+1 (613) 555-0199",
+                "name": "Updated Profile",
+                "formattedArea": "Ottawa ON, Canada"
+              },
+              "customerUserErrors": [],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13
+            }
+          }
+        }
+      }
+    },
+    "addressCreateTwo": {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCustomerAddressCreate",
+      "query": "mutation StorefrontCustomerAddressCreate($token: String!, $address: MailingAddressInput!) {\n  customerAddressCreate(customerAccessToken: $token, address: $address) {\n    customerAddress {\n      id\n      firstName\n      lastName\n      address1\n      address2\n      city\n      company\n      province\n      provinceCode\n      country\n      countryCode\n      countryCodeV2\n      zip\n      phone\n      name\n      formattedArea\n    }\n    customerUserErrors {\n      field\n      message\n      code\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "token": "<redacted:storefront-customer-profile-address-order>",
+        "address": {
+          "firstName": "Second",
+          "lastName": "Address",
+          "address1": "2 Storefront Side St",
+          "city": "Toronto",
+          "province": "Ontario",
+          "country": "Canada",
+          "zip": "M5V 2T6"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerAddressCreate": {
+              "customerAddress": {
+                "id": "gid://shopify/MailingAddress/12304836624690?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
+                "firstName": "Second",
+                "lastName": "Address",
+                "address1": "2 Storefront Side St",
+                "address2": null,
+                "city": "Toronto",
+                "company": null,
+                "province": "Ontario",
+                "provinceCode": "ON",
+                "country": "Canada",
+                "countryCode": "CA",
+                "countryCodeV2": "CA",
+                "zip": "M5V 2T6",
+                "phone": null,
+                "name": "Second Address",
+                "formattedArea": "Toronto ON, Canada"
+              },
+              "customerUserErrors": [],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13
+            }
+          }
+        }
+      }
+    },
+    "defaultAddressUpdate": {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCustomerDefaultAddressUpdate",
+      "query": "mutation StorefrontCustomerDefaultAddressUpdate($token: String!, $addressId: ID!) {\n  customerDefaultAddressUpdate(customerAccessToken: $token, addressId: $addressId) {\n    customer {\n      id\n      email\n      firstName\n      lastName\n      displayName\n      defaultAddress {\n        id\n        address1\n        city\n        country\n      }\n      addresses(first: 5) {\n        nodes {\n          id\n          address1\n          city\n          country\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n    }\n    customerUserErrors {\n      field\n      message\n      code\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "token": "<redacted:storefront-customer-profile-address-order>",
+        "addressId": "gid://shopify/MailingAddress/12304836624690?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerDefaultAddressUpdate": {
+              "customer": {
+                "id": "gid://shopify/Customer/10965467300146",
+                "email": "hermes-storefront-profile-mrmvglfj-a25a18cb@example.com",
+                "firstName": "Updated",
+                "lastName": "Profile",
+                "displayName": "Updated Profile",
+                "defaultAddress": {
+                  "id": "gid://shopify/MailingAddress/12304836624690?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
+                  "address1": "2 Storefront Side St",
+                  "city": "Toronto",
+                  "country": "Canada"
+                },
+                "addresses": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/MailingAddress/12304836591922?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
+                      "address1": "1 Storefront Main St",
+                      "city": "Ottawa",
+                      "country": "Canada"
+                    },
+                    {
+                      "id": "gid://shopify/MailingAddress/12304836624690?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
+                      "address1": "2 Storefront Side St",
+                      "city": "Toronto",
+                      "country": "Canada"
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": "eyJsYXN0X2lkIjoxMjMwNDgzNjU5MTkyMiwibGFzdF92YWx1ZSI6bnVsbCwib2Zmc2V0IjowfQ==",
+                    "endCursor": "eyJsYXN0X2lkIjoxMjMwNDgzNjYyNDY5MCwibGFzdF92YWx1ZSI6bnVsbCwib2Zmc2V0IjoxfQ=="
+                  }
+                }
+              },
+              "customerUserErrors": [],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 21
+            }
+          }
+        }
+      }
+    },
+    "addressUpdate": {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCustomerAddressUpdate",
+      "query": "mutation StorefrontCustomerAddressUpdate($token: String!, $id: ID!, $address: MailingAddressInput!) {\n  customerAddressUpdate(customerAccessToken: $token, id: $id, address: $address) {\n    customerAddress {\n      id\n      firstName\n      lastName\n      address1\n      address2\n      city\n      company\n      province\n      provinceCode\n      country\n      countryCode\n      countryCodeV2\n      zip\n      phone\n      name\n      formattedArea\n    }\n    customerUserErrors {\n      field\n      message\n      code\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "token": "<redacted:storefront-customer-profile-address-order>",
+        "id": "gid://shopify/MailingAddress/12304836591922?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
+        "address": {
+          "address1": "10 Storefront Main St",
+          "city": "Gatineau",
+          "province": "Quebec",
+          "country": "Canada",
+          "zip": "J8X 2X1"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerAddressUpdate": {
+              "customerAddress": {
+                "id": "gid://shopify/MailingAddress/12304836591922?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
+                "firstName": "Updated",
+                "lastName": "Profile",
+                "address1": "10 Storefront Main St",
+                "address2": null,
+                "city": "Gatineau",
+                "company": null,
+                "province": "Quebec",
+                "provinceCode": "QC",
+                "country": "Canada",
+                "countryCode": "CA",
+                "countryCodeV2": "CA",
+                "zip": "J8X 2X1",
+                "phone": "+1 (613) 555-0199",
+                "name": "Updated Profile",
+                "formattedArea": "Gatineau QC, Canada"
+              },
+              "customerUserErrors": [],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13
+            }
+          }
+        }
+      }
+    },
+    "addressDelete": {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCustomerAddressDelete",
+      "query": "mutation StorefrontCustomerAddressDelete($token: String!, $id: ID!) {\n  customerAddressDelete(customerAccessToken: $token, id: $id) {\n    deletedCustomerAddressId\n    customerUserErrors {\n      field\n      message\n      code\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "token": "<redacted:storefront-customer-profile-address-order>",
+        "id": "gid://shopify/MailingAddress/12304836624690?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerAddressDelete": {
+              "deletedCustomerAddressId": "gid://shopify/MailingAddress/12304836624690?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
+              "customerUserErrors": [],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12
+            }
+          }
+        }
+      }
+    },
+    "adminReadAfterStorefront": {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "path": "/admin/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/admin/api/2026-04/graphql.json",
+      "authMode": "admin-access-token",
+      "operationName": "StorefrontCustomerAdminRead",
+      "query": "query StorefrontCustomerAdminRead($id: ID!) {\n  customer(id: $id) {\n    id\n    email\n    firstName\n    lastName\n    displayName\n    phone\n    defaultAddress {\n      id\n      firstName\n      lastName\n      address1\n      city\n      province\n      provinceCode\n      country\n      countryCodeV2\n      zip\n      phone\n      name\n      formattedArea\n    }\n    addressesV2(first: 5) {\n      nodes {\n        id\n        firstName\n        lastName\n        address1\n        city\n        province\n        provinceCode\n        country\n        countryCodeV2\n        zip\n        phone\n        name\n        formattedArea\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    orders(first: 5) {\n      nodes {\n        id\n        name\n        email\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Customer/10965467300146"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10965467300146",
+              "email": "hermes-storefront-profile-mrmvglfj-a25a18cb@example.com",
+              "firstName": "Updated",
+              "lastName": "Profile",
+              "displayName": "Updated Profile",
+              "phone": "+16135552518",
+              "defaultAddress": {
+                "id": "gid://shopify/MailingAddress/12304836591922?model_name=CustomerAddress",
+                "firstName": "Updated",
+                "lastName": "Profile",
+                "address1": "10 Storefront Main St",
+                "city": "Gatineau",
+                "province": "Quebec",
+                "provinceCode": "QC",
+                "country": "Canada",
+                "countryCodeV2": "CA",
+                "zip": "J8X 2X1",
+                "phone": "+1 (613) 555-0199",
+                "name": "Updated Profile",
+                "formattedArea": "Gatineau QC, Canada"
+              },
+              "addressesV2": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/MailingAddress/12304836591922?model_name=CustomerAddress",
+                    "firstName": "Updated",
+                    "lastName": "Profile",
+                    "address1": "10 Storefront Main St",
+                    "city": "Gatineau",
+                    "province": "Quebec",
+                    "provinceCode": "QC",
+                    "country": "Canada",
+                    "countryCodeV2": "CA",
+                    "zip": "J8X 2X1",
+                    "phone": "+1 (613) 555-0199",
+                    "name": "Updated Profile",
+                    "formattedArea": "Gatineau QC, Canada"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoxMjMwNDgzNjU5MTkyMiwibGFzdF92YWx1ZSI6IjEyMzA0ODM2NTkxOTIyIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjoxMjMwNDgzNjU5MTkyMiwibGFzdF92YWx1ZSI6IjEyMzA0ODM2NTkxOTIyIn0="
+                }
+              },
+              "orders": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "adminUpdate": {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "path": "/admin/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/admin/api/2026-04/graphql.json",
+      "authMode": "admin-access-token",
+      "operationName": "StorefrontCustomerAuthAdminUpdate",
+      "query": "mutation StorefrontCustomerAuthAdminUpdate($input: CustomerInput!) {\n  customerUpdate(input: $input) {\n    customer {\n      id\n      email\n      firstName\n      lastName\n      displayName\n      state\n      updatedAt\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10965467300146",
+          "firstName": "Admin",
+          "lastName": "Visible",
+          "email": "hermes-storefront-updated-mrmvglfj-a25a18cb@example.com"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerUpdate": {
+              "customer": {
+                "id": "gid://shopify/Customer/10965467300146",
+                "email": "hermes-storefront-updated-mrmvglfj-a25a18cb@example.com",
+                "firstName": "Admin",
+                "lastName": "Visible",
+                "displayName": "Admin Visible",
+                "state": "ENABLED",
+                "updatedAt": "2026-07-16T02:10:33Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "adminAddressCreate": {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "path": "/admin/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/admin/api/2026-04/graphql.json",
+      "authMode": "admin-access-token",
+      "operationName": "StorefrontCustomerAdminAddressCreate",
+      "query": "mutation StorefrontCustomerAdminAddressCreate($customerId: ID!, $address: MailingAddressInput!) {\n  customerAddressCreate(customerId: $customerId, address: $address, setAsDefault: true) {\n    address {\n      id\n      firstName\n      lastName\n      address1\n      city\n      province\n      provinceCode\n      country\n      countryCodeV2\n      zip\n      phone\n      name\n      formattedArea\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "customerId": "gid://shopify/Customer/10965467300146",
+        "address": {
+          "firstName": "Admin",
+          "lastName": "Address",
+          "address1": "50 Admin Way",
+          "city": "Montreal",
+          "province": "Quebec",
+          "country": "Canada",
+          "zip": "H2Y 1C6"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerAddressCreate": {
+              "address": {
+                "id": "gid://shopify/MailingAddress/12304836690226?model_name=CustomerAddress",
+                "firstName": "Admin",
+                "lastName": "Address",
+                "address1": "50 Admin Way",
+                "city": "Montreal",
+                "province": "Quebec",
+                "provinceCode": "QC",
+                "country": "Canada",
+                "countryCodeV2": "CA",
+                "zip": "H2Y 1C6",
+                "phone": null,
+                "name": "Admin Address",
+                "formattedArea": "Montreal QC, Canada"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "orderCreate": {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "path": "/admin/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/admin/api/2026-04/graphql.json",
+      "authMode": "admin-access-token",
+      "operationName": "StorefrontCustomerAdminOrderCreate",
+      "query": "mutation StorefrontCustomerAdminOrderCreate($order: OrderCreateOrderInput!) {\n  orderCreate(order: $order) {\n    order {\n      id\n      name\n      email\n      customer {\n        id\n        email\n      }\n      currentTotalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      displayFinancialStatus\n      displayFulfillmentStatus\n      processedAt\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "order": {
+          "email": "hermes-storefront-order-mrmvglfj-a25a18cb@example.com",
+          "customerId": "gid://shopify/Customer/10965467300146",
+          "test": true,
+          "currency": "CAD",
+          "lineItems": [
+            {
+              "title": "Storefront customer visible order mrmvglfj-a25a18cb",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "19.90",
+                  "currencyCode": "CAD"
+                }
+              },
+              "requiresShipping": false,
+              "taxable": false,
+              "sku": "SFP-mrmvglfj-a25a18cb"
+            }
+          ],
+          "transactions": [
+            {
+              "kind": "AUTHORIZATION",
+              "status": "SUCCESS",
+              "gateway": "external",
+              "test": true,
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "19.90",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8954034651442",
+                "name": "#1840",
+                "email": "hermes-storefront-order-mrmvglfj-a25a18cb@example.com",
+                "customer": {
+                  "id": "gid://shopify/Customer/10965467300146",
+                  "email": "hermes-storefront-order-mrmvglfj-a25a18cb@example.com"
+                },
+                "currentTotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "19.9",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "displayFinancialStatus": "AUTHORIZED",
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "processedAt": "2026-07-16T02:10:34Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "storefrontReadAfterAdmin": {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCustomerProfileAddressOrderRead",
+      "query": "query StorefrontCustomerProfileAddressOrderRead($token: String!) {\n  customer(customerAccessToken: $token) {\n    id\n    email\n    firstName\n    lastName\n    displayName\n    phone\n    acceptsMarketing\n    createdAt\n    updatedAt\n    defaultAddress {\n      id\n      firstName\n      lastName\n      address1\n      address2\n      city\n      company\n      province\n      provinceCode\n      country\n      countryCode\n      countryCodeV2\n      zip\n      phone\n      name\n      formattedArea\n    }\n    addresses(first: 5) {\n      nodes {\n        id\n        firstName\n        lastName\n        address1\n        address2\n        city\n        company\n        province\n        provinceCode\n        country\n        countryCode\n        countryCodeV2\n        zip\n        phone\n        name\n        formattedArea\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    orders(first: 5) {\n      nodes {\n        id\n        name\n        email\n        currencyCode\n        financialStatus\n        fulfillmentStatus\n        processedAt\n        totalPrice {\n          amount\n          currencyCode\n        }\n        totalPriceV2 {\n          amount\n          currencyCode\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "token": "<redacted:storefront-customer-profile-address-order>"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10965467300146",
+              "email": "hermes-storefront-order-mrmvglfj-a25a18cb@example.com",
+              "firstName": "Admin",
+              "lastName": "Visible",
+              "displayName": "Admin Visible",
+              "phone": "+16135552518",
+              "acceptsMarketing": false,
+              "createdAt": "2026-07-16T02:10:31Z",
+              "updatedAt": "2026-07-16T02:10:34Z",
+              "defaultAddress": {
+                "id": "gid://shopify/MailingAddress/12304836690226?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
+                "firstName": "Admin",
+                "lastName": "Address",
+                "address1": "50 Admin Way",
+                "address2": null,
+                "city": "Montreal",
+                "company": null,
+                "province": "Quebec",
+                "provinceCode": "QC",
+                "country": "Canada",
+                "countryCode": "CA",
+                "countryCodeV2": "CA",
+                "zip": "H2Y 1C6",
+                "phone": null,
+                "name": "Admin Address",
+                "formattedArea": "Montreal QC, Canada"
+              },
+              "addresses": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/MailingAddress/12304836591922?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
+                    "firstName": "Updated",
+                    "lastName": "Profile",
+                    "address1": "10 Storefront Main St",
+                    "address2": null,
+                    "city": "Gatineau",
+                    "company": null,
+                    "province": "Quebec",
+                    "provinceCode": "QC",
+                    "country": "Canada",
+                    "countryCode": "CA",
+                    "countryCodeV2": "CA",
+                    "zip": "J8X 2X1",
+                    "phone": "+1 (613) 555-0199",
+                    "name": "Updated Profile",
+                    "formattedArea": "Gatineau QC, Canada"
+                  },
+                  {
+                    "id": "gid://shopify/MailingAddress/12304836690226?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
+                    "firstName": "Admin",
+                    "lastName": "Address",
+                    "address1": "50 Admin Way",
+                    "address2": null,
+                    "city": "Montreal",
+                    "company": null,
+                    "province": "Quebec",
+                    "provinceCode": "QC",
+                    "country": "Canada",
+                    "countryCode": "CA",
+                    "countryCodeV2": "CA",
+                    "zip": "H2Y 1C6",
+                    "phone": null,
+                    "name": "Admin Address",
+                    "formattedArea": "Montreal QC, Canada"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoxMjMwNDgzNjU5MTkyMiwibGFzdF92YWx1ZSI6bnVsbCwib2Zmc2V0IjowfQ==",
+                  "endCursor": "eyJsYXN0X2lkIjoxMjMwNDgzNjY5MDIyNiwibGFzdF92YWx1ZSI6bnVsbCwib2Zmc2V0IjoxfQ=="
+                }
+              },
+              "orders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Order/8954034651442?key=ea934613af82d9e7f00dc2f98f4e653b",
+                    "name": "#1840",
+                    "email": "hermes-storefront-order-mrmvglfj-a25a18cb@example.com",
+                    "currencyCode": "CAD",
+                    "financialStatus": "AUTHORIZED",
+                    "fulfillmentStatus": "UNFULFILLED",
+                    "processedAt": "2026-07-16T02:10:34Z",
+                    "totalPrice": {
+                      "amount": "19.9",
+                      "currencyCode": "CAD"
+                    },
+                    "totalPriceV2": {
+                      "amount": "19.9",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo4OTU0MDM0NjUxNDQyLCJsYXN0X3ZhbHVlIjpudWxsLCJvZmZzZXQiOjB9",
+                  "endCursor": "eyJsYXN0X2lkIjo4OTU0MDM0NjUxNDQyLCJsYXN0X3ZhbHVlIjpudWxsLCJvZmZzZXQiOjB9"
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 22
+            }
+          }
+        }
+      }
+    },
+    "passwordUpdate": {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCustomerProfileUpdate",
+      "query": "mutation StorefrontCustomerProfileUpdate($token: String!, $customer: CustomerUpdateInput!) {\n  customerUpdate(customerAccessToken: $token, customer: $customer) {\n    customer {\n      id\n      email\n      firstName\n      lastName\n      displayName\n      phone\n      acceptsMarketing\n      createdAt\n      updatedAt\n    }\n    customerAccessToken {\n      accessToken\n      expiresAt\n    }\n    customerUserErrors {\n      field\n      message\n      code\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "token": "<redacted:storefront-customer-profile-address-order>",
+        "customer": {
+          "password": "<redacted:storefront-customer-profile-address-order>"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerUpdate": {
+              "customer": {
+                "id": "gid://shopify/Customer/10965467300146",
+                "email": "hermes-storefront-order-mrmvglfj-a25a18cb@example.com",
+                "firstName": "Admin",
+                "lastName": "Visible",
+                "displayName": "Admin Visible",
+                "phone": "+16135552518",
+                "acceptsMarketing": false,
+                "createdAt": "2026-07-16T02:10:31Z",
+                "updatedAt": "2026-07-16T02:10:34Z"
+              },
+              "customerAccessToken": {
+                "accessToken": "<redacted:storefront-customer-profile-address-order>",
+                "expiresAt": "2026-08-27T02:10:34Z"
+              },
+              "customerUserErrors": [],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 14
+            }
+          }
+        }
+      }
+    },
+    "readWithOldTokenAfterPassword": {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCustomerProfileAddressOrderRead",
+      "query": "query StorefrontCustomerProfileAddressOrderRead($token: String!) {\n  customer(customerAccessToken: $token) {\n    id\n    email\n    firstName\n    lastName\n    displayName\n    phone\n    acceptsMarketing\n    createdAt\n    updatedAt\n    defaultAddress {\n      id\n      firstName\n      lastName\n      address1\n      address2\n      city\n      company\n      province\n      provinceCode\n      country\n      countryCode\n      countryCodeV2\n      zip\n      phone\n      name\n      formattedArea\n    }\n    addresses(first: 5) {\n      nodes {\n        id\n        firstName\n        lastName\n        address1\n        address2\n        city\n        company\n        province\n        provinceCode\n        country\n        countryCode\n        countryCodeV2\n        zip\n        phone\n        name\n        formattedArea\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    orders(first: 5) {\n      nodes {\n        id\n        name\n        email\n        currencyCode\n        financialStatus\n        fulfillmentStatus\n        processedAt\n        totalPrice {\n          amount\n          currencyCode\n        }\n        totalPriceV2 {\n          amount\n          currencyCode\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "token": "<redacted:storefront-customer-profile-address-order>"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 22
+            }
+          }
+        }
+      }
+    },
+    "readWithRotatedToken": {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCustomerProfileAddressOrderRead",
+      "query": "query StorefrontCustomerProfileAddressOrderRead($token: String!) {\n  customer(customerAccessToken: $token) {\n    id\n    email\n    firstName\n    lastName\n    displayName\n    phone\n    acceptsMarketing\n    createdAt\n    updatedAt\n    defaultAddress {\n      id\n      firstName\n      lastName\n      address1\n      address2\n      city\n      company\n      province\n      provinceCode\n      country\n      countryCode\n      countryCodeV2\n      zip\n      phone\n      name\n      formattedArea\n    }\n    addresses(first: 5) {\n      nodes {\n        id\n        firstName\n        lastName\n        address1\n        address2\n        city\n        company\n        province\n        provinceCode\n        country\n        countryCode\n        countryCodeV2\n        zip\n        phone\n        name\n        formattedArea\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    orders(first: 5) {\n      nodes {\n        id\n        name\n        email\n        currencyCode\n        financialStatus\n        fulfillmentStatus\n        processedAt\n        totalPrice {\n          amount\n          currencyCode\n        }\n        totalPriceV2 {\n          amount\n          currencyCode\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "token": "<redacted:storefront-customer-profile-address-order>"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10965467300146",
+              "email": "hermes-storefront-order-mrmvglfj-a25a18cb@example.com",
+              "firstName": "Admin",
+              "lastName": "Visible",
+              "displayName": "Admin Visible",
+              "phone": "+16135552518",
+              "acceptsMarketing": false,
+              "createdAt": "2026-07-16T02:10:31Z",
+              "updatedAt": "2026-07-16T02:10:34Z",
+              "defaultAddress": {
+                "id": "gid://shopify/MailingAddress/12304836690226?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
+                "firstName": "Admin",
+                "lastName": "Address",
+                "address1": "50 Admin Way",
+                "address2": null,
+                "city": "Montreal",
+                "company": null,
+                "province": "Quebec",
+                "provinceCode": "QC",
+                "country": "Canada",
+                "countryCode": "CA",
+                "countryCodeV2": "CA",
+                "zip": "H2Y 1C6",
+                "phone": null,
+                "name": "Admin Address",
+                "formattedArea": "Montreal QC, Canada"
+              },
+              "addresses": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/MailingAddress/12304836591922?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
+                    "firstName": "Updated",
+                    "lastName": "Profile",
+                    "address1": "10 Storefront Main St",
+                    "address2": null,
+                    "city": "Gatineau",
+                    "company": null,
+                    "province": "Quebec",
+                    "provinceCode": "QC",
+                    "country": "Canada",
+                    "countryCode": "CA",
+                    "countryCodeV2": "CA",
+                    "zip": "J8X 2X1",
+                    "phone": "+1 (613) 555-0199",
+                    "name": "Updated Profile",
+                    "formattedArea": "Gatineau QC, Canada"
+                  },
+                  {
+                    "id": "gid://shopify/MailingAddress/12304836690226?model_name=CustomerAddress&customer_access_token=<redacted:storefront-customer-profile-address-order>",
+                    "firstName": "Admin",
+                    "lastName": "Address",
+                    "address1": "50 Admin Way",
+                    "address2": null,
+                    "city": "Montreal",
+                    "company": null,
+                    "province": "Quebec",
+                    "provinceCode": "QC",
+                    "country": "Canada",
+                    "countryCode": "CA",
+                    "countryCodeV2": "CA",
+                    "zip": "H2Y 1C6",
+                    "phone": null,
+                    "name": "Admin Address",
+                    "formattedArea": "Montreal QC, Canada"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoxMjMwNDgzNjU5MTkyMiwibGFzdF92YWx1ZSI6bnVsbCwib2Zmc2V0IjowfQ==",
+                  "endCursor": "eyJsYXN0X2lkIjoxMjMwNDgzNjY5MDIyNiwibGFzdF92YWx1ZSI6bnVsbCwib2Zmc2V0IjoxfQ=="
+                }
+              },
+              "orders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Order/8954034651442?key=ea934613af82d9e7f00dc2f98f4e653b",
+                    "name": "#1840",
+                    "email": "hermes-storefront-order-mrmvglfj-a25a18cb@example.com",
+                    "currencyCode": "CAD",
+                    "financialStatus": "AUTHORIZED",
+                    "fulfillmentStatus": "UNFULFILLED",
+                    "processedAt": "2026-07-16T02:10:34Z",
+                    "totalPrice": {
+                      "amount": "19.9",
+                      "currencyCode": "CAD"
+                    },
+                    "totalPriceV2": {
+                      "amount": "19.9",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo4OTU0MDM0NjUxNDQyLCJsYXN0X3ZhbHVlIjpudWxsLCJvZmZzZXQiOjB9",
+                  "endCursor": "eyJsYXN0X2lkIjo4OTU0MDM0NjUxNDQyLCJsYXN0X3ZhbHVlIjpudWxsLCJvZmZzZXQiOjB9"
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 22
+            }
+          }
+        }
+      }
+    },
+    "invalidTokenAddressCreate": {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCustomerAddressCreate",
+      "query": "mutation StorefrontCustomerAddressCreate($token: String!, $address: MailingAddressInput!) {\n  customerAddressCreate(customerAccessToken: $token, address: $address) {\n    customerAddress {\n      id\n      firstName\n      lastName\n      address1\n      address2\n      city\n      company\n      province\n      provinceCode\n      country\n      countryCode\n      countryCodeV2\n      zip\n      phone\n      name\n      formattedArea\n    }\n    customerUserErrors {\n      field\n      message\n      code\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "token": "<redacted:storefront-customer-profile-address-order>",
+        "address": {
+          "address1": "3 Invalid Token St"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Access denied for customerAddressCreate field. Required access: `unauthenticated_write_customers` access scope. Also: Requires valid customer access token.",
+              "path": ["customerAddressCreate"],
+              "locations": [],
+              "extensions": {
+                "code": "ACCESS_DENIED",
+                "documentation": "https://shopify.dev/api/usage/access-scopes",
+                "requiredAccess": "`unauthenticated_write_customers` access scope. Also: Requires valid customer access token."
+              }
+            }
+          ],
+          "data": {
+            "customerAddressCreate": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "orderCleanup": [
+      {
+        "orderId": "gid://shopify/Order/8954034651442",
+        "orderCancel": {
+          "status": 200,
+          "body": {
+            "data": {
+              "orderCancel": {
+                "orderCancelUserErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        },
+        "orderDelete": {
+          "status": 200,
+          "body": {
+            "data": {
+              "orderDelete": {
+                "deletedId": "gid://shopify/Order/8954034651442",
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    ],
+    "customerDeletes": [
+      {
+        "customerId": "gid://shopify/Customer/10965467300146",
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "customerDelete": {
+                "deletedCustomerId": "gid://shopify/Customer/10965467300146",
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "upstreamCalls": [],
+  "notes": [
+    "Disposable Storefront customer, customer addresses, and Admin test order were created against live Shopify.",
+    "The scenario proves Storefront profile/address mutations are visible through Admin reads, then Admin profile/address/order changes are visible through Storefront token-authenticated reads.",
+    "Passwords and Storefront access tokens are redacted in this checked-in fixture; disposable example.com emails and Canadian safe addresses are not real customer data.",
+    "Cleanup cancels/deletes the disposable test order before deleting the customer."
+  ]
+}

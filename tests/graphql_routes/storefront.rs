@@ -1348,6 +1348,678 @@ fn storefront_customer_auth_lifecycle_stages_locally_and_redacts_meta() {
 }
 
 #[test]
+fn storefront_customer_profile_addresses_orders_and_restore_share_state() {
+    let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|request| {
+            panic!(
+                "Storefront customer profile/address/order behavior must stay local: {}",
+                request.body
+            )
+        });
+
+    let (customer_id, access_token) = create_storefront_customer_token(
+        &mut proxy,
+        "storefront-profile@example.test",
+        "Original",
+        "Customer",
+    );
+
+    let denied_email_update = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation UpdateProfile($token: String!, $customer: CustomerUpdateInput!) {
+          profile: customerUpdate(customerAccessToken: $token, customer: $customer) {
+            customer {
+              id
+              email
+              firstName
+              lastName
+              displayName
+              phone
+              acceptsMarketing
+            }
+            customerAccessToken { accessToken expiresAt }
+            customerUserErrors { field message code }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "token": access_token,
+            "customer": {
+                "email": "storefront-profile-updated@example.test",
+                "firstName": "Denied",
+                "acceptsMarketing": true
+            }
+        }),
+    ));
+    assert_eq!(
+        denied_email_update.status, 200,
+        "{}",
+        denied_email_update.body
+    );
+    assert_eq!(
+        denied_email_update.body["errors"],
+        Value::Null,
+        "{}",
+        denied_email_update.body
+    );
+    assert_eq!(
+        denied_email_update.body["data"]["profile"]["customer"],
+        Value::Null
+    );
+    assert_eq!(
+        denied_email_update.body["data"]["profile"]["customerAccessToken"],
+        Value::Null
+    );
+    assert_eq!(
+        denied_email_update.body["data"]["profile"]["customerUserErrors"],
+        json!([{
+            "field": ["customer", "email"],
+            "message": "CustomerUpdate access denied",
+            "code": "INVALID"
+        }])
+    );
+
+    let update = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation UpdateProfile($token: String!, $customer: CustomerUpdateInput!) {
+          profile: customerUpdate(customerAccessToken: $token, customer: $customer) {
+            customer {
+              id
+              email
+              firstName
+              lastName
+              displayName
+              phone
+              acceptsMarketing
+            }
+            customerAccessToken { accessToken expiresAt }
+            customerUserErrors { field message code }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "token": access_token,
+            "customer": {
+                "firstName": "Updated",
+                "lastName": "Profile",
+                "phone": "+16135550123",
+                "acceptsMarketing": true
+            }
+        }),
+    ));
+    assert_eq!(update.status, 200, "{}", update.body);
+    assert_eq!(update.body["errors"], Value::Null, "{}", update.body);
+    assert_eq!(
+        update.body["data"]["profile"]["customer"],
+        json!({
+            "id": customer_id,
+            "email": "storefront-profile@example.test",
+            "firstName": "Updated",
+            "lastName": "Profile",
+            "displayName": "Updated Profile",
+            "phone": "+16135550123",
+            "acceptsMarketing": true
+        })
+    );
+    assert_eq!(
+        update.body["data"]["profile"]["customerAccessToken"],
+        Value::Null
+    );
+    assert_eq!(
+        update.body["data"]["profile"]["customerUserErrors"],
+        json!([])
+    );
+
+    let create_address = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation CreateAddress($token: String!, $address: MailingAddressInput!) {
+          customerAddressCreate(customerAccessToken: $token, address: $address) {
+            customerAddress {
+              id
+              firstName
+              lastName
+              address1
+              city
+              province
+              country
+              countryCodeV2
+              zip
+              phone
+              name
+              formattedArea
+            }
+            customerUserErrors { field message code }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "token": access_token,
+            "address": {
+                "address1": "1 Main St",
+                "city": "Ottawa",
+                "province": "Ontario",
+                "country": "Canada",
+                "zip": "K1A 0B1",
+                "phone": "+1 (613) 555-0199"
+            }
+        }),
+    ));
+    assert_eq!(create_address.status, 200, "{}", create_address.body);
+    assert_eq!(
+        create_address.body["errors"],
+        Value::Null,
+        "{}",
+        create_address.body
+    );
+    assert_eq!(
+        create_address.body["data"]["customerAddressCreate"]["customerUserErrors"],
+        json!([])
+    );
+    let first_address_id = create_address.body["data"]["customerAddressCreate"]["customerAddress"]
+        ["id"]
+        .as_str()
+        .expect("address id")
+        .to_string();
+    assert_eq!(
+        create_address.body["data"]["customerAddressCreate"]["customerAddress"]["name"],
+        json!("Updated Profile")
+    );
+
+    let second_address = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation CreateSecondAddress($token: String!, $address: MailingAddressInput!) {
+          customerAddressCreate(customerAccessToken: $token, address: $address) {
+            customerAddress { id address1 city country }
+            customerUserErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "token": access_token,
+            "address": {
+                "firstName": "Second",
+                "lastName": "Address",
+                "address1": "2 Side St",
+                "city": "Toronto",
+                "country": "Canada"
+            }
+        }),
+    ));
+    let second_address_id = second_address.body["data"]["customerAddressCreate"]["customerAddress"]
+        ["id"]
+        .as_str()
+        .expect("second address id")
+        .to_string();
+
+    let make_default = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation MakeDefault($token: String!, $addressId: ID!) {
+          customerDefaultAddressUpdate(customerAccessToken: $token, addressId: $addressId) {
+            customer {
+              id
+              defaultAddress { id address1 city }
+              addresses(first: 5) { nodes { id address1 city } }
+            }
+            customerUserErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "token": access_token, "addressId": second_address_id }),
+    ));
+    assert_eq!(make_default.status, 200, "{}", make_default.body);
+    assert_eq!(
+        make_default.body["data"]["customerDefaultAddressUpdate"]["customer"]["defaultAddress"]
+            ["id"],
+        json!(second_address_id)
+    );
+
+    let update_address = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation UpdateAddress($token: String!, $id: ID!, $address: MailingAddressInput!) {
+          customerAddressUpdate(customerAccessToken: $token, id: $id, address: $address) {
+            customerAddress { id address1 city country }
+            customerUserErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "token": access_token,
+            "id": first_address_id,
+            "address": { "address1": "10 Main St", "city": "Gatineau", "country": "Canada" }
+        }),
+    ));
+    assert_eq!(
+        update_address.body["data"]["customerAddressUpdate"]["customerAddress"]["address1"],
+        json!("10 Main St")
+    );
+
+    let order = proxy.process_request(graphql_request(
+        "POST",
+        &json!({
+            "query": r#"
+            mutation SeedCustomerOrder($order: OrderCreateOrderInput!) {
+              orderCreate(order: $order) {
+                order { id name email customer { id email } }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            "variables": {
+                "order": {
+                    "email": "storefront-order@example.test",
+                    "customerId": customer_id,
+                    "currency": "CAD",
+                    "lineItems": [{ "title": "Storefront visible item", "quantity": 1 }]
+                }
+            }
+        })
+        .to_string(),
+    ));
+    assert_eq!(order.status, 200, "{}", order.body);
+    assert_eq!(order.body["data"]["orderCreate"]["userErrors"], json!([]));
+    assert_eq!(
+        order.body["data"]["orderCreate"]["order"]["customer"]["email"],
+        json!("storefront-order@example.test")
+    );
+    let order_id = order.body["data"]["orderCreate"]["order"]["id"]
+        .as_str()
+        .expect("order id")
+        .to_string();
+
+    let read = proxy.process_request(storefront_graphql_request(
+        r#"
+        query ReadCustomer($token: String!) {
+          customer(customerAccessToken: $token) {
+            id
+            email
+            firstName
+            lastName
+            defaultAddress { id address1 city }
+            addresses(first: 5) {
+              nodes { id address1 city }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            orders(first: 5) {
+              nodes { id name email }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({ "token": access_token }),
+    ));
+    assert_eq!(read.status, 200, "{}", read.body);
+    assert_eq!(
+        read.body["data"]["customer"]["email"],
+        json!("storefront-order@example.test")
+    );
+    assert_eq!(
+        read.body["data"]["customer"]["defaultAddress"]["id"],
+        json!(second_address_id)
+    );
+    assert_eq!(
+        read.body["data"]["customer"]["addresses"]["nodes"][0]["address1"],
+        json!("10 Main St")
+    );
+    assert_eq!(
+        read.body["data"]["customer"]["orders"]["nodes"][0]["id"],
+        json!(order_id)
+    );
+    assert_eq!(
+        read.body["data"]["customer"]["orders"]["nodes"][0]["email"],
+        json!("storefront-order@example.test")
+    );
+
+    let admin_read = proxy.process_request(graphql_request(
+        "POST",
+        &json!({
+            "query": r#"
+            query AdminReadCustomer($id: ID!) {
+              customer(id: $id) {
+                id
+                email
+                firstName
+                lastName
+                defaultAddress { id address1 city }
+                addressesV2(first: 5) { nodes { id address1 city } }
+                orders(first: 5) { nodes { id name email } }
+              }
+            }
+            "#,
+            "variables": { "id": customer_id }
+        })
+        .to_string(),
+    ));
+    assert_eq!(
+        admin_read.body["data"]["customer"]["defaultAddress"]["id"],
+        json!(second_address_id)
+    );
+    assert_eq!(
+        admin_read.body["data"]["customer"]["addressesV2"]["nodes"][0]["address1"],
+        json!("10 Main St")
+    );
+    assert_eq!(
+        admin_read.body["data"]["customer"]["orders"]["nodes"][0]["id"],
+        json!(order_id)
+    );
+
+    let deleted_default = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation DeleteDefault($token: String!, $id: ID!) {
+          customerAddressDelete(customerAccessToken: $token, id: $id) {
+            deletedCustomerAddressId
+            customerUserErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "token": access_token, "id": second_address_id }),
+    ));
+    assert_eq!(
+        deleted_default.body["data"]["customerAddressDelete"]["deletedCustomerAddressId"],
+        json!(second_address_id)
+    );
+    let after_delete = proxy.process_request(storefront_graphql_request(
+        r#"
+        query AfterDefaultDelete($token: String!) {
+          customer(customerAccessToken: $token) {
+            defaultAddress { id }
+            addresses(first: 5) { nodes { id } }
+          }
+        }
+        "#,
+        json!({ "token": access_token }),
+    ));
+    assert_eq!(
+        after_delete.body["data"]["customer"]["defaultAddress"]["id"],
+        json!(first_address_id)
+    );
+    assert_eq!(
+        after_delete.body["data"]["customer"]["addresses"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+
+    let invalid_token = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation InvalidToken($token: String!) {
+          customerAddressCreate(customerAccessToken: $token, address: { address1: "3 Lost St" }) {
+            customerAddress { id }
+            customerUserErrors { field message code }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "token": "not-a-token" }),
+    ));
+    assert_eq!(
+        invalid_token.body["data"]["customerAddressCreate"],
+        Value::Null
+    );
+    assert_eq!(
+        invalid_token.body["errors"],
+        json!([{
+            "message": "Access denied for customerAddressCreate field. Required access: `unauthenticated_write_customers` access scope. Also: Requires valid customer access token.",
+            "path": ["customerAddressCreate"],
+            "locations": [],
+            "extensions": {
+                "code": "ACCESS_DENIED",
+                "documentation": "https://shopify.dev/api/usage/access-scopes",
+                "requiredAccess": "`unauthenticated_write_customers` access scope. Also: Requires valid customer access token."
+            }
+        }])
+    );
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    let mut restored = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|_| {
+            panic!("restored Storefront customer state should stay local")
+        });
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    let restored_read = restored.process_request(storefront_graphql_request(
+        r#"
+        query RestoredCustomer($token: String!) {
+          customer(customerAccessToken: $token) {
+            id
+            defaultAddress { id }
+            orders(first: 5) { nodes { id } }
+          }
+        }
+        "#,
+        json!({ "token": access_token }),
+    ));
+    assert_eq!(
+        restored_read.body["data"]["customer"]["defaultAddress"]["id"],
+        json!(first_address_id)
+    );
+    assert_eq!(
+        restored_read.body["data"]["customer"]["orders"]["nodes"][0]["id"],
+        json!(order_id)
+    );
+
+    let reset = restored.process_request(request_with_body("POST", "/__meta/reset", ""));
+    assert_eq!(reset.status, 200);
+    let after_reset = restored.process_request(storefront_graphql_request(
+        r#"query AfterReset($token: String!) { customer(customerAccessToken: $token) { id } }"#,
+        json!({ "token": access_token }),
+    ));
+    assert_eq!(after_reset.body["data"]["customer"], Value::Null);
+}
+
+#[test]
+fn storefront_customer_password_update_rotates_access_tokens() {
+    let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|_| panic!("Storefront password update must stay local"));
+
+    let (customer_id, access_token) = create_storefront_customer_token(
+        &mut proxy,
+        "storefront-password@example.test",
+        "Password",
+        "Rotation",
+    );
+
+    let update = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation RotatePassword($token: String!, $customer: CustomerUpdateInput!) {
+          customerUpdate(customerAccessToken: $token, customer: $customer) {
+            customer { id email }
+            customerAccessToken { accessToken expiresAt }
+            customerUserErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "token": access_token,
+            "customer": { "password": "NewCodexPass123!" }
+        }),
+    ));
+    assert_eq!(update.status, 200, "{}", update.body);
+    assert_eq!(
+        update.body["data"]["customerUpdate"]["customer"]["id"],
+        json!(customer_id)
+    );
+    let rotated_token = update.body["data"]["customerUpdate"]["customerAccessToken"]["accessToken"]
+        .as_str()
+        .expect("rotated token")
+        .to_string();
+    assert_ne!(rotated_token, access_token);
+
+    let old_read = proxy.process_request(storefront_graphql_request(
+        r#"query OldToken($token: String!) { customer(customerAccessToken: $token) { id } }"#,
+        json!({ "token": access_token }),
+    ));
+    assert_eq!(old_read.body["data"]["customer"], Value::Null);
+
+    let new_read = proxy.process_request(storefront_graphql_request(
+        r#"query NewToken($token: String!) { customer(customerAccessToken: $token) { id } }"#,
+        json!({ "token": rotated_token }),
+    ));
+    assert_eq!(new_read.body["data"]["customer"]["id"], json!(customer_id));
+
+    let old_password_login = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation OldPassword($input: CustomerAccessTokenCreateInput!) {
+          customerAccessTokenCreate(input: $input) {
+            customerAccessToken { accessToken }
+            customerUserErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "storefront-password@example.test",
+                "password": "CodexPass123!"
+            }
+        }),
+    ));
+    assert_eq!(
+        old_password_login.body["data"]["customerAccessTokenCreate"]["customerUserErrors"][0]
+            ["code"],
+        json!("UNIDENTIFIED_CUSTOMER")
+    );
+
+    let new_password_login = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation NewPassword($input: CustomerAccessTokenCreateInput!) {
+          customerAccessTokenCreate(input: $input) {
+            customerAccessToken { accessToken }
+            customerUserErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "storefront-password@example.test",
+                "password": "NewCodexPass123!"
+            }
+        }),
+    ));
+    assert!(
+        new_password_login.body["data"]["customerAccessTokenCreate"]["customerAccessToken"]
+            ["accessToken"]
+            .as_str()
+            .unwrap_or_default()
+            .starts_with("sdp_ca_")
+    );
+}
+
+#[test]
+fn storefront_customer_reads_admin_profile_and_address_changes() {
+    let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|_| panic!("cross-surface customer reads must stay local"));
+
+    let (customer_id, access_token) = create_storefront_customer_token(
+        &mut proxy,
+        "storefront-admin-visible@example.test",
+        "Storefront",
+        "Visible",
+    );
+
+    let admin_update = proxy.process_request(graphql_request(
+        "POST",
+        &json!({
+            "query": r#"
+            mutation AdminProfileUpdate($input: CustomerInput!) {
+              customerUpdate(input: $input) {
+                customer { id firstName lastName email }
+                userErrors { field message }
+              }
+            }
+            "#,
+            "variables": {
+                "input": {
+                    "id": customer_id,
+                    "firstName": "Admin",
+                    "lastName": "Visible",
+                    "email": "storefront-admin-updated@example.test"
+                }
+            }
+        })
+        .to_string(),
+    ));
+    assert_eq!(admin_update.status, 200, "{}", admin_update.body);
+    assert_eq!(
+        admin_update.body["data"]["customerUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let admin_address = proxy.process_request(graphql_request(
+        "POST",
+        &json!({
+            "query": r#"
+            mutation AdminAddressCreate($customerId: ID!, $address: MailingAddressInput!) {
+              customerAddressCreate(customerId: $customerId, address: $address, setAsDefault: true) {
+                address { id address1 city country }
+                userErrors { field message }
+              }
+            }
+            "#,
+            "variables": {
+                "customerId": customer_id,
+                "address": {
+                    "address1": "50 Admin Way",
+                    "city": "Montreal",
+                    "country": "Canada"
+                }
+            }
+        })
+        .to_string(),
+    ));
+    assert_eq!(admin_address.status, 200, "{}", admin_address.body);
+    assert_eq!(
+        admin_address.body["data"]["customerAddressCreate"]["userErrors"],
+        json!([])
+    );
+    let address_id = admin_address.body["data"]["customerAddressCreate"]["address"]["id"]
+        .as_str()
+        .expect("admin address id")
+        .to_string();
+
+    let storefront_read = proxy.process_request(storefront_graphql_request(
+        r#"
+        query StorefrontSeesAdminChanges($token: String!) {
+          customer(customerAccessToken: $token) {
+            id
+            email
+            firstName
+            lastName
+            defaultAddress { id address1 city }
+            addresses(first: 5) { nodes { id address1 city } }
+          }
+        }
+        "#,
+        json!({ "token": access_token }),
+    ));
+    assert_eq!(storefront_read.status, 200, "{}", storefront_read.body);
+    assert_eq!(
+        storefront_read.body["data"]["customer"]["email"],
+        json!("storefront-admin-updated@example.test")
+    );
+    assert_eq!(
+        storefront_read.body["data"]["customer"]["firstName"],
+        json!("Admin")
+    );
+    assert_eq!(
+        storefront_read.body["data"]["customer"]["defaultAddress"]["id"],
+        json!(address_id)
+    );
+    assert_eq!(
+        storefront_read.body["data"]["customer"]["addresses"]["nodes"][0]["address1"],
+        json!("50 Admin Way")
+    );
+}
+
+#[test]
 fn storefront_customer_activation_recovery_and_reset_are_local_only() {
     let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
         .with_upstream_transport(|_| panic!("Storefront customer auth must stay local"));
@@ -3050,6 +3722,69 @@ fn storefront_menu_projects_restored_captured_base_state_without_snapshot_fabric
             "title": "Visible page"
         })
     );
+}
+
+fn create_storefront_customer_token(
+    proxy: &mut DraftProxy,
+    email: &str,
+    first_name: &str,
+    last_name: &str,
+) -> (String, String) {
+    let create = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation CreateStorefrontCustomer($input: CustomerCreateInput!) {
+          customerCreate(input: $input) {
+            customer { id email }
+            customerUserErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": email,
+                "password": "CodexPass123!",
+                "firstName": first_name,
+                "lastName": last_name
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200, "{}", create.body);
+    assert_eq!(
+        create.body["data"]["customerCreate"]["customerUserErrors"],
+        json!([])
+    );
+    let customer_id = create.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .expect("customer id")
+        .to_string();
+
+    let token = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation CreateStorefrontCustomerToken($input: CustomerAccessTokenCreateInput!) {
+          customerAccessTokenCreate(input: $input) {
+            customerAccessToken { accessToken expiresAt }
+            customerUserErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": email,
+                "password": "CodexPass123!"
+            }
+        }),
+    ));
+    assert_eq!(token.status, 200, "{}", token.body);
+    assert_eq!(
+        token.body["data"]["customerAccessTokenCreate"]["customerUserErrors"],
+        json!([])
+    );
+    let access_token = token.body["data"]["customerAccessTokenCreate"]["customerAccessToken"]
+        ["accessToken"]
+        .as_str()
+        .expect("customer access token")
+        .to_string();
+    (customer_id, access_token)
 }
 
 fn stage_storefront_metaobject_definition(
