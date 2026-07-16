@@ -1,0 +1,33 @@
+mutation StorefrontCollectionsCreate($primary: CollectionInput!, $secondary: CollectionInput!) {
+  primary: collectionCreate(input: $primary) {
+    collection {
+      id
+      title
+      handle
+      sortOrder
+      products(first: 3, sortKey: MANUAL) {
+        nodes {
+          id
+          title
+          handle
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  secondary: collectionCreate(input: $secondary) {
+    collection {
+      id
+      title
+      handle
+      sortOrder
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

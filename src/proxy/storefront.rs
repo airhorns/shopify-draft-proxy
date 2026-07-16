@@ -37,6 +37,9 @@ const STOREFRONT_LOCAL_CONTENT_ROOTS: &[&str] = &[
     "urlRedirects",
 ];
 const STOREFRONT_CUSTOM_DATA_ROOTS: &[&str] = &["metaobject", "metaobjects"];
+const STOREFRONT_COLLECTION_ROOTS: &[&str] = &["collection", "collectionByHandle", "collections"];
+const STOREFRONT_CAPTURED_COLLECTION_DEFAULT_ORDER_FIELD: &str =
+    "__storefrontCapturedDefaultProductOrder";
 pub(in crate::proxy) const STOREFRONT_CUSTOMER_AUTH_MUTATION_ROOTS: &[&str] = &[
     "customerCreate",
     "customerAccessTokenCreate",
@@ -891,6 +894,12 @@ impl DraftProxy {
 
         let context = storefront_request_context(query, variables);
         if self.config.read_mode == ReadMode::LiveHybrid
+            && STOREFRONT_COLLECTION_ROOTS.contains(&field.name.as_str())
+            && self.storefront_collection_field_needs_hydration(&field)
+        {
+            self.hydrate_storefront_collections(request);
+        }
+        if self.config.read_mode == ReadMode::LiveHybrid
             && self.storefront_first_slice_needs_hydration(std::slice::from_ref(&field), &context)
         {
             self.hydrate_storefront_first_slice(request, &context);
@@ -966,6 +975,7 @@ impl DraftProxy {
     fn storefront_root_is_promoted(&self, root: &str) -> bool {
         root == "customer"
             || STOREFRONT_FIRST_SLICE_ROOTS.contains(&root)
+            || STOREFRONT_COLLECTION_ROOTS.contains(&root)
             || STOREFRONT_LOCAL_CONTENT_ROOTS.contains(&root)
             || STOREFRONT_CUSTOM_DATA_ROOTS.contains(&root)
     }
@@ -978,6 +988,7 @@ impl DraftProxy {
         }
         match field.name.as_str() {
             "customer" => true,
+            root if STOREFRONT_COLLECTION_ROOTS.contains(&root) => true,
             root if STOREFRONT_CONTENT_ROOTS.contains(&root) => {
                 self.has_online_store_content_state()
             }
@@ -1304,11 +1315,270 @@ impl DraftProxy {
                 "product" => self.storefront_product_field_json(field),
                 "productByHandle" => self.storefront_product_by_handle_field_json(field),
                 "products" => self.storefront_products_connection_json(field),
+                "collection" => self.storefront_collection_field_json(field),
+                "collectionByHandle" => self.storefront_collection_by_handle_field_json(field),
+                "collections" => self.storefront_collections_connection_json(field),
                 "metaobject" => self.storefront_metaobject_root_json(field),
                 "metaobjects" => self.storefront_metaobjects_connection_json(field),
                 _ => Value::Null,
             })
         })
+    }
+
+    fn storefront_collection_field_needs_hydration(&self, _field: &RootFieldSelection) -> bool {
+        self.store.staged.collections.is_empty()
+    }
+
+    fn hydrate_storefront_collections(&mut self, request: &Request) {
+        let response = (self.storefront_upstream_transport)(request.clone());
+        if (200..300).contains(&response.status) {
+            self.observe_storefront_collection_value(&response.body["data"]);
+        }
+    }
+
+    fn observe_storefront_collection_value(&mut self, value: &Value) {
+        if value
+            .get("id")
+            .and_then(Value::as_str)
+            .is_some_and(|id| is_shopify_gid_of_type(id, "Collection"))
+        {
+            let mut observed = value.clone();
+            observed["__storefrontVisible"] = json!(true);
+            let observed_products = storefront_collection_observed_products(&observed);
+            if !observed_products.is_empty() {
+                observed["products"] = connection_json(observed_products);
+                if value.get("products").is_some() {
+                    observed[STOREFRONT_CAPTURED_COLLECTION_DEFAULT_ORDER_FIELD] = json!(true);
+                }
+            }
+            let owner_id = observed
+                .get("id")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
+            self.stage_collection_from_observed_json(&observed);
+            let mut metafields = observed
+                .get("metafields")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter(|value| value.is_object())
+                .cloned()
+                .collect::<Vec<_>>();
+            if let Some(metafield) = observed.get("metafield").filter(|value| value.is_object()) {
+                metafields.push(metafield.clone());
+            }
+            for metafield in &mut metafields {
+                metafield["__storefrontPublic"] = json!(true);
+            }
+            if !metafields.is_empty() {
+                self.stage_observed_owner_metafields(
+                    &owner_id,
+                    &json!({ "metafields": { "nodes": metafields } }),
+                );
+            }
+        }
+        match value {
+            Value::Array(values) => {
+                for value in values {
+                    self.observe_storefront_collection_value(value);
+                }
+            }
+            Value::Object(object) => {
+                for value in object.values() {
+                    self.observe_storefront_collection_value(value);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn storefront_collection_field_json(&self, field: &RootFieldSelection) -> Value {
+        let collection = resolved_string_field(&field.arguments, "id")
+            .and_then(|id| self.store.collection_by_id(&id))
+            .or_else(|| {
+                resolved_string_field(&field.arguments, "handle")
+                    .and_then(|handle| self.store.collection_by_handle(&handle))
+            });
+        self.storefront_visible_collection_json(collection, &field.selection)
+    }
+
+    fn storefront_collection_by_handle_field_json(&self, field: &RootFieldSelection) -> Value {
+        let collection = resolved_string_field(&field.arguments, "handle")
+            .and_then(|handle| self.store.collection_by_handle(&handle));
+        self.storefront_visible_collection_json(collection, &field.selection)
+    }
+
+    fn storefront_visible_collection_json(
+        &self,
+        collection: Option<&Value>,
+        selections: &[SelectedField],
+    ) -> Value {
+        let Some(collection) =
+            collection.filter(|collection| self.storefront_collection_is_visible(collection))
+        else {
+            return Value::Null;
+        };
+        self.storefront_collection_json(collection, selections)
+    }
+
+    fn storefront_collection_is_visible(&self, collection: &Value) -> bool {
+        let Some(id) = collection.get("id").and_then(Value::as_str) else {
+            return false;
+        };
+        if let Some(publications) = self.store.staged.resource_publications.get(id) {
+            if self.store.staged.current_channel_publication_resolved {
+                return self.store.resource_is_published_on_current_publication(id);
+            }
+            return publications
+                .iter()
+                .any(|publication_id| self.store.has_publication_id(publication_id));
+        }
+        collection
+            .get("__storefrontVisible")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+    }
+
+    fn storefront_collections_connection_json(&self, field: &RootFieldSelection) -> Value {
+        selected_staged_connection_with_args(
+            self.store
+                .staged
+                .collections
+                .values()
+                .filter(|collection| self.storefront_collection_is_visible(collection))
+                .cloned()
+                .collect(),
+            &field.arguments,
+            &field.selection,
+            |collection, query| self.collection_search_decision(collection, query),
+            |collection, sort_key| self.storefront_collection_sort_key(collection, sort_key),
+            |collection, selections| self.storefront_collection_json(collection, selections),
+            value_id_cursor,
+        )
+    }
+
+    fn storefront_collection_sort_key(
+        &self,
+        collection: &Value,
+        sort_key: Option<&str>,
+    ) -> StagedSortKey {
+        if sort_key != Some("UPDATED_AT") {
+            return collection_staged_sort_key(collection, sort_key);
+        }
+
+        let has_hidden_member = collection
+            .pointer("/products/nodes")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|product| product.get("id").and_then(Value::as_str))
+            .any(|id| {
+                self.store.product_is_tombstoned(id)
+                    || self
+                        .store
+                        .product_by_id(id)
+                        .is_some_and(|product| !self.storefront_product_is_visible(product))
+            });
+        let projected_updated_at = if has_hidden_member {
+            collection.get("updatedAt")
+        } else {
+            collection
+                .get(STOREFRONT_COLLECTION_BASELINE_UPDATED_AT_FIELD)
+                .or_else(|| collection.get("updatedAt"))
+        }
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+        let id = collection
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        vec![
+            StagedSortValue::String(projected_updated_at.to_string()),
+            resource_id_tail_sort_value(Some(id)),
+        ]
+    }
+
+    fn storefront_collection_json(
+        &self,
+        collection: &Value,
+        selections: &[SelectedField],
+    ) -> Value {
+        let owner_id = collection
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        selected_payload_json(selections, |selection| match selection.name.as_str() {
+            "__typename" => Some(json!("Collection")),
+            "description" => Some(json!(storefront_collection_description(
+                collection, selection,
+            ))),
+            "descriptionHtml" => Some(json!(collection
+                .get("descriptionHtml")
+                .and_then(Value::as_str)
+                .unwrap_or_default())),
+            "image" => Some(
+                collection
+                    .get("image")
+                    .map(|image| nullable_selected_json(image, &selection.selection))
+                    .unwrap_or(Value::Null),
+            ),
+            "seo" => Some(selected_json(
+                &storefront_collection_seo(collection),
+                &selection.selection,
+            )),
+            "metafield" => Some(self.storefront_owner_metafield_json(owner_id, selection)),
+            "metafields" => Some(self.storefront_owner_metafields_json(owner_id, selection)),
+            "products" => {
+                Some(self.storefront_collection_products_connection_json(collection, selection))
+            }
+            _ => collection
+                .get(&selection.name)
+                .map(|value| nullable_selected_json(value, &selection.selection)),
+        })
+    }
+
+    fn storefront_collection_products_connection_json(
+        &self,
+        collection: &Value,
+        selection: &SelectedField,
+    ) -> Value {
+        let filters = resolved_object_list_field(&selection.arguments, "filters");
+        let mut products = self
+            .collection_product_entries(collection)
+            .into_iter()
+            .filter(|entry| self.storefront_product_is_visible(&entry.product))
+            .filter(|entry| storefront_collection_product_matches_filters(entry, &filters))
+            .collect::<Vec<_>>();
+        let requested_sort_key = resolved_string_field(&selection.arguments, "sortKey");
+        let sort_key = if matches!(
+            requested_sort_key.as_deref(),
+            None | Some("COLLECTION_DEFAULT")
+        ) && collection
+            .get(STOREFRONT_CAPTURED_COLLECTION_DEFAULT_ORDER_FIELD)
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        {
+            Some("MANUAL")
+        } else {
+            requested_sort_key.as_deref()
+        };
+        let reverse = resolved_bool_field(&selection.arguments, "reverse").unwrap_or(false);
+        sort_collection_product_entries(collection, &mut products, sort_key, reverse);
+        selected_typed_connection_with_args(
+            &products,
+            &selection.arguments,
+            &selection.selection,
+            |entry, selections| {
+                storefront_product_json(
+                    &entry.product,
+                    &entry.variants,
+                    &self.storefront_currency_code(),
+                    selections,
+                )
+            },
+            collection_product_cursor,
+        )
     }
 
     fn storefront_product_field_json(&self, field: &RootFieldSelection) -> Value {
@@ -1376,6 +1646,24 @@ impl DraftProxy {
     fn storefront_product_is_visible(&self, product: &ProductRecord) -> bool {
         if product.status != "ACTIVE" {
             return false;
+        }
+        if let Some(publications) = self.store.staged.resource_publications.get(&product.id) {
+            if self.store.staged.current_channel_publication_resolved {
+                return self
+                    .store
+                    .product_is_published_on_current_publication(product);
+            }
+            return publications
+                .iter()
+                .any(|publication_id| self.store.has_publication_id(publication_id));
+        }
+        if product
+            .extra_fields
+            .get("__storefrontVisible")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        {
+            return true;
         }
         if self.store.staged.current_channel_publication_resolved {
             return self
@@ -2105,10 +2393,14 @@ impl DraftProxy {
         let Some(owner_id) = self.storefront_shop_owner_id() else {
             return Value::Null;
         };
+        self.storefront_owner_metafield_json(&owner_id, selection)
+    }
+
+    fn storefront_owner_metafield_json(&self, owner_id: &str, selection: &SelectedField) -> Value {
         let namespace =
             resolved_string_field(&selection.arguments, "namespace").unwrap_or_default();
         let key = resolved_string_field(&selection.arguments, "key").unwrap_or_default();
-        self.storefront_owner_metafield(&owner_id, &namespace, &key)
+        self.storefront_owner_metafield(owner_id, &namespace, &key)
             .map(|metafield| self.storefront_selected_metafield(&metafield, &selection.selection))
             .unwrap_or(Value::Null)
     }
@@ -2117,6 +2409,10 @@ impl DraftProxy {
         let Some(owner_id) = self.storefront_shop_owner_id() else {
             return Value::Array(Vec::new());
         };
+        self.storefront_owner_metafields_json(&owner_id, selection)
+    }
+
+    fn storefront_owner_metafields_json(&self, owner_id: &str, selection: &SelectedField) -> Value {
         Value::Array(
             resolved_object_list_field(&selection.arguments, "identifiers")
                 .into_iter()
@@ -2124,7 +2420,7 @@ impl DraftProxy {
                     let namespace =
                         resolved_string_field(&identifier, "namespace").unwrap_or_default();
                     let key = resolved_string_field(&identifier, "key").unwrap_or_default();
-                    self.storefront_owner_metafield(&owner_id, &namespace, &key)
+                    self.storefront_owner_metafield(owner_id, &namespace, &key)
                         .map(|metafield| {
                             self.storefront_selected_metafield(&metafield, &selection.selection)
                         })
@@ -2359,6 +2655,118 @@ fn storefront_metafields_list(
             .take(count)
             .collect(),
     )
+}
+
+fn storefront_collection_observed_products(collection: &Value) -> Vec<Value> {
+    let mut product_order = Vec::new();
+    let mut products = BTreeMap::<String, Value>::new();
+
+    let mut observe_connection = |connection: &Value| {
+        for mut product in connection_nodes(connection) {
+            let Some(id) = product
+                .get("id")
+                .and_then(Value::as_str)
+                .filter(|id| is_shopify_gid_of_type(id, "Product"))
+                .map(str::to_string)
+            else {
+                continue;
+            };
+            product["__storefrontVisible"] = json!(true);
+            if let Some(existing) = products.remove(&id) {
+                products.insert(id, shallow_merged_object(existing, product));
+            } else {
+                product_order.push(id.clone());
+                products.insert(id, product);
+            }
+        }
+    };
+
+    // Preserve the captured default connection prefix first. Other aliases
+    // then fill fields and append members that fell outside that window.
+    if let Some(default_products) = collection.get("products") {
+        observe_connection(default_products);
+    }
+    if let Some(object) = collection.as_object() {
+        for (response_key, value) in object {
+            if response_key != "products" {
+                observe_connection(value);
+            }
+        }
+    }
+
+    product_order
+        .into_iter()
+        .filter_map(|id| products.remove(&id))
+        .collect()
+}
+
+fn storefront_collection_description(collection: &Value, selection: &SelectedField) -> String {
+    let description = collection
+        .get("description")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .unwrap_or_else(|| {
+            storefront_strip_html(
+                collection
+                    .get("descriptionHtml")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default(),
+            )
+        });
+    let Some(limit) = resolved_int_field(&selection.arguments, "truncateAt")
+        .and_then(|limit| (limit >= 0).then_some(limit as usize))
+    else {
+        return description;
+    };
+    if description.chars().count() <= limit {
+        return description;
+    }
+    let prefix_len = limit.saturating_sub(3);
+    format!(
+        "{}...",
+        description.chars().take(prefix_len).collect::<String>()
+    )
+}
+
+fn storefront_collection_seo(collection: &Value) -> Value {
+    collection.get("seo").cloned().unwrap_or_else(|| {
+        json!({
+            "title": collection.get("title").cloned().unwrap_or(Value::Null),
+            "description": storefront_strip_html(
+                collection
+                    .get("descriptionHtml")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+            )
+        })
+    })
+}
+
+fn storefront_collection_product_matches_filters(
+    entry: &CollectionProductEntry,
+    filters: &[BTreeMap<String, ResolvedValue>],
+) -> bool {
+    if filters.is_empty() {
+        return true;
+    }
+    filters.iter().any(|filter| {
+        resolved_bool_field(filter, "available").is_none_or(|available| {
+            storefront_product_available_for_sale(&entry.product, &entry.variants) == available
+        }) && resolved_string_field(filter, "productType").is_none_or(|product_type| {
+            entry
+                .product
+                .product_type
+                .eq_ignore_ascii_case(&product_type)
+        }) && resolved_string_field(filter, "productVendor")
+            .is_none_or(|vendor| entry.product.vendor.eq_ignore_ascii_case(&vendor))
+            && resolved_string_field(filter, "tag").is_none_or(|tag| {
+                entry
+                    .product
+                    .tags
+                    .iter()
+                    .any(|candidate| candidate.eq_ignore_ascii_case(&tag))
+            })
+    })
 }
 
 fn storefront_truncated_text(value: &str, arguments: &BTreeMap<String, ResolvedValue>) -> String {
@@ -2753,6 +3161,13 @@ fn storefront_product_available_for_sale(
             .variants
             .iter()
             .any(storefront_raw_variant_available);
+    }
+    if let Some(observed) = product
+        .extra_fields
+        .get("availableForSale")
+        .and_then(Value::as_bool)
+    {
+        return observed;
     }
     !product.tracks_inventory || product.total_inventory > 0
 }
@@ -3236,6 +3651,15 @@ fn storefront_product_price_range_json(
     selections: &[SelectedField],
     kind: StorefrontPriceRangeKind,
 ) -> Value {
+    let observed_field = match kind {
+        StorefrontPriceRangeKind::Price => "priceRange",
+        StorefrontPriceRangeKind::CompareAtPrice => "compareAtPriceRange",
+    };
+    if variants.is_empty() && product.variants.is_empty() {
+        if let Some(observed) = product.extra_fields.get(observed_field) {
+            return selected_json(observed, selections);
+        }
+    }
     let prices = match kind {
         StorefrontPriceRangeKind::Price => storefront_product_variant_prices(product, variants),
         StorefrontPriceRangeKind::CompareAtPrice => {
@@ -3508,6 +3932,10 @@ fn storefront_metafield_is_public(metafield: &Value) -> bool {
         .pointer("/definition/access/storefront")
         .and_then(Value::as_str)
         == Some("PUBLIC_READ")
+        || metafield
+            .get("__storefrontPublic")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
 }
 
 fn storefront_metaobject_fields(record: &Value) -> Value {

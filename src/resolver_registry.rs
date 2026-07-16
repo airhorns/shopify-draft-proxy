@@ -220,6 +220,20 @@ mod tests {
             ApiSurface::Storefront.resolver_name("products"),
             "storefrontProducts"
         );
+        let admin_collection = registry
+            .registration_for_surface(ApiSurface::Admin, OperationType::Query, "collection")
+            .expect("Admin collection should keep its domain resolver");
+        let storefront_collection = registry
+            .registration_for_surface(ApiSurface::Storefront, OperationType::Query, "collection")
+            .expect("Storefront collection should have a surface-qualified resolver");
+        assert_eq!(admin_collection.resolver_name, "collection");
+        assert_eq!(storefront_collection.resolver_name, "storefrontCollection");
+        assert_eq!(admin_collection.domain, CapabilityDomain::StoreProperties);
+        assert_eq!(storefront_collection.domain, CapabilityDomain::Storefront);
+        assert!(!std::ptr::fn_addr_eq(
+            admin_collection.handler,
+            storefront_collection.handler
+        ));
         assert!(!std::ptr::fn_addr_eq(
             admin_registration.handler,
             storefront_registration.handler

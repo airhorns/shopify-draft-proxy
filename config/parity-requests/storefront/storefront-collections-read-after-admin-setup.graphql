@@ -1,0 +1,174 @@
+query StorefrontCollectionsReadAfterAdminSetup(
+  $id: ID!
+  $handle: String!
+  $query: String!
+  $metafieldNamespace: String!
+  $country: CountryCode!
+) @inContext(country: $country) {
+  byId: collection(id: $id) {
+    ...StorefrontCollectionFields
+  }
+  byHandleArgument: collection(handle: $handle) {
+    id
+    aliasTitle: title
+    handle
+  }
+  deprecatedByHandle: collectionByHandle(handle: $handle) {
+    id
+    title
+    handle
+  }
+  firstPage: collections(first: 1, query: $query, sortKey: TITLE) {
+    edges {
+      cursor
+      node {
+        id
+        title
+        handle
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  reverseCatalog: collections(first: 2, query: $query, sortKey: TITLE, reverse: true) {
+    nodes {
+      id
+      title
+      handle
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  missingById: collection(id: "gid://shopify/Collection/999999999999999") {
+    id
+  }
+  missingByHandle: collectionByHandle(handle: "missing-storefront-collection") {
+    id
+  }
+  emptyCatalog: collections(first: 2, query: "__shopify_draft_proxy_missing_storefront_collection__") {
+    nodes {
+      id
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}
+
+fragment StorefrontCollectionFields on Collection {
+  __typename
+  id
+  title
+  handle
+  description
+  truncatedDescription: description(truncateAt: 12)
+  descriptionHtml
+  updatedAt
+  image {
+    url
+    altText
+  }
+  seo {
+    title
+    description
+  }
+  metafield(namespace: $metafieldNamespace, key: "visible") {
+    id
+    namespace
+    key
+    type
+    value
+  }
+  metafields(
+    identifiers: [
+      { namespace: $metafieldNamespace, key: "visible" }
+      { namespace: $metafieldNamespace, key: "missing" }
+    ]
+  ) {
+    id
+    namespace
+    key
+    value
+  }
+  products(first: 2, sortKey: COLLECTION_DEFAULT) {
+    edges {
+      cursor
+      node {
+        ...StorefrontCollectionProductFields
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  productsReverse: products(first: 2, sortKey: MANUAL, reverse: true) {
+    nodes {
+      id
+      title
+      handle
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  productsByTitle: products(first: 3, sortKey: TITLE) {
+    nodes {
+      id
+      title
+      handle
+    }
+  }
+  availableProducts: products(first: 3, filters: [{ available: true }]) {
+    nodes {
+      id
+      title
+      availableForSale
+    }
+  }
+  taggedProducts: products(first: 3, filters: [{ tag: "storefront-collections" }]) {
+    nodes {
+      id
+      title
+      tags
+    }
+  }
+}
+
+fragment StorefrontCollectionProductFields on Product {
+  __typename
+  id
+  title
+  handle
+  availableForSale
+  totalInventory
+  vendor
+  productType
+  tags
+  priceRange {
+    minVariantPrice {
+      amount
+      currencyCode
+    }
+    maxVariantPrice {
+      amount
+      currencyCode
+    }
+  }
+}

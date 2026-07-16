@@ -62,7 +62,7 @@ fn publish_to_current_storefront_channel(proxy: &mut DraftProxy, product_id: &st
         r#"
         mutation PublishToCurrentStorefrontChannel($id: ID!) {
           publishablePublishToCurrentChannel(id: $id) {
-            publishable { ... on Product { id } }
+            publishable { ... on Product { id } ... on Collection { id } }
             userErrors { field message }
           }
         }
@@ -81,7 +81,7 @@ fn unpublish_from_current_storefront_channel(proxy: &mut DraftProxy, product_id:
         r#"
         mutation UnpublishFromCurrentStorefrontChannel($id: ID!) {
           publishableUnpublishToCurrentChannel(id: $id) {
-            publishable { ... on Product { id } }
+            publishable { ... on Product { id } ... on Collection { id } }
             userErrors { field message }
           }
         }
@@ -3311,4 +3311,720 @@ fn stage_metafields_set(proxy: &mut DraftProxy, owner_id: &str, metafields: Valu
         json!([])
     );
     response.body["data"]["metafieldsSet"]["metafields"].clone()
+}
+
+#[test]
+fn storefront_collections_project_shared_admin_lifecycle_and_product_connections() {
+    let publication_id = "gid://shopify/Publication/storefront-collections";
+    let mut alpha = storefront_product_fixture(
+        "gid://shopify/Product/storefront-collection-alpha",
+        "Alpha Collection Product",
+        "alpha-collection-product",
+        Some(publication_id),
+    );
+    alpha.vendor = "Hermes North".to_string();
+    alpha.tags = vec!["alpha".to_string(), "storefront-collections".to_string()];
+    let mut beta = storefront_product_fixture(
+        "gid://shopify/Product/storefront-collection-beta",
+        "Beta Collection Product",
+        "beta-collection-product",
+        Some(publication_id),
+    );
+    beta.vendor = "Hermes South".to_string();
+    beta.tags = vec!["beta".to_string(), "storefront-collections".to_string()];
+    beta.total_inventory = 0;
+    let mut gamma = storefront_product_fixture(
+        "gid://shopify/Product/storefront-collection-gamma",
+        "Gamma Collection Product",
+        "gamma-collection-product",
+        Some(publication_id),
+    );
+    gamma.vendor = "Hermes North".to_string();
+    gamma.tags = vec!["gamma".to_string(), "storefront-collections".to_string()];
+
+    let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_base_products(vec![alpha, beta, gamma])
+        .with_upstream_transport(|_| {
+            panic!("snapshot Storefront collection reads should not call upstream")
+        });
+    restore_storefront_current_publication(&mut proxy, publication_id);
+    stage_metafield_definition(
+        &mut proxy,
+        "COLLECTION",
+        "storefront_collections",
+        "visible",
+        "single_line_text_field",
+        "PUBLIC_READ",
+    );
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateStorefrontCollections($primary: CollectionInput!, $secondary: CollectionInput!) {
+          primary: collectionCreate(input: $primary) {
+            collection { id title handle }
+            userErrors { field message }
+          }
+          secondary: collectionCreate(input: $secondary) {
+            collection { id title handle }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "primary": {
+                "title": "Storefront Collection Alpha",
+                "handle": "storefront-collection-alpha",
+                "descriptionHtml": "<p>Storefront collection description</p>",
+                "sortOrder": "MANUAL",
+                "products": [
+                    "gid://shopify/Product/storefront-collection-alpha",
+                    "gid://shopify/Product/storefront-collection-beta",
+                    "gid://shopify/Product/storefront-collection-gamma"
+                ],
+                "image": {
+                    "src": "https://placehold.co/64x64/png",
+                    "altText": "Storefront collection image"
+                },
+                "seo": {
+                    "title": "Storefront Collection SEO",
+                    "description": "Storefront Collection SEO description"
+                },
+                "metafields": [{
+                    "namespace": "storefront_collections",
+                    "key": "visible",
+                    "type": "single_line_text_field",
+                    "value": "Visible collection metafield"
+                }]
+            },
+            "secondary": {
+                "title": "Storefront Collection Beta",
+                "handle": "storefront-collection-beta",
+                "sortOrder": "MANUAL"
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["primary"]["userErrors"], json!([]));
+    assert_eq!(create.body["data"]["secondary"]["userErrors"], json!([]));
+    let primary_id = create.body["data"]["primary"]["collection"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let secondary_id = create.body["data"]["secondary"]["collection"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    publish_to_current_storefront_channel(&mut proxy, &primary_id);
+    publish_to_current_storefront_channel(&mut proxy, &secondary_id);
+
+    let initial = proxy.process_request(storefront_graphql_request(
+        r#"
+        query StorefrontCollectionProjection(
+          $id: ID!
+          $handle: String!
+          $query: String!
+          $namespace: String!
+        ) {
+          byId: collection(id: $id) {
+            ...CollectionCard
+          }
+          byHandleArgument: collection(handle: $handle) {
+            id
+            aliasedTitle: title
+            handle
+          }
+          deprecatedByHandle: collectionByHandle(handle: $handle) {
+            id
+            title
+            handle
+          }
+          firstPage: collections(first: 1, query: $query, sortKey: TITLE) {
+            edges { cursor node { id title handle } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          reverseCatalog: collections(first: 2, query: $query, sortKey: TITLE, reverse: true) {
+            nodes { id title handle }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          missing: collection(id: "gid://shopify/Collection/missing") { id }
+          empty: collections(first: 2, query: "missing-storefront-collection") {
+            nodes { id }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+
+        fragment CollectionCard on Collection {
+          __typename
+          id
+          title
+          handle
+          description
+          truncatedDescription: description(truncateAt: 12)
+          descriptionHtml
+          updatedAt
+          image { url altText }
+          seo { title description }
+          metafield(namespace: $namespace, key: "visible") {
+            namespace
+            key
+            type
+            value
+          }
+          metafields(identifiers: [
+            { namespace: $namespace, key: "visible" }
+            { namespace: $namespace, key: "missing" }
+          ]) {
+            namespace
+            key
+            value
+          }
+          products(first: 2, sortKey: COLLECTION_DEFAULT) {
+            edges {
+              cursor
+              node {
+                __typename
+                id
+                title
+                handle
+                availableForSale
+                totalInventory
+                vendor
+                productType
+                tags
+              }
+            }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          productsReverse: products(first: 2, sortKey: MANUAL, reverse: true) {
+            nodes { id title handle }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          availableProducts: products(first: 3, filters: [{ available: true }]) {
+            nodes { id title availableForSale }
+          }
+          taggedProducts: products(first: 3, filters: [{ tag: "storefront-collections" }]) {
+            nodes { id title tags }
+          }
+        }
+        "#,
+        json!({
+            "id": primary_id,
+            "handle": "storefront-collection-alpha",
+            "query": "Storefront Collection",
+            "namespace": "storefront_collections"
+        }),
+    ));
+    assert_eq!(initial.status, 200);
+    assert_eq!(
+        initial.body["data"]["byId"]["__typename"],
+        json!("Collection")
+    );
+    assert_eq!(
+        initial.body["data"]["byId"]["title"],
+        json!("Storefront Collection Alpha")
+    );
+    assert_eq!(
+        initial.body["data"]["byId"]["description"],
+        json!("Storefront collection description")
+    );
+    assert_eq!(
+        initial.body["data"]["byId"]["truncatedDescription"],
+        json!("Storefron...")
+    );
+    assert_eq!(
+        initial.body["data"]["byId"]["descriptionHtml"],
+        json!("<p>Storefront collection description</p>")
+    );
+    assert_eq!(
+        initial.body["data"]["byId"]["image"],
+        json!({
+            "url": "https://placehold.co/64x64/png",
+            "altText": "Storefront collection image"
+        })
+    );
+    assert_eq!(
+        initial.body["data"]["byId"]["seo"],
+        json!({
+            "title": "Storefront Collection SEO",
+            "description": "Storefront Collection SEO description"
+        })
+    );
+    assert_eq!(
+        initial.body["data"]["byId"]["metafield"],
+        json!({
+            "namespace": "storefront_collections",
+            "key": "visible",
+            "type": "single_line_text_field",
+            "value": "Visible collection metafield"
+        })
+    );
+    assert_eq!(
+        initial.body["data"]["byId"]["metafields"],
+        json!([
+            {
+                "namespace": "storefront_collections",
+                "key": "visible",
+                "value": "Visible collection metafield"
+            },
+            null
+        ])
+    );
+    assert_eq!(
+        initial.body["data"]["byId"]["products"]["edges"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|edge| edge["node"]["title"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec!["Alpha Collection Product", "Beta Collection Product"]
+    );
+    assert_eq!(
+        initial.body["data"]["byId"]["products"]["pageInfo"]["hasNextPage"],
+        json!(true)
+    );
+    assert_eq!(
+        initial.body["data"]["byId"]["productsReverse"]["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|node| node["title"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec!["Gamma Collection Product", "Beta Collection Product"]
+    );
+    assert_eq!(
+        initial.body["data"]["byId"]["availableProducts"]["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|node| node["title"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec!["Alpha Collection Product", "Gamma Collection Product"]
+    );
+    assert_eq!(
+        initial.body["data"]["byId"]["taggedProducts"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        3
+    );
+    assert_eq!(
+        initial.body["data"]["byHandleArgument"]["aliasedTitle"],
+        json!("Storefront Collection Alpha")
+    );
+    assert_eq!(
+        initial.body["data"]["deprecatedByHandle"]["id"],
+        json!(primary_id)
+    );
+    assert_eq!(
+        initial.body["data"]["firstPage"]["pageInfo"]["hasNextPage"],
+        json!(true)
+    );
+    assert_eq!(
+        initial.body["data"]["reverseCatalog"]["nodes"][0]["id"],
+        json!(secondary_id)
+    );
+    assert_eq!(initial.body["data"]["missing"], Value::Null);
+    assert_eq!(initial.body["data"]["empty"]["nodes"], json!([]));
+
+    let reorder = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReorderStorefrontCollection($id: ID!, $moves: [MoveInput!]!) {
+          collectionReorderProducts(id: $id, moves: $moves) {
+            job { id done }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": primary_id,
+            "moves": [{ "id": "gid://shopify/Product/storefront-collection-gamma", "newPosition": "0" }]
+        }),
+    ));
+    assert_eq!(
+        reorder.body["data"]["collectionReorderProducts"]["userErrors"],
+        json!([])
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateStorefrontCollection($collection: CollectionInput!, $product: ProductUpdateInput!) {
+          collectionUpdate(input: $collection) {
+            collection { id title handle image { url altText } seo { title description } }
+            userErrors { field message }
+          }
+          productUpdate(product: $product) {
+            product { id title handle }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "collection": {
+                "id": primary_id,
+                "title": "Updated Storefront Collection",
+                "handle": "updated-storefront-collection",
+                "image": { "src": "https://placehold.co/80x80/png", "altText": "Updated collection image" },
+                "seo": { "title": "Updated SEO", "description": "Updated SEO description" }
+            },
+            "product": {
+                "id": "gid://shopify/Product/storefront-collection-beta",
+                "title": "Updated Beta Collection Product",
+                "handle": "updated-beta-collection-product"
+            }
+        }),
+    ));
+    assert_eq!(
+        update.body["data"]["collectionUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["productUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let lifecycle_read = |proxy: &mut DraftProxy| {
+        proxy.process_request(storefront_graphql_request(
+            r#"
+            query StorefrontCollectionLifecycle($id: ID!) {
+              collection(id: $id) {
+                id
+                title
+                handle
+                image { url altText }
+                seo { title description }
+                products(first: 5, sortKey: COLLECTION_DEFAULT) {
+                  nodes { id title handle }
+                }
+              }
+            }
+            "#,
+            json!({ "id": primary_id }),
+        ))
+    };
+    let updated = lifecycle_read(&mut proxy);
+    assert_eq!(
+        updated.body["data"]["collection"]["title"],
+        json!("Updated Storefront Collection")
+    );
+    assert_eq!(
+        updated.body["data"]["collection"]["image"]["url"],
+        json!("https://placehold.co/80x80/png")
+    );
+    assert_eq!(
+        updated.body["data"]["collection"]["products"]["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|node| node["title"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec![
+            "Gamma Collection Product",
+            "Alpha Collection Product",
+            "Updated Beta Collection Product"
+        ]
+    );
+
+    let remove = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RemoveStorefrontCollectionProduct($id: ID!, $productIds: [ID!]!) {
+          collectionRemoveProducts(id: $id, productIds: $productIds) {
+            job { id done }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": primary_id, "productIds": ["gid://shopify/Product/storefront-collection-beta"] }),
+    ));
+    assert_eq!(
+        remove.body["data"]["collectionRemoveProducts"]["userErrors"],
+        json!([])
+    );
+    let removed = lifecycle_read(&mut proxy);
+    assert_eq!(
+        removed.body["data"]["collection"]["products"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+
+    let add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AddStorefrontCollectionProduct($id: ID!, $productIds: [ID!]!) {
+          collectionAddProducts(id: $id, productIds: $productIds) {
+            collection { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": primary_id, "productIds": ["gid://shopify/Product/storefront-collection-beta"] }),
+    ));
+    assert_eq!(
+        add.body["data"]["collectionAddProducts"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        lifecycle_read(&mut proxy).body["data"]["collection"]["products"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        3
+    );
+
+    unpublish_from_current_storefront_channel(
+        &mut proxy,
+        "gid://shopify/Product/storefront-collection-gamma",
+    );
+    let product_unpublished = lifecycle_read(&mut proxy);
+    assert_eq!(
+        product_unpublished.body["data"]["collection"]["products"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    publish_to_current_storefront_channel(
+        &mut proxy,
+        "gid://shopify/Product/storefront-collection-gamma",
+    );
+    assert_eq!(
+        lifecycle_read(&mut proxy).body["data"]["collection"]["products"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        3
+    );
+
+    let delete_product = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteStorefrontCollectionProduct($input: ProductDeleteInput!) {
+          productDelete(input: $input) { deletedProductId userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "id": "gid://shopify/Product/storefront-collection-alpha" } }),
+    ));
+    assert_eq!(
+        delete_product.body["data"]["productDelete"]["userErrors"],
+        json!([])
+    );
+    let product_deleted = lifecycle_read(&mut proxy);
+    assert_eq!(
+        product_deleted.body["data"]["collection"]["products"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+
+    unpublish_from_current_storefront_channel(&mut proxy, &primary_id);
+    let collection_unpublished = lifecycle_read(&mut proxy);
+    assert_eq!(
+        collection_unpublished.body["data"]["collection"],
+        Value::Null
+    );
+    let delete_collection = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteStorefrontCollection($input: CollectionDeleteInput!) {
+          collectionDelete(input: $input) { deletedCollectionId userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "id": primary_id } }),
+    ));
+    assert_eq!(
+        delete_collection.body["data"]["collectionDelete"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        lifecycle_read(&mut proxy).body["data"]["collection"],
+        Value::Null
+    );
+}
+
+#[test]
+fn storefront_collections_live_hybrid_hydrates_once_and_snapshot_absence_stays_local() {
+    let calls = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let observed = Arc::clone(&calls);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        observed.lock().unwrap().push(request);
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "collection": {
+                        "id": "gid://shopify/Collection/hydrated-storefront",
+                        "title": "Hydrated Storefront Collection",
+                        "handle": "hydrated-storefront-collection",
+                        "description": "Hydrated description",
+                        "descriptionHtml": "<p>Hydrated description</p>",
+                        "updatedAt": "2026-07-16T00:00:00Z",
+                        "image": null,
+                        "seo": { "title": "Hydrated SEO", "description": "Hydrated SEO description" },
+                        "products": {
+                            "edges": [
+                                { "cursor": "alpha-cursor", "node": {
+                                    "id": "gid://shopify/Product/hydrated-alpha",
+                                    "title": "Hydrated Alpha",
+                                    "handle": "hydrated-alpha",
+                                    "availableForSale": true,
+                                    "totalInventory": 4,
+                                    "vendor": "Hermes North",
+                                    "productType": "Fixture",
+                                    "tags": ["alpha", "hydrated"],
+                                    "priceRange": {
+                                        "minVariantPrice": { "amount": "10.0", "currencyCode": "CAD" },
+                                        "maxVariantPrice": { "amount": "10.0", "currencyCode": "CAD" }
+                                    }
+                                } },
+                                { "cursor": "beta-cursor", "node": {
+                                    "id": "gid://shopify/Product/hydrated-beta",
+                                    "title": "Hydrated Beta",
+                                    "handle": "hydrated-beta",
+                                    "availableForSale": false,
+                                    "totalInventory": 0,
+                                    "vendor": "Hermes South",
+                                    "productType": "Fixture",
+                                    "tags": ["beta", "hydrated"],
+                                    "priceRange": {
+                                        "minVariantPrice": { "amount": "20.0", "currencyCode": "CAD" },
+                                        "maxVariantPrice": { "amount": "20.0", "currencyCode": "CAD" }
+                                    }
+                                } }
+                            ]
+                        },
+                        "productsReverse": { "nodes": [
+                            { "id": "gid://shopify/Product/hydrated-gamma", "title": "Hydrated Gamma", "handle": "hydrated-gamma" },
+                            { "id": "gid://shopify/Product/hydrated-beta", "title": "Hydrated Beta", "handle": "hydrated-beta" }
+                        ] },
+                        "productsByTitle": { "nodes": [
+                            { "id": "gid://shopify/Product/hydrated-alpha", "title": "Hydrated Alpha", "handle": "hydrated-alpha" },
+                            { "id": "gid://shopify/Product/hydrated-beta", "title": "Hydrated Beta", "handle": "hydrated-beta" },
+                            { "id": "gid://shopify/Product/hydrated-gamma", "title": "Hydrated Gamma", "handle": "hydrated-gamma" }
+                        ] },
+                        "availableProducts": { "nodes": [
+                            { "id": "gid://shopify/Product/hydrated-alpha", "title": "Hydrated Alpha", "availableForSale": true },
+                            { "id": "gid://shopify/Product/hydrated-gamma", "title": "Hydrated Gamma", "availableForSale": true }
+                        ] }
+                    }
+                }
+            }),
+        }
+    });
+    let query = r#"
+        query HydrateStorefrontCollection($id: ID!) {
+          collection(id: $id) {
+            id
+            title
+            handle
+            description
+            descriptionHtml
+            updatedAt
+            image { url altText }
+            seo { title description }
+            products(first: 2) {
+              edges {
+                node {
+                  id title handle availableForSale totalInventory vendor productType tags
+                  priceRange {
+                    minVariantPrice { amount currencyCode }
+                    maxVariantPrice { amount currencyCode }
+                  }
+                }
+              }
+            }
+            productsReverse: products(first: 2, sortKey: MANUAL, reverse: true) {
+              nodes { id title handle }
+            }
+            productsByTitle: products(first: 3, sortKey: TITLE) {
+              nodes { id title handle }
+            }
+            availableProducts: products(first: 3, filters: [{ available: true }]) {
+              nodes { id title availableForSale }
+            }
+          }
+        }
+    "#;
+    let variables = json!({ "id": "gid://shopify/Collection/hydrated-storefront" });
+    let first = proxy.process_request(storefront_graphql_request(query, variables.clone()));
+    assert_eq!(first.status, 200);
+    assert_eq!(
+        first.body["data"]["collection"]["title"],
+        json!("Hydrated Storefront Collection")
+    );
+    assert_eq!(
+        first.body["data"]["collection"]["products"]["edges"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|edge| edge["node"]["title"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec!["Hydrated Alpha", "Hydrated Beta"]
+    );
+    assert_eq!(
+        first.body["data"]["collection"]["products"]["edges"][0]["node"],
+        json!({
+            "id": "gid://shopify/Product/hydrated-alpha",
+            "title": "Hydrated Alpha",
+            "handle": "hydrated-alpha",
+            "availableForSale": true,
+            "totalInventory": 4,
+            "vendor": "Hermes North",
+            "productType": "Fixture",
+            "tags": ["alpha", "hydrated"],
+            "priceRange": {
+                "minVariantPrice": { "amount": "10.0", "currencyCode": "CAD" },
+                "maxVariantPrice": { "amount": "10.0", "currencyCode": "CAD" }
+            }
+        })
+    );
+    assert_eq!(
+        first.body["data"]["collection"]["productsReverse"]["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|node| node["title"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec!["Hydrated Gamma", "Hydrated Beta"]
+    );
+    let second = proxy.process_request(storefront_graphql_request(query, variables));
+    assert_eq!(
+        second.body["data"]["collection"]["title"],
+        json!("Hydrated Storefront Collection")
+    );
+    assert_eq!(calls.lock().unwrap().len(), 1);
+
+    let mut snapshot = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|_| panic!("snapshot collection absence must not hydrate"));
+    let absent = snapshot.process_request(storefront_graphql_request(
+        r#"
+        query AbsentStorefrontCollections {
+          collection(id: "gid://shopify/Collection/missing") { id }
+          collectionByHandle(handle: "missing") { id }
+          collections(first: 2) {
+            nodes { id }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(absent.status, 200);
+    assert_eq!(absent.body["data"]["collection"], Value::Null);
+    assert_eq!(absent.body["data"]["collectionByHandle"], Value::Null);
+    assert_eq!(
+        absent.body["data"]["collections"],
+        json!({
+            "nodes": [],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+            }
+        })
+    );
 }

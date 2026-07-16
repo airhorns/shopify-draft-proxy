@@ -1,0 +1,45 @@
+mutation StorefrontCollectionsVariantsUpdate(
+  $alphaProductId: ID!
+  $alphaVariants: [ProductVariantsBulkInput!]!
+  $betaProductId: ID!
+  $betaVariants: [ProductVariantsBulkInput!]!
+  $gammaProductId: ID!
+  $gammaVariants: [ProductVariantsBulkInput!]!
+) {
+  alpha: productVariantsBulkUpdate(productId: $alphaProductId, variants: $alphaVariants) {
+    productVariants {
+      id
+      inventoryPolicy
+      price
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  beta: productVariantsBulkUpdate(productId: $betaProductId, variants: $betaVariants) {
+    productVariants {
+      id
+      inventoryPolicy
+      price
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  gamma: productVariantsBulkUpdate(productId: $gammaProductId, variants: $gammaVariants) {
+    productVariants {
+      id
+      inventoryPolicy
+      price
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

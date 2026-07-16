@@ -1,0 +1,2298 @@
+{
+  "scenarioId": "storefront-collections-read-after-admin-setup",
+  "capturedAt": "2026-07-16T03:37:40.016Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "apiSurface": "storefront",
+  "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+  "authMode": "storefront-access-token",
+  "storefrontToken": {
+    "id": "gid://shopify/StorefrontAccessToken/130666922290",
+    "title": "hermes-conformance-storefront-recording",
+    "accessScopes": [
+      "unauthenticated_read_checkouts",
+      "unauthenticated_read_content",
+      "unauthenticated_read_customer_tags",
+      "unauthenticated_read_customers",
+      "unauthenticated_read_metaobjects",
+      "unauthenticated_read_product_inventory",
+      "unauthenticated_read_product_listings",
+      "unauthenticated_read_product_pickup_locations",
+      "unauthenticated_read_product_tags",
+      "unauthenticated_read_selling_plans",
+      "unauthenticated_write_checkouts",
+      "unauthenticated_write_customers"
+    ],
+    "obtainedAt": "2026-07-14T23:55:26.161Z"
+  },
+  "adminDefinitionCreate": {
+    "name": "admin-definition-create",
+    "request": {
+      "query": "mutation StorefrontCollectionsDefinitionCreate($definition: MetafieldDefinitionInput!) {\n  metafieldDefinitionCreate(definition: $definition) {\n    createdDefinition {\n      id\n      ownerType\n      namespace\n      key\n      type {\n        name\n      }\n      access {\n        storefront\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "definition": {
+          "ownerType": "COLLECTION",
+          "namespace": "storefront_collections_20260716033642",
+          "key": "visible",
+          "name": "Storefront collection visible 20260716033642",
+          "type": "single_line_text_field",
+          "access": {
+            "storefront": "PUBLIC_READ"
+          }
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldDefinitionCreate": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/226348237106",
+            "ownerType": "COLLECTION",
+            "namespace": "storefront_collections_20260716033642",
+            "key": "visible",
+            "type": {
+              "name": "single_line_text_field"
+            },
+            "access": {
+              "storefront": "PUBLIC_READ"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "adminProductsCreate": {
+    "name": "admin-products-create",
+    "request": {
+      "query": "mutation StorefrontCollectionsProductsCreate(\n  $alpha: ProductCreateInput!\n  $beta: ProductCreateInput!\n  $gamma: ProductCreateInput!\n) {\n  alpha: productCreate(product: $alpha) {\n    product {\n      id\n      title\n      handle\n      variants(first: 1) {\n        nodes {\n          id\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  beta: productCreate(product: $beta) {\n    product {\n      id\n      title\n      handle\n      variants(first: 1) {\n        nodes {\n          id\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  gamma: productCreate(product: $gamma) {\n    product {\n      id\n      title\n      handle\n      variants(first: 1) {\n        nodes {\n          id\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "alpha": {
+          "title": "Storefront Collections Alpha 20260716033642",
+          "handle": "storefront-collections-product-alpha-20260716033642",
+          "status": "ACTIVE",
+          "vendor": "Hermes North",
+          "productType": "Collection Fixture",
+          "tags": ["alpha", "storefront-collections"],
+          "productOptions": [
+            {
+              "name": "Color",
+              "values": [
+                {
+                  "name": "Red"
+                }
+              ]
+            }
+          ]
+        },
+        "beta": {
+          "title": "Storefront Collections Beta 20260716033642",
+          "handle": "storefront-collections-product-beta-20260716033642",
+          "status": "ACTIVE",
+          "vendor": "Hermes South",
+          "productType": "Collection Fixture",
+          "tags": ["beta", "storefront-collections"],
+          "productOptions": [
+            {
+              "name": "Color",
+              "values": [
+                {
+                  "name": "Blue"
+                }
+              ]
+            }
+          ]
+        },
+        "gamma": {
+          "title": "Storefront Collections Gamma 20260716033642",
+          "handle": "storefront-collections-product-gamma-20260716033642",
+          "status": "ACTIVE",
+          "vendor": "Hermes North",
+          "productType": "Collection Fixture",
+          "tags": ["gamma", "storefront-collections"],
+          "productOptions": [
+            {
+              "name": "Color",
+              "values": [
+                {
+                  "name": "Green"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "alpha": {
+          "product": {
+            "id": "gid://shopify/Product/10241432125746",
+            "title": "Storefront Collections Alpha 20260716033642",
+            "handle": "storefront-collections-product-alpha-20260716033642",
+            "variants": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ProductVariant/51479135813938"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        },
+        "beta": {
+          "product": {
+            "id": "gid://shopify/Product/10241432158514",
+            "title": "Storefront Collections Beta 20260716033642",
+            "handle": "storefront-collections-product-beta-20260716033642",
+            "variants": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ProductVariant/51479135846706"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        },
+        "gamma": {
+          "product": {
+            "id": "gid://shopify/Product/10241432191282",
+            "title": "Storefront Collections Gamma 20260716033642",
+            "handle": "storefront-collections-product-gamma-20260716033642",
+            "variants": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ProductVariant/51479135879474"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 39,
+          "actualQueryCost": 39,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1961,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "adminVariantsUpdate": {
+    "name": "admin-variants-update",
+    "request": {
+      "query": "mutation StorefrontCollectionsVariantsUpdate(\n  $alphaProductId: ID!\n  $alphaVariants: [ProductVariantsBulkInput!]!\n  $betaProductId: ID!\n  $betaVariants: [ProductVariantsBulkInput!]!\n  $gammaProductId: ID!\n  $gammaVariants: [ProductVariantsBulkInput!]!\n) {\n  alpha: productVariantsBulkUpdate(productId: $alphaProductId, variants: $alphaVariants) {\n    productVariants {\n      id\n      inventoryPolicy\n      price\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  beta: productVariantsBulkUpdate(productId: $betaProductId, variants: $betaVariants) {\n    productVariants {\n      id\n      inventoryPolicy\n      price\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  gamma: productVariantsBulkUpdate(productId: $gammaProductId, variants: $gammaVariants) {\n    productVariants {\n      id\n      inventoryPolicy\n      price\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "alphaProductId": "gid://shopify/Product/10241432125746",
+        "alphaVariants": [
+          {
+            "id": "gid://shopify/ProductVariant/51479135813938",
+            "inventoryPolicy": "CONTINUE",
+            "price": "10.00",
+            "inventoryItem": {
+              "tracked": true
+            }
+          }
+        ],
+        "betaProductId": "gid://shopify/Product/10241432158514",
+        "betaVariants": [
+          {
+            "id": "gid://shopify/ProductVariant/51479135846706",
+            "inventoryPolicy": "DENY",
+            "price": "20.00",
+            "inventoryItem": {
+              "tracked": true
+            }
+          }
+        ],
+        "gammaProductId": "gid://shopify/Product/10241432191282",
+        "gammaVariants": [
+          {
+            "id": "gid://shopify/ProductVariant/51479135879474",
+            "inventoryPolicy": "CONTINUE",
+            "price": "30.00",
+            "inventoryItem": {
+              "tracked": true
+            }
+          }
+        ]
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "alpha": {
+          "productVariants": [
+            {
+              "id": "gid://shopify/ProductVariant/51479135813938",
+              "inventoryPolicy": "CONTINUE",
+              "price": "10.00"
+            }
+          ],
+          "userErrors": []
+        },
+        "beta": {
+          "productVariants": [
+            {
+              "id": "gid://shopify/ProductVariant/51479135846706",
+              "inventoryPolicy": "DENY",
+              "price": "20.00"
+            }
+          ],
+          "userErrors": []
+        },
+        "gamma": {
+          "productVariants": [
+            {
+              "id": "gid://shopify/ProductVariant/51479135879474",
+              "inventoryPolicy": "CONTINUE",
+              "price": "30.00"
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 31,
+          "actualQueryCost": 31,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1969,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "adminPublicationHydrate": {
+    "name": "admin-publication-hydrate",
+    "request": {
+      "query": "#graphql\n  query StorePropertiesPublishableInputValidationHydrate {\n    shop {\n      publicationCount\n      currencyCode\n    }\n    publications(first: 20) {\n      nodes {\n        id\n        name\n      }\n    }\n  }\n",
+      "variables": {}
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "shop": {
+          "publicationCount": 6,
+          "currencyCode": "CAD"
+        },
+        "publications": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Publication/268039389490",
+              "name": "Online Store"
+            },
+            {
+              "id": "gid://shopify/Publication/268039455026",
+              "name": "Point of Sale"
+            },
+            {
+              "id": "gid://shopify/Publication/268039487794",
+              "name": "Shop"
+            },
+            {
+              "id": "gid://shopify/Publication/273897881906",
+              "name": "Shopify GraphiQL App"
+            },
+            {
+              "id": "gid://shopify/Publication/302536393010",
+              "name": "example.com"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 8,
+          "actualQueryCost": 5,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1995,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "adminProductsPublish": {
+    "name": "admin-products-publish",
+    "request": {
+      "query": "mutation StorefrontCollectionsProductsPublish(\n  $alphaId: ID!\n  $betaId: ID!\n  $gammaId: ID!\n  $input: [PublicationInput!]!\n  $publicationId: ID!\n) {\n  alpha: publishablePublish(id: $alphaId, input: $input) {\n    publishable {\n      ... on Product {\n        id\n        publishedOnPublication(publicationId: $publicationId)\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  beta: publishablePublish(id: $betaId, input: $input) {\n    publishable {\n      ... on Product {\n        id\n        publishedOnPublication(publicationId: $publicationId)\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  gamma: publishablePublish(id: $gammaId, input: $input) {\n    publishable {\n      ... on Product {\n        id\n        publishedOnPublication(publicationId: $publicationId)\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "alphaId": "gid://shopify/Product/10241432125746",
+        "betaId": "gid://shopify/Product/10241432158514",
+        "gammaId": "gid://shopify/Product/10241432191282",
+        "input": [
+          {
+            "publicationId": "gid://shopify/Publication/268039389490"
+          }
+        ],
+        "publicationId": "gid://shopify/Publication/268039389490"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "alpha": {
+          "publishable": {
+            "id": "gid://shopify/Product/10241432125746",
+            "publishedOnPublication": true
+          },
+          "userErrors": []
+        },
+        "beta": {
+          "publishable": {
+            "id": "gid://shopify/Product/10241432158514",
+            "publishedOnPublication": true
+          },
+          "userErrors": []
+        },
+        "gamma": {
+          "publishable": {
+            "id": "gid://shopify/Product/10241432191282",
+            "publishedOnPublication": true
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 30,
+          "actualQueryCost": 30,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1970,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "adminCollectionsCreate": {
+    "name": "admin-collections-create",
+    "request": {
+      "query": "mutation StorefrontCollectionsCreate($primary: CollectionInput!, $secondary: CollectionInput!) {\n  primary: collectionCreate(input: $primary) {\n    collection {\n      id\n      title\n      handle\n      sortOrder\n      products(first: 3, sortKey: MANUAL) {\n        nodes {\n          id\n          title\n          handle\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  secondary: collectionCreate(input: $secondary) {\n    collection {\n      id\n      title\n      handle\n      sortOrder\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "primary": {
+          "title": "Storefront Collections Alpha 20260716033642",
+          "handle": "storefront-collections-20260716033642-alpha",
+          "descriptionHtml": "<p>Storefront collection description 20260716033642</p>",
+          "sortOrder": "MANUAL",
+          "products": [
+            "gid://shopify/Product/10241432125746",
+            "gid://shopify/Product/10241432158514",
+            "gid://shopify/Product/10241432191282"
+          ],
+          "image": {
+            "src": "https://placehold.co/64x64/png",
+            "altText": "Storefront collection image 20260716033642"
+          },
+          "seo": {
+            "title": "Storefront Collection SEO 20260716033642",
+            "description": "Storefront collection SEO description 20260716033642"
+          },
+          "metafields": [
+            {
+              "namespace": "storefront_collections_20260716033642",
+              "key": "visible",
+              "type": "single_line_text_field",
+              "value": "Visible collection metafield 20260716033642"
+            }
+          ]
+        },
+        "secondary": {
+          "title": "Storefront Collections Beta 20260716033642",
+          "handle": "storefront-collections-20260716033642-beta",
+          "sortOrder": "MANUAL"
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "primary": {
+          "collection": {
+            "id": "gid://shopify/Collection/514489057586",
+            "title": "Storefront Collections Alpha 20260716033642",
+            "handle": "storefront-collections-20260716033642-alpha",
+            "sortOrder": "MANUAL",
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/10241432125746",
+                  "title": "Storefront Collections Alpha 20260716033642",
+                  "handle": "storefront-collections-product-alpha-20260716033642"
+                },
+                {
+                  "id": "gid://shopify/Product/10241432158514",
+                  "title": "Storefront Collections Beta 20260716033642",
+                  "handle": "storefront-collections-product-beta-20260716033642"
+                },
+                {
+                  "id": "gid://shopify/Product/10241432191282",
+                  "title": "Storefront Collections Gamma 20260716033642",
+                  "handle": "storefront-collections-product-gamma-20260716033642"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        },
+        "secondary": {
+          "collection": {
+            "id": "gid://shopify/Collection/514489090354",
+            "title": "Storefront Collections Beta 20260716033642",
+            "handle": "storefront-collections-20260716033642-beta",
+            "sortOrder": "MANUAL"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 24,
+          "actualQueryCost": 24,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1976,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "adminCollectionsPublish": {
+    "name": "admin-collections-publish",
+    "request": {
+      "query": "mutation StorefrontCollectionsPublish(\n  $primaryId: ID!\n  $secondaryId: ID!\n  $input: [PublicationInput!]!\n  $publicationId: ID!\n) {\n  primary: publishablePublish(id: $primaryId, input: $input) {\n    publishable {\n      ... on Collection {\n        id\n        publishedOnPublication(publicationId: $publicationId)\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  secondary: publishablePublish(id: $secondaryId, input: $input) {\n    publishable {\n      ... on Collection {\n        id\n        publishedOnPublication(publicationId: $publicationId)\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "primaryId": "gid://shopify/Collection/514489057586",
+        "secondaryId": "gid://shopify/Collection/514489090354",
+        "input": [
+          {
+            "publicationId": "gid://shopify/Publication/268039389490"
+          }
+        ],
+        "publicationId": "gid://shopify/Publication/268039389490"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "primary": {
+          "publishable": {
+            "id": "gid://shopify/Collection/514489057586",
+            "publishedOnPublication": true
+          },
+          "userErrors": []
+        },
+        "secondary": {
+          "publishable": {
+            "id": "gid://shopify/Collection/514489090354",
+            "publishedOnPublication": true
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 20,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1980,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "storefrontInitial": {
+    "name": "storefront-collections-read-after-admin-setup",
+    "method": "POST",
+    "apiSurface": "storefront",
+    "apiVersion": "2026-04",
+    "path": "/api/2026-04/graphql.json",
+    "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+    "authMode": "storefront-access-token",
+    "headers": {
+      "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+    },
+    "operationName": "StorefrontCollectionsReadAfterAdminSetup",
+    "query": "query StorefrontCollectionsReadAfterAdminSetup(\n  $id: ID!\n  $handle: String!\n  $query: String!\n  $metafieldNamespace: String!\n  $country: CountryCode!\n) @inContext(country: $country) {\n  byId: collection(id: $id) {\n    ...StorefrontCollectionFields\n  }\n  byHandleArgument: collection(handle: $handle) {\n    id\n    aliasTitle: title\n    handle\n  }\n  deprecatedByHandle: collectionByHandle(handle: $handle) {\n    id\n    title\n    handle\n  }\n  firstPage: collections(first: 1, query: $query, sortKey: TITLE) {\n    edges {\n      cursor\n      node {\n        id\n        title\n        handle\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  reverseCatalog: collections(first: 2, query: $query, sortKey: TITLE, reverse: true) {\n    nodes {\n      id\n      title\n      handle\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  missingById: collection(id: \"gid://shopify/Collection/999999999999999\") {\n    id\n  }\n  missingByHandle: collectionByHandle(handle: \"missing-storefront-collection\") {\n    id\n  }\n  emptyCatalog: collections(first: 2, query: \"__shopify_draft_proxy_missing_storefront_collection__\") {\n    nodes {\n      id\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n\nfragment StorefrontCollectionFields on Collection {\n  __typename\n  id\n  title\n  handle\n  description\n  truncatedDescription: description(truncateAt: 12)\n  descriptionHtml\n  updatedAt\n  image {\n    url\n    altText\n  }\n  seo {\n    title\n    description\n  }\n  metafield(namespace: $metafieldNamespace, key: \"visible\") {\n    id\n    namespace\n    key\n    type\n    value\n  }\n  metafields(\n    identifiers: [\n      { namespace: $metafieldNamespace, key: \"visible\" }\n      { namespace: $metafieldNamespace, key: \"missing\" }\n    ]\n  ) {\n    id\n    namespace\n    key\n    value\n  }\n  products(first: 2, sortKey: COLLECTION_DEFAULT) {\n    edges {\n      cursor\n      node {\n        ...StorefrontCollectionProductFields\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  productsReverse: products(first: 2, sortKey: MANUAL, reverse: true) {\n    nodes {\n      id\n      title\n      handle\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  productsByTitle: products(first: 3, sortKey: TITLE) {\n    nodes {\n      id\n      title\n      handle\n    }\n  }\n  availableProducts: products(first: 3, filters: [{ available: true }]) {\n    nodes {\n      id\n      title\n      availableForSale\n    }\n  }\n  taggedProducts: products(first: 3, filters: [{ tag: \"storefront-collections\" }]) {\n    nodes {\n      id\n      title\n      tags\n    }\n  }\n}\n\nfragment StorefrontCollectionProductFields on Product {\n  __typename\n  id\n  title\n  handle\n  availableForSale\n  totalInventory\n  vendor\n  productType\n  tags\n  priceRange {\n    minVariantPrice {\n      amount\n      currencyCode\n    }\n    maxVariantPrice {\n      amount\n      currencyCode\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Collection/514489057586",
+      "handle": "storefront-collections-20260716033642-alpha",
+      "query": "20260716033642",
+      "metafieldNamespace": "storefront_collections_20260716033642",
+      "country": "CA"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "byId": {
+            "__typename": "Collection",
+            "id": "gid://shopify/Collection/514489057586",
+            "title": "Storefront Collections Alpha 20260716033642",
+            "handle": "storefront-collections-20260716033642-alpha",
+            "description": "Storefront collection description 20260716033642",
+            "truncatedDescription": "Storefron...",
+            "descriptionHtml": "<p>Storefront collection description 20260716033642</p>",
+            "updatedAt": "2026-07-16T03:36:46Z",
+            "image": {
+              "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/collections/png_b48cf86b-e2b4-47ec-81c6-9a3278a1ea15.png?v=1784173006",
+              "altText": "Storefront collection image 20260716033642"
+            },
+            "seo": {
+              "title": "Storefront Collection SEO 20260716033642",
+              "description": "Storefront collection SEO description 20260716033642"
+            },
+            "metafield": {
+              "id": "gid://shopify/Metafield/45077460386098",
+              "namespace": "storefront_collections_20260716033642",
+              "key": "visible",
+              "type": "single_line_text_field",
+              "value": "Visible collection metafield 20260716033642"
+            },
+            "metafields": [
+              {
+                "id": "gid://shopify/Metafield/45077460386098",
+                "namespace": "storefront_collections_20260716033642",
+                "key": "visible",
+                "value": "Visible collection metafield 20260716033642"
+              },
+              null
+            ],
+            "products": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMDI0MTQzMjEyNTc0NiwibGFzdF92YWx1ZSI6IjAwMDRueW04ZXF1Iiwib2Zmc2V0IjowfQ==",
+                  "node": {
+                    "__typename": "Product",
+                    "id": "gid://shopify/Product/10241432125746",
+                    "title": "Storefront Collections Alpha 20260716033642",
+                    "handle": "storefront-collections-product-alpha-20260716033642",
+                    "availableForSale": true,
+                    "totalInventory": 0,
+                    "vendor": "Hermes North",
+                    "productType": "Collection Fixture",
+                    "tags": ["alpha", "storefront-collections"],
+                    "priceRange": {
+                      "minVariantPrice": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      },
+                      "maxVariantPrice": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMDI0MTQzMjE1ODUxNCwibGFzdF92YWx1ZSI6IjAwMDlieDhndGhvIiwib2Zmc2V0IjoxfQ==",
+                  "node": {
+                    "__typename": "Product",
+                    "id": "gid://shopify/Product/10241432158514",
+                    "title": "Storefront Collections Beta 20260716033642",
+                    "handle": "storefront-collections-product-beta-20260716033642",
+                    "availableForSale": false,
+                    "totalInventory": 0,
+                    "vendor": "Hermes South",
+                    "productType": "Collection Fixture",
+                    "tags": ["beta", "storefront-collections"],
+                    "priceRange": {
+                      "minVariantPrice": {
+                        "amount": "20.0",
+                        "currencyCode": "CAD"
+                      },
+                      "maxVariantPrice": {
+                        "amount": "20.0",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMDI0MTQzMjEyNTc0NiwibGFzdF92YWx1ZSI6IjAwMDRueW04ZXF1Iiwib2Zmc2V0IjowfQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxMDI0MTQzMjE1ODUxNCwibGFzdF92YWx1ZSI6IjAwMDlieDhndGhvIiwib2Zmc2V0IjoxfQ=="
+              }
+            },
+            "productsReverse": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/10241432191282",
+                  "title": "Storefront Collections Gamma 20260716033642",
+                  "handle": "storefront-collections-product-gamma-20260716033642"
+                },
+                {
+                  "id": "gid://shopify/Product/10241432158514",
+                  "title": "Storefront Collections Beta 20260716033642",
+                  "handle": "storefront-collections-product-beta-20260716033642"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMDI0MTQzMjE5MTI4MiwibGFzdF92YWx1ZSI6IjAwMGR6dnVwODhpIiwib2Zmc2V0IjowfQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxMDI0MTQzMjE1ODUxNCwibGFzdF92YWx1ZSI6IjAwMDlieDhndGhvIiwib2Zmc2V0IjoxfQ=="
+              }
+            },
+            "productsByTitle": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/10241432125746",
+                  "title": "Storefront Collections Alpha 20260716033642",
+                  "handle": "storefront-collections-product-alpha-20260716033642"
+                },
+                {
+                  "id": "gid://shopify/Product/10241432158514",
+                  "title": "Storefront Collections Beta 20260716033642",
+                  "handle": "storefront-collections-product-beta-20260716033642"
+                },
+                {
+                  "id": "gid://shopify/Product/10241432191282",
+                  "title": "Storefront Collections Gamma 20260716033642",
+                  "handle": "storefront-collections-product-gamma-20260716033642"
+                }
+              ]
+            },
+            "availableProducts": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/10241432125746",
+                  "title": "Storefront Collections Alpha 20260716033642",
+                  "availableForSale": true
+                },
+                {
+                  "id": "gid://shopify/Product/10241432191282",
+                  "title": "Storefront Collections Gamma 20260716033642",
+                  "availableForSale": true
+                }
+              ]
+            },
+            "taggedProducts": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/10241432125746",
+                  "title": "Storefront Collections Alpha 20260716033642",
+                  "tags": ["alpha", "storefront-collections"]
+                },
+                {
+                  "id": "gid://shopify/Product/10241432158514",
+                  "title": "Storefront Collections Beta 20260716033642",
+                  "tags": ["beta", "storefront-collections"]
+                },
+                {
+                  "id": "gid://shopify/Product/10241432191282",
+                  "title": "Storefront Collections Gamma 20260716033642",
+                  "tags": ["gamma", "storefront-collections"]
+                }
+              ]
+            }
+          },
+          "byHandleArgument": {
+            "id": "gid://shopify/Collection/514489057586",
+            "aliasTitle": "Storefront Collections Alpha 20260716033642",
+            "handle": "storefront-collections-20260716033642-alpha"
+          },
+          "deprecatedByHandle": {
+            "id": "gid://shopify/Collection/514489057586",
+            "title": "Storefront Collections Alpha 20260716033642",
+            "handle": "storefront-collections-20260716033642-alpha"
+          },
+          "firstPage": {
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjo1MTQ0ODkwNTc1ODYsImxhc3RfdmFsdWUiOiJzdG9yZWZyb250IGNvbGxlY3Rpb25zIGFscGhhIDIwMjYwNzE2MDMzNjQyIiwib2Zmc2V0IjowfQ==",
+                "node": {
+                  "id": "gid://shopify/Collection/514489057586",
+                  "title": "Storefront Collections Alpha 20260716033642",
+                  "handle": "storefront-collections-20260716033642-alpha"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": true,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjo1MTQ0ODkwNTc1ODYsImxhc3RfdmFsdWUiOiJzdG9yZWZyb250IGNvbGxlY3Rpb25zIGFscGhhIDIwMjYwNzE2MDMzNjQyIiwib2Zmc2V0IjowfQ==",
+              "endCursor": "eyJsYXN0X2lkIjo1MTQ0ODkwNTc1ODYsImxhc3RfdmFsdWUiOiJzdG9yZWZyb250IGNvbGxlY3Rpb25zIGFscGhhIDIwMjYwNzE2MDMzNjQyIiwib2Zmc2V0IjowfQ=="
+            }
+          },
+          "reverseCatalog": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Collection/514489090354",
+                "title": "Storefront Collections Beta 20260716033642",
+                "handle": "storefront-collections-20260716033642-beta"
+              },
+              {
+                "id": "gid://shopify/Collection/514489057586",
+                "title": "Storefront Collections Alpha 20260716033642",
+                "handle": "storefront-collections-20260716033642-alpha"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjo1MTQ0ODkwOTAzNTQsImxhc3RfdmFsdWUiOiJzdG9yZWZyb250IGNvbGxlY3Rpb25zIGJldGEgMjAyNjA3MTYwMzM2NDIiLCJvZmZzZXQiOjB9",
+              "endCursor": "eyJsYXN0X2lkIjo1MTQ0ODkwNTc1ODYsImxhc3RfdmFsdWUiOiJzdG9yZWZyb250IGNvbGxlY3Rpb25zIGFscGhhIDIwMjYwNzE2MDMzNjQyIiwib2Zmc2V0IjoxfQ=="
+            }
+          },
+          "missingById": null,
+          "missingByHandle": null,
+          "emptyCatalog": {
+            "nodes": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          }
+        },
+        "extensions": {
+          "context": {
+            "country": "AE",
+            "language": "EN"
+          },
+          "cost": {
+            "requestedQueryCost": 40
+          }
+        }
+      }
+    }
+  },
+  "adminReorder": {
+    "name": "admin-collection-reorder",
+    "request": {
+      "query": "mutation StorefrontCollectionsReorder($id: ID!, $moves: [MoveInput!]!) {\n  collectionReorderProducts(id: $id, moves: $moves) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Collection/514489057586",
+        "moves": [
+          {
+            "id": "gid://shopify/Product/10241432191282",
+            "newPosition": "0"
+          }
+        ]
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "collectionReorderProducts": {
+          "job": {
+            "id": "gid://shopify/Job/cefdf407-579d-42d2-bb62-481558d6a1a5",
+            "done": false
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "storefrontReordered": {
+    "name": "storefront-collections-reordered-read",
+    "method": "POST",
+    "apiSurface": "storefront",
+    "apiVersion": "2026-04",
+    "path": "/api/2026-04/graphql.json",
+    "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+    "authMode": "storefront-access-token",
+    "headers": {
+      "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+    },
+    "operationName": "StorefrontCollectionsProductsRead",
+    "query": "query StorefrontCollectionsProductsRead($id: ID!, $handle: String!, $query: String!) {\n  byId: collection(id: $id) {\n    id\n    title\n    handle\n    products(first: 3, sortKey: COLLECTION_DEFAULT) {\n      nodes {\n        id\n        title\n        handle\n        availableForSale\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  byHandle: collectionByHandle(handle: $handle) {\n    id\n    title\n    handle\n  }\n  catalog: collections(first: 3, query: $query, sortKey: UPDATED_AT, reverse: true) {\n    nodes {\n      id\n      title\n      handle\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Collection/514489057586",
+      "handle": "storefront-collections-20260716033642-alpha",
+      "query": "20260716033642"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "byId": {
+            "id": "gid://shopify/Collection/514489057586",
+            "title": "Storefront Collections Alpha 20260716033642",
+            "handle": "storefront-collections-20260716033642-alpha",
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/10241432191282",
+                  "title": "Storefront Collections Gamma 20260716033642",
+                  "handle": "storefront-collections-product-gamma-20260716033642",
+                  "availableForSale": true
+                },
+                {
+                  "id": "gid://shopify/Product/10241432125746",
+                  "title": "Storefront Collections Alpha 20260716033642",
+                  "handle": "storefront-collections-product-alpha-20260716033642",
+                  "availableForSale": true
+                },
+                {
+                  "id": "gid://shopify/Product/10241432158514",
+                  "title": "Storefront Collections Beta 20260716033642",
+                  "handle": "storefront-collections-product-beta-20260716033642",
+                  "availableForSale": false
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMDI0MTQzMjE5MTI4MiwibGFzdF92YWx1ZSI6IjAwMDJiemI0N2RmIiwib2Zmc2V0IjowfQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxMDI0MTQzMjE1ODUxNCwibGFzdF92YWx1ZSI6IjAwMDlieDhndGhvIiwib2Zmc2V0IjoyfQ=="
+              }
+            }
+          },
+          "byHandle": {
+            "id": "gid://shopify/Collection/514489057586",
+            "title": "Storefront Collections Alpha 20260716033642",
+            "handle": "storefront-collections-20260716033642-alpha"
+          },
+          "catalog": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Collection/514489090354",
+                "title": "Storefront Collections Beta 20260716033642",
+                "handle": "storefront-collections-20260716033642-beta"
+              },
+              {
+                "id": "gid://shopify/Collection/514489057586",
+                "title": "Storefront Collections Alpha 20260716033642",
+                "handle": "storefront-collections-20260716033642-alpha"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjo1MTQ0ODkwOTAzNTQsImxhc3RfdmFsdWUiOjE3ODQxNzMwMDcwMDAsIm9mZnNldCI6MH0=",
+              "endCursor": "eyJsYXN0X2lkIjo1MTQ0ODkwNTc1ODYsImxhc3RfdmFsdWUiOjE3ODQxNzMwMDYwMDAsIm9mZnNldCI6MX0="
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12
+          }
+        }
+      }
+    }
+  },
+  "adminUpdate": {
+    "name": "admin-collection-and-product-update",
+    "request": {
+      "query": "mutation StorefrontCollectionsUpdate(\n  $collection: CollectionInput!\n  $product: ProductUpdateInput!\n) {\n  collectionUpdate(input: $collection) {\n    collection {\n      id\n      title\n      handle\n      descriptionHtml\n      seo {\n        title\n        description\n      }\n      image {\n        url\n        altText\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n  productUpdate(product: $product) {\n    product {\n      id\n      title\n      handle\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "collection": {
+          "id": "gid://shopify/Collection/514489057586",
+          "title": "Storefront Collections Updated 20260716033642",
+          "handle": "storefront-collections-20260716033642-updated",
+          "descriptionHtml": "<p>Updated Storefront collection description 20260716033642</p>",
+          "image": {
+            "src": "https://placehold.co/80x80/png",
+            "altText": "Updated Storefront collection image 20260716033642"
+          },
+          "seo": {
+            "title": "Updated Storefront Collection SEO 20260716033642",
+            "description": "Updated Storefront collection SEO description 20260716033642"
+          }
+        },
+        "product": {
+          "id": "gid://shopify/Product/10241432158514",
+          "title": "Storefront Collections Product Updated 20260716033642",
+          "handle": "storefront-collections-product-beta-updated-20260716033642"
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "collectionUpdate": {
+          "collection": {
+            "id": "gid://shopify/Collection/514489057586",
+            "title": "Storefront Collections Updated 20260716033642",
+            "handle": "storefront-collections-20260716033642-updated",
+            "descriptionHtml": "<p>Updated Storefront collection description 20260716033642</p>",
+            "seo": {
+              "title": "Updated Storefront Collection SEO 20260716033642",
+              "description": "Updated Storefront collection SEO description 20260716033642"
+            },
+            "image": {
+              "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/collections/png_61cf0dab-debe-430c-a281-92c99d1d730b.png?v=1784173021",
+              "altText": "Updated Storefront collection image 20260716033642"
+            }
+          },
+          "userErrors": []
+        },
+        "productUpdate": {
+          "product": {
+            "id": "gid://shopify/Product/10241432158514",
+            "title": "Storefront Collections Product Updated 20260716033642",
+            "handle": "storefront-collections-product-beta-updated-20260716033642"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 22,
+          "actualQueryCost": 22,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1978,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "storefrontUpdated": {
+    "name": "storefront-collections-updated-read",
+    "method": "POST",
+    "apiSurface": "storefront",
+    "apiVersion": "2026-04",
+    "path": "/api/2026-04/graphql.json",
+    "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+    "authMode": "storefront-access-token",
+    "headers": {
+      "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+    },
+    "operationName": "StorefrontCollectionsProductsRead",
+    "query": "query StorefrontCollectionsProductsRead($id: ID!, $handle: String!, $query: String!) {\n  byId: collection(id: $id) {\n    id\n    title\n    handle\n    products(first: 3, sortKey: COLLECTION_DEFAULT) {\n      nodes {\n        id\n        title\n        handle\n        availableForSale\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  byHandle: collectionByHandle(handle: $handle) {\n    id\n    title\n    handle\n  }\n  catalog: collections(first: 3, query: $query, sortKey: UPDATED_AT, reverse: true) {\n    nodes {\n      id\n      title\n      handle\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Collection/514489057586",
+      "handle": "storefront-collections-20260716033642-updated",
+      "query": "20260716033642"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "byId": {
+            "id": "gid://shopify/Collection/514489057586",
+            "title": "Storefront Collections Updated 20260716033642",
+            "handle": "storefront-collections-20260716033642-updated",
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/10241432191282",
+                  "title": "Storefront Collections Gamma 20260716033642",
+                  "handle": "storefront-collections-product-gamma-20260716033642",
+                  "availableForSale": true
+                },
+                {
+                  "id": "gid://shopify/Product/10241432125746",
+                  "title": "Storefront Collections Alpha 20260716033642",
+                  "handle": "storefront-collections-product-alpha-20260716033642",
+                  "availableForSale": true
+                },
+                {
+                  "id": "gid://shopify/Product/10241432158514",
+                  "title": "Storefront Collections Product Updated 20260716033642",
+                  "handle": "storefront-collections-product-beta-updated-20260716033642",
+                  "availableForSale": false
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMDI0MTQzMjE5MTI4MiwibGFzdF92YWx1ZSI6IjAwMDJiemI0N2RmIiwib2Zmc2V0IjowfQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxMDI0MTQzMjE1ODUxNCwibGFzdF92YWx1ZSI6IjAwMDlieDhndGhvIiwib2Zmc2V0IjoyfQ=="
+              }
+            }
+          },
+          "byHandle": {
+            "id": "gid://shopify/Collection/514489057586",
+            "title": "Storefront Collections Updated 20260716033642",
+            "handle": "storefront-collections-20260716033642-updated"
+          },
+          "catalog": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Collection/514489090354",
+                "title": "Storefront Collections Beta 20260716033642",
+                "handle": "storefront-collections-20260716033642-beta"
+              },
+              {
+                "id": "gid://shopify/Collection/514489057586",
+                "title": "Storefront Collections Updated 20260716033642",
+                "handle": "storefront-collections-20260716033642-updated"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjo1MTQ0ODkwOTAzNTQsImxhc3RfdmFsdWUiOjE3ODQxNzMwMDcwMDAsIm9mZnNldCI6MH0=",
+              "endCursor": "eyJsYXN0X2lkIjo1MTQ0ODkwNTc1ODYsImxhc3RfdmFsdWUiOjE3ODQxNzMwMDYwMDAsIm9mZnNldCI6MX0="
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12
+          }
+        }
+      }
+    }
+  },
+  "adminRemoveProduct": {
+    "name": "admin-collection-remove-product",
+    "request": {
+      "query": "mutation StorefrontCollectionsRemoveProduct($id: ID!, $productIds: [ID!]!) {\n  collectionRemoveProducts(id: $id, productIds: $productIds) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Collection/514489057586",
+        "productIds": ["gid://shopify/Product/10241432158514"]
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "collectionRemoveProducts": {
+          "job": {
+            "id": "gid://shopify/Job/21bf36cd-b03d-4e30-be80-69112ba9fee5",
+            "done": false
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "storefrontRemoved": {
+    "name": "storefront-collections-product-removed-read",
+    "method": "POST",
+    "apiSurface": "storefront",
+    "apiVersion": "2026-04",
+    "path": "/api/2026-04/graphql.json",
+    "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+    "authMode": "storefront-access-token",
+    "headers": {
+      "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+    },
+    "operationName": "StorefrontCollectionsProductsRead",
+    "query": "query StorefrontCollectionsProductsRead($id: ID!, $handle: String!, $query: String!) {\n  byId: collection(id: $id) {\n    id\n    title\n    handle\n    products(first: 3, sortKey: COLLECTION_DEFAULT) {\n      nodes {\n        id\n        title\n        handle\n        availableForSale\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  byHandle: collectionByHandle(handle: $handle) {\n    id\n    title\n    handle\n  }\n  catalog: collections(first: 3, query: $query, sortKey: UPDATED_AT, reverse: true) {\n    nodes {\n      id\n      title\n      handle\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Collection/514489057586",
+      "handle": "storefront-collections-20260716033642-updated",
+      "query": "20260716033642"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "byId": {
+            "id": "gid://shopify/Collection/514489057586",
+            "title": "Storefront Collections Updated 20260716033642",
+            "handle": "storefront-collections-20260716033642-updated",
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/10241432191282",
+                  "title": "Storefront Collections Gamma 20260716033642",
+                  "handle": "storefront-collections-product-gamma-20260716033642",
+                  "availableForSale": true
+                },
+                {
+                  "id": "gid://shopify/Product/10241432125746",
+                  "title": "Storefront Collections Alpha 20260716033642",
+                  "handle": "storefront-collections-product-alpha-20260716033642",
+                  "availableForSale": true
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMDI0MTQzMjE5MTI4MiwibGFzdF92YWx1ZSI6IjAwMDJiemI0N2RmIiwib2Zmc2V0IjowfQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxMDI0MTQzMjEyNTc0NiwibGFzdF92YWx1ZSI6IjAwMDRueW04ZXF1Iiwib2Zmc2V0IjoxfQ=="
+              }
+            }
+          },
+          "byHandle": {
+            "id": "gid://shopify/Collection/514489057586",
+            "title": "Storefront Collections Updated 20260716033642",
+            "handle": "storefront-collections-20260716033642-updated"
+          },
+          "catalog": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Collection/514489090354",
+                "title": "Storefront Collections Beta 20260716033642",
+                "handle": "storefront-collections-20260716033642-beta"
+              },
+              {
+                "id": "gid://shopify/Collection/514489057586",
+                "title": "Storefront Collections Updated 20260716033642",
+                "handle": "storefront-collections-20260716033642-updated"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjo1MTQ0ODkwOTAzNTQsImxhc3RfdmFsdWUiOjE3ODQxNzMwMDcwMDAsIm9mZnNldCI6MH0=",
+              "endCursor": "eyJsYXN0X2lkIjo1MTQ0ODkwNTc1ODYsImxhc3RfdmFsdWUiOjE3ODQxNzMwMDYwMDAsIm9mZnNldCI6MX0="
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12
+          }
+        }
+      }
+    }
+  },
+  "adminAddProduct": {
+    "name": "admin-collection-add-product",
+    "request": {
+      "query": "mutation StorefrontCollectionsAddProduct($id: ID!, $productIds: [ID!]!) {\n  collectionAddProducts(id: $id, productIds: $productIds) {\n    collection {\n      id\n      products(first: 3, sortKey: MANUAL) {\n        nodes {\n          id\n          title\n          handle\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Collection/514489057586",
+        "productIds": ["gid://shopify/Product/10241432158514"]
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "collectionAddProducts": {
+          "collection": {
+            "id": "gid://shopify/Collection/514489057586",
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/10241432191282",
+                  "title": "Storefront Collections Gamma 20260716033642",
+                  "handle": "storefront-collections-product-gamma-20260716033642"
+                },
+                {
+                  "id": "gid://shopify/Product/10241432125746",
+                  "title": "Storefront Collections Alpha 20260716033642",
+                  "handle": "storefront-collections-product-alpha-20260716033642"
+                },
+                {
+                  "id": "gid://shopify/Product/10241432158514",
+                  "title": "Storefront Collections Product Updated 20260716033642",
+                  "handle": "storefront-collections-product-beta-updated-20260716033642"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 14,
+          "actualQueryCost": 14,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1986,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "storefrontRestored": {
+    "name": "storefront-collections-product-restored-read",
+    "method": "POST",
+    "apiSurface": "storefront",
+    "apiVersion": "2026-04",
+    "path": "/api/2026-04/graphql.json",
+    "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+    "authMode": "storefront-access-token",
+    "headers": {
+      "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+    },
+    "operationName": "StorefrontCollectionsProductsRead",
+    "query": "query StorefrontCollectionsProductsRead($id: ID!, $handle: String!, $query: String!) {\n  byId: collection(id: $id) {\n    id\n    title\n    handle\n    products(first: 3, sortKey: COLLECTION_DEFAULT) {\n      nodes {\n        id\n        title\n        handle\n        availableForSale\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  byHandle: collectionByHandle(handle: $handle) {\n    id\n    title\n    handle\n  }\n  catalog: collections(first: 3, query: $query, sortKey: UPDATED_AT, reverse: true) {\n    nodes {\n      id\n      title\n      handle\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Collection/514489057586",
+      "handle": "storefront-collections-20260716033642-updated",
+      "query": "20260716033642"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "byId": {
+            "id": "gid://shopify/Collection/514489057586",
+            "title": "Storefront Collections Updated 20260716033642",
+            "handle": "storefront-collections-20260716033642-updated",
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/10241432191282",
+                  "title": "Storefront Collections Gamma 20260716033642",
+                  "handle": "storefront-collections-product-gamma-20260716033642",
+                  "availableForSale": true
+                },
+                {
+                  "id": "gid://shopify/Product/10241432125746",
+                  "title": "Storefront Collections Alpha 20260716033642",
+                  "handle": "storefront-collections-product-alpha-20260716033642",
+                  "availableForSale": true
+                },
+                {
+                  "id": "gid://shopify/Product/10241432158514",
+                  "title": "Storefront Collections Product Updated 20260716033642",
+                  "handle": "storefront-collections-product-beta-updated-20260716033642",
+                  "availableForSale": false
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMDI0MTQzMjE5MTI4MiwibGFzdF92YWx1ZSI6IjAwMDJiemI0N2RmIiwib2Zmc2V0IjowfQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxMDI0MTQzMjE1ODUxNCwibGFzdF92YWx1ZSI6IjAwMDlieDhndGhvIiwib2Zmc2V0IjoyfQ=="
+              }
+            }
+          },
+          "byHandle": {
+            "id": "gid://shopify/Collection/514489057586",
+            "title": "Storefront Collections Updated 20260716033642",
+            "handle": "storefront-collections-20260716033642-updated"
+          },
+          "catalog": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Collection/514489090354",
+                "title": "Storefront Collections Beta 20260716033642",
+                "handle": "storefront-collections-20260716033642-beta"
+              },
+              {
+                "id": "gid://shopify/Collection/514489057586",
+                "title": "Storefront Collections Updated 20260716033642",
+                "handle": "storefront-collections-20260716033642-updated"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjo1MTQ0ODkwOTAzNTQsImxhc3RfdmFsdWUiOjE3ODQxNzMwMDcwMDAsIm9mZnNldCI6MH0=",
+              "endCursor": "eyJsYXN0X2lkIjo1MTQ0ODkwNTc1ODYsImxhc3RfdmFsdWUiOjE3ODQxNzMwMDYwMDAsIm9mZnNldCI6MX0="
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12
+          }
+        }
+      }
+    }
+  },
+  "adminProductUnpublish": {
+    "name": "admin-product-unpublish",
+    "request": {
+      "query": "mutation StorefrontCatalogUnpublish($id: ID!, $input: [PublicationInput!]!, $publicationId: ID!) {\n  publishableUnpublish(id: $id, input: $input) {\n    publishable {\n      ... on Product {\n        id\n        publishedOnPublication(publicationId: $publicationId)\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Product/10241432191282",
+        "input": [
+          {
+            "publicationId": "gid://shopify/Publication/268039389490"
+          }
+        ],
+        "publicationId": "gid://shopify/Publication/268039389490"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "publishableUnpublish": {
+          "publishable": {
+            "id": "gid://shopify/Product/10241432191282",
+            "publishedOnPublication": false
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "storefrontProductUnpublished": {
+    "name": "storefront-collections-product-unpublished-read",
+    "method": "POST",
+    "apiSurface": "storefront",
+    "apiVersion": "2026-04",
+    "path": "/api/2026-04/graphql.json",
+    "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+    "authMode": "storefront-access-token",
+    "headers": {
+      "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+    },
+    "operationName": "StorefrontCollectionsProductsRead",
+    "query": "query StorefrontCollectionsProductsRead($id: ID!, $handle: String!, $query: String!) {\n  byId: collection(id: $id) {\n    id\n    title\n    handle\n    products(first: 3, sortKey: COLLECTION_DEFAULT) {\n      nodes {\n        id\n        title\n        handle\n        availableForSale\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  byHandle: collectionByHandle(handle: $handle) {\n    id\n    title\n    handle\n  }\n  catalog: collections(first: 3, query: $query, sortKey: UPDATED_AT, reverse: true) {\n    nodes {\n      id\n      title\n      handle\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Collection/514489057586",
+      "handle": "storefront-collections-20260716033642-updated",
+      "query": "20260716033642"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "byId": {
+            "id": "gid://shopify/Collection/514489057586",
+            "title": "Storefront Collections Updated 20260716033642",
+            "handle": "storefront-collections-20260716033642-updated",
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/10241432125746",
+                  "title": "Storefront Collections Alpha 20260716033642",
+                  "handle": "storefront-collections-product-alpha-20260716033642",
+                  "availableForSale": true
+                },
+                {
+                  "id": "gid://shopify/Product/10241432158514",
+                  "title": "Storefront Collections Product Updated 20260716033642",
+                  "handle": "storefront-collections-product-beta-updated-20260716033642",
+                  "availableForSale": false
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMDI0MTQzMjEyNTc0NiwibGFzdF92YWx1ZSI6IjAwMDRueW04ZXF1Iiwib2Zmc2V0IjowfQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxMDI0MTQzMjE1ODUxNCwibGFzdF92YWx1ZSI6IjAwMDlieDhndGhvIiwib2Zmc2V0IjoxfQ=="
+              }
+            }
+          },
+          "byHandle": {
+            "id": "gid://shopify/Collection/514489057586",
+            "title": "Storefront Collections Updated 20260716033642",
+            "handle": "storefront-collections-20260716033642-updated"
+          },
+          "catalog": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Collection/514489057586",
+                "title": "Storefront Collections Updated 20260716033642",
+                "handle": "storefront-collections-20260716033642-updated"
+              },
+              {
+                "id": "gid://shopify/Collection/514489090354",
+                "title": "Storefront Collections Beta 20260716033642",
+                "handle": "storefront-collections-20260716033642-beta"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjo1MTQ0ODkwNTc1ODYsImxhc3RfdmFsdWUiOjE3ODQxNzMwMjQwMDAsIm9mZnNldCI6MH0=",
+              "endCursor": "eyJsYXN0X2lkIjo1MTQ0ODkwOTAzNTQsImxhc3RfdmFsdWUiOjE3ODQxNzMwMDcwMDAsIm9mZnNldCI6MX0="
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12
+          }
+        }
+      }
+    }
+  },
+  "adminProductRepublish": {
+    "name": "admin-product-republish",
+    "request": {
+      "query": "mutation StorefrontCatalogPublish($id: ID!, $input: [PublicationInput!]!, $publicationId: ID!) {\n  publishablePublish(id: $id, input: $input) {\n    publishable {\n      ... on Product {\n        id\n        publishedOnPublication(publicationId: $publicationId)\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Product/10241432191282",
+        "input": [
+          {
+            "publicationId": "gid://shopify/Publication/268039389490"
+          }
+        ],
+        "publicationId": "gid://shopify/Publication/268039389490"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "publishablePublish": {
+          "publishable": {
+            "id": "gid://shopify/Product/10241432191282",
+            "publishedOnPublication": true
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "storefrontProductRepublished": {
+    "name": "storefront-collections-product-republished-read",
+    "method": "POST",
+    "apiSurface": "storefront",
+    "apiVersion": "2026-04",
+    "path": "/api/2026-04/graphql.json",
+    "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+    "authMode": "storefront-access-token",
+    "headers": {
+      "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+    },
+    "operationName": "StorefrontCollectionsProductsRead",
+    "query": "query StorefrontCollectionsProductsRead($id: ID!, $handle: String!, $query: String!) {\n  byId: collection(id: $id) {\n    id\n    title\n    handle\n    products(first: 3, sortKey: COLLECTION_DEFAULT) {\n      nodes {\n        id\n        title\n        handle\n        availableForSale\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  byHandle: collectionByHandle(handle: $handle) {\n    id\n    title\n    handle\n  }\n  catalog: collections(first: 3, query: $query, sortKey: UPDATED_AT, reverse: true) {\n    nodes {\n      id\n      title\n      handle\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Collection/514489057586",
+      "handle": "storefront-collections-20260716033642-updated",
+      "query": "20260716033642"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "byId": {
+            "id": "gid://shopify/Collection/514489057586",
+            "title": "Storefront Collections Updated 20260716033642",
+            "handle": "storefront-collections-20260716033642-updated",
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/10241432191282",
+                  "title": "Storefront Collections Gamma 20260716033642",
+                  "handle": "storefront-collections-product-gamma-20260716033642",
+                  "availableForSale": true
+                },
+                {
+                  "id": "gid://shopify/Product/10241432125746",
+                  "title": "Storefront Collections Alpha 20260716033642",
+                  "handle": "storefront-collections-product-alpha-20260716033642",
+                  "availableForSale": true
+                },
+                {
+                  "id": "gid://shopify/Product/10241432158514",
+                  "title": "Storefront Collections Product Updated 20260716033642",
+                  "handle": "storefront-collections-product-beta-updated-20260716033642",
+                  "availableForSale": false
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMDI0MTQzMjE5MTI4MiwibGFzdF92YWx1ZSI6IjAwMDJiemI0N2RmIiwib2Zmc2V0IjowfQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxMDI0MTQzMjE1ODUxNCwibGFzdF92YWx1ZSI6IjAwMDlieDhndGhvIiwib2Zmc2V0IjoyfQ=="
+              }
+            }
+          },
+          "byHandle": {
+            "id": "gid://shopify/Collection/514489057586",
+            "title": "Storefront Collections Updated 20260716033642",
+            "handle": "storefront-collections-20260716033642-updated"
+          },
+          "catalog": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Collection/514489090354",
+                "title": "Storefront Collections Beta 20260716033642",
+                "handle": "storefront-collections-20260716033642-beta"
+              },
+              {
+                "id": "gid://shopify/Collection/514489057586",
+                "title": "Storefront Collections Updated 20260716033642",
+                "handle": "storefront-collections-20260716033642-updated"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjo1MTQ0ODkwOTAzNTQsImxhc3RfdmFsdWUiOjE3ODQxNzMwMDcwMDAsIm9mZnNldCI6MH0=",
+              "endCursor": "eyJsYXN0X2lkIjo1MTQ0ODkwNTc1ODYsImxhc3RfdmFsdWUiOjE3ODQxNzMwMDYwMDAsIm9mZnNldCI6MX0="
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12
+          }
+        }
+      }
+    }
+  },
+  "adminProductDelete": {
+    "name": "admin-product-delete",
+    "request": {
+      "query": "mutation StorefrontCatalogProductDelete($input: ProductDeleteInput!) {\n  productDelete(input: $input) {\n    deletedProductId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Product/10241432125746"
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "productDelete": {
+          "deletedProductId": "gid://shopify/Product/10241432125746",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "storefrontProductDeleted": {
+    "name": "storefront-collections-product-deleted-read",
+    "method": "POST",
+    "apiSurface": "storefront",
+    "apiVersion": "2026-04",
+    "path": "/api/2026-04/graphql.json",
+    "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+    "authMode": "storefront-access-token",
+    "headers": {
+      "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+    },
+    "operationName": "StorefrontCollectionsProductsRead",
+    "query": "query StorefrontCollectionsProductsRead($id: ID!, $handle: String!, $query: String!) {\n  byId: collection(id: $id) {\n    id\n    title\n    handle\n    products(first: 3, sortKey: COLLECTION_DEFAULT) {\n      nodes {\n        id\n        title\n        handle\n        availableForSale\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  byHandle: collectionByHandle(handle: $handle) {\n    id\n    title\n    handle\n  }\n  catalog: collections(first: 3, query: $query, sortKey: UPDATED_AT, reverse: true) {\n    nodes {\n      id\n      title\n      handle\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Collection/514489057586",
+      "handle": "storefront-collections-20260716033642-updated",
+      "query": "20260716033642"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "byId": {
+            "id": "gid://shopify/Collection/514489057586",
+            "title": "Storefront Collections Updated 20260716033642",
+            "handle": "storefront-collections-20260716033642-updated",
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/10241432191282",
+                  "title": "Storefront Collections Gamma 20260716033642",
+                  "handle": "storefront-collections-product-gamma-20260716033642",
+                  "availableForSale": true
+                },
+                {
+                  "id": "gid://shopify/Product/10241432158514",
+                  "title": "Storefront Collections Product Updated 20260716033642",
+                  "handle": "storefront-collections-product-beta-updated-20260716033642",
+                  "availableForSale": false
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMDI0MTQzMjE5MTI4MiwibGFzdF92YWx1ZSI6IjAwMDJiemI0N2RmIiwib2Zmc2V0IjowfQ==",
+                "endCursor": "eyJsYXN0X2lkIjoxMDI0MTQzMjE1ODUxNCwibGFzdF92YWx1ZSI6IjAwMDlieDhndGhvIiwib2Zmc2V0IjoxfQ=="
+              }
+            }
+          },
+          "byHandle": {
+            "id": "gid://shopify/Collection/514489057586",
+            "title": "Storefront Collections Updated 20260716033642",
+            "handle": "storefront-collections-20260716033642-updated"
+          },
+          "catalog": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Collection/514489057586",
+                "title": "Storefront Collections Updated 20260716033642",
+                "handle": "storefront-collections-20260716033642-updated"
+              },
+              {
+                "id": "gid://shopify/Collection/514489090354",
+                "title": "Storefront Collections Beta 20260716033642",
+                "handle": "storefront-collections-20260716033642-beta"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjo1MTQ0ODkwNTc1ODYsImxhc3RfdmFsdWUiOjE3ODQxNzMwMjQwMDAsIm9mZnNldCI6MH0=",
+              "endCursor": "eyJsYXN0X2lkIjo1MTQ0ODkwOTAzNTQsImxhc3RfdmFsdWUiOjE3ODQxNzMwMDcwMDAsIm9mZnNldCI6MX0="
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12
+          }
+        }
+      }
+    }
+  },
+  "adminCollectionUnpublish": {
+    "name": "admin-collection-unpublish",
+    "request": {
+      "query": "mutation StorefrontCollectionsUnpublish($id: ID!, $input: [PublicationInput!]!, $publicationId: ID!) {\n  publishableUnpublish(id: $id, input: $input) {\n    publishable {\n      ... on Collection {\n        id\n        publishedOnPublication(publicationId: $publicationId)\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Collection/514489057586",
+        "input": [
+          {
+            "publicationId": "gid://shopify/Publication/268039389490"
+          }
+        ],
+        "publicationId": "gid://shopify/Publication/268039389490"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "publishableUnpublish": {
+          "publishable": {
+            "id": "gid://shopify/Collection/514489057586",
+            "publishedOnPublication": false
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "storefrontCollectionUnpublished": {
+    "name": "storefront-collections-unpublished-read",
+    "method": "POST",
+    "apiSurface": "storefront",
+    "apiVersion": "2026-04",
+    "path": "/api/2026-04/graphql.json",
+    "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+    "authMode": "storefront-access-token",
+    "headers": {
+      "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+    },
+    "operationName": "StorefrontCollectionsAbsentRead",
+    "query": "query StorefrontCollectionsAbsentRead($id: ID!, $handle: String!, $query: String!) {\n  byId: collection(id: $id) {\n    id\n  }\n  byHandle: collectionByHandle(handle: $handle) {\n    id\n  }\n  catalog: collections(first: 3, query: $query) {\n    nodes {\n      id\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Collection/514489057586",
+      "handle": "storefront-collections-20260716033642-updated",
+      "query": "20260716033642"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "byId": null,
+          "byHandle": null,
+          "catalog": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Collection/514489090354"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjo1MTQ0ODkwOTAzNTQsImxhc3RfdmFsdWUiOjUxNDQ4OTA5MDM1NCwib2Zmc2V0IjowfQ==",
+              "endCursor": "eyJsYXN0X2lkIjo1MTQ0ODkwOTAzNTQsImxhc3RfdmFsdWUiOjUxNDQ4OTA5MDM1NCwib2Zmc2V0IjowfQ=="
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 7
+          }
+        }
+      }
+    }
+  },
+  "adminCollectionDelete": {
+    "name": "admin-collection-delete",
+    "request": {
+      "query": "mutation StorefrontCollectionsDelete($input: CollectionDeleteInput!) {\n  collectionDelete(input: $input) {\n    deletedCollectionId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Collection/514489057586"
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "collectionDelete": {
+          "deletedCollectionId": "gid://shopify/Collection/514489057586",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "storefrontCollectionDeleted": {
+    "name": "storefront-collections-deleted-read",
+    "method": "POST",
+    "apiSurface": "storefront",
+    "apiVersion": "2026-04",
+    "path": "/api/2026-04/graphql.json",
+    "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+    "authMode": "storefront-access-token",
+    "headers": {
+      "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+    },
+    "operationName": "StorefrontCollectionsAbsentRead",
+    "query": "query StorefrontCollectionsAbsentRead($id: ID!, $handle: String!, $query: String!) {\n  byId: collection(id: $id) {\n    id\n  }\n  byHandle: collectionByHandle(handle: $handle) {\n    id\n  }\n  catalog: collections(first: 3, query: $query) {\n    nodes {\n      id\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Collection/514489057586",
+      "handle": "storefront-collections-20260716033642-updated",
+      "query": "20260716033642"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "byId": null,
+          "byHandle": null,
+          "catalog": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Collection/514489090354"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjo1MTQ0ODkwOTAzNTQsImxhc3RfdmFsdWUiOjUxNDQ4OTA5MDM1NCwib2Zmc2V0IjowfQ==",
+              "endCursor": "eyJsYXN0X2lkIjo1MTQ0ODkwOTAzNTQsImxhc3RfdmFsdWUiOjUxNDQ4OTA5MDM1NCwib2Zmc2V0IjowfQ=="
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 7
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "name": "collectionDelete-cleanup",
+      "request": {
+        "query": "mutation StorefrontCollectionsDelete($input: CollectionDeleteInput!) {\n  collectionDelete(input: $input) {\n    deletedCollectionId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Collection/514489090354"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "collectionDelete": {
+            "deletedCollectionId": "gid://shopify/Collection/514489090354",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "productDelete-cleanup",
+      "request": {
+        "query": "mutation StorefrontCatalogProductDelete($input: ProductDeleteInput!) {\n  productDelete(input: $input) {\n    deletedProductId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Product/10241432191282"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10241432191282",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "productDelete-cleanup",
+      "request": {
+        "query": "mutation StorefrontCatalogProductDelete($input: ProductDeleteInput!) {\n  productDelete(input: $input) {\n    deletedProductId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Product/10241432158514"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10241432158514",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "metafieldDefinitionDelete-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation StorefrontCollectionsDefinitionCleanup($id: ID!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n      deletedDefinitionId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/226348237106"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/226348237106",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "name": "admin-publication-hydrate",
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "path": "/admin/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/admin/api/2026-04/graphql.json",
+      "authMode": "admin-access-token",
+      "operationName": "StorePropertiesPublishableInputValidationHydrate",
+      "query": "#graphql\n  query StorePropertiesPublishableInputValidationHydrate {\n    shop {\n      publicationCount\n      currencyCode\n    }\n    publications(first: 20) {\n      nodes {\n        id\n        name\n      }\n    }\n  }\n",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shop": {
+              "publicationCount": 6,
+              "currencyCode": "CAD"
+            },
+            "publications": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Publication/268039389490",
+                  "name": "Online Store"
+                },
+                {
+                  "id": "gid://shopify/Publication/268039455026",
+                  "name": "Point of Sale"
+                },
+                {
+                  "id": "gid://shopify/Publication/268039487794",
+                  "name": "Shop"
+                },
+                {
+                  "id": "gid://shopify/Publication/273897881906",
+                  "name": "Shopify GraphiQL App"
+                },
+                {
+                  "id": "gid://shopify/Publication/302536393010",
+                  "name": "example.com"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 8,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1995,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "storefront-collections-read-after-admin-setup",
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCollectionsReadAfterAdminSetup",
+      "query": "query StorefrontCollectionsReadAfterAdminSetup(\n  $id: ID!\n  $handle: String!\n  $query: String!\n  $metafieldNamespace: String!\n  $country: CountryCode!\n) @inContext(country: $country) {\n  byId: collection(id: $id) {\n    ...StorefrontCollectionFields\n  }\n  byHandleArgument: collection(handle: $handle) {\n    id\n    aliasTitle: title\n    handle\n  }\n  deprecatedByHandle: collectionByHandle(handle: $handle) {\n    id\n    title\n    handle\n  }\n  firstPage: collections(first: 1, query: $query, sortKey: TITLE) {\n    edges {\n      cursor\n      node {\n        id\n        title\n        handle\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  reverseCatalog: collections(first: 2, query: $query, sortKey: TITLE, reverse: true) {\n    nodes {\n      id\n      title\n      handle\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  missingById: collection(id: \"gid://shopify/Collection/999999999999999\") {\n    id\n  }\n  missingByHandle: collectionByHandle(handle: \"missing-storefront-collection\") {\n    id\n  }\n  emptyCatalog: collections(first: 2, query: \"__shopify_draft_proxy_missing_storefront_collection__\") {\n    nodes {\n      id\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n\nfragment StorefrontCollectionFields on Collection {\n  __typename\n  id\n  title\n  handle\n  description\n  truncatedDescription: description(truncateAt: 12)\n  descriptionHtml\n  updatedAt\n  image {\n    url\n    altText\n  }\n  seo {\n    title\n    description\n  }\n  metafield(namespace: $metafieldNamespace, key: \"visible\") {\n    id\n    namespace\n    key\n    type\n    value\n  }\n  metafields(\n    identifiers: [\n      { namespace: $metafieldNamespace, key: \"visible\" }\n      { namespace: $metafieldNamespace, key: \"missing\" }\n    ]\n  ) {\n    id\n    namespace\n    key\n    value\n  }\n  products(first: 2, sortKey: COLLECTION_DEFAULT) {\n    edges {\n      cursor\n      node {\n        ...StorefrontCollectionProductFields\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  productsReverse: products(first: 2, sortKey: MANUAL, reverse: true) {\n    nodes {\n      id\n      title\n      handle\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  productsByTitle: products(first: 3, sortKey: TITLE) {\n    nodes {\n      id\n      title\n      handle\n    }\n  }\n  availableProducts: products(first: 3, filters: [{ available: true }]) {\n    nodes {\n      id\n      title\n      availableForSale\n    }\n  }\n  taggedProducts: products(first: 3, filters: [{ tag: \"storefront-collections\" }]) {\n    nodes {\n      id\n      title\n      tags\n    }\n  }\n}\n\nfragment StorefrontCollectionProductFields on Product {\n  __typename\n  id\n  title\n  handle\n  availableForSale\n  totalInventory\n  vendor\n  productType\n  tags\n  priceRange {\n    minVariantPrice {\n      amount\n      currencyCode\n    }\n    maxVariantPrice {\n      amount\n      currencyCode\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Collection/514489057586",
+        "handle": "storefront-collections-20260716033642-alpha",
+        "query": "20260716033642",
+        "metafieldNamespace": "storefront_collections_20260716033642",
+        "country": "CA"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "byId": {
+              "__typename": "Collection",
+              "id": "gid://shopify/Collection/514489057586",
+              "title": "Storefront Collections Alpha 20260716033642",
+              "handle": "storefront-collections-20260716033642-alpha",
+              "description": "Storefront collection description 20260716033642",
+              "truncatedDescription": "Storefron...",
+              "descriptionHtml": "<p>Storefront collection description 20260716033642</p>",
+              "updatedAt": "2026-07-16T03:36:46Z",
+              "image": {
+                "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/collections/png_b48cf86b-e2b4-47ec-81c6-9a3278a1ea15.png?v=1784173006",
+                "altText": "Storefront collection image 20260716033642"
+              },
+              "seo": {
+                "title": "Storefront Collection SEO 20260716033642",
+                "description": "Storefront collection SEO description 20260716033642"
+              },
+              "metafield": {
+                "id": "gid://shopify/Metafield/45077460386098",
+                "namespace": "storefront_collections_20260716033642",
+                "key": "visible",
+                "type": "single_line_text_field",
+                "value": "Visible collection metafield 20260716033642"
+              },
+              "metafields": [
+                {
+                  "id": "gid://shopify/Metafield/45077460386098",
+                  "namespace": "storefront_collections_20260716033642",
+                  "key": "visible",
+                  "value": "Visible collection metafield 20260716033642"
+                },
+                null
+              ],
+              "products": {
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjoxMDI0MTQzMjEyNTc0NiwibGFzdF92YWx1ZSI6IjAwMDRueW04ZXF1Iiwib2Zmc2V0IjowfQ==",
+                    "node": {
+                      "__typename": "Product",
+                      "id": "gid://shopify/Product/10241432125746",
+                      "title": "Storefront Collections Alpha 20260716033642",
+                      "handle": "storefront-collections-product-alpha-20260716033642",
+                      "availableForSale": true,
+                      "totalInventory": 0,
+                      "vendor": "Hermes North",
+                      "productType": "Collection Fixture",
+                      "tags": ["alpha", "storefront-collections"],
+                      "priceRange": {
+                        "minVariantPrice": {
+                          "amount": "10.0",
+                          "currencyCode": "CAD"
+                        },
+                        "maxVariantPrice": {
+                          "amount": "10.0",
+                          "currencyCode": "CAD"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjoxMDI0MTQzMjE1ODUxNCwibGFzdF92YWx1ZSI6IjAwMDlieDhndGhvIiwib2Zmc2V0IjoxfQ==",
+                    "node": {
+                      "__typename": "Product",
+                      "id": "gid://shopify/Product/10241432158514",
+                      "title": "Storefront Collections Beta 20260716033642",
+                      "handle": "storefront-collections-product-beta-20260716033642",
+                      "availableForSale": false,
+                      "totalInventory": 0,
+                      "vendor": "Hermes South",
+                      "productType": "Collection Fixture",
+                      "tags": ["beta", "storefront-collections"],
+                      "priceRange": {
+                        "minVariantPrice": {
+                          "amount": "20.0",
+                          "currencyCode": "CAD"
+                        },
+                        "maxVariantPrice": {
+                          "amount": "20.0",
+                          "currencyCode": "CAD"
+                        }
+                      }
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": true,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoxMDI0MTQzMjEyNTc0NiwibGFzdF92YWx1ZSI6IjAwMDRueW04ZXF1Iiwib2Zmc2V0IjowfQ==",
+                  "endCursor": "eyJsYXN0X2lkIjoxMDI0MTQzMjE1ODUxNCwibGFzdF92YWx1ZSI6IjAwMDlieDhndGhvIiwib2Zmc2V0IjoxfQ=="
+                }
+              },
+              "productsReverse": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Product/10241432191282",
+                    "title": "Storefront Collections Gamma 20260716033642",
+                    "handle": "storefront-collections-product-gamma-20260716033642"
+                  },
+                  {
+                    "id": "gid://shopify/Product/10241432158514",
+                    "title": "Storefront Collections Beta 20260716033642",
+                    "handle": "storefront-collections-product-beta-20260716033642"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": true,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoxMDI0MTQzMjE5MTI4MiwibGFzdF92YWx1ZSI6IjAwMGR6dnVwODhpIiwib2Zmc2V0IjowfQ==",
+                  "endCursor": "eyJsYXN0X2lkIjoxMDI0MTQzMjE1ODUxNCwibGFzdF92YWx1ZSI6IjAwMDlieDhndGhvIiwib2Zmc2V0IjoxfQ=="
+                }
+              },
+              "productsByTitle": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Product/10241432125746",
+                    "title": "Storefront Collections Alpha 20260716033642",
+                    "handle": "storefront-collections-product-alpha-20260716033642"
+                  },
+                  {
+                    "id": "gid://shopify/Product/10241432158514",
+                    "title": "Storefront Collections Beta 20260716033642",
+                    "handle": "storefront-collections-product-beta-20260716033642"
+                  },
+                  {
+                    "id": "gid://shopify/Product/10241432191282",
+                    "title": "Storefront Collections Gamma 20260716033642",
+                    "handle": "storefront-collections-product-gamma-20260716033642"
+                  }
+                ]
+              },
+              "availableProducts": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Product/10241432125746",
+                    "title": "Storefront Collections Alpha 20260716033642",
+                    "availableForSale": true
+                  },
+                  {
+                    "id": "gid://shopify/Product/10241432191282",
+                    "title": "Storefront Collections Gamma 20260716033642",
+                    "availableForSale": true
+                  }
+                ]
+              },
+              "taggedProducts": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Product/10241432125746",
+                    "title": "Storefront Collections Alpha 20260716033642",
+                    "tags": ["alpha", "storefront-collections"]
+                  },
+                  {
+                    "id": "gid://shopify/Product/10241432158514",
+                    "title": "Storefront Collections Beta 20260716033642",
+                    "tags": ["beta", "storefront-collections"]
+                  },
+                  {
+                    "id": "gid://shopify/Product/10241432191282",
+                    "title": "Storefront Collections Gamma 20260716033642",
+                    "tags": ["gamma", "storefront-collections"]
+                  }
+                ]
+              }
+            },
+            "byHandleArgument": {
+              "id": "gid://shopify/Collection/514489057586",
+              "aliasTitle": "Storefront Collections Alpha 20260716033642",
+              "handle": "storefront-collections-20260716033642-alpha"
+            },
+            "deprecatedByHandle": {
+              "id": "gid://shopify/Collection/514489057586",
+              "title": "Storefront Collections Alpha 20260716033642",
+              "handle": "storefront-collections-20260716033642-alpha"
+            },
+            "firstPage": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo1MTQ0ODkwNTc1ODYsImxhc3RfdmFsdWUiOiJzdG9yZWZyb250IGNvbGxlY3Rpb25zIGFscGhhIDIwMjYwNzE2MDMzNjQyIiwib2Zmc2V0IjowfQ==",
+                  "node": {
+                    "id": "gid://shopify/Collection/514489057586",
+                    "title": "Storefront Collections Alpha 20260716033642",
+                    "handle": "storefront-collections-20260716033642-alpha"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo1MTQ0ODkwNTc1ODYsImxhc3RfdmFsdWUiOiJzdG9yZWZyb250IGNvbGxlY3Rpb25zIGFscGhhIDIwMjYwNzE2MDMzNjQyIiwib2Zmc2V0IjowfQ==",
+                "endCursor": "eyJsYXN0X2lkIjo1MTQ0ODkwNTc1ODYsImxhc3RfdmFsdWUiOiJzdG9yZWZyb250IGNvbGxlY3Rpb25zIGFscGhhIDIwMjYwNzE2MDMzNjQyIiwib2Zmc2V0IjowfQ=="
+              }
+            },
+            "reverseCatalog": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Collection/514489090354",
+                  "title": "Storefront Collections Beta 20260716033642",
+                  "handle": "storefront-collections-20260716033642-beta"
+                },
+                {
+                  "id": "gid://shopify/Collection/514489057586",
+                  "title": "Storefront Collections Alpha 20260716033642",
+                  "handle": "storefront-collections-20260716033642-alpha"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo1MTQ0ODkwOTAzNTQsImxhc3RfdmFsdWUiOiJzdG9yZWZyb250IGNvbGxlY3Rpb25zIGJldGEgMjAyNjA3MTYwMzM2NDIiLCJvZmZzZXQiOjB9",
+                "endCursor": "eyJsYXN0X2lkIjo1MTQ0ODkwNTc1ODYsImxhc3RfdmFsdWUiOiJzdG9yZWZyb250IGNvbGxlY3Rpb25zIGFscGhhIDIwMjYwNzE2MDMzNjQyIiwib2Zmc2V0IjoxfQ=="
+              }
+            },
+            "missingById": null,
+            "missingByHandle": null,
+            "emptyCatalog": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            }
+          },
+          "extensions": {
+            "context": {
+              "country": "AE",
+              "language": "EN"
+            },
+            "cost": {
+              "requestedQueryCost": 40
+            }
+          }
+        }
+      }
+    }
+  ]
+}
