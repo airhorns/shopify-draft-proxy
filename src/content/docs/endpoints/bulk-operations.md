@@ -33,7 +33,7 @@ Read behavior:
 - Invalid connection windows, malformed `created_at`, malformed inline IDs, non-BulkOperation GIDs, and hidden/internal `sortKey: ID` return top-level GraphQL/BAD_REQUEST envelopes matching captured behavior.
 - Invalid `status` and `operation_type` search values return the selected empty connection plus `extensions.search` `invalid_value` warnings. Unsupported search keys intentionally keep Shopify's fail-open match-all behavior but include an `invalid_field` warning in `extensions.search` instead of silently broadening the result set.
 - `currentBulkOperation(type:)` returns the newest effective job for the requested type and defaults to `QUERY`.
-- In LiveHybrid, cold explicit sort-key reads can pass through to Shopify until local BulkOperation state exists. Once state is staged or snapshotted, reads resolve locally so read-after-write ordering remains visible.
+- In LiveHybrid, `bulkOperations`, `currentBulkOperation`, and `bulkOperation(id:)` hydrate missing upstream jobs before local projection. Observed upstream jobs become base state, staged jobs overlay that base by ID, by-ID misses forward upstream, and list reads with staged jobs render the effective base-plus-staged connection locally so real historical jobs stay visible beside local jobs.
 
 Query export behavior:
 

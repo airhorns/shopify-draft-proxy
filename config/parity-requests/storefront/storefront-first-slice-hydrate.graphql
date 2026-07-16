@@ -40,20 +40,6 @@ query StorefrontFirstSliceHydrate {
         }
       }
     }
-    contactInformation {
-      id
-      title
-      body
-      handle
-      url
-    }
-    legalNotice {
-      id
-      title
-      body
-      handle
-      url
-    }
     privacyPolicy {
       id
       title
@@ -69,13 +55,6 @@ query StorefrontFirstSliceHydrate {
       url
     }
     shippingPolicy {
-      id
-      title
-      body
-      handle
-      url
-    }
-    termsOfSale {
       id
       title
       body

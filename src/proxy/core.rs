@@ -451,6 +451,9 @@ impl DraftProxy {
                 "discountCountBaselines": self.store.base.discount_count_baselines.clone(),
                 "segments": self.store.base.segments.records.clone(),
                 "segmentOrder": self.store.base.segments.order,
+                "bulkOperations": self.store.base.bulk_operations.records.clone(),
+                "bulkOperationOrder": self.store.base.bulk_operations.order.clone(),
+                "bulkOperationsObserved": self.store.base.bulk_operations_observed,
                 "giftCards": self.store.base.gift_cards.clone(),
                 "giftCardConfiguration": self.store.base.gift_card_configuration.clone().unwrap_or(Value::Null),
                 "giftCardCompleteQueries": self.store.base.gift_card_complete_queries.iter().cloned().collect::<Vec<_>>(),
@@ -578,11 +581,14 @@ impl DraftProxy {
             deleted_metafield_definitions_value;
         if !self.store.base.b2b_companies.records.is_empty()
             || !self.store.base.b2b_companies.order.is_empty()
+            || !self.store.base.b2b_company_count_baselines.is_empty()
         {
             snapshot["baseState"]["b2bCompanies"] =
                 json!(self.store.base.b2b_companies.records.clone());
             snapshot["baseState"]["b2bCompanyOrder"] =
                 json!(self.store.base.b2b_companies.order.clone());
+            snapshot["baseState"]["b2bCompanyCountBaselines"] =
+                json!(self.store.base.b2b_company_count_baselines.clone());
         }
         if !self.store.base.b2b_locations.records.is_empty()
             || !self.store.base.b2b_locations.order.is_empty()
@@ -785,7 +791,9 @@ impl DraftProxy {
         }
         if !self.store.staged.bulk_operations.is_empty() {
             snapshot["stagedState"]["bulkOperations"] =
-                json!(self.store.staged.bulk_operations.clone());
+                json!(self.store.staged.bulk_operations.records.clone());
+            snapshot["stagedState"]["bulkOperationOrder"] =
+                json!(self.store.staged.bulk_operations.order.clone());
         }
         if !self.store.staged.bulk_operation_staged_uploads.is_empty() {
             snapshot["stagedState"]["bulkOperationStagedUploads"] =
@@ -1150,12 +1158,25 @@ impl DraftProxy {
         if !self.store.staged.catalogs.is_empty() {
             snapshot["stagedState"]["catalogs"] = json!(self.store.staged.catalogs.clone());
         }
+        if !self.store.staged.created_catalog_ids.is_empty() {
+            snapshot["stagedState"]["createdCatalogIds"] = json!(self
+                .store
+                .staged
+                .created_catalog_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
         if !self.store.staged.price_lists.is_empty() {
             snapshot["stagedState"]["priceLists"] = json!(self.store.staged.price_lists.clone());
         }
         if !self.store.staged.web_presences.is_empty() {
             snapshot["stagedState"]["webPresences"] =
                 json!(self.store.staged.web_presences.clone());
+        }
+        if !self.store.staged.markets_upstream_counts.is_empty() {
+            snapshot["stagedState"]["marketsUpstreamCounts"] =
+                json!(self.store.staged.markets_upstream_counts.clone());
         }
         if !self.store.staged.available_backup_regions.is_empty() {
             snapshot["stagedState"]["availableBackupRegions"] =
@@ -1426,6 +1447,17 @@ impl DraftProxy {
                 .map(string_array_from_json)
                 .unwrap_or_default(),
         );
+        self.store.base.bulk_operations.replace_with_order(
+            value_map_from_json(state["baseState"].get("bulkOperations")),
+            state["baseState"]
+                .get("bulkOperationOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
+        self.store.base.bulk_operations_observed = state["baseState"]
+            .get("bulkOperationsObserved")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
         self.store.staged.products.replace_with_order(
             product_state_map_from_json(&state["stagedState"]["products"]),
             string_array_from_json(&state["stagedState"]["productOrder"]),
@@ -1543,8 +1575,13 @@ impl DraftProxy {
             .unwrap_or_default()
             .into_iter()
             .collect();
-        self.store.staged.bulk_operations =
-            value_map_from_json(state["stagedState"].get("bulkOperations"));
+        self.store.staged.bulk_operations.replace_with_order(
+            value_map_from_json(state["stagedState"].get("bulkOperations")),
+            state["stagedState"]
+                .get("bulkOperationOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
         self.store.staged.bulk_operation_staged_uploads = state["stagedState"]
             .get("bulkOperationStagedUploads")
             .and_then(Value::as_object)
@@ -1844,6 +1881,8 @@ impl DraftProxy {
                 .map(string_array_from_json)
                 .unwrap_or_default(),
         );
+        self.store.base.b2b_company_count_baselines =
+            value_map_from_json(state["baseState"].get("b2bCompanyCountBaselines"));
         self.store.base.b2b_locations.replace_with_order(
             value_map_from_json(state["baseState"].get("b2bLocations")),
             state["baseState"]
@@ -2528,9 +2567,17 @@ impl DraftProxy {
             .into_iter()
             .collect();
         self.store.staged.catalogs = value_map_from_json(state["stagedState"].get("catalogs"));
+        self.store.staged.created_catalog_ids = state["stagedState"]
+            .get("createdCatalogIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         self.store.staged.price_lists = value_map_from_json(state["stagedState"].get("priceLists"));
         self.store.staged.web_presences =
             value_map_from_json(state["stagedState"].get("webPresences"));
+        self.store.staged.markets_upstream_counts =
+            value_map_from_json(state["stagedState"].get("marketsUpstreamCounts"));
         self.store.staged.available_backup_regions =
             value_map_from_json(state["stagedState"].get("availableBackupRegions"));
         self.store.staged.shop_locales = state["stagedState"]

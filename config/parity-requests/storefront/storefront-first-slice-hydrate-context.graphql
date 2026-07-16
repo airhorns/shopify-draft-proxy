@@ -41,20 +41,6 @@ query StorefrontFirstSliceHydrateWithContext($country: CountryCode, $language: L
         }
       }
     }
-    contactInformation {
-      id
-      title
-      body
-      handle
-      url
-    }
-    legalNotice {
-      id
-      title
-      body
-      handle
-      url
-    }
     privacyPolicy {
       id
       title
@@ -70,13 +56,6 @@ query StorefrontFirstSliceHydrateWithContext($country: CountryCode, $language: L
       url
     }
     shippingPolicy {
-      id
-      title
-      body
-      handle
-      url
-    }
-    termsOfSale {
       id
       title
       body

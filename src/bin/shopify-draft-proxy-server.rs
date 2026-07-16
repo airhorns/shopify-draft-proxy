@@ -23,6 +23,7 @@ fn main() -> std::io::Result<()> {
             "url": format!("http://localhost:{}", config.port)
         })
     );
+    std::io::stdout().flush()?;
 
     let upstream_client = HttpUpstreamClient::new(upstream_origin);
     let commit_client = upstream_client.clone();

@@ -358,6 +358,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'b2b',
+    captureId: 'b2b-companies-count-overlay',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-companies-count-overlay-conformance.mts',
+    purpose:
+      'B2B companiesCount count-only and small-page-plus-count overlay evidence against a live company catalog larger than the selected page.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-companies-count-overlay.json`,
+      'config/parity-specs/b2b/b2b-companies-count-overlay.json',
+      'config/parity-requests/b2b/b2b-companies-count-overlay-create.graphql',
+      'config/parity-requests/b2b/b2b-companies-count-overlay-count.graphql',
+      'config/parity-requests/b2b/b2b-companies-count-overlay-small-page.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable baseline B2B companies and one disposable staged-delta company, captures count readback, then deletes all created companies.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'b2b',
     captureId: 'b2b-update-unknown-id-resource-not-found',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-update-unknown-id-resource-not-found-conformance.mts',
@@ -5651,7 +5670,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-market-mutation-first-hydration-conformance.mts',
     purpose:
-      'Mutation-first marketUpdate and marketDelete hydration for existing disposable markets with catalog and web-presence relations, plus unknown-id validation branches.',
+      'Mutation-first marketUpdate and marketDelete hydration for existing disposable markets with catalog, price-list, and web-presence relations, top-level list/count readback, plus unknown-id validation branches.',
     requiredAuthScopes: ['read_markets', 'write_markets'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}market-mutation-first-hydration.json`,
@@ -5659,9 +5678,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/markets/market-mutation-targets-hydrate.graphql',
       'config/parity-requests/markets/market-mutation-first-update.graphql',
       'config/parity-requests/markets/market-mutation-first-update-read.graphql',
+      'config/parity-requests/markets/market-mutation-first-update-top-level-read.graphql',
     ],
     cleanupBehavior:
-      'Creates two disposable non-primary markets, two market catalogs, and two web presences; records mutation-first update/delete and validation probes, then deletes the remaining disposable resources.',
+      'Creates three disposable non-primary markets, three market catalogs, three price lists, and three web presences; records mutation-first update/delete, top-level readback, and validation probes, then deletes the remaining disposable resources.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -7134,6 +7154,47 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'storefront',
+    captureId: 'storefront-collections-read-after-admin-setup',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-storefront-collections-conformance.mts',
+    purpose:
+      'Authenticated Storefront API collection/collectionByHandle/collections evidence after disposable Admin product and collection setup, including content, SEO, image, public metafields, nested product membership/order/filtering, publication visibility, pagination, and lifecycle read-after-write effects.',
+    requiredAuthScopes: [
+      'read_products',
+      'write_products',
+      'read_publications',
+      'write_publications',
+      'read_metafields',
+      'write_metafields',
+      'stored Storefront access token from corepack pnpm conformance:grant-storefront-token',
+    ],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/storefront/storefront-collections-read-after-admin-setup.json',
+      'config/parity-specs/storefront/storefront-collections-read-after-admin-setup.json',
+      'config/parity-requests/storefront/storefront-collections-absent-read.graphql',
+      'config/parity-requests/storefront/storefront-collections-add-product-admin.graphql',
+      'config/parity-requests/storefront/storefront-collections-create-admin.graphql',
+      'config/parity-requests/storefront/storefront-collections-definition-create-admin.graphql',
+      'config/parity-requests/storefront/storefront-collections-delete-admin.graphql',
+      'config/parity-requests/storefront/storefront-collections-products-create-admin.graphql',
+      'config/parity-requests/storefront/storefront-collections-products-publish-admin.graphql',
+      'config/parity-requests/storefront/storefront-collections-products-read.graphql',
+      'config/parity-requests/storefront/storefront-collections-publish-admin.graphql',
+      'config/parity-requests/storefront/storefront-collections-read-after-admin-setup.graphql',
+      'config/parity-requests/storefront/storefront-collections-remove-product-admin.graphql',
+      'config/parity-requests/storefront/storefront-collections-reorder-admin.graphql',
+      'config/parity-requests/storefront/storefront-collections-unpublish-admin.graphql',
+      'config/parity-requests/storefront/storefront-collections-update-admin.graphql',
+      'config/parity-requests/storefront/storefront-collections-variants-update-admin.graphql',
+    ],
+    cleanupBehavior:
+      'Creates three disposable products, two collections, and one public Collection metafield definition through Admin GraphQL; publishes resources, polls authenticated Storefront lifecycle reads, then deletes all remaining products, collections, and the definition in guarded cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The fixture records the authenticated initial Storefront collection read as an exact Storefront upstream cassette entry for cold live-hybrid hydration. Storefront contextual pricing is captured in the shop default CA market; the supported nested Product projection boundary is documented separately.',
+  },
+  {
+    domain: 'storefront',
     captureId: 'storefront-custom-data-read-after-admin-setup',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-storefront-custom-data-conformance.mts',
@@ -7202,6 +7263,39 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
       'Email delivery is intentionally not captured. Recovery success records only Shopify mutation payloads; reset success with a real emailed URL remains runtime-test-backed because mailbox access is outside the proxy runtime contract.',
+  },
+  {
+    domain: 'storefront',
+    captureId: 'storefront-customer-profile-address-order-lifecycle',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-storefront-customer-profile-address-order-conformance.mts',
+    purpose:
+      'Authenticated Storefront API evidence for customer profile updates, customer address lifecycle/default reassignment, token invalidation on password update, Admin/Storefront customer-address read-after-write, and customer-visible order reads.',
+    requiredAuthScopes: [
+      'read_customers',
+      'write_customers',
+      'read_orders',
+      'write_orders',
+      'stored Storefront access token from corepack pnpm conformance:grant-storefront-token',
+      'unauthenticated_read_customers',
+      'unauthenticated_write_customers',
+    ],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/storefront/storefront-customer-profile-address-order-lifecycle.json',
+      'config/parity-specs/storefront/storefront-customer-profile-address-order-lifecycle.json',
+      'config/parity-requests/storefront/storefront-customer-address-create.graphql',
+      'config/parity-requests/storefront/storefront-customer-address-delete.graphql',
+      'config/parity-requests/storefront/storefront-customer-address-update.graphql',
+      'config/parity-requests/storefront/storefront-customer-admin-address-create.graphql',
+      'config/parity-requests/storefront/storefront-customer-admin-order-create.graphql',
+      'config/parity-requests/storefront/storefront-customer-admin-read.graphql',
+      'config/parity-requests/storefront/storefront-customer-default-address-update.graphql',
+      'config/parity-requests/storefront/storefront-customer-profile-address-order-read.graphql',
+      'config/parity-requests/storefront/storefront-customer-profile-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable Storefront customer, customer-owned mailing addresses, and one Admin test order; cancels/deletes the order before deleting the customer; redacts passwords and Storefront access tokens in the fixture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
     domain: 'online-store',
@@ -12971,6 +13065,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/bulk-operations/bulk-operations-sort-key-id-rejected.graphql',
     ],
     cleanupBehavior: 'Read-only capture; no Shopify data is created or mutated.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'bulk-operations',
+    captureId: 'bulk-operations-live-hybrid-base-overlay',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-bulk-operations-base-overlay-conformance.ts',
+    purpose: 'LiveHybrid bulkOperations base observation and staged overlay parity after bulkOperationRunQuery.',
+    requiredAuthScopes: ['bulk operation access through active Admin token'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}bulk-operations-live-hybrid-base-overlay.json`,
+      'config/parity-specs/bulk-operations/bulk-operations-live-hybrid-base-overlay.json',
+      'config/parity-requests/bulk-operations/bulk-operations-base-overlay-pre-run.graphql',
+      'config/parity-requests/bulk-operations/bulk-operations-base-overlay-post-run.graphql',
+      'config/parity-requests/bulk-operations/bulk-operations-base-overlay-run-query.graphql',
+    ],
+    cleanupBehavior:
+      'Starts a safe bulkOperationRunQuery against products; Shopify retains the historical BulkOperation record.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

@@ -7,10 +7,13 @@ mod customers;
 mod merge_erasure;
 
 use self::addresses::{
-    customer_address_contains_url, customer_address_cursor, customer_address_dedup_key,
-    customer_address_field_path, customer_address_nodes, customer_address_string,
-    customer_country_from_input, customer_mailing_addresses, customer_rebuild_addresses,
-    customer_update_mailing_address, selected_customer_addresses_connection,
+    customer_address_contains_url, customer_address_field_path, customer_address_string,
+    customer_country_from_input, customer_mailing_addresses, customer_update_mailing_address,
+    selected_customer_addresses_connection,
+};
+pub(in crate::proxy) use self::addresses::{
+    customer_address_cursor, customer_address_dedup_key, customer_address_input_node,
+    customer_address_nodes, customer_rebuild_addresses,
 };
 pub(in crate::proxy) use self::companies::*;
 pub(in crate::proxy) use self::consent::{
@@ -23,6 +26,36 @@ use self::merge_erasure::{
     connection_has_nodes, customer_merge_extract_order_records, customer_merge_job_from_request,
     nodes_connection, order_connection_cursor,
 };
+
+fn upstream_count_field(
+    field: &RootFieldSelection,
+    upstream_data: Option<&Value>,
+) -> Option<(u64, String)> {
+    let value = upstream_data?.get(field.response_key.as_str())?;
+    let count_key = field
+        .selection
+        .iter()
+        .find(|selection| selection.name == "count")
+        .map(|selection| selection.response_key.as_str())
+        .unwrap_or("count");
+    let precision_key = field
+        .selection
+        .iter()
+        .find(|selection| selection.name == "precision")
+        .map(|selection| selection.response_key.as_str())
+        .unwrap_or("precision");
+    let count = value
+        .get(count_key)
+        .or_else(|| value.get("count"))
+        .and_then(Value::as_u64)?;
+    let precision = value
+        .get(precision_key)
+        .or_else(|| value.get("precision"))
+        .and_then(Value::as_str)
+        .unwrap_or("EXACT")
+        .to_string();
+    Some((count, precision))
+}
 
 impl DraftProxy {
     pub(in crate::proxy) fn resolve_b2b_graphql(

@@ -1,0 +1,21 @@
+mutation StorefrontCollectionsDefinitionCreate($definition: MetafieldDefinitionInput!) {
+  metafieldDefinitionCreate(definition: $definition) {
+    createdDefinition {
+      id
+      ownerType
+      namespace
+      key
+      type {
+        name
+      }
+      access {
+        storefront
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
