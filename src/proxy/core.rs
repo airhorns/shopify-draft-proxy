@@ -41,9 +41,19 @@ fn registered_stage_locally_mutation_upstream_root(request: &Request) -> Option<
     if operation.operation_type != OperationType::Mutation {
         return None;
     }
+    let api_surface = if storefront_graphql_version(&request.path).is_some() {
+        ApiSurface::Storefront
+    } else {
+        ApiSurface::Admin
+    };
     let registry = upstream_guard_registry();
     operation.root_fields.iter().find_map(|root_field| {
-        let capability = operation_capability(registry, OperationType::Mutation, Some(root_field));
+        let capability = operation_capability_for_surface(
+            registry,
+            api_surface,
+            OperationType::Mutation,
+            Some(root_field),
+        );
         (capability.execution == CapabilityExecution::StageLocally
             && capability.domain != CapabilityDomain::Unknown)
             .then(|| root_field.clone())
@@ -74,7 +84,7 @@ impl DraftProxy {
             upstream_transport: guarded_upstream_transport_from_arc(Arc::clone(
                 &upstream_transport,
             )),
-            storefront_upstream_transport: upstream_transport,
+            storefront_upstream_transport: guarded_upstream_transport_from_arc(upstream_transport),
         }
     }
 
@@ -102,7 +112,7 @@ impl DraftProxy {
     ) -> Self {
         let transport: UpstreamTransport = Arc::new(transport);
         self.upstream_transport = guarded_upstream_transport_from_arc(Arc::clone(&transport));
-        self.storefront_upstream_transport = transport;
+        self.storefront_upstream_transport = guarded_upstream_transport_from_arc(transport);
         self
     }
 
@@ -495,6 +505,10 @@ impl DraftProxy {
                 "customerMergeRequests": self.store.staged.customer_merge_requests.clone(),
                 "customerDataErasureRequests": self.store.staged.customer_data_erasure_requests.clone(),
                 "locallyCreatedCustomerIds": self.store.staged.locally_created_customer_ids.iter().cloned().collect::<Vec<_>>(),
+                "storefrontCustomerEmailIndex": self.store.staged.storefront_customer_email_index.clone(),
+                "storefrontCustomerAccessTokens": self.store.staged.storefront_customer_access_tokens.clone(),
+                "nextStorefrontCustomerAccessTokenId": self.store.staged.next_storefront_customer_access_token_id,
+                "nextStorefrontCustomerResetTokenId": self.store.staged.next_storefront_customer_reset_token_id,
                 "customersCountBase": self.store.staged.customers_count_base,
                 "storeCreditAccounts": self.store.staged.store_credit_accounts.records.clone(),
                 "storeCreditAccountOrder": self.store.staged.store_credit_accounts.order.clone(),
@@ -1940,6 +1954,32 @@ impl DraftProxy {
             .unwrap_or_default()
             .into_iter()
             .collect();
+        self.store.staged.storefront_customer_email_index = state["stagedState"]
+            .get("storefrontCustomerEmailIndex")
+            .and_then(Value::as_object)
+            .map(|index| {
+                index
+                    .iter()
+                    .filter_map(|(email, customer_id)| {
+                        customer_id
+                            .as_str()
+                            .map(|customer_id| (email.clone(), customer_id.to_string()))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.storefront_customer_access_tokens =
+            value_map_from_json(state["stagedState"].get("storefrontCustomerAccessTokens"));
+        self.store.staged.next_storefront_customer_access_token_id = counter_from_json_with_floor(
+            &state["stagedState"],
+            "nextStorefrontCustomerAccessTokenId",
+            1,
+        );
+        self.store.staged.next_storefront_customer_reset_token_id = counter_from_json_with_floor(
+            &state["stagedState"],
+            "nextStorefrontCustomerResetTokenId",
+            1,
+        );
         self.store.staged.customers_count_base =
             state["stagedState"]["customersCountBase"].as_u64();
         replace_staged_value_records(
