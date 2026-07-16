@@ -1,0 +1,113 @@
+{
+  "scenarioId": "draft-order-live-hybrid-mixed-catalog",
+  "operationNames": [
+    "draftOrderCreate",
+    "draftOrderUpdate",
+    "draftOrderDelete",
+    "draftOrder",
+    "draftOrders",
+    "draftOrdersCount"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "downstream-read-parity",
+    "search-filtering",
+    "count-parity",
+    "pagination-shape",
+    "runtime-staging"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/draft-order-live-hybrid-mixed-catalog.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/draft-order-live-hybrid-mixed-catalog-create.graphql",
+    "variablesCapturePath": "$.operations.candidateCreate.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live 2025-01 Shopify capture for a mixed draft-order catalog: a real pre-existing tagged draft, a staged candidate draft, an update to the existing draft, and a delete tombstone. Proxy replay stages only the candidate draft locally and uses the recorded existing-draft hydrate cassette to observe the untouched catalog row, proving LiveHybrid draftOrders/draftOrdersCount/draftOrder merge upstream plus staged state without runtime Shopify writes.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "candidate-create-baseline",
+        "capturePath": "$.operations.candidateCreate.response.data.draftOrderCreate",
+        "proxyPath": "$.data.draftOrderCreate",
+        "selectedPaths": ["$.draftOrder.email", "$.draftOrder.tags", "$.userErrors"]
+      },
+      {
+        "name": "mixed-read-after-staged-create",
+        "capturePath": "$.operations.mixedAfterCreateRead.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.existing.email",
+          "$.existingWindow.nodes[0].email",
+          "$.candidateWindow.nodes[0].email",
+          "$.total.count",
+          "$.total.precision"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draft-order-live-hybrid-mixed-catalog-read.graphql",
+          "variablesCapturePath": "$.operations.mixedAfterCreateRead.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "existing-draft-update-wins-by-id",
+        "capturePath": "$.operations.existingUpdate.response.data.draftOrderUpdate",
+        "proxyPath": "$.data.draftOrderUpdate",
+        "selectedPaths": ["$.draftOrder.email", "$.draftOrder.tags", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draft-order-live-hybrid-mixed-catalog-update.graphql",
+          "variablesCapturePath": "$.operations.existingUpdate.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "mixed-read-after-existing-update",
+        "capturePath": "$.operations.afterUpdateRead.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.existing.email",
+          "$.existingWindow.nodes[0].email",
+          "$.candidateWindow.nodes[0].email",
+          "$.total.count",
+          "$.total.precision"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draft-order-live-hybrid-mixed-catalog-read.graphql",
+          "variablesCapturePath": "$.operations.afterUpdateRead.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "existing-draft-delete-tombstone",
+        "capturePath": "$.operations.existingDelete.response.data.draftOrderDelete",
+        "proxyPath": "$.data.draftOrderDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draft-order-live-hybrid-mixed-catalog-delete.graphql",
+          "variablesCapturePath": "$.operations.existingDelete.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "mixed-read-after-existing-delete",
+        "capturePath": "$.operations.afterDeleteRead.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.existing",
+          "$.existingWindow.nodes",
+          "$.candidateWindow.nodes[0].email",
+          "$.total.count",
+          "$.total.precision"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draft-order-live-hybrid-mixed-catalog-read.graphql",
+          "variablesCapturePath": "$.operations.afterDeleteRead.variables",
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  }
+}

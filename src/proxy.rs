@@ -259,6 +259,8 @@ struct BaseState {
     delivery_promise_participants: OrderedRecords<Value>,
     orders: OrderedRecords<Value>,
     order_count_baselines: BTreeMap<String, Value>,
+    draft_orders: OrderedRecords<Value>,
+    draft_order_count_baselines: BTreeMap<String, Value>,
     discounts: OrderedRecords<Value>,
     discount_count_baselines: BTreeMap<String, Value>,
     marketing_activities: OrderedRecords<Value>,
@@ -487,7 +489,7 @@ struct StagedState {
     next_customer_payment_method_id: u64,
     abandonments: BTreeMap<String, Value>,
     orders: StagedRecords<Value>,
-    draft_orders: BTreeMap<String, Value>,
+    draft_orders: StagedRecords<Value>,
     returns: BTreeMap<String, Value>,
     returns_by_order: BTreeMap<String, Vec<String>>,
     reverse_deliveries: BTreeMap<String, Value>,
@@ -773,6 +775,14 @@ impl<T> StagedRecords<T> {
         self.iter().map(|(_, record)| record)
     }
 
+    fn values_mut(&mut self) -> impl Iterator<Item = &mut T> {
+        let tombstones = &self.tombstones;
+        self.records
+            .iter_mut()
+            .filter(move |(id, _)| !tombstones.contains(*id))
+            .map(|(_, record)| record)
+    }
+
     fn is_empty(&self) -> bool {
         self.records.is_empty() && self.tombstones.is_empty()
     }
@@ -893,6 +903,30 @@ fn effective_records<T: Clone>(base: &OrderedRecords<T>, staged: &StagedRecords<
         records.push(record.clone());
     }
     records
+}
+
+fn draft_order_records_have_same_logical_create(left: &Value, right: &Value) -> bool {
+    let Some(left_email) = left.get("email").and_then(Value::as_str) else {
+        return false;
+    };
+    if left_email.is_empty() || right.get("email").and_then(Value::as_str) != Some(left_email) {
+        return false;
+    }
+    let Some(left_tags) = string_set_from_array(left.get("tags")) else {
+        return false;
+    };
+    let Some(right_tags) = string_set_from_array(right.get("tags")) else {
+        return false;
+    };
+    !left_tags.is_empty() && left_tags == right_tags
+}
+
+fn string_set_from_array(value: Option<&Value>) -> Option<BTreeSet<String>> {
+    value?
+        .as_array()?
+        .iter()
+        .map(|entry| entry.as_str().map(str::to_string))
+        .collect::<Option<BTreeSet<_>>>()
 }
 
 fn saved_search_semantic_key(record: &SavedSearchRecord) -> (String, String, String) {
@@ -1317,6 +1351,106 @@ impl Store {
 
     fn order_count_baseline(&self, key: &str) -> Option<&Value> {
         self.base.order_count_baselines.get(key)
+    }
+
+    fn observed_draft_order_by_id(&self, id: &str) -> Option<&Value> {
+        effective_get(&self.base.draft_orders, &self.staged.draft_orders, id)
+    }
+
+    fn effective_draft_orders(&self) -> Vec<Value> {
+        let mut records = Vec::new();
+        for (id, record) in self.base.draft_orders.order.iter().filter_map(|id| {
+            self.base
+                .draft_orders
+                .records
+                .get(id)
+                .map(|record| (id.as_str(), record))
+        }) {
+            if self.staged.draft_orders.is_tombstoned(id) {
+                continue;
+            }
+            if let Some(staged_record) = self.staged.draft_orders.get(id) {
+                records.push(staged_record.clone());
+            } else if self
+                .staged_draft_order_logical_duplicate_for_base(id, record)
+                .is_none()
+            {
+                records.push(record.clone());
+            }
+        }
+        for (id, record) in self.staged.draft_orders.order.iter().filter_map(|id| {
+            self.staged
+                .draft_orders
+                .records
+                .get(id)
+                .map(|record| (id.as_str(), record))
+        }) {
+            if self.staged.draft_orders.is_tombstoned(id)
+                || self.base.draft_orders.records.contains_key(id)
+            {
+                continue;
+            }
+            records.push(record.clone());
+        }
+        records
+    }
+
+    fn observe_base_draft_order(&mut self, draft_order: Value) {
+        let Some(id) = draft_order
+            .get("id")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+        else {
+            return;
+        };
+        if self.staged.draft_orders.is_tombstoned(&id)
+            || self.staged.draft_orders.contains_staged(&id)
+        {
+            return;
+        }
+        self.base.draft_orders.insert(id, draft_order);
+    }
+
+    fn observe_draft_order_count_baseline(&mut self, key: String, count: Value) {
+        self.base.draft_order_count_baselines.insert(key, count);
+    }
+
+    fn draft_order_count_baseline(&self, key: &str) -> Option<&Value> {
+        self.base.draft_order_count_baselines.get(key)
+    }
+
+    fn base_draft_order_logical_duplicate_for_staged(
+        &self,
+        staged_id: &str,
+        staged_draft_order: &Value,
+    ) -> Option<&Value> {
+        self.base
+            .draft_orders
+            .records
+            .iter()
+            .filter(|(base_id, _)| base_id.as_str() != staged_id)
+            .filter(|(base_id, _)| !self.staged.draft_orders.is_tombstoned(base_id))
+            .map(|(_, base_draft_order)| base_draft_order)
+            .find(|base_draft_order| {
+                draft_order_records_have_same_logical_create(base_draft_order, staged_draft_order)
+            })
+    }
+
+    fn staged_draft_order_logical_duplicate_for_base(
+        &self,
+        base_id: &str,
+        base_draft_order: &Value,
+    ) -> Option<&Value> {
+        self.staged
+            .draft_orders
+            .records
+            .iter()
+            .filter(|(staged_id, _)| staged_id.as_str() != base_id)
+            .filter(|(staged_id, _)| !self.staged.draft_orders.is_tombstoned(staged_id))
+            .map(|(_, staged_draft_order)| staged_draft_order)
+            .find(|staged_draft_order| {
+                draft_order_records_have_same_logical_create(base_draft_order, staged_draft_order)
+            })
     }
 
     fn observe_discount_count_baseline(&mut self, key: String, count: Value) {
