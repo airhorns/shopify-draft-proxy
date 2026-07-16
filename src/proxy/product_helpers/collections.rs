@@ -603,7 +603,7 @@ impl DraftProxy {
             let count =
                 self.adjusted_collections_count_from_upstream(base_count, field, upstream_data);
             return selected_json(
-                &count_object_with_precision(count, &precision),
+                &count_with_limit_precision_from_upstream(count, &precision, &field.arguments),
                 &field.selection,
             );
         }
@@ -2596,9 +2596,25 @@ fn upstream_count_field(
     upstream_data: Option<&Value>,
 ) -> Option<(u64, String)> {
     let value = upstream_data?.get(field.response_key.as_str())?;
-    let count = value.get("count").and_then(Value::as_u64)?;
+    let count_key = field
+        .selection
+        .iter()
+        .find(|selection| selection.name == "count")
+        .map(|selection| selection.response_key.as_str())
+        .unwrap_or("count");
+    let precision_key = field
+        .selection
+        .iter()
+        .find(|selection| selection.name == "precision")
+        .map(|selection| selection.response_key.as_str())
+        .unwrap_or("precision");
+    let count = value
+        .get(count_key)
+        .or_else(|| value.get("count"))
+        .and_then(Value::as_u64)?;
     let precision = value
-        .get("precision")
+        .get(precision_key)
+        .or_else(|| value.get("precision"))
         .and_then(Value::as_str)
         .unwrap_or("EXACT")
         .to_string();

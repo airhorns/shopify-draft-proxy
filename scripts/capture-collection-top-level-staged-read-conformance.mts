@@ -449,7 +449,10 @@ try {
     delete: operationRecord(documents.delete, deleteVariables, deleteResponse),
     postDelete: operationRecord(documents.postDelete, postDeleteVariables, postDelete),
   };
-  upstreamCalls = [upstreamCallRecord(documents.countOnly, countOnlyVariables, preCreateCountBaseline)];
+  upstreamCalls = [
+    upstreamCallRecord(documents.existingHandleLookups, existingHandleVariables, existingHandleAfterFirstCreate),
+    upstreamCallRecord(documents.countOnly, countOnlyVariables, preCreateCountBaseline),
+  ];
 
   await mkdir(outputDir, { recursive: true });
   await writeFile(

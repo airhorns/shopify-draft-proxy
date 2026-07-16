@@ -1700,9 +1700,9 @@ fn collections_count_uses_upstream_total_with_staged_delta() {
         captured_requests.lock().unwrap().push(body);
         ok_json(json!({
             "data": {
-                "collectionsCount": {
-                    "count": 3,
-                    "precision": "EXACT"
+                "catalogTotal": {
+                    "total": 3,
+                    "accuracy": "EXACT"
                 }
             }
         }))
@@ -1724,9 +1724,9 @@ fn collections_count_uses_upstream_total_with_staged_delta() {
     let count = proxy.process_request(graphql_request(
         r#"
         query CollectionCountAfterCreate {
-          collectionsCount {
-            count
-            precision
+          catalogTotal: collectionsCount(limit: 10) {
+            total: count
+            accuracy: precision
           }
         }
         "#,
@@ -1734,8 +1734,8 @@ fn collections_count_uses_upstream_total_with_staged_delta() {
     ));
     assert_eq!(count.status, 200);
     assert_eq!(
-        count.body["data"]["collectionsCount"],
-        json!({ "count": 4, "precision": "EXACT" })
+        count.body["data"]["catalogTotal"],
+        json!({ "total": 4, "accuracy": "EXACT" })
     );
     assert_eq!(upstream_requests.lock().unwrap().len(), 1);
 }
