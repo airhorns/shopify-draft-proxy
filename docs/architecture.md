@@ -63,7 +63,7 @@ App/test harness
        └─ Storefront GraphQL route
             ├─ select the independent captured Storefront schema from the versioned request path
             ├─ async-graphql validates and executes against Storefront types only
-            ├─ local roots -> `storefront*` internal resolver names -> Storefront domain callback
+            ├─ local roots -> `storefront*` internal resolver names -> Storefront domain/customer callback
             ├─ snapshot-only unknown roots -> schema-shaped empty/null values with null propagation
             └─ live-hybrid unknown roots -> one unchanged Storefront passthrough request
 ```
@@ -269,7 +269,17 @@ The Rust HTTP bridge serves:
 - `POST` / `PUT /staged-uploads/:target/:filename`
 - `GET /__meta/bulk-operations/:encoded_id/result.jsonl`
 
-Keep Shopify-like versioned Admin API paths even when tests use local/snapshot mode.
+Keep Shopify-like versioned Admin and Storefront API paths even when tests use
+local/snapshot mode. Admin and Storefront supported-version policies are split
+so one surface can move without implying support for the other. Storefront
+GraphQL traffic stays on the Storefront route, executes against its independent
+captured schema, forwards unknown live-hybrid / passthrough roots through the
+upstream Storefront transport with Storefront headers preserved, and does not
+enter Admin local dispatch or Admin staged commit replay. Implemented Storefront
+roots can read or stage locally from Storefront traffic when runtime tests and
+captured Storefront parity back their lifecycle model. In snapshot mode
+unimplemented Storefront query roots return schema-shaped no-data responses,
+while unimplemented Storefront mutations reject explicitly.
 
 ## Development rules
 

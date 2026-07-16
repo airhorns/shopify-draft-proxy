@@ -1,5 +1,6 @@
 use super::*;
 use crate::graphql::operation_directive_invocations;
+use sha2::{Digest, Sha256};
 
 const STOREFRONT_FIRST_SLICE_VERSION: &str = "2026-04";
 const STOREFRONT_FIRST_SLICE_ROOTS: &[&str] = &[
@@ -33,7 +34,23 @@ const STOREFRONT_LOCAL_CONTENT_ROOTS: &[&str] = &[
     "urlRedirects",
 ];
 const STOREFRONT_CUSTOM_DATA_ROOTS: &[&str] = &["metaobject", "metaobjects"];
+pub(in crate::proxy) const STOREFRONT_CUSTOMER_AUTH_MUTATION_ROOTS: &[&str] = &[
+    "customerCreate",
+    "customerAccessTokenCreate",
+    "customerAccessTokenRenew",
+    "customerAccessTokenDelete",
+    "customerActivate",
+    "customerActivateByUrl",
+    "customerRecover",
+    "customerReset",
+    "customerResetByUrl",
+    "customerAccessTokenCreateWithMultipass",
+];
 const STOREFRONT_DEFAULT_CONTEXT_KEY: &str = "country=*;language=*";
+const STOREFRONT_CUSTOMER_PASSWORD_FINGERPRINT_FIELD: &str = "__storefrontPasswordFingerprint";
+const STOREFRONT_CUSTOMER_RESET_TOKEN_HASH_FIELD: &str = "__storefrontResetTokenHash";
+const STOREFRONT_CUSTOMER_RESET_REQUESTED_AT_FIELD: &str = "__storefrontResetRequestedAt";
+const STOREFRONT_CUSTOMER_ACTIVATION_TOKEN_FIELD: &str = "__proxyAccountActivationToken";
 
 const STOREFRONT_FIRST_SLICE_HYDRATE_QUERY: &str =
     include_str!("../../config/parity-requests/storefront/storefront-first-slice-hydrate.graphql");
@@ -73,7 +90,749 @@ impl StorefrontRequestContext {
     }
 }
 
+struct StorefrontCustomerAuthOutcome {
+    value: Value,
+    errors: Vec<Value>,
+}
+
+pub(in crate::proxy) struct StorefrontCustomerAuthLogDetails<'a> {
+    pub status: &'a str,
+    pub execution: &'a str,
+    pub notes: &'a str,
+}
+
 impl DraftProxy {
+    fn storefront_customer_query_root(
+        &self,
+        field: &RootFieldSelection,
+    ) -> StorefrontCustomerAuthOutcome {
+        let token =
+            resolved_string_field(&field.arguments, "customerAccessToken").unwrap_or_default();
+        let customer = self
+            .storefront_customer_id_for_access_token(&token)
+            .and_then(|customer_id| self.storefront_customer_by_id(&customer_id))
+            .map(|customer| storefront_customer_json(&customer));
+        StorefrontCustomerAuthOutcome {
+            value: customer
+                .map(|customer| selected_json(&customer, &field.selection))
+                .unwrap_or(Value::Null),
+            errors: Vec::new(),
+        }
+    }
+
+    fn storefront_customer_mutation_root(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> StorefrontCustomerAuthOutcome {
+        match field.name.as_str() {
+            "customerCreate" => self.storefront_customer_create(field),
+            "customerAccessTokenCreate" => self.storefront_customer_access_token_create(field),
+            "customerAccessTokenRenew" => self.storefront_customer_access_token_renew(field),
+            "customerAccessTokenDelete" => self.storefront_customer_access_token_delete(field),
+            "customerActivate" => self.storefront_customer_activate(field),
+            "customerActivateByUrl" => self.storefront_customer_activate_by_url(field),
+            "customerRecover" => self.storefront_customer_recover(field),
+            "customerReset" => self.storefront_customer_reset(field),
+            "customerResetByUrl" => self.storefront_customer_reset_by_url(field),
+            "customerAccessTokenCreateWithMultipass" => {
+                self.storefront_customer_access_token_create_with_multipass(field)
+            }
+            _ => StorefrontCustomerAuthOutcome {
+                value: Value::Null,
+                errors: Vec::new(),
+            },
+        }
+    }
+
+    fn storefront_customer_create(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> StorefrontCustomerAuthOutcome {
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let email = resolved_string_field(&input, "email").unwrap_or_default();
+        let password = resolved_string_field(&input, "password").unwrap_or_default();
+        let normalized_email = storefront_customer_email_key(&email);
+        let mut errors = Vec::new();
+        if password.is_empty() {
+            errors.push(storefront_customer_user_error(
+                ["input", "password"],
+                "Password can't be blank",
+                Some("BLANK"),
+            ));
+        }
+        if !storefront_email_looks_valid(&email) {
+            errors.push(storefront_customer_user_error(
+                ["input", "email"],
+                "Email is invalid",
+                Some("INVALID"),
+            ));
+        }
+        if self
+            .storefront_customer_id_by_email(&normalized_email)
+            .is_some()
+        {
+            errors.push(storefront_customer_user_error(
+                ["input", "email"],
+                "Email has already been taken",
+                Some("TAKEN"),
+            ));
+        }
+        for (field_name, message, code) in [
+            (
+                "firstName",
+                "First name cannot contain HTML tags",
+                "CONTAINS_HTML_TAGS",
+            ),
+            (
+                "lastName",
+                "Last name cannot contain HTML tags",
+                "CONTAINS_HTML_TAGS",
+            ),
+        ] {
+            if resolved_string_field(&input, field_name)
+                .is_some_and(|value| storefront_customer_contains_html_tag(&value))
+            {
+                errors.push(storefront_customer_user_error(
+                    ["input", field_name],
+                    message,
+                    Some(code),
+                ));
+            }
+        }
+        if !errors.is_empty() {
+            return StorefrontCustomerAuthOutcome {
+                value: selected_json(
+                    &storefront_customer_payload(Value::Null, Value::Null, errors),
+                    &field.selection,
+                ),
+                errors: Vec::new(),
+            };
+        }
+
+        let id = self.next_synthetic_gid("Customer");
+        let timestamp = self.next_product_timestamp();
+        let accepts_marketing = resolved_bool_field(&input, "acceptsMarketing").unwrap_or(false);
+        let first_name =
+            resolved_string_field(&input, "firstName").filter(|value| !value.is_empty());
+        let last_name = resolved_string_field(&input, "lastName").filter(|value| !value.is_empty());
+        let phone = resolved_string_field(&input, "phone").filter(|value| !value.is_empty());
+        let mut customer = storefront_customer_shared_record(
+            &id,
+            first_name.as_deref(),
+            last_name.as_deref(),
+            &email,
+            phone.as_deref(),
+            accepts_marketing,
+            &timestamp,
+        );
+        customer[STOREFRONT_CUSTOMER_PASSWORD_FINGERPRINT_FIELD] =
+            json!(storefront_password_fingerprint(&id, &password));
+        self.store
+            .staged
+            .customers
+            .insert(id.clone(), customer.clone());
+        self.store
+            .staged
+            .locally_created_customer_ids
+            .insert(id.clone());
+        self.store
+            .staged
+            .storefront_customer_email_index
+            .insert(normalized_email, id);
+
+        StorefrontCustomerAuthOutcome {
+            value: selected_json(
+                &storefront_customer_payload(
+                    storefront_customer_json(&customer),
+                    Value::Null,
+                    Vec::new(),
+                ),
+                &field.selection,
+            ),
+            errors: Vec::new(),
+        }
+    }
+
+    fn storefront_customer_access_token_create(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> StorefrontCustomerAuthOutcome {
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let email = resolved_string_field(&input, "email").unwrap_or_default();
+        let password = resolved_string_field(&input, "password").unwrap_or_default();
+        let payload = match self
+            .storefront_customer_id_by_email(&storefront_customer_email_key(&email))
+            .and_then(|customer_id| self.storefront_customer_by_id(&customer_id))
+        {
+            Some(customer) if storefront_customer_password_matches(&customer, &password) => {
+                if storefront_customer_state(&customer) == "DISABLED" {
+                    storefront_customer_token_payload(
+                        Value::Null,
+                        vec![storefront_customer_user_error(
+                            Value::Null,
+                            "Customer is disabled",
+                            Some("CUSTOMER_DISABLED"),
+                        )],
+                    )
+                } else {
+                    let customer_id = customer["id"].as_str().unwrap_or_default().to_string();
+                    let token = self.issue_storefront_customer_access_token(&customer_id);
+                    storefront_customer_token_payload(token, Vec::new())
+                }
+            }
+            _ => storefront_customer_token_payload(
+                Value::Null,
+                vec![storefront_customer_user_error(
+                    Value::Null,
+                    "Unidentified customer",
+                    Some("UNIDENTIFIED_CUSTOMER"),
+                )],
+            ),
+        };
+
+        StorefrontCustomerAuthOutcome {
+            value: selected_json(&payload, &field.selection),
+            errors: Vec::new(),
+        }
+    }
+
+    fn storefront_customer_access_token_renew(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> StorefrontCustomerAuthOutcome {
+        let token =
+            resolved_string_field(&field.arguments, "customerAccessToken").unwrap_or_default();
+        let token_hash = storefront_token_hash(&token);
+        let payload = if self.storefront_access_token_is_active(&token_hash) {
+            let expires_at = self.store.staged.storefront_customer_access_tokens[&token_hash]
+                ["expiresAt"]
+                .clone();
+            json!({
+                "customerAccessToken": {
+                    "accessToken": token,
+                    "expiresAt": expires_at
+                },
+                "userErrors": []
+            })
+        } else {
+            json!({
+                "customerAccessToken": null,
+                "userErrors": [{
+                    "field": ["customerAccessToken"],
+                    "message": "access token does not exist"
+                }]
+            })
+        };
+        StorefrontCustomerAuthOutcome {
+            value: selected_json(&payload, &field.selection),
+            errors: Vec::new(),
+        }
+    }
+
+    fn storefront_customer_access_token_delete(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> StorefrontCustomerAuthOutcome {
+        let token =
+            resolved_string_field(&field.arguments, "customerAccessToken").unwrap_or_default();
+        let token_hash = storefront_token_hash(&token);
+        if !self.storefront_access_token_is_active(&token_hash) {
+            return StorefrontCustomerAuthOutcome {
+                value: Value::Null,
+                errors: vec![storefront_access_denied_error(&field.response_key)],
+            };
+        }
+        let token_id =
+            self.store.staged.storefront_customer_access_tokens[&token_hash]["id"].clone();
+        if let Some(record) = self
+            .store
+            .staged
+            .storefront_customer_access_tokens
+            .get_mut(&token_hash)
+        {
+            record["revoked"] = json!(true);
+        }
+        let payload = json!({
+            "deletedAccessToken": token,
+            "deletedCustomerAccessTokenId": token_id,
+            "userErrors": []
+        });
+        StorefrontCustomerAuthOutcome {
+            value: selected_json(&payload, &field.selection),
+            errors: Vec::new(),
+        }
+    }
+
+    fn storefront_customer_activate(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> StorefrontCustomerAuthOutcome {
+        let customer_id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let activation_token = resolved_string_field(&input, "activationToken").unwrap_or_default();
+        let password = resolved_string_field(&input, "password").unwrap_or_default();
+        self.storefront_activate_customer_with_token(
+            field,
+            &customer_id,
+            &activation_token,
+            &password,
+            ["input"],
+        )
+    }
+
+    fn storefront_customer_activate_by_url(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> StorefrontCustomerAuthOutcome {
+        let activation_url =
+            resolved_string_field(&field.arguments, "activationUrl").unwrap_or_default();
+        let password = resolved_string_field(&field.arguments, "password").unwrap_or_default();
+        let Some((customer_id, token)) =
+            self.storefront_customer_activation_url_parts(&activation_url)
+        else {
+            return StorefrontCustomerAuthOutcome {
+                value: selected_json(
+                    &storefront_customer_activation_payload(
+                        Value::Null,
+                        Value::Null,
+                        vec![storefront_customer_user_error(
+                            ["activationUrl"],
+                            "Invalid activation url",
+                            Some("INVALID"),
+                        )],
+                        false,
+                    ),
+                    &field.selection,
+                ),
+                errors: Vec::new(),
+            };
+        };
+        self.storefront_activate_customer_with_token(
+            field,
+            &customer_id,
+            &token,
+            &password,
+            ["activationUrl"],
+        )
+    }
+
+    fn storefront_activate_customer_with_token<const N: usize>(
+        &mut self,
+        field: &RootFieldSelection,
+        customer_id: &str,
+        activation_token: &str,
+        password: &str,
+        invalid_field: [&str; N],
+    ) -> StorefrontCustomerAuthOutcome {
+        let Some(mut customer) = self.storefront_customer_by_id(customer_id) else {
+            return StorefrontCustomerAuthOutcome {
+                value: selected_json(
+                    &storefront_customer_activation_payload(
+                        Value::Null,
+                        Value::Null,
+                        vec![storefront_customer_user_error(
+                            invalid_field.to_vec(),
+                            "Invalid activation token",
+                            Some("TOKEN_INVALID"),
+                        )],
+                        true,
+                    ),
+                    &field.selection,
+                ),
+                errors: Vec::new(),
+            };
+        };
+        if storefront_customer_state(&customer) == "ENABLED" {
+            return StorefrontCustomerAuthOutcome {
+                value: selected_json(
+                    &storefront_customer_activation_payload(
+                        Value::Null,
+                        Value::Null,
+                        vec![storefront_customer_user_error(
+                            Value::Null,
+                            "Customer already enabled",
+                            Some("ALREADY_ENABLED"),
+                        )],
+                        true,
+                    ),
+                    &field.selection,
+                ),
+                errors: Vec::new(),
+            };
+        }
+        if activation_token != storefront_customer_activation_token_for_id(customer_id)
+            && customer
+                .get(STOREFRONT_CUSTOMER_ACTIVATION_TOKEN_FIELD)
+                .and_then(Value::as_str)
+                != Some(activation_token)
+        {
+            return StorefrontCustomerAuthOutcome {
+                value: selected_json(
+                    &storefront_customer_activation_payload(
+                        Value::Null,
+                        Value::Null,
+                        vec![storefront_customer_user_error(
+                            invalid_field.to_vec(),
+                            "Invalid activation token",
+                            Some("TOKEN_INVALID"),
+                        )],
+                        true,
+                    ),
+                    &field.selection,
+                ),
+                errors: Vec::new(),
+            };
+        }
+
+        customer["state"] = json!("ENABLED");
+        customer["updatedAt"] = json!(self.next_product_timestamp());
+        customer[STOREFRONT_CUSTOMER_PASSWORD_FINGERPRINT_FIELD] =
+            json!(storefront_password_fingerprint(customer_id, password));
+        self.store
+            .staged
+            .customers
+            .stage(customer_id.to_string(), customer.clone());
+        if let Some(email) = customer.get("email").and_then(Value::as_str) {
+            self.store.staged.storefront_customer_email_index.insert(
+                storefront_customer_email_key(email),
+                customer_id.to_string(),
+            );
+        }
+        let token = self.issue_storefront_customer_access_token(customer_id);
+        StorefrontCustomerAuthOutcome {
+            value: selected_json(
+                &storefront_customer_activation_payload(
+                    storefront_customer_json(&customer),
+                    token,
+                    Vec::new(),
+                    true,
+                ),
+                &field.selection,
+            ),
+            errors: Vec::new(),
+        }
+    }
+
+    fn storefront_customer_recover(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> StorefrontCustomerAuthOutcome {
+        let email = resolved_string_field(&field.arguments, "email").unwrap_or_default();
+        let payload = if let Some(customer_id) =
+            self.storefront_customer_id_by_email(&storefront_customer_email_key(&email))
+        {
+            if let Some(mut customer) = self.storefront_customer_by_id(&customer_id) {
+                let reset_token = self.next_storefront_customer_reset_token(&customer_id);
+                customer[STOREFRONT_CUSTOMER_RESET_TOKEN_HASH_FIELD] =
+                    json!(storefront_token_hash(&reset_token));
+                customer[STOREFRONT_CUSTOMER_RESET_REQUESTED_AT_FIELD] =
+                    json!(self.next_product_timestamp());
+                self.store.staged.customers.stage(customer_id, customer);
+            }
+            json!({ "customerUserErrors": [], "userErrors": [] })
+        } else {
+            let errors = vec![storefront_customer_user_error(
+                ["email"],
+                "Could not find customer",
+                Some("UNIDENTIFIED_CUSTOMER"),
+            )];
+            json!({
+                "customerUserErrors": errors,
+                "userErrors": storefront_user_errors_without_code(&errors)
+            })
+        };
+        StorefrontCustomerAuthOutcome {
+            value: selected_json(&payload, &field.selection),
+            errors: Vec::new(),
+        }
+    }
+
+    fn storefront_customer_reset(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> StorefrontCustomerAuthOutcome {
+        let customer_id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let reset_token = resolved_string_field(&input, "resetToken").unwrap_or_default();
+        let password = resolved_string_field(&input, "password").unwrap_or_default();
+        self.storefront_reset_customer_with_token(
+            field,
+            &customer_id,
+            &reset_token,
+            &password,
+            true,
+        )
+    }
+
+    fn storefront_customer_reset_by_url(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> StorefrontCustomerAuthOutcome {
+        let reset_url = resolved_string_field(&field.arguments, "resetUrl").unwrap_or_default();
+        let password = resolved_string_field(&field.arguments, "password").unwrap_or_default();
+        let Some((customer_id, token)) = self.storefront_customer_reset_url_parts(&reset_url)
+        else {
+            return StorefrontCustomerAuthOutcome {
+                value: Value::Null,
+                errors: vec![storefront_not_found_error(&field.response_key)],
+            };
+        };
+        self.storefront_reset_customer_with_token(field, &customer_id, &token, &password, true)
+    }
+
+    fn storefront_reset_customer_with_token(
+        &mut self,
+        field: &RootFieldSelection,
+        customer_id: &str,
+        reset_token: &str,
+        password: &str,
+        include_user_errors: bool,
+    ) -> StorefrontCustomerAuthOutcome {
+        let Some(mut customer) = self.storefront_customer_by_id(customer_id) else {
+            return StorefrontCustomerAuthOutcome {
+                value: Value::Null,
+                errors: vec![storefront_not_found_error(&field.response_key)],
+            };
+        };
+        let reset_hash = storefront_token_hash(reset_token);
+        let expected_hash = customer
+            .get(STOREFRONT_CUSTOMER_RESET_TOKEN_HASH_FIELD)
+            .and_then(Value::as_str);
+        if expected_hash != Some(reset_hash.as_str()) {
+            return StorefrontCustomerAuthOutcome {
+                value: selected_json(
+                    &storefront_customer_activation_payload(
+                        Value::Null,
+                        Value::Null,
+                        vec![storefront_customer_user_error(
+                            ["input"],
+                            "Invalid reset token",
+                            Some("TOKEN_INVALID"),
+                        )],
+                        include_user_errors,
+                    ),
+                    &field.selection,
+                ),
+                errors: Vec::new(),
+            };
+        }
+        customer["state"] = json!("ENABLED");
+        customer["updatedAt"] = json!(self.next_product_timestamp());
+        customer[STOREFRONT_CUSTOMER_PASSWORD_FINGERPRINT_FIELD] =
+            json!(storefront_password_fingerprint(customer_id, password));
+        if let Some(object) = customer.as_object_mut() {
+            object.remove(STOREFRONT_CUSTOMER_RESET_TOKEN_HASH_FIELD);
+            object.remove(STOREFRONT_CUSTOMER_RESET_REQUESTED_AT_FIELD);
+        }
+        self.store
+            .staged
+            .customers
+            .stage(customer_id.to_string(), customer.clone());
+        let token = self.issue_storefront_customer_access_token(customer_id);
+        StorefrontCustomerAuthOutcome {
+            value: selected_json(
+                &storefront_customer_activation_payload(
+                    storefront_customer_json(&customer),
+                    token,
+                    Vec::new(),
+                    include_user_errors,
+                ),
+                &field.selection,
+            ),
+            errors: Vec::new(),
+        }
+    }
+
+    fn storefront_customer_access_token_create_with_multipass(
+        &self,
+        field: &RootFieldSelection,
+    ) -> StorefrontCustomerAuthOutcome {
+        let payload = storefront_customer_token_payload(
+            Value::Null,
+            vec![storefront_customer_user_error(
+                ["multipassToken"],
+                "Invalid Multipass request",
+                Some("INVALID_MULTIPASS_REQUEST"),
+            )],
+        );
+        StorefrontCustomerAuthOutcome {
+            value: selected_json(&payload, &field.selection),
+            errors: Vec::new(),
+        }
+    }
+
+    fn issue_storefront_customer_access_token(&mut self, customer_id: &str) -> Value {
+        let sequence = self.store.staged.next_storefront_customer_access_token_id;
+        self.store.staged.next_storefront_customer_access_token_id += 1;
+        let issued_at = self.current_time();
+        let expires_at = issued_at + time::Duration::days(42);
+        let expires_at = storefront_format_timestamp(expires_at);
+        let token = storefront_access_token_value(customer_id, sequence, &expires_at);
+        let token_hash = storefront_token_hash(&token);
+        let token_id = format!("gid://shopify/CustomerAccessToken/{sequence}");
+        self.store.staged.storefront_customer_access_tokens.insert(
+            token_hash,
+            json!({
+                "id": token_id,
+                "customerId": customer_id,
+                "expiresAt": expires_at,
+                "revoked": false
+            }),
+        );
+        json!({
+            "accessToken": token,
+            "expiresAt": expires_at
+        })
+    }
+
+    fn next_storefront_customer_reset_token(&mut self, customer_id: &str) -> String {
+        let sequence = self.store.staged.next_storefront_customer_reset_token_id;
+        self.store.staged.next_storefront_customer_reset_token_id += 1;
+        format!("sdp-reset-{}-{sequence}", resource_id_tail(customer_id))
+    }
+
+    fn storefront_access_token_is_active(&self, token_hash: &str) -> bool {
+        let Some(record) = self
+            .store
+            .staged
+            .storefront_customer_access_tokens
+            .get(token_hash)
+        else {
+            return false;
+        };
+        if record["revoked"].as_bool().unwrap_or(false) {
+            return false;
+        }
+        let Some(expires_at) = record["expiresAt"].as_str() else {
+            return false;
+        };
+        storefront_timestamp_is_future(expires_at, self.current_time())
+    }
+
+    fn storefront_customer_id_for_access_token(&self, token: &str) -> Option<String> {
+        let token_hash = storefront_token_hash(token);
+        if !self.storefront_access_token_is_active(&token_hash) {
+            return None;
+        }
+        self.store
+            .staged
+            .storefront_customer_access_tokens
+            .get(&token_hash)?
+            .get("customerId")?
+            .as_str()
+            .map(str::to_string)
+    }
+
+    fn storefront_customer_by_id(&self, customer_id: &str) -> Option<Value> {
+        if self.store.staged.customers.is_tombstoned(customer_id) {
+            return None;
+        }
+        self.store.staged.customers.get(customer_id).cloned()
+    }
+
+    fn storefront_customer_id_by_email(&self, normalized_email: &str) -> Option<String> {
+        if let Some(customer_id) = self
+            .store
+            .staged
+            .storefront_customer_email_index
+            .get(normalized_email)
+            .filter(|customer_id| self.storefront_customer_by_id(customer_id).is_some())
+        {
+            return Some(customer_id.clone());
+        }
+        self.store
+            .staged
+            .customers
+            .iter()
+            .find_map(|(customer_id, customer)| {
+                let email = customer.get("email").and_then(Value::as_str)?;
+                (storefront_customer_email_key(email) == normalized_email)
+                    .then(|| customer_id.clone())
+            })
+    }
+
+    fn storefront_customer_activation_url_parts(&self, url: &str) -> Option<(String, String)> {
+        let token = url.rsplit('/').next()?.to_string();
+        if token.is_empty() {
+            return None;
+        }
+        let customer_id = self
+            .store
+            .staged
+            .customers
+            .iter()
+            .find_map(|(id, customer)| {
+                let deterministic = storefront_customer_activation_token_for_id(id);
+                let stored = customer
+                    .get(STOREFRONT_CUSTOMER_ACTIVATION_TOKEN_FIELD)
+                    .and_then(Value::as_str);
+                (token == deterministic || stored == Some(token.as_str())).then(|| id.clone())
+            })?;
+        Some((customer_id, token))
+    }
+
+    fn storefront_customer_reset_url_parts(&self, url: &str) -> Option<(String, String)> {
+        let token = url.rsplit('/').next()?.to_string();
+        if token.is_empty() {
+            return None;
+        }
+        let token_hash = storefront_token_hash(&token);
+        let customer_id = self
+            .store
+            .staged
+            .customers
+            .iter()
+            .find_map(|(id, customer)| {
+                (customer
+                    .get(STOREFRONT_CUSTOMER_RESET_TOKEN_HASH_FIELD)
+                    .and_then(Value::as_str)
+                    == Some(token_hash.as_str()))
+                .then(|| id.clone())
+            })?;
+        Some((customer_id, token))
+    }
+
+    pub(in crate::proxy) fn record_storefront_customer_auth_log_entry(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        fields: &[RootFieldSelection],
+        details: StorefrontCustomerAuthLogDetails<'_>,
+    ) {
+        let operation = parse_operation_with_variables(query, variables);
+        let id = format!("log-{}", self.log_entries.len() + 1);
+        let root_fields = fields
+            .iter()
+            .map(|field| field.name.clone())
+            .collect::<Vec<_>>();
+        let primary_root_field = root_fields.first().cloned().unwrap_or_default();
+        let operation_type = operation
+            .as_ref()
+            .map(|operation| operation.operation_type.keyword())
+            .unwrap_or("unknown");
+        self.log_entries.push(json!({
+            "id": id,
+            "operationName": Value::Null,
+            "apiSurface": "storefront",
+            "status": details.status,
+            "path": request.path,
+            "query": "<redacted:storefront-customer-auth-query>",
+            "variables": storefront_redacted_variables_json(variables),
+            "rawBody": "<redacted:storefront-customer-auth-request>",
+            "interpreted": {
+                "operationType": operation_type,
+                "rootFields": root_fields,
+                "primaryRootField": primary_root_field,
+                "capability": {
+                    "domain": "storefront",
+                    "execution": details.execution
+                }
+            },
+            "notes": details.notes
+        }));
+    }
+
     pub(crate) fn resolve_storefront_graphql(
         &mut self,
         execution: RootResolverContext<'_>,
@@ -88,14 +847,39 @@ impl DraftProxy {
         } = execution;
         if storefront_graphql_version(&request.path) != Some(STOREFRONT_FIRST_SLICE_VERSION)
             || self.config.read_mode == ReadMode::Live
-            || operation.operation_type != OperationType::Query
-            || mode != LocalResolverMode::OverlayRead
         {
             return Self::unimplemented_resolver_response(mode, root_name);
         }
         let Some(field) = self.execution_root_field(query, variables, root_name) else {
             return json_error(400, "Could not parse Storefront GraphQL root field");
         };
+        match (operation.operation_type, mode) {
+            (OperationType::Query, LocalResolverMode::OverlayRead) => {
+                if root_name == "customer" {
+                    let outcome = self.storefront_customer_query_root(&field);
+                    let mut data = serde_json::Map::new();
+                    data.insert(field.response_key.clone(), outcome.value);
+                    let mut body = json!({ "data": Value::Object(data) });
+                    if !outcome.errors.is_empty() {
+                        body["errors"] = Value::Array(outcome.errors);
+                    }
+                    return ok_json(body);
+                }
+            }
+            (OperationType::Mutation, LocalResolverMode::StageLocally)
+                if STOREFRONT_CUSTOMER_AUTH_MUTATION_ROOTS.contains(&root_name) =>
+            {
+                let outcome = self.storefront_customer_mutation_root(&field);
+                let mut data = serde_json::Map::new();
+                data.insert(field.response_key.clone(), outcome.value);
+                let mut body = json!({ "data": Value::Object(data) });
+                if !outcome.errors.is_empty() {
+                    body["errors"] = Value::Array(outcome.errors);
+                }
+                return ok_json(body);
+            }
+            _ => return Self::unimplemented_resolver_response(mode, root_name),
+        }
 
         let context = storefront_request_context(query, variables);
         if self.config.read_mode == ReadMode::LiveHybrid
@@ -147,8 +931,27 @@ impl DraftProxy {
         }
     }
 
+    pub(in crate::proxy) fn storefront_mutation_fields_are_local(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> bool {
+        fields.iter().all(|field| {
+            STOREFRONT_CUSTOMER_AUTH_MUTATION_ROOTS.contains(&field.name.as_str())
+                && self
+                    .registry
+                    .resolve_for_surface(
+                        ApiSurface::Storefront,
+                        OperationType::Mutation,
+                        &field.name,
+                    )
+                    .execution
+                    == CapabilityExecution::StageLocally
+        })
+    }
+
     fn storefront_root_is_promoted(&self, root: &str) -> bool {
-        STOREFRONT_FIRST_SLICE_ROOTS.contains(&root)
+        root == "customer"
+            || STOREFRONT_FIRST_SLICE_ROOTS.contains(&root)
             || STOREFRONT_LOCAL_CONTENT_ROOTS.contains(&root)
             || STOREFRONT_CUSTOM_DATA_ROOTS.contains(&root)
     }
@@ -160,6 +963,7 @@ impl DraftProxy {
             return true;
         }
         match field.name.as_str() {
+            "customer" => true,
             root if STOREFRONT_CONTENT_ROOTS.contains(&root) => {
                 self.has_online_store_content_state()
             }
@@ -1906,4 +2710,341 @@ fn storefront_location_cursor(location: &Value, cursor_by_id: &BTreeMap<String, 
         .and_then(Value::as_str)
         .and_then(|id| cursor_by_id.get(id).cloned())
         .unwrap_or_default()
+}
+
+fn storefront_customer_shared_record(
+    id: &str,
+    first_name: Option<&str>,
+    last_name: Option<&str>,
+    email: &str,
+    phone: Option<&str>,
+    accepts_marketing: bool,
+    timestamp: &str,
+) -> Value {
+    let display_name = storefront_customer_display_name(first_name, last_name, Some(email));
+    json!({
+        "id": id,
+        "firstName": first_name,
+        "lastName": last_name,
+        "displayName": display_name,
+        "email": email,
+        "phone": phone,
+        "locale": Value::Null,
+        "note": Value::Null,
+        "verifiedEmail": true,
+        "taxExempt": false,
+        "taxExemptions": [],
+        "tags": [],
+        "state": "ENABLED",
+        "dataSaleOptOut": false,
+        "canDelete": true,
+        "acceptsMarketing": accepts_marketing,
+        "metafield": Value::Null,
+        "metafields": [],
+        "defaultEmailAddress": { "emailAddress": email },
+        "defaultPhoneNumber": Value::Null,
+        "emailMarketingConsent": {
+            "marketingState": if accepts_marketing { "SUBSCRIBED" } else { "NOT_SUBSCRIBED" },
+            "marketingOptInLevel": Value::Null,
+            "consentUpdatedAt": timestamp
+        },
+        "smsMarketingConsent": Value::Null,
+        "defaultAddress": Value::Null,
+        "addressesV2": connection_json_with_empty_edges(Vec::new()),
+        "orders": connection_json_with_empty_edges(Vec::new()),
+        "numberOfOrders": "0",
+        "createdAt": timestamp,
+        "updatedAt": timestamp
+    })
+}
+
+fn storefront_customer_json(customer: &Value) -> Value {
+    let email = customer.get("email").and_then(Value::as_str);
+    let first_name = customer.get("firstName").and_then(Value::as_str);
+    let last_name = customer.get("lastName").and_then(Value::as_str);
+    let display_name = customer
+        .get("displayName")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .unwrap_or_else(|| storefront_customer_display_name(first_name, last_name, email));
+    let accepts_marketing = customer
+        .get("acceptsMarketing")
+        .and_then(Value::as_bool)
+        .unwrap_or_else(|| {
+            customer
+                .pointer("/emailMarketingConsent/marketingState")
+                .and_then(Value::as_str)
+                == Some("SUBSCRIBED")
+        });
+    json!({
+        "id": customer.get("id").cloned().unwrap_or(Value::Null),
+        "email": customer.get("email").cloned().unwrap_or(Value::Null),
+        "firstName": customer.get("firstName").cloned().unwrap_or(Value::Null),
+        "lastName": customer.get("lastName").cloned().unwrap_or(Value::Null),
+        "displayName": display_name,
+        "phone": customer.get("phone").cloned().unwrap_or(Value::Null),
+        "acceptsMarketing": accepts_marketing,
+        "createdAt": customer.get("createdAt").cloned().unwrap_or(Value::Null),
+        "updatedAt": customer.get("updatedAt").cloned().unwrap_or(Value::Null),
+        "numberOfOrders": customer.get("numberOfOrders").cloned().unwrap_or_else(|| json!("0")),
+        "tags": customer.get("tags").cloned().unwrap_or_else(|| json!([])),
+        "defaultAddress": Value::Null,
+        "addresses": connection_json_with_empty_edges(Vec::new()),
+        "orders": connection_json_with_empty_edges(Vec::new()),
+        "avatarUrl": Value::Null,
+        "socialLoginProvider": Value::Null,
+        "metafield": Value::Null,
+        "metafields": []
+    })
+}
+
+fn storefront_customer_payload(
+    customer: Value,
+    _unused: Value,
+    customer_user_errors: Vec<Value>,
+) -> Value {
+    let user_errors = storefront_user_errors_without_code(&customer_user_errors);
+    json!({
+        "customer": customer,
+        "customerUserErrors": customer_user_errors,
+        "userErrors": user_errors
+    })
+}
+
+fn storefront_customer_token_payload(
+    customer_access_token: Value,
+    customer_user_errors: Vec<Value>,
+) -> Value {
+    let user_errors = storefront_user_errors_without_code(&customer_user_errors);
+    json!({
+        "customerAccessToken": customer_access_token,
+        "customerUserErrors": customer_user_errors,
+        "userErrors": user_errors
+    })
+}
+
+fn storefront_customer_activation_payload(
+    customer: Value,
+    customer_access_token: Value,
+    customer_user_errors: Vec<Value>,
+    include_user_errors: bool,
+) -> Value {
+    let mut payload = json!({
+        "customer": customer,
+        "customerAccessToken": customer_access_token,
+        "customerUserErrors": customer_user_errors
+    });
+    if include_user_errors {
+        payload["userErrors"] = storefront_plain_user_errors_with_null_field(
+            payload["customerUserErrors"]
+                .as_array()
+                .map(Vec::as_slice)
+                .unwrap_or(&[]),
+        );
+    }
+    payload
+}
+
+fn storefront_plain_user_errors_with_null_field(errors: &[Value]) -> Value {
+    Value::Array(
+        errors
+            .iter()
+            .map(|error| {
+                json!({
+                    "field": Value::Null,
+                    "message": error.get("message").cloned().unwrap_or(Value::Null)
+                })
+            })
+            .collect(),
+    )
+}
+
+fn storefront_user_errors_without_code(errors: &[Value]) -> Value {
+    Value::Array(
+        errors
+            .iter()
+            .map(|error| {
+                json!({
+                    "field": error.get("field").cloned().unwrap_or(Value::Null),
+                    "message": error.get("message").cloned().unwrap_or(Value::Null)
+                })
+            })
+            .collect(),
+    )
+}
+
+fn storefront_customer_user_error(
+    field: impl serde::Serialize,
+    message: &str,
+    code: Option<&str>,
+) -> Value {
+    json!({
+        "field": field,
+        "message": message,
+        "code": code
+    })
+}
+
+fn storefront_access_denied_error(response_key: &str) -> Value {
+    json!({
+        "message": "Access denied for customerAccessTokenDelete field. Required access: `unauthenticated_write_customers` access scope. Also: Requires valid customer access token.",
+        "path": [response_key],
+        "locations": [],
+        "extensions": {
+            "code": "ACCESS_DENIED",
+            "documentation": "https://shopify.dev/api/usage/access-scopes",
+            "requiredAccess": "`unauthenticated_write_customers` access scope. Also: Requires valid customer access token."
+        }
+    })
+}
+
+fn storefront_not_found_error(response_key: &str) -> Value {
+    json!({
+        "message": "Unidentified customer",
+        "path": [response_key],
+        "locations": [],
+        "extensions": { "code": "NOT_FOUND" }
+    })
+}
+
+fn storefront_customer_display_name(
+    first_name: Option<&str>,
+    last_name: Option<&str>,
+    email: Option<&str>,
+) -> String {
+    let name = [first_name, last_name]
+        .into_iter()
+        .flatten()
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+    if !name.is_empty() {
+        return name;
+    }
+    email.unwrap_or_default().to_string()
+}
+
+fn storefront_customer_state(customer: &Value) -> &str {
+    customer
+        .get("state")
+        .and_then(Value::as_str)
+        .unwrap_or("DISABLED")
+}
+
+fn storefront_customer_password_matches(customer: &Value, password: &str) -> bool {
+    let Some(customer_id) = customer.get("id").and_then(Value::as_str) else {
+        return false;
+    };
+    customer
+        .get(STOREFRONT_CUSTOMER_PASSWORD_FINGERPRINT_FIELD)
+        .and_then(Value::as_str)
+        == Some(storefront_password_fingerprint(customer_id, password).as_str())
+}
+
+fn storefront_customer_activation_token_for_id(customer_id: &str) -> String {
+    let stable_tail = resource_id_tail(customer_id)
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric())
+        .collect::<String>();
+    if stable_tail.is_empty() {
+        "sdp-activation-token".to_string()
+    } else {
+        format!("sdp-activation-{stable_tail}")
+    }
+}
+
+fn storefront_access_token_value(customer_id: &str, sequence: u64, expires_at: &str) -> String {
+    let seed = format!("{customer_id}:{sequence}:{expires_at}");
+    format!(
+        "sdp_ca_{}_{}",
+        sequence,
+        &storefront_sha256_hex(&seed)[..24]
+    )
+}
+
+fn storefront_password_fingerprint(customer_id: &str, password: &str) -> String {
+    storefront_sha256_hex(&format!("storefront-password:{customer_id}:{password}"))
+}
+
+fn storefront_token_hash(token: &str) -> String {
+    storefront_sha256_hex(&format!("storefront-token:{token}"))
+}
+
+fn storefront_sha256_hex(value: &str) -> String {
+    let digest = Sha256::digest(value.as_bytes());
+    digest.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+fn storefront_format_timestamp(timestamp: time::OffsetDateTime) -> String {
+    timestamp
+        .format(&time::format_description::well_known::Rfc3339)
+        .expect("UTC timestamps should format as RFC3339")
+}
+
+fn storefront_timestamp_is_future(value: &str, now: time::OffsetDateTime) -> bool {
+    time::OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339)
+        .map(|expires_at| expires_at > now)
+        .unwrap_or(false)
+}
+
+fn storefront_email_looks_valid(email: &str) -> bool {
+    let Some((local, domain)) = email.split_once('@') else {
+        return false;
+    };
+    !local.is_empty() && domain.contains('.') && !domain.starts_with('.') && !domain.ends_with('.')
+}
+
+fn storefront_customer_email_key(email: &str) -> String {
+    email.trim().to_ascii_lowercase()
+}
+
+fn storefront_customer_contains_html_tag(value: &str) -> bool {
+    let Some(start) = value.find('<') else {
+        return false;
+    };
+    value[start..].contains('>')
+}
+
+fn storefront_redacted_variables_json(variables: &BTreeMap<String, ResolvedValue>) -> Value {
+    let value = resolved_variables_json(variables);
+    storefront_redact_sensitive_json(value, None)
+}
+
+fn storefront_redact_sensitive_json(value: Value, key: Option<&str>) -> Value {
+    if key.is_some_and(storefront_sensitive_customer_auth_key) {
+        return json!("<redacted:storefront-customer-auth>");
+    }
+    match value {
+        Value::Array(values) => Value::Array(
+            values
+                .into_iter()
+                .map(|value| storefront_redact_sensitive_json(value, None))
+                .collect(),
+        ),
+        Value::Object(object) => Value::Object(
+            object
+                .into_iter()
+                .map(|(key, value)| {
+                    let redacted = storefront_redact_sensitive_json(value, Some(&key));
+                    (key, redacted)
+                })
+                .collect(),
+        ),
+        other => other,
+    }
+}
+
+fn storefront_sensitive_customer_auth_key(key: &str) -> bool {
+    matches!(
+        key,
+        "password"
+            | "customerAccessToken"
+            | "accessToken"
+            | "activationToken"
+            | "activationUrl"
+            | "resetToken"
+            | "resetUrl"
+            | "token"
+            | "multipassToken"
+    )
 }

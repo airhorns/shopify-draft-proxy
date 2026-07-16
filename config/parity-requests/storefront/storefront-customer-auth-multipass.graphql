@@ -1,0 +1,13 @@
+mutation StorefrontCustomerAuthMultipass($multipassToken: String!) {
+  customerAccessTokenCreateWithMultipass(multipassToken: $multipassToken) {
+    customerAccessToken {
+      accessToken
+      expiresAt
+    }
+    customerUserErrors {
+      field
+      message
+      code
+    }
+  }
+}

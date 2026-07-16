@@ -6,6 +6,7 @@ mod backup_region;
 mod carrier_shipping;
 mod delivery_customizations;
 mod delivery_profiles;
+mod delivery_promises;
 mod flow;
 mod fulfillment_orders;
 mod gift_cards;
@@ -189,6 +190,11 @@ impl DraftProxy {
                     ok_json(json!({ "data": self.carrier_service_read_data(&fields) }))
                 } else if matches!(root_field, "deliveryProfile" | "deliveryProfiles") {
                     self.delivery_profile_read_response(request, &fields)
+                } else if matches!(
+                    root_field,
+                    "deliveryPromiseProvider" | "deliveryPromiseParticipants"
+                ) {
+                    self.delivery_promise_read_response(request, &fields)
                 } else if root_field == "availableCarrierServices" {
                     // The shipping-settings availability read combines
                     // `availableCarrierServices` with the shipping-locations
@@ -273,6 +279,17 @@ impl DraftProxy {
                     );
                 }
                 ok_json(json!({ "data": result.data }))
+            }
+            LocalResolverMode::StageLocally
+                if operation.operation_type == OperationType::Mutation
+                    && operation.root_fields.iter().all(|field| {
+                        matches!(
+                            field.as_str(),
+                            "deliveryPromiseProviderUpsert" | "deliveryPromiseParticipantsUpdate"
+                        )
+                    }) =>
+            {
+                self.delivery_promise_mutation(query, variables, request)
             }
             LocalResolverMode::StageLocally
                 if operation.operation_type == OperationType::Mutation

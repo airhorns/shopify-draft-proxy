@@ -1,0 +1,34 @@
+mutation StorefrontCustomerAuthCreate($input: CustomerCreateInput!) {
+  customerCreate(input: $input) {
+    customer {
+      id
+      email
+      firstName
+      lastName
+      displayName
+      acceptsMarketing
+      createdAt
+      updatedAt
+      numberOfOrders
+      tags
+      addresses(first: 2) {
+        nodes {
+          id
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+        }
+      }
+    }
+    customerUserErrors {
+      field
+      message
+      code
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

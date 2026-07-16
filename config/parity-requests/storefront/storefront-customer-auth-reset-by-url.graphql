@@ -1,0 +1,21 @@
+mutation StorefrontCustomerAuthResetByUrl($resetUrl: URL!, $password: String!) {
+  customerResetByUrl(resetUrl: $resetUrl, password: $password) {
+    customer {
+      id
+      email
+    }
+    customerAccessToken {
+      accessToken
+      expiresAt
+    }
+    customerUserErrors {
+      field
+      message
+      code
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
