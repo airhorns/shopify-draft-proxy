@@ -1,0 +1,21 @@
+mutation StorefrontCustomerAuthActivate($id: ID!, $input: CustomerActivateInput!) {
+  customerActivate(id: $id, input: $input) {
+    customer {
+      id
+      email
+    }
+    customerAccessToken {
+      accessToken
+      expiresAt
+    }
+    customerUserErrors {
+      field
+      message
+      code
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

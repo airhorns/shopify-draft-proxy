@@ -311,14 +311,15 @@ fn storefront_registry_entries_for_roots<'a>(
 }
 
 fn storefront_root_is_implemented(operation_type: OperationType, name: &str) -> bool {
-    operation_type == OperationType::Query
-        && matches!(
+    match operation_type {
+        OperationType::Query => matches!(
             name,
             "article"
                 | "articles"
                 | "blog"
                 | "blogByHandle"
                 | "blogs"
+                | "customer"
                 | "menu"
                 | "page"
                 | "pageByHandle"
@@ -333,7 +334,22 @@ fn storefront_root_is_implemented(operation_type: OperationType, name: &str) -> 
                 | "shop"
                 | "sitemap"
                 | "urlRedirects"
-        )
+        ),
+        OperationType::Mutation => matches!(
+            name,
+            "customerCreate"
+                | "customerAccessTokenCreate"
+                | "customerAccessTokenRenew"
+                | "customerAccessTokenDelete"
+                | "customerActivate"
+                | "customerActivateByUrl"
+                | "customerRecover"
+                | "customerReset"
+                | "customerResetByUrl"
+                | "customerAccessTokenCreateWithMultipass"
+        ),
+        OperationType::Subscription => false,
+    }
 }
 
 fn storefront_runtime_tests(operation_type: OperationType, name: &str) -> Vec<String> {

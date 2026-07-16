@@ -171,7 +171,7 @@ describe('operation registry', () => {
     ).toBe(true);
   });
 
-  it('loads Storefront roots from the captured Storefront root inventory with promoted content and catalog roots implemented', () => {
+  it('loads Storefront roots from the captured Storefront root inventory with promoted content, customer, and catalog roots implemented', () => {
     const storefrontEntries = listStorefrontOperationRegistryEntries();
     expect(storefrontEntries.length).toBeGreaterThan(0);
     for (const root of [
@@ -180,6 +180,7 @@ describe('operation registry', () => {
       'blog',
       'blogByHandle',
       'blogs',
+      'customer',
       'localization',
       'locations',
       'menu',
@@ -206,16 +207,29 @@ describe('operation registry', () => {
         }),
       );
     }
-    expect(storefrontEntries).toContainEqual(
-      expect.objectContaining({
-        apiSurface: 'storefront',
-        name: 'customerCreate',
-        type: 'mutation',
-        domain: 'storefront',
-        implemented: false,
-        runtimeTests: [],
-      }),
-    );
+    for (const root of [
+      'customerAccessTokenCreate',
+      'customerAccessTokenCreateWithMultipass',
+      'customerAccessTokenDelete',
+      'customerAccessTokenRenew',
+      'customerActivate',
+      'customerActivateByUrl',
+      'customerCreate',
+      'customerRecover',
+      'customerReset',
+      'customerResetByUrl',
+    ]) {
+      expect(storefrontEntries).toContainEqual(
+        expect.objectContaining({
+          apiSurface: 'storefront',
+          name: root,
+          type: 'mutation',
+          domain: 'storefront',
+          implemented: true,
+          runtimeTests: ['tests/graphql_routes/storefront.rs'],
+        }),
+      );
+    }
     expect(listOperationRegistryEntries()).toContainEqual(
       expect.objectContaining({
         apiSurface: 'admin',
@@ -230,17 +244,15 @@ describe('operation registry', () => {
     expect(adminMutationCoverageAudit()).toEqual({
       capturedMutationCount: 514,
       registeredMutationCount: 438,
-      implementedMutationCount: 411,
+      implementedMutationCount: 413,
       implementedMutationRuntimeTestEvidence: {
-        withRuntimeTests: 136,
+        withRuntimeTests: 138,
         withoutRuntimeTests: 275,
       },
       declaredUnimplemented: [
         'companyContactSendWelcomeEmail',
         'consentPolicyUpdate',
         'customerPaymentMethodSendUpdateEmail',
-        'deliveryPromiseParticipantsUpdate',
-        'deliveryPromiseProviderUpsert',
         'deliverySettingUpdate',
         'disputeEvidenceUpdate',
         'menuCreate',
@@ -349,9 +361,9 @@ describe('operation registry', () => {
   it('audits captured Shopify Node implementors against the explicit Rust resolver inventory', () => {
     expect(nodeResolverCoverageAudit()).toEqual({
       capturedNodeImplementorCount: 203,
-      localNodeResolverTypeCount: 82,
+      localNodeResolverTypeCount: 84,
       localResolverBehaviorCounts: {
-        projectLocalRecord: 79,
+        projectLocalRecord: 81,
         returnKnownNull: 3,
       },
       unsupported: [
@@ -395,8 +407,6 @@ describe('operation registry', () => {
         'DeliveryParticipant',
         'DeliveryProfile',
         'DeliveryProfileItem',
-        'DeliveryPromiseParticipant',
-        'DeliveryPromiseProvider',
         'DeliveryProvince',
         'DeliveryRateDefinition',
         'DeliveryZone',
