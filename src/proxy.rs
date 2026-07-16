@@ -260,6 +260,7 @@ struct BaseState {
     orders: OrderedRecords<Value>,
     order_count_baselines: BTreeMap<String, Value>,
     discounts: OrderedRecords<Value>,
+    discount_count_baselines: BTreeMap<String, Value>,
     marketing_activities: OrderedRecords<Value>,
     marketing_events: OrderedRecords<Value>,
     gift_cards: BTreeMap<String, Value>,
@@ -1173,6 +1174,17 @@ impl Store {
                 })
     }
 
+    fn product_is_published_on_known_publication(&self, product: &ProductRecord) -> bool {
+        if product.status != "ACTIVE" || !self.has_known_publication_catalog() {
+            return false;
+        }
+
+        self.staged
+            .resource_publications
+            .get(&product.id)
+            .is_some_and(|publications| publications.iter().any(|id| self.has_publication_id(id)))
+    }
+
     fn publication_id_for_channel_id(&self, channel_id: &str) -> Option<String> {
         self.staged.publications.iter().find_map(|(id, record)| {
             let matches = record
@@ -1273,6 +1285,10 @@ impl Store {
 
     fn order_count_baseline(&self, key: &str) -> Option<&Value> {
         self.base.order_count_baselines.get(key)
+    }
+
+    fn observe_discount_count_baseline(&mut self, key: String, count: Value) {
+        self.base.discount_count_baselines.insert(key, count);
     }
 
     fn domain_by_id(&self, id: &str) -> Option<Value> {
@@ -2171,6 +2187,7 @@ pub(in crate::proxy) use self::markets_catalog_helpers::*;
 pub(in crate::proxy) use self::media_products_saved_searches::*;
 pub(in crate::proxy) use self::metafield_metaobject_definitions::*;
 pub(in crate::proxy) use self::metafields_orders_payments::*;
+pub(in crate::proxy) use self::metaobjects::metaobject_cursor;
 pub(in crate::proxy) use self::money::*;
 pub(in crate::proxy) use self::orders_payments_fulfillment::*;
 pub(in crate::proxy) use self::phone::*;

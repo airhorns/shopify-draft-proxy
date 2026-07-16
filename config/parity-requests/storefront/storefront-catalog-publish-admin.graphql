@@ -1,0 +1,14 @@
+mutation StorefrontCatalogPublish($id: ID!, $input: [PublicationInput!]!, $publicationId: ID!) {
+  publishablePublish(id: $id, input: $input) {
+    publishable {
+      ... on Product {
+        id
+        publishedOnPublication(publicationId: $publicationId)
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

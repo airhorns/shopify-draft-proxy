@@ -633,6 +633,76 @@ fn state_version_header_advances_on_mutation_and_holds_on_reads() {
 }
 
 #[test]
+fn product_create_with_product_options_defaults_inventory_item_to_untracked() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(graphql_request(
+        r#"
+        mutation ProductOptionsCreate($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product {
+              id
+              totalInventory
+              tracksInventory
+              options {
+                name
+                values
+              }
+              variants(first: 1) {
+                nodes {
+                  title
+                  selectedOptions {
+                    name
+                    value
+                  }
+                  inventoryItem {
+                    tracked
+                    requiresShipping
+                  }
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "title": "Options Product",
+                "handle": "options-product",
+                "productOptions": [
+                    { "name": "Color", "values": [{ "name": "Red" }] }
+                ]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["productCreate"]["product"]["variants"]["nodes"][0],
+        json!({
+            "title": "Red",
+            "selectedOptions": [{ "name": "Color", "value": "Red" }],
+            "inventoryItem": {
+                "tracked": false,
+                "requiresShipping": true
+            }
+        })
+    );
+    assert_eq!(
+        create.body["data"]["productCreate"]["product"]["tracksInventory"],
+        json!(false)
+    );
+    assert_eq!(
+        create.body["data"]["productCreate"]["product"]["totalInventory"],
+        json!(0)
+    );
+}
+
+#[test]
 fn conditional_directives_skip_root_mutations_and_project_nested_reads() {
     let mut proxy = snapshot_proxy();
 

@@ -1,0 +1,28 @@
+mutation StorefrontCustomDataSourceEntryAdminSetup($sourceEntry: MetaobjectCreateInput!) {
+  sourceEntry: metaobjectCreate(metaobject: $sourceEntry) {
+    metaobject {
+      id
+      handle
+      type
+      updatedAt
+      capabilities {
+        publishable {
+          status
+        }
+      }
+      fields {
+        key
+        type
+        value
+        jsonValue
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
+    }
+  }
+}

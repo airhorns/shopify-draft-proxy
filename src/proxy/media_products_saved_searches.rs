@@ -4,6 +4,8 @@ mod bulk_operations;
 mod media;
 mod owner_metafields;
 
+pub(in crate::proxy) use self::owner_metafields::{list_reference_ids, scalar_reference_id};
+
 const TAGGABLE_ORDER_HYDRATE_QUERY: &str =
     "query OrdersOrderHydrate($id: ID!) {\n  order(id: $id) { id name tags }\n}";
 const TAGGABLE_DRAFT_ORDER_HYDRATE_QUERY: &str =
@@ -889,7 +891,7 @@ impl DraftProxy {
             selected_options,
             inventory_item: ProductVariantInventoryItem {
                 id: self.next_proxy_synthetic_gid("InventoryItem"),
-                tracked: true,
+                tracked: false,
                 requires_shipping: true,
                 extra_fields: BTreeMap::new(),
             },

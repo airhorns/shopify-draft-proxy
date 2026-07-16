@@ -2033,6 +2033,71 @@ fn discount_stage_locally_roots_dispatch_by_root_field_not_operation_name_or_ali
     );
 }
 
+#[test]
+fn discount_count_only_live_hybrid_preserves_upstream_total_with_staged_delta() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<String>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            let query = body["query"].as_str().unwrap_or_default().to_string();
+            captured_calls.lock().unwrap().push(query.clone());
+            let data = if query.contains("discountNodesCount") {
+                json!({ "discountNodesCount": { "count": 2, "precision": "EXACT" } })
+            } else {
+                json!({ "codeDiscountNodeByCode": null })
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": data }),
+            }
+        });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateCountOnlyDiscount($input: DiscountCodeBasicInput!) {
+          discountCodeBasicCreate(basicCodeDiscount: $input) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "title": "Count only staged discount",
+            "code": "COUNT-ONLY-STAGED",
+            "startsAt": "2026-04-27T19:31:14Z",
+            "context": { "all": "ALL" },
+            "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+        }}),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["discountCodeBasicCreate"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query DiscountCountOnly {
+          discountNodesCount { count precision }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["discountNodesCount"],
+        json!({ "count": 3, "precision": "EXACT" })
+    );
+    assert!(upstream_calls
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|query| query.contains("discountNodesCount")));
+}
+
 fn starts_at_required_variables(starts_at: Option<Value>) -> Value {
     let mut variables = json!({
         "basicCode": {
@@ -3138,6 +3203,186 @@ fn discount_app_lifecycle_stages_updates_reads_and_deletes_without_local_runtime
     );
     assert_eq!(
         read_after_delete.body["data"]["discountNodesCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+}
+
+#[test]
+fn discount_nodes_count_lone_read_uses_upstream_baseline_after_staged_app_create() {
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|request| {
+            let body = serde_json::from_str::<Value>(&request.body)
+                .expect("discount count upstream body should parse");
+            let query = body["query"].as_str().unwrap_or_default();
+            if query.contains("discountNodesCount") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "exact": { "count": 2, "precision": "EXACT" },
+                            "limited": { "count": 2, "precision": "EXACT" }
+                        }
+                    }),
+                };
+            }
+            discount_app_function_upstream_response(request, true)
+        });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateAppDiscount($input: DiscountAutomaticAppInput!) {
+          discountAutomaticAppCreate(automaticAppDiscount: $input) {
+            automaticAppDiscount { discountId title }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Count baseline app create",
+                "startsAt": "2026-05-05T00:00:00Z",
+                "functionHandle": "discount-function",
+                "discountClasses": ["ORDER"]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["discountAutomaticAppCreate"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query CountOnlyAfterCreate {
+          exact: discountNodesCount(query: "type:app") { count precision }
+          limited: discountNodesCount(query: "type:app", limit: 2) { count precision }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["exact"],
+        json!({ "count": 3, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["limited"],
+        json!({ "count": 2, "precision": "AT_LEAST" })
+    );
+}
+
+#[test]
+fn discount_nodes_count_lone_read_uses_upstream_baseline_after_staged_app_delete() {
+    let upstream_id = "gid://shopify/DiscountAutomaticNode/901";
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body = serde_json::from_str::<Value>(&request.body)
+                .expect("discount count upstream body should parse");
+            let query = body["query"].as_str().unwrap_or_default();
+            if query.contains("automaticDiscountNode") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "automaticDiscountNode": {
+                                "__typename": "DiscountAutomaticNode",
+                                "id": upstream_id,
+                                "automaticDiscount": {
+                                    "__typename": "DiscountAutomaticApp",
+                                    "title": "Upstream app discount",
+                                    "status": "ACTIVE",
+                                    "startsAt": "2026-05-01T00:00:00Z",
+                                    "endsAt": null,
+                                    "createdAt": "2026-05-01T00:00:00Z",
+                                    "updatedAt": "2026-05-01T00:00:00Z",
+                                    "discountClasses": ["ORDER"],
+                                    "appDiscountType": {
+                                        "functionId": "gid://shopify/ShopifyFunction/discount-function"
+                                    }
+                                }
+                            }
+                        }
+                    }),
+                };
+            }
+            if query.contains("discountNodesCount") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "discountNodesCount": { "count": 2, "precision": "EXACT" }
+                        }
+                    }),
+                };
+            }
+            discount_app_function_upstream_response(request, true)
+        });
+
+    let hydrate = proxy.process_request(json_graphql_request(
+        r#"
+        query HydrateAutomaticAppDiscount($id: ID!) {
+          automaticDiscountNode(id: $id) {
+            id
+            automaticDiscount {
+              __typename
+              ... on DiscountAutomaticApp {
+                title
+                status
+                startsAt
+                endsAt
+                createdAt
+                updatedAt
+                discountClasses
+                appDiscountType { functionId }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "id": upstream_id }),
+    ));
+    assert_eq!(hydrate.status, 200);
+    assert_eq!(
+        hydrate.body["data"]["automaticDiscountNode"]["id"],
+        json!(upstream_id)
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteUpstreamAppDiscount($id: ID!) {
+          discountAutomaticDelete(id: $id) {
+            deletedAutomaticDiscountId
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "id": upstream_id }),
+    ));
+    assert_eq!(
+        delete.body["data"]["discountAutomaticDelete"],
+        json!({
+            "deletedAutomaticDiscountId": upstream_id,
+            "userErrors": []
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query CountOnlyAfterDelete {
+          discountNodesCount(query: "type:app") { count precision }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["discountNodesCount"],
         json!({ "count": 1, "precision": "EXACT" })
     );
 }

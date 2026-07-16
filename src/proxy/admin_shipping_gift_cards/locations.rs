@@ -1166,7 +1166,7 @@ impl DraftProxy {
             value_id_cursor,
         );
         selected_json(
-            &staged_count_with_limit_precision(result.total_count, arguments),
+            &snapshot_count_with_limit_precision(result.total_count, arguments),
             selections,
         )
     }
