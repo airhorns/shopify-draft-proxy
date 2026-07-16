@@ -257,6 +257,15 @@ function draftOrderHydrateUpstreamCall(id: string, response: JsonRecord): JsonRe
   };
 }
 
+function capturedStepUpstreamCall(operationName: string, step: CaptureStep): JsonRecord {
+  return {
+    operationName,
+    variables: step.variables,
+    query: step.document,
+    response: { status: 200, body: step.response },
+  };
+}
+
 function specPayload(): JsonRecord {
   return {
     scenarioId,
@@ -498,7 +507,11 @@ try {
       existingDelete,
       afterDeleteRead,
     },
-    upstreamCalls: [shopPricingHydrate, draftOrderHydrateUpstreamCall(existingDraftId, existingHydrate)],
+    upstreamCalls: [
+      shopPricingHydrate,
+      capturedStepUpstreamCall('DraftOrderLiveHybridMixedCatalogRead', baselineRead),
+      draftOrderHydrateUpstreamCall(existingDraftId, existingHydrate),
+    ],
     cleanup,
   });
 

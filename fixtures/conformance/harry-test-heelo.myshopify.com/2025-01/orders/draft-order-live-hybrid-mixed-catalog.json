@@ -1,6 +1,6 @@
 {
   "scenarioId": "draft-order-live-hybrid-mixed-catalog",
-  "capturedAt": "2026-07-16T01:12:56.524Z",
+  "capturedAt": "2026-07-16T01:35:48.978Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "source": "live-shopify-admin-graphql",
@@ -10,8 +10,8 @@
       "document": "mutation DraftOrderLiveHybridMixedCatalogCreate($input: DraftOrderInput!) {\n    draftOrderCreate(input: $input) {\n      draftOrder {\n        id\n        email\n        tags\n        status\n        updatedAt\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
       "variables": {
         "input": {
-          "email": "draft-order-existing-20260716011238@example.com",
-          "tags": ["draft-order-live-hybrid-mixed-catalog", "domix-20260716011238", "domix-20260716011238-ex"],
+          "email": "draft-order-existing-20260716013531@example.com",
+          "tags": ["draft-order-live-hybrid-mixed-catalog", "domix-20260716013531", "domix-20260716013531-ex"],
           "lineItems": [
             {
               "title": "Live hybrid existing mixed draft",
@@ -25,11 +25,11 @@
         "data": {
           "draftOrderCreate": {
             "draftOrder": {
-              "id": "gid://shopify/DraftOrder/1281685258546",
-              "email": "draft-order-existing-20260716011238@example.com",
-              "tags": ["domix-20260716011238", "domix-20260716011238-ex", "draft-order-live-hybrid-mixed-catalog"],
+              "id": "gid://shopify/DraftOrder/1281692991794",
+              "email": "draft-order-existing-20260716013531@example.com",
+              "tags": ["domix-20260716013531", "domix-20260716013531-ex", "draft-order-live-hybrid-mixed-catalog"],
               "status": "OPEN",
-              "updatedAt": "2026-07-16T01:12:39Z"
+              "updatedAt": "2026-07-16T01:35:31Z"
             },
             "userErrors": []
           }
@@ -50,24 +50,24 @@
     "baselineRead": {
       "document": "query DraftOrderLiveHybridMixedCatalogRead(\n    $existingId: ID!\n    $tagQuery: String!\n    $existingTagQuery: String!\n    $candidateTagQuery: String!\n    $first: Int!\n  ) {\n    existing: draftOrder(id: $existingId) {\n      id\n      email\n      tags\n    }\n    visible: draftOrders(first: $first, query: $tagQuery, sortKey: UPDATED_AT, reverse: true) {\n      nodes {\n        email\n        tags\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n    existingWindow: draftOrders(first: 1, query: $existingTagQuery) {\n      nodes {\n        email\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n    candidateWindow: draftOrders(first: 1, query: $candidateTagQuery) {\n      nodes {\n        email\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n    total: draftOrdersCount(query: $tagQuery) {\n      count\n      precision\n    }\n  }",
       "variables": {
-        "existingId": "gid://shopify/DraftOrder/1281685258546",
-        "tagQuery": "tag:domix-20260716011238",
-        "existingTagQuery": "tag:domix-20260716011238-ex",
-        "candidateTagQuery": "tag:domix-20260716011238-ca",
+        "existingId": "gid://shopify/DraftOrder/1281692991794",
+        "tagQuery": "tag:domix-20260716013531",
+        "existingTagQuery": "tag:domix-20260716013531-ex",
+        "candidateTagQuery": "tag:domix-20260716013531-ca",
         "first": 5
       },
       "response": {
         "data": {
           "existing": {
-            "id": "gid://shopify/DraftOrder/1281685258546",
-            "email": "draft-order-existing-20260716011238@example.com",
-            "tags": ["domix-20260716011238", "domix-20260716011238-ex", "draft-order-live-hybrid-mixed-catalog"]
+            "id": "gid://shopify/DraftOrder/1281692991794",
+            "email": "draft-order-existing-20260716013531@example.com",
+            "tags": ["domix-20260716013531", "domix-20260716013531-ex", "draft-order-live-hybrid-mixed-catalog"]
           },
           "visible": {
             "nodes": [
               {
-                "email": "draft-order-existing-20260716011238@example.com",
-                "tags": ["domix-20260716011238", "domix-20260716011238-ex", "draft-order-live-hybrid-mixed-catalog"]
+                "email": "draft-order-existing-20260716013531@example.com",
+                "tags": ["domix-20260716013531", "domix-20260716013531-ex", "draft-order-live-hybrid-mixed-catalog"]
               }
             ],
             "pageInfo": {
@@ -78,7 +78,7 @@
           "existingWindow": {
             "nodes": [
               {
-                "email": "draft-order-existing-20260716011238@example.com"
+                "email": "draft-order-existing-20260716013531@example.com"
               }
             ],
             "pageInfo": {
@@ -115,8 +115,8 @@
       "document": "mutation DraftOrderLiveHybridMixedCatalogCreate($input: DraftOrderInput!) {\n    draftOrderCreate(input: $input) {\n      draftOrder {\n        id\n        email\n        tags\n        status\n        updatedAt\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
       "variables": {
         "input": {
-          "email": "draft-order-candidate-20260716011238@example.com",
-          "tags": ["draft-order-live-hybrid-mixed-catalog", "domix-20260716011238", "domix-20260716011238-ca"],
+          "email": "draft-order-candidate-20260716013531@example.com",
+          "tags": ["draft-order-live-hybrid-mixed-catalog", "domix-20260716013531", "domix-20260716013531-ca"],
           "lineItems": [
             {
               "title": "Live hybrid candidate mixed draft",
@@ -130,11 +130,11 @@
         "data": {
           "draftOrderCreate": {
             "draftOrder": {
-              "id": "gid://shopify/DraftOrder/1281685324082",
-              "email": "draft-order-candidate-20260716011238@example.com",
-              "tags": ["domix-20260716011238", "domix-20260716011238-ca", "draft-order-live-hybrid-mixed-catalog"],
+              "id": "gid://shopify/DraftOrder/1281693024562",
+              "email": "draft-order-candidate-20260716013531@example.com",
+              "tags": ["domix-20260716013531", "domix-20260716013531-ca", "draft-order-live-hybrid-mixed-catalog"],
               "status": "OPEN",
-              "updatedAt": "2026-07-16T01:12:46Z"
+              "updatedAt": "2026-07-16T01:35:38Z"
             },
             "userErrors": []
           }
@@ -155,28 +155,28 @@
     "mixedAfterCreateRead": {
       "document": "query DraftOrderLiveHybridMixedCatalogRead(\n    $existingId: ID!\n    $tagQuery: String!\n    $existingTagQuery: String!\n    $candidateTagQuery: String!\n    $first: Int!\n  ) {\n    existing: draftOrder(id: $existingId) {\n      id\n      email\n      tags\n    }\n    visible: draftOrders(first: $first, query: $tagQuery, sortKey: UPDATED_AT, reverse: true) {\n      nodes {\n        email\n        tags\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n    existingWindow: draftOrders(first: 1, query: $existingTagQuery) {\n      nodes {\n        email\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n    candidateWindow: draftOrders(first: 1, query: $candidateTagQuery) {\n      nodes {\n        email\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n    total: draftOrdersCount(query: $tagQuery) {\n      count\n      precision\n    }\n  }",
       "variables": {
-        "existingId": "gid://shopify/DraftOrder/1281685258546",
-        "tagQuery": "tag:domix-20260716011238",
-        "existingTagQuery": "tag:domix-20260716011238-ex",
-        "candidateTagQuery": "tag:domix-20260716011238-ca",
+        "existingId": "gid://shopify/DraftOrder/1281692991794",
+        "tagQuery": "tag:domix-20260716013531",
+        "existingTagQuery": "tag:domix-20260716013531-ex",
+        "candidateTagQuery": "tag:domix-20260716013531-ca",
         "first": 5
       },
       "response": {
         "data": {
           "existing": {
-            "id": "gid://shopify/DraftOrder/1281685258546",
-            "email": "draft-order-existing-20260716011238@example.com",
-            "tags": ["domix-20260716011238", "domix-20260716011238-ex", "draft-order-live-hybrid-mixed-catalog"]
+            "id": "gid://shopify/DraftOrder/1281692991794",
+            "email": "draft-order-existing-20260716013531@example.com",
+            "tags": ["domix-20260716013531", "domix-20260716013531-ex", "draft-order-live-hybrid-mixed-catalog"]
           },
           "visible": {
             "nodes": [
               {
-                "email": "draft-order-candidate-20260716011238@example.com",
-                "tags": ["domix-20260716011238", "domix-20260716011238-ca", "draft-order-live-hybrid-mixed-catalog"]
+                "email": "draft-order-candidate-20260716013531@example.com",
+                "tags": ["domix-20260716013531", "domix-20260716013531-ca", "draft-order-live-hybrid-mixed-catalog"]
               },
               {
-                "email": "draft-order-existing-20260716011238@example.com",
-                "tags": ["domix-20260716011238", "domix-20260716011238-ex", "draft-order-live-hybrid-mixed-catalog"]
+                "email": "draft-order-existing-20260716013531@example.com",
+                "tags": ["domix-20260716013531", "domix-20260716013531-ex", "draft-order-live-hybrid-mixed-catalog"]
               }
             ],
             "pageInfo": {
@@ -187,7 +187,7 @@
           "existingWindow": {
             "nodes": [
               {
-                "email": "draft-order-existing-20260716011238@example.com"
+                "email": "draft-order-existing-20260716013531@example.com"
               }
             ],
             "pageInfo": {
@@ -198,7 +198,7 @@
           "candidateWindow": {
             "nodes": [
               {
-                "email": "draft-order-candidate-20260716011238@example.com"
+                "email": "draft-order-candidate-20260716013531@example.com"
               }
             ],
             "pageInfo": {
@@ -226,28 +226,28 @@
     },
     "existingHydrate": {
       "variables": {
-        "id": "gid://shopify/DraftOrder/1281685258546"
+        "id": "gid://shopify/DraftOrder/1281692991794"
       },
       "response": {
         "data": {
           "draftOrder": {
-            "id": "gid://shopify/DraftOrder/1281685258546",
-            "name": "#D364",
+            "id": "gid://shopify/DraftOrder/1281692991794",
+            "name": "#D366",
             "status": "OPEN",
             "ready": true,
             "note": null,
-            "email": "draft-order-existing-20260716011238@example.com",
+            "email": "draft-order-existing-20260716013531@example.com",
             "customer": {
-              "id": "gid://shopify/Customer/10965361885490",
-              "email": "draft-order-existing-20260716011238@example.com",
-              "displayName": "draft-order-existing-20260716011238@example.com"
+              "id": "gid://shopify/Customer/10965399208242",
+              "email": "draft-order-existing-20260716013531@example.com",
+              "displayName": "draft-order-existing-20260716013531@example.com"
             },
             "taxExempt": false,
             "taxesIncluded": false,
             "reserveInventoryUntil": null,
             "paymentTerms": null,
-            "tags": ["domix-20260716011238", "domix-20260716011238-ex", "draft-order-live-hybrid-mixed-catalog"],
-            "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/48607502cbfb0ff0704840d85b756c33",
+            "tags": ["domix-20260716013531", "domix-20260716013531-ex", "draft-order-live-hybrid-mixed-catalog"],
+            "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/a6a930d9336d426386b154f16f07927f",
             "customAttributes": [],
             "appliedDiscount": null,
             "billingAddress": null,
@@ -294,7 +294,7 @@
             "lineItems": {
               "nodes": [
                 {
-                  "id": "gid://shopify/DraftOrderLineItem/58638180417842",
+                  "id": "gid://shopify/DraftOrderLineItem/58638193328434",
                   "title": "Live hybrid existing mixed draft",
                   "name": "Live hybrid existing mixed draft",
                   "quantity": 1,
@@ -351,25 +351,25 @@
     "existingUpdate": {
       "document": "mutation DraftOrderLiveHybridMixedCatalogUpdate($id: ID!, $input: DraftOrderInput!) {\n    draftOrderUpdate(id: $id, input: $input) {\n      draftOrder {\n        id\n        email\n        tags\n        updatedAt\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
       "variables": {
-        "id": "gid://shopify/DraftOrder/1281685258546",
+        "id": "gid://shopify/DraftOrder/1281692991794",
         "input": {
-          "email": "draft-order-existing-edited-20260716011238@example.com",
-          "tags": ["draft-order-live-hybrid-mixed-catalog", "domix-20260716011238", "domix-20260716011238-ex", "edited"]
+          "email": "draft-order-existing-edited-20260716013531@example.com",
+          "tags": ["draft-order-live-hybrid-mixed-catalog", "domix-20260716013531", "domix-20260716013531-ex", "edited"]
         }
       },
       "response": {
         "data": {
           "draftOrderUpdate": {
             "draftOrder": {
-              "id": "gid://shopify/DraftOrder/1281685258546",
-              "email": "draft-order-existing-edited-20260716011238@example.com",
+              "id": "gid://shopify/DraftOrder/1281692991794",
+              "email": "draft-order-existing-edited-20260716013531@example.com",
               "tags": [
-                "domix-20260716011238",
-                "domix-20260716011238-ex",
+                "domix-20260716013531",
+                "domix-20260716013531-ex",
                 "draft-order-live-hybrid-mixed-catalog",
                 "edited"
               ],
-              "updatedAt": "2026-07-16T01:12:51Z"
+              "updatedAt": "2026-07-16T01:35:43Z"
             },
             "userErrors": []
           }
@@ -380,7 +380,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
+              "currentlyAvailable": 1986,
               "restoreRate": 100
             }
           }
@@ -390,20 +390,20 @@
     "afterUpdateRead": {
       "document": "query DraftOrderLiveHybridMixedCatalogRead(\n    $existingId: ID!\n    $tagQuery: String!\n    $existingTagQuery: String!\n    $candidateTagQuery: String!\n    $first: Int!\n  ) {\n    existing: draftOrder(id: $existingId) {\n      id\n      email\n      tags\n    }\n    visible: draftOrders(first: $first, query: $tagQuery, sortKey: UPDATED_AT, reverse: true) {\n      nodes {\n        email\n        tags\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n    existingWindow: draftOrders(first: 1, query: $existingTagQuery) {\n      nodes {\n        email\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n    candidateWindow: draftOrders(first: 1, query: $candidateTagQuery) {\n      nodes {\n        email\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n    total: draftOrdersCount(query: $tagQuery) {\n      count\n      precision\n    }\n  }",
       "variables": {
-        "existingId": "gid://shopify/DraftOrder/1281685258546",
-        "tagQuery": "tag:domix-20260716011238",
-        "existingTagQuery": "tag:domix-20260716011238-ex",
-        "candidateTagQuery": "tag:domix-20260716011238-ca",
+        "existingId": "gid://shopify/DraftOrder/1281692991794",
+        "tagQuery": "tag:domix-20260716013531",
+        "existingTagQuery": "tag:domix-20260716013531-ex",
+        "candidateTagQuery": "tag:domix-20260716013531-ca",
         "first": 5
       },
       "response": {
         "data": {
           "existing": {
-            "id": "gid://shopify/DraftOrder/1281685258546",
-            "email": "draft-order-existing-edited-20260716011238@example.com",
+            "id": "gid://shopify/DraftOrder/1281692991794",
+            "email": "draft-order-existing-edited-20260716013531@example.com",
             "tags": [
-              "domix-20260716011238",
-              "domix-20260716011238-ex",
+              "domix-20260716013531",
+              "domix-20260716013531-ex",
               "draft-order-live-hybrid-mixed-catalog",
               "edited"
             ]
@@ -411,14 +411,14 @@
           "visible": {
             "nodes": [
               {
-                "email": "draft-order-candidate-20260716011238@example.com",
-                "tags": ["domix-20260716011238", "domix-20260716011238-ca", "draft-order-live-hybrid-mixed-catalog"]
+                "email": "draft-order-candidate-20260716013531@example.com",
+                "tags": ["domix-20260716013531", "domix-20260716013531-ca", "draft-order-live-hybrid-mixed-catalog"]
               },
               {
-                "email": "draft-order-existing-edited-20260716011238@example.com",
+                "email": "draft-order-existing-edited-20260716013531@example.com",
                 "tags": [
-                  "domix-20260716011238",
-                  "domix-20260716011238-ex",
+                  "domix-20260716013531",
+                  "domix-20260716013531-ex",
                   "draft-order-live-hybrid-mixed-catalog",
                   "edited"
                 ]
@@ -432,7 +432,7 @@
           "existingWindow": {
             "nodes": [
               {
-                "email": "draft-order-existing-edited-20260716011238@example.com"
+                "email": "draft-order-existing-edited-20260716013531@example.com"
               }
             ],
             "pageInfo": {
@@ -443,7 +443,7 @@
           "candidateWindow": {
             "nodes": [
               {
-                "email": "draft-order-candidate-20260716011238@example.com"
+                "email": "draft-order-candidate-20260716013531@example.com"
               }
             ],
             "pageInfo": {
@@ -473,13 +473,13 @@
       "document": "mutation DraftOrderLiveHybridMixedCatalogDelete($input: DraftOrderDeleteInput!) {\n    draftOrderDelete(input: $input) {\n      deletedId\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
       "variables": {
         "input": {
-          "id": "gid://shopify/DraftOrder/1281685258546"
+          "id": "gid://shopify/DraftOrder/1281692991794"
         }
       },
       "response": {
         "data": {
           "draftOrderDelete": {
-            "deletedId": "gid://shopify/DraftOrder/1281685258546",
+            "deletedId": "gid://shopify/DraftOrder/1281692991794",
             "userErrors": []
           }
         },
@@ -489,7 +489,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1983,
+              "currentlyAvailable": 1982,
               "restoreRate": 100
             }
           }
@@ -499,10 +499,10 @@
     "afterDeleteRead": {
       "document": "query DraftOrderLiveHybridMixedCatalogRead(\n    $existingId: ID!\n    $tagQuery: String!\n    $existingTagQuery: String!\n    $candidateTagQuery: String!\n    $first: Int!\n  ) {\n    existing: draftOrder(id: $existingId) {\n      id\n      email\n      tags\n    }\n    visible: draftOrders(first: $first, query: $tagQuery, sortKey: UPDATED_AT, reverse: true) {\n      nodes {\n        email\n        tags\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n    existingWindow: draftOrders(first: 1, query: $existingTagQuery) {\n      nodes {\n        email\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n    candidateWindow: draftOrders(first: 1, query: $candidateTagQuery) {\n      nodes {\n        email\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n    total: draftOrdersCount(query: $tagQuery) {\n      count\n      precision\n    }\n  }",
       "variables": {
-        "existingId": "gid://shopify/DraftOrder/1281685258546",
-        "tagQuery": "tag:domix-20260716011238",
-        "existingTagQuery": "tag:domix-20260716011238-ex",
-        "candidateTagQuery": "tag:domix-20260716011238-ca",
+        "existingId": "gid://shopify/DraftOrder/1281692991794",
+        "tagQuery": "tag:domix-20260716013531",
+        "existingTagQuery": "tag:domix-20260716013531-ex",
+        "candidateTagQuery": "tag:domix-20260716013531-ca",
         "first": 5
       },
       "response": {
@@ -511,8 +511,8 @@
           "visible": {
             "nodes": [
               {
-                "email": "draft-order-candidate-20260716011238@example.com",
-                "tags": ["domix-20260716011238", "domix-20260716011238-ca", "draft-order-live-hybrid-mixed-catalog"]
+                "email": "draft-order-candidate-20260716013531@example.com",
+                "tags": ["domix-20260716013531", "domix-20260716013531-ca", "draft-order-live-hybrid-mixed-catalog"]
               }
             ],
             "pageInfo": {
@@ -530,7 +530,7 @@
           "candidateWindow": {
             "nodes": [
               {
-                "email": "draft-order-candidate-20260716011238@example.com"
+                "email": "draft-order-candidate-20260716013531@example.com"
               }
             ],
             "pageInfo": {
@@ -587,9 +587,77 @@
       }
     },
     {
+      "operationName": "DraftOrderLiveHybridMixedCatalogRead",
+      "variables": {
+        "existingId": "gid://shopify/DraftOrder/1281692991794",
+        "tagQuery": "tag:domix-20260716013531",
+        "existingTagQuery": "tag:domix-20260716013531-ex",
+        "candidateTagQuery": "tag:domix-20260716013531-ca",
+        "first": 5
+      },
+      "query": "query DraftOrderLiveHybridMixedCatalogRead(\n    $existingId: ID!\n    $tagQuery: String!\n    $existingTagQuery: String!\n    $candidateTagQuery: String!\n    $first: Int!\n  ) {\n    existing: draftOrder(id: $existingId) {\n      id\n      email\n      tags\n    }\n    visible: draftOrders(first: $first, query: $tagQuery, sortKey: UPDATED_AT, reverse: true) {\n      nodes {\n        email\n        tags\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n    existingWindow: draftOrders(first: 1, query: $existingTagQuery) {\n      nodes {\n        email\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n    candidateWindow: draftOrders(first: 1, query: $candidateTagQuery) {\n      nodes {\n        email\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n    total: draftOrdersCount(query: $tagQuery) {\n      count\n      precision\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "existing": {
+              "id": "gid://shopify/DraftOrder/1281692991794",
+              "email": "draft-order-existing-20260716013531@example.com",
+              "tags": ["domix-20260716013531", "domix-20260716013531-ex", "draft-order-live-hybrid-mixed-catalog"]
+            },
+            "visible": {
+              "nodes": [
+                {
+                  "email": "draft-order-existing-20260716013531@example.com",
+                  "tags": ["domix-20260716013531", "domix-20260716013531-ex", "draft-order-live-hybrid-mixed-catalog"]
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "existingWindow": {
+              "nodes": [
+                {
+                  "email": "draft-order-existing-20260716013531@example.com"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "candidateWindow": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "total": {
+              "count": 1,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 22,
+              "actualQueryCost": 21,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1979,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
       "operationName": "OrdersDraftOrderHydrate",
       "variables": {
-        "id": "gid://shopify/DraftOrder/1281685258546"
+        "id": "gid://shopify/DraftOrder/1281692991794"
       },
       "query": "\n    query OrdersDraftOrderHydrate($id: ID!) {\n      draftOrder(id: $id) {\n        id\n        name\n        status\n        ready\n        note: note2\n        email\n        customer { id email displayName }\n        taxExempt\n        taxesIncluded\n        reserveInventoryUntil\n        paymentTerms {\n          id\n          overdue\n          dueInDays\n          paymentTermsName\n          paymentTermsType\n          translatedName\n        }\n        tags\n        invoiceUrl\n        customAttributes { key value }\n        appliedDiscount {\n          title\n          description\n          value\n          valueType\n          amountSet { shopMoney { amount currencyCode } }\n        }\n        billingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }\n        shippingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }\n        shippingLine {\n          title\n          code\n          custom\n          originalPriceSet { shopMoney { amount currencyCode } }\n          discountedPriceSet { shopMoney { amount currencyCode } }\n        }\n        subtotalPriceSet { shopMoney { amount currencyCode } }\n        lineItemsSubtotalPrice { shopMoney { amount currencyCode } }\n        totalTax\n        totalTaxSet { shopMoney { amount currencyCode } }\n        totalDiscountsSet { shopMoney { amount currencyCode } }\n        totalShippingPriceSet { shopMoney { amount currencyCode } }\n        totalPriceSet { shopMoney { amount currencyCode } }\n        totalQuantityOfLineItems\n        lineItems(first: 10) {\n          nodes {\n            id\n            title\n            name\n            quantity\n            sku\n            variantTitle\n            custom\n            requiresShipping\n            taxable\n            customAttributes { key value }\n            appliedDiscount {\n              title\n              description\n              value\n              valueType\n              amountSet { shopMoney { amount currencyCode } }\n            }\n            originalUnitPriceSet { shopMoney { amount currencyCode } }\n            originalTotalSet { shopMoney { amount currencyCode } }\n            discountedTotalSet { shopMoney { amount currencyCode } }\n            totalDiscountSet { shopMoney { amount currencyCode } }\n            variant { id title sku }\n          }\n        }\n      }\n    }\n",
       "response": {
@@ -597,23 +665,23 @@
         "body": {
           "data": {
             "draftOrder": {
-              "id": "gid://shopify/DraftOrder/1281685258546",
-              "name": "#D364",
+              "id": "gid://shopify/DraftOrder/1281692991794",
+              "name": "#D366",
               "status": "OPEN",
               "ready": true,
               "note": null,
-              "email": "draft-order-existing-20260716011238@example.com",
+              "email": "draft-order-existing-20260716013531@example.com",
               "customer": {
-                "id": "gid://shopify/Customer/10965361885490",
-                "email": "draft-order-existing-20260716011238@example.com",
-                "displayName": "draft-order-existing-20260716011238@example.com"
+                "id": "gid://shopify/Customer/10965399208242",
+                "email": "draft-order-existing-20260716013531@example.com",
+                "displayName": "draft-order-existing-20260716013531@example.com"
               },
               "taxExempt": false,
               "taxesIncluded": false,
               "reserveInventoryUntil": null,
               "paymentTerms": null,
-              "tags": ["domix-20260716011238", "domix-20260716011238-ex", "draft-order-live-hybrid-mixed-catalog"],
-              "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/48607502cbfb0ff0704840d85b756c33",
+              "tags": ["domix-20260716013531", "domix-20260716013531-ex", "draft-order-live-hybrid-mixed-catalog"],
+              "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/a6a930d9336d426386b154f16f07927f",
               "customAttributes": [],
               "appliedDiscount": null,
               "billingAddress": null,
@@ -660,7 +728,7 @@
               "lineItems": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/DraftOrderLineItem/58638180417842",
+                    "id": "gid://shopify/DraftOrderLineItem/58638193328434",
                     "title": "Live hybrid existing mixed draft",
                     "name": "Live hybrid existing mixed draft",
                     "quantity": 1,
@@ -721,13 +789,13 @@
       "document": "mutation DraftOrderLiveHybridMixedCatalogDelete($input: DraftOrderDeleteInput!) {\n    draftOrderDelete(input: $input) {\n      deletedId\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
       "variables": {
         "input": {
-          "id": "gid://shopify/DraftOrder/1281685324082"
+          "id": "gid://shopify/DraftOrder/1281693024562"
         }
       },
       "response": {
         "data": {
           "draftOrderDelete": {
-            "deletedId": "gid://shopify/DraftOrder/1281685324082",
+            "deletedId": "gid://shopify/DraftOrder/1281693024562",
             "userErrors": []
           }
         },
@@ -737,7 +805,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1985,
+              "currentlyAvailable": 1981,
               "restoreRate": 100
             }
           }

@@ -1249,6 +1249,63 @@ impl DraftProxy {
         self.observe_draft_order_read_response(request, &response);
     }
 
+    fn observe_live_hybrid_draft_order_read_fields(
+        &mut self,
+        request: &Request,
+        fields: &[RootFieldSelection],
+    ) {
+        let mut has_singular_draft_order_root = false;
+        for field in fields {
+            if field.name != "draftOrder" {
+                continue;
+            }
+            let Some(id) = resolved_string_field(&field.arguments, "id") else {
+                continue;
+            };
+            has_singular_draft_order_root = true;
+            if self.store.staged.draft_orders.contains_key(&id)
+                || self.store.staged.draft_orders.is_tombstoned(&id)
+                || self.store.base.draft_orders.records.contains_key(&id)
+            {
+                continue;
+            }
+            self.ensure_draft_order_hydrated(request, &id);
+        }
+        if self.live_hybrid_draft_order_read_needs_upstream_baseline(
+            fields,
+            has_singular_draft_order_root,
+        ) {
+            self.observe_live_hybrid_draft_order_read(request);
+        }
+    }
+
+    fn live_hybrid_draft_order_read_needs_upstream_baseline(
+        &self,
+        fields: &[RootFieldSelection],
+        has_singular_draft_order_root: bool,
+    ) -> bool {
+        if !self.live_hybrid_draft_order_read_should_observe_upstream(fields) {
+            return false;
+        }
+
+        let mut has_count_root = false;
+        for field in fields {
+            if field.name != "draftOrdersCount" {
+                continue;
+            }
+            has_count_root = true;
+            let key = draft_order_count_baseline_key(&field.arguments);
+            if self.store.draft_order_count_baseline(&key).is_none() {
+                return true;
+            }
+        }
+        if has_count_root {
+            return false;
+        }
+
+        !has_singular_draft_order_root && fields.iter().any(|field| field.name == "draftOrders")
+    }
+
     pub(in crate::proxy) fn observe_draft_order_read_response(
         &mut self,
         request: &Request,
@@ -1473,9 +1530,7 @@ impl DraftProxy {
             if !has_local_read {
                 return None;
             }
-            if self.live_hybrid_draft_order_read_should_observe_upstream(&fields) {
-                self.observe_live_hybrid_draft_order_read(request);
-            }
+            self.observe_live_hybrid_draft_order_read_fields(request, &fields);
         } else if !has_lifecycle_root {
             return None;
         }

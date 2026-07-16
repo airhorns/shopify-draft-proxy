@@ -428,50 +428,46 @@ impl DraftProxy {
         let base_metafield_definition_namespaces_value =
             json!(base_metafield_definition_namespaces);
         let deleted_metafield_definitions_value = json!(deleted_metafield_definitions);
-        let mut snapshot = json!({
-            "baseState": {
-                "products": product_state_map_json(&self.store.base.products.records),
-                "productOrder": self.store.base.products.order,
-                "productVariants": product_variant_state_map_json(&self.store.base.product_variants.records),
-                "productVariantOrder": self.store.base.product_variants.order,
-                "savedSearches": saved_search_state_map_json(&self.store.base.saved_searches.records),
-                "savedSearchOrder": self.store.base.saved_searches.order,
-                "shopPolicies": shop_policy_state_map_json(&self.store.base.shop_policies.records),
-                "shopPolicyOrder": self.store.base.shop_policies.order,
-                "deliveryProfiles": self.store.base.delivery_profiles.records.clone(),
-                "deliveryProfileOrder": self.store.base.delivery_profiles.order,
-                "deliveryPromiseProviders": self.store.base.delivery_promise_providers.records.clone(),
-                "deliveryPromiseProviderOrder": self.store.base.delivery_promise_providers.order,
-                "deliveryPromiseParticipants": self.store.base.delivery_promise_participants.records.clone(),
-                "deliveryPromiseParticipantOrder": self.store.base.delivery_promise_participants.order,
-                "orders": self.store.base.orders.records.clone(),
-                "orderOrder": self.store.base.orders.order,
-                "orderCountBaselines": self.store.base.order_count_baselines.clone(),
-                "draftOrders": self.store.base.draft_orders.records.clone(),
-                "draftOrderOrder": self.store.base.draft_orders.order,
-                "draftOrderCountBaselines": self.store.base.draft_order_count_baselines.clone(),
-                "discounts": self.store.base.discounts.records.clone(),
-                "discountOrder": self.store.base.discounts.order,
-                "giftCards": self.store.base.gift_cards.clone(),
-                "giftCardConfiguration": self.store.base.gift_card_configuration.clone().unwrap_or(Value::Null),
-                "giftCardCompleteQueries": self.store.base.gift_card_complete_queries.iter().cloned().collect::<Vec<_>>(),
-                "shop": self.store.base.shop.clone(),
-                "storefrontShop": self.store.base.storefront_shop.clone(),
-                "storefrontLocalizations": self.store.base.storefront_localizations.clone(),
-                "storefrontPaymentSettings": self.store.base.storefront_payment_settings.clone(),
-                "storefrontLocations": self.store.base.storefront_locations.records.clone(),
-                "storefrontLocationOrder": self.store.base.storefront_locations.order.clone(),
-                "storefrontLocationCursors": self.store.base.storefront_location_cursors.clone(),
-                "storefrontPublicApiVersions": self.store.base.storefront_public_api_versions.clone(),
-                "storefrontMenus": self.store.base.storefront_menus.records.clone(),
-                "storefrontMenuOrder": self.store.base.storefront_menus.order.clone(),
-                "publicationIds": self.store.base.publication_ids.iter().cloned().collect::<Vec<_>>(),
-                "publicationCount": self.store.base.publication_count,
-                "availableLocales": available_locales,
-                "shopLocales": self.store.base.shop_locales.clone(),
-                "localizationProductIds": self.store.base.localization_product_ids.iter().cloned().collect::<Vec<_>>()
-            },
-            "stagedState": {
+        let base_state = json!({
+            "products": product_state_map_json(&self.store.base.products.records),
+            "productOrder": self.store.base.products.order,
+            "productVariants": product_variant_state_map_json(&self.store.base.product_variants.records),
+            "productVariantOrder": self.store.base.product_variants.order,
+            "savedSearches": saved_search_state_map_json(&self.store.base.saved_searches.records),
+            "savedSearchOrder": self.store.base.saved_searches.order,
+            "shopPolicies": shop_policy_state_map_json(&self.store.base.shop_policies.records),
+            "shopPolicyOrder": self.store.base.shop_policies.order,
+            "deliveryProfiles": self.store.base.delivery_profiles.records.clone(),
+            "deliveryProfileOrder": self.store.base.delivery_profiles.order,
+            "deliveryPromiseProviders": self.store.base.delivery_promise_providers.records.clone(),
+            "deliveryPromiseProviderOrder": self.store.base.delivery_promise_providers.order,
+            "deliveryPromiseParticipants": self.store.base.delivery_promise_participants.records.clone(),
+            "deliveryPromiseParticipantOrder": self.store.base.delivery_promise_participants.order,
+            "orders": self.store.base.orders.records.clone(),
+            "orderOrder": self.store.base.orders.order,
+            "orderCountBaselines": self.store.base.order_count_baselines.clone(),
+            "discounts": self.store.base.discounts.records.clone(),
+            "discountOrder": self.store.base.discounts.order,
+            "giftCards": self.store.base.gift_cards.clone(),
+            "giftCardConfiguration": self.store.base.gift_card_configuration.clone().unwrap_or(Value::Null),
+            "giftCardCompleteQueries": self.store.base.gift_card_complete_queries.iter().cloned().collect::<Vec<_>>(),
+            "shop": self.store.base.shop.clone(),
+            "storefrontShop": self.store.base.storefront_shop.clone(),
+            "storefrontLocalizations": self.store.base.storefront_localizations.clone(),
+            "storefrontPaymentSettings": self.store.base.storefront_payment_settings.clone(),
+            "storefrontLocations": self.store.base.storefront_locations.records.clone(),
+            "storefrontLocationOrder": self.store.base.storefront_locations.order.clone(),
+            "storefrontLocationCursors": self.store.base.storefront_location_cursors.clone(),
+            "storefrontPublicApiVersions": self.store.base.storefront_public_api_versions.clone(),
+            "storefrontMenus": self.store.base.storefront_menus.records.clone(),
+            "storefrontMenuOrder": self.store.base.storefront_menus.order.clone(),
+            "publicationIds": self.store.base.publication_ids.iter().cloned().collect::<Vec<_>>(),
+            "publicationCount": self.store.base.publication_count,
+            "availableLocales": available_locales,
+            "shopLocales": self.store.base.shop_locales.clone(),
+            "localizationProductIds": self.store.base.localization_product_ids.iter().cloned().collect::<Vec<_>>()
+        });
+        let staged_state = json!({
                 "products": product_state_map_json(&self.store.staged.products.records),
                 "productOrder": self.store.staged.products.order,
                 "deletedProductIds": self.store.staged.products.tombstones.iter().cloned().collect::<Vec<_>>(),
@@ -562,8 +558,15 @@ impl DraftProxy {
                 "discountRedeemCodeBulkCreations": self.store.staged.discount_redeem_code_bulk_creations.clone(),
                 "ownerMetafields": self.store.staged.owner_metafields.clone(),
                 "deletedOwnerMetafields": deleted_owner_metafields
-            }
         });
+        let mut snapshot = json!({
+            "baseState": base_state,
+            "stagedState": staged_state
+        });
+        snapshot["baseState"]["draftOrders"] = json!(self.store.base.draft_orders.records.clone());
+        snapshot["baseState"]["draftOrderOrder"] = json!(self.store.base.draft_orders.order);
+        snapshot["baseState"]["draftOrderCountBaselines"] =
+            json!(self.store.base.draft_order_count_baselines.clone());
         snapshot["baseState"]["metafieldDefinitions"] = base_metafield_definitions_value;
         snapshot["baseState"]["metafieldDefinitionOwnerCatalogs"] =
             base_metafield_definition_owner_catalogs_value;
