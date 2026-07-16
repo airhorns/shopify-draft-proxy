@@ -451,6 +451,7 @@ fn storefront_customer_auth_lifecycle_stages_locally_and_redacts_meta() {
         delete_again.body["errors"][0]["extensions"]["code"],
         json!("ACCESS_DENIED")
     );
+    assert_eq!(delete_again.body["errors"][0]["locations"], json!([]));
 
     let log = log_snapshot(&proxy);
     for entry in log["entries"].as_array().expect("log entries") {
@@ -673,6 +674,31 @@ fn storefront_customer_activation_recovery_and_reset_are_local_only() {
         invalid_reset.body["data"]["customerReset"]["userErrors"],
         json!([{ "field": null, "message": "Invalid reset token" }])
     );
+
+    let invalid_reset_url = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation StorefrontResetByUrlInvalid($resetUrl: URL!, $password: String!) {
+          customerResetByUrl(resetUrl: $resetUrl, password: $password) {
+            customer { id }
+            customerAccessToken { accessToken }
+            customerUserErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "resetUrl": "https://example.test/account/reset/bad-token",
+            "password": "AnotherCodexPass123!"
+        }),
+    ));
+    assert_eq!(
+        invalid_reset_url.body["data"]["customerResetByUrl"],
+        Value::Null
+    );
+    assert_eq!(
+        invalid_reset_url.body["errors"][0]["extensions"]["code"],
+        json!("NOT_FOUND")
+    );
+    assert_eq!(invalid_reset_url.body["errors"][0]["locations"], json!([]));
 
     let old_password = proxy.process_request(storefront_graphql_request(
         r#"
