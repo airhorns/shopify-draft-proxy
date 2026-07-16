@@ -1,0 +1,1219 @@
+{
+  "scenarioId": "storefront-customer-auth-lifecycle",
+  "capturedAt": "2026-07-15T22:57:59.746Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "apiSurface": "storefront",
+  "authMode": "storefront-access-token-and-admin-access-token",
+  "storefrontToken": {
+    "id": "gid://shopify/StorefrontAccessToken/130666922290",
+    "title": "hermes-conformance-storefront-recording",
+    "accessScopes": [
+      "unauthenticated_read_checkouts",
+      "unauthenticated_read_content",
+      "unauthenticated_read_customer_tags",
+      "unauthenticated_read_customers",
+      "unauthenticated_read_metaobjects",
+      "unauthenticated_read_product_inventory",
+      "unauthenticated_read_product_listings",
+      "unauthenticated_read_product_pickup_locations",
+      "unauthenticated_read_product_tags",
+      "unauthenticated_read_selling_plans",
+      "unauthenticated_write_checkouts",
+      "unauthenticated_write_customers"
+    ],
+    "obtainedAt": "2026-07-14T23:55:26.161Z"
+  },
+  "disposableInputs": {
+    "storefrontCustomerEmail": "hermes-storefront-auth-mrmokwd4-5bef056e@example.com",
+    "adminCustomerEmail": "hermes-storefront-admin-mrmokwd4-5bef056e@example.com",
+    "missingCustomerEmail": "hermes-storefront-missing-mrmokwd4-5bef056e@example.com"
+  },
+  "captures": {
+    "storefrontCreate": {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCustomerAuthCreate",
+      "query": "mutation StorefrontCustomerAuthCreate($input: CustomerCreateInput!) {\n  customerCreate(input: $input) {\n    customer {\n      id\n      email\n      firstName\n      lastName\n      displayName\n      acceptsMarketing\n      createdAt\n      updatedAt\n      numberOfOrders\n      tags\n      addresses(first: 2) {\n        nodes {\n          id\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n        }\n      }\n    }\n    customerUserErrors {\n      field\n      message\n      code\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "email": "hermes-storefront-auth-mrmokwd4-5bef056e@example.com",
+          "password": "<redacted:storefront-customer-auth>",
+          "firstName": "Storefront",
+          "lastName": "Auth",
+          "acceptsMarketing": true
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerCreate": {
+              "customer": {
+                "id": "gid://shopify/Customer/10965095776562",
+                "email": "hermes-storefront-auth-mrmokwd4-5bef056e@example.com",
+                "firstName": "Storefront",
+                "lastName": "Auth",
+                "displayName": "Storefront Auth",
+                "acceptsMarketing": true,
+                "createdAt": "2026-07-15T22:57:55Z",
+                "updatedAt": "2026-07-15T22:57:55Z",
+                "numberOfOrders": "0",
+                "tags": [],
+                "addresses": {
+                  "nodes": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                }
+              },
+              "customerUserErrors": [],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16
+            }
+          }
+        }
+      }
+    },
+    "duplicateCreate": {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCustomerAuthCreate",
+      "query": "mutation StorefrontCustomerAuthCreate($input: CustomerCreateInput!) {\n  customerCreate(input: $input) {\n    customer {\n      id\n      email\n      firstName\n      lastName\n      displayName\n      acceptsMarketing\n      createdAt\n      updatedAt\n      numberOfOrders\n      tags\n      addresses(first: 2) {\n        nodes {\n          id\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n        }\n      }\n    }\n    customerUserErrors {\n      field\n      message\n      code\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "email": "hermes-storefront-auth-mrmokwd4-5bef056e@example.com",
+          "password": "<redacted:storefront-customer-auth>"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerCreate": {
+              "customer": null,
+              "customerUserErrors": [
+                {
+                  "field": ["input", "email"],
+                  "message": "Email has already been taken",
+                  "code": "TAKEN"
+                }
+              ],
+              "userErrors": [
+                {
+                  "field": ["input", "email"],
+                  "message": "Email has already been taken"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16
+            }
+          }
+        }
+      }
+    },
+    "invalidEmailCreate": {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCustomerAuthCreate",
+      "query": "mutation StorefrontCustomerAuthCreate($input: CustomerCreateInput!) {\n  customerCreate(input: $input) {\n    customer {\n      id\n      email\n      firstName\n      lastName\n      displayName\n      acceptsMarketing\n      createdAt\n      updatedAt\n      numberOfOrders\n      tags\n      addresses(first: 2) {\n        nodes {\n          id\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n        }\n      }\n    }\n    customerUserErrors {\n      field\n      message\n      code\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "email": "not-an-email",
+          "password": "<redacted:storefront-customer-auth>"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerCreate": {
+              "customer": null,
+              "customerUserErrors": [
+                {
+                  "field": ["input", "email"],
+                  "message": "Email is invalid",
+                  "code": "INVALID"
+                }
+              ],
+              "userErrors": [
+                {
+                  "field": ["input", "email"],
+                  "message": "Email is invalid"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16
+            }
+          }
+        }
+      }
+    },
+    "blankPasswordCreate": {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCustomerAuthCreate",
+      "query": "mutation StorefrontCustomerAuthCreate($input: CustomerCreateInput!) {\n  customerCreate(input: $input) {\n    customer {\n      id\n      email\n      firstName\n      lastName\n      displayName\n      acceptsMarketing\n      createdAt\n      updatedAt\n      numberOfOrders\n      tags\n      addresses(first: 2) {\n        nodes {\n          id\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n        }\n      }\n    }\n    customerUserErrors {\n      field\n      message\n      code\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "email": "hermes-storefront-blank-mrmokwd4-5bef056e@example.com",
+          "password": "<redacted:storefront-customer-auth>"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerCreate": {
+              "customer": null,
+              "customerUserErrors": [
+                {
+                  "field": ["input", "password"],
+                  "message": "Password can't be blank",
+                  "code": "BLANK"
+                }
+              ],
+              "userErrors": [
+                {
+                  "field": ["input", "password"],
+                  "message": "Password can't be blank"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16
+            }
+          }
+        }
+      }
+    },
+    "htmlNameCreate": {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCustomerAuthCreate",
+      "query": "mutation StorefrontCustomerAuthCreate($input: CustomerCreateInput!) {\n  customerCreate(input: $input) {\n    customer {\n      id\n      email\n      firstName\n      lastName\n      displayName\n      acceptsMarketing\n      createdAt\n      updatedAt\n      numberOfOrders\n      tags\n      addresses(first: 2) {\n        nodes {\n          id\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n        }\n      }\n    }\n    customerUserErrors {\n      field\n      message\n      code\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "email": "hermes-storefront-html-mrmokwd4-5bef056e@example.com",
+          "password": "<redacted:storefront-customer-auth>",
+          "firstName": "<b>Bad</b>"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerCreate": {
+              "customer": null,
+              "customerUserErrors": [
+                {
+                  "field": ["input", "firstName"],
+                  "message": "First name cannot contain HTML tags",
+                  "code": "CONTAINS_HTML_TAGS"
+                }
+              ],
+              "userErrors": [
+                {
+                  "field": ["input", "firstName"],
+                  "message": "First name cannot contain HTML tags"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16
+            }
+          }
+        }
+      }
+    },
+    "tokenInvalid": {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCustomerAuthTokenCreate",
+      "query": "mutation StorefrontCustomerAuthTokenCreate($input: CustomerAccessTokenCreateInput!) {\n  customerAccessTokenCreate(input: $input) {\n    customerAccessToken {\n      accessToken\n      expiresAt\n    }\n    customerUserErrors {\n      field\n      message\n      code\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "email": "hermes-storefront-auth-mrmokwd4-5bef056e@example.com",
+          "password": "<redacted:storefront-customer-auth>"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerAccessTokenCreate": {
+              "customerAccessToken": null,
+              "customerUserErrors": [
+                {
+                  "field": null,
+                  "message": "Unidentified customer",
+                  "code": "UNIDENTIFIED_CUSTOMER"
+                }
+              ],
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Unidentified customer"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13
+            }
+          }
+        }
+      }
+    },
+    "tokenValid": {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCustomerAuthTokenCreate",
+      "query": "mutation StorefrontCustomerAuthTokenCreate($input: CustomerAccessTokenCreateInput!) {\n  customerAccessTokenCreate(input: $input) {\n    customerAccessToken {\n      accessToken\n      expiresAt\n    }\n    customerUserErrors {\n      field\n      message\n      code\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "email": "hermes-storefront-auth-mrmokwd4-5bef056e@example.com",
+          "password": "<redacted:storefront-customer-auth>"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerAccessTokenCreate": {
+              "customerAccessToken": {
+                "accessToken": "<redacted:storefront-customer-auth>",
+                "expiresAt": "2026-08-26T22:57:56Z"
+              },
+              "customerUserErrors": [],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13
+            }
+          }
+        }
+      }
+    },
+    "customerRead": {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCustomerAuthRead",
+      "query": "query StorefrontCustomerAuthRead($token: String!) {\n  customer(customerAccessToken: $token) {\n    id\n    email\n    firstName\n    lastName\n    displayName\n    acceptsMarketing\n    createdAt\n    updatedAt\n    numberOfOrders\n    tags\n    addresses(first: 2) {\n      nodes {\n        id\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "token": "<redacted:storefront-customer-auth>"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10965095776562",
+              "email": "hermes-storefront-auth-mrmokwd4-5bef056e@example.com",
+              "firstName": "Storefront",
+              "lastName": "Auth",
+              "displayName": "Storefront Auth",
+              "acceptsMarketing": true,
+              "createdAt": "2026-07-15T22:57:55Z",
+              "updatedAt": "2026-07-15T22:57:55Z",
+              "numberOfOrders": "0",
+              "tags": [],
+              "addresses": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4
+            }
+          }
+        }
+      }
+    },
+    "tokenRenew": {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCustomerAuthTokenRenew",
+      "query": "mutation StorefrontCustomerAuthTokenRenew($token: String!) {\n  customerAccessTokenRenew(customerAccessToken: $token) {\n    customerAccessToken {\n      accessToken\n      expiresAt\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "token": "<redacted:storefront-customer-auth>"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerAccessTokenRenew": {
+              "customerAccessToken": {
+                "accessToken": "<redacted:storefront-customer-auth>",
+                "expiresAt": "2026-08-26T22:57:56Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12
+            }
+          }
+        }
+      }
+    },
+    "tokenDelete": {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCustomerAuthTokenDelete",
+      "query": "mutation StorefrontCustomerAuthTokenDelete($token: String!) {\n  customerAccessTokenDelete(customerAccessToken: $token) {\n    deletedAccessToken\n    deletedCustomerAccessTokenId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "token": "<redacted:storefront-customer-auth>"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerAccessTokenDelete": {
+              "deletedAccessToken": "<redacted:storefront-customer-auth>",
+              "deletedCustomerAccessTokenId": "gid://shopify/CustomerAccessToken/612943069490",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11
+            }
+          }
+        }
+      }
+    },
+    "customerReadAfterTokenDelete": {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCustomerAuthRead",
+      "query": "query StorefrontCustomerAuthRead($token: String!) {\n  customer(customerAccessToken: $token) {\n    id\n    email\n    firstName\n    lastName\n    displayName\n    acceptsMarketing\n    createdAt\n    updatedAt\n    numberOfOrders\n    tags\n    addresses(first: 2) {\n      nodes {\n        id\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "token": "<redacted:storefront-customer-auth>"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4
+            }
+          }
+        }
+      }
+    },
+    "tokenDeleteAgain": {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCustomerAuthTokenDelete",
+      "query": "mutation StorefrontCustomerAuthTokenDelete($token: String!) {\n  customerAccessTokenDelete(customerAccessToken: $token) {\n    deletedAccessToken\n    deletedCustomerAccessTokenId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "token": "<redacted:storefront-customer-auth>"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Access denied for customerAccessTokenDelete field. Required access: `unauthenticated_write_customers` access scope. Also: Requires valid customer access token.",
+              "path": ["customerAccessTokenDelete"],
+              "locations": [],
+              "extensions": {
+                "code": "ACCESS_DENIED",
+                "documentation": "https://shopify.dev/api/usage/access-scopes",
+                "requiredAccess": "`unauthenticated_write_customers` access scope. Also: Requires valid customer access token."
+              }
+            }
+          ],
+          "data": {
+            "customerAccessTokenDelete": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11
+            }
+          }
+        }
+      }
+    },
+    "multipassInvalid": {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCustomerAuthMultipass",
+      "query": "mutation StorefrontCustomerAuthMultipass($multipassToken: String!) {\n  customerAccessTokenCreateWithMultipass(multipassToken: $multipassToken) {\n    customerAccessToken {\n      accessToken\n      expiresAt\n    }\n    customerUserErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "multipassToken": "<redacted:storefront-customer-auth>"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerAccessTokenCreateWithMultipass": {
+              "customerAccessToken": null,
+              "customerUserErrors": [
+                {
+                  "field": ["multipassToken"],
+                  "message": "Invalid Multipass request",
+                  "code": "INVALID_MULTIPASS_REQUEST"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12
+            }
+          }
+        }
+      }
+    },
+    "adminCreate": {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "path": "/admin/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/admin/api/2026-04/graphql.json",
+      "authMode": "admin-access-token",
+      "operationName": "StorefrontCustomerAuthAdminCreate",
+      "query": "mutation StorefrontCustomerAuthAdminCreate($input: CustomerInput!) {\n  customerCreate(input: $input) {\n    customer {\n      id\n      email\n      firstName\n      lastName\n      displayName\n      state\n      createdAt\n      updatedAt\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "email": "hermes-storefront-admin-mrmokwd4-5bef056e@example.com",
+          "firstName": "Admin",
+          "lastName": "Auth"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerCreate": {
+              "customer": {
+                "id": "gid://shopify/Customer/10965095874866",
+                "email": "hermes-storefront-admin-mrmokwd4-5bef056e@example.com",
+                "firstName": "Admin",
+                "lastName": "Auth",
+                "displayName": "Admin Auth",
+                "state": "DISABLED",
+                "createdAt": "2026-07-15T22:57:57Z",
+                "updatedAt": "2026-07-15T22:57:57Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "disabledTokenCreate": {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCustomerAuthTokenCreate",
+      "query": "mutation StorefrontCustomerAuthTokenCreate($input: CustomerAccessTokenCreateInput!) {\n  customerAccessTokenCreate(input: $input) {\n    customerAccessToken {\n      accessToken\n      expiresAt\n    }\n    customerUserErrors {\n      field\n      message\n      code\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "email": "hermes-storefront-admin-mrmokwd4-5bef056e@example.com",
+          "password": "<redacted:storefront-customer-auth>"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerAccessTokenCreate": {
+              "customerAccessToken": null,
+              "customerUserErrors": [
+                {
+                  "field": null,
+                  "message": "Unidentified customer",
+                  "code": "UNIDENTIFIED_CUSTOMER"
+                }
+              ],
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Unidentified customer"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13
+            }
+          }
+        }
+      }
+    },
+    "activationUrl": {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "path": "/admin/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/admin/api/2026-04/graphql.json",
+      "authMode": "admin-access-token",
+      "operationName": "StorefrontCustomerAuthAdminActivationUrl",
+      "query": "mutation StorefrontCustomerAuthAdminActivationUrl($customerId: ID!) {\n  customerGenerateAccountActivationUrl(customerId: $customerId) {\n    accountActivationUrl\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "customerId": "gid://shopify/Customer/10965095874866"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerGenerateAccountActivationUrl": {
+              "accountActivationUrl": "<redacted:storefront-customer-auth>",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "activateInvalid": {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCustomerAuthActivate",
+      "query": "mutation StorefrontCustomerAuthActivate($id: ID!, $input: CustomerActivateInput!) {\n  customerActivate(id: $id, input: $input) {\n    customer {\n      id\n      email\n    }\n    customerAccessToken {\n      accessToken\n      expiresAt\n    }\n    customerUserErrors {\n      field\n      message\n      code\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Customer/10965095874866",
+        "input": {
+          "activationToken": "<redacted:storefront-customer-auth>",
+          "password": "<redacted:storefront-customer-auth>"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerActivate": {
+              "customer": null,
+              "customerAccessToken": null,
+              "customerUserErrors": [
+                {
+                  "field": ["input"],
+                  "message": "Invalid activation token",
+                  "code": "TOKEN_INVALID"
+                }
+              ],
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Invalid activation token"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 14
+            }
+          }
+        }
+      }
+    },
+    "activateByUrl": {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCustomerAuthActivateByUrl",
+      "query": "mutation StorefrontCustomerAuthActivateByUrl($activationUrl: URL!, $password: String!) {\n  customerActivateByUrl(activationUrl: $activationUrl, password: $password) {\n    customer {\n      id\n      email\n      firstName\n      lastName\n      displayName\n    }\n    customerAccessToken {\n      accessToken\n      expiresAt\n    }\n    customerUserErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "activationUrl": "<redacted:storefront-customer-auth>",
+        "password": "<redacted:storefront-customer-auth>"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerActivateByUrl": {
+              "customer": {
+                "id": "gid://shopify/Customer/10965095874866",
+                "email": "hermes-storefront-admin-mrmokwd4-5bef056e@example.com",
+                "firstName": "Admin",
+                "lastName": "Auth",
+                "displayName": "Admin Auth"
+              },
+              "customerAccessToken": {
+                "accessToken": "<redacted:storefront-customer-auth>",
+                "expiresAt": "2026-08-26T22:57:58Z"
+              },
+              "customerUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13
+            }
+          }
+        }
+      }
+    },
+    "activateAgain": {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCustomerAuthActivate",
+      "query": "mutation StorefrontCustomerAuthActivate($id: ID!, $input: CustomerActivateInput!) {\n  customerActivate(id: $id, input: $input) {\n    customer {\n      id\n      email\n    }\n    customerAccessToken {\n      accessToken\n      expiresAt\n    }\n    customerUserErrors {\n      field\n      message\n      code\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Customer/10965095874866",
+        "input": {
+          "activationToken": "<redacted:storefront-customer-auth>",
+          "password": "<redacted:storefront-customer-auth>"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerActivate": {
+              "customer": null,
+              "customerAccessToken": null,
+              "customerUserErrors": [
+                {
+                  "field": null,
+                  "message": "Customer already enabled",
+                  "code": "ALREADY_ENABLED"
+                }
+              ],
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Customer already enabled"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 14
+            }
+          }
+        }
+      }
+    },
+    "recoverExisting": {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCustomerAuthRecover",
+      "query": "mutation StorefrontCustomerAuthRecover($email: String!) {\n  customerRecover(email: $email) {\n    customerUserErrors {\n      field\n      message\n      code\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "email": "hermes-storefront-admin-mrmokwd4-5bef056e@example.com"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerRecover": {
+              "customerUserErrors": [],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12
+            }
+          }
+        }
+      }
+    },
+    "resetInvalid": {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCustomerAuthReset",
+      "query": "mutation StorefrontCustomerAuthReset($id: ID!, $input: CustomerResetInput!) {\n  customerReset(id: $id, input: $input) {\n    customer {\n      id\n      email\n    }\n    customerAccessToken {\n      accessToken\n      expiresAt\n    }\n    customerUserErrors {\n      field\n      message\n      code\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Customer/10965095874866",
+        "input": {
+          "resetToken": "<redacted:storefront-customer-auth>",
+          "password": "<redacted:storefront-customer-auth>"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerReset": {
+              "customer": null,
+              "customerAccessToken": null,
+              "customerUserErrors": [
+                {
+                  "field": ["input"],
+                  "message": "Invalid reset token",
+                  "code": "TOKEN_INVALID"
+                }
+              ],
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Invalid reset token"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 14
+            }
+          }
+        }
+      }
+    },
+    "resetByUrlInvalid": {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCustomerAuthResetByUrl",
+      "query": "mutation StorefrontCustomerAuthResetByUrl($resetUrl: URL!, $password: String!) {\n  customerResetByUrl(resetUrl: $resetUrl, password: $password) {\n    customer {\n      id\n      email\n    }\n    customerAccessToken {\n      accessToken\n      expiresAt\n    }\n    customerUserErrors {\n      field\n      message\n      code\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "resetUrl": "<redacted:storefront-customer-auth>",
+        "password": "<redacted:storefront-customer-auth>"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Unidentified customer",
+              "path": ["customerResetByUrl"],
+              "locations": [],
+              "extensions": {
+                "code": "NOT_FOUND"
+              }
+            }
+          ],
+          "data": {
+            "customerResetByUrl": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 14
+            }
+          }
+        }
+      }
+    },
+    "adminUpdate": {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "path": "/admin/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/admin/api/2026-04/graphql.json",
+      "authMode": "admin-access-token",
+      "operationName": "StorefrontCustomerAuthAdminUpdate",
+      "query": "mutation StorefrontCustomerAuthAdminUpdate($input: CustomerInput!) {\n  customerUpdate(input: $input) {\n    customer {\n      id\n      email\n      firstName\n      lastName\n      displayName\n      state\n      updatedAt\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10965095874866",
+          "firstName": "Updated",
+          "lastName": "Auth"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerUpdate": {
+              "customer": {
+                "id": "gid://shopify/Customer/10965095874866",
+                "email": "hermes-storefront-admin-mrmokwd4-5bef056e@example.com",
+                "firstName": "Updated",
+                "lastName": "Auth",
+                "displayName": "Updated Auth",
+                "state": "ENABLED",
+                "updatedAt": "2026-07-15T22:57:59Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "customerReadAfterAdminUpdate": {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCustomerAuthRead",
+      "query": "query StorefrontCustomerAuthRead($token: String!) {\n  customer(customerAccessToken: $token) {\n    id\n    email\n    firstName\n    lastName\n    displayName\n    acceptsMarketing\n    createdAt\n    updatedAt\n    numberOfOrders\n    tags\n    addresses(first: 2) {\n      nodes {\n        id\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "token": "<redacted:storefront-customer-auth>"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10965095874866",
+              "email": "hermes-storefront-admin-mrmokwd4-5bef056e@example.com",
+              "firstName": "Updated",
+              "lastName": "Auth",
+              "displayName": "Updated Auth",
+              "acceptsMarketing": false,
+              "createdAt": "2026-07-15T22:57:57Z",
+              "updatedAt": "2026-07-15T22:57:59Z",
+              "numberOfOrders": "0",
+              "tags": [],
+              "addresses": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4
+            }
+          }
+        }
+      }
+    },
+    "adminDelete": {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "path": "/admin/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/admin/api/2026-04/graphql.json",
+      "authMode": "admin-access-token",
+      "operationName": "StorefrontCustomerAuthAdminDelete",
+      "query": "mutation StorefrontCustomerAuthAdminDelete($input: CustomerDeleteInput!) {\n  customerDelete(input: $input) {\n    deletedCustomerId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10965095874866"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerDelete": {
+              "deletedCustomerId": "gid://shopify/Customer/10965095874866",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "customerReadAfterAdminDelete": {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCustomerAuthRead",
+      "query": "query StorefrontCustomerAuthRead($token: String!) {\n  customer(customerAccessToken: $token) {\n    id\n    email\n    firstName\n    lastName\n    displayName\n    acceptsMarketing\n    createdAt\n    updatedAt\n    numberOfOrders\n    tags\n    addresses(first: 2) {\n      nodes {\n        id\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "token": "<redacted:storefront-customer-auth>"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4
+            }
+          }
+        }
+      }
+    },
+    "recoverMissing": {
+      "method": "POST",
+      "apiSurface": "storefront",
+      "apiVersion": "2026-04",
+      "path": "/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+      "authMode": "storefront-access-token",
+      "headers": {
+        "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+      },
+      "operationName": "StorefrontCustomerAuthRecover",
+      "query": "mutation StorefrontCustomerAuthRecover($email: String!) {\n  customerRecover(email: $email) {\n    customerUserErrors {\n      field\n      message\n      code\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "email": "hermes-storefront-missing-mrmokwd4-5bef056e@example.com"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerRecover": {
+              "customerUserErrors": [
+                {
+                  "field": ["email"],
+                  "message": "Could not find customer",
+                  "code": "UNIDENTIFIED_CUSTOMER"
+                }
+              ],
+              "userErrors": [
+                {
+                  "field": ["email"],
+                  "message": "Could not find customer"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "customerDeletes": [
+      {
+        "customerId": "gid://shopify/Customer/10965095776562",
+        "response": {
+          "status": 200,
+          "body": {
+            "data": {
+              "customerDelete": {
+                "deletedCustomerId": "gid://shopify/Customer/10965095776562",
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "upstreamCalls": [],
+  "notes": [
+    "Disposable Storefront and Admin customers were created against live Shopify and deleted through Admin GraphQL cleanup.",
+    "Passwords, Storefront access tokens, activation URLs, reset URLs, Multipass tokens, and deleted token values are redacted in this checked-in fixture.",
+    "No email contents are captured. Recovery success records only Shopify mutation payloads; local reset success remains runtime-test-backed because live reset URLs require mailbox access."
+  ]
+}

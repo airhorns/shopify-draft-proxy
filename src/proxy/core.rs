@@ -41,9 +41,19 @@ fn registered_stage_locally_mutation_upstream_root(request: &Request) -> Option<
     if operation.operation_type != OperationType::Mutation {
         return None;
     }
+    let api_surface = if storefront_graphql_version(&request.path).is_some() {
+        ApiSurface::Storefront
+    } else {
+        ApiSurface::Admin
+    };
     let registry = upstream_guard_registry();
     operation.root_fields.iter().find_map(|root_field| {
-        let capability = operation_capability(registry, OperationType::Mutation, Some(root_field));
+        let capability = operation_capability_for_surface(
+            registry,
+            api_surface,
+            OperationType::Mutation,
+            Some(root_field),
+        );
         (capability.execution == CapabilityExecution::StageLocally
             && capability.domain != CapabilityDomain::Unknown)
             .then(|| root_field.clone())
@@ -74,7 +84,7 @@ impl DraftProxy {
             upstream_transport: guarded_upstream_transport_from_arc(Arc::clone(
                 &upstream_transport,
             )),
-            storefront_upstream_transport: upstream_transport,
+            storefront_upstream_transport: guarded_upstream_transport_from_arc(upstream_transport),
         }
     }
 
@@ -102,7 +112,7 @@ impl DraftProxy {
     ) -> Self {
         let transport: UpstreamTransport = Arc::new(transport);
         self.upstream_transport = guarded_upstream_transport_from_arc(Arc::clone(&transport));
-        self.storefront_upstream_transport = transport;
+        self.storefront_upstream_transport = guarded_upstream_transport_from_arc(transport);
         self
     }
 
@@ -418,8 +428,7 @@ impl DraftProxy {
         let base_metafield_definition_namespaces_value =
             json!(base_metafield_definition_namespaces);
         let deleted_metafield_definitions_value = json!(deleted_metafield_definitions);
-        let mut snapshot = json!({
-            "baseState": {
+        let base_state = json!({
                 "products": product_state_map_json(&self.store.base.products.records),
                 "productOrder": self.store.base.products.order,
                 "productVariants": product_variant_state_map_json(&self.store.base.product_variants.records),
@@ -439,6 +448,9 @@ impl DraftProxy {
                 "orderCountBaselines": self.store.base.order_count_baselines.clone(),
                 "discounts": self.store.base.discounts.records.clone(),
                 "discountOrder": self.store.base.discounts.order,
+                "discountCountBaselines": self.store.base.discount_count_baselines.clone(),
+                "segments": self.store.base.segments.records.clone(),
+                "segmentOrder": self.store.base.segments.order,
                 "giftCards": self.store.base.gift_cards.clone(),
                 "giftCardConfiguration": self.store.base.gift_card_configuration.clone().unwrap_or(Value::Null),
                 "giftCardCompleteQueries": self.store.base.gift_card_complete_queries.iter().cloned().collect::<Vec<_>>(),
@@ -457,8 +469,8 @@ impl DraftProxy {
                 "availableLocales": available_locales,
                 "shopLocales": self.store.base.shop_locales.clone(),
                 "localizationProductIds": self.store.base.localization_product_ids.iter().cloned().collect::<Vec<_>>()
-            },
-            "stagedState": {
+        });
+        let staged_state = json!({
                 "products": product_state_map_json(&self.store.staged.products.records),
                 "productOrder": self.store.staged.products.order,
                 "deletedProductIds": self.store.staged.products.tombstones.iter().cloned().collect::<Vec<_>>(),
@@ -495,6 +507,10 @@ impl DraftProxy {
                 "customerMergeRequests": self.store.staged.customer_merge_requests.clone(),
                 "customerDataErasureRequests": self.store.staged.customer_data_erasure_requests.clone(),
                 "locallyCreatedCustomerIds": self.store.staged.locally_created_customer_ids.iter().cloned().collect::<Vec<_>>(),
+                "storefrontCustomerEmailIndex": self.store.staged.storefront_customer_email_index.clone(),
+                "storefrontCustomerAccessTokens": self.store.staged.storefront_customer_access_tokens.clone(),
+                "nextStorefrontCustomerAccessTokenId": self.store.staged.next_storefront_customer_access_token_id,
+                "nextStorefrontCustomerResetTokenId": self.store.staged.next_storefront_customer_reset_token_id,
                 "customersCountBase": self.store.staged.customers_count_base,
                 "storeCreditAccounts": self.store.staged.store_credit_accounts.records.clone(),
                 "storeCreditAccountOrder": self.store.staged.store_credit_accounts.order.clone(),
@@ -530,6 +546,9 @@ impl DraftProxy {
                 "deliveryCustomizations": self.store.staged.delivery_customizations.records.clone(),
                 "deliveryCustomizationOrder": self.store.staged.delivery_customizations.order.clone(),
                 "deletedDeliveryCustomizationIds": self.store.staged.delivery_customizations.tombstones.iter().cloned().collect::<Vec<_>>(),
+                "segments": self.store.staged.segments.records.clone(),
+                "segmentOrder": self.store.staged.segments.order.clone(),
+                "deletedSegmentIds": self.store.staged.segments.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "publicationIds": self.store.staged.publication_ids.iter().cloned().collect::<Vec<_>>(),
                 "createdPublicationIds": self.store.staged.created_publication_ids.iter().cloned().collect::<Vec<_>>(),
                 "publications": self.store.staged.publications.clone(),
@@ -545,7 +564,10 @@ impl DraftProxy {
                 "discountRedeemCodeBulkCreations": self.store.staged.discount_redeem_code_bulk_creations.clone(),
                 "ownerMetafields": self.store.staged.owner_metafields.clone(),
                 "deletedOwnerMetafields": deleted_owner_metafields
-            }
+        });
+        let mut snapshot = json!({
+            "baseState": base_state,
+            "stagedState": staged_state
         });
         snapshot["baseState"]["metafieldDefinitions"] = base_metafield_definitions_value;
         snapshot["baseState"]["metafieldDefinitionOwnerCatalogs"] =
@@ -662,6 +684,14 @@ impl DraftProxy {
                 .base
                 .function_fulfillment_constraint_rule_order
                 .clone());
+        }
+        if self
+            .store
+            .base
+            .function_fulfillment_constraint_rules_catalog_hydrated
+        {
+            snapshot["baseState"]["functionFulfillmentConstraintRulesCatalogHydrated"] =
+                json!(true);
         }
         if !self.store.staged.media_ready_on_read.is_empty() {
             snapshot["stagedState"]["mediaReadyOnReadIds"] = json!(self
@@ -1367,6 +1397,8 @@ impl DraftProxy {
         );
         self.store.base.order_count_baselines =
             value_map_from_json(state["baseState"].get("orderCountBaselines"));
+        self.store.base.discount_count_baselines =
+            value_map_from_json(state["baseState"].get("discountCountBaselines"));
         self.store.staged.products.replace_with_order(
             product_state_map_from_json(&state["stagedState"]["products"]),
             string_array_from_json(&state["stagedState"]["productOrder"]),
@@ -1530,6 +1562,13 @@ impl DraftProxy {
             value_map_from_json(state["baseState"].get("discounts")),
             state["baseState"]
                 .get("discountOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
+        self.store.base.segments.replace_with_order(
+            value_map_from_json(state["baseState"].get("segments")),
+            state["baseState"]
+                .get("segmentOrder")
                 .map(string_array_from_json)
                 .unwrap_or_default(),
         );
@@ -1753,6 +1792,12 @@ impl DraftProxy {
                     .cloned()
                     .collect()
             });
+        self.store
+            .base
+            .function_fulfillment_constraint_rules_catalog_hydrated = state["baseState"]
+            ["functionFulfillmentConstraintRulesCatalogHydrated"]
+            .as_bool()
+            .unwrap_or(false);
         self.store.base.metafield_definitions =
             metafield_definition_map_from_json(state["baseState"].get("metafieldDefinitions"));
         self.store.base.metafield_definition_owner_catalogs = state["baseState"]
@@ -1945,6 +1990,32 @@ impl DraftProxy {
             .unwrap_or_default()
             .into_iter()
             .collect();
+        self.store.staged.storefront_customer_email_index = state["stagedState"]
+            .get("storefrontCustomerEmailIndex")
+            .and_then(Value::as_object)
+            .map(|index| {
+                index
+                    .iter()
+                    .filter_map(|(email, customer_id)| {
+                        customer_id
+                            .as_str()
+                            .map(|customer_id| (email.clone(), customer_id.to_string()))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.storefront_customer_access_tokens =
+            value_map_from_json(state["stagedState"].get("storefrontCustomerAccessTokens"));
+        self.store.staged.next_storefront_customer_access_token_id = counter_from_json_with_floor(
+            &state["stagedState"],
+            "nextStorefrontCustomerAccessTokenId",
+            1,
+        );
+        self.store.staged.next_storefront_customer_reset_token_id = counter_from_json_with_floor(
+            &state["stagedState"],
+            "nextStorefrontCustomerResetTokenId",
+            1,
+        );
         self.store.staged.customers_count_base =
             state["stagedState"]["customersCountBase"].as_u64();
         replace_staged_value_records(
@@ -2159,6 +2230,13 @@ impl DraftProxy {
             "deliveryCustomizations",
             Some("deliveryCustomizationOrder"),
             Some("deletedDeliveryCustomizationIds"),
+        );
+        replace_staged_value_records(
+            &mut self.store.staged.segments,
+            &state["stagedState"],
+            "segments",
+            Some("segmentOrder"),
+            Some("deletedSegmentIds"),
         );
         self.store.staged.fulfillment_order_cursors = state["stagedState"]
             .get("fulfillmentOrderCursors")

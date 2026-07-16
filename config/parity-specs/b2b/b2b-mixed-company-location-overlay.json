@@ -42,6 +42,17 @@
         "proxyPath": "$.data.companyCreate.userErrors"
       },
       {
+        "name": "count-only-companiesCount-preserves-upstream-plus-staged-delta",
+        "capturePath": "$.countOnly.afterStagedCreate.response.payload.data.companiesCount",
+        "proxyPath": "$.data.companiesCount",
+        "upstreamCapturePath": "$.upstreamCalls",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-mixed-overlay-companies-count-only.graphql",
+          "variablesCapturePath": "$.countOnly.afterStagedCreate.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
         "name": "staged-location-create-user-errors",
         "capturePath": "$.cases[5].response.payload.data.companyLocationCreate.userErrors",
         "proxyPath": "$.data.companyLocationCreate.userErrors",
@@ -330,5 +341,5 @@
       }
     ]
   },
-  "notes": "Live Admin GraphQL 2026-04 capture creates two disposable baseline B2B companies with multiple locations, records a baseline companies/companiesCount/companyLocations read as the upstream cassette, then records live create, update, location delete, and company delete deltas plus readbacks. Local replay stages only the delta mutations through public GraphQL and verifies the mixed B2B read merges the cassette baseline with staged company/location overlays while preserving filters, sorting, count, pageInfo booleans, and nested Company.locations payloads. IDs and cursor strings are excluded as volatile."
+  "notes": "Live Admin GraphQL 2026-04 capture creates two disposable baseline B2B companies with multiple locations, records baseline companies/companiesCount/companyLocations and count-only companiesCount reads as upstream cassettes, then records live create, update, location delete, and company delete deltas plus readbacks. Local replay stages only the delta mutations through public GraphQL and verifies the mixed B2B read plus a lone count root merge the cassette baseline with staged company/location overlays while preserving filters, sorting, count, pageInfo booleans, and nested Company.locations payloads. IDs and cursor strings are excluded as volatile."
 }

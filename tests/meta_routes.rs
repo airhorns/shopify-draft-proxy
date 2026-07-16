@@ -1016,6 +1016,8 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "publicationIds": [],
                     "savedSearchOrder": [],
                     "savedSearches": {},
+                    "segmentOrder": [],
+                    "segments": {},
                     "shop": null,
                     "shopLocales": null,
                     "shopPolicies": {},
@@ -1036,7 +1038,8 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "deliveryPromiseProviderOrder": [],
                     "deliveryPromiseProviders": {},
                     "discountOrder": [],
-                    "discounts": {}
+                    "discounts": {},
+                    "discountCountBaselines": {}
                 },
                 "stagedState": {
                     "abandonments": {},
@@ -1068,6 +1071,7 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     ],
                     "deletedProductVariantIds": [],
                     "deletedSavedSearchIds": [],
+                    "deletedSegmentIds": [],
                     "deletedShippingPackageIds": {},
                     "deletedShopPolicyIds": [],
                     "deliveryCustomizationOrder": [],
@@ -1256,6 +1260,8 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                             "resourceType": "PRODUCT"
                         }
                     },
+                    "segmentOrder": [],
+                    "segments": {},
                     "shippingPackages": {},
                     "shopPolicies": {},
                     "shopPolicyOrder": [],
@@ -1263,6 +1269,10 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "storeCreditAccounts": {},
                     "storeCreditTransactionOrder": [],
                     "storeCreditTransactions": {},
+                    "storefrontCustomerAccessTokens": {},
+                    "storefrontCustomerEmailIndex": {},
+                    "nextStorefrontCustomerAccessTokenId": 1,
+                    "nextStorefrontCustomerResetTokenId": 1,
                     "taggableResources": {},
                     "uninstalledAppIds": []
                 }

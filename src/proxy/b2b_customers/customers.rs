@@ -339,21 +339,18 @@ impl DraftProxy {
     ) -> Value {
         if field.arguments.contains_key("query") {
             let query = resolved_string_field(&field.arguments, "query");
-            let base_count = upstream_count_field(field, upstream_data);
+            let base_count = upstream_count_total(field, upstream_data);
             let base_records = self.customer_overlay_catalog_records(request, field, upstream_data);
             let base_matching_ids = customer_matching_record_ids(&base_records, query.as_deref());
-            let mut count = base_count
-                .as_ref()
-                .map(|(count, _)| *count as usize)
-                .unwrap_or_else(|| {
-                    self.effective_customer_records(base_records.clone())
-                        .into_iter()
-                        .filter(|customer| {
-                            customer_overlay_search_decision(customer, query.as_deref())
-                                == StagedSearchDecision::Match
-                        })
-                        .count()
-                });
+            let mut count = base_count.as_ref().copied().unwrap_or_else(|| {
+                self.effective_customer_records(base_records.clone())
+                    .into_iter()
+                    .filter(|customer| {
+                        customer_overlay_search_decision(customer, query.as_deref())
+                            == StagedSearchDecision::Match
+                    })
+                    .count()
+            });
 
             if base_count.is_some() {
                 for id in &self.store.staged.customers.tombstones {
@@ -384,36 +381,34 @@ impl DraftProxy {
                 }
             }
 
-            let precision = base_count
-                .as_ref()
-                .map(|(_, precision)| precision.as_str())
-                .unwrap_or("EXACT");
-            return selected_json(
-                &count_object_with_precision(count, precision),
-                &field.selection,
-            );
+            let count_value = if base_count.is_some() {
+                upstream_count_with_effective_total(field, upstream_data, count, &field.arguments)
+                    .unwrap_or_else(|| snapshot_count_with_limit_precision(count, &field.arguments))
+            } else {
+                snapshot_count_with_limit_precision(count, &field.arguments)
+            };
+            return selected_json(&count_value, &field.selection);
         }
 
-        if let Some((base_count, precision)) = upstream_count_field(field, upstream_data) {
-            let mut count = base_count as usize;
-            for id in &self.store.staged.customers.tombstones {
-                if !self.store.staged.locally_created_customer_ids.contains(id) {
-                    count = count.saturating_sub(1);
-                }
+        let mut delta = 0isize;
+        for id in &self.store.staged.customers.tombstones {
+            if !self.store.staged.locally_created_customer_ids.contains(id) {
+                delta -= 1;
             }
-            for (id, customer) in self.store.staged.customers.iter() {
-                if !self.store.staged.locally_created_customer_ids.contains(id)
-                    || self.store.staged.customers.is_tombstoned(id)
-                    || self.upstream_data_contains_customer_identity(upstream_data, customer)
-                {
-                    continue;
-                }
-                count = count.saturating_add(1);
+        }
+        for (id, customer) in self.store.staged.customers.iter() {
+            if !self.store.staged.locally_created_customer_ids.contains(id)
+                || self.store.staged.customers.is_tombstoned(id)
+                || self.upstream_data_contains_customer_identity(upstream_data, customer)
+            {
+                continue;
             }
-            return selected_json(
-                &count_object_with_precision(count, &precision),
-                &field.selection,
-            );
+            delta += 1;
+        }
+        if let Some(count) =
+            upstream_count_with_staged_delta(field, upstream_data, delta, &field.arguments)
+        {
+            return selected_json(&count, &field.selection);
         }
 
         selected_json(

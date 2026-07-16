@@ -1,0 +1,9 @@
+mutation StorefrontCatalogProductDelete($input: ProductDeleteInput!) {
+  productDelete(input: $input) {
+    deletedProductId
+    userErrors {
+      field
+      message
+    }
+  }
+}

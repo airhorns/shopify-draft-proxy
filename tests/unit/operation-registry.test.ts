@@ -171,7 +171,7 @@ describe('operation registry', () => {
     ).toBe(true);
   });
 
-  it('loads Storefront roots from the captured Storefront root inventory with promoted content roots implemented', () => {
+  it('loads Storefront roots from the captured Storefront root inventory with promoted content, customer, and catalog roots implemented', () => {
     const storefrontEntries = listStorefrontOperationRegistryEntries();
     expect(storefrontEntries.length).toBeGreaterThan(0);
     for (const root of [
@@ -180,6 +180,7 @@ describe('operation registry', () => {
       'blog',
       'blogByHandle',
       'blogs',
+      'customer',
       'localization',
       'locations',
       'menu',
@@ -187,6 +188,9 @@ describe('operation registry', () => {
       'pageByHandle',
       'pages',
       'paymentSettings',
+      'product',
+      'productByHandle',
+      'products',
       'publicApiVersions',
       'shop',
       'sitemap',
@@ -203,26 +207,29 @@ describe('operation registry', () => {
         }),
       );
     }
-    expect(storefrontEntries).toContainEqual(
-      expect.objectContaining({
-        apiSurface: 'storefront',
-        name: 'products',
-        type: 'query',
-        domain: 'storefront',
-        implemented: false,
-        runtimeTests: [],
-      }),
-    );
-    expect(storefrontEntries).toContainEqual(
-      expect.objectContaining({
-        apiSurface: 'storefront',
-        name: 'customerCreate',
-        type: 'mutation',
-        domain: 'storefront',
-        implemented: false,
-        runtimeTests: [],
-      }),
-    );
+    for (const root of [
+      'customerAccessTokenCreate',
+      'customerAccessTokenCreateWithMultipass',
+      'customerAccessTokenDelete',
+      'customerAccessTokenRenew',
+      'customerActivate',
+      'customerActivateByUrl',
+      'customerCreate',
+      'customerRecover',
+      'customerReset',
+      'customerResetByUrl',
+    ]) {
+      expect(storefrontEntries).toContainEqual(
+        expect.objectContaining({
+          apiSurface: 'storefront',
+          name: root,
+          type: 'mutation',
+          domain: 'storefront',
+          implemented: true,
+          runtimeTests: ['tests/graphql_routes/storefront.rs'],
+        }),
+      );
+    }
     expect(listOperationRegistryEntries()).toContainEqual(
       expect.objectContaining({
         apiSurface: 'admin',

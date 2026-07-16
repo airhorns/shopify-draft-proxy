@@ -730,6 +730,7 @@ impl DraftProxy {
                 Some(ok_json(json!({ "data": data })))
             }
             OperationType::Query => {
+                let mut upstream_data = None;
                 if self.config.read_mode == ReadMode::LiveHybrid
                     && Self::b2b_query_has_catalog_root(&fields)
                 {
@@ -738,6 +739,7 @@ impl DraftProxy {
                         return Some(response);
                     }
                     self.hydrate_b2b_base_from_read_data(&fields, &response.body["data"]);
+                    upstream_data = response.body.get("data").cloned();
                 }
                 let mut declined = false;
                 let data = root_payload_json(&fields, |field| {
@@ -783,7 +785,7 @@ impl DraftProxy {
                         }
                         "companyLocations" => self.b2b_company_locations_connection(field),
                         "companies" => self.b2b_companies_connection(field),
-                        "companiesCount" => self.b2b_companies_count(field),
+                        "companiesCount" => self.b2b_companies_count(field, upstream_data.as_ref()),
                         "node" => {
                             let id =
                                 resolved_string_field(&field.arguments, "id").unwrap_or_default();
@@ -3586,7 +3588,20 @@ impl DraftProxy {
         )
     }
 
-    fn b2b_companies_count(&self, field: &RootFieldSelection) -> Value {
+    fn b2b_companies_count(
+        &self,
+        field: &RootFieldSelection,
+        upstream_data: Option<&Value>,
+    ) -> Value {
+        if let Some(count) = upstream_count_with_staged_delta(
+            field,
+            upstream_data,
+            self.b2b_company_count_delta(&field.arguments),
+            &field.arguments,
+        ) {
+            return selected_json(&count, &field.selection);
+        }
+
         selected_json(
             &self.b2b_companies_count_value(&field.arguments),
             &field.selection,
@@ -3608,7 +3623,7 @@ impl DraftProxy {
                 b2b_company_resource_sort_key,
                 value_id_cursor,
             );
-            return staged_count_with_limit_precision(result.total_count, arguments);
+            return snapshot_count_with_limit_precision(result.total_count, arguments);
         };
         let Some(base_count) = baseline.get("count").and_then(Value::as_u64) else {
             let result = staged_connection_query(
@@ -3618,7 +3633,7 @@ impl DraftProxy {
                 b2b_company_resource_sort_key,
                 value_id_cursor,
             );
-            return staged_count_with_limit_precision(result.total_count, arguments);
+            return snapshot_count_with_limit_precision(result.total_count, arguments);
         };
         let delta = self.b2b_company_count_delta(arguments);
         let effective_total = if delta.is_negative() {
@@ -3626,7 +3641,7 @@ impl DraftProxy {
         } else {
             (base_count as usize).saturating_add(delta as usize)
         };
-        let mut count = staged_count_with_limit_precision(effective_total, arguments);
+        let mut count = snapshot_count_with_limit_precision(effective_total, arguments);
         if baseline.get("precision").and_then(Value::as_str) == Some("AT_LEAST") {
             count["precision"] = json!("AT_LEAST");
         }

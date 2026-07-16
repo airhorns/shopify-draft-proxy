@@ -1,0 +1,680 @@
+{
+  "scenarioId": "storefront-customer-auth-lifecycle",
+  "operationNames": [
+    "customer",
+    "customerCreate",
+    "customerAccessTokenCreate",
+    "customerAccessTokenRenew",
+    "customerAccessTokenDelete",
+    "customerActivate",
+    "customerActivateByUrl",
+    "customerRecover",
+    "customerReset",
+    "customerResetByUrl",
+    "customerAccessTokenCreateWithMultipass",
+    "customerGenerateAccountActivationUrl",
+    "customerUpdate",
+    "customerDelete"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "downstream-read-parity",
+    "storefront-api-local-overlay",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/storefront/storefront-customer-auth-lifecycle.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/storefront.rs"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "apiSurface": "storefront",
+    "apiVersion": "2026-04",
+    "documentPath": "config/parity-requests/storefront/storefront-customer-auth-create.graphql",
+    "operationName": "StorefrontCustomerAuthCreate",
+    "variables": {
+      "input": {
+        "email": {
+          "fromCapturePath": "$.disposableInputs.storefrontCustomerEmail"
+        },
+        "password": "CodexPass123!",
+        "firstName": "Storefront",
+        "lastName": "Auth",
+        "acceptsMarketing": true
+      }
+    }
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "storefront-customer-create-success",
+        "capturePath": "$.captures.storefrontCreate.response.body.data.customerCreate",
+        "proxyPath": "$.data.customerCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.customer.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The proxy stages a deterministic synthetic Customer ID instead of Shopify's live Customer ID."
+          },
+          {
+            "path": "$.customer.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic local mutation timestamp for the staged customer."
+          },
+          {
+            "path": "$.customer.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic local mutation timestamp for the staged customer."
+          }
+        ]
+      },
+      {
+        "name": "storefront-customer-create-duplicate-email",
+        "capturePath": "$.captures.duplicateCreate.response.body.data.customerCreate",
+        "proxyPath": "$.data.customerCreate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-auth-create.graphql",
+          "operationName": "StorefrontCustomerAuthCreate",
+          "variables": {
+            "input": {
+              "email": {
+                "fromCapturePath": "$.disposableInputs.storefrontCustomerEmail"
+              },
+              "password": "CodexPass123!"
+            }
+          }
+        }
+      },
+      {
+        "name": "storefront-customer-create-invalid-email",
+        "capturePath": "$.captures.invalidEmailCreate.response.body.data.customerCreate",
+        "proxyPath": "$.data.customerCreate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-auth-create.graphql",
+          "operationName": "StorefrontCustomerAuthCreate",
+          "variables": {
+            "input": {
+              "email": "not-an-email",
+              "password": "CodexPass123!"
+            }
+          }
+        }
+      },
+      {
+        "name": "storefront-customer-create-blank-password",
+        "capturePath": "$.captures.blankPasswordCreate.response.body.data.customerCreate",
+        "proxyPath": "$.data.customerCreate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-auth-create.graphql",
+          "operationName": "StorefrontCustomerAuthCreate",
+          "variables": {
+            "input": {
+              "email": {
+                "fromCapturePath": "$.captures.blankPasswordCreate.variables.input.email"
+              },
+              "password": ""
+            }
+          }
+        }
+      },
+      {
+        "name": "storefront-customer-create-html-first-name",
+        "capturePath": "$.captures.htmlNameCreate.response.body.data.customerCreate",
+        "proxyPath": "$.data.customerCreate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-auth-create.graphql",
+          "operationName": "StorefrontCustomerAuthCreate",
+          "variables": {
+            "input": {
+              "email": {
+                "fromCapturePath": "$.captures.htmlNameCreate.variables.input.email"
+              },
+              "password": "CodexPass123!",
+              "firstName": "<b>Bad</b>"
+            }
+          }
+        }
+      },
+      {
+        "name": "storefront-token-create-invalid-password",
+        "capturePath": "$.captures.tokenInvalid.response.body.data.customerAccessTokenCreate",
+        "proxyPath": "$.data.customerAccessTokenCreate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-auth-token-create.graphql",
+          "operationName": "StorefrontCustomerAuthTokenCreate",
+          "variables": {
+            "input": {
+              "email": {
+                "fromCapturePath": "$.disposableInputs.storefrontCustomerEmail"
+              },
+              "password": "wrong-password"
+            }
+          }
+        }
+      },
+      {
+        "name": "storefront-token-create-success",
+        "capturePath": "$.captures.tokenValid.response.body.data.customerAccessTokenCreate",
+        "proxyPath": "$.data.customerAccessTokenCreate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-auth-token-create.graphql",
+          "operationName": "StorefrontCustomerAuthTokenCreate",
+          "variables": {
+            "input": {
+              "email": {
+                "fromCapturePath": "$.disposableInputs.storefrontCustomerEmail"
+              },
+              "password": "CodexPass123!"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.customerAccessToken.accessToken",
+            "matcher": "storefront-access-token",
+            "reason": "The live Storefront customer access token is redacted; the proxy returns its own opaque local token."
+          },
+          {
+            "path": "$.customerAccessToken.expiresAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy expiry is derived from the local runtime clock while the live capture expiry is derived from Shopify's capture time."
+          }
+        ]
+      },
+      {
+        "name": "storefront-customer-query-authenticated",
+        "capturePath": "$.captures.customerRead.response.body.data.customer",
+        "proxyPath": "$.data.customer",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-auth-read.graphql",
+          "operationName": "StorefrontCustomerAuthRead",
+          "variables": {
+            "token": {
+              "fromProxyResponse": "storefront-token-create-success",
+              "path": "$.data.customerAccessTokenCreate.customerAccessToken.accessToken"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The proxy returns the locally staged Customer ID for the Storefront-created customer."
+          },
+          {
+            "path": "$.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic local creation timestamp."
+          },
+          {
+            "path": "$.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic local update timestamp."
+          }
+        ]
+      },
+      {
+        "name": "storefront-token-renew-active",
+        "capturePath": "$.captures.tokenRenew.response.body.data.customerAccessTokenRenew",
+        "proxyPath": "$.data.customerAccessTokenRenew",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-auth-token-renew.graphql",
+          "operationName": "StorefrontCustomerAuthTokenRenew",
+          "variables": {
+            "token": {
+              "fromProxyResponse": "storefront-token-create-success",
+              "path": "$.data.customerAccessTokenCreate.customerAccessToken.accessToken"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.customerAccessToken.accessToken",
+            "matcher": "storefront-access-token",
+            "reason": "The live token is redacted; the proxy returns the same local opaque token it issued."
+          },
+          {
+            "path": "$.customerAccessToken.expiresAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy expiry is derived from the local runtime clock."
+          }
+        ]
+      },
+      {
+        "name": "storefront-token-delete-active",
+        "capturePath": "$.captures.tokenDelete.response.body.data.customerAccessTokenDelete",
+        "proxyPath": "$.data.customerAccessTokenDelete",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-auth-token-delete.graphql",
+          "operationName": "StorefrontCustomerAuthTokenDelete",
+          "variables": {
+            "token": {
+              "fromProxyResponse": "storefront-token-create-success",
+              "path": "$.data.customerAccessTokenCreate.customerAccessToken.accessToken"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deletedAccessToken",
+            "matcher": "storefront-access-token",
+            "reason": "The live deleted token is redacted; the proxy echoes the local opaque token."
+          },
+          {
+            "path": "$.deletedCustomerAccessTokenId",
+            "matcher": "shopify-gid:CustomerAccessToken",
+            "reason": "The proxy creates a deterministic synthetic CustomerAccessToken ID."
+          }
+        ]
+      },
+      {
+        "name": "storefront-customer-query-after-token-delete",
+        "capturePath": "$.captures.customerReadAfterTokenDelete.response.body.data.customer",
+        "proxyPath": "$.data.customer",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-auth-read.graphql",
+          "operationName": "StorefrontCustomerAuthRead",
+          "variables": {
+            "token": {
+              "fromProxyResponse": "storefront-token-create-success",
+              "path": "$.data.customerAccessTokenCreate.customerAccessToken.accessToken"
+            }
+          }
+        }
+      },
+      {
+        "name": "storefront-token-delete-revoked-access-denied",
+        "capturePath": "$.captures.tokenDeleteAgain.response.body",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-auth-token-delete.graphql",
+          "operationName": "StorefrontCustomerAuthTokenDelete",
+          "variables": {
+            "token": {
+              "fromProxyResponse": "storefront-token-create-success",
+              "path": "$.data.customerAccessTokenCreate.customerAccessToken.accessToken"
+            }
+          }
+        },
+        "excludedPaths": ["$.extensions"]
+      },
+      {
+        "name": "storefront-multipass-invalid-boundary",
+        "capturePath": "$.captures.multipassInvalid.response.body.data.customerAccessTokenCreateWithMultipass",
+        "proxyPath": "$.data.customerAccessTokenCreateWithMultipass",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-auth-multipass.graphql",
+          "operationName": "StorefrontCustomerAuthMultipass",
+          "variables": {
+            "multipassToken": "invalid-multipass-local"
+          }
+        }
+      },
+      {
+        "name": "admin-disabled-customer-create",
+        "capturePath": "$.captures.adminCreate.response.body.data.customerCreate",
+        "proxyPath": "$.data.customerCreate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-auth-admin-create.graphql",
+          "operationName": "StorefrontCustomerAuthAdminCreate",
+          "variables": {
+            "input": {
+              "email": {
+                "fromCapturePath": "$.disposableInputs.adminCustomerEmail"
+              },
+              "firstName": "Admin",
+              "lastName": "Auth"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.customer.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The proxy stages a deterministic synthetic Customer ID instead of Shopify's live Customer ID."
+          },
+          {
+            "path": "$.customer.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic local creation timestamp."
+          },
+          {
+            "path": "$.customer.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic local update timestamp."
+          }
+        ]
+      },
+      {
+        "name": "storefront-token-create-disabled-admin-customer",
+        "capturePath": "$.captures.disabledTokenCreate.response.body.data.customerAccessTokenCreate",
+        "proxyPath": "$.data.customerAccessTokenCreate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-auth-token-create.graphql",
+          "operationName": "StorefrontCustomerAuthTokenCreate",
+          "variables": {
+            "input": {
+              "email": {
+                "fromCapturePath": "$.disposableInputs.adminCustomerEmail"
+              },
+              "password": "CodexPass123!"
+            }
+          }
+        }
+      },
+      {
+        "name": "admin-activation-url",
+        "capturePath": "$.captures.activationUrl.response.body.data.customerGenerateAccountActivationUrl",
+        "proxyPath": "$.data.customerGenerateAccountActivationUrl",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-auth-admin-activation-url.graphql",
+          "operationName": "StorefrontCustomerAuthAdminActivationUrl",
+          "variables": {
+            "customerId": {
+              "fromProxyResponse": "admin-disabled-customer-create",
+              "path": "$.data.customerCreate.customer.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.accountActivationUrl",
+            "matcher": "non-empty-string",
+            "reason": "The live activation URL is redacted; the proxy returns a local deterministic activation URL."
+          }
+        ]
+      },
+      {
+        "name": "storefront-activate-invalid-token",
+        "capturePath": "$.captures.activateInvalid.response.body.data.customerActivate",
+        "proxyPath": "$.data.customerActivate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-auth-activate.graphql",
+          "operationName": "StorefrontCustomerAuthActivate",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "admin-disabled-customer-create",
+              "path": "$.data.customerCreate.customer.id"
+            },
+            "input": {
+              "activationToken": "bad-token",
+              "password": "CodexPass123!"
+            }
+          }
+        }
+      },
+      {
+        "name": "storefront-activate-by-url-success",
+        "capturePath": "$.captures.activateByUrl.response.body.data.customerActivateByUrl",
+        "proxyPath": "$.data.customerActivateByUrl",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-auth-activate-by-url.graphql",
+          "operationName": "StorefrontCustomerAuthActivateByUrl",
+          "variables": {
+            "activationUrl": {
+              "fromProxyResponse": "admin-activation-url",
+              "path": "$.data.customerGenerateAccountActivationUrl.accountActivationUrl"
+            },
+            "password": "CodexPass123!"
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.customer.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The proxy returns the locally staged Customer ID for the activated Admin-created customer."
+          },
+          {
+            "path": "$.customerAccessToken.accessToken",
+            "matcher": "storefront-access-token",
+            "reason": "The live activation access token is redacted; the proxy returns its own opaque local token."
+          },
+          {
+            "path": "$.customerAccessToken.expiresAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy expiry is derived from the local runtime clock."
+          }
+        ]
+      },
+      {
+        "name": "storefront-activate-already-enabled",
+        "capturePath": "$.captures.activateAgain.response.body.data.customerActivate",
+        "proxyPath": "$.data.customerActivate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-auth-activate.graphql",
+          "operationName": "StorefrontCustomerAuthActivate",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "admin-disabled-customer-create",
+              "path": "$.data.customerCreate.customer.id"
+            },
+            "input": {
+              "activationToken": {
+                "fromProxyResponse": "admin-activation-url",
+                "path": "$.data.customerGenerateAccountActivationUrl.accountActivationUrl",
+                "resourceIdTail": true
+              },
+              "password": "CodexPass123!"
+            }
+          }
+        }
+      },
+      {
+        "name": "storefront-recover-existing",
+        "capturePath": "$.captures.recoverExisting.response.body.data.customerRecover",
+        "proxyPath": "$.data.customerRecover",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-auth-recover.graphql",
+          "operationName": "StorefrontCustomerAuthRecover",
+          "variables": {
+            "email": {
+              "fromCapturePath": "$.disposableInputs.adminCustomerEmail"
+            }
+          }
+        }
+      },
+      {
+        "name": "storefront-reset-invalid-token",
+        "capturePath": "$.captures.resetInvalid.response.body.data.customerReset",
+        "proxyPath": "$.data.customerReset",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-auth-reset.graphql",
+          "operationName": "StorefrontCustomerAuthReset",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "admin-disabled-customer-create",
+              "path": "$.data.customerCreate.customer.id"
+            },
+            "input": {
+              "resetToken": "bad-token",
+              "password": "NewCodexPass123!"
+            }
+          }
+        }
+      },
+      {
+        "name": "storefront-reset-by-url-invalid",
+        "capturePath": "$.captures.resetByUrlInvalid.response.body",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-auth-reset-by-url.graphql",
+          "operationName": "StorefrontCustomerAuthResetByUrl",
+          "variables": {
+            "resetUrl": "https://harry-test-heelo.myshopify.com/account/reset/bad-token",
+            "password": "NewCodexPass123!"
+          }
+        },
+        "excludedPaths": ["$.extensions"]
+      },
+      {
+        "name": "admin-update-cross-surface-customer",
+        "capturePath": "$.captures.adminUpdate.response.body.data.customerUpdate",
+        "proxyPath": "$.data.customerUpdate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-auth-admin-update.graphql",
+          "operationName": "StorefrontCustomerAuthAdminUpdate",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "admin-disabled-customer-create",
+                "path": "$.data.customerCreate.customer.id"
+              },
+              "firstName": "Updated",
+              "lastName": "Auth"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.customer.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The proxy updates the locally staged Customer ID."
+          },
+          {
+            "path": "$.customer.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic local update timestamp."
+          }
+        ]
+      },
+      {
+        "name": "storefront-read-after-admin-update",
+        "capturePath": "$.captures.customerReadAfterAdminUpdate.response.body.data.customer",
+        "proxyPath": "$.data.customer",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-auth-read.graphql",
+          "operationName": "StorefrontCustomerAuthRead",
+          "variables": {
+            "token": {
+              "fromProxyResponse": "storefront-activate-by-url-success",
+              "path": "$.data.customerActivateByUrl.customerAccessToken.accessToken"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The proxy returns the locally staged Customer ID."
+          },
+          {
+            "path": "$.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic local creation timestamp."
+          },
+          {
+            "path": "$.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic local update timestamp."
+          }
+        ]
+      },
+      {
+        "name": "admin-delete-cross-surface-customer",
+        "capturePath": "$.captures.adminDelete.response.body.data.customerDelete",
+        "proxyPath": "$.data.customerDelete",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-auth-admin-delete.graphql",
+          "operationName": "StorefrontCustomerAuthAdminDelete",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "admin-disabled-customer-create",
+                "path": "$.data.customerCreate.customer.id"
+              }
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deletedCustomerId",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The proxy deletes the locally staged Customer ID."
+          }
+        ]
+      },
+      {
+        "name": "storefront-read-after-admin-delete",
+        "capturePath": "$.captures.customerReadAfterAdminDelete.response.body.data.customer",
+        "proxyPath": "$.data.customer",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-auth-read.graphql",
+          "operationName": "StorefrontCustomerAuthRead",
+          "variables": {
+            "token": {
+              "fromProxyResponse": "storefront-activate-by-url-success",
+              "path": "$.data.customerActivateByUrl.customerAccessToken.accessToken"
+            }
+          }
+        }
+      },
+      {
+        "name": "storefront-recover-missing",
+        "capturePath": "$.captures.recoverMissing.response.body.data.customerRecover",
+        "proxyPath": "$.data.customerRecover",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/storefront/storefront-customer-auth-recover.graphql",
+          "operationName": "StorefrontCustomerAuthRecover",
+          "variables": {
+            "email": {
+              "fromCapturePath": "$.disposableInputs.missingCustomerEmail"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Live Storefront customer-auth fixture captured disposable Storefront-created and Admin-created customers, activation, token lifecycle, recovery/reset boundaries, invalid credentials, duplicate and validation branches, Multipass invalid behavior, and cross-surface Admin update/delete reads. The fixture redacts passwords, access tokens, activation/reset URLs, and deleted token values; proxy replay uses non-secret local test passwords and proxy-generated tokens for follow-on requests. Email delivery and live reset-link success are intentionally not captured because mailbox access is outside the proxy runtime contract."
+}

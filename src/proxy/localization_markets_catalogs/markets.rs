@@ -240,7 +240,7 @@ impl DraftProxy {
 
     fn catalogs_count_value(&self, field: &RootFieldSelection) -> Value {
         selected_json(
-            &staged_count_with_limit_precision(
+            &snapshot_count_with_limit_precision(
                 self.matching_catalogs_query(&field.arguments).total_count,
                 &field.arguments,
             ),

@@ -1,0 +1,6 @@
+query DiscountMixedCatalogCountOnly($query: String!) {
+  discountNodesCount(query: $query) {
+    count
+    precision
+  }
+}

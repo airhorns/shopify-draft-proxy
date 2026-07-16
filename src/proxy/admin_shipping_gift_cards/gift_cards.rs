@@ -410,7 +410,7 @@ impl DraftProxy {
     fn gift_cards_count_field(&self, field: &RootFieldSelection) -> Value {
         let result = self.staged_gift_cards_query(&field.arguments);
         selected_json(
-            &staged_count_with_limit_precision(result.total_count, &field.arguments),
+            &snapshot_count_with_limit_precision(result.total_count, &field.arguments),
             &field.selection,
         )
     }
@@ -660,7 +660,7 @@ impl DraftProxy {
         if self.gift_card_query_baseline_complete(arguments) {
             let result = self.staged_gift_cards_query(arguments);
             *count = selected_json(
-                &staged_count_with_limit_precision(result.total_count, arguments),
+                &snapshot_count_with_limit_precision(result.total_count, arguments),
                 selection,
             );
             return;
@@ -687,7 +687,7 @@ impl DraftProxy {
         if let Some(current) = count.get("count").and_then(Value::as_i64) {
             let adjusted = (current + delta).max(0) as usize;
             *count = selected_json(
-                &staged_count_with_limit_precision(adjusted, arguments),
+                &snapshot_count_with_limit_precision(adjusted, arguments),
                 selection,
             );
         }

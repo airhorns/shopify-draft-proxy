@@ -1,0 +1,14 @@
+mutation StorefrontCatalogProductUpdate($product: ProductUpdateInput!) {
+  productUpdate(product: $product) {
+    product {
+      id
+      title
+      handle
+      updatedAt
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
