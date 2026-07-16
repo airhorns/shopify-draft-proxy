@@ -2857,6 +2857,7 @@ impl DraftProxy {
             let value = data.get(&field.response_key).unwrap_or(&Value::Null);
             match field.name.as_str() {
                 "companies" => self.observe_b2b_company_connection(value),
+                "companiesCount" => self.observe_b2b_company_count_baseline(field, data),
                 "company" => {
                     self.observe_b2b_company_record(value);
                 }
@@ -2870,6 +2871,16 @@ impl DraftProxy {
                 _ => {}
             }
         }
+    }
+
+    fn observe_b2b_company_count_baseline(&mut self, field: &RootFieldSelection, data: &Value) {
+        let Some((count, precision)) = upstream_count_field(field, Some(data)) else {
+            return;
+        };
+        self.store.base.b2b_company_count_baselines.insert(
+            b2b_company_count_baseline_key(&field.arguments),
+            count_object_with_precision(count, &precision),
+        );
     }
 
     fn observe_b2b_company_connection(&mut self, connection: &Value) {
@@ -3576,17 +3587,75 @@ impl DraftProxy {
     }
 
     fn b2b_companies_count(&self, field: &RootFieldSelection) -> Value {
-        let result = staged_connection_query(
-            self.b2b_effective_companies(),
-            &field.arguments,
-            b2b_company_search_decision,
-            b2b_company_resource_sort_key,
-            value_id_cursor,
-        );
         selected_json(
-            &staged_count_with_limit_precision(result.total_count, &field.arguments),
+            &self.b2b_companies_count_value(&field.arguments),
             &field.selection,
         )
+    }
+
+    fn b2b_companies_count_value(&self, arguments: &BTreeMap<String, ResolvedValue>) -> Value {
+        let baseline_key = b2b_company_count_baseline_key(arguments);
+        let Some(baseline) = self
+            .store
+            .base
+            .b2b_company_count_baselines
+            .get(&baseline_key)
+        else {
+            let result = staged_connection_query(
+                self.b2b_effective_companies(),
+                arguments,
+                b2b_company_search_decision,
+                b2b_company_resource_sort_key,
+                value_id_cursor,
+            );
+            return staged_count_with_limit_precision(result.total_count, arguments);
+        };
+        let Some(base_count) = baseline.get("count").and_then(Value::as_u64) else {
+            let result = staged_connection_query(
+                self.b2b_effective_companies(),
+                arguments,
+                b2b_company_search_decision,
+                b2b_company_resource_sort_key,
+                value_id_cursor,
+            );
+            return staged_count_with_limit_precision(result.total_count, arguments);
+        };
+        let delta = self.b2b_company_count_delta(arguments);
+        let effective_total = if delta.is_negative() {
+            (base_count as usize).saturating_sub(delta.unsigned_abs())
+        } else {
+            (base_count as usize).saturating_add(delta as usize)
+        };
+        let mut count = staged_count_with_limit_precision(effective_total, arguments);
+        if baseline.get("precision").and_then(Value::as_str) == Some("AT_LEAST") {
+            count["precision"] = json!("AT_LEAST");
+        }
+        count
+    }
+
+    fn b2b_company_count_delta(&self, arguments: &BTreeMap<String, ResolvedValue>) -> isize {
+        let query = resolved_string_field(arguments, "query");
+        let mut delta = 0isize;
+        for id in &self.store.staged.deleted_b2b_company_ids {
+            if let Some(base_company) = self.store.base.b2b_companies.records.get(id) {
+                if b2b_company_matches_count_query(base_company, query.as_deref()) {
+                    delta -= 1;
+                }
+            }
+        }
+        for (id, staged_company) in &self.store.staged.b2b_companies {
+            if self.store.staged.deleted_b2b_company_ids.contains(id) {
+                continue;
+            }
+            let staged_matches = b2b_company_matches_count_query(staged_company, query.as_deref());
+            if let Some(base_company) = self.store.base.b2b_companies.records.get(id) {
+                let base_matches = b2b_company_matches_count_query(base_company, query.as_deref());
+                delta += staged_matches as isize - base_matches as isize;
+            } else if staged_matches {
+                delta += 1;
+            }
+        }
+        delta
     }
 
     fn b2b_company_locations_connection(&self, field: &RootFieldSelection) -> Value {
@@ -5472,6 +5541,24 @@ fn b2b_company_search_decision(company: &Value, query: Option<&str>) -> StagedSe
         )),
         _ => None,
     })
+}
+
+fn b2b_company_matches_count_query(company: &Value, query: Option<&str>) -> bool {
+    matches!(
+        b2b_company_search_decision(company, query),
+        StagedSearchDecision::Match
+    )
+}
+
+fn b2b_company_count_baseline_key(arguments: &BTreeMap<String, ResolvedValue>) -> String {
+    let query = resolved_string_field(arguments, "query").unwrap_or_default();
+    let limit = match arguments.get("limit") {
+        Some(ResolvedValue::Int(limit)) => limit.to_string(),
+        Some(ResolvedValue::Null) => "null".to_string(),
+        Some(_) => "other".to_string(),
+        None => "omitted".to_string(),
+    };
+    format!("query:{query}\nlimit:{limit}")
 }
 
 fn b2b_company_location_search_decision(

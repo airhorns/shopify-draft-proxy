@@ -1,0 +1,18 @@
+query B2BCompaniesCountOverlaySmallPage($first: Int!) {
+  companies(first: $first) {
+    nodes {
+      id
+      name
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  companiesCount(limit: null) {
+    count
+    precision
+  }
+}

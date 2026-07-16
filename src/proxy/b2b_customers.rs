@@ -24,6 +24,36 @@ use self::merge_erasure::{
     nodes_connection, order_connection_cursor,
 };
 
+fn upstream_count_field(
+    field: &RootFieldSelection,
+    upstream_data: Option<&Value>,
+) -> Option<(u64, String)> {
+    let value = upstream_data?.get(field.response_key.as_str())?;
+    let count_key = field
+        .selection
+        .iter()
+        .find(|selection| selection.name == "count")
+        .map(|selection| selection.response_key.as_str())
+        .unwrap_or("count");
+    let precision_key = field
+        .selection
+        .iter()
+        .find(|selection| selection.name == "precision")
+        .map(|selection| selection.response_key.as_str())
+        .unwrap_or("precision");
+    let count = value
+        .get(count_key)
+        .or_else(|| value.get("count"))
+        .and_then(Value::as_u64)?;
+    let precision = value
+        .get(precision_key)
+        .or_else(|| value.get("precision"))
+        .and_then(Value::as_str)
+        .unwrap_or("EXACT")
+        .to_string();
+    Some((count, precision))
+}
+
 impl DraftProxy {
     pub(in crate::proxy) fn resolve_b2b_graphql(
         &mut self,

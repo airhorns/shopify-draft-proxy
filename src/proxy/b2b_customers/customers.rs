@@ -4180,20 +4180,6 @@ fn upstream_root_field(field: &RootFieldSelection, upstream_data: Option<&Value>
         .cloned()
 }
 
-fn upstream_count_field(
-    field: &RootFieldSelection,
-    upstream_data: Option<&Value>,
-) -> Option<(u64, String)> {
-    let value = upstream_data?.get(field.response_key.as_str())?;
-    let count = value.get("count").and_then(Value::as_u64)?;
-    let precision = value
-        .get("precision")
-        .and_then(Value::as_str)
-        .unwrap_or("EXACT")
-        .to_string();
-    Some((count, precision))
-}
-
 fn merge_customer_records_from_connection(records: &mut Vec<Value>, connection: Option<&Value>) {
     let mut by_id = records
         .iter()
