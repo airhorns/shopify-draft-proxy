@@ -26,6 +26,7 @@ impl DraftProxy {
             Some(value)
         });
         if !touched_ids.is_empty() {
+            self.mark_markets_family_dirty("catalogs");
             self.record_mutation_log_entry(request, query, variables, "catalog", touched_ids);
         }
         data
@@ -207,6 +208,7 @@ impl DraftProxy {
             .staged
             .catalogs
             .insert(id.clone(), catalog.clone());
+        self.store.staged.created_catalog_ids.insert(id.clone());
         if let Some(price_list_id) = price_list_id.as_deref() {
             self.attach_price_list_to_catalog(&id, price_list_id);
         }
@@ -380,6 +382,7 @@ impl DraftProxy {
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let payload = if let Some(catalog) = self.store.staged.catalogs.remove(&id) {
+            self.store.staged.created_catalog_ids.remove(&id);
             self.detach_existing_catalog_price_list(&catalog);
             json!({"deletedId": id, "userErrors": []})
         } else {
@@ -596,6 +599,7 @@ impl DraftProxy {
             Some(outcome.value)
         });
         if !touched_ids.is_empty() {
+            self.mark_markets_family_dirty("priceLists");
             self.record_mutation_log_entry(request, query, variables, "priceList", touched_ids);
         }
         let mut body = serde_json::Map::new();
