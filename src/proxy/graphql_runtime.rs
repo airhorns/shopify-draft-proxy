@@ -10,7 +10,7 @@ use crate::admin_graphql::{
     self, AdminApiVersion, FieldResolverInvocation, FieldResolverResult, RootExecutionContext,
     RootFieldError, RootFieldExecutor, RootFieldInvocation, RootFieldResult,
 };
-use crate::graphql::{DirectiveSelection, ParsedDocument, VariableDefinitionInfo};
+use crate::graphql::{DirectiveSelection, VariableDefinitionInfo};
 use crate::resolver_registry::{
     FieldResolverImplementation, GraphqlApiVersion, LocalResolverMode, ResolverOutcome,
 };
@@ -26,7 +26,7 @@ struct ProxyRootExecutor {
     discount_preflight: Option<(Request, Vec<RootFieldSelection>)>,
     discount_preflight_done: std::sync::Mutex<bool>,
     delivery_promise_mutation: Option<PreparedAtomicMutation>,
-    delivery_promise_response: std::sync::Mutex<Option<Response>>,
+    delivery_promise_outcomes: std::sync::Mutex<Option<BTreeMap<String, ResolverOutcome<Value>>>>,
     full_passthrough_request: Option<Request>,
     full_passthrough_direct: bool,
     observe_direct_shop_passthrough: bool,
@@ -55,16 +55,150 @@ struct PreparedAtomicMutation {
 pub(crate) fn field_resolver_registrations() -> Vec<FieldResolverRegistration> {
     let mut registrations = saved_search_field_resolver_registrations();
     registrations.extend(product_field_resolver_registrations());
+    registrations.extend(super::selling_plans::selling_plan_field_resolver_registrations());
     registrations.extend(inventory_field_resolver_registrations());
     registrations.extend(super::privacy::privacy_field_resolver_registrations());
     registrations.extend(event_field_resolver_registrations());
+    registrations.extend(return_field_resolver_registrations());
+    registrations.extend(super::b2b_customers::customer_field_resolver_registrations());
+    registrations.extend(super::b2b_customers::b2b_company_field_resolver_registrations());
+    registrations
+        .extend(super::localization_markets_catalogs::markets_field_resolver_registrations());
+    registrations
+        .extend(super::admin_shipping_gift_cards::delivery_promise_field_resolver_registrations());
     registrations.extend(super::storefront::storefront_field_resolver_registrations());
+    registrations.extend(legacy_projected_field_resolver_registrations());
+    registrations
+}
+
+/// Argument-bearing fields still rendered by a domain's legacy
+/// `SelectedField` projector. Keeping this list explicit prevents the captured
+/// schema from silently blessing new fields as property-backed. Each entry is
+/// deleted when its parent type moves to canonical values plus a real field
+/// resolver.
+fn legacy_projected_field_resolver_registrations() -> Vec<FieldResolverRegistration> {
+    let admin = [
+        ("AppInstallation", "allSubscriptions"),
+        ("AppInstallation", "oneTimePurchases"),
+        ("AppSubscriptionLineItem", "usageRecords"),
+        ("Article", "comments"),
+        ("Article", "commentsCount"),
+        ("Article", "metafield"),
+        ("Article", "metafields"),
+        ("Blog", "articles"),
+        ("Blog", "articlesCount"),
+        ("CalculatedOrder", "lineItems"),
+        ("CartTransform", "metafield"),
+        ("CombinedListing", "combinedListingChildren"),
+        ("Company", "contactRoles"),
+        ("Company", "contacts"),
+        ("Company", "locations"),
+        ("Company", "orders"),
+        ("Company", "draftOrders"),
+        ("CompanyContact", "roleAssignments"),
+        ("CompanyLocation", "roleAssignments"),
+        ("CompanyLocation", "orders"),
+        ("CompanyLocation", "draftOrders"),
+        ("CompanyLocation", "staffMemberAssignments"),
+        ("CompanyLocationCatalog", "companyLocations"),
+        ("Customer", "addressesV2"),
+        ("Customer", "metafield"),
+        ("Customer", "metafields"),
+        ("Customer", "orders"),
+        ("Customer", "paymentMethods"),
+        ("Customer", "storeCreditAccounts"),
+        ("DeliveryCustomization", "metafield"),
+        ("DeliveryCustomization", "metafields"),
+        ("DeliveryProfile", "profileItems"),
+        ("DeliveryProfile", "profileLocationGroups"),
+        ("DeliveryLocationGroup", "locations"),
+        ("DeliveryProfileItem", "variants"),
+        ("DeliveryProfileLocationGroup", "locationGroupZones"),
+        ("DeliveryLocationGroupZone", "methodDefinitions"),
+        ("DiscountCodeApp", "codes"),
+        ("DiscountCodeBasic", "codes"),
+        ("DiscountCodeBxgy", "codes"),
+        ("DiscountCodeFreeShipping", "codes"),
+        ("DiscountCodeNode", "metafields"),
+        ("DiscountRedeemCodeBulkCreation", "codes"),
+        ("DiscountProducts", "products"),
+        ("DiscountProducts", "productVariants"),
+        ("DiscountCollections", "collections"),
+        ("DraftOrder", "lineItems"),
+        ("Fulfillment", "trackingInfo"),
+        ("Fulfillment", "events"),
+        ("Fulfillment", "fulfillmentLineItems"),
+        ("FulfillmentConstraintRule", "metafields"),
+        ("FulfillmentConstraintRule", "metafield"),
+        ("FulfillmentOrder", "lineItems"),
+        ("FulfillmentOrder", "merchantRequests"),
+        ("GiftCard", "transactions"),
+        ("Image", "url"),
+        ("Location", "inventoryLevels"),
+        ("Location", "metafield"),
+        ("Location", "metafields"),
+        ("LineItem", "taxLines"),
+        ("Market", "catalogs"),
+        ("Market", "webPresences"),
+        ("MarketCatalog", "markets"),
+        ("MarketLocalizableResource", "marketLocalizations"),
+        ("MarketsResolvedValues", "catalogs"),
+        ("MarketWebPresence", "markets"),
+        ("MarketsResolvedValues", "webPresences"),
+        ("MetafieldDefinition", "metafieldsCount"),
+        ("MetafieldDefinitionConstraints", "values"),
+        ("Metaobject", "field"),
+        ("MetaobjectField", "references"),
+        ("MetaobjectDefinition", "metaobjects"),
+        ("OnlineStoreTheme", "files"),
+        ("Order", "events"),
+        ("Order", "fulfillmentOrders"),
+        ("Order", "fulfillments"),
+        ("Order", "lineItems"),
+        ("Order", "refunds"),
+        ("Order", "returns"),
+        ("Order", "shippingLines"),
+        ("Order", "transactions"),
+        ("PaymentCustomization", "metafield"),
+        ("PaymentCustomization", "metafields"),
+        ("PaymentTerms", "paymentSchedules"),
+        ("Refund", "refundLineItems"),
+        ("Refund", "transactions"),
+        ("Return", "returnLineItems"),
+        ("Return", "reverseFulfillmentOrders"),
+        ("ReturnableFulfillment", "returnableFulfillmentLineItems"),
+        ("RegionsCondition", "regions"),
+        ("Shop", "metafield"),
+        ("Shop", "metafields"),
+        ("ShopAddress", "formatted"),
+        ("ShopPolicy", "translations"),
+        ("TranslatableResource", "translatableContent"),
+        ("TranslatableResource", "translations"),
+        ("Validation", "metafields"),
+    ];
+    let mut registrations = admin
+        .into_iter()
+        .map(|(parent_type, field_name)| {
+            FieldResolverRegistration::legacy_projected_property(
+                ApiSurface::Admin,
+                parent_type,
+                field_name,
+            )
+        })
+        .collect::<Vec<_>>();
+    registrations.push(FieldResolverRegistration::legacy_projected_property(
+        ApiSurface::Storefront,
+        "Customer",
+        "addresses",
+    ));
     registrations
 }
 
 pub(crate) fn field_resolver_type_policies() -> Vec<FieldResolverTypePolicy> {
     let mut policies = product_field_resolver_type_policies();
+    policies.extend(super::selling_plans::selling_plan_field_resolver_type_policies());
     policies.extend(inventory_field_resolver_type_policies());
+    policies.extend(super::storefront::storefront_field_resolver_type_policies());
     policies
 }
 
@@ -128,29 +262,54 @@ impl RootFieldExecutor for ProxyRootExecutor {
             "deliveryPromiseProviderUpsert" | "deliveryPromiseParticipantsUpdate"
         ) {
             if let Some(prepared) = &self.delivery_promise_mutation {
-                let mut cached = self.delivery_promise_response.lock().map_err(|_| {
-                    "Delivery-promise mutation response lock was poisoned".to_string()
+                let mut cached = self.delivery_promise_outcomes.lock().map_err(|_| {
+                    "Delivery-promise mutation outcome lock was poisoned".to_string()
                 })?;
                 if cached.is_none() {
                     let mut proxy = self
                         .proxy
                         .lock()
                         .map_err(|_| "Admin GraphQL proxy state lock was poisoned".to_string())?;
-                    *cached = Some(proxy.delivery_promise_mutation(
+                    let mut outcomes = proxy.delivery_promise_mutation(
                         &prepared.query,
                         &prepared.variables,
                         &prepared.request,
-                    ));
+                        &response_key,
+                    );
+                    for outcome in outcomes.values_mut() {
+                        for draft in outcome.log_drafts.drain(..) {
+                            proxy.record_mutation_log_draft(
+                                &prepared.request,
+                                &prepared.query,
+                                &prepared.variables,
+                                draft,
+                            );
+                        }
+                    }
+                    *cached = Some(outcomes);
                 }
-                let response = cached
+                let outcome = cached
                     .as_ref()
-                    .expect("delivery-promise response should be cached")
-                    .clone();
+                    .expect("delivery-promise outcomes should be cached")
+                    .get(&response_key)
+                    .cloned()
+                    .unwrap_or_else(|| ResolverOutcome::value(Value::Null));
                 self.resolved_responses
                     .lock()
                     .map_err(|_| "Admin GraphQL resolved response lock was poisoned".to_string())?
-                    .insert(response_key.clone(), response.clone());
-                let outcome = resolver_outcome_from_response(response, &response_key);
+                    .insert(
+                        response_key.clone(),
+                        resolver_outcome_wire_response(
+                            &response_key,
+                            &outcome.value,
+                            &outcome.errors,
+                            &outcome.extensions,
+                        ),
+                    );
+                self.resolved_extensions
+                    .lock()
+                    .map_err(|_| "Admin GraphQL resolver extensions lock was poisoned".to_string())?
+                    .extend(outcome.extensions);
                 return Ok(RootFieldResult {
                     value: outcome.value,
                     errors: outcome.errors,
@@ -228,6 +387,8 @@ impl RootFieldExecutor for ProxyRootExecutor {
                         api_version: GraphqlApiVersion::Admin(self.version),
                         response_key: &response_key,
                         root_name: &root_name,
+                        root_location: call.field.location,
+                        directives: call.field.directives.clone(),
                         arguments,
                         request: &call.request,
                         query: &call.query,
@@ -238,7 +399,6 @@ impl RootFieldExecutor for ProxyRootExecutor {
                 );
                 let ResolverOutcome {
                     value,
-                    additional_root_values: _,
                     mut errors,
                     extensions,
                     log_drafts,
@@ -409,18 +569,7 @@ impl RootFieldExecutor for ProxyRootExecutor {
         );
         match implementation {
             FieldResolverImplementation::PropertyBacked => Ok(FieldResolverResult::PropertyBacked),
-            FieldResolverImplementation::ExplicitFallbackToProperty(handler) => {
-                if invocation.parent.as_object().is_some_and(|parent| {
-                    parent.contains_key(&invocation.response_key)
-                        || parent.contains_key(&invocation.field_name)
-                }) {
-                    Ok(FieldResolverResult::PropertyBacked)
-                } else {
-                    handler(&mut proxy, &self.original_request, &invocation)
-                        .map(FieldResolverResult::Resolved)
-                }
-            }
-            FieldResolverImplementation::ExplicitAlways(handler) => {
+            FieldResolverImplementation::Explicit(handler) => {
                 handler(&mut proxy, &self.original_request, &invocation)
                     .map(FieldResolverResult::Resolved)
             }
@@ -465,17 +614,6 @@ impl DraftProxy {
             .find(|field| field.name == root_name)
     }
 
-    pub(in crate::proxy) fn execution_root_field_by_response_key(
-        &self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        response_key: &str,
-    ) -> Option<RootFieldSelection> {
-        self.execution_root_fields(query, variables)?
-            .into_iter()
-            .find(|field| field.response_key == response_key)
-    }
-
     pub(in crate::proxy) fn execution_primary_root_field(
         &self,
         query: &str,
@@ -508,19 +646,6 @@ impl DraftProxy {
             .unwrap_or_else(|| (default_response_key(), Vec::new()))
     }
 
-    pub(in crate::proxy) fn finalize_mutation_outcome(
-        &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        outcome: MutationOutcome,
-    ) -> Response {
-        for draft in outcome.log_drafts {
-            self.record_mutation_log_draft(request, query, variables, draft);
-        }
-        outcome.response
-    }
-
     pub(in crate::proxy) fn root_fields_or_error(
         &self,
         query: &str,
@@ -538,6 +663,10 @@ impl DraftProxy {
         draft: LogDraft,
     ) {
         let root_field = draft.root_field;
+        let operation_name = draft
+            .operation_name
+            .map(Value::String)
+            .unwrap_or(Value::Null);
         let staged_resource_ids = draft.staged_resource_ids;
         let status = draft.status;
         let capability_domain = draft.capability_domain;
@@ -548,7 +677,7 @@ impl DraftProxy {
             .unwrap_or_else(|| vec![root_field.clone()]);
         self.log_entries.push(json!({
             "id": format!("log-{}", self.log_entries.len() + 1),
-            "operationName": null,
+            "operationName": operation_name,
             "path": request.path,
             "query": query,
             "variables": resolved_variables_json(variables),
@@ -570,13 +699,6 @@ impl DraftProxy {
         }));
     }
 
-    pub(in crate::proxy) fn unimplemented_resolver_response(
-        mode: LocalResolverMode,
-        root_field: &str,
-    ) -> Response {
-        unimplemented_root_response(mode.registry_name(), root_field)
-    }
-
     /// Execute an Admin GraphQL request through the captured versioned schema.
     /// Domain code is reached only through root field resolvers; the GraphQL
     /// engine owns the executable language and response projection.
@@ -586,7 +708,7 @@ impl DraftProxy {
         self.request_localization_context_preflighted = false;
         self.request_markets_query_preflighted = false;
         self.request_mixed_discount_local_read = false;
-        self.request_node_query_response = None;
+        self.request_node_query_outcomes = None;
         let Some(graphql_request) = parse_graphql_request_body(&request.body) else {
             return json_error(400, "Expected JSON body with a string `query`");
         };
@@ -1020,14 +1142,20 @@ impl DraftProxy {
                     proxy.request_markets_query_preflighted = true;
                 }
                 if let Some((request, query, variables, fields)) = &node_query_preflight {
-                    let response =
-                        proxy.resolve_node_query_fields(request, query, variables, fields);
-                    proxy.request_node_query_response = Some(response.clone());
-                    if let Ok(mut responses) = resolved_responses.lock() {
-                        for field in fields {
-                            responses.insert(field.response_key.clone(), response.clone());
-                        }
+                    let mut outcomes = BTreeMap::new();
+                    for field in fields {
+                        outcomes.insert(
+                            field.response_key.clone(),
+                            proxy.resolve_node_query_fields(
+                                request,
+                                query,
+                                variables,
+                                fields,
+                                &field.response_key,
+                            ),
+                        );
                     }
+                    proxy.request_node_query_outcomes = Some(outcomes);
                 }
                 let log_start = proxy.log_entries.len();
                 if operation_type == Some(OperationType::Mutation) && has_local_root {
@@ -1044,7 +1172,7 @@ impl DraftProxy {
                 discount_preflight,
                 discount_preflight_done: std::sync::Mutex::new(false),
                 delivery_promise_mutation,
-                delivery_promise_response: std::sync::Mutex::new(None),
+                delivery_promise_outcomes: std::sync::Mutex::new(None),
                 full_passthrough_request: (all_passthrough || direct_full_query_passthrough)
                     .then(|| request.clone()),
                 full_passthrough_direct: direct_full_query_passthrough,
@@ -1137,25 +1265,6 @@ impl DraftProxy {
             authoritative_upstream_response
                 .map(|response| response.body.clone())
                 .unwrap_or_else(|| json!({ "data": Value::Null }))
-        } else if engine_response.errors.iter().any(|error| {
-            (error.message.contains("expected \"FieldValue::WithType\"")
-                && (error.message.contains("invalid value for interface")
-                    || error.message.contains("invalid value for union")))
-                || error
-                    .message
-                    .contains("\"null\" is not of the expected type")
-        }) {
-            // async-graphql's dynamic API cannot represent a null list element
-            // whose item type is an interface/union: `FieldValue::NULL` is
-            // rejected because abstract values normally require `with_type`.
-            // The request has already passed full engine validation. Preserve
-            // the correctly projected resolver payload for this narrow library
-            // limitation so `nodes(ids:)` can retain null placeholders.
-            let mut body = merge_resolved_root_responses(&resolved_responses);
-            if let Some((document, _, _)) = prepared.as_ref() {
-                strip_unselected_typenames_from_response(&mut body, document);
-            }
-            body
         } else {
             shopify_engine_response(
                 engine_response,
@@ -1170,6 +1279,7 @@ impl DraftProxy {
             )
         };
         let mut body = body;
+        restore_resolved_null_list_items(&mut body, &resolved_responses);
         let resolver_http_status = resolved_extensions
             .get(INTERNAL_HTTP_STATUS_EXTENSION)
             .and_then(Value::as_u64)
@@ -1335,7 +1445,7 @@ impl DraftProxy {
             && operation.operation_type == OperationType::Query
             && self.should_route_owner_metafields_read(&query, &variables)
         {
-            return self.owner_metafields_read(request, &query, &variables);
+            return self.owner_metafields_read_response(request, &query, &variables);
         }
 
         let capability = self.registry.resolve(operation.operation_type, root_field);
@@ -1369,6 +1479,13 @@ impl DraftProxy {
         let response_key = prepared
             .map(|call| call.field.response_key.as_str())
             .unwrap_or(root_field);
+        let compatibility_root_field = prepared
+            .is_none()
+            .then(|| {
+                root_fields(&query, &variables)
+                    .and_then(|fields| fields.into_iter().find(|field| field.name == root_field))
+            })
+            .flatten();
         let arguments = prepared
             .map(|call| {
                 call.field
@@ -1377,7 +1494,25 @@ impl DraftProxy {
                     .map(|(name, value)| (name.clone(), resolved_value_json(value)))
                     .collect()
             })
+            .or_else(|| {
+                compatibility_root_field.as_ref().map(|field| {
+                    field
+                        .arguments
+                        .iter()
+                        .map(|(name, value)| (name.clone(), resolved_value_json(value)))
+                        .collect()
+                })
+            })
             .unwrap_or_default();
+        let root_metadata = prepared
+            .map(|call| (call.field.directives.clone(), call.field.location))
+            .or_else(|| {
+                compatibility_root_field
+                    .as_ref()
+                    .map(|field| (field.directives.clone(), field.location))
+            });
+        let (directives, root_location) =
+            root_metadata.unwrap_or_else(|| (Vec::new(), SourceLocation { line: 1, column: 1 }));
         let outcome = handler(
             self,
             crate::resolver_registry::RootInvocation {
@@ -1385,6 +1520,8 @@ impl DraftProxy {
                 api_version: GraphqlApiVersion::Admin(version),
                 response_key,
                 root_name: root_field,
+                root_location,
+                directives,
                 arguments,
                 request,
                 query: &query,
@@ -1407,7 +1544,6 @@ fn resolver_outcome_compat_response(
 ) -> Response {
     let ResolverOutcome {
         value,
-        additional_root_values,
         errors,
         extensions,
         log_drafts,
@@ -1415,11 +1551,7 @@ fn resolver_outcome_compat_response(
     for draft in log_drafts {
         proxy.record_mutation_log_draft(request, query, variables, draft);
     }
-    let mut body = if additional_root_values.is_empty() {
-        json!({ "data": { response_key: value } })
-    } else {
-        json!({ "data": additional_root_values })
-    };
+    let mut body = json!({ "data": { response_key: value } });
     if !errors.is_empty() {
         body["errors"] = Value::Array(
             errors
@@ -1444,36 +1576,115 @@ pub(in crate::proxy) fn resolver_outcome_from_response(
     response: Response,
     response_key: &str,
 ) -> ResolverOutcome<Value> {
-    let additional_root_values = response
-        .body
-        .get("data")
-        .and_then(Value::as_object)
-        .map(|data| {
-            data.iter()
-                .map(|(key, value)| (key.clone(), value.clone()))
-                .collect()
-        })
-        .unwrap_or_default();
-    let value = response
-        .body
+    let status = response.status;
+    let body = response.body;
+    let value = body
         .get("data")
         .and_then(Value::as_object)
         .and_then(|data| data.get(response_key))
         .cloned()
         .unwrap_or(Value::Null);
-    let mut errors = response
-        .body
-        .get("errors")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
+    let errors = root_field_errors_from_json_with_default_path(
+        body.get("errors")
+            .and_then(Value::as_array)
+            .map(Vec::as_slice)
+            .unwrap_or_default(),
+        response_key,
+        false,
+    );
+    let extensions = body
+        .get("extensions")
+        .and_then(Value::as_object)
+        .map(|extensions| {
+            extensions
+                .iter()
+                .map(|(key, value)| (key.clone(), value.clone()))
+                .collect()
+        })
+        .unwrap_or_default();
+    let mut outcome = ResolverOutcome {
+        value,
+        errors,
+        extensions,
+        log_drafts: Vec::new(),
+    };
+    if outcome.errors.is_empty() && status >= 400 {
+        outcome.errors.push(RootFieldError {
+            message: format!("GraphQL root failed with status {status}"),
+            extensions: BTreeMap::new(),
+            path: Some(Vec::new()),
+            locations: Vec::new(),
+        });
+    }
+    if status != 200 {
+        outcome
+            .extensions
+            .insert(INTERNAL_HTTP_STATUS_EXTENSION.to_string(), json!(status));
+    }
+    outcome
+}
+
+/// GraphQL-level result of one upstream transport call. Domain hydration may
+/// inspect `data`, but HTTP status/headers remain confined to this boundary.
+pub(in crate::proxy) struct UpstreamGraphqlResult {
+    pub outcome: ResolverOutcome<Value>,
+    pub data: Value,
+    pub transport_succeeded: bool,
+}
+
+fn upstream_graphql_result(response: Response, response_key: &str) -> UpstreamGraphqlResult {
+    let data = response.body.get("data").cloned().unwrap_or(Value::Null);
+    let transport_succeeded = response.status < 400;
+    UpstreamGraphqlResult {
+        outcome: resolver_outcome_from_response(response, response_key),
+        data,
+        transport_succeeded,
+    }
+}
+
+/// Translate Shopify-compatible JSON error objects into the engine's typed
+/// resolver errors. This is deliberately part of the error-compatibility
+/// boundary; domain values and transport responses do not cross it.
+pub(in crate::proxy) fn root_field_errors_from_json(
+    errors: &[Value],
+    response_key: &str,
+) -> Vec<RootFieldError> {
+    root_field_errors_from_json_with_default_path(errors, response_key, false)
+}
+
+pub(in crate::proxy) fn graphql_error_outcome(
+    errors: Vec<Value>,
+    response_key: &str,
+) -> ResolverOutcome<Value> {
+    ResolverOutcome::value(Value::Null)
+        .with_errors(root_field_errors_from_json(&errors, response_key))
+}
+
+pub(in crate::proxy) fn resolver_http_error_outcome(
+    status: u16,
+    message: impl Into<String>,
+) -> ResolverOutcome<Value> {
+    let mut outcome = ResolverOutcome::error(message);
+    outcome
+        .extensions
+        .insert(INTERNAL_HTTP_STATUS_EXTENSION.to_string(), json!(status));
+    outcome
+}
+
+fn root_field_errors_from_json_with_default_path(
+    errors: &[Value],
+    response_key: &str,
+    default_root_path: bool,
+) -> Vec<RootFieldError> {
+    errors
+        .iter()
         .filter_map(|error| {
             let error_path = error.get("path").and_then(Value::as_array);
-            if error_path
-                .and_then(|path| path.first())
-                .and_then(Value::as_str)
-                .is_some_and(|root| root != response_key)
-            {
+            let root_path_index = error_path.and_then(|path| {
+                path.iter()
+                    .position(|segment| segment.as_str() == Some(response_key))
+            });
+            if error_path.is_some() && root_path_index.is_none() {
                 return None;
             }
             Some(RootFieldError {
@@ -1495,7 +1706,7 @@ pub(in crate::proxy) fn resolver_outcome_from_response(
                 path: error_path
                     .map(|path| {
                         path.iter()
-                            .skip(1)
+                            .skip(root_path_index.unwrap_or(0) + 1)
                             .filter_map(|segment| match segment {
                                 Value::String(field) => {
                                     Some(async_graphql::PathSegment::Field(field.clone()))
@@ -1511,7 +1722,7 @@ pub(in crate::proxy) fn resolver_outcome_from_response(
                     // active root path at the engine boundary. Preserve that
                     // behavior until those fail-closed roots become native
                     // GraphQL outcomes.
-                    .or_else(|| (response.status >= 400).then(Vec::new)),
+                    .or_else(|| default_root_path.then(Vec::new)),
                 locations: error
                     .get("locations")
                     .and_then(Value::as_array)
@@ -1526,38 +1737,47 @@ pub(in crate::proxy) fn resolver_outcome_from_response(
                     .collect(),
             })
         })
-        .collect::<Vec<_>>();
-    if errors.is_empty() && response.status >= 400 {
-        errors.push(RootFieldError {
-            message: format!("GraphQL root failed with status {}", response.status),
-            extensions: BTreeMap::new(),
-            path: Some(Vec::new()),
-            locations: Vec::new(),
-        });
+        .collect()
+}
+
+impl DraftProxy {
+    /// Forward one cold locally-registered read at the transport boundary and
+    /// expose only its GraphQL result to the domain resolver. Domain code must
+    /// not traffic in the proxy's HTTP `Response` type.
+    pub(in crate::proxy) fn forward_upstream_root_outcome(
+        &self,
+        request: &Request,
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
+        resolver_outcome_from_response((self.upstream_transport)(request.clone()), response_key)
     }
-    let mut extensions: BTreeMap<String, Value> = response
-        .body
-        .get("extensions")
-        .and_then(Value::as_object)
-        .map(|extensions| {
-            extensions
-                .iter()
-                .map(|(key, value)| (key.clone(), value.clone()))
-                .collect()
-        })
-        .unwrap_or_default();
-    if response.status != 200 {
-        extensions.insert(
-            INTERNAL_HTTP_STATUS_EXTENSION.to_string(),
-            json!(response.status),
-        );
+
+    /// Reuse the request-scoped upstream response when the executor already
+    /// fetched the complete operation; otherwise perform the cold read once.
+    pub(in crate::proxy) fn cached_or_forward_upstream_root_outcome(
+        &self,
+        request: &Request,
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
+        let response = self
+            .request_upstream_query_response
+            .clone()
+            .unwrap_or_else(|| (self.upstream_transport)(request.clone()));
+        resolver_outcome_from_response(response, response_key)
     }
-    ResolverOutcome {
-        value,
-        additional_root_values,
-        errors,
-        extensions,
-        log_drafts: Vec::new(),
+
+    /// Decode a request-scoped upstream response once while also exposing its
+    /// GraphQL `data` object to store hydration code.
+    pub(in crate::proxy) fn cached_or_forward_upstream_graphql_result(
+        &self,
+        request: &Request,
+        response_key: &str,
+    ) -> UpstreamGraphqlResult {
+        let response = self
+            .request_upstream_query_response
+            .clone()
+            .unwrap_or_else(|| (self.upstream_transport)(request.clone()));
+        upstream_graphql_result(response, response_key)
     }
 }
 
@@ -1674,56 +1894,51 @@ fn strip_cloud_webhook_callback_urls(value: &mut Value) {
     }
 }
 
-fn merge_resolved_root_responses(responses: &BTreeMap<String, Response>) -> Value {
-    let mut data = serde_json::Map::new();
-    let mut errors = Vec::new();
-    for response in responses.values() {
-        if let Some(response_data) = response.body.get("data").and_then(Value::as_object) {
-            data.extend(response_data.clone());
-        }
-        if let Some(response_errors) = response.body.get("errors").and_then(Value::as_array) {
-            errors.extend(response_errors.iter().cloned());
-        }
-    }
-    let mut body = serde_json::Map::new();
-    body.insert("data".to_string(), Value::Object(data));
-    if !errors.is_empty() {
-        body.insert("errors".to_string(), Value::Array(errors));
-    }
-    Value::Object(body)
-}
-
-fn strip_unselected_typenames_from_response(body: &mut Value, document: &ParsedDocument) {
-    let Some(data) = body.get_mut("data").and_then(Value::as_object_mut) else {
+fn restore_resolved_null_list_items(
+    projected_body: &mut Value,
+    resolved_responses: &BTreeMap<String, Response>,
+) {
+    let Some(projected_data) = projected_body
+        .get_mut("data")
+        .and_then(Value::as_object_mut)
+    else {
         return;
     };
-    for field in &document.root_fields {
-        if let Some(value) = data.get_mut(&field.response_key) {
-            strip_unselected_typenames(value, &field.selection);
-        }
-    }
-}
-
-fn strip_unselected_typenames(value: &mut Value, selection: &[SelectedField]) {
-    if let Some(values) = value.as_array_mut() {
-        for value in values {
-            strip_unselected_typenames(value, selection);
-        }
-        return;
-    }
-    let Some(object) = value.as_object_mut() else {
-        return;
-    };
-    if !selection.iter().any(|field| field.name == "__typename") {
-        object.remove("__typename");
-    }
-    for field in selection {
-        if field.selection.is_empty() {
+    for (response_key, response) in resolved_responses {
+        let Some(projected) = projected_data.get_mut(response_key) else {
             continue;
+        };
+        let Some(resolved) = response
+            .body
+            .get("data")
+            .and_then(Value::as_object)
+            .and_then(|data| data.get(response_key))
+        else {
+            continue;
+        };
+        restore_null_list_items(projected, resolved);
+    }
+}
+
+fn restore_null_list_items(projected: &mut Value, resolved: &Value) {
+    match (projected, resolved) {
+        (Value::Array(projected), Value::Array(resolved)) => {
+            for (projected, resolved) in projected.iter_mut().zip(resolved) {
+                if resolved.is_null() {
+                    *projected = Value::Null;
+                } else {
+                    restore_null_list_items(projected, resolved);
+                }
+            }
         }
-        if let Some(value) = object.get_mut(&field.response_key) {
-            strip_unselected_typenames(value, &field.selection);
+        (Value::Object(projected), Value::Object(resolved)) => {
+            for (field_name, resolved) in resolved {
+                if let Some(projected) = projected.get_mut(field_name) {
+                    restore_null_list_items(projected, resolved);
+                }
+            }
         }
+        _ => {}
     }
 }
 
@@ -2174,7 +2389,12 @@ mod graphql_runtime_tests {
                         && declared.entry.name == registration.graphql_root_name
                 })
                 .expect("local root should have a direct executable declaration");
-            assert!(std::ptr::fn_addr_eq(declared.handler, registration.handler));
+            assert!(std::ptr::fn_addr_eq(
+                declared
+                    .handler
+                    .expect("implemented root should carry its direct callback"),
+                registration.handler
+            ));
         }
     }
 

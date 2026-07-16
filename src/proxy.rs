@@ -1684,10 +1684,6 @@ impl Store {
         self.staged.product_feeds.values().cloned().collect()
     }
 
-    fn has_product_feed_state(&self) -> bool {
-        !self.staged.product_feeds.is_empty()
-    }
-
     fn marketing_activity_by_id(&self, id: &str) -> Option<&Value> {
         effective_get(
             &self.base.marketing_activities,
@@ -2365,37 +2361,9 @@ pub(in crate::proxy) struct OrdersLocalLogOutcome<'a> {
     notes: &'a str,
 }
 
-pub(in crate::proxy) struct MutationOutcome {
-    response: Response,
-    log_drafts: Vec<LogDraft>,
-}
-
 pub(in crate::proxy) struct MutationFieldOutcome {
     value: Value,
     log_draft: Option<LogDraft>,
-}
-
-impl MutationOutcome {
-    fn response(response: Response) -> Self {
-        Self {
-            response,
-            log_drafts: Vec::new(),
-        }
-    }
-
-    fn staged(response: Response, log_draft: LogDraft) -> Self {
-        Self {
-            response,
-            log_drafts: vec![log_draft],
-        }
-    }
-
-    fn with_log_drafts(response: Response, log_drafts: Vec<LogDraft>) -> Self {
-        Self {
-            response,
-            log_drafts,
-        }
-    }
 }
 
 impl MutationFieldOutcome {
@@ -2459,7 +2427,7 @@ pub struct DraftProxy {
     request_localization_context_preflighted: bool,
     request_markets_query_preflighted: bool,
     request_mixed_discount_local_read: bool,
-    request_node_query_response: Option<Response>,
+    request_node_query_outcomes: Option<BTreeMap<String, ResolverOutcome<Value>>>,
     commit_transport: CommitTransport,
     upstream_transport: UpstreamTransport,
     storefront_upstream_transport: UpstreamTransport,
@@ -2515,9 +2483,11 @@ pub(in crate::proxy) use self::b2b_customers::*;
 pub(in crate::proxy) use self::civil_date::*;
 pub(in crate::proxy) use self::connection::*;
 pub(in crate::proxy) use self::functions::*;
-pub(in crate::proxy) use self::graphql_runtime::resolver_outcome_from_response;
 pub(crate) use self::graphql_runtime::{
     field_resolver_registrations, field_resolver_type_policies,
+};
+pub(in crate::proxy) use self::graphql_runtime::{
+    graphql_error_outcome, resolver_http_error_outcome, root_field_errors_from_json,
 };
 pub(in crate::proxy) use self::json_helpers::*;
 pub(in crate::proxy) use self::localization_markets_catalogs::*;

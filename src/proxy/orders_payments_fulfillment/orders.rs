@@ -6,15 +6,17 @@ use self::order_customer_paths::*;
 use self::order_edit::*;
 use crate::proxy::storefront::storefront_customer_email_key;
 
-fn order_edit_error_data_response(field: &RootFieldSelection, errors: Vec<Value>) -> Value {
-    data_response(
-        &field.response_key,
-        oe_error_payload(errors, &field.selection),
-    )
+fn order_edit_error_payload(field: &RootFieldSelection, errors: Vec<Value>) -> Value {
+    oe_error_payload(errors, &field.selection)
 }
 
-fn order_edit_error_response(field: &RootFieldSelection, errors: Vec<Value>) -> Option<Value> {
-    Some(order_edit_error_data_response(field, errors))
+fn order_edit_error_outcome(
+    field: &RootFieldSelection,
+    errors: Vec<Value>,
+) -> Option<ResolverOutcome<Value>> {
+    Some(ResolverOutcome::value(order_edit_error_payload(
+        field, errors,
+    )))
 }
 
 pub(in crate::proxy) fn order_create_selects_payment_transaction_fields(
@@ -1203,12 +1205,6 @@ pub(in crate::proxy) fn order_connection(nodes: Vec<Value>) -> Value {
     })
 }
 
-pub(in crate::proxy) fn data_response(response_key: &str, value: Value) -> Value {
-    let mut data = serde_json::Map::new();
-    data.insert(response_key.to_string(), value);
-    json!({ "data": Value::Object(data) })
-}
-
 fn order_invoice_send_selects_management_fields(field: &RootFieldSelection) -> bool {
     selected_child_selection(&field.selection, "order").is_some_and(|selection| {
         selection.iter().any(|field| {
@@ -1378,13 +1374,18 @@ impl DraftProxy {
         if response.status >= 400 {
             return;
         }
+        self.observe_order_read_data(request, &response.body["data"]);
+    }
+
+    pub(in crate::proxy) fn observe_order_read_data(&mut self, request: &Request, data: &Value) {
+        let body = json!({ "data": data });
         if let Some(graphql_request) = parse_graphql_request_body(&request.body) {
             if let Some(fields) = root_fields(&graphql_request.query, &graphql_request.variables) {
-                self.observe_order_count_baselines(&fields, &response.body);
-                self.observe_singular_order_roots(&fields, &response.body);
+                self.observe_order_count_baselines(&fields, &body);
+                self.observe_singular_order_roots(&fields, &body);
             }
         }
-        self.observe_order_value(&response.body);
+        self.observe_order_value(&body);
     }
 
     fn observe_singular_order_roots(&mut self, fields: &[RootFieldSelection], body: &Value) {
@@ -1461,12 +1462,13 @@ impl DraftProxy {
         }
     }
 
-    pub(in crate::proxy) fn order_invoice_send_local_data(
+    pub(in crate::proxy) fn order_invoice_send_local_outcome(
         &mut self,
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<Value> {
+        response_key: &str,
+    ) -> Option<ResolverOutcome<Value>> {
         let fields = self.execution_root_fields(query, variables)?;
         if !fields.iter().all(|field| field.name == "orderInvoiceSend") {
             return None;
@@ -1486,7 +1488,9 @@ impl DraftProxy {
             }
             Some(payload)
         });
-        Some(json!({ "data": data }))
+        Some(ResolverOutcome::value(
+            data.get(response_key).cloned().unwrap_or(Value::Null),
+        ))
     }
 
     fn stage_order_invoice_send(
@@ -1634,14 +1638,16 @@ impl DraftProxy {
         })
     }
 
-    pub(in crate::proxy) fn order_create_local_data(
+    pub(in crate::proxy) fn order_create_local_outcome(
         &mut self,
         request: &Request,
         root_field: &str,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<Value> {
-        let fields = self.execution_root_fields(query, variables)?;
+        response_key: &str,
+    ) -> Option<ResolverOutcome<Value>> {
+        let mut fields = self.execution_root_fields(query, variables)?;
+        fields.retain(|field| field.response_key == response_key);
         if !fields.iter().all(|field| {
             matches!(
                 field.name.as_str(),
@@ -1724,7 +1730,9 @@ impl DraftProxy {
         if declined {
             return None;
         }
-        Some(json!({ "data": data }))
+        Some(ResolverOutcome::value(
+            data.get(response_key).cloned().unwrap_or(Value::Null),
+        ))
     }
 
     /// Full order projections from the seeded catalog that match a connection's
@@ -2735,34 +2743,32 @@ impl DraftProxy {
         });
     }
 
-    pub(in crate::proxy) fn remaining_order_local_data(
+    pub(in crate::proxy) fn remaining_order_local_outcome(
         &mut self,
         request: &Request,
         root_field: &str,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<Value> {
+    ) -> Option<ResolverOutcome<Value>> {
         let fields = self.execution_root_fields(query, variables)?;
         let field = fields.iter().find(|field| field.name == root_field);
         if root_field == "fulfillment" {
             let field = field?;
             let payload = self.staged_fulfillment_read_payload(field)?;
-            return Some(data_response(&field.response_key, payload));
+            return Some(ResolverOutcome::value(payload));
         }
         if root_field == "fulfillmentCreate" || root_field == "fulfillmentCreateV2" {
             let field = field?;
             if let Some(error) = fulfillment_create_invalid_id_error(field) {
                 return Some(error);
             }
-            return Some(data_response(
-                &field.response_key,
+            return Some(ResolverOutcome::value(
                 self.staged_fulfillment_payload(request, query, variables, field),
             ));
         }
         if root_field == "fulfillmentEventCreate" {
             let field = field?;
-            return Some(data_response(
-                &field.response_key,
+            return Some(ResolverOutcome::value(
                 self.staged_fulfillment_event_create_payload(request, query, variables, field),
             ));
         }
@@ -2770,7 +2776,7 @@ impl DraftProxy {
             let field = field?;
             let payload =
                 self.cancel_staged_fulfillment_payload(request, query, variables, field)?;
-            return Some(data_response(&field.response_key, payload));
+            return Some(ResolverOutcome::value(payload));
         }
         if matches!(
             root_field,
@@ -2780,14 +2786,11 @@ impl DraftProxy {
             let payload = self.update_staged_fulfillment_tracking_payload(
                 request, query, variables, field, root_field,
             )?;
-            return Some(data_response(&field.response_key, payload));
+            return Some(ResolverOutcome::value(payload));
         }
         if root_field == "ordersCount" {
             let field = field?;
-            return Some(data_response(
-                &field.response_key,
-                self.staged_orders_count(field),
-            ));
+            return Some(ResolverOutcome::value(self.staged_orders_count(field)));
         }
         if root_field == "orderCreate" {
             let field = field?;
@@ -2797,12 +2800,12 @@ impl DraftProxy {
                 return None;
             }
             let order = self.order_customer_paths_order_create(field)?;
-            return Some(data_response(&field.response_key, order));
+            return Some(ResolverOutcome::value(order));
         }
         if root_field == "orderDelete" {
             let field = field?;
             let payload = self.stage_order_delete(request, query, variables, field)?;
-            return Some(data_response(&field.response_key, payload));
+            return Some(ResolverOutcome::value(payload));
         }
         if root_field == "orderUpdate"
             && resolved_object_field(variables, "input")
@@ -2810,16 +2813,13 @@ impl DraftProxy {
                 .is_some()
         {
             let field = field?;
-            return Some(data_response(
-                &field.response_key,
-                selected_json(
-                    &json!({
-                        "order": Value::Null,
-                        "userErrors": [user_error_omit_code(["input", "staffMemberId"], "Staff member does not exist", None)]
-                    }),
-                    &field.selection,
-                ),
-            ));
+            return Some(ResolverOutcome::value(selected_json(
+                &json!({
+                    "order": Value::Null,
+                    "userErrors": [user_error_omit_code(["input", "staffMemberId"], "Staff member does not exist", None)]
+                }),
+                &field.selection,
+            )));
         }
         match root_field {
             "orderEditBegin" => {
@@ -2871,10 +2871,10 @@ impl DraftProxy {
         {
             let field = field?;
             let order = self.store.staged.order_edit_existing_order.as_ref()?;
-            return Some(data_response(
-                &field.response_key,
-                selected_json(order, &field.selection),
-            ));
+            return Some(ResolverOutcome::value(selected_json(
+                order,
+                &field.selection,
+            )));
         }
         None
     }
@@ -2899,7 +2899,7 @@ impl DraftProxy {
             .as_deref()
             != Some(calculated_id.as_str())
         {
-            return Err(order_edit_error_data_response(
+            return Err(order_edit_error_payload(
                 field,
                 vec![user_error_omit_code(
                     ["id"],
@@ -2929,7 +2929,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         field: &RootFieldSelection,
-    ) -> Option<Value> {
+    ) -> Option<ResolverOutcome<Value>> {
         let order_id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         // The edit targets an order that lives in the backend, not one created
         // locally in this scenario. Forward a hydrate read and observe it so the
@@ -2944,7 +2944,7 @@ impl DraftProxy {
         let order = match self.store.staged.orders.get(&order_id) {
             Some(order) => order.clone(),
             None => {
-                return order_edit_error_response(
+                return order_edit_error_outcome(
                     field,
                     vec![user_error_omit_code(
                         ["id"],
@@ -2955,7 +2955,7 @@ impl DraftProxy {
             }
         };
         if order_edit_order_is_not_editable(&order) {
-            return order_edit_error_response(
+            return order_edit_error_outcome(
                 field,
                 vec![user_error_omit_code(
                     Value::Null,
@@ -2974,7 +2974,7 @@ impl DraftProxy {
             .as_deref()
             == Some(order_id.as_str())
         {
-            return order_edit_error_response(
+            return order_edit_error_outcome(
                 field,
                 vec![user_error_omit_code(
                     ["base"],
@@ -2998,17 +2998,14 @@ impl DraftProxy {
             "orderEditBegin",
             vec![calculated_id],
         );
-        Some(data_response(
-            &field.response_key,
-            selected_json(
-                &json!({
-                    "calculatedOrder": view,
-                    "orderEditSession": { "id": session_id },
-                    "userErrors": []
-                }),
-                &field.selection,
-            ),
-        ))
+        Some(ResolverOutcome::value(selected_json(
+            &json!({
+                "calculatedOrder": view,
+                "orderEditSession": { "id": session_id },
+                "userErrors": []
+            }),
+            &field.selection,
+        )))
     }
 
     pub(super) fn order_edit_add_variant_local(
@@ -3017,14 +3014,14 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         field: &RootFieldSelection,
-    ) -> Option<Value> {
+    ) -> Option<ResolverOutcome<Value>> {
         let calculated_id = match self.require_calculated_order(field) {
             Ok(calculated_id) => calculated_id,
-            Err(response) => return Some(response),
+            Err(payload) => return Some(ResolverOutcome::value(payload)),
         };
         let variant_id = resolved_string_field(&field.arguments, "variantId").unwrap_or_default();
         if resource_id_tail(&variant_id) == "0" {
-            return order_edit_error_response(
+            return order_edit_error_outcome(
                 field,
                 vec![user_error_omit_code(
                     ["variantId"],
@@ -3035,7 +3032,7 @@ impl DraftProxy {
         }
         let quantity = resolved_int_field(&field.arguments, "quantity").unwrap_or(0);
         if quantity == 0 {
-            return order_edit_error_response(
+            return order_edit_error_outcome(
                 field,
                 vec![user_error_omit_code(
                     ["quantity"],
@@ -3045,7 +3042,7 @@ impl DraftProxy {
             );
         }
         if quantity < 0 {
-            return order_edit_error_response(
+            return order_edit_error_outcome(
                 field,
                 vec![
                     user_error_omit_code(["quantity"], "must be greater than 0", None),
@@ -3072,7 +3069,7 @@ impl DraftProxy {
             if let Some(line) = existing {
                 let title = line.get("title").and_then(Value::as_str).unwrap_or("");
                 let message = format!("{title} was not added because it's already on the order.");
-                return order_edit_error_response(
+                return order_edit_error_outcome(
                     field,
                     vec![user_error_omit_code(["id"], &message, None)],
                 );
@@ -3094,7 +3091,7 @@ impl DraftProxy {
         let catalog_entry = match catalog_entry {
             Some(entry) => entry,
             None => {
-                return order_edit_error_response(
+                return order_edit_error_outcome(
                     field,
                     vec![user_error_omit_code(
                         ["variantId"],
@@ -3137,18 +3134,15 @@ impl DraftProxy {
             "orderEditAddVariant",
             vec![calculated_id.clone()],
         );
-        Some(data_response(
-            &field.response_key,
-            selected_json(
-                &json!({
-                    "calculatedOrder": order_view,
-                    "calculatedLineItem": view,
-                    "orderEditSession": { "id": session_id },
-                    "userErrors": []
-                }),
-                &field.selection,
-            ),
-        ))
+        Some(ResolverOutcome::value(selected_json(
+            &json!({
+                "calculatedOrder": order_view,
+                "calculatedLineItem": view,
+                "orderEditSession": { "id": session_id },
+                "userErrors": []
+            }),
+            &field.selection,
+        )))
     }
 
     pub(super) fn order_edit_set_quantity_local(
@@ -3157,14 +3151,14 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         field: &RootFieldSelection,
-    ) -> Option<Value> {
+    ) -> Option<ResolverOutcome<Value>> {
         let calculated_id = match self.require_calculated_order(field) {
             Ok(calculated_id) => calculated_id,
-            Err(response) => return Some(response),
+            Err(payload) => return Some(ResolverOutcome::value(payload)),
         };
         let quantity = resolved_int_field(&field.arguments, "quantity").unwrap_or(0);
         if quantity < 0 {
-            return order_edit_error_response(
+            return order_edit_error_outcome(
                 field,
                 vec![user_error_omit_code(
                     ["quantity"],
@@ -3179,7 +3173,7 @@ impl DraftProxy {
         let index = match oe_line_index(&session, &line_item_id) {
             Some(index) => index,
             None => {
-                return order_edit_error_response(
+                return order_edit_error_outcome(
                     field,
                     vec![user_error_omit_code(
                         ["lineItemId"],
@@ -3201,18 +3195,15 @@ impl DraftProxy {
             "orderEditSetQuantity",
             vec![calculated_id.clone()],
         );
-        Some(data_response(
-            &field.response_key,
-            selected_json(
-                &json!({
-                    "calculatedOrder": order_view,
-                    "calculatedLineItem": view,
-                    "orderEditSession": { "id": session_id },
-                    "userErrors": []
-                }),
-                &field.selection,
-            ),
-        ))
+        Some(ResolverOutcome::value(selected_json(
+            &json!({
+                "calculatedOrder": order_view,
+                "calculatedLineItem": view,
+                "orderEditSession": { "id": session_id },
+                "userErrors": []
+            }),
+            &field.selection,
+        )))
     }
 
     pub(super) fn order_edit_add_custom_item_local(
@@ -3221,21 +3212,21 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         field: &RootFieldSelection,
-    ) -> Option<Value> {
+    ) -> Option<ResolverOutcome<Value>> {
         let calculated_id = match self.require_calculated_order(field) {
             Ok(calculated_id) => calculated_id,
-            Err(response) => return Some(response),
+            Err(payload) => return Some(ResolverOutcome::value(payload)),
         };
         let (mut session, currency, session_id) = self.order_edit_session_context(&calculated_id);
         let title = resolved_string_field(&field.arguments, "title").unwrap_or_default();
         if title.trim().is_empty() {
-            return order_edit_error_response(
+            return order_edit_error_outcome(
                 field,
                 vec![user_error_omit_code(["title"], "can't be blank", None)],
             );
         }
         if title.chars().count() > 255 {
-            return order_edit_error_response(
+            return order_edit_error_outcome(
                 field,
                 vec![user_error_omit_code(
                     ["title"],
@@ -3246,7 +3237,7 @@ impl DraftProxy {
         }
         let quantity = resolved_int_field(&field.arguments, "quantity").unwrap_or(0);
         if quantity <= 0 {
-            return order_edit_error_response(
+            return order_edit_error_outcome(
                 field,
                 vec![user_error_omit_code(
                     ["quantity"],
@@ -3257,7 +3248,7 @@ impl DraftProxy {
         }
         let price = resolved_object_field(&field.arguments, "price").unwrap_or_default();
         if resolved_money_currency(&price).as_deref() != Some(currency.as_str()) {
-            return order_edit_error_response(
+            return order_edit_error_outcome(
                 field,
                 vec![user_error_omit_code(
                     ["price", "amount"],
@@ -3268,7 +3259,7 @@ impl DraftProxy {
         }
         let price_cents = oe_money_obj_cents(&price).unwrap_or(0);
         if price_cents < 0 {
-            return order_edit_error_response(
+            return order_edit_error_outcome(
                 field,
                 vec![user_error_omit_code(
                     ["price", "amount"],
@@ -3304,18 +3295,15 @@ impl DraftProxy {
             "orderEditAddCustomItem",
             vec![calculated_id.clone()],
         );
-        Some(data_response(
-            &field.response_key,
-            selected_json(
-                &json!({
-                    "calculatedOrder": order_view,
-                    "calculatedLineItem": view,
-                    "orderEditSession": { "id": session_id },
-                    "userErrors": []
-                }),
-                &field.selection,
-            ),
-        ))
+        Some(ResolverOutcome::value(selected_json(
+            &json!({
+                "calculatedOrder": order_view,
+                "calculatedLineItem": view,
+                "orderEditSession": { "id": session_id },
+                "userErrors": []
+            }),
+            &field.selection,
+        )))
     }
 
     pub(super) fn order_edit_add_line_item_discount_local(
@@ -3324,10 +3312,10 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         field: &RootFieldSelection,
-    ) -> Option<Value> {
+    ) -> Option<ResolverOutcome<Value>> {
         let calculated_id = match self.require_calculated_order(field) {
             Ok(calculated_id) => calculated_id,
-            Err(response) => return Some(response),
+            Err(payload) => return Some(ResolverOutcome::value(payload)),
         };
         let (mut session, currency, _) = self.order_edit_session_context(&calculated_id);
         let line_item_id =
@@ -3335,7 +3323,7 @@ impl DraftProxy {
         let index = match oe_line_index(&session, &line_item_id) {
             Some(index) => index,
             None => {
-                return order_edit_error_response(
+                return order_edit_error_outcome(
                     field,
                     vec![user_error_omit_code(
                         ["id"],
@@ -3391,21 +3379,18 @@ impl DraftProxy {
             "orderEditAddLineItemDiscount",
             vec![calculated_id.clone()],
         );
-        Some(data_response(
-            &field.response_key,
-            selected_json(
-                &json!({
-                    "addedDiscountStagedChange": {
-                        "id": staged_change_id,
-                        "description": description
-                    },
-                    "calculatedOrder": order_view,
-                    "calculatedLineItem": view,
-                    "userErrors": []
-                }),
-                &field.selection,
-            ),
-        ))
+        Some(ResolverOutcome::value(selected_json(
+            &json!({
+                "addedDiscountStagedChange": {
+                    "id": staged_change_id,
+                    "description": description
+                },
+                "calculatedOrder": order_view,
+                "calculatedLineItem": view,
+                "userErrors": []
+            }),
+            &field.selection,
+        )))
     }
 
     pub(super) fn order_edit_remove_discount_local(
@@ -3414,10 +3399,10 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         field: &RootFieldSelection,
-    ) -> Option<Value> {
+    ) -> Option<ResolverOutcome<Value>> {
         let calculated_id = match self.require_calculated_order_with_code(field, Some("INVALID")) {
             Ok(calculated_id) => calculated_id,
-            Err(response) => return Some(response),
+            Err(payload) => return Some(ResolverOutcome::value(payload)),
         };
         let (mut session, _, _) = self.order_edit_session_context(&calculated_id);
         let discount_application_id =
@@ -3441,13 +3426,10 @@ impl DraftProxy {
             "orderEditRemoveDiscount",
             vec![calculated_id.clone()],
         );
-        Some(data_response(
-            &field.response_key,
-            selected_json(
-                &json!({ "calculatedOrder": order_view, "userErrors": [] }),
-                &field.selection,
-            ),
-        ))
+        Some(ResolverOutcome::value(selected_json(
+            &json!({ "calculatedOrder": order_view, "userErrors": [] }),
+            &field.selection,
+        )))
     }
 
     pub(super) fn order_edit_add_shipping_line_local(
@@ -3456,10 +3438,10 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         field: &RootFieldSelection,
-    ) -> Option<Value> {
+    ) -> Option<ResolverOutcome<Value>> {
         let calculated_id = match self.require_calculated_order_with_code(field, Some("INVALID")) {
             Ok(calculated_id) => calculated_id,
-            Err(response) => return Some(response),
+            Err(payload) => return Some(ResolverOutcome::value(payload)),
         };
         let (mut session, currency, _) = self.order_edit_session_context(&calculated_id);
         let shipping_line =
@@ -3467,7 +3449,7 @@ impl DraftProxy {
         let title = resolved_string_field(&shipping_line, "title");
         let price = resolved_object_field(&shipping_line, "price").unwrap_or_default();
         if resolved_money_currency(&price).as_deref() != Some(currency.as_str()) {
-            return order_edit_error_response(
+            return order_edit_error_outcome(
                 field,
                 vec![user_error_omit_code(
                     ["shippingLine", "price"],
@@ -3500,17 +3482,14 @@ impl DraftProxy {
             "orderEditAddShippingLine",
             vec![calculated_id.clone()],
         );
-        Some(data_response(
-            &field.response_key,
-            selected_json(
-                &json!({
-                    "calculatedOrder": order_view,
-                    "calculatedShippingLine": view,
-                    "userErrors": []
-                }),
-                &field.selection,
-            ),
-        ))
+        Some(ResolverOutcome::value(selected_json(
+            &json!({
+                "calculatedOrder": order_view,
+                "calculatedShippingLine": view,
+                "userErrors": []
+            }),
+            &field.selection,
+        )))
     }
 
     pub(super) fn order_edit_update_shipping_line_local(
@@ -3519,10 +3498,10 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         field: &RootFieldSelection,
-    ) -> Option<Value> {
+    ) -> Option<ResolverOutcome<Value>> {
         let calculated_id = match self.require_calculated_order_with_code(field, Some("INVALID")) {
             Ok(calculated_id) => calculated_id,
-            Err(response) => return Some(response),
+            Err(payload) => return Some(ResolverOutcome::value(payload)),
         };
         let (mut session, currency, _) = self.order_edit_session_context(&calculated_id);
         let shipping_line_id =
@@ -3530,7 +3509,7 @@ impl DraftProxy {
         let index = match oe_shipping_index(&session, &shipping_line_id) {
             Some(index) => index,
             None => {
-                return order_edit_error_response(
+                return order_edit_error_outcome(
                         field,
                             vec![user_error_omit_code(
                             ["shippingLineId"],
@@ -3545,7 +3524,7 @@ impl DraftProxy {
         let price = resolved_object_field(&shipping_line, "price");
         if let Some(price) = price.as_ref() {
             if resolved_money_currency(price).as_deref() != Some(currency.as_str()) {
-                return order_edit_error_response(
+                return order_edit_error_outcome(
                     field,
                     vec![user_error_omit_code(
                         ["shippingLine", "price"],
@@ -3578,13 +3557,10 @@ impl DraftProxy {
             "orderEditUpdateShippingLine",
             vec![calculated_id.clone()],
         );
-        Some(data_response(
-            &field.response_key,
-            selected_json(
-                &json!({ "calculatedOrder": order_view, "userErrors": [] }),
-                &field.selection,
-            ),
-        ))
+        Some(ResolverOutcome::value(selected_json(
+            &json!({ "calculatedOrder": order_view, "userErrors": [] }),
+            &field.selection,
+        )))
     }
 
     pub(super) fn order_edit_remove_shipping_line_local(
@@ -3593,10 +3569,10 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         field: &RootFieldSelection,
-    ) -> Option<Value> {
+    ) -> Option<ResolverOutcome<Value>> {
         let calculated_id = match self.require_calculated_order_with_code(field, Some("INVALID")) {
             Ok(calculated_id) => calculated_id,
-            Err(response) => return Some(response),
+            Err(payload) => return Some(ResolverOutcome::value(payload)),
         };
         let (mut session, _, _) = self.order_edit_session_context(&calculated_id);
         let shipping_line_id =
@@ -3604,7 +3580,7 @@ impl DraftProxy {
         let index = match oe_shipping_index(&session, &shipping_line_id) {
             Some(index) => index,
             None => {
-                return order_edit_error_response(
+                return order_edit_error_outcome(
                         field,
                             vec![user_error_omit_code(
                             ["shippingLineId"],
@@ -3629,13 +3605,10 @@ impl DraftProxy {
             "orderEditRemoveShippingLine",
             vec![calculated_id.clone()],
         );
-        Some(data_response(
-            &field.response_key,
-            selected_json(
-                &json!({ "calculatedOrder": order_view, "userErrors": [] }),
-                &field.selection,
-            ),
-        ))
+        Some(ResolverOutcome::value(selected_json(
+            &json!({ "calculatedOrder": order_view, "userErrors": [] }),
+            &field.selection,
+        )))
     }
 
     pub(super) fn order_edit_commit_local(
@@ -3644,10 +3617,10 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         field: &RootFieldSelection,
-    ) -> Option<Value> {
+    ) -> Option<ResolverOutcome<Value>> {
         let calculated_id = match self.require_calculated_order(field) {
             Ok(calculated_id) => calculated_id,
-            Err(response) => return Some(response),
+            Err(payload) => return Some(ResolverOutcome::value(payload)),
         };
         let (session, _, _) = self.order_edit_session_context(&calculated_id);
         let base = self
@@ -3686,17 +3659,14 @@ impl DraftProxy {
         self.store.staged.order_edit_existing_calculated_order = None;
         self.store.staged.order_edit_existing_calculated_order_id = None;
         self.store.staged.order_edit_existing_session_order_id = None;
-        Some(data_response(
-            &field.response_key,
-            selected_json(
-                &json!({
-                    "order": committed,
-                    "successMessages": success_messages,
-                    "userErrors": []
-                }),
-                &field.selection,
-            ),
-        ))
+        Some(ResolverOutcome::value(selected_json(
+            &json!({
+                "order": committed,
+                "successMessages": success_messages,
+                "userErrors": []
+            }),
+            &field.selection,
+        )))
     }
 
     pub(super) fn stage_order_delete(

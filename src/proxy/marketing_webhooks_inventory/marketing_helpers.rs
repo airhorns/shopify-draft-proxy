@@ -26,13 +26,6 @@ fn marketing_record_with_cursor(mut record: Value, cursor: Option<String>) -> Va
     record
 }
 
-fn is_marketing_query_root(name: &str) -> bool {
-    matches!(
-        name,
-        "marketingActivity" | "marketingActivities" | "marketingEvent" | "marketingEvents"
-    )
-}
-
 fn marketing_activity_staged_sort_key(record: &Value, sort_key: Option<&str>) -> StagedSortKey {
     let id = record["id"].as_str();
     let primary = match sort_key.unwrap_or("CREATED_AT") {
@@ -790,39 +783,38 @@ impl DraftProxy {
         }
     }
 
-    pub(in crate::proxy) fn marketing_query_response(
+    pub(in crate::proxy) fn marketing_query_outcome(
         &mut self,
         request: &Request,
         fields: &[RootFieldSelection],
-    ) -> Response {
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
         if self.config.read_mode == ReadMode::LiveHybrid {
-            let mut response = self
-                .request_upstream_query_response
-                .clone()
-                .unwrap_or_else(|| (self.upstream_transport)(request.clone()));
-            if response.status < 400 {
-                self.observe_marketing_upstream_response(fields, &response.body);
+            let mut outcome = self.cached_or_forward_upstream_root_outcome(request, response_key);
+            if outcome.errors.is_empty() {
+                self.observe_marketing_upstream_response(
+                    fields,
+                    &json!({ "data": { (response_key): outcome.value.clone() } }),
+                );
             }
-            if !self.store.has_marketing_overlay_state() || response.body.get("data").is_none() {
-                return response;
+            if !self.store.has_marketing_overlay_state() || !outcome.errors.is_empty() {
+                return outcome;
             }
-            let marketing_data = self.marketing_query_data(request, fields);
-            if let (Some(upstream_data), Some(marketing_data)) = (
-                response.body.get_mut("data").and_then(Value::as_object_mut),
-                marketing_data.as_object(),
-            ) {
-                for field in fields {
-                    if !is_marketing_query_root(&field.name) {
-                        continue;
-                    }
-                    if let Some(value) = marketing_data.get(&field.response_key) {
-                        upstream_data.insert(field.response_key.clone(), value.clone());
-                    }
-                }
+            let mut marketing_data = self.marketing_query_data(request, fields);
+            if let Some(value) = marketing_data
+                .as_object_mut()
+                .and_then(|data| data.remove(response_key))
+            {
+                outcome.value = value;
             }
-            return response;
+            return outcome;
         }
-        ok_json(json!({ "data": self.marketing_query_data(request, fields) }))
+        let mut data = self.marketing_query_data(request, fields);
+        ResolverOutcome::value(
+            data.as_object_mut()
+                .and_then(|data| data.remove(response_key))
+                .unwrap_or(Value::Null),
+        )
     }
 
     fn observe_marketing_upstream_response(&mut self, fields: &[RootFieldSelection], body: &Value) {
@@ -974,11 +966,12 @@ impl DraftProxy {
             .contains(activity_app_id)
     }
 
-    pub(in crate::proxy) fn marketing_mutation(
+    pub(in crate::proxy) fn marketing_mutation_outcome(
         &mut self,
         fields: &[RootFieldSelection],
         request: &Request,
-    ) -> Response {
+        response_key: &str,
+    ) -> (ResolverOutcome<Value>, Vec<String>) {
         let mut top_errors: Vec<Value> = Vec::new();
         let mut omit_data = false;
         let data = root_payload_json(fields, |field| {
@@ -1057,15 +1050,21 @@ impl DraftProxy {
             };
             Some(value)
         });
-        let mut body = if omit_data {
-            json!({})
+        let value = if omit_data {
+            Value::Null
         } else {
-            json!({ "data": data })
+            data.get(response_key).cloned().unwrap_or(Value::Null)
         };
-        if !top_errors.is_empty() {
-            body["errors"] = Value::Array(top_errors);
-        }
-        ok_json(body)
+        let staged_ids = value["marketingActivity"]["id"]
+            .as_str()
+            .map(ToString::to_string)
+            .into_iter()
+            .collect();
+        (
+            ResolverOutcome::value(value)
+                .with_errors(root_field_errors_from_json(&top_errors, response_key)),
+            staged_ids,
+        )
     }
 
     pub(in crate::proxy) fn marketing_create_native(

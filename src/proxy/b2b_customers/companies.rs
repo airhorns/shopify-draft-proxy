@@ -1,5 +1,163 @@
 use super::*;
 
+pub(in crate::proxy) fn b2b_company_field_resolver_registrations() -> Vec<FieldResolverRegistration>
+{
+    vec![
+        FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "Company",
+            "totalSpent",
+            b2b_company_total_spent_field,
+        ),
+        FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "Company",
+            "ordersCount",
+            b2b_company_orders_count_field,
+        ),
+        FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "Company",
+            "lifetimeDuration",
+            b2b_company_lifetime_duration_field,
+        ),
+        FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "CompanyLocation",
+            "totalSpent",
+            b2b_company_location_total_spent_field,
+        ),
+        FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "CompanyLocation",
+            "currency",
+            b2b_company_location_currency_field,
+        ),
+        FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "CompanyLocation",
+            "ordersCount",
+            b2b_company_location_orders_count_field,
+        ),
+        FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "CompanyLocation",
+            "orderCount",
+            b2b_company_location_order_count_field,
+        ),
+        FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "CompanyLocation",
+            "catalogs",
+            b2b_company_location_catalogs_field,
+        ),
+    ]
+}
+
+fn b2b_parent_id<'a>(
+    invocation: &'a crate::admin_graphql::FieldResolverInvocation<'_>,
+    parent_type: &str,
+) -> Result<&'a str, String> {
+    invocation
+        .parent
+        .get("id")
+        .and_then(Value::as_str)
+        .ok_or_else(|| format!("{parent_type} parent has no canonical id"))
+}
+
+fn b2b_company_total_spent_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(proxy
+        .b2b_company_order_aggregate(b2b_parent_id(invocation, "Company")?)
+        .total_spent())
+}
+
+fn b2b_company_orders_count_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(count_object(
+        proxy
+            .b2b_company_order_aggregate(b2b_parent_id(invocation, "Company")?)
+            .count,
+    ))
+}
+
+fn b2b_company_lifetime_duration_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(invocation
+        .parent
+        .get("lifetimeDuration")
+        .cloned()
+        .unwrap_or_else(|| proxy.b2b_company_lifetime_duration(invocation.parent)))
+}
+
+fn b2b_company_location_total_spent_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(proxy
+        .b2b_company_location_order_aggregate(b2b_parent_id(invocation, "CompanyLocation")?)
+        .total_spent())
+}
+
+fn b2b_company_location_currency_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let aggregate =
+        proxy.b2b_company_location_order_aggregate(b2b_parent_id(invocation, "CompanyLocation")?);
+    Ok(json!(invocation
+        .parent
+        .get("currency")
+        .and_then(Value::as_str)
+        .unwrap_or(&aggregate.currency_code)))
+}
+
+fn b2b_company_location_orders_count_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(count_object(
+        proxy
+            .b2b_company_location_order_aggregate(b2b_parent_id(invocation, "CompanyLocation")?)
+            .count,
+    ))
+}
+
+fn b2b_company_location_order_count_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(json!(
+        proxy
+            .b2b_company_location_order_aggregate(b2b_parent_id(invocation, "CompanyLocation")?)
+            .count
+    ))
+}
+
+fn b2b_company_location_catalogs_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(proxy.b2b_company_location_catalogs_value(
+        b2b_parent_id(invocation, "CompanyLocation")?,
+        &resolved_arguments_from_json(&invocation.arguments),
+    ))
+}
+
 fn b2b_company_timestamp(timestamp: time::OffsetDateTime) -> String {
     timestamp
         .format(&time::format_description::well_known::Rfc3339)
@@ -507,108 +665,85 @@ fn b2b_null_when_failed(status: &str, value: Value) -> Value {
     }
 }
 
+fn b2b_resolver_outcome(
+    value: Value,
+    root_field: &str,
+    status: &str,
+    staged_ids: Vec<String>,
+) -> ResolverOutcome<Value> {
+    let draft = if status == "staged" {
+        LogDraft::staged(root_field, "b2b", staged_ids)
+    } else {
+        LogDraft::failed(
+            root_field,
+            "b2b",
+            "B2B mutation rejected by local validation.",
+        )
+    };
+    ResolverOutcome::value(value).with_log_draft(draft)
+}
+
 impl DraftProxy {
-    pub(in crate::proxy) fn b2b_tax_settings_tail_helper_response(
+    pub(in crate::proxy) fn b2b_tax_settings_outcome(
         &mut self,
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-        operation_type: OperationType,
-        parsed_root_fields: &[String],
-    ) -> Option<Response> {
-        if operation_type != OperationType::Mutation
-            || parsed_root_fields.is_empty()
-            || !parsed_root_fields
-                .iter()
-                .all(|field| field == "companyLocationTaxSettingsUpdate")
-        {
-            return None;
-        }
-
+        response_key: &str,
+    ) -> Option<ResolverOutcome<Value>> {
         let fields = self.execution_root_fields(query, variables)?;
-        if let Some(response) = b2b_tax_settings_invalid_enum_response(query, &fields) {
-            return Some(response);
+        let field = fields.iter().find(|field| {
+            field.name == "companyLocationTaxSettingsUpdate" && field.response_key == response_key
+        })?;
+        if let Some(error) = b2b_tax_settings_invalid_enum_error(query, std::slice::from_ref(field))
+        {
+            return Some(graphql_error_outcome(vec![error], response_key));
         }
-        let mut declined = false;
-        let data = root_payload_json(&fields, |field| {
-            if declined {
-                return None;
-            }
-            if field.name != "companyLocationTaxSettingsUpdate" {
-                declined = true;
-                return None;
-            }
-            let (payload, status, staged_ids) =
-                self.b2b_tax_settings_update_payload(field, request);
-            self.record_mutation_log_with_status(
-                request,
-                query,
-                variables,
-                "companyLocationTaxSettingsUpdate",
-                staged_ids,
-                status,
-            );
-            Some(self.b2b_payload_selected_json(&payload, &field.selection))
-        });
-        if declined {
-            return None;
-        }
-        Some(ok_json(json!({ "data": data })))
+        let (payload, status, staged_ids) = self.b2b_tax_settings_update_payload(field, request);
+        Some(b2b_resolver_outcome(
+            self.b2b_payload_selected_json(&payload, &field.selection),
+            &field.name,
+            status,
+            staged_ids,
+        ))
     }
 
-    pub(in crate::proxy) fn b2b_location_buyer_experience_tail_helper_response(
+    pub(in crate::proxy) fn b2b_location_buyer_experience_outcome(
         &mut self,
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         operation_type: OperationType,
-        parsed_root_fields: &[String],
-    ) -> Option<Response> {
-        if parsed_root_fields.is_empty() {
-            return None;
-        }
+        response_key: &str,
+    ) -> Option<ResolverOutcome<Value>> {
         let fields = self.execution_root_fields(query, variables)?;
+        let field = fields
+            .iter()
+            .find(|field| field.response_key == response_key)?;
         match operation_type {
-            OperationType::Mutation
-                if parsed_root_fields
-                    .iter()
-                    .all(|field| field == "companyLocationUpdate") =>
-            {
-                let data = root_payload_json(&fields, |field| {
-                    let (payload, status, staged_ids) =
-                        self.b2b_company_location_update_payload_with_hydrate(field, Some(request));
-                    self.record_mutation_log_with_status(
-                        request,
-                        query,
-                        variables,
-                        &field.name,
-                        staged_ids,
-                        status,
-                    );
-                    Some(self.b2b_payload_selected_json(&payload, &field.selection))
-                });
-                Some(ok_json(json!({ "data": data })))
+            OperationType::Mutation if field.name == "companyLocationUpdate" => {
+                let (payload, status, staged_ids) =
+                    self.b2b_company_location_update_payload_with_hydrate(field, Some(request));
+                Some(b2b_resolver_outcome(
+                    self.b2b_payload_selected_json(&payload, &field.selection),
+                    &field.name,
+                    status,
+                    staged_ids,
+                ))
             }
-            OperationType::Query
-                if parsed_root_fields
-                    .iter()
-                    .all(|field| field == "companyLocation") =>
-            {
-                let data = root_payload_json(&fields, |field| {
-                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    let location = self
-                        .store
-                        .staged
-                        .b2b_locations
-                        .get(&id)
-                        .cloned()
-                        .map(|location| {
-                            self.b2b_company_location_selected_json(&location, &field.selection)
-                        })
-                        .unwrap_or(Value::Null);
-                    Some(location)
-                });
-                Some(ok_json(json!({ "data": data })))
+            OperationType::Query if field.name == "companyLocation" => {
+                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                let location = self
+                    .store
+                    .staged
+                    .b2b_locations
+                    .get(&id)
+                    .cloned()
+                    .map(|location| {
+                        self.b2b_company_location_selected_json(&location, &field.selection)
+                    })
+                    .unwrap_or(Value::Null);
+                Some(ResolverOutcome::value(location))
             }
             _ => None,
         }
@@ -619,32 +754,24 @@ impl DraftProxy {
     /// Locations, companies, contacts, roles, and role assignments are staged under their
     /// allocated ids (synthetic for entities created locally), so reads-after-write through
     /// the generic Node interface resolve from real staged state rather than a fixture map.
-    /// The inline-fragment selection from the query is applied verbatim, so only the fields
-    /// that actually exist on the matched entity are returned.
-    pub(in crate::proxy) fn b2b_node_value_by_id(
-        &self,
-        id: &str,
-        selection: &[SelectedField],
-    ) -> Option<Value> {
+    /// The canonical record is returned without GraphQL projection. The engine's
+    /// surface-qualified field resolvers own relationship expansion and selection.
+    pub(in crate::proxy) fn b2b_node_value_by_id(&self, id: &str) -> Option<Value> {
         let staged = &self.store.staged;
-        // A role assignment node read must resolve its nested companyContact / role
-        // / companyLocation from their own staged records — the assignment record
-        // only stores their ids — so it routes through the assignment-aware
-        // serializer rather than the flat selected_json used for the other entities.
         if let Some(assignment) = self.b2b_effective_role_assignment(id) {
-            return Some(self.b2b_role_assignment_selected_json(&assignment, selection));
+            return Some(assignment);
         }
         if let Some(location) = self.b2b_effective_location(id) {
-            return Some(self.b2b_company_location_selected_json(&location, selection));
+            return Some(location);
         }
         if let Some(company) = self.b2b_effective_company(id) {
-            return Some(self.b2b_company_selected_json(&company, selection));
+            return Some(company);
         }
         if let Some(contact) = self.b2b_effective_contact(id) {
-            return Some(self.b2b_company_contact_selected_json(&contact, selection));
+            return Some(contact);
         }
         if let Some(role) = self.b2b_effective_contact_role(id) {
-            return Some(selected_json(&role, selection));
+            return Some(role);
         }
         // CompanyAddress entities are not stored in their own map — they live
         // nested on each staged location's billing/shipping slot — so a node read
@@ -652,173 +779,114 @@ impl DraftProxy {
         for location in staged.b2b_locations.values() {
             for slot in ["billingAddress", "shippingAddress"] {
                 if location[slot]["id"].as_str() == Some(id) {
-                    return Some(selected_json(&location[slot], selection));
+                    return Some(location[slot].clone());
                 }
             }
         }
         None
     }
 
-    pub(in crate::proxy) fn b2b_company_tail_helper_response(
+    pub(in crate::proxy) fn b2b_company_outcome(
         &mut self,
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         operation_type: OperationType,
-        parsed_root_fields: &[String],
-    ) -> Option<Response> {
-        if parsed_root_fields.is_empty() {
-            return None;
-        }
-
+        response_key: &str,
+    ) -> Option<ResolverOutcome<Value>> {
         let fields = self.execution_root_fields(query, variables)?;
-        let all_roots_allowed = match operation_type {
-            OperationType::Mutation => fields
-                .iter()
-                .all(|field| b2b_company_mutation_handler(&field.name).is_some()),
-            OperationType::Query => fields.iter().all(|field| {
-                matches!(
-                    field.name.as_str(),
-                    "company"
-                        | "companies"
-                        | "companiesCount"
-                        | "companyContact"
-                        | "companyLocation"
-                        | "companyLocations"
-                        | "node"
-                        | "nodes"
-                )
-            }),
-            OperationType::Subscription => false,
-        };
-        if !all_roots_allowed {
-            return None;
-        }
+        let field = fields
+            .iter()
+            .find(|field| field.response_key == response_key)?;
         if operation_type == OperationType::Query
             && self.config.read_mode != ReadMode::Snapshot
-            && !self.b2b_query_has_staged_match(&fields)
+            && !self.b2b_query_has_staged_match(std::slice::from_ref(field))
         {
             return None;
         }
 
         match operation_type {
             OperationType::Mutation => {
-                self.hydrate_b2b_shop_country_for_contact_phone_if_missing(request, &fields);
-                let mut declined = false;
-                let data = root_payload_json(&fields, |field| {
-                    if declined {
-                        return None;
-                    }
-                    let Some(handler) = b2b_company_mutation_handler(&field.name) else {
-                        declined = true;
-                        return None;
-                    };
-                    let (payload, status, staged_ids) = handler(self, field);
-                    self.record_mutation_log_with_status(
-                        request,
-                        query,
-                        variables,
-                        &field.name,
-                        staged_ids,
-                        status,
-                    );
-                    Some(self.b2b_payload_selected_json(&payload, &field.selection))
-                });
-                if declined {
-                    return None;
-                }
-                Some(ok_json(json!({ "data": data })))
+                self.hydrate_b2b_shop_country_for_contact_phone_if_missing(
+                    request,
+                    std::slice::from_ref(field),
+                );
+                let handler = b2b_company_mutation_handler(&field.name)?;
+                let (payload, status, staged_ids) = handler(self, field);
+                Some(b2b_resolver_outcome(
+                    self.b2b_payload_selected_json(&payload, &field.selection),
+                    &field.name,
+                    status,
+                    staged_ids,
+                ))
             }
             OperationType::Query => {
                 let mut upstream_data = None;
                 if self.config.read_mode == ReadMode::LiveHybrid
-                    && Self::b2b_query_has_catalog_root(&fields)
+                    && Self::b2b_query_has_catalog_root(std::slice::from_ref(field))
                 {
-                    let response = self
-                        .request_upstream_query_response
-                        .clone()
-                        .unwrap_or_else(|| (self.upstream_transport)(request.clone()));
-                    if !(200..300).contains(&response.status) {
-                        return Some(response);
+                    let result =
+                        self.cached_or_forward_upstream_graphql_result(request, response_key);
+                    if !result.transport_succeeded {
+                        return Some(result.outcome);
                     }
-                    self.hydrate_b2b_base_from_read_data(&fields, &response.body["data"]);
-                    upstream_data = response.body.get("data").cloned();
+                    self.hydrate_b2b_base_from_read_data(std::slice::from_ref(field), &result.data);
+                    upstream_data = Some(result.data);
                 }
-                let mut declined = false;
-                let data = root_payload_json(&fields, |field| {
-                    if declined {
-                        return None;
+                let value = match field.name.as_str() {
+                    "company" => {
+                        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                        self.b2b_effective_company(&id)
+                            .as_ref()
+                            .map(|company| {
+                                self.b2b_company_selected_json(company, &field.selection)
+                            })
+                            .unwrap_or(Value::Null)
                     }
-                    let value = match field.name.as_str() {
-                        "company" => {
-                            let id =
-                                resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                            self.b2b_effective_company(&id)
-                                .as_ref()
-                                .map(|company| {
-                                    self.b2b_company_selected_json(company, &field.selection)
-                                })
-                                .unwrap_or(Value::Null)
-                        }
-                        "companyContact" => {
-                            let id =
-                                resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                            self.b2b_effective_contact(&id)
-                                .as_ref()
-                                .map(|contact| {
-                                    self.b2b_company_contact_selected_json(
-                                        contact,
-                                        &field.selection,
-                                    )
-                                })
-                                .unwrap_or(Value::Null)
-                        }
-                        "companyLocation" => {
-                            let id =
-                                resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                            self.b2b_effective_location(&id)
-                                .as_ref()
-                                .map(|location| {
-                                    self.b2b_company_location_selected_json(
-                                        location,
-                                        &field.selection,
-                                    )
-                                })
-                                .unwrap_or(Value::Null)
-                        }
-                        "companyLocations" => self.b2b_company_locations_connection(field),
-                        "companies" => self.b2b_companies_connection(field),
-                        "companiesCount" => self.b2b_companies_count(field, upstream_data.as_ref()),
-                        "node" => {
-                            let id =
-                                resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                            self.b2b_node_value_by_id(&id, &field.selection)
-                                .unwrap_or(Value::Null)
-                        }
-                        "nodes" => Value::Array(
-                            field
-                                .arguments
-                                .get("ids")
-                                .map(resolved_string_list)
-                                .unwrap_or_default()
-                                .into_iter()
-                                .map(|id| {
-                                    self.b2b_node_value_by_id(&id, &field.selection)
-                                        .unwrap_or(Value::Null)
-                                })
-                                .collect(),
-                        ),
-                        _ => {
-                            declined = true;
-                            return None;
-                        }
-                    };
-                    Some(value)
-                });
-                if declined {
-                    return None;
-                }
-                Some(ok_json(json!({ "data": data })))
+                    "companyContact" => {
+                        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                        self.b2b_effective_contact(&id)
+                            .as_ref()
+                            .map(|contact| {
+                                self.b2b_company_contact_selected_json(contact, &field.selection)
+                            })
+                            .unwrap_or(Value::Null)
+                    }
+                    "companyLocation" => {
+                        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                        self.b2b_effective_location(&id)
+                            .as_ref()
+                            .map(|location| {
+                                self.b2b_company_location_selected_json(location, &field.selection)
+                            })
+                            .unwrap_or(Value::Null)
+                    }
+                    "companyLocations" => self.b2b_company_locations_connection(field),
+                    "companies" => self.b2b_companies_connection(field),
+                    "companiesCount" => self.b2b_companies_count(field, upstream_data.as_ref()),
+                    "node" => {
+                        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                        self.b2b_node_value_by_id(&id)
+                            .map(|value| selected_json(&value, &field.selection))
+                            .unwrap_or(Value::Null)
+                    }
+                    "nodes" => Value::Array(
+                        field
+                            .arguments
+                            .get("ids")
+                            .map(resolved_string_list)
+                            .unwrap_or_default()
+                            .into_iter()
+                            .map(|id| {
+                                self.b2b_node_value_by_id(&id)
+                                    .map(|value| selected_json(&value, &field.selection))
+                                    .unwrap_or(Value::Null)
+                            })
+                            .collect(),
+                    ),
+                    _ => return None,
+                };
+                Some(ResolverOutcome::value(value))
             }
             _ => None,
         }
@@ -870,16 +938,16 @@ impl DraftProxy {
     /// Handles companyAssignCustomerAsContact against locally-staged b2b state.
     /// Returns None when the target company is not in local state, so callers can
     /// defer to other handlers that may own non-B2B company fixtures.
-    pub(in crate::proxy) fn b2b_assign_customer_as_contact_response(
+    pub(in crate::proxy) fn b2b_assign_customer_as_contact_outcome(
         &mut self,
-        request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<Response> {
+        response_key: &str,
+    ) -> Option<ResolverOutcome<Value>> {
         let fields = self.execution_root_fields(query, variables)?;
-        let field = fields
-            .iter()
-            .find(|field| field.name == "companyAssignCustomerAsContact")?;
+        let field = fields.iter().find(|field| {
+            field.name == "companyAssignCustomerAsContact" && field.response_key == response_key
+        })?;
         let company_id = resolved_string_field(&field.arguments, "companyId")?;
         let _ = self.b2b_effective_company(&company_id)?;
         let (payload, status, staged_ids) =
@@ -892,20 +960,12 @@ impl DraftProxy {
                     .insert(customer_id);
             }
         }
-        self.record_mutation_log_with_status(
-            request,
-            query,
-            variables,
-            &field.name,
-            staged_ids,
-            status,
-        );
-        let mut data = serde_json::Map::new();
-        data.insert(
-            field.response_key.clone(),
+        Some(b2b_resolver_outcome(
             self.b2b_payload_selected_json(&payload, &field.selection),
-        );
-        Some(ok_json(json!({ "data": Value::Object(data) })))
+            &field.name,
+            status,
+            staged_ids,
+        ))
     }
 
     fn b2b_company_assign_customer_as_contact_payload(
@@ -3819,6 +3879,17 @@ impl DraftProxy {
         location_id: &str,
         selection: &SelectedField,
     ) -> Value {
+        selected_json(
+            &self.b2b_company_location_catalogs_value(location_id, &selection.arguments),
+            &selection.selection,
+        )
+    }
+
+    fn b2b_company_location_catalogs_value(
+        &self,
+        location_id: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
         let catalogs = self
             .store
             .staged
@@ -3831,13 +3902,7 @@ impl DraftProxy {
             })
             .cloned()
             .collect::<Vec<_>>();
-        selected_typed_connection_with_args(
-            &catalogs,
-            &selection.arguments,
-            &selection.selection,
-            selected_json,
-            value_id_cursor,
-        )
+        connection_value_with_args(catalogs, arguments, value_id_cursor)
     }
 
     fn b2b_company_location_market_selected_json(
@@ -3864,71 +3929,82 @@ impl DraftProxy {
     fn b2b_company_selected_json(&self, company: &Value, selections: &[SelectedField]) -> Value {
         let company_id = company["id"].as_str().unwrap_or_default();
         let order_aggregate = self.b2b_company_order_aggregate(company_id);
-        selected_payload_json(selections, |selection| match selection.name.as_str() {
-            "locations" => Some(self.b2b_selected_id_connection_json(
-                company,
-                "locationIds",
-                selection,
-                |proxy, id| proxy.b2b_effective_location(id),
-                |proxy, location, fields| {
-                    proxy.b2b_company_location_selected_json(location, fields)
-                },
-            )),
-            "contacts" => Some(self.b2b_selected_id_connection_json(
-                company,
-                "contactIds",
-                selection,
-                |proxy, id| proxy.b2b_effective_contact(id),
-                |proxy, contact, fields| proxy.b2b_company_contact_selected_json(contact, fields),
-            )),
-            "contactRoles" => Some(self.b2b_selected_id_connection_json(
-                company,
-                "contactRoleIds",
-                selection,
-                |proxy, id| proxy.b2b_effective_contact_role(id),
-                |_, role, fields| selected_json(role, fields),
-            )),
-            "contactsCount" => {
-                let count = b2b_json_id_list(company, "contactIds").len();
-                Some(selected_count_json(count, &selection.selection))
-            }
-            "locationsCount" => {
-                let count = b2b_json_id_list(company, "locationIds").len();
-                Some(selected_count_json(count, &selection.selection))
-            }
-            "totalSpent" => Some(selected_json(
-                &order_aggregate.total_spent(),
-                &selection.selection,
-            )),
-            "ordersCount" => Some(selected_count_json(
-                order_aggregate.count,
-                &selection.selection,
-            )),
-            "orders" => Some(self.b2b_selected_order_records_connection(
-                self.b2b_company_order_records(company_id),
-                selection,
-            )),
-            "draftOrders" => Some(self.b2b_selected_order_records_connection(
-                self.b2b_company_draft_order_records(company_id),
-                selection,
-            )),
-            "lifetimeDuration" => Some(
-                company
-                    .get("lifetimeDuration")
-                    .cloned()
-                    .unwrap_or_else(|| self.b2b_company_lifetime_duration(company)),
-            ),
-            "mainContact" => Some(self.b2b_selected_reference_json(
-                company,
-                "mainContactId",
-                selection,
-                |proxy, id| proxy.b2b_effective_contact(id),
-                |proxy, contact, fields| proxy.b2b_company_contact_selected_json(contact, fields),
-            )),
-            _ => company
-                .get(&selection.name)
-                .map(|value| nullable_selected_json(value, &selection.selection)),
-        })
+        let mut projected =
+            selected_payload_json(selections, |selection| match selection.name.as_str() {
+                "locations" => Some(self.b2b_selected_id_connection_json(
+                    company,
+                    "locationIds",
+                    selection,
+                    |proxy, id| proxy.b2b_effective_location(id),
+                    |proxy, location, fields| {
+                        proxy.b2b_company_location_selected_json(location, fields)
+                    },
+                )),
+                "contacts" => Some(self.b2b_selected_id_connection_json(
+                    company,
+                    "contactIds",
+                    selection,
+                    |proxy, id| proxy.b2b_effective_contact(id),
+                    |proxy, contact, fields| {
+                        proxy.b2b_company_contact_selected_json(contact, fields)
+                    },
+                )),
+                "contactRoles" => Some(self.b2b_selected_id_connection_json(
+                    company,
+                    "contactRoleIds",
+                    selection,
+                    |proxy, id| proxy.b2b_effective_contact_role(id),
+                    |_, role, fields| selected_json(role, fields),
+                )),
+                "contactsCount" => {
+                    let count = b2b_json_id_list(company, "contactIds").len();
+                    Some(selected_count_json(count, &selection.selection))
+                }
+                "locationsCount" => {
+                    let count = b2b_json_id_list(company, "locationIds").len();
+                    Some(selected_count_json(count, &selection.selection))
+                }
+                "totalSpent" => Some(selected_json(
+                    &order_aggregate.total_spent(),
+                    &selection.selection,
+                )),
+                "ordersCount" => Some(selected_count_json(
+                    order_aggregate.count,
+                    &selection.selection,
+                )),
+                "orders" => Some(self.b2b_selected_order_records_connection(
+                    self.b2b_company_order_records(company_id),
+                    selection,
+                )),
+                "draftOrders" => Some(self.b2b_selected_order_records_connection(
+                    self.b2b_company_draft_order_records(company_id),
+                    selection,
+                )),
+                "lifetimeDuration" => Some(
+                    company
+                        .get("lifetimeDuration")
+                        .cloned()
+                        .unwrap_or_else(|| self.b2b_company_lifetime_duration(company)),
+                ),
+                "mainContact" => Some(self.b2b_selected_reference_json(
+                    company,
+                    "mainContactId",
+                    selection,
+                    |proxy, id| proxy.b2b_effective_contact(id),
+                    |proxy, contact, fields| {
+                        proxy.b2b_company_contact_selected_json(contact, fields)
+                    },
+                )),
+                _ => company
+                    .get(&selection.name)
+                    .map(|value| nullable_selected_json(value, &selection.selection)),
+            });
+        if let Some(object) = projected.as_object_mut() {
+            object
+                .entry("id".to_string())
+                .or_insert_with(|| json!(company_id));
+        }
+        projected
     }
 
     fn b2b_company_lifetime_duration(&self, company: &Value) -> Value {
@@ -4025,62 +4101,72 @@ impl DraftProxy {
     ) -> Value {
         let location_id = location["id"].as_str().unwrap_or_default();
         let order_aggregate = self.b2b_company_location_order_aggregate(location_id);
-        selected_payload_json(selections, |selection| match selection.name.as_str() {
-            "company" => Some(self.b2b_selected_reference_json(
-                location,
-                "companyId",
-                selection,
-                |proxy, id| proxy.b2b_effective_company(id),
-                |proxy, company, fields| proxy.b2b_company_selected_json(company, fields),
-            )),
-            "roleAssignments" => Some(self.b2b_selected_id_connection_json(
-                location,
-                "roleAssignmentIds",
-                selection,
-                |proxy, id| proxy.b2b_effective_role_assignment(id),
-                |proxy, assignment, fields| {
-                    proxy.b2b_role_assignment_selected_json(assignment, fields)
-                },
-            )),
-            "staffMemberAssignments" => Some(self.b2b_selected_id_connection_json(
-                location,
-                "staffAssignmentIds",
-                selection,
-                |proxy, id| proxy.b2b_effective_staff_assignment(id),
-                |proxy, assignment, fields| {
-                    proxy.b2b_staff_assignment_selected_json(assignment, fields)
-                },
-            )),
-            "totalSpent" => Some(selected_json(
-                &order_aggregate.total_spent(),
-                &selection.selection,
-            )),
-            "currency" => Some(json!(location["currency"]
-                .as_str()
-                .unwrap_or(order_aggregate.currency_code.as_str()))),
-            "ordersCount" => Some(selected_count_json(
-                order_aggregate.count,
-                &selection.selection,
-            )),
-            "orderCount" => Some(json!(order_aggregate.count)),
-            "orders" => Some(self.b2b_selected_order_records_connection(
-                self.b2b_company_location_order_records(location_id),
-                selection,
-            )),
-            "draftOrders" => Some(self.b2b_selected_order_records_connection(
-                self.b2b_company_location_draft_order_records(location_id),
-                selection,
-            )),
-            "market" => Some(
-                self.b2b_company_location_market_selected_json(location_id, &selection.selection),
-            ),
-            "catalogs" => {
-                Some(self.b2b_company_location_catalogs_connection(location_id, selection))
-            }
-            _ => location
-                .get(&selection.name)
-                .map(|value| nullable_selected_json(value, &selection.selection)),
-        })
+        let mut projected =
+            selected_payload_json(selections, |selection| match selection.name.as_str() {
+                "company" => Some(self.b2b_selected_reference_json(
+                    location,
+                    "companyId",
+                    selection,
+                    |proxy, id| proxy.b2b_effective_company(id),
+                    |proxy, company, fields| proxy.b2b_company_selected_json(company, fields),
+                )),
+                "roleAssignments" => Some(self.b2b_selected_id_connection_json(
+                    location,
+                    "roleAssignmentIds",
+                    selection,
+                    |proxy, id| proxy.b2b_effective_role_assignment(id),
+                    |proxy, assignment, fields| {
+                        proxy.b2b_role_assignment_selected_json(assignment, fields)
+                    },
+                )),
+                "staffMemberAssignments" => Some(self.b2b_selected_id_connection_json(
+                    location,
+                    "staffAssignmentIds",
+                    selection,
+                    |proxy, id| proxy.b2b_effective_staff_assignment(id),
+                    |proxy, assignment, fields| {
+                        proxy.b2b_staff_assignment_selected_json(assignment, fields)
+                    },
+                )),
+                "totalSpent" => Some(selected_json(
+                    &order_aggregate.total_spent(),
+                    &selection.selection,
+                )),
+                "currency" => Some(json!(location["currency"]
+                    .as_str()
+                    .unwrap_or(order_aggregate.currency_code.as_str()))),
+                "ordersCount" => Some(selected_count_json(
+                    order_aggregate.count,
+                    &selection.selection,
+                )),
+                "orderCount" => Some(json!(order_aggregate.count)),
+                "orders" => Some(self.b2b_selected_order_records_connection(
+                    self.b2b_company_location_order_records(location_id),
+                    selection,
+                )),
+                "draftOrders" => Some(self.b2b_selected_order_records_connection(
+                    self.b2b_company_location_draft_order_records(location_id),
+                    selection,
+                )),
+                "market" => {
+                    Some(self.b2b_company_location_market_selected_json(
+                        location_id,
+                        &selection.selection,
+                    ))
+                }
+                "catalogs" => {
+                    Some(self.b2b_company_location_catalogs_connection(location_id, selection))
+                }
+                _ => location
+                    .get(&selection.name)
+                    .map(|value| nullable_selected_json(value, &selection.selection)),
+            });
+        if let Some(object) = projected.as_object_mut() {
+            object
+                .entry("id".to_string())
+                .or_insert_with(|| json!(location_id));
+        }
+        projected
     }
 
     fn b2b_role_assignment_selected_json(

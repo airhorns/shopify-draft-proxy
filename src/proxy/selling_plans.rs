@@ -107,68 +107,363 @@ query sellingPlanGroupHydrateNodes($ids: [ID!]!) {
 }
 "#;
 
+pub(in crate::proxy) fn selling_plan_field_resolver_type_policies() -> Vec<FieldResolverTypePolicy>
+{
+    vec![
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "SellingPlanGroup",
+            "field is not yet modeled by the canonical selling-plan resolver",
+        ),
+        FieldResolverTypePolicy::unsupported_remaining(
+            ApiSurface::Admin,
+            "SellingPlan",
+            "field is not yet modeled by the canonical selling-plan resolver",
+        ),
+    ]
+}
+
+pub(in crate::proxy) fn selling_plan_field_resolver_registrations() -> Vec<FieldResolverRegistration>
+{
+    let mut registrations = Vec::new();
+    for field in [
+        "appId",
+        "createdAt",
+        "description",
+        "id",
+        "merchantCode",
+        "name",
+        "options",
+        "position",
+    ] {
+        registrations.push(FieldResolverRegistration::property(
+            ApiSurface::Admin,
+            "SellingPlanGroup",
+            field,
+        ));
+    }
+    for (field, handler) in [
+        (
+            "appliesToProduct",
+            selling_plan_group_applies_to_product_field
+                as crate::resolver_registry::FieldResolverHandler,
+        ),
+        (
+            "appliesToProductVariant",
+            selling_plan_group_applies_to_product_variant_field,
+        ),
+        (
+            "appliesToProductVariants",
+            selling_plan_group_applies_to_product_variants_field,
+        ),
+        ("products", selling_plan_group_products_field),
+        ("productsCount", selling_plan_group_products_count_field),
+        ("productVariants", selling_plan_group_product_variants_field),
+        (
+            "productVariantsCount",
+            selling_plan_group_product_variants_count_field,
+        ),
+        ("sellingPlans", selling_plan_group_selling_plans_field),
+        ("summary", selling_plan_group_summary_field),
+    ] {
+        registrations.push(FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "SellingPlanGroup",
+            field,
+            handler,
+        ));
+    }
+    for field in [
+        "billingPolicy",
+        "category",
+        "createdAt",
+        "deliveryPolicy",
+        "description",
+        "id",
+        "inventoryPolicy",
+        "name",
+        "options",
+        "position",
+        "pricingPolicies",
+    ] {
+        registrations.push(FieldResolverRegistration::property(
+            ApiSurface::Admin,
+            "SellingPlan",
+            field,
+        ));
+    }
+    registrations
+}
+
+fn selling_plan_group_field_record(
+    proxy: &DraftProxy,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Option<SellingPlanGroupRecord> {
+    let id = invocation.parent.get("id").and_then(Value::as_str)?;
+    proxy.store.selling_plan_group_by_id(id).cloned()
+}
+
+fn selling_plan_field_arguments(
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> BTreeMap<String, ResolvedValue> {
+    resolved_arguments_from_json(&invocation.arguments)
+}
+
+fn selling_plan_group_applies_to_product_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let id = invocation
+        .arguments
+        .get("productId")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    Ok(json!(selling_plan_group_field_record(proxy, invocation)
+        .is_some_and(|group| group
+            .product_ids
+            .iter()
+            .any(|product_id| product_id == id))))
+}
+
+fn selling_plan_group_applies_to_product_variant_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let id = invocation
+        .arguments
+        .get("productVariantId")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    Ok(json!(selling_plan_group_field_record(proxy, invocation)
+        .is_some_and(|group| group
+            .product_variant_ids
+            .iter()
+            .any(|variant_id| variant_id == id))))
+}
+
+fn selling_plan_group_applies_to_product_variants_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let product_id = invocation
+        .arguments
+        .get("productId")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let variant_ids = proxy
+        .store
+        .product_variants_for_product(product_id)
+        .into_iter()
+        .map(|variant| variant.id)
+        .collect::<BTreeSet<_>>();
+    Ok(json!(selling_plan_group_field_record(proxy, invocation)
+        .is_some_and(|group| {
+            group
+                .product_variant_ids
+                .iter()
+                .any(|id| variant_ids.contains(id))
+        })))
+}
+
+fn selling_plan_group_products_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let Some(group) = selling_plan_group_field_record(proxy, invocation) else {
+        return Ok(connection_json(Vec::new()));
+    };
+    Ok(connection_value_with_args(
+        group
+            .product_ids
+            .iter()
+            .filter_map(|id| proxy.store.product_by_id(id))
+            .map(|product| proxy.product_canonical_value(product))
+            .collect(),
+        &selling_plan_field_arguments(invocation),
+        value_id_cursor,
+    ))
+}
+
+fn selling_plan_group_product_variants_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let Some(group) = selling_plan_group_field_record(proxy, invocation) else {
+        return Ok(connection_json(Vec::new()));
+    };
+    Ok(connection_value_with_args(
+        group
+            .product_variant_ids
+            .iter()
+            .filter_map(|id| proxy.store.product_variant_by_id(id))
+            .map(|variant| proxy.product_variant_canonical_value(variant))
+            .collect(),
+        &selling_plan_field_arguments(invocation),
+        value_id_cursor,
+    ))
+}
+
+fn selling_plan_group_selling_plans_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let plans = selling_plan_group_field_record(proxy, invocation)
+        .map(|group| {
+            group
+                .selling_plans
+                .iter()
+                .map(selling_plan_canonical_value)
+                .collect()
+        })
+        .unwrap_or_default();
+    Ok(connection_value_with_args(
+        plans,
+        &selling_plan_field_arguments(invocation),
+        value_id_cursor,
+    ))
+}
+
+fn selling_plan_group_products_count_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(count_object(
+        selling_plan_group_field_record(proxy, invocation)
+            .map(|group| group.product_ids.len())
+            .unwrap_or(0),
+    ))
+}
+
+fn selling_plan_group_product_variants_count_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(count_object(
+        selling_plan_group_field_record(proxy, invocation)
+            .map(|group| group.product_variant_ids.len())
+            .unwrap_or(0),
+    ))
+}
+
+fn selling_plan_group_summary_field(
+    proxy: &mut DraftProxy,
+    request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let Some(group) = selling_plan_group_field_record(proxy, invocation) else {
+        return Ok(Value::Null);
+    };
+    let needs_money_format = group
+        .selling_plans
+        .iter()
+        .flat_map(|plan| plan.pricing_policies.iter())
+        .any(|policy| policy.pointer("/adjustmentValue/amount").is_some());
+    if needs_money_format && proxy.store.shop_money_format().is_none() {
+        proxy.hydrate_shop_pricing_state_if_missing(request, true, false);
+    }
+    Ok(json!(selling_plan_group_summary(
+        &group,
+        proxy.store.shop_money_format().as_deref(),
+    )))
+}
+
 impl DraftProxy {
-    pub(in crate::proxy) fn hydrate_selling_plan_groups_for_read(
+    pub(crate) fn selling_plan_group_root(
         &mut self,
-        request: &Request,
-        fields: &[RootFieldSelection],
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        self.hydrate_selling_plan_group_read(&invocation, false);
+        let id = invocation
+            .arguments
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        ResolverOutcome::value(
+            self.store
+                .selling_plan_group_by_id(id)
+                .map(|group| selling_plan_group_canonical_value(self, group))
+                .unwrap_or(Value::Null),
+        )
+    }
+
+    pub(crate) fn selling_plan_groups_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        self.hydrate_selling_plan_group_read(&invocation, true);
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        ResolverOutcome::value(staged_connection_value_with_args(
+            self.store.selling_plan_groups(),
+            &arguments,
+            selling_plan_group_search_decision,
+            selling_plan_group_staged_sort_key,
+            |group| selling_plan_group_canonical_value(self, group),
+            |group| group.id.clone(),
+        ))
+    }
+
+    fn hydrate_selling_plan_group_read(
+        &mut self,
+        invocation: &RootInvocation<'_>,
+        connection: bool,
     ) {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return;
         }
-
-        let mut group_ids = Vec::new();
-        let mut needs_connection_hydrate = false;
-        for field in fields {
-            match field.name.as_str() {
-                "sellingPlanGroup" => {
-                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    push_unique_string(&mut group_ids, &id);
-                }
-                "sellingPlanGroups" => needs_connection_hydrate = true,
-                _ => {}
-            }
+        if !connection {
+            let id = invocation
+                .arguments
+                .get("id")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            self.hydrate_selling_plan_group_nodes_for_observation(
+                invocation.request,
+                vec![id.to_string()],
+            );
+            return;
         }
 
-        if needs_connection_hydrate {
-            let response = (self.upstream_transport)(request.clone());
-            let observed_groups = observed_selling_plan_group_values_for_fields(&response, fields);
-            for id in observed_groups
-                .iter()
-                .filter_map(|group| group.get("id").and_then(Value::as_str))
-            {
-                push_unique_string(&mut group_ids, id);
-            }
-            self.hydrate_selling_plan_group_nodes_for_observation(request, group_ids.clone());
-            for group in observed_groups {
-                self.observe_selling_plan_group_value(&group, false);
-            }
+        let response = (self.upstream_transport)(invocation.request.clone());
+        let observed_groups = observed_connection_nodes(
+            response
+                .body
+                .get("data")
+                .and_then(|data| data.get(invocation.response_key)),
+        );
+        let ids = observed_groups
+            .iter()
+            .filter_map(|group| group.get("id").and_then(Value::as_str).map(str::to_string))
+            .collect();
+        self.hydrate_selling_plan_group_nodes_for_observation(invocation.request, ids);
+        for group in observed_groups {
+            self.observe_selling_plan_group_value(&group, false);
         }
-
-        self.hydrate_selling_plan_group_nodes_for_observation(request, group_ids);
     }
 
     pub(in crate::proxy) fn hydrate_selling_plan_mutation_targets(
         &mut self,
         request: &Request,
         root_field: &str,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return;
         }
-        let Some(field) = self.execution_root_field(query, variables, root_field) else {
-            return;
-        };
 
         let mut group_ids = Vec::new();
         let mut product_ids = Vec::new();
         let mut variant_ids = Vec::new();
         match root_field {
             "sellingPlanGroupCreate" => {
-                let resources =
-                    resolved_object_field(&field.arguments, "resources").unwrap_or_default();
+                let resources = resolved_object_field(arguments, "resources").unwrap_or_default();
                 product_ids.extend(list_string_field(&resources, "productIds"));
                 variant_ids.extend(list_string_field(&resources, "productVariantIds"));
             }
@@ -180,34 +475,34 @@ impl DraftProxy {
             | "sellingPlanGroupRemoveProductVariants" => {
                 push_unique_string(
                     &mut group_ids,
-                    resolved_string_field(&field.arguments, "id").unwrap_or_default(),
+                    resolved_string_field(arguments, "id").unwrap_or_default(),
                 );
                 if matches!(
                     root_field,
                     "sellingPlanGroupAddProducts" | "sellingPlanGroupRemoveProducts"
                 ) {
-                    product_ids.extend(list_string_field(&field.arguments, "productIds"));
+                    product_ids.extend(list_string_field(arguments, "productIds"));
                 }
                 if matches!(
                     root_field,
                     "sellingPlanGroupAddProductVariants" | "sellingPlanGroupRemoveProductVariants"
                 ) {
-                    variant_ids.extend(list_string_field(&field.arguments, "productVariantIds"));
+                    variant_ids.extend(list_string_field(arguments, "productVariantIds"));
                 }
             }
             "productJoinSellingPlanGroups" | "productLeaveSellingPlanGroups" => {
                 push_unique_string(
                     &mut product_ids,
-                    resolved_string_field(&field.arguments, "id").unwrap_or_default(),
+                    resolved_string_field(arguments, "id").unwrap_or_default(),
                 );
-                group_ids.extend(list_string_field(&field.arguments, "sellingPlanGroupIds"));
+                group_ids.extend(list_string_field(arguments, "sellingPlanGroupIds"));
             }
             "productVariantJoinSellingPlanGroups" | "productVariantLeaveSellingPlanGroups" => {
                 push_unique_string(
                     &mut variant_ids,
-                    resolved_string_field(&field.arguments, "id").unwrap_or_default(),
+                    resolved_string_field(arguments, "id").unwrap_or_default(),
                 );
-                group_ids.extend(list_string_field(&field.arguments, "sellingPlanGroupIds"));
+                group_ids.extend(list_string_field(arguments, "sellingPlanGroupIds"));
             }
             _ => {}
         }
@@ -294,111 +589,99 @@ impl DraftProxy {
         self.store.stage_selling_plan_group(group);
     }
 
-    pub(in crate::proxy) fn selling_plan_group_query_data(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> Value {
-        root_payload_json(fields, |field| {
-            Some(match field.name.as_str() {
-                "sellingPlanGroup" => {
-                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    self.store
-                        .selling_plan_group_by_id(&id)
-                        .map(|group| self.selling_plan_group_json(group, &field.selection))
-                        .unwrap_or(Value::Null)
-                }
-                "sellingPlanGroups" => {
-                    let groups = self.store.selling_plan_groups();
-                    selected_selling_plan_group_connection(
-                        groups,
-                        &field.arguments,
-                        &field.selection,
-                        |group, selections| self.selling_plan_group_json(group, selections),
-                    )
-                }
-                // Membership read-back queries pair `sellingPlanGroup` with sibling
-                // `product`/`productVariant` roots that must surface the staged
-                // selling-plan overlay (`sellingPlanGroups`/`sellingPlanGroupsCount`).
-                // Resolve those roots through the same overlay-aware resolvers the
-                // products arm uses so a mixed query routed here doesn't drop them.
-                "product" => self.product_by_id_field(field),
-                "products" => self.products_connection_field(field),
-                "productsCount" => self.products_count_field(field),
-                "productByIdentifier" => self.product_by_identifier_field(field),
-                "productVariant" => self.product_variant_by_id_field(field),
-                _ => return None,
-            })
-        })
-    }
-
-    pub(in crate::proxy) fn selling_plan_group_mutation(
+    pub(crate) fn selling_plan_outcome(
         &mut self,
-        root_field: &str,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> MutationOutcome {
-        let Some(field) = self.execution_root_field(query, variables, root_field) else {
-            return MutationOutcome::response(json_error(400, "Could not parse GraphQL operation"));
-        };
-        match root_field {
-            "sellingPlanGroupCreate" => self.selling_plan_group_create(&field),
-            "sellingPlanGroupUpdate" => self.selling_plan_group_update(&field),
-            "sellingPlanGroupDelete" => self.selling_plan_group_delete(&field),
-            "sellingPlanGroupAddProducts" => {
-                self.selling_plan_group_add_resources(&field, ResourceKind::Product)
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        self.hydrate_selling_plan_mutation_targets(
+            invocation.request,
+            invocation.root_name,
+            &arguments,
+        );
+        match invocation.root_name {
+            "sellingPlanGroupCreate" => {
+                self.selling_plan_group_create(invocation.root_name, &arguments)
             }
-            "sellingPlanGroupAddProductVariants" => {
-                self.selling_plan_group_add_resources(&field, ResourceKind::ProductVariant)
+            "sellingPlanGroupUpdate" => {
+                self.selling_plan_group_update(invocation.root_name, &arguments)
             }
-            "sellingPlanGroupRemoveProducts" => {
-                self.selling_plan_group_remove_resources(&field, ResourceKind::Product)
+            "sellingPlanGroupDelete" => {
+                self.selling_plan_group_delete(invocation.root_name, &arguments)
             }
-            "sellingPlanGroupRemoveProductVariants" => {
-                self.selling_plan_group_remove_resources(&field, ResourceKind::ProductVariant)
-            }
-            "productJoinSellingPlanGroups" => {
-                self.resource_join_leave_selling_plan_groups(&field, ResourceKind::Product, true)
-            }
-            "productLeaveSellingPlanGroups" => {
-                self.resource_join_leave_selling_plan_groups(&field, ResourceKind::Product, false)
-            }
+            "sellingPlanGroupAddProducts" => self.selling_plan_group_add_resources(
+                invocation.root_name,
+                &arguments,
+                ResourceKind::Product,
+            ),
+            "sellingPlanGroupAddProductVariants" => self.selling_plan_group_add_resources(
+                invocation.root_name,
+                &arguments,
+                ResourceKind::ProductVariant,
+            ),
+            "sellingPlanGroupRemoveProducts" => self.selling_plan_group_remove_resources(
+                invocation.root_name,
+                &arguments,
+                ResourceKind::Product,
+            ),
+            "sellingPlanGroupRemoveProductVariants" => self.selling_plan_group_remove_resources(
+                invocation.root_name,
+                &arguments,
+                ResourceKind::ProductVariant,
+            ),
+            "productJoinSellingPlanGroups" => self.resource_join_leave_selling_plan_groups(
+                invocation.root_name,
+                &arguments,
+                ResourceKind::Product,
+                true,
+            ),
+            "productLeaveSellingPlanGroups" => self.resource_join_leave_selling_plan_groups(
+                invocation.root_name,
+                &arguments,
+                ResourceKind::Product,
+                false,
+            ),
             "productVariantJoinSellingPlanGroups" => self.resource_join_leave_selling_plan_groups(
-                &field,
+                invocation.root_name,
+                &arguments,
                 ResourceKind::ProductVariant,
                 true,
             ),
             "productVariantLeaveSellingPlanGroups" => self.resource_join_leave_selling_plan_groups(
-                &field,
+                invocation.root_name,
+                &arguments,
                 ResourceKind::ProductVariant,
                 false,
             ),
-            _ => MutationOutcome::response(json_error(
-                400,
-                "No mutation dispatcher implemented for selling-plan group root",
+            root => ResolverOutcome::error(format!(
+                "No selling-plan resolver implemented for root `{root}`"
             )),
         }
     }
 
-    fn selling_plan_group_create(&mut self, field: &RootFieldSelection) -> MutationOutcome {
-        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        let payload_selection = &field.selection;
+    fn selling_plan_group_create(
+        &mut self,
+        root_field: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> ResolverOutcome<Value> {
+        let input = resolved_object_field(arguments, "input").unwrap_or_default();
         let user_errors =
             selling_plan_group_input_user_errors(&input, SellingPlanInputMode::Create);
         if !user_errors.is_empty() {
             return self.selling_plan_group_failed_outcome(
-                field,
+                root_field,
                 None,
                 user_errors,
                 "Selling plan group input validation failed; original raw mutation retained for observability.",
             );
         }
 
-        let resources = resolved_object_field(&field.arguments, "resources").unwrap_or_default();
+        let resources = resolved_object_field(arguments, "resources").unwrap_or_default();
         let product_ids = list_string_field(&resources, "productIds");
         let product_variant_ids = list_string_field(&resources, "productVariantIds");
         if let Some(error) = self.resource_existence_error(&product_ids, ResourceKind::Product) {
             return self.selling_plan_group_failed_outcome(
-                field,
+                root_field,
                 None,
                 vec![error],
                 "Selling plan group resource validation failed; original raw mutation retained for observability.",
@@ -408,7 +691,7 @@ impl DraftProxy {
             self.resource_existence_error(&product_variant_ids, ResourceKind::ProductVariant)
         {
             return self.selling_plan_group_failed_outcome(
-                field,
+                root_field,
                 None,
                 vec![error],
                 "Selling plan group resource validation failed; original raw mutation retained for observability.",
@@ -455,26 +738,25 @@ impl DraftProxy {
         };
         self.store.stage_selling_plan_group(group.clone());
 
-        MutationOutcome::staged(
-            selling_plan_group_payload(
-                Some(&group),
-                None,
-                Vec::new(),
-                payload_selection,
-                &field.response_key,
-                self,
-            ),
-            LogDraft::staged(&field.name, "products", vec![id]),
-        )
+        ResolverOutcome::value(selling_plan_group_payload_value(
+            self,
+            Some(&group),
+            None,
+            Vec::new(),
+        ))
+        .with_log_draft(LogDraft::staged(root_field, "products", vec![id]))
     }
 
-    fn selling_plan_group_update(&mut self, field: &RootFieldSelection) -> MutationOutcome {
-        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        let payload_selection = &field.selection;
+    fn selling_plan_group_update(
+        &mut self,
+        root_field: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> ResolverOutcome<Value> {
+        let id = resolved_string_field(arguments, "id").unwrap_or_default();
+        let input = resolved_object_field(arguments, "input").unwrap_or_default();
         let Some(mut group) = self.store.selling_plan_group_by_id(&id).cloned() else {
             return self.selling_plan_group_failed_outcome(
-                field,
+                root_field,
                 Some(None),
                 vec![group_does_not_exist_error()],
                 "Selling plan group update targeted an unknown group; original raw mutation retained for observability.",
@@ -485,7 +767,7 @@ impl DraftProxy {
             selling_plan_group_input_user_errors(&input, SellingPlanInputMode::Update);
         if !user_errors.is_empty() {
             return self.selling_plan_group_failed_outcome(
-                field,
+                root_field,
                 Some(None),
                 user_errors,
                 "Selling plan group input validation failed; original raw mutation retained for observability.",
@@ -494,7 +776,7 @@ impl DraftProxy {
         let user_errors = selling_plan_group_update_model_user_errors(&group, &input);
         if !user_errors.is_empty() {
             return self.selling_plan_group_failed_outcome(
-                field,
+                root_field,
                 Some(None),
                 user_errors,
                 "Selling plan group update would delete every existing selling plan without a replacement; original raw mutation retained for observability.",
@@ -553,62 +835,57 @@ impl DraftProxy {
         }
         self.store.stage_selling_plan_group(group.clone());
 
-        MutationOutcome::staged(
-            selling_plan_group_payload(
-                Some(&group),
-                Some(Some(deleted_plan_ids)),
-                Vec::new(),
-                payload_selection,
-                &field.response_key,
-                self,
-            ),
-            LogDraft::staged(&field.name, "products", vec![id]),
-        )
+        ResolverOutcome::value(selling_plan_group_payload_value(
+            self,
+            Some(&group),
+            Some(Some(deleted_plan_ids)),
+            Vec::new(),
+        ))
+        .with_log_draft(LogDraft::staged(root_field, "products", vec![id]))
     }
 
-    fn selling_plan_group_delete(&mut self, field: &RootFieldSelection) -> MutationOutcome {
-        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let payload_selection = &field.selection;
+    fn selling_plan_group_delete(
+        &mut self,
+        root_field: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> ResolverOutcome<Value> {
+        let id = resolved_string_field(arguments, "id").unwrap_or_default();
         let existed = self.store.delete_selling_plan_group(&id);
         let (deleted_id, user_errors, log_draft) = if existed {
             (
                 Some(id.clone()),
                 Vec::new(),
-                LogDraft::staged(&field.name, "products", vec![id]),
+                LogDraft::staged(root_field, "products", vec![id]),
             )
         } else {
             (
                 None,
                 vec![group_does_not_exist_error()],
                 LogDraft::failed(
-                    &field.name,
+                    root_field,
                     "products",
                     "Selling plan group delete targeted an unknown group; original raw mutation retained for observability.",
                 ),
             )
         };
-        MutationOutcome::staged(
-            selling_plan_group_delete_payload(
-                deleted_id.as_deref(),
-                user_errors,
-                payload_selection,
-                &field.response_key,
-            ),
-            log_draft,
-        )
+        ResolverOutcome::value(selling_plan_group_delete_payload_value(
+            deleted_id.as_deref(),
+            user_errors,
+        ))
+        .with_log_draft(log_draft)
     }
 
     fn selling_plan_group_add_resources(
         &mut self,
-        field: &RootFieldSelection,
+        root_field: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
         resource_kind: ResourceKind,
-    ) -> MutationOutcome {
-        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let ids = list_string_field(&field.arguments, resource_kind.ids_arg());
-        let payload_selection = &field.selection;
+    ) -> ResolverOutcome<Value> {
+        let id = resolved_string_field(arguments, "id").unwrap_or_default();
+        let ids = list_string_field(arguments, resource_kind.ids_arg());
         let Some(mut group) = self.store.selling_plan_group_by_id(&id).cloned() else {
             return self.selling_plan_group_failed_outcome(
-                field,
+                root_field,
                 None,
                 vec![group_does_not_exist_error()],
                 "Selling plan group add targeted an unknown group; original raw mutation retained for observability.",
@@ -616,7 +893,7 @@ impl DraftProxy {
         };
         if let Some(error) = self.resource_existence_error(&ids, resource_kind) {
             return self.selling_plan_group_failed_outcome(
-                field,
+                root_field,
                 None,
                 vec![error],
                 "Selling plan group membership validation failed; original raw mutation retained for observability.",
@@ -625,7 +902,7 @@ impl DraftProxy {
         let members = resource_members_mut(&mut group, resource_kind);
         if ids.iter().any(|resource_id| members.contains(resource_id)) {
             return self.selling_plan_group_failed_outcome(
-                field,
+                root_field,
                 None,
                 vec![user_error(
                     [resource_kind.ids_arg()],
@@ -639,39 +916,34 @@ impl DraftProxy {
         self.store.stage_selling_plan_group(group.clone());
         let mut staged_ids = vec![group.id.clone()];
         staged_ids.extend(ids);
-        MutationOutcome::staged(
-            selling_plan_group_payload(
-                Some(&group),
-                None,
-                Vec::new(),
-                payload_selection,
-                &field.response_key,
-                self,
-            ),
-            LogDraft::staged(&field.name, "products", staged_ids),
-        )
+        ResolverOutcome::value(selling_plan_group_payload_value(
+            self,
+            Some(&group),
+            None,
+            Vec::new(),
+        ))
+        .with_log_draft(LogDraft::staged(root_field, "products", staged_ids))
     }
 
     fn selling_plan_group_remove_resources(
         &mut self,
-        field: &RootFieldSelection,
+        root_field: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
         resource_kind: ResourceKind,
-    ) -> MutationOutcome {
-        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let ids = list_string_field(&field.arguments, resource_kind.ids_arg());
-        let payload_selection = &field.selection;
+    ) -> ResolverOutcome<Value> {
+        let id = resolved_string_field(arguments, "id").unwrap_or_default();
+        let ids = list_string_field(arguments, resource_kind.ids_arg());
         let Some(mut group) = self.store.selling_plan_group_by_id(&id).cloned() else {
-            return self.selling_plan_failed_outcome(
-                &field.name,
-                group_remove_payload(
-                    None,
-                    vec![group_does_not_exist_error()],
-                    resource_kind,
-                    payload_selection,
-                    &field.response_key,
-                ),
+            return ResolverOutcome::value(group_remove_payload_value(
+                None,
+                vec![group_does_not_exist_error()],
+                resource_kind,
+            ))
+            .with_log_draft(LogDraft::failed(
+                root_field,
+                "products",
                 "Selling plan group remove targeted an unknown group; original raw mutation retained for observability.",
-            );
+            ));
         };
 
         let members = resource_members_mut(&mut group, resource_kind);
@@ -682,45 +954,36 @@ impl DraftProxy {
             }
         }
         self.store.stage_selling_plan_group(group);
-        MutationOutcome::staged(
-            group_remove_payload(
-                Some(removed.clone()),
-                Vec::new(),
-                resource_kind,
-                payload_selection,
-                &field.response_key,
-            ),
-            LogDraft::staged(&field.name, "products", removed),
-        )
+        ResolverOutcome::value(group_remove_payload_value(
+            Some(removed.clone()),
+            Vec::new(),
+            resource_kind,
+        ))
+        .with_log_draft(LogDraft::staged(root_field, "products", removed))
     }
 
     fn resource_join_leave_selling_plan_groups(
         &mut self,
-        field: &RootFieldSelection,
+        root_field: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
         resource_kind: ResourceKind,
         is_join: bool,
-    ) -> MutationOutcome {
-        let resource_id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let group_ids = list_string_field(&field.arguments, "sellingPlanGroupIds");
-        let payload_selection = &field.selection;
-        let response = |proxy: &Self, user_errors: Vec<Value>| {
-            resource_join_leave_payload(
-                proxy,
-                field,
-                resource_kind,
-                &resource_id,
-                user_errors,
-                payload_selection,
-            )
+    ) -> ResolverOutcome<Value> {
+        let resource_id = resolved_string_field(arguments, "id").unwrap_or_default();
+        let group_ids = list_string_field(arguments, "sellingPlanGroupIds");
+        let value = |proxy: &Self, user_errors: Vec<Value>| {
+            resource_join_leave_payload_value(proxy, resource_kind, &resource_id, user_errors)
         };
 
         let user_errors =
             self.join_leave_preflight_errors(resource_kind, &resource_id, &group_ids, is_join);
         if !user_errors.is_empty() {
-            return self.selling_plan_failed_outcome(
-                &field.name,
-                response(self, user_errors),
+            return ResolverOutcome::value(value(self, user_errors)).with_log_draft(
+                LogDraft::failed(
+                    root_field,
+                    "products",
                 "Selling plan group join/leave validation failed; original raw mutation retained for observability.",
+                ),
             );
         }
 
@@ -740,40 +1003,24 @@ impl DraftProxy {
 
         let mut staged_ids = vec![resource_id.clone()];
         staged_ids.extend(group_ids);
-        MutationOutcome::staged(
-            response(self, Vec::new()),
-            LogDraft::staged(&field.name, "products", staged_ids),
-        )
-    }
-
-    fn selling_plan_failed_outcome(
-        &self,
-        root_field: &str,
-        response: Response,
-        notes: &'static str,
-    ) -> MutationOutcome {
-        MutationOutcome::staged(response, LogDraft::failed(root_field, "products", notes))
+        ResolverOutcome::value(value(self, Vec::new()))
+            .with_log_draft(LogDraft::staged(root_field, "products", staged_ids))
     }
 
     fn selling_plan_group_failed_outcome(
         &self,
-        field: &RootFieldSelection,
+        root_field: &str,
         deleted_plan_ids: Option<Option<Vec<String>>>,
         user_errors: Vec<Value>,
         notes: &'static str,
-    ) -> MutationOutcome {
-        self.selling_plan_failed_outcome(
-            &field.name,
-            selling_plan_group_payload(
-                None,
-                deleted_plan_ids,
-                user_errors,
-                &field.selection,
-                &field.response_key,
-                self,
-            ),
-            notes,
-        )
+    ) -> ResolverOutcome<Value> {
+        ResolverOutcome::value(selling_plan_group_payload_value(
+            self,
+            None,
+            deleted_plan_ids,
+            user_errors,
+        ))
+        .with_log_draft(LogDraft::failed(root_field, "products", notes))
     }
 
     fn resource_existence_error(
@@ -948,108 +1195,6 @@ impl DraftProxy {
         )
     }
 
-    fn selling_plan_group_json(
-        &self,
-        group: &SellingPlanGroupRecord,
-        selections: &[SelectedField],
-    ) -> Value {
-        selected_payload_json(selections, |selection| match selection.name.as_str() {
-            "appId" => Some(group.app_id.clone().map_or(Value::Null, Value::String)),
-            "description" => Some(json!(group.description)),
-            "options" => Some(json!(group.options)),
-            "position" => Some(json!(group.position)),
-            "summary" => Some(json!(selling_plan_group_summary(
-                group,
-                self.store.shop_money_format().as_deref(),
-            ))),
-            "createdAt" => Some(json!(group.created_at)),
-            "productsCount" => Some(selected_count_json(
-                group.product_ids.len(),
-                &selection.selection,
-            )),
-            "productVariantsCount" => Some(selected_count_json(
-                group.product_variant_ids.len(),
-                &selection.selection,
-            )),
-            "appliesToProduct" => {
-                let id =
-                    resolved_string_field(&selection.arguments, "productId").unwrap_or_default();
-                Some(json!(group
-                    .product_ids
-                    .iter()
-                    .any(|product_id| product_id == &id)))
-            }
-            "appliesToProductVariant" => {
-                let id = resolved_string_field(&selection.arguments, "productVariantId")
-                    .unwrap_or_default();
-                Some(json!(group
-                    .product_variant_ids
-                    .iter()
-                    .any(|variant_id| variant_id == &id)))
-            }
-            "appliesToProductVariants" => {
-                let product_id =
-                    resolved_string_field(&selection.arguments, "productId").unwrap_or_default();
-                let applies = self
-                    .store
-                    .product_variants_for_product(&product_id)
-                    .iter()
-                    .any(|variant| group.product_variant_ids.iter().any(|id| id == &variant.id));
-                Some(json!(applies))
-            }
-            "products" => {
-                let shop_currency_code = self.store.shop_currency_code();
-                let products = group
-                    .product_ids
-                    .iter()
-                    .filter_map(|id| self.store.product_by_id(id).cloned())
-                    .collect::<Vec<_>>();
-                Some(selected_typed_connection_with_args(
-                    &products,
-                    &selection.arguments,
-                    &selection.selection,
-                    |product, selections| {
-                        self.product_json_with_variants_and_currency_context(
-                            product,
-                            &[],
-                            selections,
-                            &shop_currency_code,
-                        )
-                    },
-                    |product| product.id.clone(),
-                ))
-            }
-            "productVariants" => {
-                let variants = group
-                    .product_variant_ids
-                    .iter()
-                    .filter_map(|id| self.store.product_variant_by_id(id).cloned())
-                    .collect::<Vec<_>>();
-                Some(selected_typed_connection_with_args(
-                    &variants,
-                    &selection.arguments,
-                    &selection.selection,
-                    |variant, selections| {
-                        self.product_variant_json_with_current_publication_context(
-                            variant,
-                            self.store.product_by_id(&variant.product_id),
-                            selections,
-                        )
-                    },
-                    |variant| variant.id.clone(),
-                ))
-            }
-            "sellingPlans" => Some(selected_typed_connection_with_args(
-                &group.selling_plans,
-                &selection.arguments,
-                &selection.selection,
-                selling_plan_json,
-                |plan| plan.id.clone(),
-            )),
-            _ => selling_plan_group_common_json(group, selection),
-        })
-    }
-
     pub(in crate::proxy) fn product_json_with_selling_plan_overlay(
         &self,
         product: &ProductRecord,
@@ -1077,24 +1222,6 @@ impl DraftProxy {
         });
         let count = self
             .direct_group_ids_for_resource(ResourceKind::Product, &product.id)
-            .len();
-        self.apply_selling_plan_overlay(selections, base, groups, count)
-    }
-
-    pub(in crate::proxy) fn product_variant_json_with_selling_plan_overlay(
-        &self,
-        variant: &ProductVariantRecord,
-        product: Option<&ProductRecord>,
-        selections: &[SelectedField],
-    ) -> Value {
-        let base = self
-            .product_variant_json_with_current_publication_context(variant, product, selections);
-        let groups = self.selling_plan_groups_for_nodes_matching(|group| {
-            group.product_ids.iter().any(|id| id == &variant.product_id)
-                || group.product_variant_ids.iter().any(|id| id == &variant.id)
-        });
-        let count = self
-            .direct_group_ids_for_resource(ResourceKind::ProductVariant, &variant.id)
             .len();
         self.apply_selling_plan_overlay(selections, base, groups, count)
     }
@@ -1210,33 +1337,6 @@ fn observed_selling_plan_group_values(response: &Response) -> Vec<Value> {
         .filter(|node| observed_value_is_selling_plan_group(node))
     {
         groups.push(node.clone());
-    }
-    groups
-}
-
-fn observed_selling_plan_group_values_for_fields(
-    response: &Response,
-    fields: &[RootFieldSelection],
-) -> Vec<Value> {
-    let Some(data) = response.body.get("data") else {
-        return Vec::new();
-    };
-    let mut groups = Vec::new();
-    for field in fields {
-        match field.name.as_str() {
-            "sellingPlanGroup" => {
-                if let Some(group) = data
-                    .get(&field.response_key)
-                    .filter(|group| observed_value_is_selling_plan_group(group))
-                {
-                    groups.push(group.clone());
-                }
-            }
-            "sellingPlanGroups" => {
-                groups.extend(observed_connection_nodes(data.get(&field.response_key)));
-            }
-            _ => {}
-        }
     }
     groups
 }
@@ -1407,26 +1507,6 @@ fn string_values_from_json(value: Option<&Value>) -> Vec<String> {
         .filter_map(Value::as_str)
         .map(str::to_string)
         .collect()
-}
-
-fn selected_selling_plan_group_connection<NodeJson>(
-    records: Vec<SellingPlanGroupRecord>,
-    arguments: &BTreeMap<String, ResolvedValue>,
-    root_selection: &[SelectedField],
-    node_json: NodeJson,
-) -> Value
-where
-    NodeJson: Fn(&SellingPlanGroupRecord, &[SelectedField]) -> Value,
-{
-    selected_staged_connection_with_args(
-        records,
-        arguments,
-        root_selection,
-        selling_plan_group_search_decision,
-        selling_plan_group_staged_sort_key,
-        node_json,
-        |group| group.id.clone(),
-    )
 }
 
 fn selected_nested_selling_plan_group_connection<NodeJson>(
@@ -2232,29 +2312,6 @@ fn pricing_policy_adjustment_value_json(
     }
 }
 
-fn selling_plan_json(plan: &SellingPlanRecord, selections: &[SelectedField]) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!("SellingPlan")),
-        "id" => Some(json!(plan.id)),
-        "name" => Some(json!(plan.name)),
-        "description" => Some(json!(plan.description)),
-        "options" => Some(json!(plan.options)),
-        "position" => Some(json!(plan.position)),
-        "category" => Some(json!(plan.category)),
-        "createdAt" => Some(json!(plan.created_at)),
-        "billingPolicy" => Some(selected_json(&plan.billing_policy, &selection.selection)),
-        "deliveryPolicy" => Some(selected_json(&plan.delivery_policy, &selection.selection)),
-        "inventoryPolicy" => Some(selected_json(&plan.inventory_policy, &selection.selection)),
-        "pricingPolicies" => Some(Value::Array(
-            plan.pricing_policies
-                .iter()
-                .map(|policy| selected_json(policy, &selection.selection))
-                .collect(),
-        )),
-        _ => None,
-    })
-}
-
 fn selling_plan_group_summary(
     group: &SellingPlanGroupRecord,
     shop_money_format: Option<&str>,
@@ -2420,111 +2477,112 @@ fn selling_plan_group_common_json(
     }
 }
 
-fn user_errors_value(payload_selection: &[SelectedField], user_errors: &[Value]) -> Value {
-    let error_selection =
-        selected_child_selection(payload_selection, "userErrors").unwrap_or_default();
-    selected_user_errors(user_errors, &error_selection)
-}
-
-fn selling_plan_group_payload(
+fn selling_plan_group_payload_value(
+    proxy: &DraftProxy,
     group: Option<&SellingPlanGroupRecord>,
     deleted_plan_ids: Option<Option<Vec<String>>>,
     user_errors: Vec<Value>,
-    payload_selection: &[SelectedField],
-    response_key: &str,
-    proxy: &DraftProxy,
-) -> Response {
-    let group_selection =
-        selected_child_selection(payload_selection, "sellingPlanGroup").unwrap_or_default();
-    ok_json(json!({
-        "data": {
-            response_key: selected_payload_json(payload_selection, |selection| match selection.name.as_str() {
-                "deletedSellingPlanIds" => deleted_plan_ids.as_ref().map(|ids| ids.as_ref().map_or(Value::Null, |ids| json!(ids))),
-                "sellingPlanGroup" => Some(group.map(|group| proxy.selling_plan_group_json(group, &group_selection)).unwrap_or(Value::Null)),
-                "userErrors" => Some(user_errors_value(payload_selection, user_errors.as_slice())),
-                _ => None,
-            })
-        }
-    }))
+) -> Value {
+    let mut payload = json!({
+        "sellingPlanGroup": group
+            .map(|group| selling_plan_group_canonical_value(proxy, group))
+            .unwrap_or(Value::Null),
+        "userErrors": user_errors,
+    });
+    if let Some(deleted_plan_ids) = deleted_plan_ids {
+        payload["deletedSellingPlanIds"] = deleted_plan_ids
+            .map(|ids| json!(ids))
+            .unwrap_or(Value::Null);
+    }
+    payload
 }
 
-fn selling_plan_group_delete_payload(
+fn selling_plan_group_delete_payload_value(
     deleted_id: Option<&str>,
     user_errors: Vec<Value>,
-    payload_selection: &[SelectedField],
-    response_key: &str,
-) -> Response {
-    ok_json(json!({
-        "data": {
-            response_key: selected_payload_json(payload_selection, |selection| match selection.name.as_str() {
-                "deletedSellingPlanGroupId" => Some(deleted_id.map_or(Value::Null, |id| json!(id))),
-                "userErrors" => Some(user_errors_value(payload_selection, user_errors.as_slice())),
-                _ => None,
-            })
-        }
-    }))
+) -> Value {
+    json!({
+        "deletedSellingPlanGroupId": deleted_id.map_or(Value::Null, |id| json!(id)),
+        "userErrors": user_errors,
+    })
 }
 
-fn group_remove_payload(
+fn group_remove_payload_value(
     removed_ids: Option<Vec<String>>,
     user_errors: Vec<Value>,
     resource_kind: ResourceKind,
-    payload_selection: &[SelectedField],
-    response_key: &str,
-) -> Response {
+) -> Value {
     let removed_field = match resource_kind {
         ResourceKind::Product => "removedProductIds",
         ResourceKind::ProductVariant => "removedProductVariantIds",
     };
-    ok_json(json!({
-        "data": {
-            response_key: selected_payload_json(payload_selection, |selection| match selection.name.as_str() {
-                name if name == removed_field => Some(removed_ids.clone().map_or(Value::Null, |ids| json!(ids))),
-                "userErrors" => Some(user_errors_value(payload_selection, user_errors.as_slice())),
-                _ => None,
-            })
-        }
-    }))
+    json!({
+        removed_field: removed_ids.map_or(Value::Null, |ids| json!(ids)),
+        "userErrors": user_errors,
+    })
 }
 
-fn resource_join_leave_payload(
+fn resource_join_leave_payload_value(
     proxy: &DraftProxy,
-    field: &RootFieldSelection,
     resource_kind: ResourceKind,
     resource_id: &str,
     user_errors: Vec<Value>,
-    payload_selection: &[SelectedField],
-) -> Response {
-    let resource_selection =
-        selected_child_selection(payload_selection, resource_kind.payload_resource_field())
-            .unwrap_or_default();
-    ok_json(json!({
-        "data": {
-            field.response_key.as_str(): selected_payload_json(payload_selection, |selection| match selection.name.as_str() {
-                "userErrors" => Some(user_errors_value(payload_selection, user_errors.as_slice())),
-                "product" if resource_kind == ResourceKind::Product => proxy
-                    .store
-                    .product_by_id(resource_id)
-                    .map(|product| {
-                        let variants = proxy.store.product_variants_for_product(&product.id);
-                        proxy.product_json_with_selling_plan_overlay(product, &variants, &resource_selection)
-                    })
-                    .or(Some(Value::Null)),
-                "productVariant" if resource_kind == ResourceKind::ProductVariant => proxy
-                    .store
-                    .product_variant_by_id(resource_id)
-                    .map(|variant| {
-                        proxy.product_variant_json_with_selling_plan_overlay(
-                            variant,
-                            proxy.store.product_by_id(&variant.product_id),
-                            &resource_selection,
-                        )
-                    })
-                    .or(Some(Value::Null)),
-                _ => None,
-            })
-        }
-    }))
+) -> Value {
+    let mut payload = json!({ "userErrors": user_errors });
+    payload[resource_kind.payload_resource_field()] = match resource_kind {
+        ResourceKind::Product => proxy
+            .store
+            .product_by_id(resource_id)
+            .map(|product| proxy.product_canonical_value(product))
+            .unwrap_or(Value::Null),
+        ResourceKind::ProductVariant => proxy
+            .store
+            .product_variant_by_id(resource_id)
+            .map(|variant| proxy.product_variant_canonical_value(variant))
+            .unwrap_or(Value::Null),
+    };
+    payload
+}
+
+fn selling_plan_group_canonical_value(proxy: &DraftProxy, group: &SellingPlanGroupRecord) -> Value {
+    json!({
+        "__typename": "SellingPlanGroup",
+        "appId": group.app_id,
+        "createdAt": group.created_at,
+        "description": group.description,
+        "id": group.id,
+        "merchantCode": group.merchant_code,
+        "name": group.name,
+        "options": group.options,
+        "position": group.position,
+        "summary": selling_plan_group_summary(group, proxy.store.shop_money_format().as_deref()),
+        "productsCount": count_object(group.product_ids.len()),
+        "productVariantsCount": count_object(group.product_variant_ids.len()),
+        "products": connection_json(group.product_ids.iter().filter_map(|id| {
+            proxy.store.product_by_id(id).map(|product| proxy.product_canonical_value(product))
+        }).collect()),
+        "productVariants": connection_json(group.product_variant_ids.iter().filter_map(|id| {
+            proxy.store.product_variant_by_id(id).map(|variant| proxy.product_variant_canonical_value(variant))
+        }).collect()),
+        "sellingPlans": connection_json(group.selling_plans.iter().map(selling_plan_canonical_value).collect()),
+    })
+}
+
+fn selling_plan_canonical_value(plan: &SellingPlanRecord) -> Value {
+    json!({
+        "__typename": "SellingPlan",
+        "id": plan.id,
+        "name": plan.name,
+        "description": plan.description,
+        "options": plan.options,
+        "position": plan.position,
+        "category": plan.category,
+        "createdAt": plan.created_at,
+        "billingPolicy": plan.billing_policy,
+        "deliveryPolicy": plan.delivery_policy,
+        "inventoryPolicy": plan.inventory_policy,
+        "pricingPolicies": plan.pricing_policies,
+    })
 }
 
 fn group_does_not_exist_error() -> Value {

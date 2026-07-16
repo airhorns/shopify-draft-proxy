@@ -17,11 +17,12 @@ pub(in crate::proxy) use self::addresses::{
 };
 pub(in crate::proxy) use self::companies::*;
 pub(in crate::proxy) use self::consent::{
-    b2b_tax_settings_invalid_enum_response, customer_sms_consent_invalid_enum_response,
-    customer_tax_exemptions_invalid_enum_response,
+    b2b_tax_settings_invalid_enum_error, customer_sms_consent_invalid_enum_error,
+    customer_tax_exemptions_invalid_enum_error,
 };
 use self::consent::{customer_update_inline_consent_errors, resolved_inline_consent_state};
 use self::customers::apply_customer_marketing_consent;
+pub(in crate::proxy) use self::customers::customer_field_resolver_registrations;
 use self::merge_erasure::{
     connection_has_nodes, customer_merge_extract_order_records, customer_merge_job_from_request,
     nodes_connection, order_connection_cursor,
@@ -72,127 +73,89 @@ impl DraftProxy {
             mode,
             ..
         } = invocation;
-        let response = (|| -> Response {
-            match mode {
-                LocalResolverMode::StageLocally
-                    if operation.operation_type == OperationType::Mutation
-                        && matches!(
-                            root_field,
-                            "companyLocationUpdate"
-                                | "companyLocationTaxSettingsUpdate"
-                                | "companyAssignCustomerAsContact"
-                        ) =>
-                {
-                    match root_field {
-                        "companyLocationUpdate" => self
-                            .b2b_location_buyer_experience_tail_helper_response(
+        match mode {
+            LocalResolverMode::StageLocally
+                if operation.operation_type == OperationType::Mutation =>
+            {
+                let outcome = match root_field {
+                    "companyLocationUpdate" => self.b2b_location_buyer_experience_outcome(
+                        request,
+                        query,
+                        variables,
+                        operation.operation_type,
+                        response_key,
+                    ),
+                    "companyLocationTaxSettingsUpdate" => {
+                        self.b2b_tax_settings_outcome(request, query, variables, response_key)
+                    }
+                    "companyAssignCustomerAsContact" => self
+                        .b2b_assign_customer_as_contact_outcome(query, variables, response_key)
+                        .or_else(|| {
+                            self.order_customer_error_paths_outcome(
                                 request,
                                 query,
                                 variables,
-                                operation.operation_type,
-                                &operation.root_fields,
+                                response_key,
                             )
-                            .unwrap_or_else(|| unimplemented_root_response("b2b", root_field)),
-                        "companyLocationTaxSettingsUpdate" => self
-                            .b2b_tax_settings_tail_helper_response(
-                                request,
-                                query,
-                                variables,
-                                operation.operation_type,
-                                &operation.root_fields,
-                            )
-                            .unwrap_or_else(|| unimplemented_root_response("b2b", root_field)),
-                        "companyAssignCustomerAsContact" => {
-                            if let Some(response) = self
-                                .b2b_assign_customer_as_contact_response(request, query, variables)
-                            {
-                                response
-                            } else if let Some(data) =
-                                self.order_customer_error_paths_data(request, query, variables)
-                            {
-                                ok_json(data)
-                            } else {
-                                unimplemented_root_response("b2b", root_field)
-                            }
-                        }
-                        _ => unimplemented_root_response("b2b", root_field),
-                    }
-                }
-                LocalResolverMode::StageLocally
-                    if operation.operation_type == OperationType::Mutation
-                        && self.config.read_mode == ReadMode::Snapshot =>
-                {
-                    // Snapshot mode (unit tests) has no upstream to forward to, so every
-                    // remaining B2B mutations stage locally through the company tail
-                    // helper.
-                    self.b2b_company_tail_helper_response(
+                        }),
+                    _ => self.b2b_company_outcome(
                         request,
                         query,
                         variables,
                         operation.operation_type,
-                        &operation.root_fields,
+                        response_key,
+                    ),
+                };
+                outcome.unwrap_or_else(|| {
+                    resolver_http_error_outcome(
+                        501,
+                        format!("No Rust b2b resolver implemented for root field: {root_field}"),
                     )
-                    .unwrap_or_else(|| unimplemented_root_response("b2b", root_field))
-                }
-                LocalResolverMode::StageLocally
-                    if operation.operation_type == OperationType::Mutation =>
-                {
-                    // LiveHybrid still stages B2B mutations locally. Cold existing
-                    // resources may need fuller hydration in future work, but the
-                    // caller's mutation must never be forwarded as the fallback.
-                    self.b2b_company_tail_helper_response(
-                        request,
-                        query,
-                        variables,
-                        operation.operation_type,
-                        &operation.root_fields,
-                    )
-                    .unwrap_or_else(|| unimplemented_root_response("b2b", root_field))
-                }
-                LocalResolverMode::OverlayRead
-                    if operation.operation_type == OperationType::Query =>
-                {
-                    if self.should_route_owner_metafields_read(query, variables) {
-                        return self.owner_metafields_read(request, query, variables);
-                    }
-                    self.b2b_location_buyer_experience_tail_helper_response(
-                        request,
-                        query,
-                        variables,
-                        operation.operation_type,
-                        &operation.root_fields,
-                    )
-                    .or_else(|| {
-                        self.b2b_company_tail_helper_response(
-                            request,
-                            query,
-                            variables,
-                            operation.operation_type,
-                            &operation.root_fields,
-                        )
-                    })
-                    .unwrap_or_else(|| {
-                        // Cold read: the query touches no locally-staged B2B graph
-                        // (e.g. a pure read of a pre-existing company catalog, or a
-                        // multi-root read whose roots the local serializer does not
-                        // cover). Forward verbatim upstream as a read-through so the
-                        // real recorded Shopify response is replayed. Staged
-                        // read-after-write reads short-circuit above by returning
-                        // Some, so this never masks local overlay state. Snapshot
-                        // mode has no upstream, so it keeps the explicit 501.
-                        if self.config.read_mode != ReadMode::Snapshot {
-                            (self.upstream_transport)(request.clone())
-                        } else {
-                            unimplemented_root_response("b2b overlay-read", root_field)
-                        }
-                    })
-                }
-                LocalResolverMode::OverlayRead | LocalResolverMode::StageLocally => {
-                    Self::unimplemented_resolver_response(mode, root_field)
-                }
+                })
             }
-        })();
-        resolver_outcome_from_response(response, response_key)
+            LocalResolverMode::OverlayRead if operation.operation_type == OperationType::Query => {
+                if self.should_route_owner_metafields_read(query, variables) {
+                    return self.owner_metafields_read(request, query, variables, response_key);
+                }
+                self.b2b_location_buyer_experience_outcome(
+                    request,
+                    query,
+                    variables,
+                    operation.operation_type,
+                    response_key,
+                )
+                .or_else(|| {
+                    self.b2b_company_outcome(
+                        request,
+                        query,
+                        variables,
+                        operation.operation_type,
+                        response_key,
+                    )
+                })
+                .unwrap_or_else(|| {
+                    if self.config.read_mode != ReadMode::Snapshot {
+                        self.cached_or_forward_upstream_root_outcome(request, response_key)
+                    } else {
+                        resolver_http_error_outcome(
+                            501,
+                            format!(
+                                "No Rust b2b overlay-read resolver implemented for root field: {root_field}"
+                            ),
+                        )
+                    }
+                })
+            }
+            LocalResolverMode::OverlayRead | LocalResolverMode::StageLocally => {
+                resolver_http_error_outcome(
+                    501,
+                    format!(
+                        "No Rust {} resolver implemented for root field: {root_field}",
+                        mode.registry_name()
+                    ),
+                )
+            }
+        }
     }
 }
 
@@ -216,6 +179,20 @@ impl DraftProxy {
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
+        if invocation.mode == LocalResolverMode::StageLocally
+            && matches!(
+                invocation.root_name,
+                "storeCreditAccountCredit" | "storeCreditAccountDebit"
+            )
+        {
+            return self.store_credit_account_mutation(
+                invocation.root_name,
+                invocation.request,
+                invocation.query,
+                invocation.variables,
+                invocation.response_key,
+            );
+        }
         let RootInvocation {
             response_key,
             request,
@@ -226,210 +203,182 @@ impl DraftProxy {
             mode,
             ..
         } = invocation;
-        let response = (|| -> Response {
-            match mode {
-                LocalResolverMode::OverlayRead
-                    if operation.operation_type == OperationType::Query =>
-                {
-                    let fields = match self.root_fields_or_error(query, variables) {
-                        Ok(fields) => fields,
-                        Err(response) => return response,
-                    };
-                    if customer_payment_methods_only_read(&fields) {
-                        if let Some(data) =
-                            self.customer_payment_method_local_data(request, query, variables)
-                        {
-                            return ok_json(data);
-                        }
-                    }
-                    // A query may combine `customer*` reads with a standalone
-                    // `storeCreditAccount(id:)` read (or carry only the latter).
-                    // Each is served from its own staged overlay and the two field
-                    // maps are merged into one `data` object.
-                    let handle_customers = self.should_handle_customer_overlay_read(&fields);
-                    if !handle_customers
-                        && self.should_route_owner_metafields_read(query, variables)
-                    {
-                        return self.owner_metafields_read(request, query, variables);
-                    }
-                    let handle_store_credit = fields
-                        .iter()
-                        .any(|field| field.name == "storeCreditAccount");
-                    if handle_customers || handle_store_credit {
-                        // A `customersCount` read served from the staged overlay
-                        // needs the live store-wide baseline; hydrate it once in
-                        // LiveHybrid mode before projecting.
-                        if handle_customers
-                            && fields.iter().any(|field| field.name == "customersCount")
-                            && self.request_upstream_query_response.as_ref().is_none_or(
-                                |response| {
-                                    !fields.iter().any(|field| {
-                                        field.name == "customersCount"
-                                            && response.body["data"]
-                                                .get(&field.response_key)
-                                                .is_some()
-                                    })
-                                },
-                            )
-                        {
-                            self.hydrate_customers_count_for_overlay_read(request);
-                        }
-                        if handle_customers && self.customer_read_selects_amount_spent(&fields) {
-                            self.hydrate_shop_pricing_state_if_missing(request, true, false);
-                        }
-                        let customer_upstream_data = self
-                            .request_upstream_query_response
-                            .as_ref()
-                            .filter(|response| (200..300).contains(&response.status))
-                            .and_then(|response| response.body.get("data"))
-                            .cloned()
-                            .or_else(|| {
-                                (handle_customers
-                                    && self.customer_overlay_needs_upstream_data(&fields))
-                                .then(|| self.customer_overlay_upstream_data(request))
-                                .flatten()
-                            });
-                        let data = root_payload_json(&fields, |field| {
-                            if handle_customers {
-                                if let Value::Object(object) = self.customer_overlay_read_fields(
-                                    request,
-                                    std::slice::from_ref(field),
-                                    customer_upstream_data.as_ref(),
-                                ) {
-                                    if let Some(value) = object.get(field.response_key.as_str()) {
-                                        return Some(value.clone());
-                                    }
-                                }
-                            }
-                            if handle_store_credit {
-                                if let Value::Object(object) = self
-                                    .store_credit_account_read_fields(std::slice::from_ref(field))
-                                {
-                                    if let Some(value) = object.get(field.response_key.as_str()) {
-                                        return Some(value.clone());
-                                    }
-                                }
-                            }
-                            None
-                        });
-                        ok_json(json!({ "data": data }))
-                    } else {
-                        (self.upstream_transport)(request.clone())
-                    }
-                }
-                LocalResolverMode::StageLocally
-                    if operation.operation_type == OperationType::Mutation
-                        && matches!(
-                            root_field,
-                            "customerCreate" | "customerUpdate" | "customerDelete" | "customerSet"
-                        ) =>
-                {
-                    self.customer_mutation_response(request, query, variables)
-                }
-                LocalResolverMode::StageLocally
-                    if operation.operation_type == OperationType::Mutation
-                        && matches!(
-                            root_field,
-                            "customerGenerateAccountActivationUrl"
-                                | "customerSendAccountInviteEmail"
-                        ) =>
-                {
-                    self.customer_outbound_lifecycle_response(request, query, variables)
-                }
-                LocalResolverMode::StageLocally
-                    if operation.operation_type == OperationType::Mutation
-                        && root_field == "customerMerge" =>
-                {
-                    self.customer_merge(query, variables, request)
-                }
-                LocalResolverMode::StageLocally
-                    if operation.operation_type == OperationType::Mutation
-                        && matches!(
-                            root_field,
-                            "customerRequestDataErasure" | "customerCancelDataErasure"
-                        ) =>
-                {
-                    self.customer_data_erasure(
+        match mode {
+            LocalResolverMode::OverlayRead
+                if operation.operation_type == OperationType::Query =>
+            {
+                let Some(fields) = self.execution_root_fields(query, variables) else {
+                    return resolver_http_error_outcome(400, "Could not parse GraphQL operation");
+                };
+                let Some(field) = fields
+                    .iter()
+                    .find(|field| field.response_key == response_key)
+                else {
+                    return ResolverOutcome::value(Value::Null);
+                };
+                let current_fields = std::slice::from_ref(field);
+                if customer_payment_methods_only_read(current_fields) {
+                    if let Some(outcome) = self.customer_payment_method_local_outcome(
+                        request,
                         query,
                         variables,
+                        response_key,
+                    )
+                    {
+                        return outcome;
+                    }
+                }
+                let handle_customers = self.should_handle_customer_overlay_read(current_fields);
+                if !handle_customers && self.should_route_owner_metafields_read(query, variables) {
+                    return self.owner_metafields_read(request, query, variables, response_key);
+                }
+                let handle_store_credit = field.name == "storeCreditAccount";
+                if !handle_customers && !handle_store_credit {
+                    return self.cached_or_forward_upstream_root_outcome(request, response_key);
+                }
+                if handle_customers
+                    && field.name == "customersCount"
+                    && self.request_upstream_query_response.as_ref().is_none_or(|response| {
+                        response.body["data"].get(response_key).is_none()
+                    })
+                {
+                    self.hydrate_customers_count_for_overlay_read(request);
+                }
+                if handle_customers && self.customer_read_selects_amount_spent(current_fields) {
+                    self.hydrate_shop_pricing_state_if_missing(request, true, false);
+                }
+                let customer_upstream_data = self
+                    .request_upstream_query_response
+                    .as_ref()
+                    .filter(|response| (200..300).contains(&response.status))
+                    .and_then(|response| response.body.get("data"))
+                    .cloned()
+                    .or_else(|| {
+                        (handle_customers
+                            && self.customer_overlay_needs_upstream_data(current_fields))
+                        .then(|| self.customer_overlay_upstream_data(request))
+                        .flatten()
+                    });
+                let value = if handle_customers {
+                    self.customer_overlay_read_fields(
                         request,
-                        root_field,
-                        root_field == "customerRequestDataErasure",
+                        current_fields,
+                        customer_upstream_data.as_ref(),
                     )
-                }
-                LocalResolverMode::StageLocally
-                    if operation.operation_type == OperationType::Mutation
-                        && matches!(
-                            root_field,
-                            "customerAddressCreate"
-                                | "customerAddressUpdate"
-                                | "customerAddressDelete"
-                                | "customerUpdateDefaultAddress"
-                        ) =>
-                {
-                    self.customer_address_mutation(request, query, variables)
-                }
-                LocalResolverMode::StageLocally
-                    if operation.operation_type == OperationType::Mutation
-                        && matches!(
-                            root_field,
-                            "storeCreditAccountCredit" | "storeCreditAccountDebit"
-                        ) =>
-                {
-                    let outcome =
-                        self.store_credit_account_mutation(root_field, request, query, variables);
-                    self.finalize_mutation_outcome(request, query, variables, outcome)
-                }
-                LocalResolverMode::StageLocally
-                    if operation.operation_type == OperationType::Mutation
-                        && matches!(
-                            root_field,
-                            "customerAddTaxExemptions"
-                                | "customerRemoveTaxExemptions"
-                                | "customerReplaceTaxExemptions"
-                        ) =>
-                {
-                    let fields = match self.root_fields_or_error(query, variables) {
-                        Ok(fields) => fields,
-                        Err(response) => return response,
-                    };
-                    // Enum coercion errors (invalid `taxExemptions`) are raised before
-                    // any staging, matching Shopify's request-validation ordering.
-                    if let Some(response) =
-                        customer_tax_exemptions_invalid_enum_response(query, &fields)
-                    {
-                        return response;
+                    .get(response_key)
+                    .cloned()
+                    .unwrap_or(Value::Null)
+                } else {
+                    self.store_credit_account_read_fields(current_fields)
+                        .get(response_key)
+                        .cloned()
+                        .unwrap_or(Value::Null)
+                };
+                ResolverOutcome::value(value)
+            }
+            LocalResolverMode::StageLocally
+                if operation.operation_type == OperationType::Mutation =>
+            {
+                match root_field {
+                    "customerCreate" | "customerUpdate" | "customerDelete" | "customerSet" => {
+                        self.customer_mutation_outcome(request, query, variables, response_key)
                     }
-                    self.customer_tax_exemptions_mutation_response(
-                        &fields, request, query, variables,
-                    )
-                }
-                LocalResolverMode::StageLocally
-                    if operation.operation_type == OperationType::Mutation
-                        && matches!(
-                            root_field,
-                            "customerEmailMarketingConsentUpdate"
-                                | "customerSmsMarketingConsentUpdate"
-                        ) =>
-                {
-                    let fields = match self.root_fields_or_error(query, variables) {
-                        Ok(fields) => fields,
-                        Err(response) => return response,
-                    };
-                    // SMS marketingState values outside `CustomerSmsMarketingState` fail
-                    // enum coercion before any staging, matching Shopify's ordering.
-                    if let Some(response) =
-                        customer_sms_consent_invalid_enum_response(query, &fields)
-                    {
-                        return response;
+                    "customerGenerateAccountActivationUrl"
+                    | "customerSendAccountInviteEmail" => self
+                        .customer_outbound_lifecycle_outcome(
+                            request,
+                            query,
+                            variables,
+                            response_key,
+                        ),
+                    "customerMerge" => {
+                        self.customer_merge_outcome(query, variables, request, response_key)
                     }
-                    self.customer_marketing_consent_update(query, variables, request)
-                }
-                LocalResolverMode::OverlayRead | LocalResolverMode::StageLocally => {
-                    Self::unimplemented_resolver_response(mode, root_field)
+                    "customerRequestDataErasure" | "customerCancelDataErasure" => self
+                        .customer_data_erasure_outcome(
+                            query,
+                            variables,
+                            request,
+                            root_field,
+                            root_field == "customerRequestDataErasure",
+                            response_key,
+                        ),
+                    "customerAddressCreate"
+                    | "customerAddressUpdate"
+                    | "customerAddressDelete"
+                    | "customerUpdateDefaultAddress" => self
+                        .customer_address_mutation_outcome(
+                            query,
+                            variables,
+                            response_key,
+                        ),
+                    "customerAddTaxExemptions"
+                    | "customerRemoveTaxExemptions"
+                    | "customerReplaceTaxExemptions" => {
+                        let Some(fields) = self.execution_root_fields(query, variables) else {
+                            return resolver_http_error_outcome(
+                                400,
+                                "Could not parse GraphQL operation",
+                            );
+                        };
+                        let current = fields
+                            .iter()
+                            .filter(|field| field.response_key == response_key)
+                            .cloned()
+                            .collect::<Vec<_>>();
+                        if let Some(error) =
+                            customer_tax_exemptions_invalid_enum_error(query, &current)
+                        {
+                            return graphql_error_outcome(vec![error], response_key);
+                        }
+                        self.customer_tax_exemptions_mutation_outcome(
+                            &current,
+                            request,
+                            response_key,
+                        )
+                    }
+                    "customerEmailMarketingConsentUpdate"
+                    | "customerSmsMarketingConsentUpdate" => {
+                        let Some(fields) = self.execution_root_fields(query, variables) else {
+                            return resolver_http_error_outcome(
+                                400,
+                                "Could not parse GraphQL operation",
+                            );
+                        };
+                        let current = fields
+                            .iter()
+                            .filter(|field| field.response_key == response_key)
+                            .cloned()
+                            .collect::<Vec<_>>();
+                        if let Some(error) =
+                            customer_sms_consent_invalid_enum_error(query, &current)
+                        {
+                            return graphql_error_outcome(vec![error], response_key);
+                        }
+                        self.customer_marketing_consent_update_outcome(
+                            query,
+                            variables,
+                            request,
+                            response_key,
+                        )
+                    }
+                    _ => resolver_http_error_outcome(
+                        501,
+                        format!(
+                            "No Rust stage-locally resolver implemented for root field: {root_field}"
+                        ),
+                    ),
                 }
             }
-        })();
-        resolver_outcome_from_response(response, response_key)
+            LocalResolverMode::OverlayRead | LocalResolverMode::StageLocally => {
+                resolver_http_error_outcome(
+                    501,
+                    format!(
+                        "No Rust {} resolver implemented for root field: {root_field}",
+                        mode.registry_name()
+                    ),
+                )
+            }
+        }
     }
 }

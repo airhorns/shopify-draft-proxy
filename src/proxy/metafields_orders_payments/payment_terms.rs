@@ -622,12 +622,13 @@ fn payment_terms_order_total_price_set(
 }
 
 impl DraftProxy {
-    pub(in crate::proxy) fn payment_terms_local_data(
+    pub(in crate::proxy) fn payment_terms_local_outcome(
         &mut self,
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<Value> {
+        response_key: &str,
+    ) -> Option<ResolverOutcome<Value>> {
         let fields = self.execution_root_fields(query, variables)?;
         if fields.iter().all(|field| {
             matches!(
@@ -904,7 +905,9 @@ impl DraftProxy {
                     staged_ids,
                 );
             }
-            return Some(json!({ "data": data }));
+            return Some(ResolverOutcome::value(
+                data.get(response_key).cloned().unwrap_or(Value::Null),
+            ));
         }
         None
     }

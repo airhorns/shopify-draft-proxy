@@ -15,6 +15,7 @@ impl DraftProxy {
     ) -> ResolverOutcome<Value> {
         let RootInvocation {
             response_key,
+            arguments,
             request,
             query,
             variables,
@@ -22,16 +23,25 @@ impl DraftProxy {
             mode,
             ..
         } = invocation;
-        let response = match mode {
+        let mut fields = match self.root_fields_or_error(query, variables) {
+            Ok(fields) => fields,
+            Err(_) => return resolver_http_error_outcome(400, "Could not parse GraphQL operation"),
+        };
+        fields.retain(|field| field.response_key == response_key);
+        if let Some(field) = fields.first_mut() {
+            field.arguments = arguments
+                .iter()
+                .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
+                .collect();
+        }
+        match mode {
             LocalResolverMode::OverlayRead => {
-                self.discounts_query_response(request, query, variables)
+                self.discounts_query_outcome(request, &fields, response_key)
             }
             LocalResolverMode::StageLocally => {
-                let outcome = self.discounts_mutation(request, query, variables);
-                self.finalize_mutation_outcome(request, query, variables, outcome)
+                self.discounts_mutation_outcome(request, &fields, response_key)
             }
-        };
-        resolver_outcome_from_response(response, response_key)
+        }
     }
 }
 
@@ -74,15 +84,12 @@ const DISCOUNT_UNIQUENESS_QUERY: &str =
 const DISCOUNT_ITEM_REFS_HYDRATE_QUERY: &str =
     include_str!("../../config/parity-requests/discounts/discount-item-refs-hydrate.graphql");
 impl DraftProxy {
-    pub(in crate::proxy) fn discounts_query_response(
+    pub(in crate::proxy) fn discounts_query_outcome(
         &mut self,
         request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
-        let Some(fields) = self.execution_root_fields(query, variables) else {
-            return json_error(400, "Could not parse GraphQL operation");
-        };
+        fields: &[RootFieldSelection],
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
         if fields
             .iter()
             .any(|field| selection_contains_any(&field.selection, &["currencyCode"]))
@@ -90,23 +97,30 @@ impl DraftProxy {
             self.hydrate_shop_pricing_state_if_missing(request, true, false);
         }
         if self.should_forward_cold_discount_read(&fields) {
-            let response = self
-                .request_upstream_query_response
-                .clone()
-                .unwrap_or_else(|| (self.upstream_transport)(request.clone()));
-            self.observe_discount_read_response(&fields, &response);
-            return response;
+            let outcome = self.cached_or_forward_upstream_root_outcome(request, response_key);
+            if outcome.errors.is_empty() {
+                if let Some(field) = fields.first() {
+                    self.observe_discount_root_value(field, &outcome.value);
+                }
+            }
+            return outcome;
         }
         let mut upstream_data = None;
         if self.discount_read_needs_live_hydration(&fields) {
-            let response = self
-                .request_upstream_query_response
-                .clone()
-                .unwrap_or_else(|| (self.upstream_transport)(request.clone()));
-            self.observe_discount_read_response(&fields, &response);
-            upstream_data = response.body.get("data").cloned();
+            let outcome = self.cached_or_forward_upstream_root_outcome(request, response_key);
+            if outcome.errors.is_empty() {
+                if let Some(field) = fields.first() {
+                    self.observe_discount_root_value(field, &outcome.value);
+                }
+                upstream_data = Some(json!({ (response_key): outcome.value }));
+            }
         }
-        ok_json(json!({ "data": self.discounts_query_data(&fields, upstream_data.as_ref()) }))
+        let mut data = self.discounts_query_data(&fields, upstream_data.as_ref());
+        ResolverOutcome::value(
+            data.as_object_mut()
+                .and_then(|data| data.remove(response_key))
+                .unwrap_or(Value::Null),
+        )
     }
 
     /// Decide whether a discount read carries no relevant local overlay state and
@@ -332,34 +346,31 @@ impl DraftProxy {
                 .is_empty()
     }
 
-    pub(in crate::proxy) fn discounts_mutation(
+    pub(in crate::proxy) fn discounts_mutation_outcome(
         &mut self,
-        _request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> MutationOutcome {
-        let Some(fields) = self.execution_root_fields(query, variables) else {
-            return MutationOutcome::response(json_error(400, "Could not parse GraphQL operation"));
-        };
+        request: &Request,
+        fields: &[RootFieldSelection],
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
         if discount_mutation_fields_require_shop_currency(&fields) {
-            self.hydrate_shop_pricing_state_if_missing(_request, true, false);
+            self.hydrate_shop_pricing_state_if_missing(request, true, false);
         }
-        if let Some(response) = discount_document_level_error_response(&fields) {
-            return MutationOutcome::response(response);
+        if let Some(error) = discount_document_level_error(&fields) {
+            return graphql_error_outcome(vec![error], response_key);
         }
         // Resolve the existence of any product / variant / collection entitlement
         // references up front by forwarding a single batched node lookup and
         // observing the result, so the per-field create/update validation below decides
         // INVALID references against real store state instead of seeded state.
         if !self.engine_discount_refs_preflighted {
-            self.hydrate_discount_item_refs(_request, &fields);
+            self.hydrate_discount_item_refs(request, &fields);
         }
         // Resolve any buyer-context customer / segment members the same way: forward
         // a read for each referenced customer / segment that is not already staged and
         // observe the result, so `resolve_discount_context_names` bakes the real
         // display name / segment name from store state instead of a seeded precondition.
         if !self.engine_discount_refs_preflighted {
-            self.hydrate_discount_context_refs(_request, &fields);
+            self.hydrate_discount_context_refs(request, &fields);
         }
         let mut log_drafts = Vec::new();
         let mut top_level_errors = Vec::new();
@@ -368,17 +379,12 @@ impl DraftProxy {
                 top_level_errors.push(error);
                 return Some(Value::Null);
             }
-            let outcome = self.discount_mutation_field(_request, field);
+            let outcome = self.discount_mutation_field(request, field);
             if let Some(log_draft) = outcome.log_draft {
                 log_drafts.push(log_draft);
             }
             Some(selected_json(&outcome.value, &field.selection))
         });
-        let mut body = json!({ "data": data });
-        if !top_level_errors.is_empty() {
-            body["errors"] = Value::Array(top_level_errors);
-        }
-        let response = ok_json(body);
         for draft in &mut log_drafts {
             if draft.staged_resource_ids.is_empty() {
                 draft.status = "failed".to_string();
@@ -387,7 +393,13 @@ impl DraftProxy {
                         .to_string();
             }
         }
-        MutationOutcome::with_log_drafts(response, log_drafts)
+        let value = data.get(response_key).cloned().unwrap_or(Value::Null);
+        ResolverOutcome {
+            value,
+            errors: root_field_errors_from_json(&top_level_errors, response_key),
+            extensions: BTreeMap::new(),
+            log_drafts,
+        }
     }
 
     fn discount_mutation_field(
@@ -2242,11 +2254,7 @@ impl DraftProxy {
         discount_matches_query_with_status(record, query, self.effective_discount_status(record))
     }
 
-    pub(in crate::proxy) fn discount_node_value_by_id(
-        &self,
-        id: &str,
-        selection: &[SelectedField],
-    ) -> Option<Value> {
+    pub(in crate::proxy) fn discount_node_value_by_id(&self, id: &str) -> Option<Value> {
         self.discount_record(id).map(|record| {
             // A `node(id:)` read resolves to the concrete DiscountCodeNode /
             // DiscountAutomaticNode type, which expose `codeDiscount` /
@@ -2254,7 +2262,7 @@ impl DraftProxy {
             // `discount`). `discount_node_for_record` emits the right accessor
             // for both kinds; the `discount`-keyed admin node shape is only for
             // the `discountNode(id:)` root field.
-            self.selected_discount_node_for_record(record, selection)
+            self.discount_node_for_record(record)
         })
     }
 
@@ -3052,7 +3060,7 @@ fn discount_field_input(field: &RootFieldSelection) -> Option<BTreeMap<String, R
 /// Variable-coercion failures abort the whole GraphQL document before any resolver
 /// runs, so Shopify returns only an `errors` array with no `data`. Detect bxgy
 /// numeric coercion failures here and short-circuit the entire mutation.
-fn discount_document_level_error_response(fields: &[RootFieldSelection]) -> Option<Response> {
+fn discount_document_level_error(fields: &[RootFieldSelection]) -> Option<Value> {
     for field in fields {
         if !field.name.contains("Bxgy") {
             continue;
@@ -3069,7 +3077,7 @@ fn discount_document_level_error_response(fields: &[RootFieldSelection]) -> Opti
         };
         if let Some(error) = discount_bxgy_variable_error(&input, is_code, is_create, graphql_type)
         {
-            return Some(ok_json(json!({ "errors": [error] })));
+            return Some(error);
         }
     }
     None

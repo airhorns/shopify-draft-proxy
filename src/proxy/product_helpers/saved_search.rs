@@ -28,11 +28,10 @@ impl DraftProxy {
     ) -> ResolverOutcome<Value> {
         let api_client_id = saved_search_request_api_client_id(invocation.request);
         if self.config.read_mode == ReadMode::LiveHybrid {
-            let response = self
-                .request_upstream_query_response
-                .clone()
-                .unwrap_or_else(|| (self.upstream_transport)(invocation.request.clone()));
-            let mut outcome = resolver_outcome_from_response(response, invocation.response_key);
+            let mut outcome = self.cached_or_forward_upstream_root_outcome(
+                invocation.request,
+                invocation.response_key,
+            );
             if outcome.errors.is_empty() {
                 self.observe_saved_search_connection(
                     invocation.root_name,

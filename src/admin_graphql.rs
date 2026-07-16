@@ -87,6 +87,10 @@ pub struct FieldResolverInvocation<'a> {
     pub parent_type: String,
     pub field_name: String,
     pub response_key: String,
+    /// Response-key path to this field. List indices are decimal strings.
+    /// The execution bridges use it only for request-scoped engine workarounds;
+    /// domain handlers should not route behavior by this path.
+    pub path: Vec<String>,
     pub parent: &'a Value,
     pub arguments: BTreeMap<String, Value>,
 }
@@ -183,6 +187,7 @@ fn scalar_codec(name: &str) -> Option<ScalarCodec> {
 #[derive(Debug, Default)]
 struct SchemaMetadata {
     output_kinds: BTreeMap<String, OutputKind>,
+    enum_values: BTreeMap<String, Vec<String>>,
     possible_types: BTreeMap<String, BTreeSet<String>>,
     object_fields: BTreeMap<String, BTreeSet<String>>,
     input_fields: BTreeMap<String, BTreeMap<String, InputCoercionField>>,
@@ -197,6 +202,8 @@ struct InputCoercionField {
 struct JsonObject {
     value: Value,
 }
+
+const NULL_LIST_ITEM_MARKER: &str = "__draftProxyNullListItem";
 
 static SCHEMAS: [OnceLock<Schema>; AdminApiVersion::COUNT] =
     [const { OnceLock::new() }; AdminApiVersion::COUNT];
@@ -712,8 +719,16 @@ fn schema_metadata(definitions: &[TypeSystemDefinition]) -> SchemaMetadata {
             TypeKind::Scalar => {
                 metadata.output_kinds.insert(name, OutputKind::Scalar);
             }
-            TypeKind::Enum(_) => {
-                metadata.output_kinds.insert(name, OutputKind::Enum);
+            TypeKind::Enum(enum_type) => {
+                metadata.output_kinds.insert(name.clone(), OutputKind::Enum);
+                metadata.enum_values.insert(
+                    name,
+                    enum_type
+                        .values
+                        .iter()
+                        .map(|value| value.node.value.node.to_string())
+                        .collect(),
+                );
             }
             TypeKind::Object(object) => {
                 metadata
@@ -958,6 +973,23 @@ fn dynamic_object_field(
                     );
                 }
             };
+            if parent
+                .value
+                .get(NULL_LIST_ITEM_MARKER)
+                .and_then(Value::as_bool)
+                == Some(true)
+            {
+                let placeholder = match null_list_item_field_placeholder(&value_type, &metadata) {
+                    Ok(value) => value,
+                    Err(error) => {
+                        return FieldFuture::new(
+                            async move { Err::<Option<FieldValue<'_>>, _>(error) },
+                        );
+                    }
+                };
+                let resolved = json_field_value(placeholder, &value_type, &metadata);
+                return FieldFuture::new(async move { resolved });
+            }
             let response_key = context
                 .field()
                 .alias()
@@ -1010,6 +1042,10 @@ fn dynamic_object_field(
                 parent_type: parent_type.clone(),
                 field_name: resolver_field_name.clone(),
                 response_key: response_key.clone(),
+                path: context
+                    .path_node
+                    .map(async_graphql::QueryPathNode::to_string_vec)
+                    .unwrap_or_else(|| vec![response_key.clone()]),
                 parent: &parent.value,
                 arguments,
             });
@@ -1118,6 +1154,29 @@ fn json_field_value<'a>(
             })?;
             let mut items = Vec::with_capacity(values.len());
             for value in values {
+                if value.is_null() {
+                    if let BaseType::Named(name) = &item_type.base {
+                        match metadata.output_kinds.get(name.as_str()) {
+                            Some(OutputKind::Object) => {
+                                items.push(FieldValue::owned_any(JsonObject {
+                                    value: null_list_item_object(name.as_str()),
+                                }));
+                                continue;
+                            }
+                            Some(OutputKind::Interface | OutputKind::Union) => {
+                                let concrete_type = concrete_type_for_abstract(name, metadata)?;
+                                items.push(
+                                    FieldValue::owned_any(JsonObject {
+                                        value: null_list_item_object(concrete_type),
+                                    })
+                                    .with_type(concrete_type.to_string()),
+                                );
+                                continue;
+                            }
+                            _ => {}
+                        }
+                    }
+                }
                 items.push(
                     json_field_value(value.clone(), item_type, metadata)?
                         .unwrap_or(FieldValue::NULL),
@@ -1156,6 +1215,60 @@ fn json_field_value<'a>(
                 })?;
                 Ok(Some(FieldValue::value(value)))
             }
+        },
+    }
+}
+
+fn concrete_type_for_abstract<'a>(
+    name: &str,
+    metadata: &'a SchemaMetadata,
+) -> async_graphql::Result<&'a str> {
+    metadata
+        .possible_types
+        .get(name)
+        .and_then(|types| types.first())
+        .map(String::as_str)
+        .ok_or_else(|| {
+            Error::new(format!(
+                "abstract type `{name}` has no possible concrete type for null list resolution"
+            ))
+        })
+}
+
+fn null_list_item_object(type_name: &str) -> Value {
+    serde_json::json!({
+        NULL_LIST_ITEM_MARKER: true,
+        "__typename": type_name,
+    })
+}
+
+fn null_list_item_field_placeholder(
+    value_type: &AstType,
+    metadata: &SchemaMetadata,
+) -> async_graphql::Result<Value> {
+    if value_type.nullable {
+        return Ok(Value::Null);
+    }
+    match &value_type.base {
+        BaseType::List(_) => Ok(Value::Array(Vec::new())),
+        BaseType::Named(name) => match metadata.output_kinds.get(name.as_str()) {
+            Some(OutputKind::Object) => Ok(null_list_item_object(name.as_str())),
+            Some(OutputKind::Interface | OutputKind::Union) => Ok(null_list_item_object(
+                concrete_type_for_abstract(name, metadata)?,
+            )),
+            Some(OutputKind::Enum) => metadata
+                .enum_values
+                .get(name.as_str())
+                .and_then(|values| values.first())
+                .cloned()
+                .map(Value::String)
+                .ok_or_else(|| Error::new(format!("enum `{name}` has no values"))),
+            Some(OutputKind::Scalar) | None => Ok(match name.as_str() {
+                "Boolean" => Value::Bool(false),
+                "Int" => serde_json::json!(0),
+                "Float" => serde_json::json!(0.0),
+                _ => Value::String(String::new()),
+            }),
         },
     }
 }

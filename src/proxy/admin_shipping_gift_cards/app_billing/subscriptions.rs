@@ -8,8 +8,8 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
-    ) -> Response {
-        let (response_key, payload_selection, arguments) = self
+    ) -> ResolverOutcome<Value> {
+        let (_response_key, payload_selection, arguments) = self
             .execution_primary_root_response_parts(query, variables, || {
                 "appSubscriptionCreate".to_string()
             });
@@ -57,16 +57,12 @@ impl DraftProxy {
             ));
         }
         if !user_errors.is_empty() {
-            return ok_json(json!({
-                "data": {
-                    response_key: app_subscription_payload_json(
-                        Value::Null,
-                        &payload_selection,
-                        &subscription_selection,
-                        user_errors,
-                    )
-                }
-            }));
+            return ResolverOutcome::value(app_subscription_payload_json(
+                Value::Null,
+                &payload_selection,
+                &subscription_selection,
+                user_errors,
+            ));
         }
         let line_item_ids = line_items
             .iter()
@@ -96,16 +92,12 @@ impl DraftProxy {
             vec![id],
         );
 
-        ok_json(json!({
-            "data": {
-                response_key: app_subscription_create_payload_json(
-                    &subscription,
-                    &payload_selection,
-                    &subscription_selection,
-                    json!(confirmation_url),
-                )
-            }
-        }))
+        ResolverOutcome::value(app_subscription_create_payload_json(
+            &subscription,
+            &payload_selection,
+            &subscription_selection,
+            json!(confirmation_url),
+        ))
     }
 
     pub(in crate::proxy) fn app_subscription_cancel(
@@ -113,8 +105,8 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
-    ) -> Response {
-        let (response_key, payload_selection, arguments) = self
+    ) -> ResolverOutcome<Value> {
+        let (_response_key, payload_selection, arguments) = self
             .execution_primary_root_response_parts(query, variables, || {
                 "appSubscriptionCancel".to_string()
             });
@@ -155,16 +147,12 @@ impl DraftProxy {
             ),
         };
 
-        ok_json(json!({
-            "data": {
-                response_key: app_subscription_payload_json(
-                    subscription,
-                    &payload_selection,
-                    &subscription_selection,
-                    user_errors,
-                )
-            }
-        }))
+        ResolverOutcome::value(app_subscription_payload_json(
+            subscription,
+            &payload_selection,
+            &subscription_selection,
+            user_errors,
+        ))
     }
 
     pub(in crate::proxy) fn app_subscription_trial_extend(
@@ -172,8 +160,8 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
-    ) -> Response {
-        let (response_key, payload_selection, arguments) = self
+    ) -> ResolverOutcome<Value> {
+        let (_response_key, payload_selection, arguments) = self
             .execution_primary_root_response_parts(query, variables, || {
                 "appSubscriptionTrialExtend".to_string()
             });
@@ -245,16 +233,12 @@ impl DraftProxy {
             }
         };
 
-        ok_json(json!({
-            "data": {
-                response_key: app_subscription_payload_json(
-                    subscription,
-                    &payload_selection,
-                    &subscription_selection,
-                    user_errors,
-                )
-            }
-        }))
+        ResolverOutcome::value(app_subscription_payload_json(
+            subscription,
+            &payload_selection,
+            &subscription_selection,
+            user_errors,
+        ))
     }
 
     pub(in crate::proxy) fn app_subscription_line_item_update(
@@ -262,7 +246,8 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
-    ) -> Response {
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
         let mut data = serde_json::Map::new();
         for root in self
             .execution_root_fields(query, variables)
@@ -420,7 +405,7 @@ impl DraftProxy {
             );
         }
 
-        ok_json(json!({ "data": data }))
+        ResolverOutcome::value(data.remove(response_key).unwrap_or(Value::Null))
     }
 
     pub(super) fn find_staged_app_subscription_line_item(
@@ -447,8 +432,8 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
-    ) -> Response {
-        let (response_key, payload_selection, arguments) = self
+    ) -> ResolverOutcome<Value> {
+        let (_response_key, payload_selection, arguments) = self
             .execution_primary_root_response_parts(query, variables, || {
                 "appUsageRecordCreate".to_string()
             });
@@ -461,14 +446,12 @@ impl DraftProxy {
         let price = match arguments.get("price") {
             Some(ResolvedValue::Object(price)) => price,
             _ => {
-                return ok_json(json!({
-                    "data": { response_key: app_usage_record_payload_json(
-                        Value::Null,
-                        &payload_selection,
-                        &usage_record_selection,
-                        vec![user_error(["price"], "Price is required", None)],
-                    ) }
-                }));
+                return ResolverOutcome::value(app_usage_record_payload_json(
+                    Value::Null,
+                    &payload_selection,
+                    &usage_record_selection,
+                    vec![user_error(["price"], "Price is required", None)],
+                ));
             }
         };
         let amount = money_amount_string_from_resolved(price.get("amount"));
@@ -587,16 +570,12 @@ impl DraftProxy {
             );
         }
 
-        ok_json(json!({
-            "data": {
-                response_key: app_usage_record_payload_json(
-                    usage_record,
-                    &payload_selection,
-                    &usage_record_selection,
-                    user_errors,
-                )
-            }
-        }))
+        ResolverOutcome::value(app_usage_record_payload_json(
+            usage_record,
+            &payload_selection,
+            &usage_record_selection,
+            user_errors,
+        ))
     }
 }
 

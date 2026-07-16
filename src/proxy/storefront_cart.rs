@@ -1,7 +1,7 @@
 use super::storefront::{
-    storefront_customer_json, storefront_money_json, storefront_product_variant_json,
-    storefront_sha256_hex, StorefrontRequestContext, StorefrontVariantPricing,
-    STOREFRONT_CART_MUTATION_ROOTS,
+    storefront_customer_json, storefront_money_value as storefront_catalog_money_value,
+    storefront_product_variant_value, storefront_sha256_hex, StorefrontRequestContext,
+    StorefrontVariantPricing, STOREFRONT_CART_MUTATION_ROOTS,
 };
 use super::*;
 
@@ -2522,13 +2522,12 @@ impl DraftProxy {
             "merchandise" => Some(
                 variant
                     .map(|variant| {
-                        storefront_product_variant_json(
+                        storefront_product_variant_value(
                             self,
                             variant,
                             product,
                             &context,
                             Some(&currency_code),
-                            &selection.selection,
                         )
                     })
                     .unwrap_or(Value::Null),
@@ -3394,22 +3393,22 @@ fn storefront_cart_line_cost_json(
     current: bool,
 ) -> Value {
     selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "amountPerQuantity" if current => pricing.map(|pricing| {
-            storefront_money_json(&pricing.price, currency_code, &selection.selection)
-        }),
+        "amountPerQuantity" if current => {
+            pricing.map(|pricing| storefront_catalog_money_value(&pricing.price, currency_code))
+        }
         "compareAtAmountPerQuantity" if current => Some(
             pricing
                 .and_then(|pricing| pricing.compare_at_price.as_deref())
-                .map(|amount| storefront_money_json(amount, currency_code, &selection.selection))
+                .map(|amount| storefront_catalog_money_value(amount, currency_code))
                 .unwrap_or(Value::Null),
         ),
-        "amount" if !current => pricing.map(|pricing| {
-            storefront_money_json(&pricing.price, currency_code, &selection.selection)
-        }),
+        "amount" if !current => {
+            pricing.map(|pricing| storefront_catalog_money_value(&pricing.price, currency_code))
+        }
         "compareAtAmount" if !current => Some(
             pricing
                 .and_then(|pricing| pricing.compare_at_price.as_deref())
-                .map(|amount| storefront_money_json(amount, currency_code, &selection.selection))
+                .map(|amount| storefront_catalog_money_value(amount, currency_code))
                 .unwrap_or(Value::Null),
         ),
         "subtotalAmount" | "totalAmount" => Some(selected_json(

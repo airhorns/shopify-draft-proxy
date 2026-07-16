@@ -4,12 +4,12 @@ impl DraftProxy {
     pub(in crate::proxy) fn flow_utility_mutation(
         &mut self,
         root_field: &str,
-        request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
         let Some(fields) = self.execution_root_fields(query, variables) else {
-            return json_error(400, "Could not parse GraphQL operation");
+            return resolver_http_error_outcome(400, "Could not parse GraphQL operation");
         };
         let mut log_root: Option<String> = None;
         let mut top_level_error = None;
@@ -27,7 +27,7 @@ impl DraftProxy {
                             Some(value)
                         }
                         FlowFieldResult::TopLevelError(error) => {
-                            top_level_error = Some(ok_json(error));
+                            top_level_error = Some(error);
                             None
                         }
                     }
@@ -42,21 +42,28 @@ impl DraftProxy {
                 _ => None,
             }
         });
-        if let Some(response) = top_level_error {
-            return response;
-        }
-        if let Some(log_root) = log_root {
-            self.record_mutation_log_entry(request, query, variables, &log_root, Vec::new());
+        if let Some(error) = top_level_error {
+            return ResolverOutcome::value(Value::Null)
+                .with_errors(root_field_errors_from_json(&[error], response_key));
         }
         if data.as_object().is_none_or(serde_json::Map::is_empty) {
-            json_error(
+            resolver_http_error_outcome(
                 501,
-                &format!(
+                format!(
                     "No Rust stage-locally dispatcher implemented for root field: {root_field}"
                 ),
             )
         } else {
-            ok_json(json!({ "data": data }))
+            let value = data.get(response_key).cloned().unwrap_or(Value::Null);
+            if let Some(log_root) = log_root {
+                ResolverOutcome::value(value).with_log_draft(LogDraft::staged(
+                    log_root,
+                    "admin-platform",
+                    Vec::new(),
+                ))
+            } else {
+                ResolverOutcome::value(value)
+            }
         }
     }
 
@@ -234,14 +241,12 @@ fn flow_generate_signature_required_arg_error(
         return None;
     }
     let arguments = missing.join(", ");
-    Some(json!({
-        "errors": [missing_required_arguments_error(
-            "flowGenerateSignature",
-            &arguments,
-            field.location,
-            vec![json!(operation_path), json!("flowGenerateSignature")],
-        )]
-    }))
+    Some(missing_required_arguments_error(
+        "flowGenerateSignature",
+        &arguments,
+        field.location,
+        vec![json!(operation_path), json!("flowGenerateSignature")],
+    ))
 }
 
 fn flow_generate_signature_null_arg_error(
@@ -255,28 +260,27 @@ fn flow_generate_signature_null_arg_error(
         if !raw.is_literal_null() && !raw.is_unbound_variable() {
             continue;
         }
-        return Some(json!({
-            "errors": [required_argument_null_error(
-                "flowGenerateSignature",
-                name,
-                expected_type,
-                field.location,
-                vec![json!(operation_path), json!("flowGenerateSignature"), json!(name)],
-            )]
-        }));
+        return Some(required_argument_null_error(
+            "flowGenerateSignature",
+            name,
+            expected_type,
+            field.location,
+            vec![
+                json!(operation_path),
+                json!("flowGenerateSignature"),
+                json!(name),
+            ],
+        ));
     }
     None
 }
 
 fn flow_resource_not_found_error(field: &RootFieldSelection, id: &str) -> Value {
     json!({
-        "errors": [{
-            "message": format!("Invalid id: {id}"),
-            "locations": [{ "line": field.location.line, "column": field.location.column }],
-            "extensions": { "code": "RESOURCE_NOT_FOUND" },
-            "path": [field.response_key.clone()]
-        }],
-        "data": { field.response_key.clone(): Value::Null }
+        "message": format!("Invalid id: {id}"),
+        "locations": [{ "line": field.location.line, "column": field.location.column }],
+        "extensions": { "code": "RESOURCE_NOT_FOUND" },
+        "path": [field.response_key.clone()]
     })
 }
 

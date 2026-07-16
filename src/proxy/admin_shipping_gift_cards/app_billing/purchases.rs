@@ -6,7 +6,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
-    ) -> Response {
+    ) -> ResolverOutcome<Value> {
         let (response_key, payload_selection, arguments) = self
             .execution_primary_root_response_parts(query, variables, || {
                 "appPurchaseOneTimeCreate".to_string()
@@ -16,9 +16,7 @@ impl DraftProxy {
 
         if !arguments.contains_key("returnUrl") {
             let error = app_purchase_one_time_missing_return_url_error(query, variables);
-            return ok_json(json!({
-                "errors": [error]
-            }));
+            return graphql_error_outcome(vec![error], &response_key);
         }
 
         let name = arguments
@@ -43,17 +41,13 @@ impl DraftProxy {
         }
 
         if !user_errors.is_empty() {
-            return ok_json(json!({
-                "data": {
-                    response_key: app_purchase_one_time_payload_json(
-                        Value::Null,
-                        &payload_selection,
-                        &purchase_selection,
-                        user_errors,
-                        None,
-                    )
-                }
-            }));
+            return ResolverOutcome::value(app_purchase_one_time_payload_json(
+                Value::Null,
+                &payload_selection,
+                &purchase_selection,
+                user_errors,
+                None,
+            ));
         }
 
         let purchase_id = self.next_proxy_synthetic_gid("AppPurchaseOneTime");
@@ -78,17 +72,13 @@ impl DraftProxy {
             vec![purchase_id],
         );
 
-        ok_json(json!({
-            "data": {
-                response_key: app_purchase_one_time_payload_json(
-                    purchase,
-                    &payload_selection,
-                    &purchase_selection,
-                    vec![],
-                    Some(json!(confirmation_url)),
-                )
-            }
-        }))
+        ResolverOutcome::value(app_purchase_one_time_payload_json(
+            purchase,
+            &payload_selection,
+            &purchase_selection,
+            vec![],
+            Some(json!(confirmation_url)),
+        ))
     }
 }
 

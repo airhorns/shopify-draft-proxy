@@ -1,5 +1,91 @@
 use super::*;
 
+pub(in crate::proxy) fn return_field_resolver_registrations() -> Vec<FieldResolverRegistration> {
+    vec![
+        FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "ReverseDelivery",
+            "reverseDeliveryLineItems",
+            reverse_delivery_line_items_field,
+        ),
+        FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "ReverseFulfillmentOrder",
+            "lineItems",
+            reverse_fulfillment_order_line_items_field,
+        ),
+        FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "ReverseFulfillmentOrder",
+            "reverseDeliveries",
+            reverse_fulfillment_order_deliveries_field,
+        ),
+    ]
+}
+
+fn canonical_fulfillment_return_parent(
+    proxy: &DraftProxy,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Value {
+    invocation
+        .parent
+        .get("id")
+        .and_then(Value::as_str)
+        .and_then(|id| proxy.fulfillment_return_node_value_by_id(id))
+        .unwrap_or_else(|| invocation.parent.clone())
+}
+
+fn canonical_parent_connection(
+    parent: &Value,
+    field_name: &str,
+    arguments: &BTreeMap<String, Value>,
+) -> Value {
+    connection_value_with_args(
+        parent
+            .get(field_name)
+            .map(connection_nodes)
+            .unwrap_or_default(),
+        &resolved_arguments_from_json(arguments),
+        value_id_cursor,
+    )
+}
+
+fn reverse_delivery_line_items_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(canonical_parent_connection(
+        &canonical_fulfillment_return_parent(proxy, invocation),
+        "reverseDeliveryLineItems",
+        &invocation.arguments,
+    ))
+}
+
+fn reverse_fulfillment_order_line_items_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(canonical_parent_connection(
+        &canonical_fulfillment_return_parent(proxy, invocation),
+        "lineItems",
+        &invocation.arguments,
+    ))
+}
+
+fn reverse_fulfillment_order_deliveries_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(canonical_parent_connection(
+        &canonical_fulfillment_return_parent(proxy, invocation),
+        "reverseDeliveries",
+        &invocation.arguments,
+    ))
+}
+
 const RETURN_CALCULATION_ORDER_HYDRATE_QUERY: &str =
     include_str!("../../../config/parity-requests/orders/return-calculation-order-hydrate.graphql");
 
@@ -649,72 +735,40 @@ fn return_status_transition_error(
 }
 
 impl DraftProxy {
-    pub(in crate::proxy) fn fulfillment_return_node_value_by_id(
-        &self,
-        id: &str,
-        selection: &[SelectedField],
-    ) -> Option<Value> {
+    pub(in crate::proxy) fn fulfillment_return_node_value_by_id(&self, id: &str) -> Option<Value> {
         let resource_type = shopify_gid_resource_type(id)?;
         match resource_type {
-            "Fulfillment" => self
-                .fulfillment_node_record_by_id(id)
-                .map(|record| selected_typed_json(record, "Fulfillment", selection)),
-            "FulfillmentEvent" => self
-                .fulfillment_event_node_record_by_id(id)
-                .map(|record| selected_typed_json(record, "FulfillmentEvent", selection)),
-            "FulfillmentLineItem" => self
-                .fulfillment_line_item_node_record_by_id(id)
-                .map(|record| selected_typed_json(record, "FulfillmentLineItem", selection)),
-            "FulfillmentOrder" => self
-                .fulfillment_order_node_record_by_id(id)
-                .map(|record| selected_typed_json(record, "FulfillmentOrder", selection)),
-            "FulfillmentHold" => self
-                .fulfillment_hold_node_record_by_id(id)
-                .map(|record| selected_typed_json(record, "FulfillmentHold", selection)),
-            "FulfillmentOrderLineItem" => self
-                .fulfillment_order_line_item_node_record_by_id(id)
-                .map(|record| selected_typed_json(record, "FulfillmentOrderLineItem", selection)),
+            "Fulfillment" => self.fulfillment_node_record_by_id(id),
+            "FulfillmentEvent" => self.fulfillment_event_node_record_by_id(id),
+            "FulfillmentLineItem" => self.fulfillment_line_item_node_record_by_id(id),
+            "FulfillmentOrder" => self.fulfillment_order_node_record_by_id(id),
+            "FulfillmentHold" => self.fulfillment_hold_node_record_by_id(id),
+            "FulfillmentOrderLineItem" => self.fulfillment_order_line_item_node_record_by_id(id),
             "Return" => self
                 .store
                 .staged
                 .returns
                 .get(id)
-                .map(|record| self.selected_return_value(record, selection)),
-            "ReturnableFulfillment" => self.returnable_fulfillment_node_value_by_id(id, selection),
-            "ReturnLineItem" => self
-                .return_line_item_node_record_by_id(id)
-                .map(|record| selected_typed_json(record, "ReturnLineItem", selection)),
-            "UnverifiedReturnLineItem" => self
-                .unverified_return_line_item_node_record_by_id(id)
-                .map(|record| selected_typed_json(record, "UnverifiedReturnLineItem", selection)),
-            "ReverseDelivery" => self.store.staged.reverse_deliveries.get(id).map(|record| {
-                selected_typed_json(
-                    self.expanded_reverse_delivery_record(record),
-                    "ReverseDelivery",
-                    selection,
-                )
-            }),
-            "ReverseDeliveryLineItem" => self
-                .reverse_delivery_line_item_node_record_by_id(id)
-                .map(|record| selected_typed_json(record, "ReverseDeliveryLineItem", selection)),
-            "ReverseFulfillmentOrder" => {
-                self.store
-                    .staged
-                    .reverse_fulfillment_orders
-                    .get(id)
-                    .map(|record| {
-                        selected_typed_json(
-                            self.expanded_reverse_fulfillment_order_record(record),
-                            "ReverseFulfillmentOrder",
-                            selection,
-                        )
-                    })
+                .map(|record| self.return_record_with_effective_reverse_orders(record)),
+            "ReturnableFulfillment" => self.returnable_fulfillment_node_value_by_id(id),
+            "ReturnLineItem" => self.return_line_item_node_record_by_id(id),
+            "UnverifiedReturnLineItem" => self.unverified_return_line_item_node_record_by_id(id),
+            "ReverseDelivery" => self
+                .store
+                .staged
+                .reverse_deliveries
+                .get(id)
+                .map(|record| self.expanded_reverse_delivery_record(record)),
+            "ReverseDeliveryLineItem" => self.reverse_delivery_line_item_node_record_by_id(id),
+            "ReverseFulfillmentOrder" => self
+                .store
+                .staged
+                .reverse_fulfillment_orders
+                .get(id)
+                .map(|record| self.expanded_reverse_fulfillment_order_record(record)),
+            "ReverseFulfillmentOrderLineItem" => {
+                self.reverse_fulfillment_order_line_item_node_record_by_id(id)
             }
-            "ReverseFulfillmentOrderLineItem" => self
-                .reverse_fulfillment_order_line_item_node_record_by_id(id)
-                .map(|record| {
-                    selected_typed_json(record, "ReverseFulfillmentOrderLineItem", selection)
-                }),
             _ => None,
         }
     }
@@ -822,11 +876,7 @@ impl DraftProxy {
         None
     }
 
-    fn returnable_fulfillment_node_value_by_id(
-        &self,
-        id: &str,
-        selection: &[SelectedField],
-    ) -> Option<Value> {
+    fn returnable_fulfillment_node_value_by_id(&self, id: &str) -> Option<Value> {
         for (order_id, order) in &self.store.staged.orders {
             let effective_order_id = order.get("id").and_then(Value::as_str).unwrap_or(order_id);
             for node in returnable_fulfillment_nodes(order, effective_order_id, self) {
@@ -837,11 +887,12 @@ impl DraftProxy {
                     .as_array()
                     .cloned()
                     .unwrap_or_default();
-                return Some(selected_returnable_fulfillment(
-                    &node["fulfillment"],
-                    line_items,
-                    selection,
-                ));
+                return Some(json!({
+                    "__typename": "ReturnableFulfillment",
+                    "id": node["id"],
+                    "fulfillment": node["fulfillment"],
+                    "returnableFulfillmentLineItems": connection_json(line_items),
+                }));
             }
         }
         None
@@ -1037,6 +1088,24 @@ impl DraftProxy {
         })
     }
 
+    pub(in crate::proxy) fn order_with_return_status_value(&self, order: &Value) -> Value {
+        if order.is_null() {
+            return Value::Null;
+        }
+        let order_id = order.get("id").and_then(Value::as_str).unwrap_or_default();
+        let returns = self.effective_order_returns(order_id, Some(order));
+        let mut value = order.clone();
+        value["__typename"] = json!("Order");
+        value["returnStatus"] = json!(order_return_status(&returns));
+        value["returns"] = connection_json(
+            returns
+                .iter()
+                .map(|record| self.return_record_with_effective_reverse_orders(record))
+                .collect(),
+        );
+        value
+    }
+
     fn selected_return_value(&self, return_value: &Value, selection: &[SelectedField]) -> Value {
         if return_value.is_null() {
             return Value::Null;
@@ -1129,13 +1198,14 @@ impl DraftProxy {
         })
     }
 
-    pub(in crate::proxy) fn order_return_local_runtime_data(
+    pub(in crate::proxy) fn order_return_local_runtime_outcome(
         &mut self,
         request: &Request,
         root_field: &str,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<Value> {
+        response_key: &str,
+    ) -> Option<ResolverOutcome<Value>> {
         let fields = self.execution_root_fields(query, variables)?;
         if matches!(
             root_field,
@@ -1144,76 +1214,79 @@ impl DraftProxy {
             if !self.should_handle_order_return_read(&fields) {
                 return None;
             }
-            return self.order_return_read_data(&fields);
+            let data = self.order_return_read_data(&fields)?;
+            return Some(ResolverOutcome::value(
+                data.get(response_key).cloned().unwrap_or(Value::Null),
+            ));
         }
 
         let field = fields.iter().find(|field| field.name == root_field)?;
         match root_field {
             "returnableFulfillments" => {
                 let value = self.returnable_fulfillments(request, field);
-                Some(data_response(&field.response_key, value))
+                Some(ResolverOutcome::value(value))
             }
             "returnCalculate" => {
                 let value = self.calculate_return(request, field);
-                Some(data_response(&field.response_key, value))
+                Some(ResolverOutcome::value(value))
             }
             "returnCreate" => {
                 let value = self.stage_return_from_input(request, field, "returnInput", "OPEN");
-                Some(data_response(&field.response_key, value))
+                Some(ResolverOutcome::value(value))
             }
             "returnRequest" => {
                 let value = self.stage_return_from_input(request, field, "input", "REQUESTED");
-                Some(data_response(&field.response_key, value))
+                Some(ResolverOutcome::value(value))
             }
             "returnApproveRequest" => {
                 let id = resolved_object_field(&field.arguments, "input")
                     .and_then(|input| resolved_string_field(&input, "id"))?;
                 let value = self.approve_return_request(&id, field);
-                Some(data_response(&field.response_key, value))
+                Some(ResolverOutcome::value(value))
             }
             "returnDeclineRequest" => {
                 let id = resolved_object_field(&field.arguments, "input")
                     .and_then(|input| resolved_string_field(&input, "id"))?;
                 let value = self.decline_return_request(&id, field);
-                Some(data_response(&field.response_key, value))
+                Some(ResolverOutcome::value(value))
             }
             "returnClose" => {
                 let id = resolved_string_field(&field.arguments, "id")?;
                 let value = self.apply_return_lifecycle_transition(&id, "CLOSED", field);
-                Some(data_response(&field.response_key, value))
+                Some(ResolverOutcome::value(value))
             }
             "returnReopen" => {
                 let id = resolved_string_field(&field.arguments, "id")?;
                 let value = self.apply_return_lifecycle_transition(&id, "OPEN", field);
-                Some(data_response(&field.response_key, value))
+                Some(ResolverOutcome::value(value))
             }
             "returnCancel" => {
                 let id = resolved_string_field(&field.arguments, "id")?;
                 let value = self.apply_return_lifecycle_transition(&id, "CANCELED", field);
-                Some(data_response(&field.response_key, value))
+                Some(ResolverOutcome::value(value))
             }
             "removeFromReturn" => {
                 let value = self.remove_from_return(field);
-                Some(data_response(&field.response_key, value))
+                Some(ResolverOutcome::value(value))
             }
             "reverseDeliveryCreateWithShipping" => {
                 let value = self.stage_reverse_delivery(field);
-                Some(data_response(&field.response_key, value))
+                Some(ResolverOutcome::value(value))
             }
             "reverseDeliveryShippingUpdate" => {
                 let id = resolved_string_field(&field.arguments, "reverseDeliveryId")?;
                 let value = self.update_reverse_delivery(&id, field);
-                Some(data_response(&field.response_key, value))
+                Some(ResolverOutcome::value(value))
             }
             "reverseFulfillmentOrderDispose" => {
                 let value = self.dispose_reverse_fulfillment_order(field);
-                Some(data_response(&field.response_key, value))
+                Some(ResolverOutcome::value(value))
             }
             "returnProcess" => {
                 let id = resolved_object_field(&field.arguments, "input")
                     .and_then(|input| resolved_string_field(&input, "returnId"))?;
                 let value = self.process_return(&id, field);
-                Some(data_response(&field.response_key, value))
+                Some(ResolverOutcome::value(value))
             }
             _ => None,
         }
@@ -1408,7 +1481,7 @@ impl DraftProxy {
         if missing_required {
             return None;
         }
-        Some(json!({ "data": data }))
+        Some(data)
     }
 
     fn should_handle_order_return_read(&self, fields: &[RootFieldSelection]) -> bool {

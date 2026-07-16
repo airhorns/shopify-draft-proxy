@@ -11,39 +11,43 @@ impl DraftProxy {
             request,
             query,
             variables,
-            root_name: _,
+            root_name,
             mode,
             ..
         } = invocation;
-        let response = (|| -> Response {
-            match mode {
-                LocalResolverMode::OverlayRead => {
-                    let fields = match self.root_fields_or_error(query, variables) {
-                        Ok(fields) => fields,
-                        Err(response) => return response,
-                    };
-                    if self.config.read_mode != ReadMode::Snapshot {
-                        self.metaobject_live_hybrid_read(request, &fields)
-                    } else {
-                        ok_json(json!({ "data": self.metaobject_query_data(&fields, request) }))
-                    }
-                }
-                LocalResolverMode::StageLocally => {
-                    let fields = match self.root_fields_or_error(query, variables) {
-                        Ok(fields) => fields,
-                        Err(response) => return response,
-                    };
-                    if self.metaobject_mutation_is_local(&fields) {
-                        self.metaobject_mutation(&fields, request, query, variables)
-                    } else {
-                        // Target lives upstream (seeded/live-captured): forward so the
-                        // real backend response is replayed instead of a synthetic one.
-                        (self.upstream_transport)(request.clone())
-                    }
+        let Some(fields) = self.execution_root_fields(query, variables) else {
+            return resolver_http_error_outcome(400, "Could not parse GraphQL operation");
+        };
+        let fields = fields
+            .into_iter()
+            .filter(|field| field.response_key == response_key)
+            .collect::<Vec<_>>();
+        match mode {
+            LocalResolverMode::OverlayRead => {
+                if self.config.read_mode != ReadMode::Snapshot {
+                    self.metaobject_live_hybrid_outcome(request, &fields, response_key)
+                } else {
+                    let data = self.metaobject_query_data(&fields, request);
+                    ResolverOutcome::value(data.get(response_key).cloned().unwrap_or(Value::Null))
                 }
             }
-        })();
-        resolver_outcome_from_response(response, response_key)
+            LocalResolverMode::StageLocally => {
+                if self.metaobject_mutation_is_local(&fields) {
+                    self.metaobject_mutation_outcome(
+                        &fields,
+                        request,
+                        query,
+                        root_name,
+                        response_key,
+                    )
+                } else {
+                    // Transitional compatibility for cold upstream targets. The
+                    // guarded transport still prevents a registered local write
+                    // from escaping during normal runtime execution.
+                    self.cached_or_forward_upstream_root_outcome(request, response_key)
+                }
+            }
+        }
     }
 }
 
@@ -3081,17 +3085,15 @@ impl DraftProxy {
         })
     }
 
-    pub(in crate::proxy) fn metaobject_live_hybrid_read(
+    pub(in crate::proxy) fn metaobject_live_hybrid_outcome(
         &mut self,
         request: &Request,
         fields: &[RootFieldSelection],
-    ) -> Response {
-        let mut response = self
-            .request_upstream_query_response
-            .clone()
-            .unwrap_or_else(|| (self.upstream_transport)(request.clone()));
-        let Some(data) = response.body.get_mut("data").and_then(Value::as_object_mut) else {
-            return response;
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
+        let mut result = self.cached_or_forward_upstream_graphql_result(request, response_key);
+        let Some(data) = result.data.as_object_mut() else {
+            return result.outcome;
         };
         let aliased_data = root_payload_json(fields, |field| {
             if data.contains_key(&field.response_key) {
@@ -3148,7 +3150,8 @@ impl DraftProxy {
                 data.insert(field.response_key.clone(), value);
             }
         }
-        response
+        result.outcome.value = data.get(response_key).cloned().unwrap_or(Value::Null);
+        result.outcome
     }
 
     fn metaobject_live_hybrid_overlay_value(
@@ -3376,13 +3379,14 @@ impl DraftProxy {
         merged
     }
 
-    pub(in crate::proxy) fn metaobject_mutation(
+    pub(in crate::proxy) fn metaobject_mutation_outcome(
         &mut self,
         fields: &[RootFieldSelection],
         request: &Request,
         query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
+        root_name: &str,
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
         let mut staged_ids = Vec::new();
         let mut log_successful_noop = false;
         let mut errors = Vec::new();
@@ -3422,35 +3426,28 @@ impl DraftProxy {
             };
             Some(value)
         });
-        if !staged_ids.is_empty() || log_successful_noop {
+        let should_log = !staged_ids.is_empty() || log_successful_noop;
+        if should_log {
             // Each successful metaobject mutation reserves one synthetic id for its
             // mutation-log entry after allocating the resources it creates, matching
             // the current synthetic-id bookkeeping (e.g. a definition lands on /1 and
             // the next entry on /3 because the definition's log entry consumed /2).
             self.reserve_synthetic_log_id();
-            self.record_mutation_log_entry(
-                request,
-                query,
-                variables,
-                fields
-                    .first()
-                    .map(|f| f.name.as_str())
-                    .unwrap_or("metaobject"),
-                staged_ids,
-            );
         }
-        let mut body = json!({"data": data});
+        let value = data.get(response_key).cloned().unwrap_or(Value::Null);
+        let mut outcome = ResolverOutcome::value(value);
         if !errors.is_empty() {
-            body["errors"] = Value::Array(errors);
+            outcome.errors = root_field_errors_from_json(&errors, response_key);
         }
-        ok_json(body)
+        if should_log {
+            outcome
+                .log_drafts
+                .push(LogDraft::staged(root_name, "metaobjects", staged_ids));
+        }
+        outcome
     }
 
-    pub(in crate::proxy) fn metaobject_node_value_by_id(
-        &self,
-        id: &str,
-        selection: &[SelectedField],
-    ) -> Option<Value> {
+    pub(in crate::proxy) fn metaobject_node_value_by_id(&self, id: &str) -> Option<Value> {
         match shopify_gid_resource_type(id) {
             Some("Metaobject") => {
                 let key = self.metaobject_staged_key_by_id(id)?;
@@ -3465,7 +3462,7 @@ impl DraftProxy {
                     .map(|record| {
                         let mut record = self.project_metaobject_against_definition(&record);
                         record["__typename"] = json!("Metaobject");
-                        self.selected_metaobject(&record, selection)
+                        record
                     })
             }
             Some("MetaobjectDefinition") => {
@@ -3480,7 +3477,7 @@ impl DraftProxy {
                     .cloned()
                     .map(|mut definition| {
                         definition["__typename"] = json!("MetaobjectDefinition");
-                        self.selected_metaobject_definition(&definition, selection)
+                        definition
                     })
             }
             _ => None,

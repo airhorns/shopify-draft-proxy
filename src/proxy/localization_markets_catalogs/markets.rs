@@ -1,5 +1,82 @@
 use super::*;
 
+pub(in crate::proxy) fn markets_field_resolver_registrations() -> Vec<FieldResolverRegistration> {
+    vec![
+        FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "PriceList",
+            "prices",
+            price_list_prices_field,
+        ),
+        FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "PriceList",
+            "quantityRules",
+            price_list_quantity_rules_field,
+        ),
+        FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "PriceListPrice",
+            "quantityPriceBreaks",
+            price_list_price_quantity_breaks_field,
+        ),
+    ]
+}
+
+fn canonical_price_list_for_field(
+    proxy: &DraftProxy,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Value {
+    invocation
+        .parent
+        .get("id")
+        .and_then(Value::as_str)
+        .and_then(|id| proxy.store.staged.price_lists.get(id))
+        .cloned()
+        .unwrap_or_else(|| invocation.parent.clone())
+}
+
+fn price_list_prices_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let price_list = canonical_price_list_for_field(proxy, invocation);
+    Ok(price_list_prices_value(
+        &price_list,
+        &resolved_arguments_from_json(&invocation.arguments),
+    ))
+}
+
+fn price_list_quantity_rules_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let price_list = canonical_price_list_for_field(proxy, invocation);
+    Ok(price_list_quantity_rules_value(
+        &price_list,
+        &resolved_arguments_from_json(&invocation.arguments),
+    ))
+}
+
+fn price_list_price_quantity_breaks_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let nodes = invocation
+        .parent
+        .get("quantityPriceBreaks")
+        .map(connection_nodes)
+        .unwrap_or_default();
+    Ok(connection_value_with_args(
+        nodes,
+        &resolved_arguments_from_json(&invocation.arguments),
+        value_id_cursor,
+    ))
+}
+
 impl DraftProxy {
     pub(crate) fn resolve_markets_graphql(
         &mut self,
@@ -10,149 +87,128 @@ impl DraftProxy {
             request,
             query,
             variables,
-            operation,
             root_name,
             mode,
             ..
         } = invocation;
-        let response = (|| -> Response {
-            let fields = match self.root_fields_or_error(query, variables) {
-                Ok(fields) => fields,
-                Err(response) => return response,
-            };
-            match mode {
-                LocalResolverMode::OverlayRead => {
-                    // Cold LiveHybrid reads hydrate every selected markets family.
-                    // Existing staged state is then rendered over that base graph.
-                    if self.config.read_mode == ReadMode::LiveHybrid
-                        && (!self.request_markets_query_preflighted
-                            || self.request_upstream_query_response.is_some())
-                        && self.markets_should_fetch_upstream(&fields, variables)
-                    {
-                        let had_markets_overlay_state = self.has_markets_overlay_state();
-                        let response = self
-                            .request_upstream_query_response
-                            .clone()
-                            .unwrap_or_else(|| (self.upstream_transport)(request.clone()));
-                        if response.status < 400 {
-                            self.hydrate_markets_from_upstream_for_fields(&response.body, &fields);
-                            self.hydrate_localization_from_upstream(&response.body);
-                        }
-                        if !had_markets_overlay_state {
-                            return response;
-                        }
+        let Some(fields) = self.execution_root_fields(query, variables) else {
+            return resolver_http_error_outcome(400, "Could not parse GraphQL operation");
+        };
+        let fields = fields
+            .into_iter()
+            .filter(|field| field.response_key == response_key)
+            .collect::<Vec<_>>();
+        match mode {
+            LocalResolverMode::OverlayRead => {
+                if self.config.read_mode == ReadMode::LiveHybrid
+                    && (!self.request_markets_query_preflighted
+                        || self.request_upstream_query_response.is_some())
+                    && self.markets_should_fetch_upstream(&fields, variables)
+                {
+                    let had_markets_overlay_state = self.has_markets_overlay_state();
+                    let result =
+                        self.cached_or_forward_upstream_graphql_result(request, response_key);
+                    if result.transport_succeeded {
+                        let body = json!({ "data": result.data });
+                        self.hydrate_markets_from_upstream_for_fields(&body, &fields);
+                        self.hydrate_localization_from_upstream(&body);
                     }
-                    if operation
-                        .root_fields
-                        .iter()
-                        .all(|field| field == "webPresences")
-                    {
-                        return self.web_presence_helper_query(query, variables);
+                    if !had_markets_overlay_state {
+                        return result.outcome;
                     }
-                    self.hydrate_markets_resolved_values_pricing_if_selected(request, &fields);
-                    let data = if operation.root_fields.iter().any(|field| {
-                        matches!(
-                            field.as_str(),
-                            "marketLocalizableResource"
-                                | "marketLocalizableResources"
-                                | "marketLocalizableResourcesByIds"
-                        )
-                    }) {
-                        self.market_localization_query_data(&fields, request)
-                    } else {
-                        self.markets_overlay_query_data(&fields)
-                    };
-                    ok_json(json!({ "data": data }))
                 }
-                LocalResolverMode::StageLocally => {
-                    self.hydrate_market_currency_defaults_if_needed(request, &fields);
-                    if let Some(response) = self.market_mutation_wrong_resource_response(&fields) {
-                        return response;
-                    }
-                    let data = if operation.root_fields.iter().all(|field| {
-                        matches!(
-                            field.as_str(),
-                            "marketLocalizationsRegister" | "marketLocalizationsRemove"
-                        )
-                    }) {
-                        self.market_localization_mutation_preflight(variables, request);
-                        self.market_localization_mutation_data(&fields)
-                    } else if operation.root_fields.iter().all(|field| {
-                        matches!(
-                            field.as_str(),
-                            "webPresenceCreate" | "webPresenceUpdate" | "webPresenceDelete"
-                        )
-                    }) {
-                        self.web_presence_mutation_preflight(variables, request);
-                        return self
-                            .web_presence_helper_mutation(root_name, query, variables, request);
-                    } else if operation
-                        .root_fields
-                        .iter()
-                        .all(|field| field == "quantityPricingByVariantUpdate")
-                    {
-                        self.quantity_pricing_rules_mutation_preflight(request, variables);
-                        return self.quantity_pricing_by_variant_update_response(
-                            query, variables, request,
-                        );
-                    } else if operation.root_fields.iter().all(|field| {
-                        matches!(field.as_str(), "quantityRulesAdd" | "quantityRulesDelete")
-                    }) {
-                        self.quantity_pricing_rules_mutation_preflight(request, variables);
-                        return self.quantity_rules_mutation_response(
-                            root_name, query, variables, request,
-                        );
-                    } else if operation.root_fields.iter().any(|field| {
-                        matches!(
-                            field.as_str(),
-                            "priceListCreate"
-                                | "priceListUpdate"
-                                | "priceListDelete"
-                                | "priceListFixedPricesByProductUpdate"
-                                | "priceListFixedPricesAdd"
-                                | "priceListFixedPricesUpdate"
-                                | "priceListFixedPricesDelete"
-                        )
-                    }) {
-                        return ok_json(
-                            self.price_list_mutation_data(&fields, request, query, variables),
-                        );
-                    } else if operation.root_fields.iter().any(|field| {
-                        matches!(
-                            field.as_str(),
-                            "catalogCreate"
-                                | "catalogUpdate"
-                                | "catalogDelete"
-                                | "catalogContextUpdate"
-                        )
-                    }) {
-                        self.catalog_mutation_data(&fields, request, query, variables)
-                    } else {
-                        self.market_mutation_target_preflight(&fields, request);
-                        self.market_create_mutation_data(&fields, request, query, variables)
-                    };
-                    if operation.root_fields.iter().all(|field| {
-                        matches!(
-                            field.as_str(),
-                            "marketLocalizationsRegister" | "marketLocalizationsRemove"
-                        )
-                    }) {
-                        self.record_mutation_log_entry(
-                            request,
-                            query,
-                            variables,
-                            root_name,
-                            fields
-                                .iter()
-                                .map(|field| field.response_key.clone())
-                                .collect(),
-                        );
-                    }
-                    ok_json(json!({ "data": data }))
+                if root_name == "webPresences" {
+                    return self.web_presence_helper_query_outcome(query, variables, response_key);
                 }
+                self.hydrate_markets_resolved_values_pricing_if_selected(request, &fields);
+                let data = if matches!(
+                    root_name,
+                    "marketLocalizableResource"
+                        | "marketLocalizableResources"
+                        | "marketLocalizableResourcesByIds"
+                ) {
+                    self.market_localization_query_data(&fields, request)
+                } else {
+                    self.markets_overlay_query_data(&fields)
+                };
+                ResolverOutcome::value(data.get(response_key).cloned().unwrap_or(Value::Null))
             }
-        })();
-        resolver_outcome_from_response(response, response_key)
+            LocalResolverMode::StageLocally => {
+                self.hydrate_market_currency_defaults_if_needed(request, &fields);
+                let wrong_resource_errors = self.market_mutation_wrong_resource_errors(&fields);
+                if !wrong_resource_errors.is_empty() {
+                    return graphql_error_outcome(wrong_resource_errors, response_key);
+                }
+                if matches!(
+                    root_name,
+                    "webPresenceCreate" | "webPresenceUpdate" | "webPresenceDelete"
+                ) {
+                    self.web_presence_mutation_preflight(variables, request);
+                    return self.web_presence_helper_mutation_outcome(
+                        root_name, query, variables, request,
+                    );
+                }
+                if root_name == "quantityPricingByVariantUpdate" {
+                    self.quantity_pricing_rules_mutation_preflight(request, variables);
+                    return self
+                        .quantity_pricing_by_variant_update_outcome(query, variables, request);
+                }
+                if matches!(root_name, "quantityRulesAdd" | "quantityRulesDelete") {
+                    self.quantity_pricing_rules_mutation_preflight(request, variables);
+                    return self
+                        .quantity_rules_mutation_outcome(root_name, query, variables, request);
+                }
+                if matches!(
+                    root_name,
+                    "priceListCreate"
+                        | "priceListUpdate"
+                        | "priceListDelete"
+                        | "priceListFixedPricesByProductUpdate"
+                        | "priceListFixedPricesAdd"
+                        | "priceListFixedPricesUpdate"
+                        | "priceListFixedPricesDelete"
+                ) {
+                    return self.price_list_mutation_outcome(
+                        &fields,
+                        request,
+                        query,
+                        variables,
+                        response_key,
+                    );
+                }
+                let data = if matches!(
+                    root_name,
+                    "marketLocalizationsRegister" | "marketLocalizationsRemove"
+                ) {
+                    self.market_localization_mutation_preflight(variables, request);
+                    self.market_localization_mutation_data(&fields)
+                } else if matches!(
+                    root_name,
+                    "catalogCreate" | "catalogUpdate" | "catalogDelete" | "catalogContextUpdate"
+                ) {
+                    self.catalog_mutation_data(&fields, request, query, variables)
+                } else {
+                    self.market_mutation_target_preflight(&fields, request);
+                    self.market_create_mutation_data(&fields, request, query, variables)
+                };
+                if matches!(
+                    root_name,
+                    "marketLocalizationsRegister" | "marketLocalizationsRemove"
+                ) {
+                    self.record_mutation_log_entry(
+                        request,
+                        query,
+                        variables,
+                        root_name,
+                        fields
+                            .iter()
+                            .map(|field| field.response_key.clone())
+                            .collect(),
+                    );
+                }
+                ResolverOutcome::value(data.get(response_key).cloned().unwrap_or(Value::Null))
+            }
+        }
     }
 
     /// Unified Markets overlay read. A single GraphQL query can select several
@@ -472,42 +528,18 @@ impl DraftProxy {
     pub(in crate::proxy) fn selected_price_list_json(
         &self,
         price_list: &Value,
-        selection: &[SelectedField],
+        _selection: &[SelectedField],
     ) -> Value {
         if price_list.is_null() {
             return Value::Null;
         }
-        let mut record = serde_json::Map::new();
-        for field in selection {
-            if !selected_field_applies_to_type("PriceList", field) {
-                continue;
-            }
-            let value = match field.name.as_str() {
-                "prices" => Some(selected_price_list_prices(
-                    price_list,
-                    &field.arguments,
-                    &field.selection,
-                )),
-                "quantityRules" => Some(selected_price_list_quantity_rules(
-                    price_list,
-                    &field.arguments,
-                    &field.selection,
-                )),
-                "catalog" => {
-                    let catalog_id = catalog_relation_id(price_list, "catalogId", "catalog");
-                    catalog_id
-                        .as_deref()
-                        .and_then(|id| self.store.staged.catalogs.get(id))
-                        .map(|catalog| self.selected_catalog_json(catalog, &field.selection))
-                        .or_else(|| selected_record_field(price_list, field))
-                }
-                _ => selected_record_field(price_list, field),
-            };
-            if let Some(value) = value {
-                record.insert(field.response_key.clone(), value);
+        let mut record = price_list.clone();
+        if let Some(catalog_id) = catalog_relation_id(price_list, "catalogId", "catalog") {
+            if let Some(catalog) = self.store.staged.catalogs.get(&catalog_id) {
+                record["catalog"] = catalog.clone();
             }
         }
-        Value::Object(record)
+        record
     }
 
     pub(in crate::proxy) fn selected_price_list_payload(
@@ -752,25 +784,14 @@ impl DraftProxy {
         data
     }
 
-    pub(in crate::proxy) fn market_mutation_wrong_resource_response(
+    pub(in crate::proxy) fn market_mutation_wrong_resource_errors(
         &self,
         fields: &[RootFieldSelection],
-    ) -> Option<Response> {
-        let errors = fields
+    ) -> Vec<Value> {
+        fields
             .iter()
             .filter_map(market_mutation_wrong_resource_error)
-            .collect::<Vec<_>>();
-        if errors.is_empty() {
-            return None;
-        }
-        let data = fields
-            .iter()
-            .map(|field| (field.response_key.clone(), Value::Null))
-            .collect::<serde_json::Map<_, _>>();
-        Some(ok_json(json!({
-            "data": Value::Object(data),
-            "errors": errors
-        })))
+            .collect()
     }
 
     pub(in crate::proxy) fn market_mutation_target_preflight(

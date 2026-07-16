@@ -31,19 +31,21 @@ impl DraftProxy {
             mode,
             ..
         } = invocation;
-        let response = match mode {
+        match mode {
             LocalResolverMode::OverlayRead if root_name == "files" => {
-                self.media_files_read(request, query, variables)
+                self.media_files_read_outcome(request, query, variables, response_key)
             }
             LocalResolverMode::StageLocally => {
-                let outcome = self.media_mutation(root_name, request, query, variables);
-                self.finalize_mutation_outcome(request, query, variables, outcome)
+                self.media_mutation(root_name, request, query, variables)
             }
-            LocalResolverMode::OverlayRead => {
-                Self::unimplemented_resolver_response(mode, root_name)
-            }
-        };
-        resolver_outcome_from_response(response, response_key)
+            LocalResolverMode::OverlayRead => resolver_http_error_outcome(
+                501,
+                format!(
+                    "No Rust {} dispatcher implemented for root field: {root_name}",
+                    mode.registry_name()
+                ),
+            ),
+        }
     }
 
     pub(in crate::proxy) fn media_mutation(
@@ -52,7 +54,7 @@ impl DraftProxy {
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> MutationOutcome {
+    ) -> ResolverOutcome<Value> {
         match root_field {
             "fileCreate" => self.media_file_create(request, query, variables),
             "fileUpdate" => self.media_file_update(request, query, variables),
@@ -61,7 +63,7 @@ impl DraftProxy {
                 self.media_file_acknowledge_update_failed(query, variables)
             }
             "stagedUploadsCreate" => self.media_staged_uploads_create(query, variables),
-            _ => MutationOutcome::response(json_error(501, "Unsupported media mutation root")),
+            _ => resolver_http_error_outcome(501, "Unsupported media mutation root"),
         }
     }
 
@@ -70,54 +72,66 @@ impl DraftProxy {
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> MutationOutcome {
+    ) -> ResolverOutcome<Value> {
         let (response_key, payload_selection, arguments) = self
             .execution_primary_root_response_parts(query, variables, || "fileCreate".to_string());
         let inputs = media_object_list_arg(&arguments, "files");
         if manage_products_denied(request) && media_inputs_have_references(&inputs) {
-            return MutationOutcome::response(media_access_denied_response(
+            return graphql_error_outcome(
+                vec![media_access_denied_error("fileCreate")],
                 &response_key,
-                "fileCreate",
-            ));
+            );
         }
 
         if inputs.len() > 250 {
-            return MutationOutcome::response(ok_json(json!({
-                "errors": [max_input_size_exceeded_error(
+            return graphql_error_outcome(
+                vec![max_input_size_exceeded_error(
                     ["fileCreate", "files"],
                     inputs.len(),
                     250,
-                    Some(json!([{"line": 2, "column": 3}]))
-                )]
-            })));
+                    Some(json!([{"line": 2, "column": 3}])),
+                )],
+                &response_key,
+            );
         }
 
         for (index, input) in inputs.iter().enumerate() {
             match resolved_string_field(input, "originalSource") {
                 None => {
                     let message = format!("Variable $files of type [FileCreateInput!]! was provided invalid value for {index}.originalSource (Expected value to not be null)");
-                    return MutationOutcome::response(ok_json(json!({
-                        "errors": [invalid_variable_error_envelope(
+                    return graphql_error_outcome(
+                        vec![invalid_variable_error_envelope(
                             message,
-                            SourceLocation { line: 2, column: 43 },
-                            resolved_variables_json(variables).get("files").cloned().unwrap_or(Value::Null),
+                            SourceLocation {
+                                line: 2,
+                                column: 43,
+                            },
+                            resolved_variables_json(variables)
+                                .get("files")
+                                .cloned()
+                                .unwrap_or(Value::Null),
                             json!([{ "path": [index, "originalSource"], "explanation": "Expected value to not be null" }]),
-                        )]
-                    })));
+                        )],
+                        &response_key,
+                    );
                 }
                 Some(source) if source.is_empty() => {
-                    return MutationOutcome::response(media_invalid_field_arguments_response(
+                    return graphql_error_outcome(
+                        vec![media_invalid_field_arguments_error(
+                            "fileCreate",
+                            "originalSource is too short (minimum is 1)",
+                        )],
                         &response_key,
-                        "fileCreate",
-                        "originalSource is too short (minimum is 1)",
-                    ));
+                    );
                 }
                 Some(source) if source.chars().count() > 2048 => {
-                    return MutationOutcome::response(media_invalid_field_arguments_response(
+                    return graphql_error_outcome(
+                        vec![media_invalid_field_arguments_error(
+                            "fileCreate",
+                            "originalSource is too long (maximum is 2048)",
+                        )],
                         &response_key,
-                        "fileCreate",
-                        "originalSource is too long (maximum is 2048)",
-                    ));
+                    );
                 }
                 _ => {}
             }
@@ -131,9 +145,7 @@ impl DraftProxy {
             .collect::<Vec<_>>();
         if !errors.is_empty() {
             let payload = json!({"files": [], "userErrors": errors});
-            return MutationOutcome::response(ok_json(json!({
-                "data": {response_key: selected_json(&payload, &payload_selection)}
-            })));
+            return ResolverOutcome::value(selected_json(&payload, &payload_selection));
         }
 
         // Each successful mutation reserves a synthetic id for its log entry
@@ -175,10 +187,8 @@ impl DraftProxy {
             .filter_map(|file| file.get("id").and_then(Value::as_str).map(str::to_string))
             .collect::<Vec<_>>();
         let payload = json!({"files": files, "userErrors": []});
-        MutationOutcome::staged(
-            ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}})),
-            LogDraft::staged("fileCreate", "media", staged_ids),
-        )
+        ResolverOutcome::value(selected_json(&payload, &payload_selection))
+            .with_log_draft(LogDraft::staged("fileCreate", "media", staged_ids))
     }
 
     pub(in crate::proxy) fn media_file_update(
@@ -186,26 +196,28 @@ impl DraftProxy {
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> MutationOutcome {
+    ) -> ResolverOutcome<Value> {
         let (response_key, payload_selection, arguments) = self
             .execution_primary_root_response_parts(query, variables, || "fileUpdate".to_string());
         let inputs = media_object_list_arg(&arguments, "files");
         if manage_products_denied(request) && media_inputs_have_references(&inputs) {
-            return MutationOutcome::response(media_access_denied_response(
+            return graphql_error_outcome(
+                vec![media_access_denied_error("fileUpdate")],
                 &response_key,
-                "fileUpdate",
-            ));
+            );
         }
         // originalSource over the 2048-char argument limit is a document-level
         // coercion error (top-level errors + null payload), matching Shopify.
         for input in &inputs {
             if let Some(source) = resolved_string_field(input, "originalSource") {
                 if source.chars().count() > 2048 {
-                    return MutationOutcome::response(media_invalid_field_arguments_response(
+                    return graphql_error_outcome(
+                        vec![media_invalid_field_arguments_error(
+                            "fileUpdate",
+                            "originalSource is too long (maximum is 2048)",
+                        )],
                         &response_key,
-                        "fileUpdate",
-                        "originalSource is too long (maximum is 2048)",
-                    ));
+                    );
                 }
             }
         }
@@ -222,11 +234,10 @@ impl DraftProxy {
             |id| self.media_file_for_update(id).is_some(),
         );
         if !missing_ids.is_empty() {
-            return MutationOutcome::response(media_file_update_error_response(
-                &response_key,
+            return media_file_update_error_outcome(
                 &payload_selection,
                 vec![file_update_missing_ids_error(&missing_ids)],
-            ));
+            );
         }
 
         let non_ready_ids = non_ready_media_file_ids(
@@ -236,15 +247,14 @@ impl DraftProxy {
             |id| self.media_file_for_update(id),
         );
         if !non_ready_ids.is_empty() {
-            return MutationOutcome::response(media_file_update_error_response(
-                &response_key,
+            return media_file_update_error_outcome(
                 &payload_selection,
                 vec![user_error(
                     ["files"],
                     "Non-ready files cannot be updated.",
                     Some("NON_READY_STATE"),
                 )],
-            ));
+            );
         }
 
         let post_readiness_field_errors = inputs
@@ -252,11 +262,9 @@ impl DraftProxy {
             .enumerate()
             .flat_map(|(index, input)| validate_file_update_post_readiness_fields(input, index))
             .collect::<Vec<_>>();
-        if let Some(outcome) = media_file_update_errors_outcome(
-            &response_key,
-            &payload_selection,
-            post_readiness_field_errors,
-        ) {
+        if let Some(outcome) =
+            media_file_update_errors_outcome(&payload_selection, post_readiness_field_errors)
+        {
             return outcome;
         }
 
@@ -269,7 +277,7 @@ impl DraftProxy {
             .flat_map(|(index, input)| validate_file_update_ready_source_fields(input, index))
             .collect::<Vec<_>>();
         if let Some(outcome) =
-            media_file_update_errors_outcome(&response_key, &payload_selection, ready_source_errors)
+            media_file_update_errors_outcome(&payload_selection, ready_source_errors)
         {
             return outcome;
         }
@@ -279,9 +287,7 @@ impl DraftProxy {
             .enumerate()
             .flat_map(|(index, input)| self.validate_file_update_target(input, index))
             .collect::<Vec<_>>();
-        if let Some(outcome) =
-            media_file_update_errors_outcome(&response_key, &payload_selection, target_errors)
-        {
+        if let Some(outcome) = media_file_update_errors_outcome(&payload_selection, target_errors) {
             return outcome;
         }
 
@@ -290,20 +296,16 @@ impl DraftProxy {
             .enumerate()
             .filter_map(|(index, input)| file_update_source_version_conflict(input, index))
             .collect::<Vec<_>>();
-        if let Some(outcome) = media_file_update_errors_outcome(
-            &response_key,
-            &payload_selection,
-            source_version_errors,
-        ) {
+        if let Some(outcome) =
+            media_file_update_errors_outcome(&payload_selection, source_version_errors)
+        {
             return outcome;
         }
 
         let reference_target_errors = self.validate_file_update_reference_targets(&inputs);
-        if let Some(outcome) = media_file_update_errors_outcome(
-            &response_key,
-            &payload_selection,
-            reference_target_errors,
-        ) {
+        if let Some(outcome) =
+            media_file_update_errors_outcome(&payload_selection, reference_target_errors)
+        {
             return outcome;
         }
 
@@ -368,10 +370,8 @@ impl DraftProxy {
             .filter_map(|file| file.get("id").and_then(Value::as_str).map(str::to_string))
             .collect::<Vec<_>>();
         let payload = json!({"files": updated_files, "userErrors": []});
-        MutationOutcome::staged(
-            ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}})),
-            LogDraft::staged("fileUpdate", "media", staged_ids),
-        )
+        ResolverOutcome::value(selected_json(&payload, &payload_selection))
+            .with_log_draft(LogDraft::staged("fileUpdate", "media", staged_ids))
     }
 
     pub(in crate::proxy) fn media_file_delete(
@@ -379,8 +379,8 @@ impl DraftProxy {
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> MutationOutcome {
-        let (response_key, payload_selection, arguments) = self
+    ) -> ResolverOutcome<Value> {
+        let (_response_key, payload_selection, arguments) = self
             .execution_primary_root_response_parts(query, variables, || "fileDelete".to_string());
         let ids = media_string_list_arg(&arguments, "fileIds")
             .into_iter()
@@ -397,9 +397,7 @@ impl DraftProxy {
                 "deletedFileIds": Value::Null,
                 "userErrors": [file_delete_missing_ids_error(&missing_ids)]
             });
-            return MutationOutcome::response(ok_json(json!({
-                "data": {response_key: selected_json(&payload, &payload_selection)}
-            })));
+            return ResolverOutcome::value(selected_json(&payload, &payload_selection));
         }
         for id in &ids {
             self.store.staged.media_files.tombstone_staged(id);
@@ -409,18 +407,16 @@ impl DraftProxy {
         // longer surface the removed file.
         self.store.clear_media_ids(&ids, None);
         let payload = json!({"deletedFileIds": ids, "userErrors": []});
-        MutationOutcome::staged(
-            ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}})),
-            LogDraft::staged("fileDelete", "media", ids),
-        )
+        ResolverOutcome::value(selected_json(&payload, &payload_selection))
+            .with_log_draft(LogDraft::staged("fileDelete", "media", ids))
     }
 
     pub(in crate::proxy) fn media_file_acknowledge_update_failed(
         &self,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> MutationOutcome {
-        let (response_key, payload_selection, arguments) = self
+    ) -> ResolverOutcome<Value> {
+        let (_response_key, payload_selection, arguments) = self
             .execution_primary_root_response_parts(query, variables, || {
                 "fileAcknowledgeUpdateFailed".to_string()
             });
@@ -433,9 +429,7 @@ impl DraftProxy {
                 "files": Value::Null,
                 "userErrors": [file_ack_missing_ids_error(&missing_ids)]
             });
-            return MutationOutcome::response(ok_json(json!({
-                "data": {response_key: selected_json(&payload, &payload_selection)}
-            })));
+            return ResolverOutcome::value(selected_json(&payload, &payload_selection));
         }
 
         let non_ready_ids =
@@ -445,9 +439,7 @@ impl DraftProxy {
                 "files": Value::Null,
                 "userErrors": [file_ack_non_ready_error(&non_ready_ids)]
             });
-            return MutationOutcome::response(ok_json(json!({
-                "data": {response_key: selected_json(&payload, &payload_selection)}
-            })));
+            return ResolverOutcome::value(selected_json(&payload, &payload_selection));
         }
 
         let files = file_ids
@@ -455,8 +447,7 @@ impl DraftProxy {
             .filter_map(|id| self.media_file_for_update(id))
             .collect::<Vec<_>>();
         let payload = json!({"files": files, "userErrors": []});
-        MutationOutcome::staged(
-            ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}})),
+        ResolverOutcome::value(selected_json(&payload, &payload_selection)).with_log_draft(
             LogDraft::staged("fileAcknowledgeUpdateFailed", "media", file_ids),
         )
     }
@@ -465,7 +456,7 @@ impl DraftProxy {
         &mut self,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> MutationOutcome {
+    ) -> ResolverOutcome<Value> {
         let (response_key, payload_selection, arguments) = self
             .execution_primary_root_response_parts(query, variables, || {
                 "stagedUploadsCreate".to_string()
@@ -476,17 +467,15 @@ impl DraftProxy {
             .iter()
             .any(|field| field.name == "code")
         {
-            let operation_path = parsed_document(query, variables)
-                .map(|document| document.operation_path)
-                .unwrap_or_else(|| "mutation".to_string());
-            return MutationOutcome::response(ok_json(json!({
-                "errors": [{
+            return graphql_error_outcome(
+                vec![json!({
                     "message": "Field 'code' doesn't exist on type 'UserError'",
                     "locations": [{"line": 7, "column": 9}],
-                    "path": [operation_path, "stagedUploadsCreate", "userErrors", "code"],
+                    "path": [response_key, "userErrors", "code"],
                     "extensions": {"code": "undefinedField", "typeName": "UserError", "fieldName": "code"}
-                }]
-            })));
+                })],
+                &response_key,
+            );
         }
         let inputs = media_object_list_arg(&arguments, "input");
         if let Some((index, resource)) = inputs
@@ -501,17 +490,24 @@ impl DraftProxy {
             let message = format!(
                 "Variable $input of type [StagedUploadInput!]! was provided invalid value for {index}.resource (Expected \"{resource}\" to be one of: {allowed})"
             );
-            return MutationOutcome::response(ok_json(json!({
-                "errors": [invalid_variable_error_envelope(
+            return graphql_error_outcome(
+                vec![invalid_variable_error_envelope(
                     message,
-                    SourceLocation { line: 2, column: 35 },
-                    resolved_variables_json(variables).get("input").cloned().unwrap_or(Value::Null),
+                    SourceLocation {
+                        line: 2,
+                        column: 35,
+                    },
+                    resolved_variables_json(variables)
+                        .get("input")
+                        .cloned()
+                        .unwrap_or(Value::Null),
                     json!([{
                         "path": [index, "resource"],
                         "explanation": format!("Expected \"{resource}\" to be one of: {allowed}")
                     }]),
-                )]
-            })));
+                )],
+                &response_key,
+            );
         }
         // Validate every input up front so we know whether the mutation will
         // succeed. A successful mutation reserves a synthetic id for its log
@@ -538,17 +534,16 @@ impl DraftProxy {
             }
         }
         let payload = json!({"stagedTargets": targets, "userErrors": errors});
-        let response = ok_json(json!({
-            "data": {response_key: selected_json(&payload, &payload_selection)}
-        }));
+        let value = selected_json(&payload, &payload_selection);
         if payload["userErrors"].as_array().is_some_and(Vec::is_empty) {
             self.record_bulk_operation_staged_uploads(&inputs, &targets);
-            MutationOutcome::staged(
-                response,
-                LogDraft::staged("stagedUploadsCreate", "media", Vec::new()),
-            )
+            ResolverOutcome::value(value).with_log_draft(LogDraft::staged(
+                "stagedUploadsCreate",
+                "media",
+                Vec::new(),
+            ))
         } else {
-            MutationOutcome::response(response)
+            ResolverOutcome::value(value)
         }
     }
 
@@ -880,39 +875,44 @@ impl DraftProxy {
         errors
     }
 
-    pub(in crate::proxy) fn media_files_read(
+    pub(in crate::proxy) fn media_files_read_outcome(
         &mut self,
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
-        let fields = self
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
+        let mut fields = self
             .execution_root_fields(query, variables)
             .unwrap_or_default();
+        fields.retain(|field| field.response_key == response_key);
         if self.config.read_mode == ReadMode::LiveHybrid {
-            let mut response = self
-                .request_upstream_query_response
-                .clone()
-                .unwrap_or_else(|| (self.upstream_transport)(request.clone()));
-            if (200..300).contains(&response.status) {
-                if response.body.get("errors").is_some() {
-                    return response;
-                }
-                self.hydrate_media_files_read_state(request, &fields, &response.body["data"]);
+            let mut outcome = self.cached_or_forward_upstream_root_outcome(request, response_key);
+            if outcome.errors.is_empty() {
+                let upstream_data = json!({ (response_key): outcome.value.clone() });
+                self.hydrate_media_files_read_state(request, &fields, &upstream_data);
                 self.hydrate_media_file_saved_searches_for_fields(request, &fields);
-                if let Some(error_response) = self.media_files_saved_search_error_response(&fields)
-                {
-                    return error_response;
+                if let Some(error) = self.media_files_saved_search_error(&fields) {
+                    return graphql_error_outcome(vec![error], response_key);
                 }
-                response.body["data"] = self.media_files_read_data(request, &fields);
+                let mut data = self.media_files_read_data(request, &fields);
+                outcome.value = data
+                    .as_object_mut()
+                    .and_then(|data| data.remove(response_key))
+                    .unwrap_or(Value::Null);
             }
-            return response;
+            return outcome;
         }
         self.promote_polled_media_files_to_ready(&fields);
-        if let Some(error_response) = self.media_files_saved_search_error_response(&fields) {
-            return error_response;
+        if let Some(error) = self.media_files_saved_search_error(&fields) {
+            return graphql_error_outcome(vec![error], response_key);
         }
-        ok_json(json!({"data": self.media_files_read_data(request, &fields)}))
+        let mut data = self.media_files_read_data(request, &fields);
+        ResolverOutcome::value(
+            data.as_object_mut()
+                .and_then(|data| data.remove(response_key))
+                .unwrap_or(Value::Null),
+        )
     }
 
     fn media_files_read_data(&self, request: &Request, fields: &[RootFieldSelection]) -> Value {
@@ -1062,10 +1062,7 @@ impl DraftProxy {
             .insert(record.id.clone(), record);
     }
 
-    fn media_files_saved_search_error_response(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> Option<Response> {
+    fn media_files_saved_search_error(&self, fields: &[RootFieldSelection]) -> Option<Value> {
         for field in fields {
             if field.name != "files" {
                 continue;
@@ -1081,7 +1078,7 @@ impl DraftProxy {
             {
                 continue;
             }
-            return Some(media_file_saved_search_not_found_response(
+            return Some(media_file_saved_search_not_found_error(
                 field,
                 &saved_search_id,
             ));
@@ -1243,35 +1240,25 @@ fn media_string_list_arg(arguments: &BTreeMap<String, ResolvedValue>, key: &str)
     list_string_field(arguments, key)
 }
 
-fn media_invalid_field_arguments_response(
-    response_key: &str,
-    root_field: &str,
-    message: &str,
-) -> Response {
-    ok_json(json!({
-        "errors": [{
-            "message": message,
-            "locations": [{"line": 3, "column": 5}, {"line": 2, "column": 43}],
-            "extensions": {"code": "INVALID_FIELD_ARGUMENTS"},
-            "path": [root_field]
-        }],
-        "data": {response_key: Value::Null}
-    }))
+fn media_invalid_field_arguments_error(root_field: &str, message: &str) -> Value {
+    json!({
+        "message": message,
+        "locations": [{"line": 3, "column": 5}, {"line": 2, "column": 43}],
+        "extensions": {"code": "INVALID_FIELD_ARGUMENTS"},
+        "path": [root_field]
+    })
 }
 
-fn media_access_denied_response(response_key: &str, root_field: &str) -> Response {
-    ok_json(json!({
-        "errors": [{
-            "message": "Access denied: Missing permission to manage products.",
-            "locations": [{"line": 2, "column": 3}],
-            "extensions": {
-                "code": "ACCESS_DENIED",
-                "documentation": "https://shopify.dev/api/usage/access-scopes"
-            },
-            "path": [root_field]
-        }],
-        "data": {response_key: Value::Null}
-    }))
+fn media_access_denied_error(root_field: &str) -> Value {
+    json!({
+        "message": "Access denied: Missing permission to manage products.",
+        "locations": [{"line": 2, "column": 3}],
+        "extensions": {
+            "code": "ACCESS_DENIED",
+            "documentation": "https://shopify.dev/api/usage/access-scopes"
+        },
+        "path": [root_field]
+    })
 }
 
 fn manage_products_denied(request: &Request) -> bool {
@@ -1348,25 +1335,22 @@ fn media_file_row_user_error(index: usize, message: &str, code: &str) -> Value {
     )
 }
 
-fn media_file_saved_search_not_found_response(
+fn media_file_saved_search_not_found_error(
     field: &RootFieldSelection,
     saved_search_id: &str,
-) -> Response {
-    ok_json(json!({
-        "errors": [{
-            "message": format!(
-                "The saved search with the ID {} could not be found.",
-                saved_search_legacy_resource_id(saved_search_id)
-            ),
-            "locations": [{
-                "line": field.location.line,
-                "column": field.location.column
-            }],
-            "extensions": { "code": "RESOURCE_NOT_FOUND" },
-            "path": [field.response_key.clone()]
+) -> Value {
+    json!({
+        "message": format!(
+            "The saved search with the ID {} could not be found.",
+            saved_search_legacy_resource_id(saved_search_id)
+        ),
+        "locations": [{
+            "line": field.location.line,
+            "column": field.location.column
         }],
-        "data": Value::Null
-    }))
+        "extensions": { "code": "RESOURCE_NOT_FOUND" },
+        "path": [field.response_key.clone()]
+    })
 }
 
 fn validate_file_create_input(
@@ -1513,28 +1497,21 @@ fn file_update_source_version_conflict(
     None
 }
 
-fn media_file_update_error_response(
-    response_key: &str,
+fn media_file_update_error_outcome(
     payload_selection: &[SelectedField],
     user_errors: Vec<Value>,
-) -> Response {
+) -> ResolverOutcome<Value> {
     let user_errors = dedupe_media_user_errors(user_errors);
     let payload = json!({"files": [], "userErrors": user_errors});
-    ok_json(json!({"data": {response_key: selected_json(&payload, payload_selection)}}))
+    ResolverOutcome::value(selected_json(&payload, payload_selection))
 }
 
 fn media_file_update_errors_outcome(
-    response_key: &str,
     payload_selection: &[SelectedField],
     user_errors: Vec<Value>,
-) -> Option<MutationOutcome> {
-    (!user_errors.is_empty()).then(|| {
-        MutationOutcome::response(media_file_update_error_response(
-            response_key,
-            payload_selection,
-            user_errors,
-        ))
-    })
+) -> Option<ResolverOutcome<Value>> {
+    (!user_errors.is_empty())
+        .then(|| media_file_update_error_outcome(payload_selection, user_errors))
 }
 
 fn missing_media_file_ids<I, S, Exists>(ids: I, mut exists: Exists) -> Vec<String>

@@ -1793,39 +1793,3 @@ pub(in crate::proxy) fn set_log_status(entry: &mut Value, status: &str) {
         fields.insert("status".to_string(), json!(status));
     }
 }
-
-impl DraftProxy {
-    pub(in crate::proxy) fn record_failed_mutation(
-        &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        root_field: &str,
-    ) {
-        self.record_mutation_log_with_status(
-            request,
-            query,
-            variables,
-            root_field,
-            Vec::new(),
-            "failed",
-        );
-    }
-
-    pub(in crate::proxy) fn record_mutation_log_with_status(
-        &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        root_field: &str,
-        staged_ids: Vec<String>,
-        status: &str,
-    ) {
-        self.record_mutation_log_entry(request, query, variables, root_field, staged_ids);
-        if status != "staged" {
-            if let Some(entry) = self.log_entries.last_mut() {
-                set_log_status(entry, status);
-            }
-        }
-    }
-}

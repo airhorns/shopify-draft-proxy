@@ -11069,7 +11069,7 @@ fn product_helper_and_variant_reads_return_no_data_without_staged_products() {
 }
 
 #[test]
-fn collections_catalog_fixture_query_is_not_replayed_as_canned_data() {
+fn collections_catalog_snapshot_read_is_store_backed_not_canned() {
     let mut proxy = snapshot_proxy();
     let query =
         include_str!("../../config/parity-requests/products/collections-catalog-read.graphql");
@@ -11086,8 +11086,14 @@ fn collections_catalog_fixture_query_is_not_replayed_as_canned_data() {
             "productMembershipQuery": "product_id:8397255672041"
         }),
     ));
-    assert_ne!(response.status, 200);
-    assert_eq!(response.body["data"], Value::Null);
+    assert_eq!(response.status, 200);
+    let data = response.body["data"].as_object().unwrap();
+    assert!(!data.is_empty());
+    assert!(data.values().all(|connection| {
+        connection["edges"] == json!([])
+            && connection["pageInfo"]["hasNextPage"] == json!(false)
+            && connection["pageInfo"]["hasPreviousPage"] == json!(false)
+    }));
 }
 
 #[test]

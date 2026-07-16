@@ -305,17 +305,23 @@ fn storefront_registry_bindings_for_roots(
     roots
         .into_iter()
         .filter(|name| seen.insert((operation_type.keyword(), name.clone())))
-        .map(|name| ExecutableRootRegistration {
-            entry: OperationRegistryEntry {
-                api_surface: ApiSurface::Storefront,
-                name: name.clone(),
-                operation_type,
-                domain: CapabilityDomain::Storefront,
-                implemented: storefront_root_is_implemented(operation_type, &name),
-                match_names: default_match_names(&name),
-                runtime_tests: storefront_runtime_tests(operation_type, &name),
-            },
-            handler: DraftProxy::resolve_storefront_graphql,
+        .map(|name| {
+            let implemented = storefront_root_is_implemented(operation_type, &name);
+            ExecutableRootRegistration {
+                entry: OperationRegistryEntry {
+                    api_surface: ApiSurface::Storefront,
+                    name: name.clone(),
+                    operation_type,
+                    domain: CapabilityDomain::Storefront,
+                    implemented,
+                    match_names: default_match_names(&name),
+                    runtime_tests: storefront_runtime_tests(operation_type, &name),
+                },
+                handler: implemented.then_some(
+                    DraftProxy::resolve_storefront_graphql
+                        as crate::resolver_registry::NativeResolverHandler,
+                ),
+            }
         })
         .collect()
 }

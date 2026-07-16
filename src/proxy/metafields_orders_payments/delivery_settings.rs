@@ -1,15 +1,17 @@
 use super::*;
 
 impl DraftProxy {
-    pub(in crate::proxy) fn delivery_settings_read_response(
+    pub(in crate::proxy) fn delivery_settings_read_outcome(
         &mut self,
         request: &Request,
         fields: &[RootFieldSelection],
-    ) -> Response {
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
         if self.config.read_mode != ReadMode::Snapshot {
-            return (self.upstream_transport)(request.clone());
+            return self.cached_or_forward_upstream_root_outcome(request, response_key);
         }
-        ok_json(json!({ "data": delivery_settings_read_data(fields) }))
+        let data = delivery_settings_read_data(fields);
+        ResolverOutcome::value(data.get(response_key).cloned().unwrap_or(Value::Null))
     }
 }
 

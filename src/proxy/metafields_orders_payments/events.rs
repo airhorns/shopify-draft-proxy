@@ -43,10 +43,7 @@ impl DraftProxy {
         match mode {
             LocalResolverMode::OverlayRead => {
                 if self.config.read_mode == ReadMode::LiveHybrid {
-                    return resolver_outcome_from_response(
-                        (self.upstream_transport)(request.clone()),
-                        response_key,
-                    );
+                    return self.forward_upstream_root_outcome(request, response_key);
                 }
                 ResolverOutcome::value(match root_name {
                     "event" => Value::Null,

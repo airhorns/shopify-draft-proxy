@@ -573,11 +573,11 @@ pub(in crate::proxy) fn fulfillment_order_id_is_invalid(id: &str) -> bool {
         .unwrap_or(true)
 }
 
-// Builds the top-level `invalid id` envelope Shopify returns when a
+// Builds the execution error Shopify returns when a
 // `fulfillmentCreate` references a structurally invalid fulfillment-order id.
 pub(in crate::proxy) fn fulfillment_create_invalid_id_error(
     field: &RootFieldSelection,
-) -> Option<Value> {
+) -> Option<ResolverOutcome<Value>> {
     let fulfillment_input = resolved_object_field(&field.arguments, "fulfillment")?;
     let groups = resolved_object_list_field(&fulfillment_input, "lineItemsByFulfillmentOrder");
     if !groups.iter().any(|group| {
@@ -586,16 +586,14 @@ pub(in crate::proxy) fn fulfillment_create_invalid_id_error(
     }) {
         return None;
     }
-    let mut data = serde_json::Map::new();
-    data.insert(field.response_key.clone(), Value::Null);
-    Some(json!({
-        "data": Value::Object(data),
-        "errors": [{
+    Some(graphql_error_outcome(
+        vec![json!({
             "message": "invalid id",
             "extensions": { "code": "RESOURCE_NOT_FOUND" },
             "path": [field.response_key.clone()]
-        }]
-    }))
+        })],
+        &field.response_key,
+    ))
 }
 
 pub(in crate::proxy) fn fulfillment_event_nullable_string(
@@ -728,13 +726,14 @@ impl DraftProxy {
                 .unwrap_or(true)
     }
 
-    pub(in crate::proxy) fn fulfillment_order_local_mutation_data(
+    pub(in crate::proxy) fn fulfillment_order_local_mutation_outcome(
         &mut self,
         request: &Request,
         root_field: &str,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<Value> {
+        response_key: &str,
+    ) -> Option<ResolverOutcome<Value>> {
         let field = self
             .execution_root_fields(query, variables)?
             .into_iter()
@@ -758,7 +757,7 @@ impl DraftProxy {
             }
             _ => return None,
         };
-        Some(data_response(&field.response_key, payload))
+        (field.response_key == response_key).then(|| ResolverOutcome::value(payload))
     }
 
     pub(super) fn fulfillment_order_not_found_payload(

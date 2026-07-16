@@ -30,9 +30,9 @@ struct PreparedStorefrontRootCall {
 
 #[derive(Debug, Clone)]
 struct StorefrontCustomerAuthLogContext {
-    query: String,
     variables: BTreeMap<String, ResolvedValue>,
-    fields: Vec<RootFieldSelection>,
+    operation_type: OperationType,
+    root_fields: Vec<String>,
     execution: &'static str,
 }
 
@@ -53,7 +53,14 @@ struct StorefrontRootExecutor {
     original_request: Request,
     logged: std::sync::Mutex<bool>,
     passthrough_response: Arc<std::sync::Mutex<Option<Response>>>,
-    compatibility_root_values: Arc<std::sync::Mutex<BTreeMap<String, Value>>>,
+    nullable_list_repairs: Arc<std::sync::Mutex<Vec<NullableListRepair>>>,
+}
+
+#[derive(Debug, Clone)]
+struct NullableListRepair {
+    path: Vec<String>,
+    original_len: usize,
+    null_indices: Vec<usize>,
 }
 
 impl StorefrontRootExecutor {
@@ -73,19 +80,19 @@ impl StorefrontRootExecutor {
         if !self.calls.values().any(is_customer_auth_call) {
             return None;
         }
-        let fields = self
+        let root_fields = self
             .calls
             .values()
-            .map(|call| call.field.clone())
+            .map(|call| call.field.name.clone())
             .collect::<Vec<_>>();
         let execution = match first.operation.operation_type {
             OperationType::Mutation => "stage-locally",
             _ => "overlay-read",
         };
         Some(StorefrontCustomerAuthLogContext {
-            query: first.query.clone(),
             variables: first.variables.clone(),
-            fields,
+            operation_type: first.operation.operation_type,
+            root_fields,
             execution,
         })
     }
@@ -104,9 +111,9 @@ impl StorefrontRootExecutor {
                 .map_err(|_| "Storefront GraphQL proxy state lock was poisoned".to_string())?
                 .record_storefront_customer_auth_log_entry(
                     &self.original_request,
-                    &context.query,
                     &context.variables,
-                    &context.fields,
+                    context.operation_type,
+                    &context.root_fields,
                     StorefrontCustomerAuthLogDetails {
                         status: "handled",
                         execution: context.execution,
@@ -180,6 +187,8 @@ impl StorefrontRootExecutor {
                 api_version: GraphqlApiVersion::Storefront(self.version),
                 response_key,
                 root_name,
+                root_location: call.field.location,
+                directives: call.field.directives.clone(),
                 arguments,
                 request: &call.request,
                 query: &call.query,
@@ -190,24 +199,6 @@ impl StorefrontRootExecutor {
         );
         for draft in outcome.log_drafts {
             proxy.record_mutation_log_draft(&call.request, &call.query, &call.variables, draft);
-        }
-        if matches!(
-            root_name,
-            "shop"
-                | "product"
-                | "productByHandle"
-                | "products"
-                | "metaobject"
-                | "metaobjects"
-                | "customer"
-        ) || STOREFRONT_CUSTOMER_AUTH_MUTATION_ROOTS.contains(&root_name)
-        {
-            self.compatibility_root_values
-                .lock()
-                .map_err(|_| {
-                    "Storefront GraphQL compatibility-value lock was poisoned".to_string()
-                })?
-                .insert(response_key.to_string(), outcome.value.clone());
         }
         Ok(RootFieldResult {
             value: outcome.value,
@@ -312,25 +303,45 @@ impl RootFieldExecutor for StorefrontRootExecutor {
         );
         match implementation {
             FieldResolverImplementation::PropertyBacked => Ok(FieldResolverResult::PropertyBacked),
-            FieldResolverImplementation::ExplicitFallbackToProperty(handler) => {
-                if invocation.parent.as_object().is_some_and(|parent| {
-                    parent.contains_key(&invocation.response_key)
-                        || parent.contains_key(&invocation.field_name)
-                }) {
-                    Ok(FieldResolverResult::PropertyBacked)
-                } else {
-                    handler(&mut proxy, &self.original_request, &invocation)
-                        .map(FieldResolverResult::Resolved)
-                }
-            }
-            FieldResolverImplementation::ExplicitAlways(handler) => {
-                handler(&mut proxy, &self.original_request, &invocation)
+            FieldResolverImplementation::Explicit(handler) => {
+                let value = handler(&mut proxy, &self.original_request, &invocation)?;
+                self.prepare_nullable_list_value(&invocation.path, value)
                     .map(FieldResolverResult::Resolved)
             }
             FieldResolverImplementation::DeliberatelyUnsupported(reason) => Ok(
                 FieldResolverResult::DeliberatelyUnsupported(reason.to_string()),
             ),
         }
+    }
+}
+
+impl StorefrontRootExecutor {
+    fn prepare_nullable_list_value(&self, path: &[String], value: Value) -> Result<Value, String> {
+        let Value::Array(values) = value else {
+            return Ok(value);
+        };
+        let null_indices = values
+            .iter()
+            .enumerate()
+            .filter_map(|(index, value)| value.is_null().then_some(index))
+            .collect::<Vec<_>>();
+        if null_indices.is_empty() {
+            return Ok(Value::Array(values));
+        }
+        let original_len = values.len();
+        let values = values
+            .into_iter()
+            .filter(|value| !value.is_null())
+            .collect();
+        self.nullable_list_repairs
+            .lock()
+            .map_err(|_| "Storefront nullable-list repair lock was poisoned".to_string())?
+            .push(NullableListRepair {
+                path: path.to_vec(),
+                original_len,
+                null_indices,
+            });
+        Ok(Value::Array(values))
     }
 }
 
@@ -446,10 +457,13 @@ impl DraftProxy {
             && prepared
                 .as_ref()
                 .is_some_and(|(document, _, _)| match document.operation_type {
-                    OperationType::Query => self.storefront_fields_are_local(&document.root_fields),
-                    OperationType::Mutation => {
-                        self.storefront_mutation_fields_are_local(&document.root_fields)
-                    }
+                    OperationType::Query => document.root_fields.iter().all(|field| {
+                        self.storefront_query_root_is_local(&field.name, &field.arguments)
+                    }),
+                    OperationType::Mutation => document
+                        .root_fields
+                        .iter()
+                        .all(|field| self.storefront_mutation_root_is_local(&field.name)),
                     OperationType::Subscription => false,
                 });
         let has_customer_auth_mutation = prepared.as_ref().is_some_and(|(document, _, _)| {
@@ -472,9 +486,13 @@ impl DraftProxy {
             if has_customer_auth_mutation {
                 self.record_storefront_customer_auth_log_entry(
                     request,
-                    selected_query.as_deref().unwrap_or(&graphql_request.query),
                     variables,
-                    &document.root_fields,
+                    document.operation_type,
+                    &document
+                        .root_fields
+                        .iter()
+                        .map(|field| field.name.clone())
+                        .collect::<Vec<_>>(),
                     StorefrontCustomerAuthLogDetails {
                         status: "rejected",
                         execution: "stage-locally",
@@ -523,8 +541,8 @@ impl DraftProxy {
             .unwrap_or_default();
         let passthrough_response = Arc::new(std::sync::Mutex::new(None));
         let passthrough_for_executor = Arc::clone(&passthrough_response);
-        let compatibility_root_values = Arc::new(std::sync::Mutex::new(BTreeMap::new()));
-        let compatibility_values_for_executor = Arc::clone(&compatibility_root_values);
+        let nullable_list_repairs = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let nullable_list_repairs_for_executor = Arc::clone(&nullable_list_repairs);
         let engine_response = with_request_owned_proxy(self, move |shared_proxy| {
             let executor: Arc<dyn RootFieldExecutor> = Arc::new(StorefrontRootExecutor {
                 proxy: shared_proxy,
@@ -534,7 +552,7 @@ impl DraftProxy {
                 original_request: request.clone(),
                 logged: std::sync::Mutex::new(false),
                 passthrough_response: passthrough_for_executor,
-                compatibility_root_values: compatibility_values_for_executor,
+                nullable_list_repairs: nullable_list_repairs_for_executor,
             });
             let mut engine_request = async_graphql::Request::new(engine_query)
                 .variables(async_graphql::Variables::from_json(engine_variables))
@@ -574,8 +592,8 @@ impl DraftProxy {
             prepared.as_ref().map(|(document, _, _)| document),
             selected_query.as_deref().unwrap_or(&graphql_request.query),
         );
-        if let Ok(values) = compatibility_root_values.lock() {
-            repair_nullable_object_list_engine_error(&mut body, &values);
+        if let Ok(repairs) = nullable_list_repairs.lock() {
+            apply_nullable_list_repairs(&mut body, &repairs);
         }
         ok_json(body)
     }
@@ -604,36 +622,48 @@ impl DraftProxy {
     }
 }
 
-fn repair_nullable_object_list_engine_error(
-    body: &mut Value,
-    compatibility_values: &BTreeMap<String, Value>,
-) {
-    let Some(errors) = body.get_mut("errors").and_then(Value::as_array_mut) else {
+fn apply_nullable_list_repairs(body: &mut Value, repairs: &[NullableListRepair]) {
+    let Some(data) = body.get_mut("data") else {
         return;
     };
-    let original_len = errors.len();
-    errors.retain(|error| {
-        error.get("message").and_then(Value::as_str)
-            != Some(
-                "internal: \"null\" is not of the expected type \"shopify_draft_proxy::admin_graphql::JsonObject\"",
-            )
-    });
-    if errors.len() == original_len {
-        return;
+    let mut repairs = repairs.to_vec();
+    repairs.sort_by_key(|repair| std::cmp::Reverse(repair.path.len()));
+    for repair in repairs {
+        let Some(value) = value_at_response_path_mut(data, &repair.path) else {
+            continue;
+        };
+        let Some(projected) = value.as_array_mut() else {
+            continue;
+        };
+        let projected = std::mem::take(projected);
+        let mut projected = projected.into_iter();
+        let null_indices = repair.null_indices.into_iter().collect::<BTreeSet<_>>();
+        *value = Value::Array(
+            (0..repair.original_len)
+                .map(|index| {
+                    if null_indices.contains(&index) {
+                        Value::Null
+                    } else {
+                        projected.next().unwrap_or(Value::Null)
+                    }
+                })
+                .collect(),
+        );
     }
-    let errors_empty = errors.is_empty();
-    let data = body
-        .as_object_mut()
-        .map(|body| body.entry("data").or_insert_with(|| json!({})))
-        .and_then(Value::as_object_mut);
-    if let Some(data) = data {
-        for (response_key, value) in compatibility_values {
-            data.insert(response_key.clone(), value.clone());
-        }
+}
+
+fn value_at_response_path_mut<'a>(
+    mut value: &'a mut Value,
+    path: &[String],
+) -> Option<&'a mut Value> {
+    for segment in path {
+        value = match value {
+            Value::Object(object) => object.get_mut(segment)?,
+            Value::Array(array) => array.get_mut(segment.parse::<usize>().ok()?)?,
+            _ => return None,
+        };
     }
-    if errors_empty {
-        body.as_object_mut().map(|body| body.remove("errors"));
-    }
+    Some(value)
 }
 
 fn storefront_root_result(

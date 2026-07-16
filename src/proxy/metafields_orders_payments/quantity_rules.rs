@@ -1,14 +1,14 @@
 use super::*;
 
 impl DraftProxy {
-    pub(in crate::proxy) fn quantity_rules_mutation_response(
+    pub(in crate::proxy) fn quantity_rules_mutation_outcome(
         &mut self,
         root_field: &str,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
-    ) -> Response {
-        let (response_key, payload_selection, arguments) =
+    ) -> ResolverOutcome<Value> {
+        let (_response_key, payload_selection, arguments) =
             self.execution_primary_root_response_parts(query, variables, || root_field.to_string());
         let price_list_id = resolved_string_field(&arguments, "priceListId").unwrap_or_default();
         let (payload, staged_variant_ids) = if root_field == "quantityRulesDelete" {
@@ -96,7 +96,7 @@ impl DraftProxy {
             extend_unique_strings(&mut touched_ids, staged_variant_ids);
             self.record_mutation_log_entry(request, query, variables, root_field, touched_ids);
         }
-        ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}}))
+        ResolverOutcome::value(selected_json(&payload, &payload_selection))
     }
 }
 

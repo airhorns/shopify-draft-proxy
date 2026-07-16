@@ -48,12 +48,10 @@ fn backup_region_country_code_coercion_error(
     }
 
     json!({
-        "errors": [{
-            "message": message,
-            "locations": [{ "line": location.line, "column": location.column }],
-            "path": [operation_path, "backupRegionUpdate", "region", "countryCode"],
-            "extensions": extensions
-        }]
+        "message": message,
+        "locations": [{ "line": location.line, "column": location.column }],
+        "path": [operation_path, "backupRegionUpdate", "region", "countryCode"],
+        "extensions": extensions
     })
 }
 
@@ -63,7 +61,7 @@ impl DraftProxy {
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
+    ) -> ResolverOutcome<Value> {
         let document = parsed_document(query, variables);
         let root_field = document.as_ref().and_then(|document| {
             document
@@ -81,13 +79,17 @@ impl DraftProxy {
         let access_denied_location = root_field
             .map(|field| field.location)
             .unwrap_or(SourceLocation { line: 1, column: 1 });
-        let access_denied_body =
-            || backup_region_update_access_denied_body(&response_key, access_denied_location);
+        let access_denied_error =
+            || backup_region_update_access_denied_error(&response_key, access_denied_location);
+        let error_outcome = |error| {
+            ResolverOutcome::value(Value::Null)
+                .with_errors(root_field_errors_from_json(&[error], &response_key))
+        };
         let country_code = match backup_region_update_country_code(root_field) {
             BackupRegionCountryCodeInput::ReadCurrent => None,
             BackupRegionCountryCodeInput::CountryCode(country_code) => {
                 if !location_country_code_is_valid(&country_code) {
-                    return ok_json(backup_region_country_code_coercion_error(
+                    return error_outcome(backup_region_country_code_coercion_error(
                         &format!(
                             "Argument 'countryCode' on InputObject 'BackupRegionUpdateInput' has an invalid value ({country_code}). Expected type 'CountryCode!'."
                         ),
@@ -99,7 +101,7 @@ impl DraftProxy {
                 Some(country_code.to_ascii_uppercase())
             }
             BackupRegionCountryCodeInput::Missing => {
-                return ok_json(backup_region_country_code_coercion_error(
+                return error_outcome(backup_region_country_code_coercion_error(
                     "Argument 'countryCode' on InputObject 'BackupRegionUpdateInput' is required. Expected type CountryCode!",
                     operation_path,
                     "missingRequiredInputObjectAttribute",
@@ -107,7 +109,7 @@ impl DraftProxy {
                 ));
             }
             BackupRegionCountryCodeInput::Invalid(value) => {
-                return ok_json(backup_region_country_code_coercion_error(
+                return error_outcome(backup_region_country_code_coercion_error(
                     &format!(
                         "Argument 'countryCode' on InputObject 'BackupRegionUpdateInput' has an invalid value ({value}). Expected type 'CountryCode!'."
                     ),
@@ -118,7 +120,7 @@ impl DraftProxy {
             }
         };
         if self.backup_region_update_lacks_markets_access(request) {
-            return ok_json(access_denied_body());
+            return error_outcome(access_denied_error());
         }
         let hydrate_current = Self::hydrate_current_backup_region_from_upstream;
 
@@ -128,7 +130,7 @@ impl DraftProxy {
                     && self.config.read_mode != ReadMode::Snapshot
                     && self.hydrate_access_denied(request, hydrate_current)
                 {
-                    return ok_json(access_denied_body());
+                    return error_outcome(access_denied_error());
                 }
                 (!self.store.staged.backup_region.is_null())
                     .then(|| self.store.staged.backup_region.clone())
@@ -140,7 +142,7 @@ impl DraftProxy {
                 if region.is_none() && self.config.read_mode != ReadMode::Snapshot {
                     let hydrate = self.hydrate_available_backup_regions_from_upstream(request);
                     if backup_region_response_is_access_denied(&hydrate.body) {
-                        return ok_json(access_denied_body());
+                        return error_outcome(access_denied_error());
                     }
                     region = self.available_backup_region_for_code(code);
                 }
@@ -149,7 +151,7 @@ impl DraftProxy {
                         && self.config.read_mode != ReadMode::Snapshot
                         && self.hydrate_access_denied(request, hydrate_current)
                     {
-                        return ok_json(access_denied_body());
+                        return error_outcome(access_denied_error());
                     }
                     region = self.current_backup_region_for_code(code);
                 }
@@ -162,8 +164,9 @@ impl DraftProxy {
                     .as_ref()
                     .map(|region| selected_backup_region_value(region, root_field))
                     .unwrap_or(Value::Null);
-                ok_json(json!({
-                    "data": { response_key: { "backupRegion": backup_region, "userErrors": [] } }
+                ResolverOutcome::value(json!({
+                    "backupRegion": backup_region,
+                    "userErrors": []
                 }))
             }
             (Some(_), Some(region)) => {
@@ -173,16 +176,15 @@ impl DraftProxy {
                     .and_then(Value::as_str)
                     .unwrap_or("gid://shopify/MarketRegionCountry/local")
                     .to_string();
-                self.record_mutation_log_entry(
-                    request,
-                    query,
-                    variables,
-                    "backupRegionUpdate",
-                    vec![staged_id],
-                );
-                ok_json(json!({
-                    "data": { response_key: { "backupRegion": selected_backup_region_value(&region, root_field), "userErrors": [] } }
+                ResolverOutcome::value(json!({
+                    "backupRegion": selected_backup_region_value(&region, root_field),
+                    "userErrors": []
                 }))
+                .with_log_draft(LogDraft::staged(
+                    "backupRegionUpdate",
+                    "admin-platform",
+                    vec![staged_id],
+                ))
             }
             (Some(_), None) => {
                 let mut user_error = serde_json::Map::from_iter([
@@ -198,13 +200,9 @@ impl DraftProxy {
                 if include_user_error_typename {
                     user_error.insert("__typename".to_string(), json!("MarketUserError"));
                 }
-                ok_json(json!({
-                "data": {
-                    response_key: {
-                        "backupRegion": null,
-                        "userErrors": [Value::Object(user_error)]
-                    }
-                }
+                ResolverOutcome::value(json!({
+                    "backupRegion": null,
+                    "userErrors": [Value::Object(user_error)]
                 }))
             }
         }
@@ -237,7 +235,7 @@ impl DraftProxy {
         let Some(scopes) = current_app_installation_access_scopes(&response.body) else {
             return false;
         };
-        self.observe_current_app_installation_response(request, &response);
+        self.observe_current_app_installation_data(request, &response.body["data"]);
         self.mark_backup_region_access_scopes_cached(request);
         !backup_region_scopes_include_markets(&scopes)
     }
@@ -333,18 +331,15 @@ fn backup_region_country_from_code(country_code: &str) -> Value {
     })
 }
 
-fn backup_region_update_access_denied_body(response_key: &str, location: SourceLocation) -> Value {
+fn backup_region_update_access_denied_error(response_key: &str, location: SourceLocation) -> Value {
     const REQUIRED_ACCESS: &str =
         "`read_markets` for queries and both `read_markets` as well as `write_markets` for mutations.";
-    json!({
-        "errors": [top_level_access_denied_error_envelope(
-            format!("Access denied for backupRegionUpdate field. Required access: {REQUIRED_ACCESS}"),
-            Some(location),
-            vec![json!(response_key)],
-            Some(REQUIRED_ACCESS),
-        )],
-        "data": { response_key: null }
-    })
+    top_level_access_denied_error_envelope(
+        format!("Access denied for backupRegionUpdate field. Required access: {REQUIRED_ACCESS}"),
+        Some(location),
+        vec![json!(response_key)],
+        Some(REQUIRED_ACCESS),
+    )
 }
 
 fn backup_region_scopes_include_markets(scopes: &[String]) -> bool {

@@ -309,20 +309,13 @@ fn push_optional_graphql_arg(
 }
 
 impl DraftProxy {
-    // metafieldsSet/metafieldsDelete read their `metafields` list from the
-    // resolved root-field arguments so inline-document forms work, not only the
-    // `$metafields` variable form. Falls back to top-level variables for safety.
-    pub(in crate::proxy) fn owner_metafields_set(
+    pub(crate) fn owner_metafields_set(
         &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> MutationOutcome {
-        let (response_key, payload_selection, arguments) = self
-            .execution_primary_root_response_parts(query, variables, || {
-                "metafieldsSet".to_string()
-            });
-        let inputs = metafields_mutation_inputs(&arguments, variables);
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let request = invocation.request;
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        let inputs = resolved_object_list_field(&arguments, "metafields");
         let api_client_id = request_app_namespace_api_client_id(request);
         let fallback_reference_ids = if inputs.len() <= METAFIELDS_SET_INPUT_LIMIT {
             self.hydrate_metafield_reference_ids(
@@ -354,9 +347,7 @@ impl DraftProxy {
                 json!([])
             };
             let payload = json!({"metafields": metafields, "userErrors": user_errors});
-            return MutationOutcome::response(ok_json(
-                json!({"data": {response_key: selected_json(&payload, &payload_selection)}}),
-            ));
+            return ResolverOutcome::value(payload);
         }
         let mut metafields = Vec::new();
         let mut staged_owner_ids = Vec::new();
@@ -412,23 +403,20 @@ impl DraftProxy {
             metafields.push(metafield);
         }
         let payload = json!({"metafields": metafields, "userErrors": []});
-        MutationOutcome::staged(
-            ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}})),
-            LogDraft::staged("metafieldsSet", "products", staged_owner_ids),
-        )
+        ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
+            "metafieldsSet",
+            "products",
+            staged_owner_ids,
+        ))
     }
 
-    pub(in crate::proxy) fn owner_metafields_delete(
+    pub(crate) fn owner_metafields_delete(
         &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> MutationOutcome {
-        let (response_key, payload_selection, arguments) = self
-            .execution_primary_root_response_parts(query, variables, || {
-                "metafieldsDelete".to_string()
-            });
-        let inputs = metafields_mutation_inputs(&arguments, variables);
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let request = invocation.request;
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        let inputs = resolved_object_list_field(&arguments, "metafields");
         let api_client_id = request_app_namespace_api_client_id(request);
         if let Some(index) = inputs.iter().position(|input| {
             app_metafield_namespace_requires_api_client(
@@ -443,9 +431,7 @@ impl DraftProxy {
                     None,
                 )]
             });
-            return MutationOutcome::response(ok_json(
-                json!({"data": {response_key: selected_json(&payload, &payload_selection)}}),
-            ));
+            return ResolverOutcome::value(payload);
         }
         // A delete targeting another app's reserved namespace is not permitted;
         // Shopify rejects the whole batch before deleting anything.
@@ -466,9 +452,7 @@ impl DraftProxy {
                     None,
                 )]
             });
-            return MutationOutcome::response(ok_json(
-                json!({"data": {response_key: selected_json(&payload, &payload_selection)}}),
-            ));
+            return ResolverOutcome::value(payload);
         }
         self.hydrate_owner_metafield_inputs(request, &inputs, api_client_id.as_deref());
         let mut deleted = Vec::new();
@@ -507,10 +491,11 @@ impl DraftProxy {
             }
         }
         let payload = json!({"deletedMetafields": deleted, "userErrors": []});
-        MutationOutcome::staged(
-            ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}})),
-            LogDraft::staged("metafieldsDelete", "products", staged_owner_ids),
-        )
+        ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
+            "metafieldsDelete",
+            "products",
+            staged_owner_ids,
+        ))
     }
 
     fn metafields_set_compare_digest_errors(
@@ -631,7 +616,29 @@ impl DraftProxy {
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
+        let data = self.owner_metafields_read_data(request, query, variables);
+        ResolverOutcome::value(data.get(response_key).cloned().unwrap_or(Value::Null))
+    }
+
+    pub(in crate::proxy) fn owner_metafields_read_response(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
+        ok_json(json!({
+            "data": self.owner_metafields_read_data(request, query, variables)
+        }))
+    }
+
+    fn owner_metafields_read_data(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
         let fields = self
             .execution_root_fields(query, variables)
             .unwrap_or_default();
@@ -652,7 +659,7 @@ impl DraftProxy {
             }
             Some(self.owner_metafield_owner_json(field, variables, api_client_id.as_deref()))
         });
-        ok_json(json!({"data": data}))
+        data
     }
 
     pub(in crate::proxy) fn hydrate_owner_metafield_read_fields(

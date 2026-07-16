@@ -6,60 +6,74 @@ const LOCATION_LIMIT_STATUS_QUERY: &str = r#"query StorePropertiesLocationLimitS
 impl DraftProxy {
     pub(in crate::proxy) fn location_mutation(
         &mut self,
-        root_field: &str,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
-        match root_field {
-            "locationAdd" => self.location_add(query, variables, request),
-            "locationEdit" => self.location_edit(query, variables, request),
-            "locationActivate" => self.location_activate(query, variables, request),
-            "locationDelete" => self.location_delete(query, variables, request),
-            _ => json_error(501, "Unsupported location mutation"),
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let RootInvocation {
+            root_name,
+            response_key,
+            query,
+            variables,
+            request,
+            ..
+        } = invocation;
+        match root_name {
+            "locationAdd" => self.location_add(query, variables, request, response_key),
+            "locationEdit" => self.location_edit(query, variables, request, response_key),
+            "locationActivate" => self.location_activate(query, variables, request, response_key),
+            "locationDeactivate" => {
+                self.location_deactivate(query, variables, request, response_key)
+            }
+            "locationDelete" => self.location_delete(query, variables, request, response_key),
+            _ => resolver_http_error_outcome(501, "Unsupported location mutation"),
         }
     }
 
     pub(in crate::proxy) fn location_local_pickup_mutation(
         &mut self,
         root_field: &str,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
-        let Some(fields) = self.execution_root_fields(query, variables) else {
-            return json_error(400, "Could not parse GraphQL operation");
-        };
-        let data = root_payload_json(&fields, |field| {
+        fields: &[RootFieldSelection],
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
+        let mut log_drafts = Vec::new();
+        let data = root_payload_json(fields, |field| {
+            let mut staged_ids = Vec::new();
             let payload = match field.name.as_str() {
                 "locationLocalPickupEnable" => {
-                    self.location_local_pickup_enable_payload(field, request, query, variables)
+                    self.location_local_pickup_enable_payload(field, &mut staged_ids)
                 }
                 "locationLocalPickupDisable" => {
-                    self.location_local_pickup_disable_payload(field, request, query, variables)
+                    self.location_local_pickup_disable_payload(field, &mut staged_ids)
                 }
                 _ => return None,
             };
+            if !staged_ids.is_empty() {
+                log_drafts.push(LogDraft::staged(
+                    field.name.clone(),
+                    "shipping-fulfillments",
+                    staged_ids,
+                ));
+            }
             Some(payload)
         });
         if data.as_object().is_none_or(serde_json::Map::is_empty) {
-            return json_error(
+            return resolver_http_error_outcome(
                 501,
-                &format!(
+                format!(
                     "No Rust stage-locally dispatcher implemented for root field: {}",
                     root_field
                 ),
             );
         }
-        ok_json(json!({ "data": data }))
+        let mut outcome =
+            ResolverOutcome::value(data.get(response_key).cloned().unwrap_or(Value::Null));
+        outcome.log_drafts = log_drafts;
+        outcome
     }
 
     fn location_local_pickup_enable_payload(
         &mut self,
         field: &RootFieldSelection,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
+        staged_ids: &mut Vec<String>,
     ) -> Value {
         let input = resolved_object_field(&field.arguments, "localPickupSettings")
             .unwrap_or_else(|| field.arguments.clone());
@@ -98,13 +112,7 @@ impl DraftProxy {
         location["localPickupSettingsV2"] = settings.clone();
         location["localPickupSettings"] = settings.clone();
         self.stage_local_pickup_location(location);
-        self.record_mutation_log_entry(
-            request,
-            query,
-            variables,
-            "locationLocalPickupEnable",
-            vec![location_id],
-        );
+        staged_ids.push(location_id);
 
         location_local_pickup_enable_payload_selected_json(settings, &field.selection, Vec::new())
     }
@@ -112,9 +120,7 @@ impl DraftProxy {
     fn location_local_pickup_disable_payload(
         &mut self,
         field: &RootFieldSelection,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
+        staged_ids: &mut Vec<String>,
     ) -> Value {
         let location_id = resolved_string_field(&field.arguments, "locationId").unwrap_or_default();
         let user_errors =
@@ -128,13 +134,7 @@ impl DraftProxy {
             location["localPickupSettingsV2"] = Value::Null;
             location["localPickupSettings"] = Value::Null;
             self.stage_local_pickup_location(location);
-            self.record_mutation_log_entry(
-                request,
-                query,
-                variables,
-                "locationLocalPickupDisable",
-                vec![location_id.clone()],
-            );
+            staged_ids.push(location_id.clone());
         }
         let payload_location_id = if user_errors.is_empty() {
             json!(location_id)
@@ -197,26 +197,26 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
-    ) -> Response {
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
         let Some(document) = parsed_document(query, variables) else {
-            return json_error(400, "Unable to parse locationAdd mutation");
+            return resolver_http_error_outcome(400, "Unable to parse locationAdd mutation");
         };
-        let mut data = serde_json::Map::new();
         for field in document
             .root_fields
             .iter()
-            .filter(|field| field.name == "locationAdd")
+            .filter(|field| field.name == "locationAdd" && field.response_key == response_key)
         {
             let Some(input) = resolved_object_field(&field.arguments, "input") else {
-                return ok_json(location_add_missing_input_error(
-                    &document.operation_path,
-                    field,
-                ));
+                return location_error_outcome(
+                    location_add_missing_input_error(&document.operation_path, field),
+                    response_key,
+                );
             };
             if let Some(error) =
                 self.location_add_input_shape_error(&document.operation_path, field, &input)
             {
-                return ok_json(error);
+                return location_error_outcome(error, response_key);
             }
             if resolved_object_list_field(&input, "metafields")
                 .iter()
@@ -227,25 +227,35 @@ impl DraftProxy {
                             .unwrap_or(true)
                 })
             {
-                return ok_json(location_add_metafield_blank_key_error(field, &document));
+                return location_error_outcome(
+                    location_add_metafield_blank_key_error(field, &document),
+                    response_key,
+                );
             }
 
             let user_errors = self.location_add_user_errors(&input, request);
-            let location = if user_errors.is_empty() {
+            let (location, staged_id) = if user_errors.is_empty() {
                 let id = self.next_proxy_synthetic_gid("Location");
                 let location = self.location_record_from_add_input(&id, &input);
                 self.stage_location(location.clone());
-                self.record_mutation_log_entry(request, query, variables, "locationAdd", vec![id]);
-                location
+                (location, Some(id))
             } else {
-                Value::Null
+                (Value::Null, None)
             };
-            data.insert(
-                field.response_key.clone(),
-                location_payload_selected_json(location, &field.selection, user_errors),
-            );
+            let outcome = ResolverOutcome::value(location_payload_selected_json(
+                location,
+                &field.selection,
+                user_errors,
+            ));
+            return staged_id.map_or(outcome.clone(), |id| {
+                outcome.with_log_draft(LogDraft::staged(
+                    "locationAdd",
+                    "store_properties",
+                    vec![id],
+                ))
+            });
         }
-        ok_json(json!({ "data": Value::Object(data) }))
+        ResolverOutcome::value(Value::Null)
     }
 
     pub(in crate::proxy) fn location_activate(
@@ -253,26 +263,32 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
-    ) -> Response {
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
         if location_requires_idempotency(request, query) {
-            let field = self.execution_root_field(query, variables, "locationActivate");
-            return ok_json(location_idempotency_required_error(
-                "locationActivate",
-                field.as_ref(),
-            ));
+            let field = self
+                .execution_root_fields(query, variables)
+                .and_then(|fields| {
+                    fields.into_iter().find(|field| {
+                        field.name == "locationActivate" && field.response_key == response_key
+                    })
+                });
+            return location_error_outcome(
+                location_idempotency_required_error("locationActivate", field.as_ref()),
+                response_key,
+            );
         }
         let Some(fields) = self.execution_root_fields(query, variables) else {
-            return json_error(400, "Unable to parse locationActivate mutation");
+            return resolver_http_error_outcome(400, "Unable to parse locationActivate mutation");
         };
-        let mut data = serde_json::Map::new();
         for field in fields {
-            if field.name != "locationActivate" {
+            if field.name != "locationActivate" || field.response_key != response_key {
                 continue;
             }
             let location_id =
                 resolved_string_field(&field.arguments, "locationId").unwrap_or_default();
             self.ensure_location_hydrated(&location_id, request);
-            let (location, errors) =
+            let (location, errors, staged) =
                 if let Some(source_location) = self.location_for_read(&location_id) {
                     self.hydrate_location_limit_status(request);
                     let errors = self.location_activate_errors(&source_location);
@@ -283,18 +299,12 @@ impl DraftProxy {
                         location["deactivatable"] = json!(true);
                         location["deletable"] = json!(false);
                         self.stage_location(location.clone());
-                        self.record_mutation_log_entry(
-                            request,
-                            query,
-                            variables,
-                            "locationActivate",
-                            vec![location_id.clone()],
-                        );
                         location
                     } else {
                         source_location
                     };
-                    (location, errors)
+                    let staged = errors.is_empty();
+                    (location, errors, staged)
                 } else {
                     (
                         Value::Null,
@@ -303,14 +313,25 @@ impl DraftProxy {
                             "Location not found.",
                             Some("LOCATION_NOT_FOUND"),
                         )],
+                        false,
                     )
                 };
-            data.insert(
-                field.response_key,
-                location_activate_payload_selected_json(location, &field.selection, errors),
-            );
+            let outcome = ResolverOutcome::value(location_activate_payload_selected_json(
+                location,
+                &field.selection,
+                errors,
+            ));
+            return if staged {
+                outcome.with_log_draft(LogDraft::staged(
+                    "locationActivate",
+                    "store_properties",
+                    vec![location_id],
+                ))
+            } else {
+                outcome
+            };
         }
-        ok_json(json!({ "data": Value::Object(data) }))
+        ResolverOutcome::value(Value::Null)
     }
 
     /// Applies a `locationDelete`. The target is resolved through the local overlay
@@ -323,13 +344,13 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
-    ) -> Response {
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
         let Some(fields) = self.execution_root_fields(query, variables) else {
-            return json_error(400, "Unable to parse locationDelete mutation");
+            return resolver_http_error_outcome(400, "Unable to parse locationDelete mutation");
         };
-        let mut data = serde_json::Map::new();
         for field in fields {
-            if field.name != "locationDelete" {
+            if field.name != "locationDelete" || field.response_key != response_key {
                 continue;
             }
             let location_id =
@@ -338,30 +359,30 @@ impl DraftProxy {
                 .location_for_read(&location_id)
                 .or_else(|| self.hydrate_location_for_mutation(request, &location_id));
             let errors = self.location_delete_errors(&location_id, location.as_ref());
-            let deleted_location_id = if errors.is_empty() {
+            let deleted = errors.is_empty();
+            let deleted_location_id = if deleted {
                 self.delete_location_inventory_levels(&location_id);
                 self.delete_staged_location(&location_id);
-                self.record_mutation_log_entry(
-                    request,
-                    query,
-                    variables,
-                    "locationDelete",
-                    vec![location_id.clone()],
-                );
-                Value::String(location_id)
+                Value::String(location_id.clone())
             } else {
                 Value::Null
             };
-            data.insert(
-                field.response_key,
-                location_delete_payload_selected_json(
-                    deleted_location_id,
-                    &field.selection,
-                    errors,
-                ),
-            );
+            let outcome = ResolverOutcome::value(location_delete_payload_selected_json(
+                deleted_location_id,
+                &field.selection,
+                errors,
+            ));
+            return if deleted {
+                outcome.with_log_draft(LogDraft::staged(
+                    "locationDelete",
+                    "store_properties",
+                    vec![location_id],
+                ))
+            } else {
+                outcome
+            };
         }
-        ok_json(json!({ "data": Value::Object(data) }))
+        ResolverOutcome::value(Value::Null)
     }
 
     /// Resolves the user errors Shopify raises for a `locationDelete`, mirroring
@@ -504,19 +525,19 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
-    ) -> Response {
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
         let Some(fields) = self.execution_root_fields(query, variables) else {
-            return json_error(400, "Unable to parse locationEdit mutation");
+            return resolver_http_error_outcome(400, "Unable to parse locationEdit mutation");
         };
-        let mut data = serde_json::Map::new();
         for field in fields {
-            if field.name != "locationEdit" {
+            if field.name != "locationEdit" || field.response_key != response_key {
                 continue;
             }
             let location_id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
             let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
             if let Some(error) = self.location_edit_input_shape_error(&input) {
-                return ok_json(error);
+                return location_error_outcome(error, response_key);
             }
 
             let source_location = self
@@ -529,29 +550,33 @@ impl DraftProxy {
                 user_errors.extend(self.location_edit_user_errors(&location_id, &input));
             }
 
-            let location = if user_errors.is_empty() {
+            let staged = user_errors.is_empty();
+            let location = if staged {
                 let mut location =
                     source_location.unwrap_or_else(|| self.staged_location_record(&location_id));
                 self.apply_location_edit_input(&mut location, &input);
                 self.stage_location(location.clone());
-                self.record_mutation_log_entry(
-                    request,
-                    query,
-                    variables,
-                    "locationEdit",
-                    vec![location_id.clone()],
-                );
                 location
             } else {
                 Value::Null
             };
 
-            data.insert(
-                field.response_key,
-                location_payload_selected_json(location, &field.selection, user_errors),
-            );
+            let outcome = ResolverOutcome::value(location_payload_selected_json(
+                location,
+                &field.selection,
+                user_errors,
+            ));
+            return if staged {
+                outcome.with_log_draft(LogDraft::staged(
+                    "locationEdit",
+                    "store_properties",
+                    vec![location_id],
+                ))
+            } else {
+                outcome
+            };
         }
-        ok_json(json!({ "data": Value::Object(data) }))
+        ResolverOutcome::value(Value::Null)
     }
 
     /// Surfaces the `LocationEditInput!` coercion error Shopify raises for an
@@ -1060,10 +1085,11 @@ impl DraftProxy {
         })
     }
 
-    pub(in crate::proxy) fn location_read_response(
+    pub(in crate::proxy) fn location_read_outcome(
         &self,
         fields: &[RootFieldSelection],
-    ) -> Response {
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
         let mut errors = Vec::new();
         let data = root_payload_json(fields, |field| {
             Some(match field.name.as_str() {
@@ -1094,12 +1120,9 @@ impl DraftProxy {
                 _ => return None,
             })
         });
-        let mut body = serde_json::Map::new();
-        body.insert("data".to_string(), data);
-        if !errors.is_empty() {
-            body.insert("errors".to_string(), Value::Array(errors));
-        }
-        ok_json(Value::Object(body))
+        let value = data.get(response_key).cloned().unwrap_or(Value::Null);
+        ResolverOutcome::value(value)
+            .with_errors(root_field_errors_from_json(&errors, response_key))
     }
 
     pub(in crate::proxy) fn location_for_read(&self, location_id: &str) -> Option<Value> {
@@ -1383,20 +1406,26 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
-    ) -> Response {
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
         if location_requires_idempotency(request, query) {
-            let field = self.execution_root_field(query, variables, "locationDeactivate");
-            return ok_json(location_idempotency_required_error(
-                "locationDeactivate",
-                field.as_ref(),
-            ));
+            let field = self
+                .execution_root_fields(query, variables)
+                .and_then(|fields| {
+                    fields.into_iter().find(|field| {
+                        field.name == "locationDeactivate" && field.response_key == response_key
+                    })
+                });
+            return location_error_outcome(
+                location_idempotency_required_error("locationDeactivate", field.as_ref()),
+                response_key,
+            );
         }
         let Some(fields) = self.execution_root_fields(query, variables) else {
-            return json_error(400, "Unable to parse locationDeactivate mutation");
+            return resolver_http_error_outcome(400, "Unable to parse locationDeactivate mutation");
         };
-        let mut data = serde_json::Map::new();
         for field in fields {
-            if field.name != "locationDeactivate" {
+            if field.name != "locationDeactivate" || field.response_key != response_key {
                 continue;
             }
             let location_id =
@@ -1406,36 +1435,26 @@ impl DraftProxy {
             self.ensure_location_hydrated(&location_id, request);
             let Some(source_location) = self.location_deactivate_source_location(&location_id)
             else {
-                data.insert(
-                    field.response_key,
-                    location_deactivate_payload_json(
-                        Value::Null,
-                        &field.selection,
-                        vec![user_error(
-                            ["locationId"],
-                            "Location not found.",
-                            Some("LOCATION_NOT_FOUND"),
-                        )],
-                    ),
-                );
-                continue;
+                return ResolverOutcome::value(location_deactivate_payload_json(
+                    Value::Null,
+                    &field.selection,
+                    vec![user_error(
+                        ["locationId"],
+                        "Location not found.",
+                        Some("LOCATION_NOT_FOUND"),
+                    )],
+                ));
             };
             let errors = self
                 .location_deactivate_errors(&source_location, destination_location_id.as_deref());
-            let location = if errors.is_empty() {
+            let staged = errors.is_empty();
+            let location = if staged {
                 if let Some(destination_location_id) = destination_location_id.as_deref() {
                     self.relocate_inventory_levels_for_location(
                         &location_id,
                         destination_location_id,
                     );
                 }
-                self.record_mutation_log_entry(
-                    request,
-                    query,
-                    variables,
-                    "locationDeactivate",
-                    vec![location_id.clone()],
-                );
                 let mut location = source_location;
                 location["isActive"] = json!(false);
                 location["hasActiveInventory"] = json!(false);
@@ -1446,12 +1465,22 @@ impl DraftProxy {
             } else {
                 source_location
             };
-            data.insert(
-                field.response_key,
-                location_deactivate_payload_json(location, &field.selection, errors),
-            );
+            let outcome = ResolverOutcome::value(location_deactivate_payload_json(
+                location,
+                &field.selection,
+                errors,
+            ));
+            return if staged {
+                outcome.with_log_draft(LogDraft::staged(
+                    "locationDeactivate",
+                    "store_properties",
+                    vec![location_id],
+                ))
+            } else {
+                outcome
+            };
         }
-        ok_json(json!({ "data": Value::Object(data) }))
+        ResolverOutcome::value(Value::Null)
     }
 
     fn location_deactivate_errors(
@@ -2321,29 +2350,25 @@ fn input_was_variable(field: &RootFieldSelection) -> bool {
 }
 
 fn location_add_missing_input_error(operation_path: &str, field: &RootFieldSelection) -> Value {
-    json!({
-        "errors": [missing_required_arguments_error(
-            "locationAdd",
-            "input",
-            field.location,
-            vec![json!(operation_path), json!("locationAdd")],
-        )]
-    })
+    missing_required_arguments_error(
+        "locationAdd",
+        "input",
+        field.location,
+        vec![json!(operation_path), json!("locationAdd")],
+    )
 }
 
 fn location_add_missing_address_error(operation_path: &str, field: &RootFieldSelection) -> Value {
     json!({
-        "errors": [{
-            "message": "Argument 'address' on InputObject 'LocationAddInput' is required. Expected type LocationAddAddressInput!",
-            "locations": [{ "line": field.location.line, "column": field.location.column }],
-            "path": [operation_path, "locationAdd", "input", "address"],
-            "extensions": {
-                "code": "missingRequiredInputObjectAttribute",
-                "argumentName": "address",
-                "argumentType": "LocationAddAddressInput!",
-                "inputObjectType": "LocationAddInput"
-            }
-        }]
+        "message": "Argument 'address' on InputObject 'LocationAddInput' is required. Expected type LocationAddAddressInput!",
+        "locations": [{ "line": field.location.line, "column": field.location.column }],
+        "path": [operation_path, "locationAdd", "input", "address"],
+        "extensions": {
+            "code": "missingRequiredInputObjectAttribute",
+            "argumentName": "address",
+            "argumentType": "LocationAddAddressInput!",
+            "inputObjectType": "LocationAddInput"
+        }
     })
 }
 
@@ -2352,17 +2377,15 @@ fn location_add_missing_country_code_error(
     field: &RootFieldSelection,
 ) -> Value {
     json!({
-        "errors": [{
-            "message": "Argument 'countryCode' on InputObject 'LocationAddAddressInput' is required. Expected type CountryCode!",
-            "locations": [{ "line": field.location.line, "column": field.location.column }],
-            "path": [operation_path, "locationAdd", "input", "address", "countryCode"],
-            "extensions": {
-                "code": "missingRequiredInputObjectAttribute",
-                "argumentName": "countryCode",
-                "argumentType": "CountryCode!",
-                "inputObjectType": "LocationAddAddressInput"
-            }
-        }]
+        "message": "Argument 'countryCode' on InputObject 'LocationAddAddressInput' is required. Expected type CountryCode!",
+        "locations": [{ "line": field.location.line, "column": field.location.column }],
+        "path": [operation_path, "locationAdd", "input", "address", "countryCode"],
+        "extensions": {
+            "code": "missingRequiredInputObjectAttribute",
+            "argumentName": "countryCode",
+            "argumentType": "CountryCode!",
+            "inputObjectType": "LocationAddAddressInput"
+        }
     })
 }
 
@@ -2372,17 +2395,15 @@ fn location_add_inline_argument_not_accepted_error(
     argument_name: &str,
 ) -> Value {
     json!({
-        "errors": [{
-            "message": format!("InputObject 'LocationAddInput' doesn't accept argument '{}'", argument_name),
-            "locations": [{ "line": field.location.line, "column": field.location.column }],
-            "path": [operation_path, "locationAdd", "input", argument_name],
-            "extensions": {
-                "code": "argumentNotAccepted",
-                "name": "LocationAddInput",
-                "typeName": "InputObject",
-                "argumentName": argument_name
-            }
-        }]
+        "message": format!("InputObject 'LocationAddInput' doesn't accept argument '{}'", argument_name),
+        "locations": [{ "line": field.location.line, "column": field.location.column }],
+        "path": [operation_path, "locationAdd", "input", argument_name],
+        "extensions": {
+            "code": "argumentNotAccepted",
+            "name": "LocationAddInput",
+            "typeName": "InputObject",
+            "argumentName": argument_name
+        }
     })
 }
 
@@ -2530,13 +2551,10 @@ fn location_add_metafield_blank_key_error(
         }));
     }
     json!({
-        "errors": [{
-            "message": "key can't be blank",
-            "locations": locations,
-            "extensions": { "code": "INVALID_FIELD_ARGUMENTS" },
-            "path": [field.response_key.clone()]
-        }],
-        "data": { field.response_key.clone(): Value::Null }
+        "message": "key can't be blank",
+        "locations": locations,
+        "extensions": { "code": "INVALID_FIELD_ARGUMENTS" },
+        "path": [field.response_key.clone()]
     })
 }
 
@@ -2548,22 +2566,20 @@ fn location_invalid_variable_error(
 ) -> Value {
     let path_parts = path.split('.').collect::<Vec<_>>();
     json!({
-        "errors": [{
-            "message": format!(
-                "Variable $input of type {}! was provided invalid value for {} ({})",
-                input_type_name,
-                path,
-                explanation
-            ),
-            "extensions": {
-                "code": "INVALID_VARIABLE",
-                "value": resolved_values::resolved_value_json(&ResolvedValue::Object(input.clone())),
-                "problems": [{
-                    "path": path_parts,
-                    "explanation": explanation
-                }]
-            }
-        }]
+        "message": format!(
+            "Variable $input of type {}! was provided invalid value for {} ({})",
+            input_type_name,
+            path,
+            explanation
+        ),
+        "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": resolved_values::resolved_value_json(&ResolvedValue::Object(input.clone())),
+            "problems": [{
+                "path": path_parts,
+                "explanation": explanation
+            }]
+        }
     })
 }
 
@@ -2614,21 +2630,20 @@ fn location_idempotency_required_error(
     root_field: &str,
     field: Option<&RootFieldSelection>,
 ) -> Value {
-    let response_key = field
-        .map(|field| field.response_key.clone())
-        .unwrap_or_else(|| root_field.to_string());
     let (line, column) = field
         .map(|field| (field.location.line, field.location.column))
         .unwrap_or((1, 1));
     json!({
-        "errors": [{
-            "message": "The @idempotent directive is required for this mutation but was not provided.",
-            "locations": [{ "line": line, "column": column }],
-            "extensions": { "code": "BAD_REQUEST" },
-            "path": [root_field]
-        }],
-        "data": { response_key: Value::Null }
+        "message": "The @idempotent directive is required for this mutation but was not provided.",
+        "locations": [{ "line": line, "column": column }],
+        "extensions": { "code": "BAD_REQUEST" },
+        "path": [root_field]
     })
+}
+
+fn location_error_outcome(error: Value, response_key: &str) -> ResolverOutcome<Value> {
+    ResolverOutcome::value(Value::Null)
+        .with_errors(root_field_errors_from_json(&[error], response_key))
 }
 
 fn location_local_pickup_enable_payload_selected_json(

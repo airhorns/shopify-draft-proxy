@@ -36,26 +36,39 @@ impl DraftProxy {
             mode,
             ..
         } = invocation;
-        let response = match mode {
+        match mode {
             LocalResolverMode::OverlayRead => {
                 // Cold LiveHybrid definition reads stay authoritative upstream;
                 // staged definition lifecycles resolve from the local overlay.
                 if self.config.read_mode != ReadMode::Snapshot
                     && !self.local_has_metafield_definition_state(variables)
                 {
-                    (self.upstream_transport)(request.clone())
+                    self.cached_or_forward_upstream_root_outcome(request, response_key)
                 } else {
-                    self.metafield_definition_pinning_read(request, query, variables)
+                    self.metafield_definition_pinning_read_outcome(
+                        request,
+                        query,
+                        variables,
+                        response_key,
+                    )
                 }
             }
             LocalResolverMode::StageLocally if root_name == "standardMetafieldDefinitionEnable" => {
-                self.standard_metafield_definition_enable(request, query, variables)
+                self.standard_metafield_definition_enable_outcome(
+                    request,
+                    query,
+                    variables,
+                    response_key,
+                )
             }
-            LocalResolverMode::StageLocally => {
-                self.metafield_definition_pinning_mutation(request, query, variables)
-            }
-        };
-        resolver_outcome_from_response(response, response_key)
+            LocalResolverMode::StageLocally => self.metafield_definition_pinning_mutation_outcome(
+                request,
+                query,
+                variables,
+                root_name,
+                response_key,
+            ),
+        }
     }
 }
 
@@ -77,11 +90,13 @@ fn admin_filterable_definition_limit_message(owner_type: &str) -> String {
     )
 }
 
-fn metafield_access_grants_validation_response(
+fn metafield_access_grants_validation_errors(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
-) -> Option<Response> {
-    let document = parsed_document(query, variables)?;
+) -> Vec<Value> {
+    let Some(document) = parsed_document(query, variables) else {
+        return Vec::new();
+    };
     let mut errors = Vec::new();
     for field in &document.root_fields {
         if !matches!(
@@ -97,7 +112,7 @@ fn metafield_access_grants_validation_response(
             query, &document, field, definition,
         ));
     }
-    (!errors.is_empty()).then(|| ok_json(json!({ "errors": errors })))
+    errors
 }
 
 fn metafield_access_grants_errors(
@@ -224,14 +239,17 @@ fn metafield_definition_value(
 }
 
 impl DraftProxy {
-    pub(in crate::proxy) fn metafield_definition_pinning_mutation(
+    pub(in crate::proxy) fn metafield_definition_pinning_mutation_outcome(
         &mut self,
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
-        if let Some(response) = metafield_access_grants_validation_response(query, variables) {
-            return response;
+        root_name: &str,
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
+        let validation_errors = metafield_access_grants_validation_errors(query, variables);
+        if !validation_errors.is_empty() {
+            return graphql_error_outcome(validation_errors, response_key);
         }
         let mut data = serde_json::Map::new();
         let mut staged_ids = Vec::new();
@@ -247,8 +265,9 @@ impl DraftProxy {
                     let definition_input =
                         resolved_object_field(&field.arguments, "definition").unwrap_or_default();
                     if access_denied_for_reserved_metafield_namespace(request, &definition_input) {
-                        return metafield_definition_access_denied_response(
-                            "metafieldDefinitionCreate",
+                        return graphql_error_outcome(
+                            metafield_definition_access_denied_errors("metafieldDefinitionCreate"),
+                            response_key,
                         );
                     }
                     self.metafield_definition_create_payload(request, &definition_input)
@@ -257,8 +276,9 @@ impl DraftProxy {
                     let definition_input =
                         resolved_object_field(&field.arguments, "definition").unwrap_or_default();
                     if access_denied_for_reserved_metafield_namespace(request, &definition_input) {
-                        return metafield_definition_access_denied_response(
-                            "metafieldDefinitionUpdate",
+                        return graphql_error_outcome(
+                            metafield_definition_access_denied_errors("metafieldDefinitionUpdate"),
+                            response_key,
                         );
                     }
                     self.metafield_definition_update_payload(request, &definition_input)
@@ -309,10 +329,16 @@ impl DraftProxy {
                 selected_json(&payload, &field.selection),
             );
         }
-        if let Some(root) = primary_staged_root {
-            self.record_mutation_log_entry(request, query, variables, &root, staged_ids);
+        let value = data.remove(response_key).unwrap_or(Value::Null);
+        if primary_staged_root.is_some() {
+            ResolverOutcome::value(value).with_log_draft(LogDraft::staged(
+                root_name,
+                "metafields",
+                staged_ids,
+            ))
+        } else {
+            ResolverOutcome::value(value)
         }
-        ok_json(json!({"data": Value::Object(data)}))
     }
 
     fn metafield_definition_create_payload(
@@ -1460,12 +1486,13 @@ impl DraftProxy {
         has_synthetic || self.has_metafield_definition_overlay_state()
     }
 
-    pub(in crate::proxy) fn metafield_definition_pinning_read(
+    pub(in crate::proxy) fn metafield_definition_pinning_read_outcome(
         &mut self,
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
         let api_client_id = request_app_namespace_api_client_id(request);
         let mut data = serde_json::Map::new();
         for field in self
@@ -1578,7 +1605,7 @@ impl DraftProxy {
                 _ => {}
             }
         }
-        ok_json(json!({"data": Value::Object(data)}))
+        ResolverOutcome::value(data.remove(response_key).unwrap_or(Value::Null))
     }
 
     pub(in crate::proxy) fn metafield_definition_key_for_id(
@@ -1632,12 +1659,13 @@ impl DraftProxy {
         }
     }
 
-    pub(in crate::proxy) fn standard_metafield_definition_enable(
+    pub(in crate::proxy) fn standard_metafield_definition_enable_outcome(
         &mut self,
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
         let mut data = serde_json::Map::new();
         let mut staged_ids = Vec::new();
         for field in self
@@ -1712,14 +1740,13 @@ impl DraftProxy {
                 selected_json(&payload, &field.selection),
             );
         }
-        self.record_mutation_log_entry(
-            request,
-            query,
-            variables,
-            "standardMetafieldDefinitionEnable",
-            staged_ids,
-        );
-        ok_json(json!({"data": Value::Object(data)}))
+        ResolverOutcome::value(data.remove(response_key).unwrap_or(Value::Null)).with_log_draft(
+            LogDraft::staged(
+                "standardMetafieldDefinitionEnable",
+                "metafields",
+                staged_ids,
+            ),
+        )
     }
 
     fn standard_metafield_definition_enable_payload(
@@ -2318,17 +2345,14 @@ fn metafield_definition_resource_limit_bucket(
     }
 }
 
-fn metafield_definition_access_denied_response(root_field: &str) -> Response {
+fn metafield_definition_access_denied_errors(root_field: &str) -> Vec<Value> {
     const REQUIRED_ACCESS: &str = "API client to have access to the namespace and the resource type associated with the metafield definition.\n";
-    ok_json(json!({
-        "errors": [top_level_access_denied_error_envelope(
-            format!("Access denied for {root_field} field. Required access: {REQUIRED_ACCESS}"),
-            None,
-            vec![json!(root_field)],
-            Some(REQUIRED_ACCESS),
-        )],
-        "data": { root_field: Value::Null }
-    }))
+    vec![top_level_access_denied_error_envelope(
+        format!("Access denied for {root_field} field. Required access: {REQUIRED_ACCESS}"),
+        None,
+        vec![json!(root_field)],
+        Some(REQUIRED_ACCESS),
+    )]
 }
 
 fn access_denied_for_reserved_metafield_namespace(

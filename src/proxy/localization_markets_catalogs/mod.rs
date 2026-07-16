@@ -8,6 +8,7 @@ mod markets;
 mod web_presence;
 mod web_presence_helpers;
 
+pub(in crate::proxy) use self::markets::markets_field_resolver_registrations;
 pub(in crate::proxy) use self::web_presence_helpers::*;
 
 #[allow(dead_code)]

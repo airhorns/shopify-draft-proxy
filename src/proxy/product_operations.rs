@@ -1,43 +1,77 @@
 use super::*;
 
 impl DraftProxy {
-    pub(in crate::proxy) fn product_set(
+    pub(crate) fn product_operation_root(
         &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> MutationOutcome {
-        let root_field = self.execution_primary_root_field(query, variables);
-        let (response_key, payload_selection, arguments) =
-            self.execution_primary_root_response_parts(query, variables, || "productSet".into());
-        let product_selection =
-            selected_child_selection(&payload_selection, "product").unwrap_or_default();
-        let operation_selection =
-            selected_child_selection(&payload_selection, "productSetOperation").unwrap_or_default();
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let id = invocation
+            .arguments
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let value = self
+            .product_operation_value_by_id(id)
+            .unwrap_or(Value::Null);
+        ResolverOutcome::value(value)
+    }
+
+    pub(in crate::proxy) fn product_operation_value_by_id(&self, id: &str) -> Option<Value> {
+        self.store
+            .staged
+            .product_delete_operations
+            .get(id)
+            .map(|deleted_product_id| {
+                json!({
+                    "__typename": "ProductDeleteOperation",
+                    "id": id,
+                    "status": "COMPLETE",
+                    "deletedProductId": deleted_product_id,
+                    "userErrors": [],
+                })
+            })
+            .or_else(|| {
+                self.store
+                    .staged
+                    .product_operations
+                    .get(id)
+                    .map(|operation| {
+                        self.product_operation_value_with_status(operation, "COMPLETE")
+                    })
+            })
+    }
+
+    pub(crate) fn product_set_outcome(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let request = invocation.request;
+        let root_field = self.execution_primary_root_field(invocation.query, invocation.variables);
+        let response_key = invocation.response_key;
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
         let input = match product_input(&arguments) {
             Some(input) => input,
-            None => return MutationOutcome::response(json_error(400, "productSet requires input")),
+            None => return ResolverOutcome::error("productSet requires input"),
         };
         let identifier = resolved_object_field(&arguments, "identifier");
 
         if identifier.is_some() && input.contains_key("id") {
-            return MutationOutcome::response(self.product_set_user_error_response(
-                &response_key,
-                &payload_selection,
-                &product_selection,
+            return self.product_set_user_error_outcome(
                 None,
                 vec![user_error(
                     ["input"],
                     "The id field is not allowed if identifier is provided.",
                     Some("ID_NOT_ALLOWED"),
                 )],
-            ));
+            );
         }
 
-        if let Some(response) =
-            product_set_shape_error_response(&response_key, &payload_selection, &input)
-        {
-            return MutationOutcome::response(response);
+        let shape_errors = match product_set_shape_validation(response_key, &input) {
+            Ok(errors) => errors,
+            Err(errors) => return graphql_error_outcome(errors, invocation.response_key),
+        };
+        if !shape_errors.is_empty() {
+            return self.product_set_user_error_outcome(None, shape_errors);
         }
 
         let length_errors = product_scalar_length_user_errors(
@@ -45,24 +79,12 @@ impl DraftProxy {
             ProductScalarLengthValidationShape::ProductSetInput,
         );
         if !length_errors.is_empty() {
-            return MutationOutcome::response(self.product_set_user_error_response(
-                &response_key,
-                &payload_selection,
-                &product_selection,
-                None,
-                length_errors,
-            ));
+            return self.product_set_user_error_outcome(None, length_errors);
         }
 
         let variant_input_errors = product_set_variant_input_errors(&input);
         if !variant_input_errors.is_empty() {
-            return MutationOutcome::response(self.product_set_user_error_response(
-                &response_key,
-                &payload_selection,
-                &product_selection,
-                None,
-                variant_input_errors,
-            ));
+            return self.product_set_user_error_outcome(None, variant_input_errors);
         }
 
         // Reject input variants whose option-value combination duplicates an earlier
@@ -70,13 +92,7 @@ impl DraftProxy {
         // occurrence is accepted) and titles it with the variant's option values.
         let duplicate_variant_errors = product_set_duplicate_variant_errors(&input);
         if !duplicate_variant_errors.is_empty() {
-            return MutationOutcome::response(self.product_set_user_error_response(
-                &response_key,
-                &payload_selection,
-                &product_selection,
-                None,
-                duplicate_variant_errors,
-            ));
+            return self.product_set_user_error_outcome(None, duplicate_variant_errors);
         }
 
         let existing_id = resolved_string_field(&input, "id")
@@ -103,17 +119,14 @@ impl DraftProxy {
             existing = self.store.product_staged_or_base(id);
         }
         if existing_id.is_some() && existing.is_none() {
-            return MutationOutcome::response(self.product_set_user_error_response(
-                &response_key,
-                &payload_selection,
-                &product_selection,
+            return self.product_set_user_error_outcome(
                 None,
                 vec![user_error(
                     ["input", "id"],
                     "Product does not exist",
                     Some("PRODUCT_DOES_NOT_EXIST"),
                 )],
-            ));
+            );
         }
 
         let identifier_handle = identifier
@@ -224,10 +237,13 @@ impl DraftProxy {
                         .as_ref()
                         .map(|field| field.location)
                         .unwrap_or(SourceLocation { line: 1, column: 1 });
-                    return MutationOutcome::response(invalid_product_taxonomy_node_id_response(
-                        &response_key,
-                        location,
-                    ));
+                    return graphql_error_outcome(
+                        vec![invalid_product_taxonomy_node_id_error(
+                            response_key,
+                            location,
+                        )],
+                        invocation.response_key,
+                    );
                 }
             }
         }
@@ -323,38 +339,16 @@ impl DraftProxy {
             None
         };
 
-        let payload = selected_payload_json(&payload_selection, |selection| {
-            match selection.name.as_str() {
-                "product" => Some(if operation.is_some() {
-                    Value::Null
-                } else {
-                    self.product_json_with_variants_and_currency_context(
-                        &product,
-                        &self.store.product_variants_for_product(&product_id),
-                        &product_selection,
-                        &self.store.shop_currency_code(),
-                    )
-                }),
-                "productSetOperation" => Some(
-                    operation
-                        .as_ref()
-                        .map(|operation| {
-                            self.product_operation_json_with_status(
-                                operation,
-                                &operation_selection,
-                                "CREATED",
-                            )
-                        })
-                        .unwrap_or(Value::Null),
-                ),
-                "userErrors" => Some(Value::Array(Vec::new())),
-                _ => None,
-            }
-        });
-        MutationOutcome::staged(
-            ok_json(json!({ "data": { response_key: payload } })),
-            LogDraft::staged("productSet", "products", vec![product_id]),
-        )
+        let payload = self.product_set_payload_value(
+            operation.is_none().then_some(&product),
+            operation.as_ref(),
+            Vec::new(),
+        );
+        ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
+            "productSet",
+            "products",
+            vec![product_id],
+        ))
     }
 
     /// Build metafield node JSON for the `metafields` supplied on a `productSet` input.
@@ -387,15 +381,16 @@ impl DraftProxy {
         nodes
     }
 
-    pub(in crate::proxy) fn product_duplicate(
+    pub(crate) fn product_duplicate_outcome(
         &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> MutationOutcome {
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let request = invocation.request;
+        let query = invocation.query;
+        let variables = invocation.variables;
         let field = self.execution_primary_root_field(query, variables);
         if let Some(field) = field.as_ref() {
-            if let Some(response) = product_status_argument_validation_error(
+            if let Some(errors) = product_status_argument_validation_errors(
                 request,
                 query,
                 field,
@@ -404,21 +399,10 @@ impl DraftProxy {
                 "productDuplicate",
                 "ProductStatus",
             ) {
-                return MutationOutcome::response(response);
+                return graphql_error_outcome(errors, invocation.response_key);
             }
         }
-        let (response_key, payload_selection, arguments) = field
-            .map(|field| (field.response_key, field.selection, field.arguments))
-            .unwrap_or_else(|| {
-                self.execution_primary_root_response_parts(query, variables, || {
-                    "productDuplicate".into()
-                })
-            });
-        let new_product_selection =
-            selected_child_selection(&payload_selection, "newProduct").unwrap_or_default();
-        let operation_selection =
-            selected_child_selection(&payload_selection, "productDuplicateOperation")
-                .unwrap_or_default();
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
         let product_id = resolved_string_field(&arguments, "productId").unwrap_or_default();
         let new_title = resolved_string_field(&arguments, "newTitle").unwrap_or_default();
         let new_status = resolved_string_field(&arguments, "newStatus");
@@ -450,36 +434,25 @@ impl DraftProxy {
                 .staged
                 .product_operations
                 .insert(operation.id.clone(), operation.clone());
-            let payload = self.product_duplicate_payload_json(
-                None,
-                Some(&operation),
-                &payload_selection,
-                &new_product_selection,
-                &operation_selection,
-                Vec::new(),
-            );
-            return MutationOutcome::staged(
-                ok_json(json!({ "data": { response_key: payload } })),
-                LogDraft::staged("productDuplicate", "products", vec![product_id]),
-            );
+            let payload = self.product_duplicate_payload_value(None, Some(&operation), Vec::new());
+            return ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
+                "productDuplicate",
+                "products",
+                vec![product_id],
+            ));
         }
 
         let Some(source) = source else {
-            let payload = self.product_duplicate_payload_json(
+            let payload = self.product_duplicate_payload_value(
                 None,
                 None,
-                &payload_selection,
-                &new_product_selection,
-                &operation_selection,
                 vec![user_error_omit_code(
                     ["productId"],
                     "Product does not exist",
                     None,
                 )],
             );
-            return MutationOutcome::response(ok_json(
-                json!({ "data": { response_key: payload } }),
-            ));
+            return ResolverOutcome::value(payload);
         };
 
         let duplicate = self.duplicate_product_record(&source, &new_title, new_status.as_deref());
@@ -503,35 +476,21 @@ impl DraftProxy {
                 .insert(operation.id.clone(), operation.clone());
             Some(operation)
         };
-        let payload = self.product_duplicate_payload_json(
-            Some(&duplicate),
-            operation.as_ref(),
-            &payload_selection,
-            &new_product_selection,
-            &operation_selection,
-            Vec::new(),
-        );
-        MutationOutcome::staged(
-            ok_json(json!({ "data": { response_key: payload } })),
-            LogDraft::staged(
-                "productDuplicate",
-                "products",
-                vec![source.id.clone(), duplicate_id],
-            ),
-        )
+        let payload =
+            self.product_duplicate_payload_value(Some(&duplicate), operation.as_ref(), Vec::new());
+        ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
+            "productDuplicate",
+            "products",
+            vec![source.id.clone(), duplicate_id],
+        ))
     }
 
-    pub(in crate::proxy) fn product_bundle_mutation(
+    pub(crate) fn product_bundle_outcome(
         &mut self,
-        root_field: &str,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> MutationOutcome {
-        let (response_key, payload_selection, arguments) =
-            self.execution_primary_root_response_parts(query, variables, || root_field.into());
-        let operation_selection =
-            selected_child_selection(&payload_selection, "productBundleOperation")
-                .unwrap_or_default();
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let root_field = invocation.root_name;
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
         let input = match arguments.get("input") {
             Some(ResolvedValue::Object(input)) => input.clone(),
             _ => BTreeMap::new(),
@@ -542,9 +501,8 @@ impl DraftProxy {
                 .or_else(|| resolved_string_field(&arguments, "id"))
                 .unwrap_or_default();
             let Some(mut product) = self.store.product_staged_or_base(&product_id) else {
-                return MutationOutcome::response(self.product_bundle_error_response(
-                    &response_key,
-                    &payload_selection,
+                return ResolverOutcome::value(self.product_bundle_payload_value(
+                    None,
                     vec![user_error_omit_code(
                         Value::Null,
                         "Product does not exist",
@@ -553,11 +511,7 @@ impl DraftProxy {
                 ));
             };
             if let Some(errors) = self.product_bundle_user_errors(&input) {
-                return MutationOutcome::response(self.product_bundle_error_response(
-                    &response_key,
-                    &payload_selection,
-                    errors,
-                ));
+                return ResolverOutcome::value(self.product_bundle_payload_value(None, errors));
             }
             if let Some(title) = resolved_string_field(&input, "title") {
                 product.title = title;
@@ -570,24 +524,16 @@ impl DraftProxy {
             self.store.stage_product(product.clone());
             let operation =
                 self.stage_product_bundle_operation(Some(product.id.clone()), Vec::new());
-            let payload = self.product_bundle_payload_json(
-                &operation,
-                &payload_selection,
-                &operation_selection,
-                Vec::new(),
-            );
-            return MutationOutcome::staged(
-                ok_json(json!({ "data": { response_key: payload } })),
-                LogDraft::staged(root_field, "products", vec![product.id]),
-            );
+            let payload = self.product_bundle_payload_value(Some(&operation), Vec::new());
+            return ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
+                root_field,
+                "products",
+                vec![product.id],
+            ));
         }
 
         if let Some(errors) = self.product_bundle_user_errors(&input) {
-            return MutationOutcome::response(self.product_bundle_error_response(
-                &response_key,
-                &payload_selection,
-                errors,
-            ));
+            return ResolverOutcome::value(self.product_bundle_payload_value(None, errors));
         }
 
         let title = resolved_string_field(&input, "title").unwrap_or_default();
@@ -609,46 +555,37 @@ impl DraftProxy {
         }
         self.store.stage_product(product.clone());
         let operation = self.stage_product_bundle_operation(Some(id.clone()), Vec::new());
-        let payload = self.product_bundle_payload_json(
-            &operation,
-            &payload_selection,
-            &operation_selection,
-            Vec::new(),
-        );
-        MutationOutcome::staged(
-            ok_json(json!({ "data": { response_key: payload } })),
-            LogDraft::staged(root_field, "products", vec![id]),
-        )
+        let payload = self.product_bundle_payload_value(Some(&operation), Vec::new());
+        ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
+            root_field,
+            "products",
+            vec![id],
+        ))
     }
 
-    fn product_set_user_error_response(
+    fn product_set_user_error_outcome(
         &self,
-        response_key: &str,
-        payload_selection: &[SelectedField],
-        product_selection: &[SelectedField],
         product: Option<&ProductRecord>,
         user_errors: Vec<Value>,
-    ) -> Response {
-        let payload = selected_payload_json(payload_selection, |selection| {
-            match selection.name.as_str() {
-                "product" => Some(
-                    product
-                        .map(|product| {
-                            self.product_json_with_variants_and_currency_context(
-                                product,
-                                &[],
-                                product_selection,
-                                &self.store.shop_currency_code(),
-                            )
-                        })
-                        .unwrap_or(Value::Null),
-                ),
-                "productSetOperation" => Some(Value::Null),
-                "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-                _ => None,
-            }
-        });
-        ok_json(json!({ "data": { response_key: payload } }))
+    ) -> ResolverOutcome<Value> {
+        ResolverOutcome::value(self.product_set_payload_value(product, None, user_errors))
+    }
+
+    fn product_set_payload_value(
+        &self,
+        product: Option<&ProductRecord>,
+        operation: Option<&ProductOperationRecord>,
+        user_errors: Vec<Value>,
+    ) -> Value {
+        json!({
+            "product": product
+                .map(|product| self.product_canonical_value(product))
+                .unwrap_or(Value::Null),
+            "productSetOperation": operation
+                .map(|operation| self.product_operation_value_with_status(operation, "CREATED"))
+                .unwrap_or(Value::Null),
+            "userErrors": user_errors,
+        })
     }
 
     fn stage_product_set_variants(
@@ -852,45 +789,26 @@ impl DraftProxy {
         }
     }
 
-    fn product_duplicate_payload_json(
+    fn product_duplicate_payload_value(
         &self,
         duplicate: Option<&ProductRecord>,
         operation: Option<&ProductOperationRecord>,
-        payload_selection: &[SelectedField],
-        new_product_selection: &[SelectedField],
-        operation_selection: &[SelectedField],
         user_errors: Vec<Value>,
     ) -> Value {
-        selected_payload_json(payload_selection, |selection| {
-            match selection.name.as_str() {
-                "newProduct" => Some(if operation.is_some() {
-                    Value::Null
-                } else {
-                    duplicate
-                        .map(|product| {
-                            self.product_json_with_variants_and_currency_context(
-                                product,
-                                &self.store.product_variants_for_product(&product.id),
-                                new_product_selection,
-                                &self.store.shop_currency_code(),
-                            )
-                        })
-                        .unwrap_or(Value::Null)
-                }),
-                "productDuplicateOperation" => Some(
-                    operation
-                        .map(|operation| {
-                            self.product_operation_json_with_status(
-                                operation,
-                                operation_selection,
-                                "CREATED",
-                            )
-                        })
-                        .unwrap_or(Value::Null),
-                ),
-                "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-                _ => None,
-            }
+        json!({
+            "imageJob": Value::Null,
+            "newProduct": if operation.is_some() {
+                Value::Null
+            } else {
+                duplicate
+                    .map(|product| self.product_canonical_value(product))
+                    .unwrap_or(Value::Null)
+            },
+            "productDuplicateOperation": operation
+                .map(|operation| self.product_operation_value_with_status(operation, "CREATED"))
+                .unwrap_or(Value::Null),
+            "shop": Value::Null,
+            "userErrors": user_errors,
         })
     }
 
@@ -961,22 +879,6 @@ impl DraftProxy {
         None
     }
 
-    fn product_bundle_error_response(
-        &self,
-        response_key: &str,
-        payload_selection: &[SelectedField],
-        user_errors: Vec<Value>,
-    ) -> Response {
-        let payload = selected_payload_json(payload_selection, |selection| {
-            match selection.name.as_str() {
-                "productBundleOperation" => Some(Value::Null),
-                "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-                _ => None,
-            }
-        });
-        ok_json(json!({ "data": { response_key: payload } }))
-    }
-
     fn stage_product_bundle_operation(
         &mut self,
         product_id: Option<String>,
@@ -996,93 +898,57 @@ impl DraftProxy {
         operation
     }
 
-    fn product_bundle_payload_json(
+    fn product_bundle_payload_value(
         &self,
-        operation: &ProductOperationRecord,
-        payload_selection: &[SelectedField],
-        operation_selection: &[SelectedField],
+        operation: Option<&ProductOperationRecord>,
         user_errors: Vec<Value>,
     ) -> Value {
-        selected_payload_json(payload_selection, |selection| {
-            match selection.name.as_str() {
-                "productBundleOperation" => Some(self.product_operation_json_with_status(
-                    operation,
-                    operation_selection,
-                    "CREATED",
-                )),
-                "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-                _ => None,
-            }
+        json!({
+            "productBundleOperation": operation
+                .map(|operation| self.product_operation_value_with_status(operation, "CREATED"))
+                .unwrap_or(Value::Null),
+            "userErrors": user_errors,
         })
     }
 
-    fn product_operation_json_with_status(
+    fn product_operation_value_with_status(
         &self,
         operation: &ProductOperationRecord,
-        selections: &[SelectedField],
         status: &str,
     ) -> Value {
-        let typename = product_operation_typename(operation.kind);
-        selected_payload_json(selections, |selection| {
-            if !product_operation_selection_matches(selection, typename) {
-                return None;
-            }
-            match selection.name.as_str() {
-                "__typename" => Some(json!(typename)),
-                "id" => Some(json!(operation.id)),
-                "status" => Some(json!(status)),
-                "product"
-                    if status == "CREATED" && operation.kind != ProductOperationKind::Duplicate =>
-                {
-                    Some(Value::Null)
-                }
-                "product" => Some(self.product_operation_product_json(
-                    operation.product_id.as_deref(),
-                    &selection.selection,
-                )),
-                "newProduct"
-                    if status == "COMPLETE"
-                        && operation.kind == ProductOperationKind::Duplicate =>
-                {
-                    Some(self.product_operation_product_json(
-                        operation.new_product_id.as_deref(),
-                        &selection.selection,
-                    ))
-                }
-                "newProduct" => Some(Value::Null),
-                "userErrors" if status == "CREATED" => Some(Value::Array(Vec::new())),
-                "userErrors" => {
-                    selected_user_errors_field(operation.user_errors.as_slice(), selection)
-                }
-                _ => None,
-            }
+        let product = if status == "CREATED" && operation.kind != ProductOperationKind::Duplicate {
+            Value::Null
+        } else {
+            operation
+                .product_id
+                .as_deref()
+                .and_then(|id| self.store.product_by_id(id))
+                .map(|product| self.product_canonical_value(product))
+                .unwrap_or(Value::Null)
+        };
+        let new_product =
+            if status == "COMPLETE" && operation.kind == ProductOperationKind::Duplicate {
+                operation
+                    .new_product_id
+                    .as_deref()
+                    .and_then(|id| self.store.product_by_id(id))
+                    .map(|product| self.product_canonical_value(product))
+                    .unwrap_or(Value::Null)
+            } else {
+                Value::Null
+            };
+        json!({
+            "__typename": product_operation_typename(operation.kind),
+            "id": operation.id,
+            "status": status,
+            "product": product,
+            "newProduct": new_product,
+            "userErrors": if status == "CREATED" {
+                Vec::<Value>::new()
+            } else {
+                operation.user_errors.clone()
+            },
         })
-    }
-
-    pub(in crate::proxy) fn product_operation_json(
-        &self,
-        operation: &ProductOperationRecord,
-        selections: &[SelectedField],
-    ) -> Value {
-        self.product_operation_json_with_status(operation, selections, "COMPLETE")
-    }
-
-    fn product_operation_product_json(
-        &self,
-        product_id: Option<&str>,
-        selections: &[SelectedField],
-    ) -> Value {
-        product_id
-            .and_then(|id| self.store.product_by_id(id))
-            .map(|product| {
-                self.product_json_with_variants_and_currency_context(
-                    product,
-                    &self.store.product_variants_for_product(&product.id),
-                    selections,
-                    &self.store.shop_currency_code(),
-                )
-            })
-            .unwrap_or(Value::Null)
     }
 }
 
@@ -1109,42 +975,30 @@ fn product_operation_typename(kind: ProductOperationKind) -> &'static str {
     }
 }
 
-fn product_operation_selection_matches(selection: &SelectedField, typename: &str) -> bool {
-    selection
-        .type_condition
-        .as_deref()
-        .is_none_or(|condition| condition == typename || condition == "Node")
-}
-
-fn product_set_shape_error_response(
+fn product_set_shape_validation(
     response_key: &str,
-    payload_selection: &[SelectedField],
     input: &BTreeMap<String, ResolvedValue>,
-) -> Option<Response> {
+) -> Result<Vec<Value>, Vec<Value>> {
     let variants = resolved_object_list_field(input, "variants");
     if variants.len() > 2048 {
-        return Some(ok_json(json!({
-            "errors": [max_input_size_exceeded_error(
-                [response_key, "input", "variants"],
-                variants.len(),
-                2048,
-                None
-            )]
-        })));
+        return Err(vec![max_input_size_exceeded_error(
+            [response_key, "input", "variants"],
+            variants.len(),
+            2048,
+            None,
+        )]);
     }
     if let Some(quantities_len) = variants
         .iter()
         .map(|variant| resolved_object_list_field(variant, "inventoryQuantities").len())
         .find(|len| *len > 250)
     {
-        return Some(ok_json(json!({
-            "errors": [max_input_size_exceeded_error(
-                [response_key, "input", "variants", "inventoryQuantities"],
-                quantities_len,
-                250,
-                None
-            )]
-        })));
+        return Err(vec![max_input_size_exceeded_error(
+            [response_key, "input", "variants", "inventoryQuantities"],
+            quantities_len,
+            250,
+            None,
+        )]);
     }
 
     let mut errors = Vec::new();
@@ -1191,18 +1045,7 @@ fn product_set_shape_error_response(
             Some("INVALID_INPUT"),
         ));
     }
-    if errors.is_empty() {
-        None
-    } else {
-        let payload = selected_payload_json(payload_selection, |selection| {
-            match selection.name.as_str() {
-                "product" | "productSetOperation" => Some(Value::Null),
-                "userErrors" => selected_user_errors_field(errors.as_slice(), selection),
-                _ => None,
-            }
-        });
-        Some(ok_json(json!({ "data": { response_key: payload } })))
-    }
+    Ok(errors)
 }
 
 fn product_set_option_values_over_limit(option: &BTreeMap<String, ResolvedValue>) -> bool {

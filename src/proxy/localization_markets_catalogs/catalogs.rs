@@ -529,13 +529,14 @@ impl DraftProxy {
             .collect()
     }
 
-    pub(in crate::proxy) fn price_list_mutation_data(
+    pub(in crate::proxy) fn price_list_mutation_outcome(
         &mut self,
         fields: &[RootFieldSelection],
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Value {
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
         self.fixed_price_mutation_preflight(fields, request, variables);
         if fields.iter().any(|field| {
             matches!(
@@ -602,12 +603,8 @@ impl DraftProxy {
             self.mark_markets_family_dirty("priceLists");
             self.record_mutation_log_entry(request, query, variables, "priceList", touched_ids);
         }
-        let mut body = serde_json::Map::new();
-        body.insert("data".to_string(), data);
-        if !errors.is_empty() {
-            body.insert("errors".to_string(), Value::Array(errors));
-        }
-        Value::Object(body)
+        ResolverOutcome::value(data.get(response_key).cloned().unwrap_or(Value::Null))
+            .with_errors(root_field_errors_from_json(&errors, response_key))
     }
 
     pub(in crate::proxy) fn price_list_create_response(

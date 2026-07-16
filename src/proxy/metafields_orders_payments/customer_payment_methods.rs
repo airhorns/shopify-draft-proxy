@@ -87,12 +87,13 @@ fn customer_payment_method_remote_blank_error(
 }
 
 impl DraftProxy {
-    pub(in crate::proxy) fn customer_payment_method_local_data(
+    pub(in crate::proxy) fn customer_payment_method_local_outcome(
         &mut self,
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<Value> {
+        response_key: &str,
+    ) -> Option<ResolverOutcome<Value>> {
         let fields = self.execution_root_fields(query, variables)?;
         let customer_fields = fields
             .iter()
@@ -204,7 +205,9 @@ impl DraftProxy {
                 staged_ids,
             );
         }
-        Some(json!({ "data": data }))
+        Some(ResolverOutcome::value(
+            data.get(response_key).cloned().unwrap_or(Value::Null),
+        ))
     }
 
     fn ensure_customer_payment_method_seed_state(&mut self) {
@@ -395,7 +398,6 @@ impl DraftProxy {
     pub(in crate::proxy) fn customer_payment_method_node_value_by_id(
         &self,
         id: &str,
-        selection: &[SelectedField],
     ) -> Option<Value> {
         let Some(record) = self.store.staged.customer_payment_methods.get(id) else {
             return Some(Value::Null);
@@ -403,11 +405,7 @@ impl DraftProxy {
         if !record["revokedAt"].is_null() {
             return Some(Value::Null);
         }
-        let mut record = record.clone();
-        if let Some(object) = record.as_object_mut() {
-            object.insert("__typename".to_string(), json!("CustomerPaymentMethod"));
-        }
-        Some(selected_json(&record, selection))
+        Some(record.clone())
     }
 
     fn customer_payment_method_credit_card_create(

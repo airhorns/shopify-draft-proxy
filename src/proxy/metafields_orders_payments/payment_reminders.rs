@@ -6,12 +6,13 @@ use super::*;
 pub(in crate::proxy) const PAYMENT_SCHEDULE_REMINDER_HYDRATE_QUERY: &str = "query PaymentScheduleReminderHydrate($id: ID!) {\n  paymentSchedule: node(id: $id) {\n    ... on PaymentSchedule {\n      id\n      dueAt\n      issuedAt\n      completedAt\n      paymentTerms {\n        id\n        overdue\n        dueInDays\n        paymentTermsName\n        paymentTermsType\n        translatedName\n        order {\n          id\n          email\n          closed\n          closedAt\n          cancelledAt\n          displayFinancialStatus\n          lineItems(first: 1) {\n            nodes {\n              sellingPlan {\n                name\n              }\n            }\n          }\n        }\n        draftOrder {\n          id\n          status\n          completedAt\n        }\n        paymentSchedules(first: 10) {\n          nodes {\n            id\n            dueAt\n            issuedAt\n            completedAt\n          }\n        }\n      }\n    }\n  }\n}";
 
 impl DraftProxy {
-    pub(in crate::proxy) fn payment_reminder_local_data(
+    pub(in crate::proxy) fn payment_reminder_local_outcome(
         &mut self,
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<Value> {
+        response_key: &str,
+    ) -> Option<ResolverOutcome<Value>> {
         let document = parsed_document(query, variables)?;
         let field = document
             .root_fields
@@ -19,10 +20,9 @@ impl DraftProxy {
             .find(|field| field.name == "paymentReminderSend")?;
 
         if selection_contains_any(&field.selection, &["customerPaymentMethod"]) {
-            return Some(payment_reminder_invalid_selection_error(
-                query,
-                &document.operation_path,
-                field,
+            return Some(payment_reminder_top_level_error_outcome(
+                payment_reminder_invalid_selection_error(query, &document.operation_path, field),
+                response_key,
             ));
         }
 
@@ -30,24 +30,29 @@ impl DraftProxy {
             resolved_string_field(&field.arguments, "paymentScheduleId").unwrap_or_default();
 
         if schedule_id.is_empty() || !has_shopify_gid_prefix(&schedule_id) {
-            return Some(payment_reminder_invalid_gid_error(
-                &schedule_id,
-                variable_definition_info(query, "paymentScheduleId")
-                    .map(|info| info.location)
-                    .unwrap_or(field.location),
+            return Some(payment_reminder_top_level_error_outcome(
+                payment_reminder_invalid_gid_error(
+                    &schedule_id,
+                    variable_definition_info(query, "paymentScheduleId")
+                        .map(|info| info.location)
+                        .unwrap_or(field.location),
+                ),
+                response_key,
             ));
         }
 
         if !is_shopify_gid_of_type(&schedule_id, "PaymentSchedule") {
-            return Some(payment_reminder_resource_not_found_error(field));
+            return Some(payment_reminder_top_level_error_outcome(
+                payment_reminder_resource_not_found_error(field),
+                response_key,
+            ));
         }
 
         let payload = self.payment_reminder_payload_for_schedule(request, &schedule_id)?;
-        Some(json!({
-            "data": {
-                field.response_key.clone(): selected_json(&payload, &field.selection)
-            }
-        }))
+        Some(ResolverOutcome::value(selected_json(
+            &payload,
+            &field.selection,
+        )))
     }
 
     fn payment_reminder_payload_for_schedule(
@@ -255,38 +260,31 @@ pub(in crate::proxy) fn payment_reminder_invalid_gid_error(
     schedule_id: &str,
     location: SourceLocation,
 ) -> Value {
-    json!({
-        "errors": [invalid_variable_error_envelope(
-            "Variable $paymentScheduleId of type ID! was provided invalid value".to_string(),
-            location,
-            json!(schedule_id),
-            json!([{
-                    "path": [],
-                    "explanation": format!("Invalid global id '{schedule_id}'"),
-                    "message": format!("Invalid global id '{schedule_id}'")
-            }]),
-        )]
-    })
+    invalid_variable_error_envelope(
+        "Variable $paymentScheduleId of type ID! was provided invalid value".to_string(),
+        location,
+        json!(schedule_id),
+        json!([{
+                "path": [],
+                "explanation": format!("Invalid global id '{schedule_id}'"),
+                "message": format!("Invalid global id '{schedule_id}'")
+        }]),
+    )
 }
 
 pub(in crate::proxy) fn payment_reminder_resource_not_found_error(
     field: &RootFieldSelection,
 ) -> Value {
     json!({
-        "errors": [{
-            "message": "invalid id",
-            "locations": [{
-                "line": field.location.line,
-                "column": field.location.column
-            }],
-            "extensions": {
-                "code": "RESOURCE_NOT_FOUND"
-            },
-            "path": [field.response_key.clone()]
+        "message": "invalid id",
+        "locations": [{
+            "line": field.location.line,
+            "column": field.location.column
         }],
-        "data": {
-            field.response_key.clone(): Value::Null
-        }
+        "extensions": {
+            "code": "RESOURCE_NOT_FOUND"
+        },
+        "path": [field.response_key.clone()]
     })
 }
 
@@ -301,20 +299,26 @@ pub(in crate::proxy) fn payment_reminder_invalid_selection_error(
     path.push(field.response_key.clone());
     path.push("customerPaymentMethod".to_string());
     json!({
-        "errors": [{
-            "message": "Field 'customerPaymentMethod' doesn't exist on type 'PaymentReminderSendPayload'",
-            "locations": [{
-                "line": location.line,
-                "column": location.column
-            }],
-            "path": path,
-            "extensions": {
-                "code": "undefinedField",
-                "typeName": "PaymentReminderSendPayload",
-                "fieldName": "customerPaymentMethod"
-            }
-        }]
+        "message": "Field 'customerPaymentMethod' doesn't exist on type 'PaymentReminderSendPayload'",
+        "locations": [{
+            "line": location.line,
+            "column": location.column
+        }],
+        "path": path,
+        "extensions": {
+            "code": "undefinedField",
+            "typeName": "PaymentReminderSendPayload",
+            "fieldName": "customerPaymentMethod"
+        }
     })
+}
+
+fn payment_reminder_top_level_error_outcome(
+    error: Value,
+    response_key: &str,
+) -> ResolverOutcome<Value> {
+    ResolverOutcome::value(Value::Null)
+        .with_errors(root_field_errors_from_json(&[error], response_key))
 }
 
 pub(in crate::proxy) fn payment_reminder_error_payload(message: &str) -> Value {

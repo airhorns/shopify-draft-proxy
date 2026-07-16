@@ -84,7 +84,7 @@ impl DraftProxy {
             request_localization_context_preflighted: false,
             request_markets_query_preflighted: false,
             request_mixed_discount_local_read: false,
-            request_node_query_response: None,
+            request_node_query_outcomes: None,
             commit_transport: Arc::new(default_commit_transport),
             upstream_transport: guarded_upstream_transport_from_arc(Arc::clone(
                 &upstream_transport,
@@ -213,7 +213,7 @@ impl DraftProxy {
                 self.request_localization_context_preflighted = false;
                 self.request_markets_query_preflighted = false;
                 self.request_mixed_discount_local_read = false;
-                self.request_node_query_response = None;
+                self.request_node_query_outcomes = None;
                 ok_json(json!({ "ok": true, "message": "state reset" }))
             }
             Route::MetaDump => self.dump_state(&request),

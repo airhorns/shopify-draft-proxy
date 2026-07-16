@@ -1,5 +1,34 @@
 use super::*;
 
+pub(in crate::proxy) fn delivery_promise_field_resolver_registrations(
+) -> Vec<FieldResolverRegistration> {
+    vec![FieldResolverRegistration::explicit(
+        ApiSurface::Admin,
+        "DeliveryPromiseParticipant",
+        "owner",
+        delivery_promise_participant_owner_field,
+    )]
+}
+
+fn delivery_promise_participant_owner_field(
+    proxy: &mut DraftProxy,
+    request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let owner_id = delivery_promise_participant_owner_id(invocation.parent)
+        .ok_or_else(|| "DeliveryPromiseParticipant parent has no canonical owner id".to_string())?;
+    let state = crate::proxy::node_registry::registered_node_value(proxy, owner_id, Some(request));
+    Ok(match state {
+        crate::node_resolver_inventory::NodeLoadState::Found(entity) => entity.value,
+        crate::node_resolver_inventory::NodeLoadState::KnownMissing => Value::Null,
+        crate::node_resolver_inventory::NodeLoadState::NeedsHydration => {
+            let type_name = shopify_gid_resource_type(owner_id).unwrap_or("Node");
+            json!({ "__typename": type_name, "id": owner_id })
+        }
+        crate::node_resolver_inventory::NodeLoadState::UnsupportedType => Value::Null,
+    })
+}
+
 const DELIVERY_PROMISE_OWNER_LIMIT: usize = 250;
 const DELIVERY_PROMISE_HANDLE_MAX_LENGTH: usize = 255;
 const DELIVERY_PROMISE_TIME_ZONE_MAX_LENGTH: usize = 255;
@@ -40,17 +69,21 @@ struct DeliveryPromiseParticipantsUpdatePlan {
 }
 
 impl DraftProxy {
-    pub(in crate::proxy) fn delivery_promise_read_response(
+    pub(in crate::proxy) fn delivery_promise_read_outcome(
         &mut self,
         request: &Request,
         fields: &[RootFieldSelection],
-    ) -> Response {
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
         if self.config.read_mode == ReadMode::LiveHybrid && !self.has_delivery_promise_state() {
-            let response = (self.upstream_transport)(request.clone());
-            self.observe_delivery_promise_response(&response);
-            return response;
+            let result = self.cached_or_forward_upstream_graphql_result(request, response_key);
+            if result.transport_succeeded {
+                self.observe_delivery_promise_data(&result.data);
+            }
+            return result.outcome;
         }
-        ok_json(json!({ "data": self.delivery_promise_read_data(fields) }))
+        let data = self.delivery_promise_read_data(fields);
+        ResolverOutcome::value(data.get(response_key).cloned().unwrap_or(Value::Null))
     }
 
     fn has_delivery_promise_state(&self) -> bool {
@@ -94,17 +127,10 @@ impl DraftProxy {
                 .is_empty()
     }
 
-    fn observe_delivery_promise_response(&mut self, response: &Response) {
-        if !(200..300).contains(&response.status) {
-            return;
-        }
+    fn observe_delivery_promise_data(&mut self, data: &Value) {
         let mut providers = Vec::new();
         let mut participants = Vec::new();
-        collect_delivery_promise_response_values(
-            response.body.get("data").unwrap_or(&Value::Null),
-            &mut providers,
-            &mut participants,
-        );
+        collect_delivery_promise_response_values(data, &mut providers, &mut participants);
         for provider in providers {
             if let Some(provider) = normalized_delivery_promise_provider_read_model(provider) {
                 if let Some(id) = provider.get("id").and_then(Value::as_str) {
@@ -162,10 +188,23 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
-    ) -> Response {
+        response_key: &str,
+    ) -> BTreeMap<String, ResolverOutcome<Value>> {
         let Some(fields) = root_fields(query, variables) else {
-            return json_error(400, "Invalid delivery promise mutation");
+            return BTreeMap::from([(
+                response_key.to_string(),
+                resolver_http_error_outcome(400, "Invalid delivery promise mutation"),
+            )]);
         };
+        self.delivery_promise_mutation_fields(fields, request, response_key)
+    }
+
+    pub(in crate::proxy) fn delivery_promise_mutation_fields(
+        &mut self,
+        fields: Vec<RootFieldSelection>,
+        request: &Request,
+        response_key: &str,
+    ) -> BTreeMap<String, ResolverOutcome<Value>> {
         let mut prepared = Vec::new();
         for field in fields {
             let plan = match field.name.as_str() {
@@ -182,13 +221,17 @@ impl DraftProxy {
             prepared.push(plan);
         }
         if prepared.is_empty() {
-            return json_error(501, "Unsupported delivery promise mutation");
+            return BTreeMap::from([(
+                response_key.to_string(),
+                resolver_http_error_outcome(501, "Unsupported delivery promise mutation"),
+            )]);
         }
 
         let has_user_errors = prepared
             .iter()
             .any(DeliveryPromisePreparedMutation::has_user_errors);
         let mut data = serde_json::Map::new();
+        let mut log_drafts = Vec::new();
         for plan in prepared {
             match plan {
                 DeliveryPromisePreparedMutation::ProviderUpsert(plan) => {
@@ -201,13 +244,11 @@ impl DraftProxy {
                     } else {
                         let (provider, staged_id) =
                             self.apply_delivery_promise_provider_upsert(&plan);
-                        self.record_mutation_log_entry(
-                            request,
-                            query,
-                            variables,
-                            &plan.field.name,
+                        log_drafts.push(LogDraft::staged(
+                            plan.field.name.clone(),
+                            "shipping-fulfillments",
                             vec![staged_id],
-                        );
+                        ));
                         delivery_promise_provider_payload_json(
                             provider,
                             &plan.field.selection,
@@ -226,13 +267,11 @@ impl DraftProxy {
                     } else {
                         let (participants, staged_ids) =
                             self.apply_delivery_promise_participants_update(&plan);
-                        self.record_mutation_log_entry(
-                            request,
-                            query,
-                            variables,
-                            &plan.field.name,
+                        log_drafts.push(LogDraft::staged(
+                            plan.field.name.clone(),
+                            "shipping-fulfillments",
                             staged_ids,
-                        );
+                        ));
                         self.delivery_promise_participants_payload_json(
                             participants,
                             &plan.field.selection,
@@ -244,7 +283,15 @@ impl DraftProxy {
             }
         }
 
-        ok_json(json!({ "data": Value::Object(data) }))
+        let mut outcomes = data
+            .into_iter()
+            .map(|(response_key, value)| (response_key, ResolverOutcome::value(value)))
+            .collect::<BTreeMap<_, _>>();
+        outcomes
+            .entry(response_key.to_string())
+            .or_insert_with(|| ResolverOutcome::value(Value::Null))
+            .log_drafts = log_drafts;
+        outcomes
     }
 
     fn prepare_delivery_promise_provider_upsert(
@@ -684,24 +731,14 @@ impl DraftProxy {
         Value::Object(fields)
     }
 
-    pub(in crate::proxy) fn delivery_promise_node_value_by_id(
-        &self,
-        id: &str,
-        selection: &[SelectedField],
-    ) -> Option<Value> {
+    pub(in crate::proxy) fn delivery_promise_node_value_by_id(&self, id: &str) -> Option<Value> {
         match shopify_gid_resource_type(id) {
             Some("DeliveryPromiseProvider") => Some(
                 self.delivery_promise_provider_by_id(id)
-                    .map(|provider| {
-                        self.delivery_promise_provider_selected_json(&provider, selection)
-                    })
                     .unwrap_or(Value::Null),
             ),
             Some("DeliveryPromiseParticipant") => Some(
                 self.delivery_promise_participant_by_id(id)
-                    .map(|participant| {
-                        self.delivery_promise_participant_selected_json(&participant, selection)
-                    })
                     .unwrap_or(Value::Null),
             ),
             _ => None,

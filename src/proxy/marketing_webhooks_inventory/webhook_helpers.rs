@@ -10,32 +10,51 @@ impl DraftProxy {
             request,
             query,
             variables,
-            root_name: _,
+            root_name,
+            arguments,
             mode,
             ..
         } = invocation;
-        let response = (|| -> Response {
-            match mode {
-                LocalResolverMode::OverlayRead => {
-                    let Some(document) = parsed_document(query, variables) else {
-                        return json_error(400, "Could not parse GraphQL operation");
-                    };
-                    let fields = match self.root_fields_or_error(query, variables) {
-                        Ok(fields) => fields,
-                        Err(response) => return response,
-                    };
-                    if let Some(error) = webhook_subscription_sort_key_validation_error(&document) {
-                        ok_json(json!({ "errors": [error] }))
-                    } else {
-                        ok_json(json!({
-                            "data": self.webhook_subscriptions_query_data(&fields)
-                        }))
+        match mode {
+            LocalResolverMode::OverlayRead => {
+                let Some(document) = parsed_document(query, variables) else {
+                    return resolver_http_error_outcome(400, "Could not parse GraphQL operation");
+                };
+                let mut fields = match self.root_fields_or_error(query, variables) {
+                    Ok(fields) => fields,
+                    Err(_) => {
+                        return resolver_http_error_outcome(
+                            400,
+                            "Could not parse GraphQL operation",
+                        )
                     }
+                };
+                fields.retain(|field| field.response_key == response_key);
+                if let Some(field) = fields.first_mut() {
+                    field.arguments = arguments
+                        .iter()
+                        .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
+                        .collect();
                 }
-                LocalResolverMode::StageLocally => self.webhook_mutation(request, query, variables),
+                if let Some(error) = webhook_subscription_sort_key_validation_error(&document) {
+                    return graphql_error_outcome(vec![error], response_key);
+                }
+                let mut data = self.webhook_subscriptions_query_data(&fields);
+                ResolverOutcome::value(
+                    data.as_object_mut()
+                        .and_then(|data| data.remove(response_key))
+                        .unwrap_or(Value::Null),
+                )
             }
-        })();
-        resolver_outcome_from_response(response, response_key)
+            LocalResolverMode::StageLocally => self.webhook_mutation_outcome(
+                request,
+                query,
+                variables,
+                response_key,
+                root_name,
+                &arguments,
+            ),
+        }
     }
 }
 
@@ -559,75 +578,72 @@ impl DraftProxy {
     /// their response alias. Schema-level errors (invalid topic literal, missing
     /// required pub/sub fields) abort the whole operation with top-level errors,
     /// matching GraphQL execution semantics.
-    pub(in crate::proxy) fn webhook_mutation(
+    pub(in crate::proxy) fn webhook_mutation_outcome(
         &mut self,
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
+        response_key: &str,
+        root_name: &str,
+        coerced_arguments: &BTreeMap<String, Value>,
+    ) -> ResolverOutcome<Value> {
         let Some(document) = parsed_document(query, variables) else {
-            return json_error(400, "Could not parse GraphQL operation");
+            return resolver_http_error_outcome(400, "Could not parse GraphQL operation");
         };
-        let Some(fields) = self.execution_root_fields(query, variables) else {
-            return json_error(400, "Operation has no root field");
+        let Some(mut field) = self
+            .execution_root_fields(query, variables)
+            .and_then(|fields| {
+                fields
+                    .into_iter()
+                    .find(|field| field.response_key == response_key)
+            })
+        else {
+            return resolver_http_error_outcome(400, "Operation has no root field");
         };
-        let mut early_response = None;
-        let data = root_payload_json(&fields, |field| {
-            if early_response.is_some() {
-                return None;
-            }
-            let required_errors = webhook_required_argument_errors(field, &document);
-            if !required_errors.is_empty() {
-                early_response = Some(ok_json(json!({ "errors": required_errors })));
-                return None;
-            }
-            if let Some(error) = webhook_subscription_topic_coercion_error(field, Some(&document)) {
-                early_response = Some(ok_json(json!({ "errors": [error] })));
-                return None;
-            }
-            if let Some(error) =
-                dedicated_pubsub_required_field_error(&field.name, field, &document)
-            {
-                early_response = Some(ok_json(json!({ "errors": [error] })));
-                return None;
-            }
-            let payload = match field.name.as_str() {
-                "webhookSubscriptionCreate"
-                | "pubSubWebhookSubscriptionCreate"
-                | "eventBridgeWebhookSubscriptionCreate" => {
-                    self.webhook_subscription_create_field(field, request, query, variables)
-                }
-                "webhookSubscriptionUpdate"
-                | "pubSubWebhookSubscriptionUpdate"
-                | "eventBridgeWebhookSubscriptionUpdate" => {
-                    self.webhook_subscription_update_field(field, request, query, variables)
-                }
-                "webhookSubscriptionDelete" => {
-                    self.webhook_subscription_delete_field(field, request, query, variables)
-                }
-                other => {
-                    early_response = Some(json_error(
-                        501,
-                        &format!("No Rust webhooks dispatcher implemented for root field: {other}"),
-                    ));
-                    return None;
-                }
-            };
-            Some(payload)
-        });
-        if let Some(response) = early_response {
-            return response;
+        field.arguments = coerced_arguments
+            .iter()
+            .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
+            .collect();
+        let required_errors = webhook_required_argument_errors(&field, &document);
+        if !required_errors.is_empty() {
+            return graphql_error_outcome(required_errors, response_key);
         }
-        ok_json(json!({ "data": data }))
+        if let Some(error) = webhook_subscription_topic_coercion_error(&field, Some(&document)) {
+            return graphql_error_outcome(vec![error], response_key);
+        }
+        if let Some(error) = dedicated_pubsub_required_field_error(&field.name, &field, &document) {
+            return graphql_error_outcome(vec![error], response_key);
+        }
+        let (payload, staged_id) = match field.name.as_str() {
+            "webhookSubscriptionCreate"
+            | "pubSubWebhookSubscriptionCreate"
+            | "eventBridgeWebhookSubscriptionCreate" => {
+                self.webhook_subscription_create_field(&field, request)
+            }
+            "webhookSubscriptionUpdate"
+            | "pubSubWebhookSubscriptionUpdate"
+            | "eventBridgeWebhookSubscriptionUpdate" => {
+                self.webhook_subscription_update_field(&field, request)
+            }
+            "webhookSubscriptionDelete" => self.webhook_subscription_delete_field(&field),
+            other => {
+                return resolver_http_error_outcome(
+                    501,
+                    format!("No Rust webhooks dispatcher implemented for root field: {other}"),
+                )
+            }
+        };
+        let outcome = ResolverOutcome::value(payload);
+        staged_id.map_or(outcome.clone(), |id| {
+            outcome.with_log_draft(LogDraft::staged(root_name, "webhooks", vec![id]))
+        })
     }
 
     fn webhook_subscription_create_field(
         &mut self,
         field: &RootFieldSelection,
         request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Value {
+    ) -> (Value, Option<String>) {
         let id = self.next_proxy_synthetic_gid("WebhookSubscription");
         let api_client_id = request_header(request, API_CLIENT_ID_HEADER);
         let api_version = webhook_subscription_effective_api_version(request);
@@ -643,33 +659,39 @@ impl DraftProxy {
         let errors =
             self.webhook_subscription_validation_errors(&field.name, &id, &record, request);
         if !errors.is_empty() {
-            return self.webhook_subscription_payload(Value::Null, field.selection.clone(), errors);
+            return (
+                self.webhook_subscription_payload(Value::Null, field.selection.clone(), errors),
+                None,
+            );
         }
         self.store
             .staged
             .webhook_subscriptions
             .insert(id.clone(), record.clone());
-        self.record_mutation_log_entry(request, query, variables, &field.name, vec![id]);
-        self.webhook_subscription_payload(record, field.selection.clone(), Vec::new())
+        (
+            self.webhook_subscription_payload(record, field.selection.clone(), Vec::new()),
+            Some(id),
+        )
     }
 
     fn webhook_subscription_update_field(
         &mut self,
         field: &RootFieldSelection,
         request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Value {
+    ) -> (Value, Option<String>) {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(existing) = self.store.staged.webhook_subscriptions.get(&id).cloned() else {
-            return self.webhook_subscription_payload(
-                Value::Null,
-                field.selection.clone(),
-                vec![user_error_omit_code(
-                    ["id"],
-                    "Webhook subscription does not exist",
-                    None,
-                )],
+            return (
+                self.webhook_subscription_payload(
+                    Value::Null,
+                    field.selection.clone(),
+                    vec![user_error_omit_code(
+                        ["id"],
+                        "Webhook subscription does not exist",
+                        None,
+                    )],
+                ),
+                None,
             );
         };
         let api_client_id = request_header(request, API_CLIENT_ID_HEADER);
@@ -686,23 +708,25 @@ impl DraftProxy {
         let errors =
             self.webhook_subscription_validation_errors(&field.name, &id, &record, request);
         if !errors.is_empty() {
-            return self.webhook_subscription_payload(Value::Null, field.selection.clone(), errors);
+            return (
+                self.webhook_subscription_payload(Value::Null, field.selection.clone(), errors),
+                None,
+            );
         }
         self.store
             .staged
             .webhook_subscriptions
             .insert(id.clone(), record.clone());
-        self.record_mutation_log_entry(request, query, variables, &field.name, vec![id]);
-        self.webhook_subscription_payload(record, field.selection.clone(), Vec::new())
+        (
+            self.webhook_subscription_payload(record, field.selection.clone(), Vec::new()),
+            Some(id),
+        )
     }
 
     fn webhook_subscription_delete_field(
         &mut self,
         field: &RootFieldSelection,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Value {
+    ) -> (Value, Option<String>) {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let deleted_id = if self
             .store
@@ -715,15 +739,7 @@ impl DraftProxy {
         } else {
             Value::Null
         };
-        if deleted_id != Value::Null {
-            self.record_mutation_log_entry(
-                request,
-                query,
-                variables,
-                "webhookSubscriptionDelete",
-                vec![id],
-            );
-        }
+        let staged_id = (deleted_id != Value::Null).then_some(id);
         let payload = json!({
             "deletedWebhookSubscriptionId": deleted_id,
             "userErrors": if deleted_id == Value::Null {
@@ -732,7 +748,7 @@ impl DraftProxy {
                 json!([])
             }
         });
-        selected_json(&payload, &field.selection)
+        (selected_json(&payload, &field.selection), staged_id)
     }
 
     pub(in crate::proxy) fn webhook_subscription_payload(

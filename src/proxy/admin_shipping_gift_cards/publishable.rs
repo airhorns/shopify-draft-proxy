@@ -46,38 +46,47 @@ const PUBLISHABLE_PUBLICATION_CATALOG_HYDRATE_QUERY: &str = r#"#graphql
 impl DraftProxy {
     pub(in crate::proxy) fn product_publishable_mutation(
         &mut self,
-        root_field: &str,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let RootInvocation {
+            response_key,
+            root_name: root_field,
+            query,
+            variables,
+            request,
+            ..
+        } = invocation;
         // When a scenario has seeded publications, the publish/unpublish target
         // mutates that local publication-membership engine (so subsequent
         // publication/product/collection reads reflect the change) instead of the
         // standalone shop-publication-count path below.
         if self.publication_engine_active() {
-            return self
-                .publishable_publish_with_publications(root_field, query, variables, request);
+            return self.publishable_publish_with_publications(
+                root_field,
+                query,
+                variables,
+                request,
+                response_key,
+            );
         }
         let Some(document) = parsed_document(query, variables) else {
-            return json_error(400, "Unable to parse publishable mutation");
+            return resolver_http_error_outcome(400, "Unable to parse publishable mutation");
         };
         let operation_path = document.operation_path.clone();
         let Some(fields) = self.execution_root_fields(query, variables) else {
-            return json_error(400, "Operation has no root field");
+            return resolver_http_error_outcome(400, "Operation has no root field");
         };
-        let mut data = serde_json::Map::new();
         for field in fields {
-            if field.name != root_field {
+            if field.name != root_field || field.response_key != response_key {
                 continue;
             }
             let Some(resource_id) = resolved_string_field(&field.arguments, "id") else {
                 continue;
             };
-            if let Some(response) =
+            if let Some(error) =
                 publishable_empty_string_publication_error(query, &operation_path, &field)
             {
-                return response;
+                return graphql_error_outcome(vec![error], response_key);
             }
 
             let payload_selection = field.selection.clone();
@@ -174,7 +183,6 @@ impl DraftProxy {
                     publish,
                     &published_at,
                 );
-                self.record_mutation_log_entry(request, query, variables, root_field, vec![]);
             }
 
             let publishable = if user_errors.iter().any(|error| {
@@ -188,21 +196,22 @@ impl DraftProxy {
                 self.publishable_resource_value(&resource_id, &publishable_selection)
             };
             let shop = self.store.effective_shop();
-            data.insert(
-                field.response_key,
-                selected_payload_json(&payload_selection, |selection| {
-                    match selection.name.as_str() {
-                        "publishable" => Some(publishable.clone()),
-                        "shop" => Some(selected_json(&shop, &selection.selection)),
-                        "userErrors" => {
-                            selected_user_errors_field(user_errors.as_slice(), selection)
-                        }
-                        _ => None,
-                    }
-                }),
-            );
+            let payload = selected_payload_json(&payload_selection, |selection| {
+                match selection.name.as_str() {
+                    "publishable" => Some(publishable.clone()),
+                    "shop" => Some(selected_json(&shop, &selection.selection)),
+                    "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
+                    _ => None,
+                }
+            });
+            let outcome = ResolverOutcome::value(payload);
+            return if user_errors.is_empty() {
+                outcome.with_log_draft(LogDraft::staged(root_field, "store_properties", Vec::new()))
+            } else {
+                outcome
+            };
         }
-        ok_json(json!({ "data": Value::Object(data) }))
+        ResolverOutcome::value(Value::Null)
     }
 
     pub(in crate::proxy) fn publishable_payload_shop_needs_hydration(
@@ -493,7 +502,7 @@ pub(in crate::proxy) fn publishable_empty_string_publication_error(
     query: &str,
     operation_path: &str,
     field: &RootFieldSelection,
-) -> Option<Response> {
+) -> Option<Value> {
     let input = field.arguments.get("input")?;
     let ResolvedValue::List(publications) = input else {
         return None;
@@ -519,27 +528,23 @@ pub(in crate::proxy) fn publishable_empty_string_publication_error(
             "Variable ${name} of type {} was provided invalid value for {path_display} ({explanation})",
             variable_definition.type_display
         );
-        return Some(ok_json(json!({
-            "errors": [invalid_variable_error_envelope(
-                message,
-                variable_definition.location,
-                resolved_values::resolved_value_json(variable_value),
-                json!([problem]),
-            )]
-        })));
+        return Some(invalid_variable_error_envelope(
+            message,
+            variable_definition.location,
+            resolved_values::resolved_value_json(variable_value),
+            json!([problem]),
+        ));
     }
 
     let location = inline_argument_list_item_object_location(query, field, "input", index)
         .unwrap_or(field.location);
-    Some(ok_json(json!({
-        "errors": [{
-            "message": "Invalid global id ''",
-            "locations": [{ "line": location.line, "column": location.column }],
-            "path": [operation_path, field.response_key, "input", index, "publicationId"],
-            "extensions": {
-                "code": "argumentLiteralsIncompatible",
-                "typeName": "CoercionError"
-            }
-        }]
-    })))
+    Some(json!({
+        "message": "Invalid global id ''",
+        "locations": [{ "line": location.line, "column": location.column }],
+        "path": [operation_path, field.response_key, "input", index, "publicationId"],
+        "extensions": {
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "CoercionError"
+        }
+    }))
 }

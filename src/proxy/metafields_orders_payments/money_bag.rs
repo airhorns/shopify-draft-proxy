@@ -1,13 +1,15 @@
 use super::*;
 
 impl DraftProxy {
-    pub(in crate::proxy) fn money_bag_presentment_local_data(
+    pub(in crate::proxy) fn money_bag_presentment_local_outcome(
         &mut self,
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<Value> {
-        let fields = self.execution_root_fields(query, variables)?;
+        response_key: &str,
+    ) -> Option<ResolverOutcome<Value>> {
+        let mut fields = self.execution_root_fields(query, variables)?;
+        fields.retain(|field| field.response_key == response_key);
         if !fields.iter().all(|field| {
             matches!(
                 field.name.as_str(),
@@ -169,20 +171,16 @@ impl DraftProxy {
                     let transactions = resolved_object_list_field(&input, "transactions");
                     let order_id = resolved_string_field(&input, "orderId").unwrap_or_default();
                     let Some(order) = self.store.staged.orders.get(&order_id).cloned() else {
-                        early_response = Some(json!({
-                            "data": {
-                                field.response_key.clone(): refund_input_error(
-                                    field,
-                                    None,
-                                    user_error_omit_code(
-                                        json!(["orderId"]),
-                                        "Order does not exist",
-                                        Some("NOT_FOUND"),
-                                    ),
-                                    &shop_currency_code,
-                                )
-                            }
-                        }));
+                        early_response = Some(refund_input_error(
+                            field,
+                            None,
+                            user_error_omit_code(
+                                json!(["orderId"]),
+                                "Order does not exist",
+                                Some("NOT_FOUND"),
+                            ),
+                            &shop_currency_code,
+                        ));
                         return None;
                     };
                     let total = if let Some(total) = transactions.first().and_then(|transaction| {
@@ -218,32 +216,24 @@ impl DraftProxy {
                         resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     let order = self.store.staged.orders.get(&order_id).cloned();
                     if order.is_none() {
-                        early_response = Some(json!({
-                            "data": {
-                                field.response_key.clone(): selected_json(
-                                    &json!({
-                                        "calculatedOrder": Value::Null,
-                                        "userErrors": [user_error_omit_code(["id"], "The order does not exist.", None)]
-                                    }),
-                                    &field.selection
-                                )
-                            }
-                        }));
+                        early_response = Some(selected_json(
+                            &json!({
+                                "calculatedOrder": Value::Null,
+                                "userErrors": [user_error_omit_code(["id"], "The order does not exist.", None)]
+                            }),
+                            &field.selection,
+                        ));
                         return None;
                     }
                     let order = order.unwrap_or(Value::Null);
                     if order_edit_order_is_not_editable(&order) {
-                        early_response = Some(json!({
-                            "data": {
-                                field.response_key.clone(): selected_json(
-                                    &json!({
-                                        "calculatedOrder": Value::Null,
-                                        "userErrors": [user_error_omit_code(Value::Null, "The order cannot be edited.", None)]
-                                    }),
-                                    &field.selection
-                                )
-                            }
-                        }));
+                        early_response = Some(selected_json(
+                            &json!({
+                                "calculatedOrder": Value::Null,
+                                "userErrors": [user_error_omit_code(Value::Null, "The order cannot be edited.", None)]
+                            }),
+                            &field.selection,
+                        ));
                         return None;
                     }
                     let calculated_id = self.next_proxy_synthetic_gid("CalculatedOrder");
@@ -278,18 +268,14 @@ impl DraftProxy {
                         .order_edit_money_bag_calculated_order_ids
                         .contains_key(&calculated_id)
                     {
-                        early_response = Some(json!({
-                            "data": {
-                                field.response_key.clone(): selected_json(
-                                    &json!({
-                                        "order": Value::Null,
-                                        "successMessages": [],
-                                        "userErrors": [user_error_omit_code(["id"], "The calculated order does not exist.", None)]
-                                    }),
-                                    &field.selection
-                                )
-                            }
-                        }));
+                        early_response = Some(selected_json(
+                            &json!({
+                                "order": Value::Null,
+                                "successMessages": [],
+                                "userErrors": [user_error_omit_code(["id"], "The calculated order does not exist.", None)]
+                            }),
+                            &field.selection,
+                        ));
                         return None;
                     }
                     selected_json(
@@ -306,12 +292,14 @@ impl DraftProxy {
             Some(value)
         });
         if let Some(response) = early_response {
-            return Some(response);
+            return Some(ResolverOutcome::value(response));
         }
         if !staged_ids.is_empty() {
             self.record_mutation_log_entry(request, query, variables, "orderCreate", staged_ids);
         }
-        Some(json!({ "data": data }))
+        Some(ResolverOutcome::value(
+            data.get(response_key).cloned().unwrap_or(Value::Null),
+        ))
     }
 
     fn stage_money_bag_order(

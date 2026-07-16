@@ -126,11 +126,7 @@ impl DraftProxy {
         }
     }
 
-    pub(in crate::proxy) fn online_store_content_node_value(
-        &self,
-        id: &str,
-        selection: &[SelectedField],
-    ) -> Option<Value> {
+    pub(in crate::proxy) fn online_store_content_node_value(&self, id: &str) -> Option<Value> {
         let kind = match shopify_gid_resource_type(id) {
             Some("Blog") => OnlineStoreKind::Blog,
             Some("Page") => OnlineStoreKind::Page,
@@ -141,7 +137,8 @@ impl DraftProxy {
         if kind.deleted_ids(&self.store.staged).contains(id) {
             return Some(Value::Null);
         }
-        self.online_store_value(kind, id, selection)
+        self.online_store_record(kind, id)
+            .map(|record| self.enriched_online_store_record(kind, &record))
     }
 
     pub(in crate::proxy) fn online_store_content_query_needs_upstream(

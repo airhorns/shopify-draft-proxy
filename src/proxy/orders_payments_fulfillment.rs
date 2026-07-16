@@ -11,62 +11,81 @@ pub(in crate::proxy) use self::orders::*;
 pub(in crate::proxy) use self::payments::*;
 
 impl DraftProxy {
-    pub(in crate::proxy) fn orders_query_response(
+    pub(in crate::proxy) fn orders_query_outcome(
         &mut self,
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         root_field: &str,
-    ) -> Response {
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
         if root_field == "order"
             && self.should_handle_shipping_fulfillment_order_local_order_read(query, variables)
         {
-            return self.shipping_fulfillment_order_local_order_read(query, variables);
+            return self.shipping_fulfillment_order_local_order_outcome(
+                query,
+                variables,
+                response_key,
+            );
         }
-        if let Some(data) = self.order_create_local_data(request, root_field, query, variables) {
-            return ok_json(data);
-        }
-        if let Some(response) = self.draft_order_lifecycle_local_response(request, query, variables)
+        if let Some(outcome) =
+            self.order_create_local_outcome(request, root_field, query, variables, response_key)
         {
-            return response;
+            return outcome;
         }
-        if let Some(data) =
-            self.draft_order_complete_local_data(request, root_field, query, variables)
+        if let Some(outcome) =
+            self.draft_order_lifecycle_local_outcome(request, query, variables, response_key)
         {
-            return ok_json(data);
+            return outcome;
         }
-        if let Some(data) = self.payment_terms_local_data(request, query, variables) {
-            return ok_json(data);
+        if let Some(outcome) = self.draft_order_complete_local_outcome(
+            request,
+            root_field,
+            query,
+            variables,
+            response_key,
+        ) {
+            return outcome;
         }
-        if let Some(data) = self.draft_order_bulk_tag_local_data(query, variables) {
-            return ok_json(data);
-        }
-        if let Some(data) =
-            self.order_return_local_runtime_data(request, root_field, query, variables)
+        if let Some(outcome) =
+            self.payment_terms_local_outcome(request, query, variables, response_key)
         {
-            return ok_json(data);
+            return outcome;
         }
-        if let Some(data) = self.abandonment_read_data(query, variables) {
-            return ok_json(data);
+        if let Some(outcome) =
+            self.draft_order_bulk_tag_local_outcome(query, variables, response_key)
+        {
+            return outcome;
         }
-        if let Some(data) = self.remaining_order_local_data(request, root_field, query, variables) {
-            return ok_json(data);
+        if let Some(outcome) = self.order_return_local_runtime_outcome(
+            request,
+            root_field,
+            query,
+            variables,
+            response_key,
+        ) {
+            return outcome;
+        }
+        if let Some(outcome) = self.abandonment_read_outcome(query, variables, response_key) {
+            return outcome;
+        }
+        if let Some(outcome) =
+            self.remaining_order_local_outcome(request, root_field, query, variables)
+        {
+            return outcome;
         }
         if self.config.read_mode != ReadMode::Snapshot {
-            let response = self
-                .request_upstream_query_response
-                .clone()
-                .unwrap_or_else(|| (self.upstream_transport)(request.clone()));
-            if self.config.read_mode == ReadMode::LiveHybrid {
-                self.observe_order_read_response(request, &response);
-                self.observe_draft_order_read_response(request, &response);
+            let result = self.cached_or_forward_upstream_graphql_result(request, response_key);
+            if self.config.read_mode == ReadMode::LiveHybrid && result.transport_succeeded {
+                self.observe_order_read_data(request, &result.data);
+                self.observe_draft_order_read_data(request, &result.data);
             }
-            return response;
+            return result.outcome;
         }
 
         let fields = match self.root_fields_or_error(query, variables) {
             Ok(fields) => fields,
-            Err(response) => return response,
+            Err(_) => return resolver_http_error_outcome(400, "Could not parse GraphQL operation"),
         };
         let data = root_payload_json(&fields, |field| match field.name.as_str() {
             "order" | "draftOrder" | "return" | "abandonment" => Some(Value::Null),
@@ -74,14 +93,15 @@ impl DraftProxy {
             "ordersCount" => Some(selected_json(&count_object(0), &field.selection)),
             _ => None,
         });
-        ok_json(json!({ "data": data }))
+        ResolverOutcome::value(data.get(response_key).cloned().unwrap_or(Value::Null))
     }
 
-    pub(in crate::proxy) fn abandonment_read_data(
+    pub(in crate::proxy) fn abandonment_read_outcome(
         &self,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<Value> {
+        response_key: &str,
+    ) -> Option<ResolverOutcome<Value>> {
         let fields = self.execution_root_fields(query, variables)?;
         if !fields.iter().any(|field| field.name == "abandonment") {
             return None;
@@ -101,34 +121,19 @@ impl DraftProxy {
                 .unwrap_or(Value::Null);
             Some(value)
         });
-        Some(json!({ "data": data }))
+        Some(ResolverOutcome::value(
+            data.get(response_key).cloned().unwrap_or(Value::Null),
+        ))
     }
 
-    pub(in crate::proxy) fn orders_stage_locally_unmodeled_shape_response(
+    pub(in crate::proxy) fn orders_stage_locally_unmodeled_shape_outcome(
         &mut self,
-        request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         root_field: &str,
-    ) -> Response {
-        self.record_mutation_log_entry(request, query, variables, root_field, Vec::new());
-        if let Some(entry) = self.log_entries.last_mut() {
-            set_log_status(entry, "failed");
-            entry["notes"] = json!(
-                "Orders mutation root is registered for local staging, but this argument/selection shape is not modeled yet."
-            );
-            entry["interpreted"]["capability"] = json!({
-                "operationName": root_field,
-                "domain": "orders",
-                "execution": "stage-locally"
-            });
-        }
-
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
         let field = self.execution_root_field(query, variables, root_field);
-        let response_key = field
-            .as_ref()
-            .map(|field| field.response_key.clone())
-            .unwrap_or_else(|| root_field.to_string());
         let selection = field.map(|field| field.selection).unwrap_or_default();
         let payload = json!({
             "draftOrder": Value::Null,
@@ -152,11 +157,14 @@ impl DraftProxy {
             }]
         });
 
-        ok_json(json!({
-            "data": {
-                response_key: selected_json(&payload, &selection)
-            }
-        }))
+        let _ = response_key;
+        ResolverOutcome::value(selected_json(&payload, &selection)).with_log_draft(
+            LogDraft::failed(
+                root_field,
+                "orders",
+                "Orders mutation root is registered for local staging, but this argument/selection shape is not modeled yet.",
+            ),
+        )
     }
 }
 
@@ -175,297 +183,396 @@ impl DraftProxy {
             mode,
             ..
         } = invocation;
-        let response = (|| -> Response {
-            match mode {
-                LocalResolverMode::OverlayRead
-                    if operation.operation_type == OperationType::Query =>
-                {
-                    if let Some(data) =
-                        self.order_return_local_runtime_data(request, root_field, query, variables)
-                    {
-                        return ok_json(data);
-                    }
-                    if self.should_route_owner_metafields_read(query, variables) {
-                        return self.owner_metafields_read(request, query, variables);
-                    }
-                    self.orders_query_response(request, query, variables, root_field)
+        match mode {
+            LocalResolverMode::OverlayRead if operation.operation_type == OperationType::Query => {
+                if let Some(outcome) = self.order_return_local_runtime_outcome(
+                    request,
+                    root_field,
+                    query,
+                    variables,
+                    response_key,
+                ) {
+                    return outcome;
                 }
-                LocalResolverMode::StageLocally
-                    if operation.operation_type == OperationType::Mutation
-                        && matches!(root_field, "abandonmentUpdateActivitiesDeliveryStatuses") =>
-                {
-                    if let Some(data) =
-                        self.abandonment_delivery_status_local_data(request, query, variables)
-                    {
-                        ok_json(data)
-                    } else {
-                        unimplemented_root_response("orders", root_field)
-                    }
+                if self.should_route_owner_metafields_read(query, variables) {
+                    return self.owner_metafields_read(request, query, variables, response_key);
                 }
-                LocalResolverMode::StageLocally
-                    if operation.operation_type == OperationType::Mutation
-                        && root_field == "orderCancel" =>
-                {
-                    if let Some(data) =
-                        self.order_customer_error_paths_data(request, query, variables)
-                    {
-                        ok_json(data)
-                    } else {
-                        unimplemented_root_response("orders", root_field)
-                    }
-                }
-                LocalResolverMode::StageLocally
-                    if operation.operation_type == OperationType::Mutation
-                        && root_field == "orderDelete" =>
-                {
-                    if let Some(data) =
-                        self.remaining_order_local_data(request, root_field, query, variables)
-                    {
-                        ok_json(data)
-                    } else {
-                        unimplemented_root_response("orders", root_field)
-                    }
-                }
-                LocalResolverMode::StageLocally
-                    if operation.operation_type == OperationType::Mutation
-                        && matches!(
-                            root_field,
-                            "orderMarkAsPaid"
-                                | "orderCreateManualPayment"
-                                | "refundCreate"
-                                | "orderEditBegin"
-                                | "orderEditCommit"
-                        ) =>
-                {
-                    if let Some(data) =
-                        self.money_bag_presentment_local_data(request, query, variables)
-                    {
-                        ok_json(data)
-                    } else if let Some(data) =
-                        self.refund_create_local_data(request, root_field, query, variables)
-                    {
-                        ok_json(data)
-                    } else if let Some(data) = self
-                        .order_payment_transaction_local_data(request, root_field, query, variables)
-                    {
-                        ok_json(data)
-                    } else if let Some(data) =
-                        self.remaining_order_local_data(request, root_field, query, variables)
-                    {
-                        ok_json(data)
-                    } else {
-                        self.orders_stage_locally_unmodeled_shape_response(
-                            request, query, variables, root_field,
-                        )
-                    }
-                }
-                LocalResolverMode::StageLocally
-                    if operation.operation_type == OperationType::Mutation
-                        && root_field == "orderCreate" =>
-                {
-                    if let Some(data) = self.payment_terms_local_data(request, query, variables) {
-                        ok_json(data)
-                    } else if let Some(data) =
-                        self.money_bag_presentment_local_data(request, query, variables)
-                    {
-                        ok_json(data)
-                    } else if let Some(data) = self
-                        .order_payment_transaction_local_data(request, root_field, query, variables)
-                    {
-                        ok_json(data)
-                    } else if let Some(data) =
-                        self.draft_order_complete_local_data(request, root_field, query, variables)
-                    {
-                        ok_json(data)
-                    } else if let Some(data) =
-                        self.remaining_order_local_data(request, root_field, query, variables)
-                    {
-                        ok_json(data)
-                    } else if let Some(data) =
-                        self.order_create_local_data(request, root_field, query, variables)
-                    {
-                        ok_json(data)
-                    } else {
-                        self.customer_order_create(query, variables, request)
-                    }
-                }
-                LocalResolverMode::StageLocally
-                    if operation.operation_type == OperationType::Mutation
-                        && root_field == "orderUpdate" =>
-                {
-                    if let Some(data) =
-                        self.order_create_local_data(request, root_field, query, variables)
-                    {
-                        ok_json(data)
-                    } else {
-                        self.orders_stage_locally_unmodeled_shape_response(
-                            request, query, variables, root_field,
-                        )
-                    }
-                }
-                LocalResolverMode::StageLocally
-                    if operation.operation_type == OperationType::Mutation
-                        && matches!(root_field, "orderClose" | "orderOpen") =>
-                {
-                    if let Some(data) =
-                        self.order_create_local_data(request, root_field, query, variables)
-                    {
-                        ok_json(data)
-                    } else {
-                        unimplemented_root_response("orders", root_field)
-                    }
-                }
-                LocalResolverMode::StageLocally
-                    if operation.operation_type == OperationType::Mutation
-                        && matches!(
-                            root_field,
-                            "draftOrderCreate"
-                                | "draftOrderInvoiceSend"
-                                | "draftOrderUpdate"
-                                | "draftOrderCalculate"
-                                | "draftOrderDuplicate"
-                                | "draftOrderDelete"
-                                | "draftOrderBulkDelete"
-                                | "draftOrderCreateFromOrder"
-                                | "draftOrderInvoicePreview"
-                        ) =>
-                {
-                    if let Some(response) =
-                        self.draft_order_invoice_send_local_response(request, query, variables)
-                    {
-                        response
-                    } else if let Some(data) =
-                        self.draft_order_complete_local_data(request, root_field, query, variables)
-                    {
-                        ok_json(data)
-                    } else if let Some(response) =
-                        self.draft_order_lifecycle_local_response(request, query, variables)
-                    {
-                        response
-                    } else if let Some(data) =
-                        self.draft_order_bulk_tag_local_data(query, variables)
-                    {
-                        ok_json(data)
-                    } else {
-                        unimplemented_root_response("orders", root_field)
-                    }
-                }
-                LocalResolverMode::StageLocally
-                    if operation.operation_type == OperationType::Mutation
-                        && root_field == "draftOrderComplete" =>
-                {
-                    if let Some(data) =
-                        self.draft_order_complete_local_data(request, root_field, query, variables)
-                    {
-                        ok_json(data)
-                    } else {
-                        unimplemented_root_response("orders", root_field)
-                    }
-                }
-                LocalResolverMode::StageLocally
-                    if operation.operation_type == OperationType::Mutation
-                        && matches!(
-                            root_field,
-                            "draftOrderBulkAddTags" | "draftOrderBulkRemoveTags"
-                        ) =>
-                {
-                    let before_tags = self.store.staged.draft_order_tags.clone();
-                    if let Some(data) = self.draft_order_bulk_tag_local_data(query, variables) {
-                        let staged_ids = changed_draft_order_tag_ids(
-                            &before_tags,
-                            &self.store.staged.draft_order_tags,
-                        );
-                        if !staged_ids.is_empty() {
-                            self.record_mutation_log_entry(
-                                request, query, variables, root_field, staged_ids,
-                            );
-                        }
-                        ok_json(data)
-                    } else {
-                        unimplemented_root_response("orders", root_field)
-                    }
-                }
-                LocalResolverMode::StageLocally
-                    if operation.operation_type == OperationType::Mutation
-                        && matches!(
-                            root_field,
-                            "fulfillmentCreate"
-                                | "fulfillmentCreateV2"
-                                | "fulfillmentCancel"
-                                | "fulfillmentTrackingInfoUpdate"
-                                | "fulfillmentTrackingInfoUpdateV2"
-                                | "fulfillmentEventCreate"
-                                | "orderEditAddVariant"
-                                | "orderEditSetQuantity"
-                                | "orderEditAddCustomItem"
-                                | "orderEditAddLineItemDiscount"
-                                | "orderEditRemoveDiscount"
-                                | "orderEditAddShippingLine"
-                                | "orderEditUpdateShippingLine"
-                                | "orderEditRemoveShippingLine"
-                        ) =>
-                {
-                    if let Some(data) =
-                        self.remaining_order_local_data(request, root_field, query, variables)
-                    {
-                        ok_json(data)
-                    } else {
-                        unimplemented_root_response("orders", root_field)
-                    }
-                }
-                LocalResolverMode::StageLocally
-                    if operation.operation_type == OperationType::Mutation
-                        && matches!(
-                            root_field,
-                            "returnCreate"
-                                | "returnRequest"
-                                | "returnApproveRequest"
-                                | "returnDeclineRequest"
-                                | "returnCancel"
-                                | "returnClose"
-                                | "returnReopen"
-                                | "removeFromReturn"
-                                | "returnProcess"
-                        ) =>
-                {
-                    if let Some(data) =
-                        self.order_return_local_runtime_data(request, root_field, query, variables)
-                    {
-                        ok_json(data)
-                    } else {
-                        unimplemented_root_response("orders", root_field)
-                    }
-                }
-                LocalResolverMode::StageLocally
-                    if operation.operation_type == OperationType::Mutation
-                        && matches!(root_field, "orderCustomerSet" | "orderCustomerRemove") =>
-                {
-                    if let Some(data) =
-                        self.order_customer_error_paths_data(request, query, variables)
-                    {
-                        ok_json(data)
-                    } else {
-                        json_error(400, "Could not parse GraphQL operation")
-                    }
-                }
-                LocalResolverMode::StageLocally
-                    if operation.operation_type == OperationType::Mutation
-                        && root_field == "orderInvoiceSend" =>
-                {
-                    if let Some(data) =
-                        self.order_invoice_send_local_data(request, query, variables)
-                    {
-                        ok_json(data)
-                    } else {
-                        unimplemented_root_response("orders", root_field)
-                    }
-                }
-                LocalResolverMode::OverlayRead | LocalResolverMode::StageLocally => {
-                    Self::unimplemented_resolver_response(mode, root_field)
+                self.orders_query_outcome(request, query, variables, root_field, response_key)
+            }
+            LocalResolverMode::StageLocally
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(root_field, "abandonmentUpdateActivitiesDeliveryStatuses") =>
+            {
+                if let Some(outcome) = self.abandonment_delivery_status_local_outcome(
+                    request,
+                    query,
+                    variables,
+                    response_key,
+                ) {
+                    outcome
+                } else {
+                    resolver_http_error_outcome(
+                        501,
+                        format!("No Rust orders resolver implemented for {root_field}"),
+                    )
                 }
             }
-        })();
-        resolver_outcome_from_response(response, response_key)
+            LocalResolverMode::StageLocally
+                if operation.operation_type == OperationType::Mutation
+                    && root_field == "orderCancel" =>
+            {
+                if let Some(outcome) =
+                    self.order_customer_error_paths_outcome(request, query, variables, response_key)
+                {
+                    outcome
+                } else {
+                    resolver_http_error_outcome(
+                        501,
+                        format!("No Rust orders resolver implemented for {root_field}"),
+                    )
+                }
+            }
+            LocalResolverMode::StageLocally
+                if operation.operation_type == OperationType::Mutation
+                    && root_field == "orderDelete" =>
+            {
+                if let Some(outcome) =
+                    self.remaining_order_local_outcome(request, root_field, query, variables)
+                {
+                    outcome
+                } else {
+                    resolver_http_error_outcome(
+                        501,
+                        format!("No Rust orders resolver implemented for {root_field}"),
+                    )
+                }
+            }
+            LocalResolverMode::StageLocally
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "orderMarkAsPaid"
+                            | "orderCreateManualPayment"
+                            | "refundCreate"
+                            | "orderEditBegin"
+                            | "orderEditCommit"
+                    ) =>
+            {
+                if let Some(outcome) = self.money_bag_presentment_local_outcome(
+                    request,
+                    query,
+                    variables,
+                    response_key,
+                ) {
+                    outcome
+                } else if let Some(outcome) = self.refund_create_local_outcome(
+                    request,
+                    root_field,
+                    query,
+                    variables,
+                    response_key,
+                ) {
+                    outcome
+                } else if let Some(outcome) = self.order_payment_transaction_local_outcome(
+                    request,
+                    root_field,
+                    query,
+                    variables,
+                    response_key,
+                ) {
+                    outcome
+                } else if let Some(outcome) =
+                    self.remaining_order_local_outcome(request, root_field, query, variables)
+                {
+                    outcome
+                } else {
+                    self.orders_stage_locally_unmodeled_shape_outcome(
+                        query,
+                        variables,
+                        root_field,
+                        response_key,
+                    )
+                }
+            }
+            LocalResolverMode::StageLocally
+                if operation.operation_type == OperationType::Mutation
+                    && root_field == "orderCreate" =>
+            {
+                if let Some(outcome) =
+                    self.payment_terms_local_outcome(request, query, variables, response_key)
+                {
+                    outcome
+                } else if let Some(outcome) = self.money_bag_presentment_local_outcome(
+                    request,
+                    query,
+                    variables,
+                    response_key,
+                ) {
+                    outcome
+                } else if let Some(outcome) = self.order_payment_transaction_local_outcome(
+                    request,
+                    root_field,
+                    query,
+                    variables,
+                    response_key,
+                ) {
+                    outcome
+                } else if let Some(outcome) = self.draft_order_complete_local_outcome(
+                    request,
+                    root_field,
+                    query,
+                    variables,
+                    response_key,
+                ) {
+                    outcome
+                } else if let Some(outcome) =
+                    self.remaining_order_local_outcome(request, root_field, query, variables)
+                {
+                    outcome
+                } else if let Some(outcome) = self.order_create_local_outcome(
+                    request,
+                    root_field,
+                    query,
+                    variables,
+                    response_key,
+                ) {
+                    outcome
+                } else {
+                    self.customer_order_create(query, variables)
+                }
+            }
+            LocalResolverMode::StageLocally
+                if operation.operation_type == OperationType::Mutation
+                    && root_field == "orderUpdate" =>
+            {
+                if let Some(outcome) = self.order_create_local_outcome(
+                    request,
+                    root_field,
+                    query,
+                    variables,
+                    response_key,
+                ) {
+                    outcome
+                } else {
+                    self.orders_stage_locally_unmodeled_shape_outcome(
+                        query,
+                        variables,
+                        root_field,
+                        response_key,
+                    )
+                }
+            }
+            LocalResolverMode::StageLocally
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(root_field, "orderClose" | "orderOpen") =>
+            {
+                if let Some(outcome) = self.order_create_local_outcome(
+                    request,
+                    root_field,
+                    query,
+                    variables,
+                    response_key,
+                ) {
+                    outcome
+                } else {
+                    resolver_http_error_outcome(
+                        501,
+                        format!("No Rust orders resolver implemented for {root_field}"),
+                    )
+                }
+            }
+            LocalResolverMode::StageLocally
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "draftOrderCreate"
+                            | "draftOrderInvoiceSend"
+                            | "draftOrderUpdate"
+                            | "draftOrderCalculate"
+                            | "draftOrderDuplicate"
+                            | "draftOrderDelete"
+                            | "draftOrderBulkDelete"
+                            | "draftOrderCreateFromOrder"
+                            | "draftOrderInvoicePreview"
+                    ) =>
+            {
+                if let Some(outcome) = self.draft_order_invoice_send_local_outcome(
+                    request,
+                    query,
+                    variables,
+                    response_key,
+                ) {
+                    outcome
+                } else if let Some(outcome) = self.draft_order_complete_local_outcome(
+                    request,
+                    root_field,
+                    query,
+                    variables,
+                    response_key,
+                ) {
+                    outcome
+                } else if let Some(outcome) = self.draft_order_lifecycle_local_outcome(
+                    request,
+                    query,
+                    variables,
+                    response_key,
+                ) {
+                    outcome
+                } else if let Some(outcome) =
+                    self.draft_order_bulk_tag_local_outcome(query, variables, response_key)
+                {
+                    outcome
+                } else {
+                    resolver_http_error_outcome(
+                        501,
+                        format!("No Rust orders resolver implemented for {root_field}"),
+                    )
+                }
+            }
+            LocalResolverMode::StageLocally
+                if operation.operation_type == OperationType::Mutation
+                    && root_field == "draftOrderComplete" =>
+            {
+                if let Some(outcome) = self.draft_order_complete_local_outcome(
+                    request,
+                    root_field,
+                    query,
+                    variables,
+                    response_key,
+                ) {
+                    outcome
+                } else {
+                    resolver_http_error_outcome(
+                        501,
+                        format!("No Rust orders resolver implemented for {root_field}"),
+                    )
+                }
+            }
+            LocalResolverMode::StageLocally
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "draftOrderBulkAddTags" | "draftOrderBulkRemoveTags"
+                    ) =>
+            {
+                let before_tags = self.store.staged.draft_order_tags.clone();
+                if let Some(mut outcome) =
+                    self.draft_order_bulk_tag_local_outcome(query, variables, response_key)
+                {
+                    let staged_ids = changed_draft_order_tag_ids(
+                        &before_tags,
+                        &self.store.staged.draft_order_tags,
+                    );
+                    if !staged_ids.is_empty() {
+                        outcome = outcome
+                            .with_log_draft(LogDraft::staged(root_field, "orders", staged_ids));
+                    }
+                    outcome
+                } else {
+                    resolver_http_error_outcome(
+                        501,
+                        format!("No Rust orders resolver implemented for {root_field}"),
+                    )
+                }
+            }
+            LocalResolverMode::StageLocally
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "fulfillmentCreate"
+                            | "fulfillmentCreateV2"
+                            | "fulfillmentCancel"
+                            | "fulfillmentTrackingInfoUpdate"
+                            | "fulfillmentTrackingInfoUpdateV2"
+                            | "fulfillmentEventCreate"
+                            | "orderEditAddVariant"
+                            | "orderEditSetQuantity"
+                            | "orderEditAddCustomItem"
+                            | "orderEditAddLineItemDiscount"
+                            | "orderEditRemoveDiscount"
+                            | "orderEditAddShippingLine"
+                            | "orderEditUpdateShippingLine"
+                            | "orderEditRemoveShippingLine"
+                    ) =>
+            {
+                if let Some(outcome) =
+                    self.remaining_order_local_outcome(request, root_field, query, variables)
+                {
+                    outcome
+                } else {
+                    resolver_http_error_outcome(
+                        501,
+                        format!("No Rust orders resolver implemented for {root_field}"),
+                    )
+                }
+            }
+            LocalResolverMode::StageLocally
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "returnCreate"
+                            | "returnRequest"
+                            | "returnApproveRequest"
+                            | "returnDeclineRequest"
+                            | "returnCancel"
+                            | "returnClose"
+                            | "returnReopen"
+                            | "removeFromReturn"
+                            | "returnProcess"
+                    ) =>
+            {
+                if let Some(outcome) = self.order_return_local_runtime_outcome(
+                    request,
+                    root_field,
+                    query,
+                    variables,
+                    response_key,
+                ) {
+                    outcome
+                } else {
+                    resolver_http_error_outcome(
+                        501,
+                        format!("No Rust orders resolver implemented for {root_field}"),
+                    )
+                }
+            }
+            LocalResolverMode::StageLocally
+                if operation.operation_type == OperationType::Mutation
+                    && matches!(root_field, "orderCustomerSet" | "orderCustomerRemove") =>
+            {
+                if let Some(outcome) =
+                    self.order_customer_error_paths_outcome(request, query, variables, response_key)
+                {
+                    outcome
+                } else {
+                    resolver_http_error_outcome(400, "Could not parse GraphQL operation")
+                }
+            }
+            LocalResolverMode::StageLocally
+                if operation.operation_type == OperationType::Mutation
+                    && root_field == "orderInvoiceSend" =>
+            {
+                if let Some(outcome) =
+                    self.order_invoice_send_local_outcome(request, query, variables, response_key)
+                {
+                    outcome
+                } else {
+                    resolver_http_error_outcome(
+                        501,
+                        format!("No Rust orders resolver implemented for {root_field}"),
+                    )
+                }
+            }
+            LocalResolverMode::OverlayRead | LocalResolverMode::StageLocally => {
+                resolver_http_error_outcome(
+                    501,
+                    format!(
+                        "No Rust {} resolver implemented for root field: {root_field}",
+                        mode.registry_name()
+                    ),
+                )
+            }
+        }
     }
 }
 

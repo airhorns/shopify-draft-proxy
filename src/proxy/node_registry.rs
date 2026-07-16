@@ -1,67 +1,24 @@
 use super::*;
 
-use crate::node_resolver_inventory::{default_node_resolver_inventory, NodeResolverBehavior};
+use crate::node_resolver_inventory::{default_node_resolver_inventory, EntityRef, NodeLoadState};
 
-#[derive(Debug, Clone, PartialEq)]
-pub(in crate::proxy) enum NodeLoadState {
-    Found(Value),
-    KnownMissing,
-    NeedsHydration,
-    UnsupportedType,
-}
-
-fn observed_node_values(response: &Response) -> Vec<Value> {
-    let mut nodes = response
-        .body
+fn observed_node_values(body: &Value) -> Vec<Value> {
+    let mut nodes = body
         .pointer("/data/nodes")
         .and_then(Value::as_array)
         .into_iter()
         .flatten()
         .cloned()
         .collect::<Vec<_>>();
-    if let Some(node) = response
-        .body
-        .pointer("/data/node")
-        .filter(|node| node.is_object())
-    {
+    if let Some(node) = body.pointer("/data/node").filter(|node| node.is_object()) {
         nodes.push(node.clone());
     }
     for pointer in ["/data/productByIdentifier", "/data/productByHandle"] {
-        if let Some(node) = response
-            .body
-            .pointer(pointer)
-            .filter(|node| node.is_object())
-        {
+        if let Some(node) = body.pointer(pointer).filter(|node| node.is_object()) {
             nodes.push(node.clone());
         }
     }
     nodes
-}
-
-pub(in crate::proxy) fn local_node_value(
-    id: &str,
-    selection: &[SelectedField],
-    backup_region: Option<&Value>,
-) -> Option<Value> {
-    if is_safe_no_data_node_gid(id) {
-        return Some(Value::Null);
-    }
-    if let Some(region) = backup_region {
-        if region.get("id").and_then(Value::as_str) == Some(id) {
-            return Some(selected_json(region, selection));
-        }
-    }
-    None
-}
-
-fn is_safe_no_data_node_gid(id: &str) -> bool {
-    [
-        "gid://shopify/CashTrackingSession/",
-        "gid://shopify/PointOfSaleDevice/",
-        "gid://shopify/ShopifyPaymentsDispute/",
-    ]
-    .iter()
-    .any(|prefix| id.starts_with(prefix))
 }
 
 impl DraftProxy {
@@ -76,8 +33,8 @@ impl DraftProxy {
             let value = match field.name.as_str() {
                 "node" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    match self.node_load_state(&id, &field.selection, request) {
-                        NodeLoadState::Found(value) => value,
+                    match self.node_load_state(&id, request) {
+                        NodeLoadState::Found(entity) => entity.value,
                         NodeLoadState::KnownMissing => Value::Null,
                         NodeLoadState::NeedsHydration | NodeLoadState::UnsupportedType
                             if allow_unknown_null =>
@@ -97,20 +54,16 @@ impl DraftProxy {
                         .map(resolved_string_list)
                         .unwrap_or_default()
                         .into_iter()
-                        .map(
-                            |id| match self.node_load_state(&id, &field.selection, request) {
-                                NodeLoadState::Found(value) => Some(value),
-                                NodeLoadState::KnownMissing => Some(Value::Null),
-                                NodeLoadState::NeedsHydration | NodeLoadState::UnsupportedType
-                                    if allow_unknown_null =>
-                                {
-                                    Some(Value::Null)
-                                }
-                                NodeLoadState::NeedsHydration | NodeLoadState::UnsupportedType => {
-                                    None
-                                }
-                            },
-                        )
+                        .map(|id| match self.node_load_state(&id, request) {
+                            NodeLoadState::Found(entity) => Some(entity.value),
+                            NodeLoadState::KnownMissing => Some(Value::Null),
+                            NodeLoadState::NeedsHydration | NodeLoadState::UnsupportedType
+                                if allow_unknown_null =>
+                            {
+                                Some(Value::Null)
+                            }
+                            NodeLoadState::NeedsHydration | NodeLoadState::UnsupportedType => None,
+                        })
                         .collect::<Option<Vec<_>>>()
                         .unwrap_or_else(|| {
                             missing_required = true;
@@ -138,8 +91,8 @@ impl DraftProxy {
             match field.name.as_str() {
                 "node" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    Some(match self.node_load_state(&id, &field.selection, request) {
-                        NodeLoadState::Found(value) => value,
+                    Some(match self.node_load_state(&id, request) {
+                        NodeLoadState::Found(entity) => entity.value,
                         NodeLoadState::KnownMissing => Value::Null,
                         NodeLoadState::NeedsHydration | NodeLoadState::UnsupportedType => {
                             upstream.cloned().unwrap_or(Value::Null)
@@ -155,16 +108,14 @@ impl DraftProxy {
                         .unwrap_or_default()
                         .into_iter()
                         .enumerate()
-                        .map(|(index, id)| {
-                            match self.node_load_state(&id, &field.selection, request) {
-                                NodeLoadState::Found(value) => value,
-                                NodeLoadState::KnownMissing => Value::Null,
-                                NodeLoadState::NeedsHydration | NodeLoadState::UnsupportedType => {
-                                    upstream_nodes
-                                        .and_then(|nodes| nodes.get(index))
-                                        .cloned()
-                                        .unwrap_or(Value::Null)
-                                }
+                        .map(|(index, id)| match self.node_load_state(&id, request) {
+                            NodeLoadState::Found(entity) => entity.value,
+                            NodeLoadState::KnownMissing => Value::Null,
+                            NodeLoadState::NeedsHydration | NodeLoadState::UnsupportedType => {
+                                upstream_nodes
+                                    .and_then(|nodes| nodes.get(index))
+                                    .cloned()
+                                    .unwrap_or(Value::Null)
                             }
                         })
                         .collect();
@@ -189,24 +140,23 @@ impl DraftProxy {
         selection: &[SelectedField],
         request: Option<&Request>,
     ) -> Option<Value> {
-        match self.node_load_state(id, selection, request) {
-            NodeLoadState::Found(value) => Some(value),
+        match self.node_load_state(id, request) {
+            NodeLoadState::Found(entity) => Some(selected_json(&entity.value, selection)),
             NodeLoadState::KnownMissing => Some(Value::Null),
             NodeLoadState::NeedsHydration | NodeLoadState::UnsupportedType => None,
         }
     }
 
-    fn node_load_state(
-        &self,
-        id: &str,
-        selection: &[SelectedField],
-        request: Option<&Request>,
-    ) -> NodeLoadState {
-        registered_node_value(self, id, selection, request)
+    fn node_load_state(&self, id: &str, request: Option<&Request>) -> NodeLoadState<EntityRef> {
+        registered_node_value(self, id, request)
     }
 
     pub(in crate::proxy) fn observe_nodes_response(&mut self, response: &Response) {
-        let nodes = observed_node_values(response);
+        self.observe_nodes_data(&response.body);
+    }
+
+    pub(in crate::proxy) fn observe_nodes_data(&mut self, body: &Value) {
+        let nodes = observed_node_values(body);
         for node in &nodes {
             self.observe_node_response_value(node);
         }
@@ -268,7 +218,6 @@ impl DraftProxy {
     pub(in crate::proxy) fn app_node_value_by_id(
         &self,
         id: &str,
-        selection: &[SelectedField],
         request: Option<&Request>,
     ) -> Option<Value> {
         for (app_id, installation) in &self.store.staged.installed_apps {
@@ -283,18 +232,15 @@ impl DraftProxy {
                     .get(app_id)
                     .cloned()
                     .unwrap_or_default();
-                return Some(current_app_installation_json(
+                return Some(current_app_installation_node_value(
                     installation,
                     &self.store.staged.app_subscriptions,
                     &self.store.staged.app_one_time_purchases,
                     &revoked_access_scopes,
-                    selection,
                 ));
             }
             if installation.pointer("/app/id").and_then(Value::as_str) == Some(id) {
-                return installation
-                    .get("app")
-                    .map(|app| selected_json(app, selection));
+                return installation.get("app").cloned();
             }
         }
         if let Some(request) = request {
@@ -311,68 +257,76 @@ impl DraftProxy {
                     .get(&app_id)
                     .cloned()
                     .unwrap_or_default();
-                return Some(current_app_installation_json(
+                return Some(current_app_installation_node_value(
                     &installation,
                     &self.store.staged.app_subscriptions,
                     &self.store.staged.app_one_time_purchases,
                     &revoked_access_scopes,
-                    selection,
                 ));
             }
             if installation.pointer("/app/id").and_then(Value::as_str) == Some(id) {
-                return installation
-                    .get("app")
-                    .map(|app| selected_json(app, selection));
+                return installation.get("app").cloned();
             }
         }
         self.store
             .staged
             .app_subscriptions
             .get(id)
-            .map(|subscription| {
-                selected_json(
-                    subscription,
-                    &selected_fields_named(
-                        selection,
-                        &["__typename", "id", "status", "trialDays", "lineItems"],
-                    ),
-                )
-            })
-            .or_else(|| {
-                self.store
-                    .staged
-                    .app_one_time_purchases
-                    .get(id)
-                    .map(|purchase| {
-                        selected_json(
-                            purchase,
-                            &selected_fields_named(
-                                selection,
-                                &["id", "name", "status", "test", "price"],
-                            ),
-                        )
-                    })
-            })
-            .or_else(|| {
-                self.find_staged_app_usage_record(id).map(|usage_record| {
-                    selected_json(
-                        &usage_record,
-                        &selected_fields_named(
-                            selection,
-                            &["id", "description", "price", "subscriptionLineItem"],
-                        ),
-                    )
-                })
-            })
+            .cloned()
+            .or_else(|| self.store.staged.app_one_time_purchases.get(id).cloned())
+            .or_else(|| self.find_staged_app_usage_record(id))
     }
+}
+
+fn current_app_installation_node_value(
+    installation: &Value,
+    subscriptions: &BTreeMap<String, Value>,
+    one_time_purchases: &BTreeMap<String, Value>,
+    revoked_access_scopes: &BTreeSet<String>,
+) -> Value {
+    let mut value = installation.clone();
+    value["__typename"] = json!("AppInstallation");
+    if let Some(id) = app_installation_id(installation) {
+        value["id"] = json!(id);
+    }
+    if !subscriptions.is_empty() {
+        let all = subscriptions.values().cloned().collect::<Vec<_>>();
+        value["activeSubscriptions"] = Value::Array(
+            all.iter()
+                .filter(|subscription| subscription["status"] == "ACTIVE")
+                .cloned()
+                .collect(),
+        );
+        value["allSubscriptions"] = connection_json(all);
+    } else if value.get("activeSubscriptions").is_none() {
+        value["activeSubscriptions"] = Value::Array(Vec::new());
+    }
+    if !one_time_purchases.is_empty() {
+        value["oneTimePurchases"] = connection_json(one_time_purchases.values().cloned().collect());
+    }
+    value["accessScopes"] = Value::Array(
+        installation
+            .get("accessScopes")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter(|scope| {
+                scope
+                    .get("handle")
+                    .and_then(Value::as_str)
+                    .is_none_or(|handle| !revoked_access_scopes.contains(handle))
+            })
+            .cloned()
+            .collect(),
+    );
+    value
 }
 
 pub(in crate::proxy) fn registered_node_value(
     proxy: &DraftProxy,
     id: &str,
-    selection: &[SelectedField],
     request: Option<&Request>,
-) -> NodeLoadState {
+) -> NodeLoadState<EntityRef> {
     // Shopify market-region IDs use the nested `Market/Region/...` shape even
     // though the GraphQL runtime type is `MarketRegionCountry`. Resolve that
     // exceptional identity shape at the registry boundary so domain loaders
@@ -391,265 +345,455 @@ pub(in crate::proxy) fn registered_node_value(
     else {
         return NodeLoadState::UnsupportedType;
     };
-    match (registration.loader)(proxy, id, selection, request) {
-        Some(value) if value.is_null() => NodeLoadState::KnownMissing,
-        Some(value) => NodeLoadState::Found(value),
-        None if registration.behavior == NodeResolverBehavior::ReturnKnownNull => {
-            NodeLoadState::KnownMissing
+    match (registration.loader)(proxy, id, request) {
+        NodeLoadState::Found(entity) => {
+            debug_assert_eq!(entity.type_name, resource_type);
+            debug_assert_eq!(entity.id, id);
+            NodeLoadState::Found(entity)
         }
-        None => NodeLoadState::NeedsHydration,
+        NodeLoadState::KnownMissing => NodeLoadState::KnownMissing,
+        NodeLoadState::NeedsHydration => NodeLoadState::NeedsHydration,
+        NodeLoadState::UnsupportedType => NodeLoadState::UnsupportedType,
     }
 }
 
 pub(crate) fn load_app(
     proxy: &DraftProxy,
     id: &str,
-    selection: &[SelectedField],
     request: Option<&Request>,
-) -> Option<Value> {
-    proxy.app_node_value_by_id(id, selection, request)
+) -> NodeLoadState<EntityRef> {
+    let Some(type_name) = registered_gid_type(
+        id,
+        &[
+            "App",
+            "AppInstallation",
+            "AppPurchaseOneTime",
+            "AppSubscription",
+            "AppUsageRecord",
+        ],
+    ) else {
+        return NodeLoadState::UnsupportedType;
+    };
+    entity_load_state(type_name, id, proxy.app_node_value_by_id(id, request))
 }
 
 pub(crate) fn load_online_store(
     proxy: &DraftProxy,
     id: &str,
-    selection: &[SelectedField],
     _request: Option<&Request>,
-) -> Option<Value> {
-    proxy.online_store_content_node_value(id, selection)
+) -> NodeLoadState<EntityRef> {
+    let Some(type_name) = registered_gid_type(id, &["Article", "Blog", "Comment", "Page"]) else {
+        return NodeLoadState::UnsupportedType;
+    };
+    entity_load_state(type_name, id, proxy.online_store_content_node_value(id))
 }
 
 macro_rules! simple_loader {
-    ($name:ident, $method:ident) => {
+    ($name:ident, $method:ident, [$($type_name:literal),+ $(,)?]) => {
         pub(crate) fn $name(
             proxy: &DraftProxy,
             id: &str,
-            selection: &[SelectedField],
             _request: Option<&Request>,
-        ) -> Option<Value> {
-            proxy.$method(id, selection)
+        ) -> NodeLoadState<EntityRef> {
+            let Some(type_name) = registered_gid_type(id, &[$($type_name),+]) else {
+                return NodeLoadState::UnsupportedType;
+            };
+            entity_load_state(type_name, id, proxy.$method(id))
         }
     };
 }
 
-simple_loader!(load_b2b, b2b_node_value_by_id);
-simple_loader!(load_customer, customer_node_value_by_id);
-simple_loader!(load_customer_address, customer_address_node_value_by_id);
+simple_loader!(
+    load_b2b,
+    b2b_node_value_by_id,
+    [
+        "Company",
+        "CompanyAddress",
+        "CompanyContact",
+        "CompanyContactRole",
+        "CompanyContactRoleAssignment",
+        "CompanyLocation",
+    ]
+);
+simple_loader!(load_customer, customer_node_value_by_id, ["Customer"]);
+simple_loader!(
+    load_customer_address,
+    customer_address_node_value_by_id,
+    ["MailingAddress"]
+);
 simple_loader!(
     load_customer_payment_method,
-    customer_payment_method_node_value_by_id
+    customer_payment_method_node_value_by_id,
+    ["CustomerPaymentMethod"]
 );
-simple_loader!(load_store_credit, store_credit_node_value_by_id);
-simple_loader!(load_discount, discount_node_value_by_id);
-simple_loader!(load_fulfillment_return, fulfillment_return_node_value_by_id);
-simple_loader!(load_gift_card, gift_card_node_value_by_id);
+simple_loader!(
+    load_store_credit,
+    store_credit_node_value_by_id,
+    [
+        "StoreCreditAccount",
+        "StoreCreditAccountCreditTransaction",
+        "StoreCreditAccountDebitRevertTransaction",
+        "StoreCreditAccountDebitTransaction",
+        "StoreCreditAccountTransaction",
+    ]
+);
+simple_loader!(
+    load_discount,
+    discount_node_value_by_id,
+    ["DiscountAutomaticNode", "DiscountCodeNode"]
+);
+simple_loader!(
+    load_fulfillment_return,
+    fulfillment_return_node_value_by_id,
+    [
+        "Fulfillment",
+        "FulfillmentEvent",
+        "FulfillmentHold",
+        "FulfillmentLineItem",
+        "FulfillmentOrder",
+        "FulfillmentOrderLineItem",
+        "Return",
+        "ReturnLineItem",
+        "ReturnableFulfillment",
+        "ReverseDelivery",
+        "ReverseDeliveryLineItem",
+        "ReverseFulfillmentOrder",
+        "ReverseFulfillmentOrderLineItem",
+        "UnverifiedReturnLineItem",
+    ]
+);
+simple_loader!(load_gift_card, gift_card_node_value_by_id, ["GiftCard"]);
 simple_loader!(
     load_gift_card_transaction,
-    gift_card_transaction_node_value_by_id
+    gift_card_transaction_node_value_by_id,
+    ["GiftCardCreditTransaction", "GiftCardDebitTransaction"]
 );
-simple_loader!(load_inventory, inventory_node_value_by_id);
-simple_loader!(load_metaobject, metaobject_node_value_by_id);
-simple_loader!(load_shop_property, shop_property_node_value_by_id);
+simple_loader!(
+    load_inventory,
+    inventory_node_value_by_id,
+    [
+        "InventoryAdjustmentGroup",
+        "InventoryQuantity",
+        "InventoryShipment",
+        "InventoryShipmentLineItem",
+        "InventoryTransfer",
+        "InventoryTransferLineItem",
+    ]
+);
+simple_loader!(
+    load_metaobject,
+    metaobject_node_value_by_id,
+    ["Metaobject", "MetaobjectDefinition"]
+);
+simple_loader!(
+    load_shop_property,
+    shop_property_node_value_by_id,
+    ["ShopAddress", "ShopPolicy"]
+);
+
+fn registered_gid_type(id: &str, allowed: &'static [&'static str]) -> Option<&'static str> {
+    let resource_type = shopify_gid_resource_type(id)?;
+    allowed
+        .iter()
+        .copied()
+        .find(|candidate| *candidate == resource_type)
+}
+
+fn entity_load_state(
+    type_name: &'static str,
+    id: &str,
+    value: Option<Value>,
+) -> NodeLoadState<EntityRef> {
+    match value {
+        Some(value) if value.is_null() => NodeLoadState::KnownMissing,
+        Some(value) => NodeLoadState::Found(EntityRef::new(type_name, id, value)),
+        None => NodeLoadState::NeedsHydration,
+    }
+}
 
 pub(crate) fn load_product(
     proxy: &DraftProxy,
     id: &str,
-    selection: &[SelectedField],
     _request: Option<&Request>,
-) -> Option<Value> {
+) -> NodeLoadState<EntityRef> {
     if proxy.store.product_is_tombstoned(id) {
-        return Some(Value::Null);
+        return NodeLoadState::KnownMissing;
     }
-    let product = proxy.store.product_by_id(id)?;
-    let variants = proxy.store.product_variants_for_product(id);
-    Some(proxy.product_json_with_variants_and_currency_context(
-        product,
-        &variants,
-        selection,
-        &proxy.store.shop_currency_code(),
-    ))
+    proxy
+        .store
+        .product_by_id(id)
+        .map(|product| {
+            NodeLoadState::Found(EntityRef::new(
+                "Product",
+                id,
+                proxy.product_canonical_value(product),
+            ))
+        })
+        .unwrap_or(NodeLoadState::NeedsHydration)
 }
 
 pub(crate) fn load_collection(
     proxy: &DraftProxy,
     id: &str,
-    selection: &[SelectedField],
     _request: Option<&Request>,
-) -> Option<Value> {
+) -> NodeLoadState<EntityRef> {
     if proxy.store.collection_is_deleted(id) {
-        return Some(Value::Null);
+        return NodeLoadState::KnownMissing;
     }
-    proxy
-        .store
-        .collection_by_id(id)
-        .map(|collection| proxy.collection_json_with_publication_fields(collection, selection))
+    let value = proxy.collection_canonical_value_by_id(id);
+    if value.is_null() {
+        NodeLoadState::NeedsHydration
+    } else {
+        NodeLoadState::Found(EntityRef::new("Collection", id, value))
+    }
 }
 
 pub(crate) fn load_product_variant(
     proxy: &DraftProxy,
     id: &str,
-    selection: &[SelectedField],
     _request: Option<&Request>,
-) -> Option<Value> {
-    let value = proxy.product_variant_by_id_value(id, selection);
-    (!value.is_null()).then_some(value)
+) -> NodeLoadState<EntityRef> {
+    if proxy.store.staged.product_variants.is_tombstoned(id) {
+        return NodeLoadState::KnownMissing;
+    }
+    let value = proxy
+        .store
+        .product_variant_by_id(id)
+        .map(|variant| proxy.product_variant_canonical_value(variant))
+        .or_else(|| {
+            proxy
+                .owner_has_metafield_local_effects(id)
+                .then(|| json!({ "__typename": "ProductVariant", "id": id }))
+        });
+    value.map_or(NodeLoadState::NeedsHydration, |value| {
+        NodeLoadState::Found(EntityRef::new("ProductVariant", id, value))
+    })
+}
+
+pub(crate) fn load_inventory_item(
+    proxy: &DraftProxy,
+    id: &str,
+    _request: Option<&Request>,
+) -> NodeLoadState<EntityRef> {
+    if !proxy.inventory_item_exists(id) {
+        return NodeLoadState::NeedsHydration;
+    }
+    NodeLoadState::Found(EntityRef::new(
+        "InventoryItem",
+        id,
+        proxy.inventory_item_canonical_value(id),
+    ))
+}
+
+pub(crate) fn load_inventory_level(
+    proxy: &DraftProxy,
+    id: &str,
+    _request: Option<&Request>,
+) -> NodeLoadState<EntityRef> {
+    let value = proxy.inventory_level_value_by_id(id);
+    if value.is_null() {
+        NodeLoadState::NeedsHydration
+    } else {
+        NodeLoadState::Found(EntityRef::new("InventoryLevel", id, value))
+    }
 }
 
 pub(crate) fn load_location(
     proxy: &DraftProxy,
     id: &str,
-    selection: &[SelectedField],
     _request: Option<&Request>,
-) -> Option<Value> {
+) -> NodeLoadState<EntityRef> {
     if proxy.store.staged.locations.is_tombstoned(id) {
-        return Some(Value::Null);
+        return NodeLoadState::KnownMissing;
     }
     proxy
         .location_for_read(id)
-        .map(|location| selected_json(&location, selection))
+        .map_or(NodeLoadState::NeedsHydration, |value| {
+            NodeLoadState::Found(EntityRef::new("Location", id, value))
+        })
 }
 
 pub(crate) fn load_delivery_customization(
     proxy: &DraftProxy,
     id: &str,
-    selection: &[SelectedField],
-    request: Option<&Request>,
-) -> Option<Value> {
+    _request: Option<&Request>,
+) -> NodeLoadState<EntityRef> {
     if proxy.store.staged.delivery_customizations.is_tombstoned(id) {
-        return Some(Value::Null);
+        return NodeLoadState::KnownMissing;
     }
-    let customization = proxy.store.staged.delivery_customizations.get(id)?;
-    let api_client_id = request.and_then(request_app_namespace_api_client_id);
-    Some(selected_delivery_customization_json(
-        customization,
-        selection,
-        api_client_id.as_deref(),
-    ))
+    proxy
+        .store
+        .staged
+        .delivery_customizations
+        .get(id)
+        .cloned()
+        .map(|mut value| {
+            value["errorHistory"] = Value::Null;
+            value["metafieldDefinitions"] = connection_json(Vec::new());
+            NodeLoadState::Found(EntityRef::new("DeliveryCustomization", id, value))
+        })
+        .unwrap_or(NodeLoadState::NeedsHydration)
 }
 
 pub(crate) fn load_delivery_promise(
     proxy: &DraftProxy,
     id: &str,
-    selection: &[SelectedField],
     _request: Option<&Request>,
-) -> Option<Value> {
-    proxy.delivery_promise_node_value_by_id(id, selection)
+) -> NodeLoadState<EntityRef> {
+    let Some(type_name) = registered_gid_type(
+        id,
+        &["DeliveryPromiseParticipant", "DeliveryPromiseProvider"],
+    ) else {
+        return NodeLoadState::UnsupportedType;
+    };
+    entity_load_state(type_name, id, proxy.delivery_promise_node_value_by_id(id))
 }
 
-simple_loader!(load_product_feed, product_tail_feed_node_value);
-simple_loader!(
-    load_product_delete_operation,
-    product_delete_operation_value_by_id
-);
-
+pub(crate) fn load_product_feed(
+    proxy: &DraftProxy,
+    id: &str,
+    _request: Option<&Request>,
+) -> NodeLoadState<EntityRef> {
+    if proxy.store.product_feed_is_tombstoned(id) {
+        return NodeLoadState::KnownMissing;
+    }
+    proxy
+        .product_feed_canonical_value(id)
+        .map_or(NodeLoadState::NeedsHydration, |value| {
+            NodeLoadState::Found(EntityRef::new("ProductFeed", id, value))
+        })
+}
 pub(crate) fn load_product_operation(
     proxy: &DraftProxy,
     id: &str,
-    selection: &[SelectedField],
     _request: Option<&Request>,
-) -> Option<Value> {
-    Some(
-        proxy
-            .store
-            .staged
-            .product_operations
-            .get(id)
-            .map(|operation| proxy.product_operation_json(operation, selection))
-            .unwrap_or(Value::Null),
-    )
+) -> NodeLoadState<EntityRef> {
+    let Some(type_name) = shopify_gid_resource_type(id).and_then(|type_name| match type_name {
+        "ProductBundleOperation" => Some("ProductBundleOperation"),
+        "ProductDeleteOperation" => Some("ProductDeleteOperation"),
+        "ProductDuplicateOperation" => Some("ProductDuplicateOperation"),
+        "ProductSetOperation" => Some("ProductSetOperation"),
+        _ => None,
+    }) else {
+        return NodeLoadState::UnsupportedType;
+    };
+    proxy
+        .product_operation_value_by_id(id)
+        .map_or(NodeLoadState::NeedsHydration, |value| {
+            NodeLoadState::Found(EntityRef::new(type_name, id, value))
+        })
 }
 
 pub(crate) fn load_segment(
     proxy: &DraftProxy,
     id: &str,
-    selection: &[SelectedField],
     _request: Option<&Request>,
-) -> Option<Value> {
+) -> NodeLoadState<EntityRef> {
+    if proxy.store.staged.segments.is_tombstoned(id) {
+        return NodeLoadState::KnownMissing;
+    }
     proxy
         .store
         .segment_by_id(id)
-        .map(|record| selected_json(record, selection))
+        .cloned()
+        .map_or(NodeLoadState::NeedsHydration, |value| {
+            NodeLoadState::Found(EntityRef::new("Segment", id, value))
+        })
 }
 
 pub(crate) fn load_customer_segment_members_query(
     proxy: &DraftProxy,
     id: &str,
-    selection: &[SelectedField],
     _request: Option<&Request>,
-) -> Option<Value> {
+) -> NodeLoadState<EntityRef> {
     proxy
         .store
         .staged
         .customer_segment_member_queries
         .get(id)
-        .map(|record| selected_json(record, selection))
+        .cloned()
+        .map_or(NodeLoadState::NeedsHydration, |value| {
+            NodeLoadState::Found(EntityRef::new("CustomerSegmentMembersQuery", id, value))
+        })
 }
 
 pub(crate) fn load_abandonment(
     proxy: &DraftProxy,
     id: &str,
-    selection: &[SelectedField],
     _request: Option<&Request>,
-) -> Option<Value> {
+) -> NodeLoadState<EntityRef> {
     proxy
         .store
         .staged
         .abandonments
         .get(id)
-        .map(|record| selected_json(record, selection))
+        .cloned()
+        .map_or(NodeLoadState::NeedsHydration, |value| {
+            NodeLoadState::Found(EntityRef::new("Abandonment", id, value))
+        })
 }
 
 pub(crate) fn load_order(
     proxy: &DraftProxy,
     id: &str,
-    selection: &[SelectedField],
     _request: Option<&Request>,
-) -> Option<Value> {
+) -> NodeLoadState<EntityRef> {
     if proxy.store.staged.orders.is_tombstoned(id) {
-        return Some(Value::Null);
+        return NodeLoadState::KnownMissing;
     }
     proxy
         .staged_order_record_for_id(id)
-        .map(|order| proxy.selected_order_with_return_status(&order, selection))
+        .map(|order| {
+            NodeLoadState::Found(EntityRef::new(
+                "Order",
+                id,
+                proxy.order_with_return_status_value(&order),
+            ))
+        })
+        .unwrap_or(NodeLoadState::NeedsHydration)
 }
 
 pub(crate) fn load_backup_region(
     proxy: &DraftProxy,
     id: &str,
-    selection: &[SelectedField],
     _request: Option<&Request>,
-) -> Option<Value> {
-    local_node_value(id, selection, Some(&proxy.store.staged.backup_region))
+) -> NodeLoadState<EntityRef> {
+    let region = &proxy.store.staged.backup_region;
+    if region.get("id").and_then(Value::as_str) != Some(id) {
+        return NodeLoadState::NeedsHydration;
+    }
+    NodeLoadState::Found(EntityRef::new("MarketRegionCountry", id, region.clone()))
 }
 
 pub(crate) fn load_shopify_function(
     proxy: &DraftProxy,
     id: &str,
-    selection: &[SelectedField],
     _request: Option<&Request>,
-) -> Option<Value> {
+) -> NodeLoadState<EntityRef> {
     proxy
         .store
         .staged
         .function_metadata
         .get(id)
         .or_else(|| proxy.store.base.function_metadata.get(id))
-        .map(|record| selected_json(record, selection))
+        .cloned()
+        .map_or(NodeLoadState::NeedsHydration, |value| {
+            NodeLoadState::Found(EntityRef::new("ShopifyFunction", id, value))
+        })
 }
 
 pub(crate) fn load_validation(
     proxy: &DraftProxy,
     id: &str,
-    selection: &[SelectedField],
     _request: Option<&Request>,
-) -> Option<Value> {
+) -> NodeLoadState<EntityRef> {
     if proxy
         .store
         .staged
         .deleted_function_validation_ids
         .contains(id)
     {
-        return Some(Value::Null);
+        return NodeLoadState::KnownMissing;
     }
     proxy
         .store
@@ -666,26 +810,27 @@ pub(crate) fn load_validation(
                 .filter(|record| record.get("id").and_then(Value::as_str) == Some(id))
         })
         .map(|record| {
-            selected_json(
-                &validation_record_for_selection(record, selection),
-                selection,
-            )
+            NodeLoadState::Found(EntityRef::new(
+                "Validation",
+                id,
+                validation_record_value(record),
+            ))
         })
+        .unwrap_or(NodeLoadState::NeedsHydration)
 }
 
 pub(crate) fn load_cart_transform(
     proxy: &DraftProxy,
     id: &str,
-    selection: &[SelectedField],
     _request: Option<&Request>,
-) -> Option<Value> {
+) -> NodeLoadState<EntityRef> {
     if proxy
         .store
         .staged
         .deleted_function_cart_transform_ids
         .contains(id)
     {
-        return Some(Value::Null);
+        return NodeLoadState::KnownMissing;
     }
     proxy
         .store
@@ -702,26 +847,27 @@ pub(crate) fn load_cart_transform(
                 .filter(|record| record.get("id").and_then(Value::as_str) == Some(id))
         })
         .map(|record| {
-            selected_json(
-                &cart_transform_record_for_selection(record, selection),
-                selection,
-            )
+            NodeLoadState::Found(EntityRef::new(
+                "CartTransform",
+                id,
+                cart_transform_record_value(record),
+            ))
         })
+        .unwrap_or(NodeLoadState::NeedsHydration)
 }
 
 pub(crate) fn load_fulfillment_constraint_rule(
     proxy: &DraftProxy,
     id: &str,
-    selection: &[SelectedField],
     _request: Option<&Request>,
-) -> Option<Value> {
+) -> NodeLoadState<EntityRef> {
     if proxy
         .store
         .staged
         .deleted_function_fulfillment_constraint_rule_ids
         .contains(id)
     {
-        return Some(Value::Null);
+        return NodeLoadState::KnownMissing;
     }
     proxy
         .store
@@ -736,52 +882,67 @@ pub(crate) fn load_fulfillment_constraint_rule(
                 .get(id)
         })
         .map(|record| {
-            selected_json(
-                &fulfillment_constraint_rule_record_for_selection(record, selection),
-                selection,
-            )
+            NodeLoadState::Found(EntityRef::new(
+                "FulfillmentConstraintRule",
+                id,
+                fulfillment_constraint_rule_record_value(record),
+            ))
         })
+        .unwrap_or(NodeLoadState::NeedsHydration)
 }
 
 pub(crate) fn load_tax_app_configuration(
     proxy: &DraftProxy,
     id: &str,
-    selection: &[SelectedField],
     _request: Option<&Request>,
-) -> Option<Value> {
+) -> NodeLoadState<EntityRef> {
     proxy
         .store
         .staged
         .tax_app_configuration
         .as_ref()
         .filter(|configuration| configuration["id"].as_str() == Some(id))
-        .map(|configuration| selected_json(configuration, selection))
+        .cloned()
+        .map_or(NodeLoadState::NeedsHydration, |value| {
+            NodeLoadState::Found(EntityRef::new("TaxAppConfiguration", id, value))
+        })
 }
 
 pub(crate) fn load_media(
     proxy: &DraftProxy,
     id: &str,
-    selection: &[SelectedField],
     _request: Option<&Request>,
-) -> Option<Value> {
+) -> NodeLoadState<EntityRef> {
     if proxy.store.staged.media_files.is_tombstoned(id) {
-        return Some(Value::Null);
+        return NodeLoadState::KnownMissing;
     }
+    let Some(type_name) = shopify_gid_resource_type(id).and_then(|type_name| match type_name {
+        "ExternalVideo" => Some("ExternalVideo"),
+        "GenericFile" => Some("GenericFile"),
+        "MediaImage" => Some("MediaImage"),
+        "Model3d" => Some("Model3d"),
+        "Video" => Some("Video"),
+        _ => None,
+    }) else {
+        return NodeLoadState::UnsupportedType;
+    };
     proxy
         .store
         .staged
         .media_files
         .get(id)
-        .map(|file| selected_json(file, selection))
+        .cloned()
+        .map_or(NodeLoadState::NeedsHydration, |value| {
+            NodeLoadState::Found(EntityRef::new(type_name, id, value))
+        })
 }
 
 pub(crate) fn load_known_null(
     _proxy: &DraftProxy,
-    id: &str,
-    selection: &[SelectedField],
+    _id: &str,
     _request: Option<&Request>,
-) -> Option<Value> {
-    local_node_value(id, selection, None)
+) -> NodeLoadState<EntityRef> {
+    NodeLoadState::KnownMissing
 }
 
 #[cfg(test)]

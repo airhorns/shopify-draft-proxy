@@ -6,8 +6,8 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
-    ) -> Response {
-        let (response_key, payload_selection, arguments) = self
+    ) -> ResolverOutcome<Value> {
+        let (_response_key, payload_selection, arguments) = self
             .execution_primary_root_response_parts(query, variables, || {
                 "delegateAccessTokenCreate".to_string()
             });
@@ -89,17 +89,13 @@ impl DraftProxy {
                 }
             }
             let shop = self.store.effective_shop();
-            return ok_json(json!({
-                "data": {
-                    response_key: delegate_access_token_create_payload_json(
-                        Value::Null,
-                        &shop,
-                        &payload_selection,
-                        &token_selection,
-                        user_errors,
-                    )
-                }
-            }));
+            return ResolverOutcome::value(delegate_access_token_create_payload_json(
+                Value::Null,
+                &shop,
+                &payload_selection,
+                &token_selection,
+                user_errors,
+            ));
         }
 
         let token = format!(
@@ -130,17 +126,13 @@ impl DraftProxy {
         );
         let shop = self.store.effective_shop();
 
-        ok_json(json!({
-            "data": {
-                response_key: delegate_access_token_create_payload_json(
-                    record,
-                    &shop,
-                    &payload_selection,
-                    &token_selection,
-                    vec![],
-                )
-            }
-        }))
+        ResolverOutcome::value(delegate_access_token_create_payload_json(
+            record,
+            &shop,
+            &payload_selection,
+            &token_selection,
+            vec![],
+        ))
     }
 
     pub(in crate::proxy) fn delegate_access_token_destroy(
@@ -148,8 +140,8 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
-    ) -> Response {
-        let (response_key, payload_selection, arguments) = self
+    ) -> ResolverOutcome<Value> {
+        let (_response_key, payload_selection, arguments) = self
             .execution_primary_root_response_parts(query, variables, || {
                 "delegateAccessTokenDestroy".to_string()
             });
@@ -212,16 +204,12 @@ impl DraftProxy {
         }
         let shop = self.store.effective_shop();
 
-        ok_json(json!({
-            "data": {
-                response_key: delegate_access_token_destroy_payload_json(
-                    status,
-                    &shop,
-                    user_errors,
-                    &payload_selection,
-                )
-            }
-        }))
+        ResolverOutcome::value(delegate_access_token_destroy_payload_json(
+            status,
+            &shop,
+            user_errors,
+            &payload_selection,
+        ))
     }
 
     pub(in crate::proxy) fn app_revoke_access_scopes(
@@ -229,8 +217,8 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
-    ) -> Response {
-        let (response_key, payload_selection, arguments) = self
+    ) -> ResolverOutcome<Value> {
+        let (_response_key, payload_selection, arguments) = self
             .execution_primary_root_response_parts(query, variables, || {
                 "appRevokeAccessScopes".to_string()
             });
@@ -322,15 +310,11 @@ impl DraftProxy {
             );
         }
 
-        ok_json(json!({
-            "data": {
-                response_key: app_revoke_access_scopes_payload_json(
-                    revoked_payload,
-                    user_errors,
-                    &payload_selection,
-                )
-            }
-        }))
+        ResolverOutcome::value(app_revoke_access_scopes_payload_json(
+            revoked_payload,
+            user_errors,
+            &payload_selection,
+        ))
     }
 }
 

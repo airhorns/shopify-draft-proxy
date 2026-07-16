@@ -3,23 +3,30 @@ use super::search::is_online_store_content_query_root;
 use super::*;
 
 impl DraftProxy {
-    pub(in crate::proxy) fn online_store_query_response(
+    pub(in crate::proxy) fn online_store_query_outcome(
         &mut self,
         request: &Request,
         fields: &[RootFieldSelection],
-    ) -> Response {
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
         if self.online_store_content_query_needs_upstream(fields)
             || self.online_store_sales_channel_query_needs_upstream(fields)
         {
-            let response = (self.upstream_transport)(request.clone());
-            if response.status < 400 {
-                self.observe_online_store_content_response(&response.body);
-                self.observe_online_store_sales_channel_response(&response.body);
+            let result = self.cached_or_forward_upstream_graphql_result(request, response_key);
+            if result.transport_succeeded {
+                let body = json!({ "data": result.data });
+                self.observe_online_store_content_response(&body);
+                self.observe_online_store_sales_channel_response(&body);
             }
-            return response;
+            return result.outcome;
         }
         self.hydrate_online_store_content_query_baselines(request, fields);
-        ok_json(json!({ "data": self.online_store_query_data(fields) }))
+        let mut data = self.online_store_query_data(fields);
+        ResolverOutcome::value(
+            data.as_object_mut()
+                .and_then(|data| data.remove(response_key))
+                .unwrap_or(Value::Null),
+        )
     }
 
     pub(in crate::proxy) fn online_store_query_data(&self, fields: &[RootFieldSelection]) -> Value {
@@ -110,13 +117,13 @@ impl DraftProxy {
         })
     }
 
-    pub(in crate::proxy) fn online_store_mutation(
+    pub(in crate::proxy) fn online_store_mutation_outcome(
         &mut self,
         fields: &[RootFieldSelection],
         request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
+        root_name: &str,
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
         let mut staged_ids = Vec::new();
         // Server-pixel endpoint mutations reject invalid arguments with top-level GraphQL
         // errors (and no `data`) before any local staging: missing required arguments are a
@@ -124,7 +131,7 @@ impl DraftProxy {
         // field-argument error, and a malformed/blank ARN fails ARN-scalar coercion.
         for field in fields {
             if let Some(error) = server_pixel_endpoint_argument_error(field) {
-                return ok_json(json!({ "errors": [error] }));
+                return graphql_error_outcome(vec![error], response_key);
             }
         }
 
@@ -170,19 +177,16 @@ impl DraftProxy {
             };
             Some(value)
         });
+        let value = data.get(response_key).cloned().unwrap_or(Value::Null);
         if !staged_ids.is_empty() {
-            self.record_mutation_log_entry(
-                request,
-                query,
-                variables,
-                fields
-                    .first()
-                    .map(|f| f.name.as_str())
-                    .unwrap_or("onlineStore"),
+            ResolverOutcome::value(value).with_log_draft(LogDraft::staged(
+                root_name,
+                "online-store",
                 staged_ids,
-            );
+            ))
+        } else {
+            ResolverOutcome::value(value)
         }
-        ok_json(json!({ "data": data }))
     }
 
     fn online_store_sales_channel_query_needs_upstream(

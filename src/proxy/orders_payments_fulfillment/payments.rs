@@ -858,18 +858,15 @@ const ORDER_CREATE_MANUAL_PAYMENT_REQUIRED_ACCESS: &str =
 const ORDER_CREATE_MANUAL_PAYMENT_ACCESS_DENIED_MESSAGE: &str =
     "Access denied for orderCreateManualPayment field. Required access: `write_orders` access scope. Also: The user must have mark_orders_as_paid permission. The API client must be installed on a Shopify Plus store to use the amount field.";
 
-fn manual_payment_access_denied_response(field: &RootFieldSelection) -> Value {
-    let mut data = serde_json::Map::new();
-    data.insert(field.response_key.clone(), Value::Null);
-    json!({
-        "data": Value::Object(data),
-        "errors": [top_level_access_denied_error_envelope(
-            ORDER_CREATE_MANUAL_PAYMENT_ACCESS_DENIED_MESSAGE.to_string(),
-            Some(field.location),
-            vec![json!(field.response_key.clone())],
-            Some(ORDER_CREATE_MANUAL_PAYMENT_REQUIRED_ACCESS)
-        )]
-    })
+fn manual_payment_access_denied_outcome(field: &RootFieldSelection) -> ResolverOutcome<Value> {
+    let error = top_level_access_denied_error_envelope(
+        ORDER_CREATE_MANUAL_PAYMENT_ACCESS_DENIED_MESSAGE.to_string(),
+        Some(field.location),
+        vec![json!(field.response_key.clone())],
+        Some(ORDER_CREATE_MANUAL_PAYMENT_REQUIRED_ACCESS),
+    );
+    ResolverOutcome::value(Value::Null)
+        .with_errors(root_field_errors_from_json(&[error], &field.response_key))
 }
 
 fn manual_payment_payload(
@@ -1056,17 +1053,19 @@ fn append_mandate_payment_to_order(
 }
 
 impl DraftProxy {
-    pub(in crate::proxy) fn refund_create_local_data(
+    pub(in crate::proxy) fn refund_create_local_outcome(
         &mut self,
         request: &Request,
         root_field: &str,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<Value> {
+        response_key: &str,
+    ) -> Option<ResolverOutcome<Value>> {
         if root_field != "refundCreate" {
             return None;
         }
-        let fields = self.execution_root_fields(query, variables)?;
+        let mut fields = self.execution_root_fields(query, variables)?;
+        fields.retain(|field| field.response_key == response_key);
         if !fields.iter().all(|field| field.name == "refundCreate") {
             return None;
         }
@@ -1084,7 +1083,9 @@ impl DraftProxy {
             }
             Some(value)
         });
-        Some(json!({ "data": data }))
+        Some(ResolverOutcome::value(
+            data.get(response_key).cloned().unwrap_or(Value::Null),
+        ))
     }
 
     pub(super) fn stage_refund_create(
@@ -1264,14 +1265,18 @@ impl DraftProxy {
         }
     }
 
-    pub(in crate::proxy) fn order_payment_transaction_local_data(
+    pub(in crate::proxy) fn order_payment_transaction_local_outcome(
         &mut self,
         request: &Request,
         root_field: &str,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<Value> {
-        let field = self.execution_root_field(query, variables, root_field);
+        response_key: &str,
+    ) -> Option<ResolverOutcome<Value>> {
+        let field = self
+            .execution_root_fields(query, variables)?
+            .into_iter()
+            .find(|field| field.name == root_field && field.response_key == response_key);
         match root_field {
             "orderCreate"
                 if field
@@ -1288,13 +1293,10 @@ impl DraftProxy {
                     root_field,
                     vec![order_id],
                 );
-                Some(data_response(
-                    &field.response_key,
-                    selected_json(
-                        &json!({ "order": order, "userErrors": [] }),
-                        &field.selection,
-                    ),
-                ))
+                Some(ResolverOutcome::value(selected_json(
+                    &json!({ "order": order, "userErrors": [] }),
+                    &field.selection,
+                )))
             }
             "orderCapture" => {
                 let field = field?;
@@ -1328,13 +1330,10 @@ impl DraftProxy {
                         request, query, variables, root_field, staged_ids,
                     );
                 }
-                Some(data_response(
-                    &field.response_key,
-                    selected_json(
-                        &json!({ "transaction": transaction, "order": order, "userErrors": user_errors }),
-                        &field.selection,
-                    ),
-                ))
+                Some(ResolverOutcome::value(selected_json(
+                    &json!({ "transaction": transaction, "order": order, "userErrors": user_errors }),
+                    &field.selection,
+                )))
             }
             "orderMarkAsPaid" => {
                 let field = field?;
@@ -1351,31 +1350,25 @@ impl DraftProxy {
                         request, query, variables, root_field, staged_ids,
                     );
                 }
-                Some(data_response(
-                    &field.response_key,
-                    selected_json(
-                        &json!({ "order": order, "userErrors": user_errors }),
-                        &field.selection,
-                    ),
-                ))
+                Some(ResolverOutcome::value(selected_json(
+                    &json!({ "order": order, "userErrors": user_errors }),
+                    &field.selection,
+                )))
             }
             "orderCreateManualPayment" => {
                 let field = field?;
                 let Some(order_id) = resolved_string_field(&field.arguments, "id") else {
-                    return Some(data_response(
-                        &field.response_key,
-                        manual_payment_payload(
-                            &field,
-                            Value::Null,
-                            vec![manual_payment_user_error(
-                                json!(["id"]),
-                                "Order does not exist",
-                            )],
-                        ),
-                    ));
+                    return Some(ResolverOutcome::value(manual_payment_payload(
+                        &field,
+                        Value::Null,
+                        vec![manual_payment_user_error(
+                            json!(["id"]),
+                            "Order does not exist",
+                        )],
+                    )));
                 };
                 let Some(order_before) = self.store.staged.orders.get(&order_id).cloned() else {
-                    return Some(manual_payment_access_denied_response(&field));
+                    return Some(manual_payment_access_denied_outcome(&field));
                 };
                 let (order, user_errors, staged_ids) =
                     self.stage_order_create_manual_payment(&order_id, &order_before, &field);
@@ -1384,10 +1377,11 @@ impl DraftProxy {
                         request, query, variables, root_field, staged_ids,
                     );
                 }
-                Some(data_response(
-                    &field.response_key,
-                    manual_payment_payload(&field, order, user_errors),
-                ))
+                Some(ResolverOutcome::value(manual_payment_payload(
+                    &field,
+                    order,
+                    user_errors,
+                )))
             }
             "transactionVoid" => {
                 let field = field?;
@@ -1399,13 +1393,10 @@ impl DraftProxy {
                         request, query, variables, root_field, staged_ids,
                     );
                 }
-                Some(data_response(
-                    &field.response_key,
-                    selected_json(
-                        &json!({ "transaction": transaction, "userErrors": user_errors }),
-                        &field.selection,
-                    ),
-                ))
+                Some(ResolverOutcome::value(selected_json(
+                    &json!({ "transaction": transaction, "userErrors": user_errors }),
+                    &field.selection,
+                )))
             }
             "order"
                 if field
@@ -1415,10 +1406,10 @@ impl DraftProxy {
                 let field = field?;
                 let id = resolved_string_field(&field.arguments, "id")?;
                 let order = self.store.staged.orders.get(&id)?;
-                Some(data_response(
-                    &field.response_key,
-                    selected_json(order, &field.selection),
-                ))
+                Some(ResolverOutcome::value(selected_json(
+                    order,
+                    &field.selection,
+                )))
             }
             "orderCreateMandatePayment" => {
                 let field = field?;
@@ -1426,14 +1417,16 @@ impl DraftProxy {
                     let operation_path = parsed_document(query, variables)
                         .map(|document| document.operation_path)
                         .unwrap_or_else(|| "mutation".to_string());
-                    return Some(json!({
-                        "errors": [missing_required_arguments_error(
-                            "orderCreateMandatePayment",
-                            "mandateId",
-                            field.location,
-                            vec![json!(operation_path), json!("orderCreateMandatePayment")],
-                        )]
-                    }));
+                    let error = missing_required_arguments_error(
+                        "orderCreateMandatePayment",
+                        "mandateId",
+                        field.location,
+                        vec![json!(operation_path), json!("orderCreateMandatePayment")],
+                    );
+                    return Some(
+                        ResolverOutcome::value(Value::Null)
+                            .with_errors(root_field_errors_from_json(&[error], response_key)),
+                    );
                 }
                 let order = resolved_string_field(&field.arguments, "id")
                     .or_else(|| resolved_string_field(variables, "id"))
@@ -1442,22 +1435,19 @@ impl DraftProxy {
                 let idempotency_key = resolved_string_field(&field.arguments, "idempotencyKey")
                     .or_else(|| resolved_string_field(variables, "idempotencyKey"));
                 let Some(idempotency_key) = idempotency_key else {
-                    return Some(data_response(
-                        &field.response_key,
-                        selected_json(
-                            &json!({
-                                "job": Value::Null,
-                                "paymentReferenceId": Value::Null,
-                                "order": order,
-                                "userErrors": [user_error_omit_code(
-                                    ["idempotencyKey"],
-                                    "Idempotency key is required",
-                                    None
-                                )]
-                            }),
-                            &field.selection,
-                        ),
-                    ));
+                    return Some(ResolverOutcome::value(selected_json(
+                        &json!({
+                            "job": Value::Null,
+                            "paymentReferenceId": Value::Null,
+                            "order": order,
+                            "userErrors": [user_error_omit_code(
+                                ["idempotencyKey"],
+                                "Idempotency key is required",
+                                None
+                            )]
+                        }),
+                        &field.selection,
+                    )));
                 };
                 let order_id = resolved_string_field(&field.arguments, "id")
                     .or_else(|| resolved_string_field(variables, "id"))
@@ -1589,21 +1579,18 @@ impl DraftProxy {
                     .unwrap_or(Value::Null);
                 let payment_reference_id = format!("{order_id}/{idempotency_key}");
                 let job_id = job_id.unwrap_or_else(|| self.next_proxy_synthetic_gid("Job"));
-                Some(data_response(
-                    &field.response_key,
-                    selected_json(
-                        &json!({
-                            "job": {
-                                "id": job_id,
-                                "done": true
-                            },
-                            "paymentReferenceId": payment_reference_id,
-                            "order": order,
-                            "userErrors": []
-                        }),
-                        &field.selection,
-                    ),
-                ))
+                Some(ResolverOutcome::value(selected_json(
+                    &json!({
+                        "job": {
+                            "id": job_id,
+                            "done": true
+                        },
+                        "paymentReferenceId": payment_reference_id,
+                        "order": order,
+                        "userErrors": []
+                    }),
+                    &field.selection,
+                )))
             }
             _ => None,
         }

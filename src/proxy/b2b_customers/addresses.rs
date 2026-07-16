@@ -17,43 +17,43 @@ impl DraftProxy {
     /// different customer's per-customer index. The parity comparison matches
     /// these synthetic ids and cursors with `any-string`, so only their
     /// uniqueness and read-after-write consistency matter, never their values.
-    pub(in crate::proxy) fn customer_address_mutation(
+    pub(in crate::proxy) fn customer_address_mutation_outcome(
         &mut self,
-        request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
         let Some(fields) = self.execution_root_fields(query, variables) else {
-            return json_error(400, "Could not parse GraphQL operation");
+            return resolver_http_error_outcome(400, "Could not parse GraphQL operation");
         };
-        let mut top_errors = Vec::new();
-        let data = root_payload_json(&fields, |field| {
-            let (payload, staged_ids, field_top_errors) = match field.name.as_str() {
-                "customerAddressCreate" => self.customer_address_create(field),
-                "customerAddressUpdate" => self.customer_address_update(field),
-                "customerAddressDelete" => self.customer_address_delete(field),
-                "customerUpdateDefaultAddress" => self.customer_update_default_address(field),
-                _ => (Value::Null, Vec::new(), Vec::new()),
-            };
-            top_errors.extend(field_top_errors);
-            if !staged_ids.is_empty() {
-                self.record_mutation_log_entry(request, query, variables, &field.name, staged_ids);
+        let Some(field) = fields
+            .iter()
+            .find(|field| field.response_key == response_key)
+        else {
+            return resolver_http_error_outcome(400, "Unsupported customer address mutation");
+        };
+        let (payload, staged_ids, top_errors) = match field.name.as_str() {
+            "customerAddressCreate" => self.customer_address_create(field),
+            "customerAddressUpdate" => self.customer_address_update(field),
+            "customerAddressDelete" => self.customer_address_delete(field),
+            "customerUpdateDefaultAddress" => self.customer_update_default_address(field),
+            _ => {
+                return resolver_http_error_outcome(400, "Unsupported customer address mutation");
             }
-            // A null payload signals a top-level RESOURCE_NOT_FOUND (the data
-            // field itself is null); a non-null payload renders through the
-            // selection set like every other mutation result.
-            let rendered = if payload.is_null() {
-                Value::Null
-            } else {
-                selected_json(&payload, &field.selection)
-            };
-            Some(rendered)
-        });
-        let mut body = json!({ "data": data });
-        if !top_errors.is_empty() {
-            body["errors"] = Value::Array(top_errors);
+        };
+        let value = if payload.is_null() {
+            Value::Null
+        } else {
+            selected_json(&payload, &field.selection)
+        };
+        let mut outcome = ResolverOutcome::value(value)
+            .with_errors(root_field_errors_from_json(&top_errors, response_key));
+        if !staged_ids.is_empty() {
+            outcome
+                .log_drafts
+                .push(LogDraft::staged(&field.name, "customers", staged_ids));
         }
-        ok_json(body)
+        outcome
     }
 
     fn customer_address_create(

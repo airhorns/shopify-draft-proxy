@@ -47,62 +47,64 @@ impl DraftProxy {
             mode,
             ..
         } = invocation;
-        let response = (|| -> Response {
-            match mode {
-                LocalResolverMode::OverlayRead => {
-                    let mut fields = match self.root_fields_or_error(query, variables) {
-                        Ok(fields) => fields,
-                        Err(response) => return response,
-                    };
-                    if let Some(field) = fields
-                        .iter_mut()
-                        .find(|field| field.response_key == response_key)
-                    {
-                        field.arguments = arguments
-                            .iter()
-                            .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
-                            .collect();
+        match mode {
+            LocalResolverMode::OverlayRead => {
+                let mut fields = match self.root_fields_or_error(query, variables) {
+                    Ok(fields) => fields,
+                    Err(_) => return ResolverOutcome::error("Could not parse GraphQL operation"),
+                };
+                fields.retain(|field| field.response_key == response_key);
+                if let Some(field) = fields.first_mut() {
+                    field.arguments = arguments
+                        .iter()
+                        .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
+                        .collect();
+                }
+                if root_name == "customerSegmentMembersQuery" {
+                    let mut data = self.customer_segment_members_query_read_data(&fields);
+                    return ResolverOutcome::value(
+                        data.as_object_mut()
+                            .and_then(|data| data.remove(response_key))
+                            .unwrap_or(Value::Null),
+                    );
+                }
+                if self.store.staged.segments.is_empty() {
+                    // With no local segment lifecycle effects, Shopify owns the
+                    // catalog, count, detail, cursors, and suggestion taxonomy.
+                    return self.forward_upstream_root_outcome(request, response_key);
+                }
+                let mut upstream_body = None;
+                if self.segment_read_needs_upstream_data(&fields) {
+                    let outcome = self.forward_upstream_root_outcome(request, response_key);
+                    if !outcome.errors.is_empty() {
+                        return outcome;
                     }
-                    if root_name == "customerSegmentMembersQuery" {
-                        ok_json(json!({
-                            "data": self.customer_segment_members_query_read_data(&fields)
-                        }))
-                    } else if self.store.staged.segments.is_empty() {
-                        // With no local segment lifecycle effects, Shopify owns the
-                        // catalog, count, detail, cursors, and suggestion taxonomy.
-                        (self.upstream_transport)(request.clone())
-                    } else {
-                        let upstream_response = self
-                            .segment_read_needs_upstream_data(&fields)
-                            .then(|| (self.upstream_transport)(request.clone()));
-                        let mut upstream_body = None;
-                        if let Some(response) = upstream_response {
-                            if response.status != 200 {
-                                return response;
-                            }
-                            self.observe_upstream_segment_read_data(&fields, &response.body);
-                            upstream_body = Some(response.body);
-                        }
-                        let (data, errors) =
-                            self.segment_read_data(&fields, upstream_body.as_ref());
-                        if errors.is_empty() {
-                            ok_json(json!({ "data": data }))
-                        } else {
-                            ok_json(json!({ "data": data, "errors": errors }))
-                        }
-                    }
+                    let body = json!({
+                        "data": { (response_key): outcome.value }
+                    });
+                    self.observe_upstream_segment_read_data(&fields, &body);
+                    upstream_body = Some(body);
                 }
-                LocalResolverMode::StageLocally
-                    if root_name == "customerSegmentMembersQueryCreate" =>
-                {
-                    self.customer_segment_members_query_create(query, variables, request)
-                }
-                LocalResolverMode::StageLocally => {
-                    self.segment_mutation(root_name, query, variables, request)
-                }
+                let (mut data, errors) = self.segment_read_data(&fields, upstream_body.as_ref());
+                let value = data
+                    .as_object_mut()
+                    .and_then(|data| data.remove(response_key))
+                    .unwrap_or(Value::Null);
+                ResolverOutcome::value(value)
+                    .with_errors(root_field_errors_from_json(&errors, response_key))
             }
-        })();
-        resolver_outcome_from_response(response, response_key)
+            LocalResolverMode::StageLocally if root_name == "customerSegmentMembersQueryCreate" => {
+                self.customer_segment_members_query_create_outcome(
+                    response_key,
+                    &arguments,
+                    query,
+                    variables,
+                )
+            }
+            LocalResolverMode::StageLocally => {
+                self.segment_mutation_outcome(response_key, root_name, &arguments, query, variables)
+            }
+        }
     }
 
     pub(in crate::proxy) fn segment_read_needs_upstream_data(
@@ -311,39 +313,43 @@ impl DraftProxy {
         )
     }
 
-    pub(in crate::proxy) fn segment_mutation(
+    pub(in crate::proxy) fn segment_mutation_outcome(
         &mut self,
+        response_key: &str,
         root_field: &str,
+        coerced_arguments: &BTreeMap<String, Value>,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
+    ) -> ResolverOutcome<Value> {
         let Some(document) = parsed_document(query, variables) else {
-            return json_error(400, "Could not parse GraphQL operation");
+            return resolver_http_error_outcome(400, "Could not parse GraphQL operation");
         };
-        let Some(execution_fields) = self.execution_root_fields(query, variables) else {
-            return json_error(400, "Operation has no root field");
+        let Some(mut execution_fields) = self.execution_root_fields(query, variables) else {
+            return resolver_http_error_outcome(400, "Operation has no root field");
         };
-        let fields = execution_fields
-            .iter()
-            .filter(|field| {
-                matches!(
+        execution_fields.retain(|field| {
+            field.response_key == response_key
+                && matches!(
                     field.name.as_str(),
                     "segmentCreate" | "segmentUpdate" | "segmentDelete"
                 )
-            })
-            .collect::<Vec<_>>();
+        });
+        let fields = execution_fields;
         if fields.is_empty() {
-            return json_error(400, "Operation has no root field");
+            return resolver_http_error_outcome(400, "Operation has no root field");
         }
         let now = self.next_product_timestamp();
         let mut data = serde_json::Map::new();
         let mut staged_ids = Vec::new();
-        for field in fields {
+        for mut field in fields {
+            field.arguments = coerced_arguments
+                .iter()
+                .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
+                .collect();
             if let Some(error) =
-                segment_required_argument_error(&field.name, field, &document.operation_path)
+                segment_required_argument_error(&field.name, &field, &document.operation_path)
             {
-                return ok_json(json!({ "errors": [error] }));
+                return graphql_error_outcome(vec![error], response_key);
             }
             let payload_selection = field.selection.clone();
             let segment_selection =
@@ -410,10 +416,10 @@ impl DraftProxy {
                 }
                 "segmentUpdate" => {
                     let id = resolved_string_field(&arguments, "id").unwrap_or_default();
-                    if let Some(response) =
-                        segment_id_top_level_error(&id, &field.response_key, field)
+                    if let Some(errors) =
+                        segment_id_top_level_errors(&id, &field.response_key, &field)
                     {
-                        return response;
+                        return graphql_error_outcome(errors, response_key);
                     }
                     match self.store.segment_by_id(&id).cloned() {
                         None => (
@@ -484,10 +490,10 @@ impl DraftProxy {
                 }
                 "segmentDelete" => {
                     let id = resolved_string_field(&arguments, "id").unwrap_or_default();
-                    if let Some(response) =
-                        segment_id_top_level_error(&id, &field.response_key, field)
+                    if let Some(errors) =
+                        segment_id_top_level_errors(&id, &field.response_key, &field)
                     {
-                        return response;
+                        return graphql_error_outcome(errors, response_key);
                     }
                     if self.store.segment_by_id(&id).is_some() {
                         self.store.staged.segments.remove_staged(&id);
@@ -517,10 +523,13 @@ impl DraftProxy {
                 ),
             );
         }
-        if !staged_ids.is_empty() {
-            self.record_mutation_log_entry(request, query, variables, root_field, staged_ids);
+        let value = data.remove(response_key).unwrap_or(Value::Null);
+        let outcome = ResolverOutcome::value(value);
+        if staged_ids.is_empty() {
+            outcome
+        } else {
+            outcome.with_log_draft(LogDraft::staged(root_field, "segments", staged_ids))
         }
-        ok_json(json!({ "data": data }))
     }
 
     fn segment_available_name(
@@ -592,26 +601,38 @@ impl DraftProxy {
         })
     }
 
-    pub(in crate::proxy) fn customer_segment_members_query_create(
+    pub(in crate::proxy) fn customer_segment_members_query_create_outcome(
         &mut self,
+        response_key: &str,
+        coerced_arguments: &BTreeMap<String, Value>,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
-        let (response_key, payload_selection, arguments) = self
-            .execution_primary_root_response_parts(query, variables, || {
-                "customerSegmentMembersQueryCreate".to_string()
-            });
+    ) -> ResolverOutcome<Value> {
+        let Some(field) = self
+            .execution_root_fields(query, variables)
+            .and_then(|fields| {
+                fields
+                    .into_iter()
+                    .find(|field| field.response_key == response_key)
+            })
+        else {
+            return ResolverOutcome::error("No customerSegmentMembersQueryCreate root field found");
+        };
+        let payload_selection = field.selection;
+        let arguments = coerced_arguments
+            .iter()
+            .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
+            .collect::<BTreeMap<_, _>>();
         let query_selection =
             selected_child_selection(&payload_selection, "customerSegmentMembersQuery")
                 .unwrap_or_default();
         let input = resolved_object_field(&arguments, "input").unwrap_or_default();
         let query_input = resolved_string_field(&input, "query");
         let segment_id_input = resolved_string_field(&input, "segmentId");
-        if let Some(response) =
+        if let Some(errors) =
             member_query_segment_id_top_level_error(query, variables, segment_id_input.as_deref())
         {
-            return response;
+            return graphql_error_outcome(errors, response_key);
         }
         let user_errors = match (query_input.as_deref(), segment_id_input.as_deref()) {
             (Some(_), Some(_)) => vec![member_query_user_error(
@@ -639,16 +660,12 @@ impl DraftProxy {
             }
         };
         if !user_errors.is_empty() {
-            return ok_json(json!({
-                "data": {
-                    response_key: customer_segment_members_query_payload_json(
-                        Value::Null,
-                        &payload_selection,
-                        &query_selection,
-                        user_errors,
-                    )
-                }
-            }));
+            return ResolverOutcome::value(customer_segment_members_query_payload_json(
+                Value::Null,
+                &payload_selection,
+                &query_selection,
+                user_errors,
+            ));
         }
 
         let id = self.next_proxy_synthetic_gid("CustomerSegmentMembersQuery");
@@ -662,23 +679,17 @@ impl DraftProxy {
             .staged
             .customer_segment_member_queries
             .insert(id.clone(), record.clone());
-        self.record_mutation_log_entry(
-            request,
-            query,
-            variables,
+        ResolverOutcome::value(customer_segment_members_query_payload_json(
+            record,
+            &payload_selection,
+            &query_selection,
+            vec![],
+        ))
+        .with_log_draft(LogDraft::staged(
             "customerSegmentMembersQueryCreate",
+            "segments",
             vec![id],
-        );
-        ok_json(json!({
-            "data": {
-                response_key: customer_segment_members_query_payload_json(
-                    record,
-                    &payload_selection,
-                    &query_selection,
-                    vec![],
-                )
-            }
-        }))
+        ))
     }
 }
 
@@ -987,7 +998,7 @@ fn member_query_segment_id_top_level_error(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
     segment_id: Option<&str>,
-) -> Option<Response> {
+) -> Option<Vec<Value>> {
     let segment_id = segment_id?;
     let document = parsed_document(query, variables)?;
     let field = document
@@ -996,11 +1007,13 @@ fn member_query_segment_id_top_level_error(
         .find(|field| field.name == "customerSegmentMembersQueryCreate")?;
     match shopify_gid_resource_type(segment_id) {
         Some("Segment") => None,
-        Some(_) => segment_id_top_level_error(segment_id, &field.response_key, field),
-        None => Some(ok_json(json!({
-            "errors": [member_query_segment_id_invalid_variable_error(&document, field, segment_id)
-                .unwrap_or_else(|| member_query_segment_id_invalid_literal_error(&document, field, segment_id))]
-        }))),
+        Some(_) => segment_id_top_level_errors(segment_id, &field.response_key, field),
+        None => Some(vec![member_query_segment_id_invalid_variable_error(
+            &document, field, segment_id,
+        )
+        .unwrap_or_else(|| {
+            member_query_segment_id_invalid_literal_error(&document, field, segment_id)
+        })]),
     }
 }
 
@@ -1483,36 +1496,31 @@ fn segment_required_argument_error(
     None
 }
 
-fn segment_id_top_level_error(
+fn segment_id_top_level_errors(
     id: &str,
     response_key: &str,
     field: &RootFieldSelection,
-) -> Option<Response> {
+) -> Option<Vec<Value>> {
     match shopify_gid_resource_type(id) {
         Some("Segment") => None,
-        Some(_) => Some(ok_json(json!({
-            "errors": [{
-                "message": "invalid id",
-                "locations": [{"line": field.location.line, "column": field.location.column}],
-                "extensions": {"code": "RESOURCE_NOT_FOUND"},
-                "path": [response_key]
-            }],
-            "data": { response_key: null }
-        }))),
-        None => Some(ok_json(json!({
-            "errors": [{
-                "message": "Variable $id of type ID! was provided invalid value",
-                "locations": [{"line": 2, "column": 38}],
-                "extensions": {
-                    "code": "INVALID_VARIABLE",
-                    "value": id,
-                    "problems": [{
-                        "path": [],
-                        "explanation": format!("Invalid global id '{id}'"),
-                        "message": format!("Invalid global id '{id}'")
-                    }]
-                }
-            }]
-        }))),
+        Some(_) => Some(vec![json!({
+            "message": "invalid id",
+            "locations": [{"line": field.location.line, "column": field.location.column}],
+            "extensions": {"code": "RESOURCE_NOT_FOUND"},
+            "path": [response_key]
+        })]),
+        None => Some(vec![json!({
+            "message": "Variable $id of type ID! was provided invalid value",
+            "locations": [{"line": 2, "column": 38}],
+            "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": id,
+                "problems": [{
+                    "path": [],
+                    "explanation": format!("Invalid global id '{id}'"),
+                    "message": format!("Invalid global id '{id}'")
+                }]
+            }
+        })]),
     }
 }

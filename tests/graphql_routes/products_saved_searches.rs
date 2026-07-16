@@ -14792,24 +14792,24 @@ fn admin_graphql_capability_classification_uses_implemented_registry_entries() {
     });
     assert!(mismatched_owner.is_err());
 
+    // Metadata cannot promote an unimplemented root without a real direct
+    // binding. Fail registry construction instead of reviving a domain fallback.
+    let promoted_without_binding = std::panic::catch_unwind(|| {
+        snapshot_proxy().with_registry(vec![registry_entry(
+            "productVariants",
+            OperationType::Query,
+            true,
+        )])
+    });
+    assert!(promoted_without_binding.is_err());
+
     // Unimplemented roots keep the passthrough fallback; in snapshot mode that
     // surfaces as a 400 no-dispatcher error because there is no upstream transport.
-    let mut proxy = snapshot_proxy().with_registry(vec![
-        registry_entry("productVariants", OperationType::Query, true),
-        registry_entry("urlRedirect", OperationType::Query, false),
-    ]);
-
-    let known_query = proxy.process_request(graphql_request(
-        "POST",
-        r#"{"query":"query { productVariants(first: 1) { nodes { id } } }"}"#,
-    ));
-    assert_eq!(known_query.status, 501);
-    assert_engine_resolver_failure(
-        &known_query,
-        "productVariants",
-        "No Rust overlay-read dispatcher implemented for root field: productVariants",
-    );
-
+    let mut proxy = snapshot_proxy().with_registry(vec![registry_entry(
+        "urlRedirect",
+        OperationType::Query,
+        false,
+    )]);
     let unimplemented = proxy.process_request(graphql_request(
         "POST",
         r#"{"query":"query { urlRedirect(id: \"gid://shopify/UrlRedirect/1\") { id } }"}"#,
@@ -14843,28 +14843,20 @@ fn registry_classification_without_matching_root_field_fails_closed() {
 }
 
 #[test]
-fn implemented_registry_entry_without_dispatch_match_arm_fails_closed() {
-    let mut proxy = snapshot_proxy().with_registry(vec![OperationRegistryEntry {
-        api_surface: ApiSurface::Admin,
-        name: "productVariants".to_string(),
-        operation_type: OperationType::Query,
-        domain: CapabilityDomain::Products,
-        implemented: true,
-        match_names: vec!["productVariants".to_string()],
-        runtime_tests: vec!["tests/graphql_routes.rs".to_string()],
-    }]);
+fn implemented_registry_entry_without_direct_binding_fails_construction() {
+    let result = std::panic::catch_unwind(|| {
+        snapshot_proxy().with_registry(vec![OperationRegistryEntry {
+            api_surface: ApiSurface::Admin,
+            name: "productVariants".to_string(),
+            operation_type: OperationType::Query,
+            domain: CapabilityDomain::Products,
+            implemented: true,
+            match_names: vec!["productVariants".to_string()],
+            runtime_tests: vec!["tests/graphql_routes.rs".to_string()],
+        }])
+    });
 
-    let response = proxy.process_request(graphql_request(
-        "POST",
-        r#"{"query":"query { productVariants(first: 1) { nodes { id } } }"}"#,
-    ));
-
-    assert_eq!(response.status, 501);
-    assert_engine_resolver_failure(
-        &response,
-        "productVariants",
-        "No Rust overlay-read dispatcher implemented for root field: productVariants",
-    );
+    assert!(result.is_err());
 }
 
 #[test]
@@ -15856,12 +15848,14 @@ fn collection_delete_payload_hydrates_selected_shop_identity_in_live_hybrid() {
     );
     let calls = upstream_calls.lock().unwrap();
     assert_eq!(calls.len(), 2);
+    // The root resolver hydrates the collection before the engine enters the
+    // selected payload `shop` field resolver.
     assert!(calls[0]["query"]
         .as_str()
-        .is_some_and(|query| query.contains("query ProductPayloadShopHydrate")));
+        .is_some_and(|query| query.contains("query ProductsHydrateNodes")));
     assert!(calls[1]["query"]
         .as_str()
-        .is_some_and(|query| query.contains("query ProductsHydrateNodes")));
+        .is_some_and(|query| query.contains("query ProductPayloadShopHydrate")));
 }
 
 #[test]

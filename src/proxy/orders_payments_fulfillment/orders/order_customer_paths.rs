@@ -1,12 +1,13 @@
 use super::*;
 
 impl DraftProxy {
-    pub(in crate::proxy) fn order_customer_error_paths_data(
+    pub(in crate::proxy) fn order_customer_error_paths_outcome(
         &mut self,
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<Value> {
+        response_key: &str,
+    ) -> Option<ResolverOutcome<Value>> {
         let fields = self.execution_root_fields(query, variables)?;
         let mut declined = false;
         let data = root_payload_json(&fields, |field| {
@@ -38,7 +39,9 @@ impl DraftProxy {
         if declined {
             return None;
         }
-        Some(json!({ "data": data }))
+        Some(ResolverOutcome::value(
+            data.get(response_key).cloned().unwrap_or(Value::Null),
+        ))
     }
 
     pub(in crate::proxy) fn order_customer_paths_customer_create(

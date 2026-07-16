@@ -1,8 +1,7 @@
 use super::*;
 
 use crate::proxy::orders_payments_fulfillment::{
-    data_response, fulfillment_order_display_status, fulfillment_order_nodes,
-    fulfillment_order_nodes_mut,
+    fulfillment_order_display_status, fulfillment_order_nodes, fulfillment_order_nodes_mut,
 };
 use crate::proxy::search::{parse_search_query, search_string_matches, ParsedSearchTerm};
 
@@ -122,8 +121,8 @@ struct FulfillmentOrderStoreBackedPreamble {
     index: usize,
 }
 
-fn fulfillment_order_data_response(response_key: &str, value: Value) -> Response {
-    ok_json(data_response(response_key, value))
+fn fulfillment_order_data_response(_response_key: &str, value: Value) -> ResolverOutcome<Value> {
+    ResolverOutcome::value(value)
 }
 
 const SHIPPING_FULFILLMENT_ORDER_DIRECT_HYDRATE_QUERY: &str = r#"query ShippingFulfillmentOrderHydrate($id: ID!) {
@@ -230,15 +229,12 @@ const SHIPPING_FULFILLMENT_ORDER_RELEASE_HOLD_HYDRATE_QUERY: &str = r#"query Ful
 }"#;
 
 impl DraftProxy {
-    pub(in crate::proxy) fn shipping_fulfillment_order_read_response(
+    pub(in crate::proxy) fn shipping_fulfillment_order_read_outcome(
         &mut self,
         request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
-        let Some(fields) = self.execution_root_fields(query, variables) else {
-            return json_error(400, "Could not parse shipping fulfillment-order read");
-        };
+        fields: &[RootFieldSelection],
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
         let all_connection_reads = fields.iter().all(|field| {
             matches!(
                 field.name.as_str(),
@@ -247,11 +243,15 @@ impl DraftProxy {
         });
         if all_connection_reads {
             if self.shipping_fulfillment_orders().is_empty() {
-                return (self.upstream_transport)(request.clone());
+                return self.cached_or_forward_upstream_root_outcome(request, response_key);
             }
-            return self.shipping_fulfillment_order_connection_read_response(request, &fields);
+            return self.shipping_fulfillment_order_connection_read_outcome(
+                request,
+                fields,
+                response_key,
+            );
         }
-        let data = root_payload_json(&fields, |field| {
+        let data = root_payload_json(fields, |field| {
             Some(match field.name.as_str() {
                 "fulfillmentOrder" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
@@ -269,28 +269,29 @@ impl DraftProxy {
                 _ => return None,
             })
         });
-        ok_json(json!({ "data": data }))
+        ResolverOutcome::value(data.get(response_key).cloned().unwrap_or(Value::Null))
     }
 
-    fn shipping_fulfillment_order_connection_read_response(
+    fn shipping_fulfillment_order_connection_read_outcome(
         &mut self,
         request: &Request,
         fields: &[RootFieldSelection],
-    ) -> Response {
-        let upstream_response = (self.upstream_transport)(request.clone());
-        let upstream_body = if upstream_response.status < 400 {
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
+        let upstream_result = self.cached_or_forward_upstream_graphql_result(request, response_key);
+        let upstream_data = if upstream_result.transport_succeeded {
             self.observe_shipping_fulfillment_order_connection_response(
                 fields,
-                &upstream_response.body,
+                &upstream_result.data,
             );
-            Some(upstream_response.body)
+            Some(upstream_result.data)
         } else {
             None
         };
         let data = root_payload_json(fields, |field| {
-            let live_records = upstream_body
+            let live_records = upstream_data
                 .as_ref()
-                .map(|body| self.shipping_fulfillment_order_connection_records(body, field))
+                .map(|data| self.shipping_fulfillment_order_connection_records(data, field))
                 .unwrap_or_default();
             Some(match field.name.as_str() {
                 "fulfillmentOrders"
@@ -301,7 +302,7 @@ impl DraftProxy {
                 _ => return None,
             })
         });
-        ok_json(json!({ "data": data }))
+        ResolverOutcome::value(data.get(response_key).cloned().unwrap_or(Value::Null))
     }
 
     fn observe_shipping_fulfillment_order_connection_response(
@@ -328,7 +329,7 @@ impl DraftProxy {
         ) {
             return Vec::new();
         }
-        let connection = &body["data"][&field.response_key];
+        let connection = &body[&field.response_key];
         let edge_records = connection
             .get("edges")
             .and_then(Value::as_array)
@@ -522,13 +523,17 @@ impl DraftProxy {
         })
     }
 
-    pub(in crate::proxy) fn shipping_fulfillment_order_local_order_read(
+    pub(in crate::proxy) fn shipping_fulfillment_order_local_order_outcome(
         &mut self,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
         let Some(fields) = self.execution_root_fields(query, variables) else {
-            return json_error(400, "Could not parse shipping fulfillment-order order read");
+            return resolver_http_error_outcome(
+                400,
+                "Could not parse shipping fulfillment-order order read",
+            );
         };
         let data = root_payload_json(&fields, |field| {
             Some(match field.name.as_str() {
@@ -560,7 +565,7 @@ impl DraftProxy {
                 _ => return None,
             })
         });
-        ok_json(json!({ "data": data }))
+        ResolverOutcome::value(data.get(response_key).cloned().unwrap_or(Value::Null))
     }
 
     pub(in crate::proxy) fn should_handle_shipping_fulfillment_order_local_order_read(
@@ -757,14 +762,15 @@ fn order_value_string(order: &Value, path: &[&str]) -> Option<String> {
 }
 
 impl DraftProxy {
-    pub(in crate::proxy) fn shipping_fulfillment_order_mutation_response(
+    pub(in crate::proxy) fn shipping_fulfillment_order_mutation_outcome(
         &mut self,
         root_field: &str,
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
-        let response = match root_field {
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
+        match root_field {
             "fulfillmentOrderHold" => {
                 self.fulfillment_order_hold_store_backed(query, variables, request)
             }
@@ -811,27 +817,31 @@ impl DraftProxy {
             | "fulfillmentOrderRejectCancellationRequest"
             | "fulfillmentOrderSplit"
             | "fulfillmentOrderMerge" => {
-                if let Some(data) = self
-                    .fulfillment_order_local_mutation_data(request, root_field, query, variables)
+                if let Some(outcome) = self.fulfillment_order_local_mutation_outcome(
+                    request,
+                    root_field,
+                    query,
+                    variables,
+                    response_key,
+                )
                 {
-                    ok_json(data)
+                    outcome
                 } else {
-                    json_error(
+                    resolver_http_error_outcome(
                         501,
-                        &format!(
+                        format!(
                             "No Rust shipping fulfillment dispatcher implemented for root field: {root_field}"
                         ),
                     )
                 }
             }
-            _ => json_error(
+            _ => resolver_http_error_outcome(
                 501,
-                &format!(
+                format!(
                     "No Rust shipping fulfillment dispatcher implemented for root field: {root_field}"
                 ),
             ),
-        };
-        response
+        }
     }
 
     fn fulfillment_order_store_backed_parts(
@@ -850,7 +860,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
         guardrail_message: Option<&str>,
-    ) -> Result<FulfillmentOrderStoreBackedPreamble, Response> {
+    ) -> Result<FulfillmentOrderStoreBackedPreamble, ResolverOutcome<Value>> {
         let (response_key, payload_selection, arguments) =
             self.fulfillment_order_store_backed_parts(root_field, query, variables);
         let id = resolved_string_field(&arguments, "id").unwrap_or_default();
@@ -889,7 +899,7 @@ impl DraftProxy {
         response_key: &str,
         id: &str,
         guardrail_message: Option<&str>,
-    ) -> Response {
+    ) -> ResolverOutcome<Value> {
         if let Some(message) = guardrail_message {
             self.fulfillment_order_guardrail_response(root_field, query, message)
         } else {
@@ -902,7 +912,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
-    ) -> Response {
+    ) -> ResolverOutcome<Value> {
         let FulfillmentOrderStoreBackedPreamble {
             response_key,
             payload_selection,
@@ -1100,11 +1110,15 @@ impl DraftProxy {
             }
             update_order_display_fulfillment_status(order);
         }
-        self.record_mutation_log_entry(request, query, variables, "fulfillmentOrderHold", vec![id]);
         fulfillment_order_data_response(
             &response_key,
             fulfillment_order_hold_payload_json(hold, held, remaining, &payload_selection, vec![]),
         )
+        .with_log_draft(LogDraft::staged(
+            "fulfillmentOrderHold",
+            "shipping-fulfillments",
+            vec![id],
+        ))
     }
 
     fn fulfillment_order_release_hold_store_backed(
@@ -1112,7 +1126,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
-    ) -> Response {
+    ) -> ResolverOutcome<Value> {
         let FulfillmentOrderStoreBackedPreamble {
             response_key,
             payload_selection,
@@ -1174,17 +1188,15 @@ impl DraftProxy {
             }
             update_order_display_fulfillment_status(order);
         }
-        self.record_mutation_log_entry(
-            request,
-            query,
-            variables,
-            "fulfillmentOrderReleaseHold",
-            vec![id],
-        );
         fulfillment_order_data_response(
             &response_key,
             fulfillment_order_simple_payload_json(released, &payload_selection, vec![]),
         )
+        .with_log_draft(LogDraft::staged(
+            "fulfillmentOrderReleaseHold",
+            "shipping-fulfillments",
+            vec![id],
+        ))
     }
 
     fn fulfillment_order_move_store_backed(
@@ -1192,7 +1204,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
-    ) -> Response {
+    ) -> ResolverOutcome<Value> {
         let FulfillmentOrderStoreBackedPreamble {
             response_key,
             payload_selection,
@@ -1339,7 +1351,6 @@ impl DraftProxy {
             }
             update_order_display_fulfillment_status(order);
         }
-        self.record_mutation_log_entry(request, query, variables, "fulfillmentOrderMove", vec![id]);
         fulfillment_order_data_response(
             &response_key,
             fulfillment_order_move_payload_json(
@@ -1350,6 +1361,11 @@ impl DraftProxy {
                 vec![],
             ),
         )
+        .with_log_draft(LogDraft::staged(
+            "fulfillmentOrderMove",
+            "shipping-fulfillments",
+            vec![id],
+        ))
     }
 
     fn fulfillment_order_status_store_backed(
@@ -1359,7 +1375,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
-    ) -> Response {
+    ) -> ResolverOutcome<Value> {
         let FulfillmentOrderStoreBackedPreamble {
             response_key,
             payload_selection,
@@ -1430,11 +1446,15 @@ impl DraftProxy {
             }
             update_order_display_fulfillment_status(order);
         }
-        self.record_mutation_log_entry(request, query, variables, root_field, vec![id]);
         fulfillment_order_data_response(
             &response_key,
             fulfillment_order_simple_payload_json(updated, &payload_selection, vec![]),
         )
+        .with_log_draft(LogDraft::staged(
+            root_field,
+            "shipping-fulfillments",
+            vec![id],
+        ))
     }
 
     fn fulfillment_order_cancel_store_backed(
@@ -1442,7 +1462,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
-    ) -> Response {
+    ) -> ResolverOutcome<Value> {
         let FulfillmentOrderStoreBackedPreamble {
             response_key,
             payload_selection,
@@ -1516,13 +1536,6 @@ impl DraftProxy {
             }
             update_order_display_fulfillment_status(order);
         }
-        self.record_mutation_log_entry(
-            request,
-            query,
-            variables,
-            "fulfillmentOrderCancel",
-            vec![id],
-        );
         fulfillment_order_data_response(
             &response_key,
             fulfillment_order_cancel_payload_json(
@@ -1532,6 +1545,11 @@ impl DraftProxy {
                 vec![],
             ),
         )
+        .with_log_draft(LogDraft::staged(
+            "fulfillmentOrderCancel",
+            "shipping-fulfillments",
+            vec![id],
+        ))
     }
 
     fn fulfillment_order_set_deadline_store_backed(
@@ -1539,7 +1557,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
-    ) -> Response {
+    ) -> ResolverOutcome<Value> {
         let (response_key, payload_selection, arguments) = self
             .fulfillment_order_store_backed_parts(
                 "fulfillmentOrdersSetFulfillmentDeadline",
@@ -1553,6 +1571,7 @@ impl DraftProxy {
             .filter(|id| self.shipping_fulfillment_order_location(id).is_some())
             .cloned()
             .collect();
+        let mut log_draft = None;
         let (success, errors) = if known_ids.is_empty() {
             (
                 false,
@@ -1581,19 +1600,21 @@ impl DraftProxy {
                     }
                 }
             }
-            self.record_mutation_log_entry(
-                request,
-                query,
-                variables,
+            log_draft = Some(LogDraft::staged(
                 "fulfillmentOrdersSetFulfillmentDeadline",
-                ids,
-            );
+                "shipping-fulfillments",
+                ids.clone(),
+            ));
             (true, vec![])
         };
-        fulfillment_order_data_response(
+        let outcome = fulfillment_order_data_response(
             &response_key,
             fulfillment_order_deadline_payload_json(success, &payload_selection, errors),
-        )
+        );
+        match log_draft {
+            Some(draft) => outcome.with_log_draft(draft),
+            None => outcome,
+        }
     }
 
     fn fulfillment_order_close_store_backed(
@@ -1601,7 +1622,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
-    ) -> Response {
+    ) -> ResolverOutcome<Value> {
         let FulfillmentOrderStoreBackedPreamble {
             response_key,
             payload_selection,
@@ -1650,17 +1671,15 @@ impl DraftProxy {
             }
             update_order_display_fulfillment_status(order);
         }
-        self.record_mutation_log_entry(
-            request,
-            query,
-            variables,
-            "fulfillmentOrderClose",
-            vec![id],
-        );
         fulfillment_order_data_response(
             &response_key,
             fulfillment_order_simple_payload_json(closed, &payload_selection, vec![]),
         )
+        .with_log_draft(LogDraft::staged(
+            "fulfillmentOrderClose",
+            "shipping-fulfillments",
+            vec![id],
+        ))
     }
 
     fn fulfillment_order_prepared_for_pickup_store_backed(
@@ -1668,7 +1687,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
-    ) -> Response {
+    ) -> ResolverOutcome<Value> {
         let (response_key, payload_selection, arguments) = self
             .fulfillment_order_store_backed_parts(
                 "fulfillmentOrderLineItemsPreparedForPickup",
@@ -1696,10 +1715,7 @@ impl DraftProxy {
             if shopify_gid_resource_type(id) != Some("FulfillmentOrder")
                 || fulfillment_order_id_is_invalid(id)
             {
-                return ok_json(fulfillment_order_structural_invalid_id_data(
-                    &response_key,
-                    "fulfillmentOrderLineItemsPreparedForPickup",
-                ));
+                return fulfillment_order_structural_invalid_id_outcome();
             }
         }
 
@@ -1752,18 +1768,15 @@ impl DraftProxy {
                 update_order_display_fulfillment_status(order);
             }
         }
-        self.record_mutation_log_entry(
-            request,
-            query,
-            variables,
-            "fulfillmentOrderLineItemsPreparedForPickup",
-            requested.into_iter().map(|(_, id)| id).collect(),
-        );
-
         fulfillment_order_data_response(
             &response_key,
             fulfillment_order_prepared_for_pickup_payload_json(&payload_selection, vec![]),
         )
+        .with_log_draft(LogDraft::staged(
+            "fulfillmentOrderLineItemsPreparedForPickup",
+            "shipping-fulfillments",
+            requested.into_iter().map(|(_, id)| id).collect(),
+        ))
     }
 
     fn fulfillment_order_guardrail_response(
@@ -1771,7 +1784,7 @@ impl DraftProxy {
         root_field: &str,
         query: &str,
         message: &str,
-    ) -> Response {
+    ) -> ResolverOutcome<Value> {
         let (response_key, payload_selection) =
             self.execution_primary_root_response_selection(query, &BTreeMap::new(), || {
                 root_field.to_string()
@@ -1786,7 +1799,7 @@ impl DraftProxy {
         )
     }
 
-    fn fulfillment_orders_reroute_guardrail_response(&self, query: &str) -> Response {
+    fn fulfillment_orders_reroute_guardrail_response(&self, query: &str) -> ResolverOutcome<Value> {
         let (response_key, payload_selection) =
             self.execution_primary_root_response_selection(query, &BTreeMap::new(), || {
                 "fulfillmentOrdersReroute".to_string()
@@ -1810,15 +1823,16 @@ impl DraftProxy {
         root_field: &str,
         response_key: &str,
         id: &str,
-    ) -> Response {
-        ok_json(json!({
-            "errors": [{
-                "message": format!("Invalid id: {id}"),
-                "extensions": { "code": "RESOURCE_NOT_FOUND" },
-                "path": [root_field]
-            }],
-            "data": { response_key: Value::Null }
-        }))
+    ) -> ResolverOutcome<Value> {
+        let _ = (root_field, response_key);
+        ResolverOutcome::value(Value::Null).with_errors(vec![
+            crate::admin_graphql::RootFieldError {
+                message: format!("Invalid id: {id}"),
+                extensions: BTreeMap::from([("code".to_string(), json!("RESOURCE_NOT_FOUND"))]),
+                path: Some(Vec::new()),
+                locations: Vec::new(),
+            },
+        ])
     }
 
     fn ensure_shipping_fulfillment_order_hydrated(&mut self, request: &Request, id: &str) -> bool {
@@ -2206,17 +2220,13 @@ fn fulfillment_order_line_item_quantities(
         .collect()
 }
 
-fn fulfillment_order_structural_invalid_id_data(response_key: &str, root_field: &str) -> Value {
-    let mut data = serde_json::Map::new();
-    data.insert(response_key.to_string(), Value::Null);
-    json!({
-        "data": Value::Object(data),
-        "errors": [{
-            "message": "invalid id",
-            "extensions": { "code": "RESOURCE_NOT_FOUND" },
-            "path": [root_field]
-        }]
-    })
+fn fulfillment_order_structural_invalid_id_outcome() -> ResolverOutcome<Value> {
+    ResolverOutcome::value(Value::Null).with_errors(vec![crate::admin_graphql::RootFieldError {
+        message: "invalid id".to_string(),
+        extensions: BTreeMap::from([("code".to_string(), json!("RESOURCE_NOT_FOUND"))]),
+        path: Some(Vec::new()),
+        locations: Vec::new(),
+    }])
 }
 
 fn fulfillment_order_prepared_for_pickup_payload_json(

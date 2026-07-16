@@ -81,12 +81,13 @@ fn set_abandonment_delivery_status(
 }
 
 impl DraftProxy {
-    pub(in crate::proxy) fn abandonment_delivery_status_local_data(
+    pub(in crate::proxy) fn abandonment_delivery_status_local_outcome(
         &mut self,
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<Value> {
+        response_key: &str,
+    ) -> Option<ResolverOutcome<Value>> {
         let fields = self.execution_root_fields(query, variables)?;
         if !fields.iter().all(|field| {
             matches!(
@@ -241,6 +242,8 @@ impl DraftProxy {
                 staged_ids,
             );
         }
-        Some(json!({ "data": data }))
+        Some(ResolverOutcome::value(
+            data.get(response_key).cloned().unwrap_or(Value::Null),
+        ))
     }
 }

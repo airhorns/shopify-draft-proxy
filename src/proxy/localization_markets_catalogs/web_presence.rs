@@ -38,11 +38,12 @@ impl DraftProxy {
         selected_json(&payload, &field.selection)
     }
 
-    pub(in crate::proxy) fn web_presence_helper_query(
+    pub(in crate::proxy) fn web_presence_helper_query_outcome(
         &self,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
         let fields = self
             .execution_root_fields(query, variables)
             .unwrap_or_default();
@@ -70,7 +71,7 @@ impl DraftProxy {
                 );
             }
         }
-        ok_json(json!({"data": Value::Object(data)}))
+        ResolverOutcome::value(data.remove(response_key).unwrap_or(Value::Null))
     }
 
     /// Hydrate the staged store from a cassette-backed preflight before applying a
@@ -127,14 +128,14 @@ impl DraftProxy {
         }
     }
 
-    pub(in crate::proxy) fn web_presence_helper_mutation(
+    pub(in crate::proxy) fn web_presence_helper_mutation_outcome(
         &mut self,
         root_field: &str,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
-    ) -> Response {
-        let (response_key, payload_selection, arguments) =
+    ) -> ResolverOutcome<Value> {
+        let (_response_key, payload_selection, arguments) =
             self.execution_primary_root_response_parts(query, variables, || root_field.to_string());
         let payload = match root_field {
             "webPresenceCreate" => {
@@ -152,7 +153,7 @@ impl DraftProxy {
             }
             _ => Value::Null,
         };
-        ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}}))
+        ResolverOutcome::value(selected_json(&payload, &payload_selection))
     }
 
     /// Stage a `webPresenceDelete`. Shopify rejects deleting a presence that does

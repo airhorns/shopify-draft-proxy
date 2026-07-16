@@ -1,13 +1,13 @@
 use super::*;
 
 impl DraftProxy {
-    pub(in crate::proxy) fn quantity_pricing_by_variant_update_response(
+    pub(in crate::proxy) fn quantity_pricing_by_variant_update_outcome(
         &mut self,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
-    ) -> Response {
-        let (response_key, payload_selection, arguments) = self
+    ) -> ResolverOutcome<Value> {
+        let (_response_key, payload_selection, arguments) = self
             .execution_primary_root_response_parts(query, variables, || {
                 "quantityPricingByVariantUpdate".to_string()
             });
@@ -43,11 +43,7 @@ impl DraftProxy {
             "productVariants": product_variants_value,
             "userErrors": user_errors
         });
-        ok_json(json!({
-            "data": {
-                response_key: selected_json(&payload, &payload_selection)
-            }
-        }))
+        ResolverOutcome::value(selected_json(&payload, &payload_selection))
     }
 
     fn stage_quantity_pricing_by_variant_update(

@@ -7,12 +7,12 @@ const APP_UNINSTALL_APP_NOT_FOUND_MESSAGE: &str = "App not found";
 const APP_UNINSTALL_APP_NOT_INSTALLED_MESSAGE: &str = "App is not installed on shop";
 
 impl DraftProxy {
-    pub(in crate::proxy) fn observe_current_app_installation_response(
+    pub(in crate::proxy) fn observe_current_app_installation_data(
         &mut self,
         request: &Request,
-        response: &Response,
+        data: &Value,
     ) {
-        let Some(observed) = response.body.pointer("/data/currentAppInstallation") else {
+        let Some(observed) = data.get("currentAppInstallation") else {
             return;
         };
         if !observed.is_object() {
@@ -138,8 +138,8 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
-    ) -> Response {
-        let (response_key, payload_selection, arguments) = self
+    ) -> ResolverOutcome<Value> {
+        let (_response_key, payload_selection, arguments) = self
             .execution_primary_root_response_parts(query, variables, || "appUninstall".to_string());
         let app_selection = selected_child_selection(&payload_selection, "app").unwrap_or_default();
         let requested_id = resolved_object_field(&arguments, "input")
@@ -209,15 +209,11 @@ impl DraftProxy {
                 )
             }
         };
-        ok_json(json!({
-            "data": {
-                response_key: app_uninstall_payload_json(
-                    app,
-                    &payload_selection,
-                    &app_selection,
-                    user_errors,
-                )
-            }
-        }))
+        ResolverOutcome::value(app_uninstall_payload_json(
+            app,
+            &payload_selection,
+            &app_selection,
+            user_errors,
+        ))
     }
 }

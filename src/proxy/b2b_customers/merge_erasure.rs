@@ -1,16 +1,24 @@
 use super::*;
 
 impl DraftProxy {
-    pub(in crate::proxy) fn customer_merge(
+    pub(in crate::proxy) fn customer_merge_outcome(
         &mut self,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
-    ) -> Response {
-        let (response_key, payload_selection, arguments) = self
-            .execution_primary_root_response_parts(query, variables, || {
-                "customerMerge".to_string()
-            });
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
+        let Some(field) = self
+            .execution_root_fields(query, variables)
+            .and_then(|fields| {
+                fields.into_iter().find(|field| {
+                    field.name == "customerMerge" && field.response_key == response_key
+                })
+            })
+        else {
+            return resolver_http_error_outcome(400, "Could not parse customerMerge mutation");
+        };
+        let arguments = field.arguments;
         let one_id = resolved_string_field(&arguments, "customerOneId")
             .or_else(|| resolved_string_field(variables, "customerOneId"))
             .unwrap_or_default();
@@ -30,8 +38,8 @@ impl DraftProxy {
         // userError branch (self-merge, unknown customer, merge blockers).
         let (payload, staged_ids) =
             self.customer_merge_payload(request, &arguments, &one_id, &two_id, &hydrated_ids);
-        self.record_mutation_log_entry(request, query, variables, "customerMerge", staged_ids);
-        ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
+        ResolverOutcome::value(selected_json(&payload, &field.selection))
+            .with_log_draft(LogDraft::staged("customerMerge", "customers", staged_ids))
     }
 
     /// Stage a `customerRequestDataErasure` / `customerCancelDataErasure`
@@ -39,26 +47,42 @@ impl DraftProxy {
     /// root; `false` is the cancel root. Records the raw mutation in the log
     /// (status `staged` on success, `failed` on userError) and never forwards
     /// upstream. Returns `{ <responseKey>: { customerId, userErrors } }`.
-    pub(in crate::proxy) fn customer_data_erasure(
+    pub(in crate::proxy) fn customer_data_erasure_outcome(
         &mut self,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
         root_field: &str,
         request_erasure: bool,
-    ) -> Response {
-        let (response_key, payload_selection, arguments) =
-            self.execution_primary_root_response_parts(query, variables, || root_field.to_string());
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
+        let Some(field) = self
+            .execution_root_fields(query, variables)
+            .and_then(|fields| {
+                fields
+                    .into_iter()
+                    .find(|field| field.name == root_field && field.response_key == response_key)
+            })
+        else {
+            return resolver_http_error_outcome(400, "Could not parse customer erasure mutation");
+        };
+        let arguments = field.arguments;
         let customer_id = resolved_string_field(&arguments, "customerId")
             .or_else(|| resolved_string_field(variables, "customerId"))
             .unwrap_or_default();
 
         let (payload, status, staged_ids) =
             self.customer_data_erasure_payload(request, &customer_id, request_erasure);
-        self.record_mutation_log_with_status(
-            request, query, variables, root_field, staged_ids, status,
-        );
-        ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
+        let outcome = ResolverOutcome::value(selected_json(&payload, &field.selection));
+        if status == "staged" {
+            outcome.with_log_draft(LogDraft::staged(root_field, "customers", staged_ids))
+        } else {
+            outcome.with_log_draft(LogDraft::failed(
+                root_field,
+                "customers",
+                "Customer erasure mutation rejected by local validation.",
+            ))
+        }
     }
 
     fn customer_data_erasure_payload(

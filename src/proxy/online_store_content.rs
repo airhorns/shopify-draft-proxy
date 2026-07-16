@@ -18,29 +18,25 @@ impl DraftProxy {
             request,
             query,
             variables,
-            root_name: _,
+            root_name,
             mode,
             ..
         } = invocation;
-        let response = (|| -> Response {
-            match mode {
-                LocalResolverMode::OverlayRead => {
-                    let fields = match self.root_fields_or_error(query, variables) {
-                        Ok(fields) => fields,
-                        Err(response) => return response,
-                    };
-                    self.online_store_query_response(request, &fields)
-                }
-                LocalResolverMode::StageLocally => {
-                    let fields = match self.root_fields_or_error(query, variables) {
-                        Ok(fields) => fields,
-                        Err(response) => return response,
-                    };
-                    self.online_store_mutation(&fields, request, query, variables)
-                }
+        let Some(fields) = self.execution_root_fields(query, variables) else {
+            return resolver_http_error_outcome(400, "Could not parse GraphQL operation");
+        };
+        let fields = fields
+            .into_iter()
+            .filter(|field| field.response_key == response_key)
+            .collect::<Vec<_>>();
+        match mode {
+            LocalResolverMode::OverlayRead => {
+                self.online_store_query_outcome(request, &fields, response_key)
             }
-        })();
-        resolver_outcome_from_response(response, response_key)
+            LocalResolverMode::StageLocally => {
+                self.online_store_mutation_outcome(&fields, request, root_name, response_key)
+            }
+        }
     }
 }
 

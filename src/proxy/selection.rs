@@ -60,22 +60,6 @@ pub(in crate::proxy) fn selected_field_applies_to_type(
     })
 }
 
-pub(in crate::proxy) fn selected_typed_json(
-    mut record: Value,
-    type_name: &str,
-    selections: &[SelectedField],
-) -> Value {
-    if record.is_null() {
-        return Value::Null;
-    }
-    if let Some(object) = record.as_object_mut() {
-        object
-            .entry("__typename".to_string())
-            .or_insert_with(|| json!(type_name));
-    }
-    selected_abstract_json(&record, selections)
-}
-
 /// Project a concrete object that is returned through an interface or union.
 /// The hidden concrete typename is retained for the executable GraphQL engine;
 /// it is emitted only when the caller actually selects `__typename`.
@@ -266,10 +250,8 @@ pub(in crate::proxy) fn selected_child_selection(
         .map(|selection| selection.selection.clone())
 }
 
-pub(in crate::proxy) fn selected_fields_named(
-    selections: &[SelectedField],
-    names: &[&str],
-) -> Vec<SelectedField> {
+#[cfg(test)]
+fn selected_fields_named(selections: &[SelectedField], names: &[&str]) -> Vec<SelectedField> {
     selections
         .iter()
         .filter(|selection| names.iter().any(|name| selection.name == *name))

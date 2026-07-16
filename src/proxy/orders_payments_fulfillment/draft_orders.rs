@@ -1177,9 +1177,9 @@ pub(in crate::proxy) fn draft_order_calculate_user_errors(
     None
 }
 
-pub(in crate::proxy) fn draft_order_top_level_validation_response(
+pub(in crate::proxy) fn draft_order_top_level_validation_errors(
     fields: &[RootFieldSelection],
-) -> Option<Response> {
+) -> Vec<Value> {
     let mut errors = Vec::new();
     for field in fields {
         if !matches!(
@@ -1205,7 +1205,7 @@ pub(in crate::proxy) fn draft_order_top_level_validation_response(
             errors.push(draft_order_max_input_error(field, "tags", tag_count, 250));
         }
     }
-    (!errors.is_empty()).then(|| ok_json(json!({ "data": Value::Null, "errors": errors })))
+    errors
 }
 
 pub(in crate::proxy) fn draft_order_max_input_error(
@@ -1314,13 +1314,22 @@ impl DraftProxy {
         if response.status >= 400 {
             return;
         }
+        self.observe_draft_order_read_data(request, &response.body["data"]);
+    }
+
+    pub(in crate::proxy) fn observe_draft_order_read_data(
+        &mut self,
+        request: &Request,
+        data: &Value,
+    ) {
+        let body = json!({ "data": data });
         if let Some(graphql_request) = parse_graphql_request_body(&request.body) {
             if let Some(fields) = root_fields(&graphql_request.query, &graphql_request.variables) {
-                self.observe_draft_order_count_baselines(&fields, &response.body);
-                self.observe_singular_draft_order_roots(&fields, &response.body);
+                self.observe_draft_order_count_baselines(&fields, &body);
+                self.observe_singular_draft_order_roots(&fields, &body);
             }
         }
-        self.observe_draft_order_value(&response.body);
+        self.observe_draft_order_value(data);
     }
 
     fn observe_singular_draft_order_roots(&mut self, fields: &[RootFieldSelection], body: &Value) {
@@ -1404,15 +1413,18 @@ impl DraftProxy {
         true
     }
 
-    pub(in crate::proxy) fn draft_order_complete_local_data(
+    pub(in crate::proxy) fn draft_order_complete_local_outcome(
         &mut self,
         request: &Request,
         root_field: &str,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<Value> {
+        response_key: &str,
+    ) -> Option<ResolverOutcome<Value>> {
         let fields = self.execution_root_fields(query, variables)?;
-        let field = fields.iter().find(|field| field.name == root_field);
+        let field = fields
+            .iter()
+            .find(|field| field.name == root_field && field.response_key == response_key);
 
         // Forward a hydrate + observe for a draft not created locally this scenario
         // so completion settles the real draft instead of a precondition seed.
@@ -1426,8 +1438,7 @@ impl DraftProxy {
         match root_field {
             "draftOrderComplete" => {
                 let field = field?;
-                Some(data_response(
-                    &field.response_key,
+                Some(ResolverOutcome::value(
                     self.complete_staged_draft_order(request, field),
                 ))
             }
@@ -1435,10 +1446,10 @@ impl DraftProxy {
                 let field = field?;
                 let id = resolved_string_field(&field.arguments, "id")?;
                 let order = self.store.staged.orders.get(&id)?;
-                Some(data_response(
-                    &field.response_key,
-                    selected_json(order, &field.selection),
-                ))
+                Some(ResolverOutcome::value(selected_json(
+                    order,
+                    &field.selection,
+                )))
             }
             "orders" => {
                 let field = field?;
@@ -1466,18 +1477,19 @@ impl DraftProxy {
                         selected_json(order, &nested_selected_fields(&field.selection, &["nodes"]))
                     })
                     .collect::<Vec<_>>();
-                Some(data_response(&field.response_key, order_connection(nodes)))
+                Some(ResolverOutcome::value(order_connection(nodes)))
             }
             _ => None,
         }
     }
 
-    pub(in crate::proxy) fn draft_order_lifecycle_local_response(
+    pub(in crate::proxy) fn draft_order_lifecycle_local_outcome(
         &mut self,
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<Response> {
+        response_key: &str,
+    ) -> Option<ResolverOutcome<Value>> {
         let fields = self.execution_root_fields(query, variables)?;
         if !fields.iter().all(|field| {
             matches!(
@@ -1535,8 +1547,11 @@ impl DraftProxy {
             return None;
         }
 
-        if let Some(response) = draft_order_top_level_validation_response(&fields) {
-            return Some(response);
+        let validation_errors = draft_order_top_level_validation_errors(&fields);
+        if !validation_errors.is_empty() {
+            return Some(ResolverOutcome::value(Value::Null).with_errors(
+                root_field_errors_from_json(&validation_errors, response_key),
+            ));
         }
 
         for field in &fields {
@@ -1615,7 +1630,9 @@ impl DraftProxy {
         if declined {
             return None;
         }
-        Some(ok_json(json!({ "data": data })))
+        Some(ResolverOutcome::value(
+            data.get(response_key).cloned().unwrap_or(Value::Null),
+        ))
     }
 
     pub(super) fn stage_draft_order_create(
@@ -2748,12 +2765,13 @@ impl DraftProxy {
         draft_order_complete_payload(draft_order, vec![], &field.selection)
     }
 
-    pub(in crate::proxy) fn draft_order_invoice_send_local_response(
+    pub(in crate::proxy) fn draft_order_invoice_send_local_outcome(
         &mut self,
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<Response> {
+        response_key: &str,
+    ) -> Option<ResolverOutcome<Value>> {
         let fields = self.execution_root_fields(query, variables)?;
         if !fields
             .iter()
@@ -2768,13 +2786,15 @@ impl DraftProxy {
             }
             if let Some(template) = draft_order_invoice_template_argument(field) {
                 if !is_valid_draft_order_invoice_template(&template) {
-                    return Some(ok_json(json!({
-                        "errors": [{
-                            "message": format!(
-                                "Variable $template of type DraftOrderEmailTemplate was provided invalid value {template}"
-                            )
-                        }]
-                    })));
+                    let errors = vec![json!({
+                        "message": format!(
+                            "Variable $template of type DraftOrderEmailTemplate was provided invalid value {template}"
+                        )
+                    })];
+                    return Some(
+                        ResolverOutcome::value(Value::Null)
+                            .with_errors(root_field_errors_from_json(&errors, response_key)),
+                    );
                 }
             }
         }
@@ -2810,7 +2830,9 @@ impl DraftProxy {
         if declined {
             return None;
         }
-        Some(ok_json(json!({ "data": data })))
+        Some(ResolverOutcome::value(
+            data.get(response_key).cloned().unwrap_or(Value::Null),
+        ))
     }
 
     pub(in crate::proxy) fn draft_order_invoice_errors_send(
@@ -2921,12 +2943,14 @@ impl DraftProxy {
         )
     }
 
-    pub(in crate::proxy) fn draft_order_bulk_tag_local_data(
+    pub(in crate::proxy) fn draft_order_bulk_tag_local_outcome(
         &mut self,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<Value> {
-        let fields = self.execution_root_fields(query, variables)?;
+        response_key: &str,
+    ) -> Option<ResolverOutcome<Value>> {
+        let mut fields = self.execution_root_fields(query, variables)?;
+        fields.retain(|field| field.response_key == response_key);
         // Only claim bulk-tag mutations or a `draftOrder` read whose id is
         // actually tracked in this handler's tag state. A bare `draftOrder`
         // detail read of an untracked id must fall through to the lifecycle
@@ -2970,7 +2994,9 @@ impl DraftProxy {
         if declined {
             return None;
         }
-        Some(json!({ "data": data }))
+        Some(ResolverOutcome::value(
+            data.get(response_key).cloned().unwrap_or(Value::Null),
+        ))
     }
 
     pub(in crate::proxy) fn draft_order_bulk_tag_read(&self, field: &RootFieldSelection) -> Value {

@@ -49,6 +49,29 @@ impl DraftProxy {
         &mut self,
         invocation: RootInvocation<'_>,
     ) -> ResolverOutcome<Value> {
+        if invocation.mode == LocalResolverMode::StageLocally
+            && matches!(
+                invocation.root_name,
+                "publishablePublish"
+                    | "publishableUnpublish"
+                    | "publishablePublishToCurrentChannel"
+                    | "publishableUnpublishToCurrentChannel"
+            )
+        {
+            return self.product_publishable_mutation(invocation);
+        }
+        if invocation.mode == LocalResolverMode::StageLocally
+            && matches!(
+                invocation.root_name,
+                "locationAdd"
+                    | "locationEdit"
+                    | "locationActivate"
+                    | "locationDeactivate"
+                    | "locationDelete"
+            )
+        {
+            return self.location_mutation(invocation);
+        }
         let RootInvocation {
             response_key,
             request,
@@ -58,96 +81,67 @@ impl DraftProxy {
             mode,
             ..
         } = invocation;
-        let response = (|| -> Response {
-            match mode {
-                LocalResolverMode::OverlayRead => {
-                    let fields = match self.root_fields_or_error(query, variables) {
-                        Ok(fields) => fields,
-                        Err(response) => return response,
-                    };
-                    if root_name == "collection" {
-                        if self.should_route_owner_metafields_read(query, variables) {
-                            self.owner_metafields_read(request, query, variables)
-                        } else if self.collection_read_needs_upstream(&fields) {
-                            (self.upstream_transport)(request.clone())
-                        } else {
-                            ok_json(json!({
-                                "data": self.collection_membership_downstream_read_data(&fields)
-                            }))
-                        }
-                    } else if root_name == "shop" {
-                        if self.should_route_owner_metafields_read(query, variables) {
-                            return self.owner_metafields_read(request, query, variables);
-                        }
-                        if self.should_handle_shop_policy_query_locally() {
-                            if let Some(data) = self.shop_query_data(&fields, Some(request)) {
-                                ok_json(json!({ "data": data }))
-                            } else {
-                                let response = (self.upstream_transport)(request.clone());
-                                if (200..300).contains(&response.status) {
-                                    self.hydrate_shop_state_from_response_data(
-                                        &response.body["data"],
-                                    );
-                                    self.observe_nodes_response(&response);
-                                }
-                                response
-                            }
-                        } else {
-                            let response = (self.upstream_transport)(request.clone());
-                            if (200..300).contains(&response.status) {
-                                self.hydrate_shop_state_from_response_data(&response.body["data"]);
-                                self.observe_nodes_response(&response);
-                            }
-                            response
-                        }
-                    } else if self.has_location_overlay_state()
-                        || !self.location_read_needs_upstream(&fields)
-                    {
-                        let mut response = self.location_read_response(&fields);
-                        if fields.iter().any(|field| {
-                            field.name == "locationsAvailableForDeliveryProfilesConnection"
-                        }) {
-                            shallow_merge_object(
-                                &mut response.body["data"],
-                                self.delivery_profile_locations_read_data(&fields),
-                            );
-                        }
-                        response
-                    } else {
-                        (self.upstream_transport)(request.clone())
-                    }
-                }
-                LocalResolverMode::StageLocally
-                    if matches!(
-                        root_name,
-                        "publishablePublish"
-                            | "publishableUnpublish"
-                            | "publishablePublishToCurrentChannel"
-                            | "publishableUnpublishToCurrentChannel"
-                    ) =>
-                {
-                    self.product_publishable_mutation(root_name, query, variables, request)
-                }
-                LocalResolverMode::StageLocally if root_name == "shopPolicyUpdate" => {
-                    self.shop_policy_update(request, query, variables)
-                }
-                LocalResolverMode::StageLocally
-                    if matches!(
-                        root_name,
-                        "locationAdd" | "locationEdit" | "locationActivate" | "locationDelete"
-                    ) =>
-                {
-                    self.location_mutation(root_name, query, variables, request)
-                }
-                LocalResolverMode::StageLocally if root_name == "locationDeactivate" => {
-                    self.location_deactivate(query, variables, request)
-                }
-                LocalResolverMode::StageLocally => {
-                    Self::unimplemented_resolver_response(mode, root_name)
+        let Some(fields) = self.execution_root_fields(query, variables) else {
+            return resolver_http_error_outcome(400, "Could not parse GraphQL operation");
+        };
+        let fields = fields
+            .into_iter()
+            .filter(|field| field.response_key == response_key)
+            .collect::<Vec<_>>();
+        match mode {
+            LocalResolverMode::OverlayRead if root_name == "collection" => {
+                if self.should_route_owner_metafields_read(query, variables) {
+                    self.owner_metafields_read(request, query, variables, response_key)
+                } else if self.collection_read_needs_upstream(&fields) {
+                    self.cached_or_forward_upstream_root_outcome(request, response_key)
+                } else {
+                    let data = self.collection_membership_downstream_read_data(&fields);
+                    ResolverOutcome::value(data.get(response_key).cloned().unwrap_or(Value::Null))
                 }
             }
-        })();
-        resolver_outcome_from_response(response, response_key)
+            LocalResolverMode::OverlayRead if root_name == "shop" => {
+                if self.should_route_owner_metafields_read(query, variables) {
+                    return self.owner_metafields_read(request, query, variables, response_key);
+                }
+                if self.should_handle_shop_policy_query_locally() {
+                    if let Some(data) = self.shop_query_data(&fields, Some(request)) {
+                        return ResolverOutcome::value(
+                            data.get(response_key).cloned().unwrap_or(Value::Null),
+                        );
+                    }
+                }
+                let result = self.cached_or_forward_upstream_graphql_result(request, response_key);
+                if result.transport_succeeded {
+                    self.hydrate_shop_state_from_response_data(&result.data);
+                    self.observe_nodes_data(&json!({ "data": result.data.clone() }));
+                }
+                result.outcome
+            }
+            LocalResolverMode::OverlayRead
+                if self.has_location_overlay_state()
+                    || !self.location_read_needs_upstream(&fields) =>
+            {
+                if root_name == "locationsAvailableForDeliveryProfilesConnection" {
+                    let data = self.delivery_profile_locations_read_data(&fields);
+                    ResolverOutcome::value(data.get(response_key).cloned().unwrap_or(Value::Null))
+                } else {
+                    self.location_read_outcome(&fields, response_key)
+                }
+            }
+            LocalResolverMode::OverlayRead => {
+                self.cached_or_forward_upstream_root_outcome(request, response_key)
+            }
+            LocalResolverMode::StageLocally if root_name == "shopPolicyUpdate" => {
+                self.shop_policy_update_outcome(request, query, variables, response_key)
+            }
+            LocalResolverMode::StageLocally => resolver_http_error_outcome(
+                501,
+                format!(
+                    "No Rust {} dispatcher implemented for root field: {root_name}",
+                    mode.registry_name()
+                ),
+            ),
+        }
     }
 
     pub(in crate::proxy) fn payload_shop_selection_needs_hydration(
@@ -198,6 +192,25 @@ impl DraftProxy {
         }
     }
 
+    /// Hydrate the canonical Shop value for a mutation payload. Native field
+    /// resolvers call this only when the client actually selects `shop`, so the
+    /// domain mutation itself never needs to inspect its GraphQL selection.
+    pub(in crate::proxy) fn hydrate_payload_shop_identity(&mut self, request: &Request) {
+        if self.config.read_mode == ReadMode::Snapshot || self.shop_has_observed_identity() {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": SHOP_IDENTITY_HYDRATE_QUERY,
+                "variables": {}
+            }),
+        );
+        if (200..300).contains(&response.status) && response.body.get("errors").is_none() {
+            self.hydrate_shop_state_from_response_data(&response.body["data"]);
+        }
+    }
+
     pub(in crate::proxy) fn hydrate_shop_pricing_state_if_missing(
         &mut self,
         request: &Request,
@@ -228,18 +241,19 @@ impl DraftProxy {
         }
     }
 
-    pub(in crate::proxy) fn shop_policy_update(
+    pub(in crate::proxy) fn shop_policy_update_outcome(
         &mut self,
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
-        if let Some(response) = self.shop_policy_update_invalid_variable_response(query, variables)
-        {
-            return response;
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
+        if let Some(error) = self.shop_policy_update_invalid_variable_error(query, variables) {
+            return ResolverOutcome::value(Value::Null)
+                .with_errors(root_field_errors_from_json(&[error], response_key));
         }
         let Some(fields) = self.execution_root_fields(query, variables) else {
-            return json_error(400, "Could not parse GraphQL operation");
+            return resolver_http_error_outcome(400, "Could not parse GraphQL operation");
         };
         let mut staged_ids = Vec::new();
         let data = root_payload_json(&fields, |field| {
@@ -257,15 +271,16 @@ impl DraftProxy {
             }
             Some(payload)
         });
+        let value = data.get(response_key).cloned().unwrap_or(Value::Null);
         if !staged_ids.is_empty() {
-            self.record_mutation_log_draft(
-                request,
-                query,
-                variables,
-                LogDraft::staged("shopPolicyUpdate", "store-properties", staged_ids),
-            );
+            ResolverOutcome::value(value).with_log_draft(LogDraft::staged(
+                "shopPolicyUpdate",
+                "store-properties",
+                staged_ids,
+            ))
+        } else {
+            ResolverOutcome::value(value)
         }
-        ok_json(json!({ "data": data }))
     }
 
     fn shop_policy_update_field_payload(
@@ -358,11 +373,11 @@ impl DraftProxy {
         )
     }
 
-    fn shop_policy_update_invalid_variable_response(
+    fn shop_policy_update_invalid_variable_error(
         &self,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<Response> {
+    ) -> Option<Value> {
         let field = self.execution_root_field(query, variables, "shopPolicyUpdate")?;
         let RawArgumentValue::Variable { name, value } = field.raw_arguments.get("shopPolicy")?
         else {
@@ -475,28 +490,24 @@ impl DraftProxy {
         })
     }
 
-    pub(in crate::proxy) fn shop_property_node_value_by_id(
-        &self,
-        id: &str,
-        selection: &[SelectedField],
-    ) -> Option<Value> {
+    pub(in crate::proxy) fn shop_property_node_value_by_id(&self, id: &str) -> Option<Value> {
         match shopify_gid_resource_type(id)? {
-            "ShopAddress" => self.shop_address_node_value(id, selection),
+            "ShopAddress" => self.shop_address_node_value(id),
             "ShopPolicy" => self
                 .store
                 .shop_policy_by_id(id)
-                .map(|policy| shop_policy_json(policy, selection)),
+                .map(shop_policy_record_json),
             _ => None,
         }
     }
 
-    fn shop_address_node_value(&self, id: &str, selection: &[SelectedField]) -> Option<Value> {
+    fn shop_address_node_value(&self, id: &str) -> Option<Value> {
         let shop = self.store.effective_shop();
         let address = shop.get("shopAddress")?;
         if address.get("id").and_then(Value::as_str) != Some(id) {
             return None;
         }
-        Some(shop_address_json(address, selection))
+        Some(address.clone())
     }
 
     pub(in crate::proxy) fn observe_shop_property_node(&mut self, node: &Value) {
@@ -525,6 +536,15 @@ impl DraftProxy {
             _ => {}
         }
     }
+}
+
+pub(in crate::proxy) fn mutation_payload_shop_field(
+    proxy: &mut DraftProxy,
+    request: &Request,
+    _invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    proxy.hydrate_payload_shop_identity(request);
+    Ok(proxy.store.effective_shop())
 }
 
 pub(in crate::proxy) fn shop_policy_record_json(policy: &ShopPolicyRecord) -> Value {
@@ -623,20 +643,12 @@ fn shop_policy_json(policy: &ShopPolicyRecord, selection: &[SelectedField]) -> V
     selected_json(&shop_policy_record_json(policy), selection)
 }
 
-fn shop_address_json(address: &Value, selection: &[SelectedField]) -> Value {
-    let mut address = address.clone();
-    if let Some(object) = address.as_object_mut() {
-        object.insert("__typename".to_string(), json!("ShopAddress"));
-    }
-    selected_json(&address, selection)
-}
-
 fn shop_policy_update_invalid_input_response(
     query: &str,
     name: &str,
     input: &BTreeMap<String, ResolvedValue>,
     field_location: SourceLocation,
-) -> Option<Response> {
+) -> Option<Value> {
     let variable = variable_definition_info(query, name);
     let variable_name = name;
     let variable_type = variable
@@ -682,17 +694,15 @@ fn shop_policy_update_invalid_input_response(
     if problems.is_empty() {
         return None;
     }
-    Some(ok_json(json!({
-        "errors": [invalid_variable_error(
-            VariableValidationContext {
-                variable_name,
-                variable_type,
-                location,
-            },
-            &ResolvedValue::Object(input.clone()),
-            problems,
-        )]
-    })))
+    Some(invalid_variable_error(
+        VariableValidationContext {
+            variable_name,
+            variable_type,
+            location,
+        },
+        &ResolvedValue::Object(input.clone()),
+        problems,
+    ))
 }
 
 fn shop_policy_liquid_syntax_error_message(body: &str) -> Option<String> {

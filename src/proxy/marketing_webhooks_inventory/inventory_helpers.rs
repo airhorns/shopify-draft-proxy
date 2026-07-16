@@ -1,31 +1,354 @@
 use super::*;
+use crate::{
+    admin_graphql::{AdminApiVersion, RootFieldError},
+    resolver_registry::GraphqlApiVersion,
+};
+use async_graphql::Pos;
 
 mod items;
 mod shipments;
 mod transfers;
 
 pub(in crate::proxy) fn inventory_field_resolver_registrations() -> Vec<FieldResolverRegistration> {
-    let mut registrations = ["id", "isActive", "item", "location"]
+    let mut registrations = ["id", "isActive", "location"]
         .into_iter()
         .map(|field| {
             FieldResolverRegistration::property(ApiSurface::Admin, "InventoryLevel", field)
         })
         .collect::<Vec<_>>();
-    registrations.push(FieldResolverRegistration::explicit_always(
+    registrations.push(FieldResolverRegistration::explicit(
         ApiSurface::Admin,
         "InventoryLevel",
         "quantities",
         inventory_level_quantities_field,
     ));
+    registrations.push(FieldResolverRegistration::explicit(
+        ApiSurface::Admin,
+        "InventoryLevel",
+        "item",
+        inventory_level_item_field,
+    ));
+    registrations.push(FieldResolverRegistration::explicit(
+        ApiSurface::Admin,
+        "InventoryAdjustmentGroup",
+        "changes",
+        inventory_adjustment_group_changes_field,
+    ));
+    for (field, handler) in [
+        (
+            "countryHarmonizedSystemCodes",
+            inventory_item_country_codes_field as crate::resolver_registry::FieldResolverHandler,
+        ),
+        ("inventoryLevel", inventory_item_inventory_level_field),
+        ("inventoryLevels", inventory_item_inventory_levels_field),
+        ("locationsCount", inventory_item_locations_count_field),
+        ("variant", inventory_item_variant_field),
+        ("variants", inventory_item_variants_field),
+    ] {
+        registrations.push(FieldResolverRegistration::explicit(
+            ApiSurface::Admin,
+            "InventoryItem",
+            field,
+            handler,
+        ));
+    }
+    for (parent_type, fields) in [
+        ("InventoryProperties", &["quantityNames"][..]),
+        (
+            "InventoryQuantityName",
+            &["belongsTo", "comprises", "displayName", "isInUse", "name"][..],
+        ),
+        (
+            "InventoryItemConnection",
+            &["edges", "nodes", "pageInfo"][..],
+        ),
+        ("InventoryItemEdge", &["cursor", "node"][..]),
+        (
+            "InventoryItem",
+            &[
+                "countryCodeOfOrigin",
+                "createdAt",
+                "duplicateSkuCount",
+                "harmonizedSystemCode",
+                "id",
+                "inventoryHistoryUrl",
+                "legacyResourceId",
+                "measurement",
+                "provinceCodeOfOrigin",
+                "requiresShipping",
+                "sku",
+                "tracked",
+                "trackedEditable",
+                "unitCost",
+                "updatedAt",
+            ][..],
+        ),
+        (
+            "InventoryLevelConnection",
+            &["edges", "nodes", "pageInfo"][..],
+        ),
+        ("InventoryLevelEdge", &["cursor", "node"][..]),
+        (
+            "InventoryQuantity",
+            &["id", "name", "quantity", "updatedAt"][..],
+        ),
+        (
+            "InventoryAdjustmentGroup",
+            &["createdAt", "id", "reason", "referenceDocumentUri"][..],
+        ),
+        (
+            "InventoryChange",
+            &[
+                "delta",
+                "item",
+                "ledgerDocumentUri",
+                "location",
+                "name",
+                "quantityAfterChange",
+            ][..],
+        ),
+        (
+            "InventoryAdjustQuantitiesPayload",
+            &["inventoryAdjustmentGroup", "userErrors"][..],
+        ),
+        (
+            "InventoryMoveQuantitiesPayload",
+            &["inventoryAdjustmentGroup", "userErrors"][..],
+        ),
+        (
+            "InventorySetOnHandQuantitiesPayload",
+            &["inventoryAdjustmentGroup", "userErrors"][..],
+        ),
+        (
+            "InventorySetQuantitiesPayload",
+            &["inventoryAdjustmentGroup", "userErrors"][..],
+        ),
+        (
+            "InventoryAdjustQuantitiesUserError",
+            &["code", "field", "message"][..],
+        ),
+        (
+            "InventoryMoveQuantitiesUserError",
+            &["code", "field", "message"][..],
+        ),
+        (
+            "InventorySetOnHandQuantitiesUserError",
+            &["code", "field", "message"][..],
+        ),
+        (
+            "InventorySetQuantitiesUserError",
+            &["code", "field", "message"][..],
+        ),
+        (
+            "InventoryTransferConnection",
+            &["edges", "nodes", "pageInfo"][..],
+        ),
+        ("InventoryTransferEdge", &["cursor", "node"][..]),
+        (
+            "InventoryTransfer",
+            &[
+                "dateCreated",
+                "destination",
+                "id",
+                "lineItems",
+                "lineItemsCount",
+                "name",
+                "origin",
+                "status",
+                "tags",
+                "totalQuantity",
+            ][..],
+        ),
+        (
+            "InventoryTransferLineItemConnection",
+            &["edges", "nodes", "pageInfo"][..],
+        ),
+        ("InventoryTransferLineItemEdge", &["cursor", "node"][..]),
+        (
+            "InventoryTransferLineItem",
+            &[
+                "id",
+                "inventoryItem",
+                "pickedForShipmentQuantity",
+                "processableQuantity",
+                "shippableQuantity",
+                "shippedQuantity",
+                "title",
+                "totalQuantity",
+            ][..],
+        ),
+        (
+            "InventoryShipment",
+            &[
+                "id",
+                "lineItems",
+                "lineItemsCount",
+                "lineItemTotalQuantity",
+                "movementId",
+                "name",
+                "status",
+                "totalAcceptedQuantity",
+                "totalReceivedQuantity",
+                "totalRejectedQuantity",
+                "tracking",
+            ][..],
+        ),
+        (
+            "InventoryShipmentLineItemConnection",
+            &["edges", "nodes", "pageInfo"][..],
+        ),
+        ("InventoryShipmentLineItemEdge", &["cursor", "node"][..]),
+        (
+            "InventoryShipmentLineItem",
+            &[
+                "acceptedQuantity",
+                "id",
+                "inventoryItem",
+                "quantity",
+                "rejectedQuantity",
+                "unreceivedQuantity",
+            ][..],
+        ),
+        (
+            "InventoryShipmentTracking",
+            &["arrivesAt", "company", "trackingNumber", "trackingUrl"][..],
+        ),
+    ] {
+        registrations.extend(fields.iter().map(|field| {
+            FieldResolverRegistration::property(ApiSurface::Admin, parent_type, field)
+        }));
+    }
     registrations
 }
 
 pub(in crate::proxy) fn inventory_field_resolver_type_policies() -> Vec<FieldResolverTypePolicy> {
-    vec![FieldResolverTypePolicy::unsupported_remaining(
-        ApiSurface::Admin,
-        "InventoryLevel",
-        "field is not yet modeled by the canonical inventory-level resolver",
-    )]
+    [
+        (
+            "InventoryLevel",
+            "field is not yet modeled by the canonical inventory-level resolver",
+        ),
+        (
+            "InventoryProperties",
+            "field is not yet modeled by the canonical inventory-properties resolver",
+        ),
+        (
+            "InventoryQuantityName",
+            "field is not yet modeled by the canonical inventory-properties resolver",
+        ),
+        (
+            "InventoryItem",
+            "field is not yet modeled by the canonical inventory-item resolver",
+        ),
+        (
+            "InventoryItemConnection",
+            "field is not yet modeled by the canonical inventory-item resolver",
+        ),
+        (
+            "InventoryItemEdge",
+            "field is not yet modeled by the canonical inventory-item resolver",
+        ),
+        (
+            "InventoryLevelConnection",
+            "field is not yet modeled by the canonical inventory-level resolver",
+        ),
+        (
+            "InventoryLevelEdge",
+            "field is not yet modeled by the canonical inventory-level resolver",
+        ),
+        (
+            "InventoryQuantity",
+            "field is not yet modeled by the canonical inventory-level resolver",
+        ),
+        (
+            "InventoryAdjustmentGroup",
+            "field is not yet modeled by the canonical inventory-quantity resolver",
+        ),
+        (
+            "InventoryChange",
+            "field is not yet modeled by the canonical inventory-quantity resolver",
+        ),
+        (
+            "InventoryAdjustQuantitiesPayload",
+            "field is not yet modeled by the canonical inventory-quantity resolver",
+        ),
+        (
+            "InventoryMoveQuantitiesPayload",
+            "field is not yet modeled by the canonical inventory-quantity resolver",
+        ),
+        (
+            "InventorySetOnHandQuantitiesPayload",
+            "field is not yet modeled by the canonical inventory-quantity resolver",
+        ),
+        (
+            "InventorySetQuantitiesPayload",
+            "field is not yet modeled by the canonical inventory-quantity resolver",
+        ),
+        (
+            "InventoryAdjustQuantitiesUserError",
+            "field is not yet modeled by the canonical inventory-quantity resolver",
+        ),
+        (
+            "InventoryMoveQuantitiesUserError",
+            "field is not yet modeled by the canonical inventory-quantity resolver",
+        ),
+        (
+            "InventorySetOnHandQuantitiesUserError",
+            "field is not yet modeled by the canonical inventory-quantity resolver",
+        ),
+        (
+            "InventorySetQuantitiesUserError",
+            "field is not yet modeled by the canonical inventory-quantity resolver",
+        ),
+        (
+            "InventoryTransfer",
+            "field is not yet modeled by the canonical inventory-transfer resolver",
+        ),
+        (
+            "InventoryTransferConnection",
+            "field is not yet modeled by the canonical inventory-transfer resolver",
+        ),
+        (
+            "InventoryTransferEdge",
+            "field is not yet modeled by the canonical inventory-transfer resolver",
+        ),
+        (
+            "InventoryTransferLineItem",
+            "field is not yet modeled by the canonical inventory-transfer resolver",
+        ),
+        (
+            "InventoryTransferLineItemConnection",
+            "field is not yet modeled by the canonical inventory-transfer resolver",
+        ),
+        (
+            "InventoryTransferLineItemEdge",
+            "field is not yet modeled by the canonical inventory-transfer resolver",
+        ),
+        (
+            "InventoryShipment",
+            "field is not yet modeled by the canonical inventory-shipment resolver",
+        ),
+        (
+            "InventoryShipmentLineItem",
+            "field is not yet modeled by the canonical inventory-shipment resolver",
+        ),
+        (
+            "InventoryShipmentLineItemConnection",
+            "field is not yet modeled by the canonical inventory-shipment resolver",
+        ),
+        (
+            "InventoryShipmentLineItemEdge",
+            "field is not yet modeled by the canonical inventory-shipment resolver",
+        ),
+        (
+            "InventoryShipmentTracking",
+            "field is not yet modeled by the canonical inventory-shipment resolver",
+        ),
+    ]
+    .into_iter()
+    .map(|(parent_type, reason)| {
+        FieldResolverTypePolicy::unsupported_remaining(ApiSurface::Admin, parent_type, reason)
+    })
+    .collect()
 }
 
 fn inventory_level_quantities_field(
@@ -46,16 +369,150 @@ fn inventory_level_quantities_field(
         .into_iter()
         .flatten()
         .filter_map(Value::as_str);
+    let inventory_item_id = invocation
+        .parent
+        .get("inventoryItemId")
+        .and_then(Value::as_str)
+        .or_else(|| {
+            invocation
+                .parent
+                .get("item")
+                .and_then(|item| item.get("id"))
+                .and_then(Value::as_str)
+        })
+        .unwrap_or_default();
+    let location_id = invocation
+        .parent
+        .get("location")
+        .and_then(|location| location.get("id"))
+        .and_then(Value::as_str)
+        .unwrap_or_default();
     Ok(Value::Array(
         names
             .map(|name| {
                 rows.iter()
                     .find(|row| row.get("name").and_then(Value::as_str) == Some(name))
                     .cloned()
-                    .unwrap_or_else(|| json!({ "name": name, "quantity": 0, "updatedAt": null }))
+                    .unwrap_or_else(|| {
+                        json!({
+                            "__typename": "InventoryQuantity",
+                            "id": inventory_quantity_id(inventory_item_id, location_id, name),
+                            "name": name,
+                            "quantity": 0,
+                            "updatedAt": null,
+                        })
+                    })
             })
             .collect(),
     ))
+}
+
+fn inventory_adjustment_group_changes_field(
+    _proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(invocation
+        .parent
+        .get("changes")
+        .cloned()
+        .unwrap_or_else(|| Value::Array(Vec::new())))
+}
+
+fn inventory_parent_id<'a>(
+    invocation: &'a crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<&'a str, String> {
+    invocation
+        .parent
+        .get("id")
+        .and_then(Value::as_str)
+        .ok_or_else(|| format!("{} parent has no canonical id", invocation.parent_type))
+}
+
+fn inventory_level_item_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let inventory_item_id = invocation
+        .parent
+        .get("inventoryItemId")
+        .and_then(Value::as_str)
+        .or_else(|| {
+            invocation
+                .parent
+                .get("item")
+                .and_then(|item| item.get("id"))
+                .and_then(Value::as_str)
+        })
+        .ok_or_else(|| "InventoryLevel parent has no canonical inventory item id".to_string())?;
+    Ok(proxy.inventory_item_canonical_value(inventory_item_id))
+}
+
+fn inventory_item_country_codes_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let id = inventory_parent_id(invocation)?;
+    let arguments = resolved_arguments_from_json(&invocation.arguments);
+    Ok(proxy.inventory_item_country_codes_value(id, &arguments))
+}
+
+fn inventory_item_inventory_level_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let id = inventory_parent_id(invocation)?;
+    let location_id = invocation
+        .arguments
+        .get("locationId")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let include_inactive = invocation
+        .arguments
+        .get("includeInactive")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    Ok(proxy.inventory_item_level_value(id, location_id, include_inactive))
+}
+
+fn inventory_item_inventory_levels_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let id = inventory_parent_id(invocation)?;
+    let arguments = resolved_arguments_from_json(&invocation.arguments);
+    Ok(proxy.inventory_item_levels_connection_value(id, &arguments))
+}
+
+fn inventory_item_locations_count_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let id = inventory_parent_id(invocation)?;
+    Ok(count_object(proxy.inventory_levels_for_item(id).len()))
+}
+
+fn inventory_item_variant_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    Ok(proxy.inventory_item_variant_value(inventory_parent_id(invocation)?))
+}
+
+fn inventory_item_variants_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let id = inventory_parent_id(invocation)?;
+    let arguments = resolved_arguments_from_json(&invocation.arguments);
+    Ok(proxy.inventory_item_variants_connection_value(id, &arguments))
 }
 
 pub(in crate::proxy) struct InventoryLevelViewState<'a> {
@@ -357,7 +814,6 @@ const INVENTORY_INVALID_SET_QUANTITY_NAME_MESSAGE: &str =
 const INVENTORY_SET_QUANTITY_MAX: i64 = 1_000_000_000;
 const INVENTORY_SET_QUANTITY_MIN: i64 = -1_000_000_000;
 const INVENTORY_MAX_ACTIVE_LEVELS: usize = 200;
-const INVENTORY_ITEM_WEIGHT_UNITS: &[&str] = &["KILOGRAMS", "GRAMS", "POUNDS", "OUNCES"];
 const INVENTORY_VALID_COUNTRY_CODES: &[&str] = &[
     "AC", "AD", "AE", "AF", "AG", "AI", "AL", "AM", "AN", "AO", "AR", "AT", "AU", "AW", "AX", "AZ",
     "BA", "BB", "BD", "BE", "BF", "BG", "BH", "BI", "BJ", "BL", "BM", "BN", "BO", "BQ", "BR", "BS",
@@ -431,129 +887,88 @@ impl DraftProxy {
             fulfillment_service_locations: &self.store.staged.fulfillment_service_locations.records,
         }
     }
-    pub(in crate::proxy) fn inventory_query_data(
-        &self,
-        fields: &[RootFieldSelection],
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Value {
-        root_payload_json(fields, |field| {
-            Some(match field.name.as_str() {
-                "inventoryItems" => self.inventory_items_connection_selected_json(
-                    &field.arguments,
-                    variables,
-                    &field.selection,
-                ),
-                "inventoryProperties" => {
-                    selected_json(&inventory_properties_json(), &field.selection)
-                }
-                "inventoryItem" => {
-                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    if !self.inventory_item_exists(&id) {
-                        Value::Null
-                    } else {
-                        self.inventory_item_selected_json(&id, variables, &field.selection)
-                    }
-                }
-                "inventoryLevel" => {
-                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    self.inventory_level_by_id_selected_json(&id, &field.selection)
-                }
-                "inventoryTransfer" => {
-                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    self.inventory_transfer_by_id_selected_json(&id, &field.selection)
-                }
-                "inventoryTransfers" => self.inventory_transfers_connection_selected_json(
-                    self.store.inventory_transfers(),
-                    &field.arguments,
-                    &field.selection,
-                ),
-                "inventoryShipment" => {
-                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    self.inventory_shipment_by_id_selected_json(&id, &field.selection)
-                }
-                "product" => {
-                    let id = resolved_string_field(&field.arguments, "id")
-                        .or_else(|| resolved_string_field(variables, "productId"))
-                        .unwrap_or_default();
-                    self.inventory_product_selected_json(&id, &field.selection)
-                }
-                _ => Value::Null,
-            })
+    pub(crate) fn inventory_properties_root(
+        &mut self,
+        _invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        ResolverOutcome::value(inventory_properties_json())
+    }
+
+    pub(crate) fn inventory_item_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let id = invocation
+            .arguments
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        ResolverOutcome::value(if self.inventory_item_exists(id) {
+            self.inventory_item_canonical_value(id)
+        } else {
+            Value::Null
         })
     }
 
-    pub(in crate::proxy) fn inventory_mutation_data(
+    pub(crate) fn inventory_items_root(
         &mut self,
-        request: &Request,
-        fields: &[RootFieldSelection],
-    ) -> MutationOutcome {
-        let mut log_drafts = Vec::new();
-        let mut top_level_response = None;
-        let data = root_payload_json(fields, |field| {
-            if top_level_response.is_some() {
-                return None;
-            }
-            let outcome = match field.name.as_str() {
-                "inventoryAdjustQuantities" => self.inventory_adjust_quantities(request, field),
-                "inventorySetQuantities" => self.inventory_set_quantities(request, field),
-                "inventorySetOnHandQuantities" => {
-                    self.inventory_set_on_hand_quantities(request, field)
-                }
-                "inventoryMoveQuantities" => self.inventory_move_quantities(request, field),
-                "inventoryActivate" => self.inventory_activate(field),
-                "inventoryDeactivate" => self.inventory_deactivate(field),
-                "inventoryBulkToggleActivation" => self.inventory_bulk_toggle_activation(field),
-                "inventoryItemUpdate" => self.inventory_item_update(request, field),
-                "inventoryTransferCreate" => self.inventory_transfer_create(field, false),
-                "inventoryTransferCreateAsReadyToShip" => {
-                    self.inventory_transfer_create(field, true)
-                }
-                "inventoryTransferMarkAsReadyToShip" => self.inventory_transfer_mark_ready(field),
-                "inventoryTransferEdit" => self.inventory_transfer_edit(field),
-                "inventoryTransferSetItems" => self.inventory_transfer_set_items(field),
-                "inventoryTransferRemoveItems" => self.inventory_transfer_remove_items(field),
-                "inventoryTransferDuplicate" => self.inventory_transfer_duplicate(field),
-                "inventoryTransferCancel" => self.inventory_transfer_cancel(field),
-                "inventoryTransferDelete" => self.inventory_transfer_delete(field),
-                "inventoryShipmentCreate" => self.inventory_shipment_create(field, false),
-                "inventoryShipmentCreateInTransit" => self.inventory_shipment_create(field, true),
-                "inventoryShipmentAddItems" => self.inventory_shipment_add_items(field),
-                "inventoryShipmentRemoveItems" => self.inventory_shipment_remove_items(field),
-                "inventoryShipmentUpdateItemQuantities" => {
-                    self.inventory_shipment_update_item_quantities(field)
-                }
-                "inventoryShipmentSetTracking" => self.inventory_shipment_set_tracking(field),
-                "inventoryShipmentMarkInTransit" => self.inventory_shipment_mark_in_transit(field),
-                "inventoryShipmentReceive" => self.inventory_shipment_receive(field),
-                "inventoryShipmentDelete" => self.inventory_shipment_delete(field),
-                _ => MutationFieldOutcome::unlogged(Value::Null),
-            };
-            if let Some(errors) = outcome.value.get("__topLevelErrors") {
-                top_level_response = Some(MutationOutcome::response(ok_json(json!({
-                    "errors": errors,
-                    "data": { field.response_key.clone(): Value::Null }
-                }))));
-                return None;
-            }
-            if let Some(log_draft) = outcome.log_draft {
-                log_drafts.push(log_draft);
-            }
-            Some(outcome.value)
-        });
-        if let Some(response) = top_level_response {
-            return response;
-        }
-        MutationOutcome::with_log_drafts(ok_json(json!({ "data": data })), log_drafts)
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        ResolverOutcome::value(self.inventory_items_connection_value(&arguments))
+    }
+
+    pub(crate) fn inventory_level_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let id = invocation
+            .arguments
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        ResolverOutcome::value(self.inventory_level_value_by_id(id))
+    }
+
+    pub(crate) fn inventory_transfer_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let id = invocation
+            .arguments
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        ResolverOutcome::value(self.inventory_transfer_value_by_id(id))
+    }
+
+    pub(crate) fn inventory_transfers_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        ResolverOutcome::value(self.inventory_transfers_connection_value(&arguments))
+    }
+
+    pub(crate) fn inventory_shipment_root(
+        &mut self,
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let id = invocation
+            .arguments
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        ResolverOutcome::value(self.inventory_shipment_value_by_id(id))
     }
 }
 
-fn inventory_quantity_missing_change_from_payload(
-    field: &RootFieldSelection,
-    root_field: &str,
+fn inventory_quantity_missing_change_from_error(
+    invocation: &RootInvocation<'_>,
     input_type: &str,
     rows: &[BTreeMap<String, ResolvedValue>],
     quantity_field: &str,
-) -> Option<Value> {
+) -> Option<RootFieldError> {
     if rows
         .iter()
         .any(|row| row.contains_key("changeFromQuantity"))
@@ -562,50 +977,57 @@ fn inventory_quantity_missing_change_from_payload(
         return None;
     }
     if rows.iter().any(|row| row.contains_key(quantity_field)) {
-        return Some(json!({
-            "__topLevelErrors": [{
-                "message": format!("{input_type} must include the following argument: changeFromQuantity."),
-                "locations": [
-                    { "line": field.location.line, "column": field.location.column },
-                    { "line": field.location.line.saturating_sub(1).max(1), "column": 1 }
-                ],
-                "extensions": { "code": "INVALID_FIELD_ARGUMENTS" },
-                "path": [root_field]
-            }]
-        }));
+        return Some(RootFieldError {
+            message: format!(
+                "{input_type} must include the following argument: changeFromQuantity."
+            ),
+            extensions: BTreeMap::from([("code".to_string(), json!("INVALID_FIELD_ARGUMENTS"))]),
+            path: Some(Vec::new()),
+            locations: vec![
+                Pos {
+                    line: invocation.root_location.line,
+                    column: invocation.root_location.column,
+                },
+                Pos {
+                    line: invocation.root_location.line.saturating_sub(1).max(1),
+                    column: 1,
+                },
+            ],
+        });
     }
     None
 }
 
-fn inventory_adjust_requires_change_from(request: &Request) -> bool {
-    admin_graphql_version(&request.path).is_some_and(|version| version_at_least(version, 2026, 4))
+fn inventory_version_at_least_2026_04(invocation: &RootInvocation<'_>) -> bool {
+    matches!(
+        invocation.api_version,
+        GraphqlApiVersion::Admin(version) if version >= AdminApiVersion::V2026_04
+    )
 }
 
-fn inventory_set_requires_change_from(request: &Request, field: &RootFieldSelection) -> bool {
-    admin_graphql_version(&request.path).is_some_and(|version| version_at_least(version, 2026, 4))
-        && inventory_field_has_idempotent(field)
+fn inventory_adjust_requires_change_from(invocation: &RootInvocation<'_>) -> bool {
+    inventory_version_at_least_2026_04(invocation)
 }
 
-fn inventory_requires_idempotency(request: &Request) -> bool {
-    admin_graphql_version(&request.path).is_some_and(|version| version_at_least(version, 2026, 4))
+fn inventory_set_requires_change_from(invocation: &RootInvocation<'_>) -> bool {
+    inventory_version_at_least_2026_04(invocation) && invocation.has_directive("idempotent")
 }
 
-fn inventory_field_has_idempotent(field: &RootFieldSelection) -> bool {
-    field
-        .directives
-        .iter()
-        .any(|directive| directive == "idempotent")
+fn inventory_requires_idempotency(invocation: &RootInvocation<'_>) -> bool {
+    inventory_version_at_least_2026_04(invocation)
 }
 
-fn inventory_idempotency_required_payload(field: &RootFieldSelection, root_field: &str) -> Value {
-    json!({
-        "__topLevelErrors": [{
-            "message": "The @idempotent directive is required for this mutation but was not provided.",
-            "locations": [{ "line": field.location.line, "column": field.location.column }],
-            "extensions": { "code": "BAD_REQUEST" },
-            "path": [root_field]
-        }]
-    })
+fn inventory_idempotency_required_error(invocation: &RootInvocation<'_>) -> RootFieldError {
+    RootFieldError {
+        message: "The @idempotent directive is required for this mutation but was not provided."
+            .to_string(),
+        extensions: BTreeMap::from([("code".to_string(), json!("BAD_REQUEST"))]),
+        path: Some(Vec::new()),
+        locations: vec![Pos {
+            line: invocation.root_location.line,
+            column: invocation.root_location.column,
+        }],
+    }
 }
 
 fn empty_inventory_quantities() -> BTreeMap<String, i64> {
@@ -745,33 +1167,6 @@ fn inventory_activate_user_error(field: impl Into<UserErrorField>, message: &str
     user_error_omit_code(field, message, None)
 }
 
-fn inventory_item_update_variable_errors(
-    field: &RootFieldSelection,
-    input: &BTreeMap<String, ResolvedValue>,
-) -> Option<Vec<Value>> {
-    let measurement = resolved_object_field(input, "measurement")?;
-    let weight = resolved_object_field(&measurement, "weight")?;
-    let unit = resolved_string_field(&weight, "unit")?;
-    if INVENTORY_ITEM_WEIGHT_UNITS
-        .iter()
-        .any(|candidate| *candidate == unit)
-    {
-        return None;
-    }
-    Some(vec![json!({
-        "message": format!("Variable $input of type InventoryItemInput! was provided invalid value for measurement.weight.unit (Expected \"{}\" to be one of: {})", unit, INVENTORY_ITEM_WEIGHT_UNITS.join(", ")),
-        "locations": [{ "line": field.location.line.saturating_sub(1).max(1), "column": 52 }],
-        "extensions": {
-            "code": "INVALID_VARIABLE",
-            "value": resolved_value_json(&ResolvedValue::Object(input.clone())),
-            "problems": [{
-                "path": ["measurement", "weight", "unit"],
-                "explanation": format!("Expected \"{}\" to be one of: {}", unit, INVENTORY_ITEM_WEIGHT_UNITS.join(", "))
-            }]
-        }
-    })])
-}
-
 fn inventory_item_update_user_errors(input: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {
     let mut errors = Vec::new();
     if resolved_f64_path(input, &["cost"]).is_some_and(|cost| cost < 0.0) {
@@ -894,47 +1289,33 @@ fn shopify_number_text(value: f64) -> String {
     }
 }
 
-fn inventory_invalid_reason_payload(
-    field: &RootFieldSelection,
-    input: &BTreeMap<String, ResolvedValue>,
-) -> Option<Value> {
+fn inventory_invalid_reason_payload(input: &BTreeMap<String, ResolvedValue>) -> Option<Value> {
     let reason = resolved_string_field(input, "reason").unwrap_or_else(|| "correction".to_string());
     if INVENTORY_VALID_REASONS.iter().any(|valid| *valid == reason) {
         return None;
     }
-    Some(inventory_invalid_adjustment_payload(
-        field,
-        vec![user_error(
-            ["input", "reason"],
-            &format!(
-                "The specified reason is invalid. Valid values are: {}.",
-                INVENTORY_VALID_REASONS.join(", ")
-            ),
-            Some("INVALID_REASON"),
-        )],
-    ))
+    Some(inventory_invalid_adjustment_payload(vec![user_error(
+        ["input", "reason"],
+        &format!(
+            "The specified reason is invalid. Valid values are: {}.",
+            INVENTORY_VALID_REASONS.join(", ")
+        ),
+        Some("INVALID_REASON"),
+    )]))
 }
 
-fn inventory_invalid_public_quantity_name_payload(
-    field: &RootFieldSelection,
-    name: &str,
-    path: Value,
-) -> Option<Value> {
+fn inventory_invalid_public_quantity_name_payload(name: &str, path: Value) -> Option<Value> {
     if INVENTORY_PUBLIC_ADJUST_QUANTITY_NAMES.contains(&name) {
         return None;
     }
-    Some(inventory_invalid_adjustment_payload(
-        field,
-        vec![user_error(
-            json!(path),
-            INVENTORY_INVALID_PUBLIC_QUANTITY_NAME_MESSAGE,
-            Some("INVALID_QUANTITY_NAME"),
-        )],
-    ))
+    Some(inventory_invalid_adjustment_payload(vec![user_error(
+        json!(path),
+        INVENTORY_INVALID_PUBLIC_QUANTITY_NAME_MESSAGE,
+        Some("INVALID_QUANTITY_NAME"),
+    )]))
 }
 
 fn inventory_invalid_adjust_ledger_document_payload(
-    field: &RootFieldSelection,
     changes: &[BTreeMap<String, ResolvedValue>],
     name: &str,
 ) -> Option<Value> {
@@ -944,7 +1325,6 @@ fn inventory_invalid_adjust_ledger_document_payload(
         .collect::<BTreeSet<_>>();
     if distinct_ledgers.len() > 1 {
         return Some(inventory_invalid_adjustment_payload(
-            field,
             vec![user_error(
                 ["input", "changes"],
                 "All changes must have the same ledger document URI or, in the case of adjusting available, no ledger document URI.",
@@ -958,28 +1338,21 @@ fn inventory_invalid_adjust_ledger_document_payload(
         let field_path = json!(["input", "changes", index.to_string(), "ledgerDocumentUri"]);
         match (name == "available", ledger.as_deref()) {
             (true, Some(_)) => {
-                return Some(inventory_invalid_adjustment_payload(
-                    field,
-                    vec![user_error(
-                        field_path,
-                        "A ledger document URI is not allowed when adjusting available.",
-                        Some("INVALID_AVAILABLE_DOCUMENT"),
-                    )],
-                ));
+                return Some(inventory_invalid_adjustment_payload(vec![user_error(
+                    field_path,
+                    "A ledger document URI is not allowed when adjusting available.",
+                    Some("INVALID_AVAILABLE_DOCUMENT"),
+                )]));
             }
             (false, None) => {
-                return Some(inventory_invalid_adjustment_payload(
-                    field,
-                    vec![user_error(
-                        field_path,
-                        "A ledger document URI is required except when adjusting available.",
-                        Some("INVALID_QUANTITY_DOCUMENT"),
-                    )],
-                ));
+                return Some(inventory_invalid_adjustment_payload(vec![user_error(
+                    field_path,
+                    "A ledger document URI is required except when adjusting available.",
+                    Some("INVALID_QUANTITY_DOCUMENT"),
+                )]));
             }
             (_, Some(ledger)) if has_shopify_gid_prefix(ledger) => {
                 return Some(inventory_invalid_adjustment_payload(
-                    field,
                     vec![user_error(
                         field_path,
                         "Internal (gid://shopify/) ledger documents are not allowed to be adjusted via API.",
@@ -994,25 +1367,18 @@ fn inventory_invalid_adjust_ledger_document_payload(
     None
 }
 
-fn inventory_invalid_set_quantity_name_payload(
-    field: &RootFieldSelection,
-    name: &str,
-) -> Option<Value> {
+fn inventory_invalid_set_quantity_name_payload(name: &str) -> Option<Value> {
     if INVENTORY_SET_QUANTITY_NAMES.contains(&name) {
         return None;
     }
-    Some(inventory_invalid_adjustment_payload(
-        field,
-        vec![user_error(
-            ["input", "name"],
-            INVENTORY_INVALID_SET_QUANTITY_NAME_MESSAGE,
-            Some("INVALID_NAME"),
-        )],
-    ))
+    Some(inventory_invalid_adjustment_payload(vec![user_error(
+        ["input", "name"],
+        INVENTORY_INVALID_SET_QUANTITY_NAME_MESSAGE,
+        Some("INVALID_NAME"),
+    )]))
 }
 
 fn inventory_invalid_set_quantities_payload(
-    field: &RootFieldSelection,
     quantities: &[BTreeMap<String, ResolvedValue>],
     name: &str,
 ) -> Option<Value> {
@@ -1066,11 +1432,10 @@ fn inventory_invalid_set_quantities_payload(
     if errors.is_empty() {
         return None;
     }
-    Some(inventory_invalid_adjustment_payload(field, errors))
+    Some(inventory_invalid_adjustment_payload(errors))
 }
 
 fn inventory_invalid_set_on_hand_quantities_payload(
-    field: &RootFieldSelection,
     set_quantities: &[BTreeMap<String, ResolvedValue>],
 ) -> Option<Value> {
     let mut errors = Vec::new();
@@ -1106,27 +1471,18 @@ fn inventory_invalid_set_on_hand_quantities_payload(
     if errors.is_empty() {
         return None;
     }
-    Some(inventory_invalid_adjustment_payload(field, errors))
+    Some(inventory_invalid_adjustment_payload(errors))
 }
 
-fn inventory_invalid_adjustment_payload(
-    field: &RootFieldSelection,
-    user_errors: Vec<Value>,
-) -> Value {
-    selected_json(
-        &json!({
-            "inventoryAdjustmentGroup": null,
-            "userErrors": user_errors
-        }),
-        &field.selection,
-    )
+fn inventory_invalid_adjustment_payload(user_errors: Vec<Value>) -> Value {
+    json!({
+        "inventoryAdjustmentGroup": null,
+        "userErrors": user_errors
+    })
 }
 
-fn inventory_existence_error_payload(
-    field: &RootFieldSelection,
-    user_errors: Vec<Value>,
-) -> Option<Value> {
-    (!user_errors.is_empty()).then(|| inventory_invalid_adjustment_payload(field, user_errors))
+fn inventory_existence_error_payload(user_errors: Vec<Value>) -> Option<Value> {
+    (!user_errors.is_empty()).then(|| inventory_invalid_adjustment_payload(user_errors))
 }
 
 fn inventory_search_terms(query: &str) -> Vec<String> {

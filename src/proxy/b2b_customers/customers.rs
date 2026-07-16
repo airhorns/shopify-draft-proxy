@@ -1,5 +1,30 @@
 use super::*;
 
+pub(in crate::proxy) fn customer_field_resolver_registrations() -> Vec<FieldResolverRegistration> {
+    vec![FieldResolverRegistration::explicit(
+        ApiSurface::Admin,
+        "StoreCreditAccount",
+        "transactions",
+        store_credit_account_transactions_field,
+    )]
+}
+
+fn store_credit_account_transactions_field(
+    proxy: &mut DraftProxy,
+    _request: &Request,
+    invocation: &crate::admin_graphql::FieldResolverInvocation<'_>,
+) -> Result<Value, String> {
+    let account_id = invocation
+        .parent
+        .get("id")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "StoreCreditAccount parent has no canonical id".to_string())?;
+    Ok(proxy.store_credit_account_transactions_value(
+        account_id,
+        &resolved_arguments_from_json(&invocation.arguments),
+    ))
+}
+
 enum StoreCreditAccountMutationResolution {
     Existing(String),
     CreateForOwner(String),
@@ -484,26 +509,14 @@ impl DraftProxy {
             .unwrap_or(Value::Null)
     }
 
-    pub(in crate::proxy) fn customer_node_value_by_id(
-        &self,
-        id: &str,
-        selection: &[SelectedField],
-    ) -> Option<Value> {
+    pub(in crate::proxy) fn customer_node_value_by_id(&self, id: &str) -> Option<Value> {
         if self.store.staged.customers.is_tombstoned(id) {
             return Some(Value::Null);
         }
-        self.store
-            .staged
-            .customers
-            .get(id)
-            .map(|customer| self.customer_with_order_connection(id, customer, selection))
+        self.store.staged.customers.get(id).cloned()
     }
 
-    pub(in crate::proxy) fn customer_address_node_value_by_id(
-        &self,
-        id: &str,
-        selection: &[SelectedField],
-    ) -> Option<Value> {
+    pub(in crate::proxy) fn customer_address_node_value_by_id(&self, id: &str) -> Option<Value> {
         self.store
             .staged
             .customers
@@ -511,12 +524,6 @@ impl DraftProxy {
             .filter(|(customer_id, _)| !self.store.staged.customers.is_tombstoned(customer_id))
             .flat_map(|(_, customer)| customer_address_nodes(customer))
             .find(|address| address.get("id").and_then(Value::as_str) == Some(id))
-            .map(|mut address| {
-                if let Some(object) = address.as_object_mut() {
-                    object.insert("__typename".to_string(), json!("MailingAddress"));
-                }
-                selected_json(&address, selection)
-            })
     }
 
     pub(in crate::proxy) fn customer_with_order_connection(
@@ -643,40 +650,26 @@ impl DraftProxy {
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> MutationOutcome {
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
         let Some(fields) = self.execution_root_fields(query, variables) else {
-            return MutationOutcome::response(json_error(400, "Could not parse GraphQL operation"));
+            return resolver_http_error_outcome(400, "Could not parse GraphQL operation");
         };
-        if let Some(response) = store_credit_result_only_currency_response(&fields) {
-            return MutationOutcome::response(response);
+        if let Some(error) = store_credit_result_only_currency_error(&fields, response_key) {
+            return graphql_error_outcome(vec![error], response_key);
         }
-        let mut log_drafts = Vec::new();
-        let data = root_payload_json(&fields, |field| {
-            if !matches!(
-                field.name.as_str(),
-                "storeCreditAccountCredit" | "storeCreditAccountDebit"
-            ) {
-                return None;
+        for field in &fields {
+            if field.name != root_field || field.response_key != response_key {
+                continue;
             }
             let outcome = self.store_credit_account_mutation_field(field, request);
+            let mut resolver_outcome = ResolverOutcome::value(outcome.value);
             if let Some(log_draft) = outcome.log_draft {
-                log_drafts.push(log_draft);
+                resolver_outcome.log_drafts.push(log_draft);
             }
-            Some(outcome.value)
-        });
-        if data.as_object().is_none_or(serde_json::Map::is_empty) {
-            return MutationOutcome::response(json_error(501, "Unsupported store credit mutation"));
+            return resolver_outcome;
         }
-        let response = ok_json(json!({ "data": data }));
-        if log_drafts.is_empty() {
-            MutationOutcome::response(response)
-        } else if root_field == "storeCreditAccountCredit"
-            || root_field == "storeCreditAccountDebit"
-        {
-            MutationOutcome::with_log_drafts(response, log_drafts)
-        } else {
-            MutationOutcome::response(response)
-        }
+        resolver_http_error_outcome(501, "Unsupported store credit mutation")
     }
 
     fn store_credit_account_mutation_field(
@@ -1120,18 +1113,36 @@ impl DraftProxy {
         projected
     }
 
-    pub(in crate::proxy) fn store_credit_node_value_by_id(
+    fn store_credit_account_transactions_value(
         &self,
-        id: &str,
-        selection: &[SelectedField],
-    ) -> Option<Value> {
+        account_id: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let mut transactions = self
+            .store
+            .staged
+            .store_credit_transaction_order
+            .iter()
+            .filter_map(|id| self.store.staged.store_credit_transactions.get(id))
+            .filter(|transaction| transaction["account"]["id"].as_str() == Some(account_id))
+            .cloned()
+            .collect::<Vec<_>>();
+        if resolved_bool_field(arguments, "reverse").unwrap_or(false) {
+            transactions.reverse();
+        }
+        let (transactions, page_info) =
+            connection_window(&transactions, arguments, value_id_cursor);
+        typed_connection_value(&transactions, Value::clone, value_id_cursor, page_info)
+    }
+
+    pub(in crate::proxy) fn store_credit_node_value_by_id(&self, id: &str) -> Option<Value> {
         match shopify_gid_resource_type(id) {
             Some("StoreCreditAccount") => Some(
                 self.store
                     .staged
                     .store_credit_accounts
                     .get(id)
-                    .map(|account| self.selected_store_credit_account(account, selection))
+                    .cloned()
                     .unwrap_or(Value::Null),
             ),
             Some(
@@ -1144,9 +1155,7 @@ impl DraftProxy {
                     .staged
                     .store_credit_transactions
                     .get(id)
-                    .map(|transaction| {
-                        self.selected_store_credit_transaction(transaction, selection)
-                    })
+                    .cloned()
                     .unwrap_or(Value::Null),
             ),
             _ => None,
@@ -1601,9 +1610,8 @@ impl DraftProxy {
         &mut self,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
-        let (response_key, payload_selection, arguments) = self
+    ) -> ResolverOutcome<Value> {
+        let (_response_key, payload_selection, arguments) = self
             .execution_primary_root_response_parts(query, variables, || "orderCreate".to_string());
         let order_input = resolved_object_field(&arguments, "order").unwrap_or_default();
         let customer_id = resolved_string_field(&order_input, "customerId").unwrap_or_default();
@@ -1628,109 +1636,95 @@ impl DraftProxy {
                 .or_default()
                 .push(order.clone());
         }
-        self.record_mutation_log_entry(request, query, variables, "orderCreate", vec![id]);
         let payload = json!({ "order": order, "userErrors": [] });
-        ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
+        ResolverOutcome::value(selected_json(&payload, &payload_selection))
+            .with_log_draft(LogDraft::staged("orderCreate", "orders", vec![id]))
     }
 
-    pub(in crate::proxy) fn customer_mutation_response(
+    pub(in crate::proxy) fn customer_mutation_outcome(
         &mut self,
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
         let Some(fields) = self.execution_root_fields(query, variables) else {
-            return json_error(400, "Could not parse GraphQL operation");
+            return resolver_http_error_outcome(400, "Could not parse GraphQL operation");
         };
-        if !fields.iter().all(|field| {
-            matches!(
-                field.name.as_str(),
-                "customerCreate" | "customerUpdate" | "customerDelete" | "customerSet"
-            )
-        }) {
-            return json_error(400, "Unsupported mixed customer mutation selection");
-        }
-        let selects_amount_spent = fields
-            .iter()
-            .any(|field| selection_contains_any(&field.selection, &["amountSpent"]));
-        if selects_amount_spent {
+        let Some(field) = fields.iter().find(|field| {
+            field.response_key == response_key
+                && matches!(
+                    field.name.as_str(),
+                    "customerCreate" | "customerUpdate" | "customerDelete" | "customerSet"
+                )
+        }) else {
+            return resolver_http_error_outcome(400, "Unsupported customer mutation selection");
+        };
+        if selection_contains_any(&field.selection, &["amountSpent"]) {
             self.hydrate_shop_pricing_state_if_missing(request, true, false);
         }
 
-        let mut errors = Vec::new();
-        let data = root_payload_json(&fields, |field| {
-            let (payload, staged_ids, field_errors) =
-                self.customer_mutation_payload(request, field);
-            // A top-level GraphQL error whose path points at this root field means
-            // the field itself resolves to `null` in `data` (GraphQL error
-            // propagation), not `{customer:null,userErrors:[]}`. This mirrors
-            // Shopify's REDACTED inline-consent rejection, which surfaces a
-            // top-level error AND `customerCreate: null`.
-            let has_top_error = !field_errors.is_empty();
-            errors.extend(field_errors);
-            if !staged_ids.is_empty() {
-                self.record_mutation_log_entry(request, query, variables, &field.name, staged_ids);
-            }
-            let rendered = if has_top_error {
-                Value::Null
-            } else {
-                self.selected_customer_mutation_payload(&payload, &field.selection)
-            };
-            Some(rendered)
-        });
-        let mut body = json!({ "data": data });
-        if !errors.is_empty() {
-            body["errors"] = Value::Array(errors);
+        let (payload, staged_ids, errors) = self.customer_mutation_payload(request, field);
+        let value = if errors.is_empty() {
+            self.selected_customer_mutation_payload(&payload, &field.selection)
+        } else {
+            Value::Null
+        };
+        let mut outcome = ResolverOutcome::value(value)
+            .with_errors(root_field_errors_from_json(&errors, response_key));
+        if !staged_ids.is_empty() {
+            outcome
+                .log_drafts
+                .push(LogDraft::staged(&field.name, "customers", staged_ids));
         }
-        ok_json(body)
+        outcome
     }
 
-    pub(in crate::proxy) fn customer_outbound_lifecycle_response(
+    pub(in crate::proxy) fn customer_outbound_lifecycle_outcome(
         &mut self,
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
         let Some(fields) = self.execution_root_fields(query, variables) else {
-            return json_error(400, "Could not parse GraphQL operation");
+            return resolver_http_error_outcome(400, "Could not parse GraphQL operation");
         };
-        if !fields.iter().all(|field| {
-            matches!(
-                field.name.as_str(),
-                "customerGenerateAccountActivationUrl"
-                    | "customerSendAccountInviteEmail"
-                    | "customerPaymentMethodSendUpdateEmail"
-            )
-        }) {
-            return json_error(
+        let Some(field) = fields
+            .iter()
+            .find(|field| field.response_key == response_key)
+        else {
+            return resolver_http_error_outcome(
                 400,
-                "Unsupported mixed customer outbound mutation selection",
+                "Unsupported customer outbound mutation selection",
             );
-        }
-
-        let data = root_payload_json(&fields, |field| {
-            let (payload, staged_ids) = match field.name.as_str() {
-                "customerGenerateAccountActivationUrl" => {
-                    self.customer_generate_account_activation_url_payload(request, field)
-                }
-                "customerSendAccountInviteEmail" => {
-                    self.customer_send_account_invite_email_payload(request, field)
-                }
-                // Kept unimplemented as a primary root. This projection lets the
-                // existing mixed outbound-validation parity request continue to
-                // compare its captured not-found branch without staging delivery.
-                "customerPaymentMethodSendUpdateEmail" => (
-                    customer_payment_method_send_update_email_not_found_payload(),
-                    Vec::new(),
-                ),
-                _ => unreachable!("validated customer outbound root"),
-            };
-            if !staged_ids.is_empty() {
-                self.record_mutation_log_entry(request, query, variables, &field.name, staged_ids);
+        };
+        let (payload, staged_ids) = match field.name.as_str() {
+            "customerGenerateAccountActivationUrl" => {
+                self.customer_generate_account_activation_url_payload(request, field)
             }
-            Some(self.selected_customer_outbound_payload(&payload, &field.selection))
-        });
-        ok_json(json!({ "data": data }))
+            "customerSendAccountInviteEmail" => {
+                self.customer_send_account_invite_email_payload(request, field)
+            }
+            "customerPaymentMethodSendUpdateEmail" => (
+                customer_payment_method_send_update_email_not_found_payload(),
+                Vec::new(),
+            ),
+            _ => {
+                return resolver_http_error_outcome(
+                    400,
+                    "Unsupported customer outbound mutation selection",
+                );
+            }
+        };
+        let outcome = ResolverOutcome::value(
+            self.selected_customer_outbound_payload(&payload, &field.selection),
+        );
+        if staged_ids.is_empty() {
+            outcome
+        } else {
+            outcome.with_log_draft(LogDraft::staged(&field.name, "customers", staged_ids))
+        }
     }
 
     fn selected_customer_outbound_payload(
@@ -4983,12 +4977,15 @@ fn store_credit_expires_at_in_past(expires_at: &str, now_epoch: i64) -> bool {
         .unwrap_or(false)
 }
 
-fn store_credit_result_only_currency_response(fields: &[RootFieldSelection]) -> Option<Response> {
+fn store_credit_result_only_currency_error(
+    fields: &[RootFieldSelection],
+    response_key: &str,
+) -> Option<Value> {
     let field = fields.iter().find(|field| {
         matches!(
             field.name.as_str(),
             "storeCreditAccountCredit" | "storeCreditAccountDebit"
-        )
+        ) && field.response_key == response_key
     })?;
     let (input_name, amount_name) = if field.name == "storeCreditAccountCredit" {
         ("creditInput", "creditAmount")
@@ -5002,20 +4999,15 @@ fn store_credit_result_only_currency_response(fields: &[RootFieldSelection]) -> 
         return None;
     }
 
-    let mut data = serde_json::Map::new();
-    data.insert(field.response_key.clone(), Value::Null);
-    Some(ok_json(json!({
-        "errors": [{
-            "message": format!("CurrencyCode \"{currency}\" is invalid. It can only be used as a result and not as an input value."),
-            "locations": [{
-                "line": field.location.line,
-                "column": field.location.column
-            }],
-            "extensions": { "code": "CURRENCY_CODE_INVALID" },
-            "path": [field.response_key.clone()]
+    Some(json!({
+        "message": format!("CurrencyCode \"{currency}\" is invalid. It can only be used as a result and not as an input value."),
+        "locations": [{
+            "line": field.location.line,
+            "column": field.location.column
         }],
-        "data": Value::Object(data)
-    })))
+        "extensions": { "code": "CURRENCY_CODE_INVALID" },
+        "path": [field.response_key.clone()]
+    }))
 }
 
 #[cfg(test)]

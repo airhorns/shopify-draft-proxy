@@ -15,6 +15,7 @@ impl DraftProxy {
     ) -> ResolverOutcome<Value> {
         let RootInvocation {
             response_key,
+            arguments,
             request,
             query,
             variables,
@@ -22,34 +23,31 @@ impl DraftProxy {
             mode,
             ..
         } = invocation;
-        let response = (|| -> Response {
-            let fields = match self.root_fields_or_error(query, variables) {
-                Ok(fields) => fields,
-                Err(response) => return response,
-            };
-            match mode {
-                LocalResolverMode::OverlayRead => self.marketing_query_response(request, &fields),
-                LocalResolverMode::StageLocally => {
-                    let response = self.marketing_mutation(&fields, request);
-                    let staged_ids: Vec<String> = fields
-                        .iter()
-                        .filter_map(|field| {
-                            response.body["data"][field.response_key.as_str()]["marketingActivity"]
-                                ["id"]
-                                .as_str()
-                                .map(ToString::to_string)
-                        })
-                        .collect();
-                    if !staged_ids.is_empty() {
-                        self.record_mutation_log_entry(
-                            request, query, variables, root_name, staged_ids,
-                        );
-                    }
-                    response
+        let mut fields = match self.root_fields_or_error(query, variables) {
+            Ok(fields) => fields,
+            Err(_) => return resolver_http_error_outcome(400, "Could not parse GraphQL operation"),
+        };
+        fields.retain(|field| field.response_key == response_key);
+        if let Some(field) = fields.first_mut() {
+            field.arguments = arguments
+                .iter()
+                .map(|(name, value)| (name.clone(), resolved_value_from_json(value)))
+                .collect();
+        }
+        match mode {
+            LocalResolverMode::OverlayRead => {
+                self.marketing_query_outcome(request, &fields, response_key)
+            }
+            LocalResolverMode::StageLocally => {
+                let (outcome, staged_ids) =
+                    self.marketing_mutation_outcome(&fields, request, response_key);
+                if staged_ids.is_empty() {
+                    outcome
+                } else {
+                    outcome.with_log_draft(LogDraft::staged(root_name, "marketing", staged_ids))
                 }
             }
-        })();
-        resolver_outcome_from_response(response, response_key)
+        }
     }
 }
 

@@ -19,80 +19,81 @@ impl DraftProxy {
             mode,
             ..
         } = invocation;
-        let response = (|| -> Response {
-            match mode {
-                LocalResolverMode::OverlayRead if root_name == "currentAppInstallation" => {
-                    let request_app_id = request_app_gid(request);
-                    if self
+        match mode {
+            LocalResolverMode::OverlayRead if root_name == "currentAppInstallation" => {
+                let request_app_id = request_app_gid(request);
+                if self
+                    .store
+                    .staged
+                    .uninstalled_app_ids
+                    .contains(&request_app_id)
+                    || self
+                        .current_app_installation_app_id_for_request(&request_app_id)
+                        .is_some()
+                    || !self.store.staged.app_subscriptions.is_empty()
+                    || !self.store.staged.app_one_time_purchases.is_empty()
+                    || self
                         .store
                         .staged
-                        .uninstalled_app_ids
-                        .contains(&request_app_id)
-                        || self
-                            .current_app_installation_app_id_for_request(&request_app_id)
-                            .is_some()
-                        || !self.store.staged.app_subscriptions.is_empty()
-                        || !self.store.staged.app_one_time_purchases.is_empty()
-                        || self
-                            .store
-                            .staged
-                            .revoked_app_access_scopes
-                            .get(&request_app_id)
-                            .is_some_and(|scopes| !scopes.is_empty())
-                        || self.config.read_mode == ReadMode::Snapshot
-                    {
-                        let fields = match self.root_fields_or_error(query, variables) {
-                            Ok(fields) => fields,
-                            Err(response) => return response,
-                        };
-                        ok_json(json!({
-                            "data": self.current_app_installation_read_data(request, &fields)
-                        }))
-                    } else {
-                        let response = (self.upstream_transport)(request.clone());
-                        if response.status < 400 {
-                            self.observe_current_app_installation_response(request, &response);
-                        }
-                        response
+                        .revoked_app_access_scopes
+                        .get(&request_app_id)
+                        .is_some_and(|scopes| !scopes.is_empty())
+                    || self.config.read_mode == ReadMode::Snapshot
+                {
+                    let Some(fields) = self.execution_root_fields(query, variables) else {
+                        return resolver_http_error_outcome(
+                            400,
+                            "Could not parse GraphQL operation",
+                        );
+                    };
+                    let data = self.current_app_installation_read_data(request, &fields);
+                    ResolverOutcome::value(data.get(response_key).cloned().unwrap_or(Value::Null))
+                } else {
+                    let result =
+                        self.cached_or_forward_upstream_graphql_result(request, response_key);
+                    if result.transport_succeeded {
+                        self.observe_current_app_installation_data(request, &result.data);
                     }
-                }
-                LocalResolverMode::StageLocally => match root_name {
-                    "appSubscriptionCreate" => {
-                        self.app_subscription_create(query, variables, request)
-                    }
-                    "appSubscriptionCancel" => {
-                        self.app_subscription_cancel(query, variables, request)
-                    }
-                    "appSubscriptionTrialExtend" => {
-                        self.app_subscription_trial_extend(query, variables, request)
-                    }
-                    "appSubscriptionLineItemUpdate" => {
-                        self.app_subscription_line_item_update(query, variables, request)
-                    }
-                    "appUsageRecordCreate" => {
-                        self.app_usage_record_create(query, variables, request)
-                    }
-                    "appPurchaseOneTimeCreate" => {
-                        self.app_purchase_one_time_create(query, variables, request)
-                    }
-                    "appRevokeAccessScopes" => {
-                        self.app_revoke_access_scopes(query, variables, request)
-                    }
-                    "delegateAccessTokenCreate" => {
-                        self.delegate_access_token_create(query, variables, request)
-                    }
-                    "delegateAccessTokenDestroy" => {
-                        self.delegate_access_token_destroy(query, variables, request)
-                    }
-                    "appUninstall" => self.app_uninstall(query, variables, request),
-                    _ => Self::unimplemented_resolver_response(mode, root_name),
-                },
-                LocalResolverMode::OverlayRead => {
-                    Self::unimplemented_resolver_response(mode, root_name)
+                    result.outcome
                 }
             }
-        })();
-        resolver_outcome_from_response(response, response_key)
+            LocalResolverMode::StageLocally => match root_name {
+                "appSubscriptionCreate" => self.app_subscription_create(query, variables, request),
+                "appSubscriptionCancel" => self.app_subscription_cancel(query, variables, request),
+                "appSubscriptionTrialExtend" => {
+                    self.app_subscription_trial_extend(query, variables, request)
+                }
+                "appSubscriptionLineItemUpdate" => {
+                    self.app_subscription_line_item_update(query, variables, request, response_key)
+                }
+                "appUsageRecordCreate" => self.app_usage_record_create(query, variables, request),
+                "appPurchaseOneTimeCreate" => {
+                    self.app_purchase_one_time_create(query, variables, request)
+                }
+                "appRevokeAccessScopes" => self.app_revoke_access_scopes(query, variables, request),
+                "delegateAccessTokenCreate" => {
+                    self.delegate_access_token_create(query, variables, request)
+                }
+                "delegateAccessTokenDestroy" => {
+                    self.delegate_access_token_destroy(query, variables, request)
+                }
+                "appUninstall" => self.app_uninstall(query, variables, request),
+                _ => resolver_http_error_outcome(
+                    501,
+                    format!(
+                        "No Rust {} dispatcher implemented for root field: {root_name}",
+                        mode.registry_name()
+                    ),
+                ),
+            },
+            LocalResolverMode::OverlayRead => resolver_http_error_outcome(
+                501,
+                format!(
+                    "No Rust {} dispatcher implemented for root field: {root_name}",
+                    mode.registry_name()
+                ),
+            ),
+        }
     }
 }
 

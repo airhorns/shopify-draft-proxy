@@ -46,11 +46,12 @@ enum DeliveryProfileAssociationError {
 }
 
 impl DraftProxy {
-    pub(in crate::proxy) fn delivery_profile_read_response(
+    pub(in crate::proxy) fn delivery_profile_read_outcome(
         &mut self,
         request: &Request,
         fields: &[RootFieldSelection],
-    ) -> Response {
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
         // Cold-read passthrough: the merchant's pre-existing delivery profiles
         // (the default profile, the full catalog) are never staged locally — only
         // profiles this proxy created/updated/removed live in `staged`. When a read
@@ -61,16 +62,18 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::LiveHybrid
             && self.delivery_profile_read_needs_upstream(fields)
         {
-            let response = (self.upstream_transport)(request.clone());
-            let observed_profiles = self.observe_delivery_profiles_response(&response);
+            let result = self.cached_or_forward_upstream_graphql_result(request, response_key);
+            let observed_profiles =
+                result.transport_succeeded && self.observe_delivery_profiles_data(&result.data);
             if !self.has_local_delivery_profile_overlay() {
-                return response;
+                return result.outcome;
             }
             if !observed_profiles && self.store.base.delivery_profiles.order.is_empty() {
-                return response;
+                return result.outcome;
             }
         }
-        ok_json(json!({ "data": self.delivery_profile_read_data(fields) }))
+        let data = self.delivery_profile_read_data(fields);
+        ResolverOutcome::value(data.get(response_key).cloned().unwrap_or(Value::Null))
     }
 
     fn delivery_profile_read_needs_upstream(&self, fields: &[RootFieldSelection]) -> bool {
@@ -103,12 +106,9 @@ impl DraftProxy {
             || !self.store.staged.delivery_profiles.tombstones.is_empty()
     }
 
-    fn observe_delivery_profiles_response(&mut self, response: &Response) -> bool {
-        if !(200..300).contains(&response.status) {
-            return false;
-        }
+    fn observe_delivery_profiles_data(&mut self, data: &Value) -> bool {
         let mut profiles = Vec::new();
-        collect_delivery_profile_response_values(&response.body["data"], &mut profiles);
+        collect_delivery_profile_response_values(data, &mut profiles);
         let mut observed = false;
         for profile in profiles {
             observed |= self.observe_base_delivery_profile(profile);
@@ -154,15 +154,13 @@ impl DraftProxy {
     pub(in crate::proxy) fn delivery_profile_mutation(
         &mut self,
         root_field: &str,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
+        fields: &[RootFieldSelection],
         request: &Request,
-    ) -> Response {
-        let Some(fields) = self.execution_root_fields(query, variables) else {
-            return json_error(400, "Invalid delivery profile mutation");
-        };
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
         let mut errors = Vec::new();
-        let data = root_payload_json(&fields, |field| {
+        let mut log_drafts = Vec::new();
+        let data = root_payload_json(fields, |field| {
             let outcome = match field.name.as_str() {
                 "deliveryProfileCreate" => self.delivery_profile_create_payload(field, request),
                 "deliveryProfileUpdate" => self.delivery_profile_update_payload(field, request),
@@ -170,28 +168,28 @@ impl DraftProxy {
                 _ => return None,
             };
             if !outcome.staged_ids.is_empty() {
-                self.record_mutation_log_entry(
-                    request,
-                    query,
-                    variables,
-                    &field.name,
+                log_drafts.push(LogDraft::staged(
+                    field.name.clone(),
+                    "shipping-fulfillments",
                     outcome.staged_ids,
-                );
+                ));
             }
             errors.extend(outcome.errors);
             Some(outcome.payload)
         });
         if data.as_object().is_none_or(serde_json::Map::is_empty) {
-            json_error(
+            resolver_http_error_outcome(
                 501,
-                &format!("Unsupported delivery profile mutation {root_field}"),
+                format!("Unsupported delivery profile mutation {root_field}"),
             )
         } else {
-            let mut body = json!({ "data": data });
+            let mut outcome =
+                ResolverOutcome::value(data.get(response_key).cloned().unwrap_or(Value::Null));
             if !errors.is_empty() {
-                body["errors"] = Value::Array(errors);
+                outcome.errors = root_field_errors_from_json(&errors, response_key);
             }
-            ok_json(body)
+            outcome.log_drafts = log_drafts;
+            outcome
         }
     }
 
@@ -1008,22 +1006,24 @@ impl DraftProxy {
         )
     }
 
-    pub(in crate::proxy) fn delivery_profile_locations_read_response(
+    pub(in crate::proxy) fn delivery_profile_locations_read_outcome(
         &mut self,
         request: &Request,
         fields: &[RootFieldSelection],
-    ) -> Response {
+        response_key: &str,
+    ) -> ResolverOutcome<Value> {
         if self.config.read_mode != ReadMode::Snapshot
             && self.store.staged.observed_shipping_locations.is_empty()
             && self.store.staged.locations.is_empty()
         {
-            let response = (self.upstream_transport)(request.clone());
-            self.observe_delivery_profile_locations_response(&response);
-            return response;
+            let result = self.cached_or_forward_upstream_graphql_result(request, response_key);
+            if result.transport_succeeded {
+                self.observe_delivery_profile_locations_data(&result.data);
+            }
+            return result.outcome;
         }
-        ok_json(json!({
-            "data": self.delivery_profile_locations_read_data(fields)
-        }))
+        let data = self.delivery_profile_locations_read_data(fields);
+        ResolverOutcome::value(data.get(response_key).cloned().unwrap_or(Value::Null))
     }
 
     pub(in crate::proxy) fn delivery_profile_locations_read_data(
@@ -1076,9 +1076,14 @@ impl DraftProxy {
         &mut self,
         response: &Response,
     ) {
-        let Some(nodes) = response.body["data"]["locationsAvailableForDeliveryProfilesConnection"]
-            ["nodes"]
-            .as_array()
+        if (200..300).contains(&response.status) {
+            self.observe_delivery_profile_locations_data(&response.body["data"]);
+        }
+    }
+
+    pub(in crate::proxy) fn observe_delivery_profile_locations_data(&mut self, data: &Value) {
+        let Some(nodes) =
+            data["locationsAvailableForDeliveryProfilesConnection"]["nodes"].as_array()
         else {
             return;
         };

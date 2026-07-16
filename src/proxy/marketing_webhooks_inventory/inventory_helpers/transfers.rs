@@ -1,12 +1,13 @@
 use super::*;
 
 impl DraftProxy {
-    pub(in crate::proxy) fn inventory_transfer_create(
+    pub(crate) fn inventory_transfer_create(
         &mut self,
-        field: &RootFieldSelection,
-        ready_to_ship: bool,
-    ) -> MutationFieldOutcome {
-        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        let input = resolved_object_field(&arguments, "input").unwrap_or_default();
+        let ready_to_ship = invocation.root_name == "inventoryTransferCreateAsReadyToShip";
         let origin_location_id =
             resolved_string_field(&input, "originLocationId").unwrap_or_default();
         let destination_location_id =
@@ -22,8 +23,7 @@ impl DraftProxy {
             &line_item_inputs,
         );
         if !user_errors.is_empty() {
-            return MutationFieldOutcome::unlogged(self.inventory_transfer_user_error_payload(
-                &field.selection,
+            return ResolverOutcome::value(self.inventory_transfer_user_error_payload(
                 "inventoryTransfer",
                 &[],
                 user_errors,
@@ -63,26 +63,27 @@ impl DraftProxy {
         if ready_to_ship {
             self.apply_transfer_reservations(&record, 1);
         }
-        let payload =
-            self.inventory_transfer_payload_json(&record, &field.selection, "inventoryTransfer");
+        let payload = self.inventory_transfer_payload_value(&record, "inventoryTransfer");
         self.store
             .staged
             .inventory_transfers
             .insert(id.clone(), record);
-        MutationFieldOutcome::staged(
-            payload,
-            LogDraft::staged(field.name.clone(), "products", vec![id]),
-        )
+        ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
+            invocation.root_name,
+            "products",
+            vec![id],
+        ))
     }
 
-    pub(in crate::proxy) fn inventory_transfer_mark_ready(
+    pub(crate) fn inventory_transfer_mark_ready(
         &mut self,
-        field: &RootFieldSelection,
-    ) -> MutationFieldOutcome {
-        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        let id = resolved_string_field(&arguments, "id").unwrap_or_default();
         let Some(existing) = self.store.inventory_transfer_by_id(&id).cloned() else {
-            return MutationFieldOutcome::unlogged(
-                self.inventory_transfer_missing_payload(&field.selection, "inventoryTransfer"),
+            return ResolverOutcome::value(
+                self.inventory_transfer_missing_payload("inventoryTransfer"),
             );
         };
         let mut record = existing;
@@ -90,27 +91,28 @@ impl DraftProxy {
             self.apply_transfer_reservations(&record, 1);
         }
         record.status = "READY_TO_SHIP".to_string();
-        let payload =
-            self.inventory_transfer_payload_json(&record, &field.selection, "inventoryTransfer");
+        let payload = self.inventory_transfer_payload_value(&record, "inventoryTransfer");
         self.store
             .staged
             .inventory_transfers
             .insert(id.clone(), record);
-        MutationFieldOutcome::staged(
-            payload,
-            LogDraft::staged("inventoryTransferMarkAsReadyToShip", "products", vec![id]),
-        )
+        ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
+            "inventoryTransferMarkAsReadyToShip",
+            "products",
+            vec![id],
+        ))
     }
 
-    pub(in crate::proxy) fn inventory_transfer_set_items(
+    pub(crate) fn inventory_transfer_set_items(
         &mut self,
-        field: &RootFieldSelection,
-    ) -> MutationFieldOutcome {
-        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        let input = resolved_object_field(&arguments, "input").unwrap_or_default();
         let id = resolved_string_field(&input, "id").unwrap_or_default();
         let Some(existing) = self.store.inventory_transfer_by_id(&id).cloned() else {
-            return MutationFieldOutcome::unlogged(
-                self.inventory_transfer_missing_payload(&field.selection, "inventoryTransfer"),
+            return ResolverOutcome::value(
+                self.inventory_transfer_missing_payload("inventoryTransfer"),
             );
         };
         let mut record = existing;
@@ -125,8 +127,7 @@ impl DraftProxy {
             &line_item_inputs,
         );
         if !user_errors.is_empty() {
-            return MutationFieldOutcome::unlogged(self.inventory_transfer_user_error_payload(
-                &field.selection,
+            return ResolverOutcome::value(self.inventory_transfer_user_error_payload(
                 "inventoryTransfer",
                 &["updatedLineItems"],
                 user_errors,
@@ -161,35 +162,34 @@ impl DraftProxy {
                 "deltaQuantity": delta
             }));
         }
-        let payload = selected_json(
-            &json!({
-                "inventoryTransfer": self.inventory_transfer_full_json(&record),
-                "updatedLineItems": updated,
-                "userErrors": []
-            }),
-            &field.selection,
-        );
+        let payload = json!({
+            "inventoryTransfer": self.inventory_transfer_full_json(&record),
+            "updatedLineItems": updated,
+            "userErrors": []
+        });
         self.store
             .staged
             .inventory_transfers
             .insert(id.clone(), record);
-        MutationFieldOutcome::staged(
-            payload,
-            LogDraft::staged("inventoryTransferSetItems", "products", vec![id]),
-        )
+        ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
+            "inventoryTransferSetItems",
+            "products",
+            vec![id],
+        ))
     }
 
-    pub(in crate::proxy) fn inventory_transfer_edit(
+    pub(crate) fn inventory_transfer_edit(
         &mut self,
-        field: &RootFieldSelection,
-    ) -> MutationFieldOutcome {
-        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        let id = resolved_string_field(&arguments, "id").unwrap_or_default();
         let Some(existing) = self.store.inventory_transfer_by_id(&id).cloned() else {
-            return MutationFieldOutcome::unlogged(
-                self.inventory_transfer_missing_payload(&field.selection, "inventoryTransfer"),
+            return ResolverOutcome::value(
+                self.inventory_transfer_missing_payload("inventoryTransfer"),
             );
         };
-        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let input = resolved_object_field(&arguments, "input").unwrap_or_default();
         let origin_location_id = resolved_string_field(&input, "originId")
             .unwrap_or_else(|| existing.origin_location_id.clone());
         let destination_location_id = resolved_string_field(&input, "destinationId")
@@ -216,8 +216,7 @@ impl DraftProxy {
             &line_item_inputs,
         );
         if !user_errors.is_empty() {
-            return MutationFieldOutcome::unlogged(self.inventory_transfer_user_error_payload(
-                &field.selection,
+            return ResolverOutcome::value(self.inventory_transfer_user_error_payload(
                 "inventoryTransfer",
                 &[],
                 user_errors,
@@ -242,26 +241,27 @@ impl DraftProxy {
             self.apply_transfer_reservations(&record, 1);
         }
 
-        let payload =
-            self.inventory_transfer_payload_json(&record, &field.selection, "inventoryTransfer");
+        let payload = self.inventory_transfer_payload_value(&record, "inventoryTransfer");
         self.store
             .staged
             .inventory_transfers
             .insert(id.clone(), record);
-        MutationFieldOutcome::staged(
-            payload,
-            LogDraft::staged("inventoryTransferEdit", "products", vec![id]),
-        )
+        ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
+            "inventoryTransferEdit",
+            "products",
+            vec![id],
+        ))
     }
 
-    pub(in crate::proxy) fn inventory_transfer_duplicate(
+    pub(crate) fn inventory_transfer_duplicate(
         &mut self,
-        field: &RootFieldSelection,
-    ) -> MutationFieldOutcome {
-        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        let id = resolved_string_field(&arguments, "id").unwrap_or_default();
         let Some(existing) = self.store.inventory_transfer_by_id(&id).cloned() else {
-            return MutationFieldOutcome::unlogged(
-                self.inventory_transfer_missing_payload(&field.selection, "inventoryTransfer"),
+            return ResolverOutcome::value(
+                self.inventory_transfer_missing_payload("inventoryTransfer"),
             );
         };
         let line_item_inputs = existing
@@ -286,8 +286,7 @@ impl DraftProxy {
             &line_item_inputs,
         );
         if !user_errors.is_empty() {
-            return MutationFieldOutcome::unlogged(self.inventory_transfer_user_error_payload(
-                &field.selection,
+            return ResolverOutcome::value(self.inventory_transfer_user_error_payload(
                 "inventoryTransfer",
                 &[],
                 user_errors,
@@ -320,27 +319,28 @@ impl DraftProxy {
                 .collect(),
         };
         self.ensure_transfer_inventory_levels(&record);
-        let payload =
-            self.inventory_transfer_payload_json(&record, &field.selection, "inventoryTransfer");
+        let payload = self.inventory_transfer_payload_value(&record, "inventoryTransfer");
         self.store
             .staged
             .inventory_transfers
             .insert(new_id.clone(), record);
-        MutationFieldOutcome::staged(
-            payload,
-            LogDraft::staged("inventoryTransferDuplicate", "products", vec![new_id]),
-        )
+        ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
+            "inventoryTransferDuplicate",
+            "products",
+            vec![new_id],
+        ))
     }
 
-    pub(in crate::proxy) fn inventory_transfer_remove_items(
+    pub(crate) fn inventory_transfer_remove_items(
         &mut self,
-        field: &RootFieldSelection,
-    ) -> MutationFieldOutcome {
-        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        let input = resolved_object_field(&arguments, "input").unwrap_or_default();
         let id = resolved_string_field(&input, "id").unwrap_or_default();
         let Some(existing) = self.store.inventory_transfer_by_id(&id).cloned() else {
-            return MutationFieldOutcome::unlogged(
-                self.inventory_transfer_missing_payload(&field.selection, "inventoryTransfer"),
+            return ResolverOutcome::value(
+                self.inventory_transfer_missing_payload("inventoryTransfer"),
             );
         };
         let mut record = existing;
@@ -366,32 +366,31 @@ impl DraftProxy {
             }
         }
         record.line_items = kept;
-        let payload = selected_json(
-            &json!({
-                "inventoryTransfer": self.inventory_transfer_full_json(&record),
-                "removedQuantities": removed,
-                "userErrors": []
-            }),
-            &field.selection,
-        );
+        let payload = json!({
+            "inventoryTransfer": self.inventory_transfer_full_json(&record),
+            "removedQuantities": removed,
+            "userErrors": []
+        });
         self.store
             .staged
             .inventory_transfers
             .insert(id.clone(), record);
-        MutationFieldOutcome::staged(
-            payload,
-            LogDraft::staged("inventoryTransferRemoveItems", "products", vec![id]),
-        )
+        ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
+            "inventoryTransferRemoveItems",
+            "products",
+            vec![id],
+        ))
     }
 
-    pub(in crate::proxy) fn inventory_transfer_cancel(
+    pub(crate) fn inventory_transfer_cancel(
         &mut self,
-        field: &RootFieldSelection,
-    ) -> MutationFieldOutcome {
-        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        let id = resolved_string_field(&arguments, "id").unwrap_or_default();
         let Some(existing) = self.store.inventory_transfer_by_id(&id).cloned() else {
-            return MutationFieldOutcome::unlogged(
-                self.inventory_transfer_missing_payload(&field.selection, "inventoryTransfer"),
+            return ResolverOutcome::value(
+                self.inventory_transfer_missing_payload("inventoryTransfer"),
             );
         };
         let mut record = existing;
@@ -399,66 +398,53 @@ impl DraftProxy {
             self.apply_transfer_reservations(&record, -1);
         }
         record.status = "CANCELED".to_string();
-        let payload =
-            self.inventory_transfer_payload_json(&record, &field.selection, "inventoryTransfer");
+        let payload = self.inventory_transfer_payload_value(&record, "inventoryTransfer");
         self.store
             .staged
             .inventory_transfers
             .insert(id.clone(), record);
-        MutationFieldOutcome::staged(
-            payload,
-            LogDraft::staged("inventoryTransferCancel", "products", vec![id]),
-        )
+        ResolverOutcome::value(payload).with_log_draft(LogDraft::staged(
+            "inventoryTransferCancel",
+            "products",
+            vec![id],
+        ))
     }
 
-    pub(in crate::proxy) fn inventory_transfer_delete(
+    pub(crate) fn inventory_transfer_delete(
         &mut self,
-        field: &RootFieldSelection,
-    ) -> MutationFieldOutcome {
-        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        invocation: RootInvocation<'_>,
+    ) -> ResolverOutcome<Value> {
+        let arguments = resolved_arguments_from_json(&invocation.arguments);
+        let id = resolved_string_field(&arguments, "id").unwrap_or_default();
         let Some(record) = self.store.inventory_transfer_by_id(&id).cloned() else {
-            return MutationFieldOutcome::unlogged(
-                self.inventory_transfer_missing_payload(&field.selection, "deletedId"),
-            );
+            return ResolverOutcome::value(self.inventory_transfer_missing_payload("deletedId"));
         };
         if record.status != "DRAFT" {
-            return MutationFieldOutcome::unlogged(selected_json(
-                &json!({
-                    "deletedId": Value::Null,
-                    "userErrors": [user_error_omit_code(["id"], "Can't delete the transfer if it's not in the draft status.", None)]
-                }),
-                &field.selection,
-            ));
+            return ResolverOutcome::value(json!({
+                "deletedId": Value::Null,
+                "userErrors": [user_error_omit_code(["id"], "Can't delete the transfer if it's not in the draft status.", None)]
+            }));
         }
         self.store.staged.inventory_transfers.remove(&id);
         self.store.staged.inventory_transfers.tombstone(id.clone());
-        MutationFieldOutcome::staged(
-            selected_json(
-                &json!({ "deletedId": id, "userErrors": [] }),
-                &field.selection,
-            ),
+        ResolverOutcome::value(json!({ "deletedId": id, "userErrors": [] })).with_log_draft(
             LogDraft::staged("inventoryTransferDelete", "products", Vec::new()),
         )
     }
 
-    fn inventory_transfer_payload_json(
+    fn inventory_transfer_payload_value(
         &self,
         record: &InventoryTransferRecord,
-        selection: &[SelectedField],
         transfer_field: &str,
     ) -> Value {
-        selected_json(
-            &json!({
-                transfer_field: self.inventory_transfer_full_json(record),
-                "userErrors": []
-            }),
-            selection,
-        )
+        json!({
+            transfer_field: self.inventory_transfer_full_json(record),
+            "userErrors": []
+        })
     }
 
     fn inventory_transfer_user_error_payload(
         &self,
-        selection: &[SelectedField],
         transfer_field: &str,
         extra_null_fields: &[&str],
         user_errors: Vec<Value>,
@@ -469,39 +455,38 @@ impl DraftProxy {
             payload.insert((*field).to_string(), Value::Null);
         }
         payload.insert("userErrors".to_string(), Value::Array(user_errors));
-        selected_json(&Value::Object(payload), selection)
+        Value::Object(payload)
     }
 
-    fn inventory_transfer_missing_payload(
-        &self,
-        selection: &[SelectedField],
-        transfer_field: &str,
-    ) -> Value {
-        selected_json(
-            &json!({
-                transfer_field: Value::Null,
-                "userErrors": [user_error_omit_code(["id"], "Inventory transfer not found.", None)]
-            }),
-            selection,
-        )
+    fn inventory_transfer_missing_payload(&self, transfer_field: &str) -> Value {
+        json!({
+            transfer_field: Value::Null,
+            "userErrors": [user_error_omit_code(["id"], "Inventory transfer not found.", None)]
+        })
     }
 
-    pub(super) fn inventory_transfer_by_id_selected_json(
-        &self,
-        id: &str,
-        selection: &[SelectedField],
-    ) -> Value {
+    pub(super) fn inventory_transfer_value_by_id(&self, id: &str) -> Value {
         self.store
             .inventory_transfer_by_id(id)
-            .map(|record| selected_json(&self.inventory_transfer_full_json(record), selection))
+            .map(|record| self.inventory_transfer_full_json(record))
             .unwrap_or(Value::Null)
     }
 
-    pub(super) fn inventory_transfer_line_item_by_id_selected_json(
+    pub(super) fn inventory_transfers_connection_value(
         &self,
-        id: &str,
-        selection: &[SelectedField],
+        arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
+        staged_connection_value_with_args(
+            self.store.inventory_transfers(),
+            arguments,
+            |record, query| self.inventory_transfer_search_decision(record, query),
+            |record, sort_key| self.inventory_transfer_sort_key(record, sort_key),
+            |record| self.inventory_transfer_full_json(record),
+            |record| record.id.clone(),
+        )
+    }
+
+    pub(super) fn inventory_transfer_line_item_value_by_id(&self, id: &str) -> Value {
         self.store
             .inventory_transfers()
             .iter()
@@ -510,12 +495,7 @@ impl DraftProxy {
                     .line_items
                     .iter()
                     .find(|line_item| line_item.id == id)
-                    .map(|line_item| {
-                        selected_json(
-                            &self.inventory_transfer_line_item_full_json(record, line_item),
-                            selection,
-                        )
-                    })
+                    .map(|line_item| self.inventory_transfer_line_item_full_json(record, line_item))
             })
             .unwrap_or(Value::Null)
     }
@@ -556,26 +536,6 @@ impl DraftProxy {
             _ => {}
         }
     }
-
-    pub(super) fn inventory_transfers_connection_selected_json(
-        &self,
-        transfers: Vec<InventoryTransferRecord>,
-        arguments: &BTreeMap<String, ResolvedValue>,
-        selection: &[SelectedField],
-    ) -> Value {
-        selected_staged_connection_with_args(
-            transfers,
-            arguments,
-            selection,
-            |record, query| self.inventory_transfer_search_decision(record, query),
-            |record, sort_key| self.inventory_transfer_sort_key(record, sort_key),
-            |record, node_selection| {
-                selected_json(&self.inventory_transfer_full_json(record), node_selection)
-            },
-            |record| record.id.clone(),
-        )
-    }
-
     fn inventory_transfer_full_json(&self, record: &InventoryTransferRecord) -> Value {
         let status = self.inventory_transfer_effective_status(record);
         let nodes = record
@@ -600,10 +560,7 @@ impl DraftProxy {
             "tags": record.tags,
             "totalQuantity": record.line_items.iter().map(|line_item| line_item.quantity).sum::<i64>(),
             "lineItemsCount": count_object(record.line_items.len()),
-            "lineItems": {
-                "nodes": nodes,
-                "pageInfo": empty_page_info()
-            }
+            "lineItems": connection_json(nodes)
         })
     }
 

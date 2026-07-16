@@ -688,10 +688,9 @@ fn price_edge_matches_args(edge: &Value, arguments: &BTreeMap<String, ResolvedVa
     price_edge_matches_query(edge, resolved_string_field(arguments, "query").as_deref())
 }
 
-pub(in crate::proxy) fn selected_price_list_prices(
+pub(in crate::proxy) fn price_list_prices_value(
     price_list: &Value,
     arguments: &BTreeMap<String, ResolvedValue>,
-    selection: &[SelectedField],
 ) -> Value {
     let matched = price_edges(price_list)
         .into_iter()
@@ -702,20 +701,16 @@ pub(in crate::proxy) fn selected_price_list_prices(
         .iter()
         .filter_map(|edge| edge.get("node").cloned())
         .collect::<Vec<_>>();
-    selected_json(
-        &json!({
-            "edges": edges,
-            "nodes": nodes,
-            "pageInfo": page_info
-        }),
-        selection,
-    )
+    json!({
+        "edges": edges,
+        "nodes": nodes,
+        "pageInfo": page_info
+    })
 }
 
-pub(in crate::proxy) fn selected_price_list_quantity_rules(
+pub(in crate::proxy) fn price_list_quantity_rules_value(
     price_list: &Value,
     arguments: &BTreeMap<String, ResolvedValue>,
-    selection: &[SelectedField],
 ) -> Value {
     let matched = quantity_rule_edges(price_list);
     let (edges, page_info) = connection_window(&matched, arguments, quantity_rule_edge_cursor);
@@ -723,14 +718,11 @@ pub(in crate::proxy) fn selected_price_list_quantity_rules(
         .iter()
         .filter_map(|edge| edge.get("node").cloned())
         .collect::<Vec<_>>();
-    selected_json(
-        &json!({
-            "edges": edges,
-            "nodes": nodes,
-            "pageInfo": page_info
-        }),
-        selection,
-    )
+    json!({
+        "edges": edges,
+        "nodes": nodes,
+        "pageInfo": page_info
+    })
 }
 
 pub(in crate::proxy) fn fixed_price_variant_ids(price_list: &Value) -> Vec<String> {

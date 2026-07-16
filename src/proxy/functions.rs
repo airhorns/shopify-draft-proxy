@@ -26,68 +26,64 @@ impl DraftProxy {
             mode,
             ..
         } = invocation;
-        let response = (|| -> Response {
-            let fields = match self.root_fields_or_error(query, variables) {
-                Ok(fields) => fields,
-                Err(response) => return response,
-            };
-            match mode {
-                LocalResolverMode::StageLocally => {
-                    let (data, errors) = self.functions_metadata_mutation_data(request, &fields);
-                    if data
-                        .as_object()
-                        .is_some_and(|fields| fields.values().any(|value| !value.is_null()))
-                    {
-                        self.record_mutation_log_entry(
-                            request,
-                            query,
-                            variables,
-                            root_name,
-                            Vec::new(),
-                        );
-                    }
-                    if errors.is_empty() {
-                        ok_json(json!({ "data": data }))
-                    } else {
-                        ok_json(json!({ "data": data, "errors": errors }))
-                    }
+        let fields = match self.root_fields_or_error(query, variables) {
+            Ok(fields) => fields,
+            Err(_) => return ResolverOutcome::error("Could not parse GraphQL operation"),
+        };
+        match mode {
+            LocalResolverMode::StageLocally => {
+                let (mut data, errors) = self.functions_metadata_mutation_data(request, &fields);
+                let staged = data
+                    .as_object()
+                    .is_some_and(|fields| fields.values().any(|value| !value.is_null()));
+                let value = data
+                    .as_object_mut()
+                    .and_then(|data| data.remove(response_key))
+                    .unwrap_or(Value::Null);
+                let mut outcome = ResolverOutcome::value(value)
+                    .with_errors(root_field_errors_from_json(&errors, response_key));
+                if staged {
+                    outcome = outcome.with_log_draft(LogDraft::staged(
+                        root_name,
+                        "functions",
+                        Vec::new(),
+                    ));
                 }
-                LocalResolverMode::OverlayRead => {
-                    // Cold reads preserve Shopify's installed Function catalog. Once
-                    // a requested family intersects observed or staged state, hydrate
-                    // that family and render the effective local overlay.
-                    if self.config.read_mode != ReadMode::Snapshot
-                        && !self.function_read_has_local_overlay(&fields)
-                    {
-                        let response = self
-                            .request_upstream_query_response
-                            .clone()
-                            .unwrap_or_else(|| (self.upstream_transport)(request.clone()));
-                        if response.status == 200 {
-                            self.hydrate_function_metadata_from_response_data(
-                                &response.body["data"],
-                            );
-                            self.mark_function_read_fields_hydrated(&fields);
-                        }
-                        response
-                    } else {
-                        let selection_errors =
-                            functions_output_selection_errors(query, variables, &fields);
-                        if selection_errors.is_empty() {
-                            if self.config.read_mode != ReadMode::Snapshot {
-                                self.hydrate_function_read_fields(request, &fields);
-                            }
-                            ok_json(json!({
-                                "data": self.functions_metadata_read_data(request, &fields)
-                            }))
-                        } else {
-                            ok_json(json!({ "errors": selection_errors }))
-                        }
-                    }
-                }
+                outcome
             }
-        })();
-        resolver_outcome_from_response(response, response_key)
+            LocalResolverMode::OverlayRead => {
+                // Cold reads preserve Shopify's installed Function catalog. Once
+                // a requested family intersects observed or staged state, hydrate
+                // that family and render the effective local overlay.
+                if self.config.read_mode != ReadMode::Snapshot
+                    && !self.function_read_has_local_overlay(&fields)
+                {
+                    let outcome =
+                        self.cached_or_forward_upstream_root_outcome(request, response_key);
+                    if outcome.errors.is_empty() {
+                        self.hydrate_function_metadata_from_response_data(&json!({
+                            (response_key): outcome.value.clone()
+                        }));
+                        self.mark_function_read_fields_hydrated(&fields);
+                    }
+                    return outcome;
+                }
+                let selection_errors = functions_output_selection_errors(query, variables, &fields);
+                if !selection_errors.is_empty() {
+                    return ResolverOutcome::value(Value::Null)
+                        .with_errors(root_field_errors_from_json(&selection_errors, response_key));
+                }
+                if self.config.read_mode != ReadMode::Snapshot {
+                    self.hydrate_function_read_fields(request, &fields);
+                }
+                let mut data = self.functions_metadata_read_data(request, &fields);
+                ResolverOutcome::value(
+                    data.as_object_mut()
+                        .and_then(|data| data.remove(response_key))
+                        .unwrap_or(Value::Null),
+                )
+            }
+        }
     }
 
     pub(in crate::proxy) fn functions_metadata_mutation_data(
@@ -2189,6 +2185,10 @@ pub(in crate::proxy) fn cart_transform_record_for_selection(
     public
 }
 
+pub(in crate::proxy) fn cart_transform_record_value(record: &Value) -> Value {
+    function_record_with_output_fields(record, "CartTransform", CART_TRANSFORM_OUTPUT_FIELDS)
+}
+
 fn fulfillment_constraint_rule_delivery_method_types(field: &RootFieldSelection) -> Vec<String> {
     list_string_field(&field.arguments, "deliveryMethodTypes")
 }
@@ -2236,6 +2236,10 @@ pub(in crate::proxy) fn validation_record_for_selection(
     public
 }
 
+pub(in crate::proxy) fn validation_record_value(record: &Value) -> Value {
+    function_record_with_output_fields(record, "Validation", VALIDATION_OUTPUT_FIELDS)
+}
+
 const FULFILLMENT_CONSTRAINT_RULE_OUTPUT_FIELDS: &[&str] = &[
     "id",
     "function",
@@ -2260,6 +2264,14 @@ pub(in crate::proxy) fn fulfillment_constraint_rule_record_for_selection(
         apply_metafield_for_selection(&mut public, metafield_selection);
     }
     public
+}
+
+pub(in crate::proxy) fn fulfillment_constraint_rule_record_value(record: &Value) -> Value {
+    function_record_with_output_fields(
+        record,
+        "FulfillmentConstraintRule",
+        FULFILLMENT_CONSTRAINT_RULE_OUTPUT_FIELDS,
+    )
 }
 
 fn function_record_with_output_fields(
