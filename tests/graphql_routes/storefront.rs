@@ -2943,16 +2943,16 @@ fn storefront_cart_delivery_validates_ownership_inputs_and_stale_options() {
         .with_upstream_transport(|_| panic!("Storefront cart delivery validation must stay local"));
     let (variant_id, location_id) = stage_storefront_cart_variant(&mut proxy, 5);
     stage_storefront_cart_delivery_profile(&mut proxy, &variant_id, &location_id);
-    let create_cart = |proxy: &mut DraftProxy| {
+    let create_cart = |proxy: &mut DraftProxy, country_code: &str| {
         proxy.process_request(storefront_graphql_request(
-            r#"mutation CreateDeliveryValidationCart($input: CartInput) { cartCreate(input: $input) { cart { id } userErrors { field message code } warnings { code message target } } }"#,
-            json!({ "input": { "buyerIdentity": { "countryCode": "US" }, "lines": [{ "merchandiseId": variant_id, "quantity": 1 }] } }),
+            r#"mutation CreateDeliveryValidationCart($input: CartInput) { cartCreate(input: $input) { cart { id totalQuantity lines(first: 1) { nodes { __typename quantity } } } userErrors { field message code } warnings { code message target } } }"#,
+            json!({ "input": { "buyerIdentity": { "countryCode": country_code }, "lines": [{ "merchandiseId": variant_id, "quantity": 1 }] } }),
         ))
     };
-    let create = create_cart(&mut proxy);
+    let create = create_cart(&mut proxy, "US");
     let cart_id = create.body["data"]["cartCreate"]["cart"]["id"]
         .as_str()
-        .unwrap()
+        .unwrap_or_else(|| panic!("delivery validation cart create failed: {}", create.body))
         .to_string();
 
     let missing_country = proxy.process_request(storefront_graphql_request(
@@ -2997,7 +2997,19 @@ fn storefront_cart_delivery_validates_ownership_inputs_and_stale_options() {
         .as_str()
         .unwrap()
         .to_string();
-    let other = create_cart(&mut proxy);
+    let other = create_cart(&mut proxy, "CA");
+    assert_eq!(
+        other.body["data"]["cartCreate"]["cart"]["totalQuantity"],
+        json!(0)
+    );
+    assert_eq!(
+        other.body["data"]["cartCreate"]["cart"]["lines"]["nodes"][0]["quantity"],
+        json!(0)
+    );
+    assert_eq!(
+        other.body["data"]["cartCreate"]["warnings"][0]["code"],
+        json!("MERCHANDISE_OUT_OF_STOCK")
+    );
     let other_cart_id = other.body["data"]["cartCreate"]["cart"]["id"]
         .as_str()
         .unwrap()
@@ -3020,6 +3032,7 @@ fn storefront_cart_delivery_validates_ownership_inputs_and_stale_options() {
         let response = proxy.process_request(storefront_graphql_request(document, variables));
         assert_eq!(response.body["data"][root]["userErrors"][0]["field"], field);
         assert_eq!(response.body["data"][root]["userErrors"][0]["code"], json!("INVALID_DELIVERY_ADDRESS_ID"));
+        assert_eq!(response.body["data"][root]["warnings"], json!([]));
     }
 
     let invalid_option = proxy.process_request(storefront_graphql_request(

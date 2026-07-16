@@ -200,9 +200,11 @@ impl DraftProxy {
         };
         let mut lines = Vec::new();
         let mut warnings = Vec::new();
+        self.storefront_cart_save(cart.clone(), Vec::new());
         for input in &line_inputs {
             self.storefront_cart_apply_line_add(&cart, &mut lines, input, &mut warnings);
         }
+        warnings.extend(self.storefront_cart_reconcile_buyer_country_lines(&cart, &mut lines));
         self.storefront_cart_save(cart.clone(), lines);
         let warnings = self.storefront_cart_all_warnings(&cart, warnings);
         self.storefront_cart_user_error_outcome(
@@ -1460,13 +1462,15 @@ impl DraftProxy {
         cart: &mut StorefrontCartRecord,
         lines: Vec<StorefrontCartLineRecord>,
     ) -> (Vec<StorefrontCartLineRecord>, Vec<Value>) {
-        if !cart
+        let country_code = cart
             .delivery_addresses
             .iter()
-            .any(|address| address.selected)
-        {
+            .find(|address| address.selected)
+            .and_then(|address| address.fields.country_code.as_deref())
+            .or(cart.buyer_identity.country_code.as_deref());
+        let Some(country_code) = country_code else {
             return (lines, Vec::new());
-        }
+        };
         let mut retained = Vec::new();
         let mut warnings = Vec::new();
         for line in lines {
@@ -1474,7 +1478,9 @@ impl DraftProxy {
                 .store
                 .product_variant_by_id(&line.merchandise_id)
                 .is_some_and(|variant| variant.inventory_item.requires_shipping);
-            if !requires_shipping || self.storefront_cart_line_has_delivery_option(cart, &line) {
+            if !requires_shipping
+                || self.storefront_cart_line_has_delivery_option(cart, &line, country_code)
+            {
                 retained.push(line);
             } else {
                 warnings.push(self.storefront_cart_out_of_stock_warning(&line));
@@ -1493,30 +1499,48 @@ impl DraftProxy {
         (retained, warnings)
     }
 
+    fn storefront_cart_reconcile_buyer_country_lines(
+        &self,
+        cart: &StorefrontCartRecord,
+        lines: &mut [StorefrontCartLineRecord],
+    ) -> Vec<Value> {
+        let Some(country_code) = cart.buyer_identity.country_code.as_deref() else {
+            return Vec::new();
+        };
+        let mut warnings = Vec::new();
+        for line in lines {
+            let requires_shipping = self
+                .store
+                .product_variant_by_id(&line.merchandise_id)
+                .is_some_and(|variant| variant.inventory_item.requires_shipping);
+            if requires_shipping
+                && !self.storefront_cart_line_has_delivery_option(cart, line, country_code)
+            {
+                warnings.push(self.storefront_cart_out_of_stock_warning(line));
+                line.quantity = 0;
+                line.out_of_stock_warning = false;
+            }
+        }
+        warnings
+    }
+
     fn storefront_cart_line_has_delivery_option(
         &self,
         cart: &StorefrontCartRecord,
         line: &StorefrontCartLineRecord,
+        country_code: &str,
     ) -> bool {
-        let country_code = cart
-            .delivery_addresses
-            .iter()
-            .find(|address| address.selected)
-            .and_then(|address| address.fields.country_code.as_deref());
-        let Some(country_code) = country_code else {
-            return false;
+        let Some((_, profile)) = self.storefront_cart_delivery_profile_for_line(line) else {
+            return true;
         };
-        self.storefront_cart_delivery_profile_for_line(line)
-            .is_some_and(|(_, profile)| {
-                !self
-                    .storefront_cart_delivery_options_for_profile(
-                        &profile,
-                        country_code,
-                        std::slice::from_ref(line),
-                        cart,
-                    )
-                    .is_empty()
-            })
+        !self
+            .storefront_cart_delivery_options_for_profile(
+                &profile,
+                country_code,
+                std::slice::from_ref(line),
+                cart,
+            )
+            .is_empty()
     }
 
     fn storefront_cart_delivery_groups(

@@ -390,6 +390,76 @@
         "reason": "Shopify delivery-option handles are opaque; the proxy hashes explicit profile/rate facts."
       },
       {
+        "path": "$.cart.deliveryGroups.edges[*].node.cartLines.edges[*].cursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify nested delivery-group cart-line cursors are opaque; the proxy emits stable per-line cursors."
+      },
+      {
+        "path": "$.cart.deliveryGroups.edges[*].node.cartLines.edges[*].node.id",
+        "matcher": "shopify-gid:CartLine",
+        "reason": "Nested delivery-group lines reference the proxy's deterministic synthetic CartLine IDs."
+      },
+      {
+        "path": "$.cart.deliveryGroups.edges[*].node.cartLines.edges[*].node.merchandise.id",
+        "matcher": "shopify-gid:ProductVariant",
+        "reason": "Nested delivery-group lines reference the proxy's staged synthetic ProductVariant."
+      },
+      {
+        "path": "$.cart.deliveryGroups.edges[*].node.cartLines.nodes[*].id",
+        "matcher": "shopify-gid:CartLine",
+        "reason": "Nested delivery-group lines reference the proxy's deterministic synthetic CartLine IDs."
+      },
+      {
+        "path": "$.cart.deliveryGroups.edges[*].node.cartLines.nodes[*].merchandise.id",
+        "matcher": "shopify-gid:ProductVariant",
+        "reason": "Nested delivery-group lines reference the proxy's staged synthetic ProductVariant."
+      },
+      {
+        "path": "$.cart.deliveryGroups.edges[*].node.cartLines.pageInfo.startCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify nested delivery-group cart-line cursors are opaque; the proxy emits stable per-line cursors."
+      },
+      {
+        "path": "$.cart.deliveryGroups.edges[*].node.cartLines.pageInfo.endCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify nested delivery-group cart-line cursors are opaque; the proxy emits stable per-line cursors."
+      },
+      {
+        "path": "$.cart.deliveryGroups.nodes[*].cartLines.edges[*].cursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify nested delivery-group cart-line cursors are opaque; the proxy emits stable per-line cursors."
+      },
+      {
+        "path": "$.cart.deliveryGroups.nodes[*].cartLines.edges[*].node.id",
+        "matcher": "shopify-gid:CartLine",
+        "reason": "Nested delivery-group lines reference the proxy's deterministic synthetic CartLine IDs."
+      },
+      {
+        "path": "$.cart.deliveryGroups.nodes[*].cartLines.edges[*].node.merchandise.id",
+        "matcher": "shopify-gid:ProductVariant",
+        "reason": "Nested delivery-group lines reference the proxy's staged synthetic ProductVariant."
+      },
+      {
+        "path": "$.cart.deliveryGroups.nodes[*].cartLines.nodes[*].id",
+        "matcher": "shopify-gid:CartLine",
+        "reason": "Nested delivery-group lines reference the proxy's deterministic synthetic CartLine IDs."
+      },
+      {
+        "path": "$.cart.deliveryGroups.nodes[*].cartLines.nodes[*].merchandise.id",
+        "matcher": "shopify-gid:ProductVariant",
+        "reason": "Nested delivery-group lines reference the proxy's staged synthetic ProductVariant."
+      },
+      {
+        "path": "$.cart.deliveryGroups.nodes[*].cartLines.pageInfo.startCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify nested delivery-group cart-line cursors are opaque; the proxy emits stable per-line cursors."
+      },
+      {
+        "path": "$.cart.deliveryGroups.nodes[*].cartLines.pageInfo.endCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify nested delivery-group cart-line cursors are opaque; the proxy emits stable per-line cursors."
+      },
+      {
         "path": "$.userErrors[*].message",
         "matcher": "regex:^(?:The delivery address with gid://shopify/CartSelectableAddress/.+|The merchandise line with id .+) does not exist\\.$",
         "reason": "Delivery-address and stale-line ownership errors embed environment-specific synthetic IDs."

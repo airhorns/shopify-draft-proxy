@@ -3022,6 +3022,20 @@ impl DraftProxy {
             .storefront_localizations
             .get(&context.key())
             .or_else(|| {
+                context.country.as_deref().and_then(|country_code| {
+                    self.store
+                        .base
+                        .storefront_localizations
+                        .values()
+                        .find(|localization| {
+                            localization
+                                .pointer("/country/isoCode")
+                                .and_then(Value::as_str)
+                                == Some(country_code)
+                        })
+                })
+            })
+            .or_else(|| {
                 self.store
                     .base
                     .storefront_localizations
