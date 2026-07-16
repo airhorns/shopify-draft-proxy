@@ -1,0 +1,158 @@
+mutation StorefrontCartCreate($input: CartInput) {
+  cartCreate(input: $input) {
+    cart {
+      ...StorefrontCartFields
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+    warnings {
+      code
+      message
+      target
+    }
+  }
+}
+
+fragment StorefrontCartFields on Cart {
+  id
+  createdAt
+  updatedAt
+  checkoutUrl
+  totalQuantity
+  note
+  attributes {
+    key
+    value
+  }
+  lines(first: 50) {
+    edges {
+      cursor
+      node {
+        ...StorefrontCartLineFields
+      }
+    }
+    nodes {
+      ...StorefrontCartLineFields
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  cost {
+    checkoutChargeAmount {
+      amount
+      currencyCode
+    }
+    subtotalAmount {
+      amount
+      currencyCode
+    }
+    subtotalAmountEstimated
+    totalAmount {
+      amount
+      currencyCode
+    }
+    totalAmountEstimated
+    totalDutyAmount {
+      amount
+      currencyCode
+    }
+    totalDutyAmountEstimated
+    totalTaxAmount {
+      amount
+      currencyCode
+    }
+    totalTaxAmountEstimated
+  }
+  estimatedCost {
+    checkoutChargeAmount {
+      amount
+      currencyCode
+    }
+    subtotalAmount {
+      amount
+      currencyCode
+    }
+    totalAmount {
+      amount
+      currencyCode
+    }
+    totalDutyAmount {
+      amount
+      currencyCode
+    }
+    totalTaxAmount {
+      amount
+      currencyCode
+    }
+  }
+}
+
+fragment StorefrontCartLineFields on BaseCartLine {
+  id
+  quantity
+  attributes {
+    key
+    value
+  }
+  merchandise {
+    ... on ProductVariant {
+      id
+      title
+      availableForSale
+      quantityAvailable
+      price {
+        amount
+        currencyCode
+      }
+    }
+  }
+  sellingPlanAllocation {
+    sellingPlan {
+      id
+      name
+    }
+  }
+  cost {
+    amountPerQuantity {
+      amount
+      currencyCode
+    }
+    compareAtAmountPerQuantity {
+      amount
+      currencyCode
+    }
+    subtotalAmount {
+      amount
+      currencyCode
+    }
+    totalAmount {
+      amount
+      currencyCode
+    }
+  }
+  estimatedCost {
+    amount {
+      amount
+      currencyCode
+    }
+    compareAtAmount {
+      amount
+      currencyCode
+    }
+    subtotalAmount {
+      amount
+      currencyCode
+    }
+    totalAmount {
+      amount
+      currencyCode
+    }
+  }
+}

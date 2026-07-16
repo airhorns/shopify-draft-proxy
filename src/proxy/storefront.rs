@@ -49,6 +49,14 @@ pub(in crate::proxy) const STOREFRONT_CUSTOMER_AUTH_MUTATION_ROOTS: &[&str] = &[
     "customerResetByUrl",
     "customerAccessTokenCreateWithMultipass",
 ];
+pub(in crate::proxy) const STOREFRONT_CART_MUTATION_ROOTS: &[&str] = &[
+    "cartCreate",
+    "cartLinesAdd",
+    "cartLinesUpdate",
+    "cartLinesRemove",
+    "cartAttributesUpdate",
+    "cartNoteUpdate",
+];
 const STOREFRONT_DEFAULT_CONTEXT_KEY: &str = "country=*;language=*";
 const STOREFRONT_CUSTOMER_PASSWORD_FINGERPRINT_FIELD: &str = "__storefrontPasswordFingerprint";
 const STOREFRONT_CUSTOMER_RESET_TOKEN_HASH_FIELD: &str = "__storefrontResetTokenHash";
@@ -857,8 +865,30 @@ impl DraftProxy {
             return json_error(400, "Could not parse Storefront GraphQL root field");
         };
         match (operation.operation_type, mode) {
+            (OperationType::Query, LocalResolverMode::OverlayRead) if root_name == "cart" => {
+                let outcome = self.storefront_cart_query_root(&field);
+                let mut data = serde_json::Map::new();
+                data.insert(field.response_key.clone(), outcome.value);
+                let mut body = json!({ "data": Value::Object(data) });
+                if !outcome.errors.is_empty() {
+                    body["errors"] = Value::Array(outcome.errors);
+                }
+                return ok_json(body);
+            }
             (OperationType::Query, LocalResolverMode::OverlayRead) if root_name == "customer" => {
                 let outcome = self.storefront_customer_query_root(&field);
+                let mut data = serde_json::Map::new();
+                data.insert(field.response_key.clone(), outcome.value);
+                let mut body = json!({ "data": Value::Object(data) });
+                if !outcome.errors.is_empty() {
+                    body["errors"] = Value::Array(outcome.errors);
+                }
+                return ok_json(body);
+            }
+            (OperationType::Mutation, LocalResolverMode::StageLocally)
+                if STOREFRONT_CART_MUTATION_ROOTS.contains(&root_name) =>
+            {
+                let outcome = self.storefront_cart_mutation_root(&field);
                 let mut data = serde_json::Map::new();
                 data.insert(field.response_key.clone(), outcome.value);
                 let mut body = json!({ "data": Value::Object(data) });
@@ -950,7 +980,8 @@ impl DraftProxy {
         fields: &[RootFieldSelection],
     ) -> bool {
         fields.iter().all(|field| {
-            STOREFRONT_CUSTOMER_AUTH_MUTATION_ROOTS.contains(&field.name.as_str())
+            (STOREFRONT_CUSTOMER_AUTH_MUTATION_ROOTS.contains(&field.name.as_str())
+                || STOREFRONT_CART_MUTATION_ROOTS.contains(&field.name.as_str()))
                 && self
                     .registry
                     .resolve_for_surface(
@@ -964,7 +995,8 @@ impl DraftProxy {
     }
 
     fn storefront_root_is_promoted(&self, root: &str) -> bool {
-        root == "customer"
+        root == "cart"
+            || root == "customer"
             || STOREFRONT_FIRST_SLICE_ROOTS.contains(&root)
             || STOREFRONT_LOCAL_CONTENT_ROOTS.contains(&root)
             || STOREFRONT_CUSTOM_DATA_ROOTS.contains(&root)
@@ -977,6 +1009,7 @@ impl DraftProxy {
             return true;
         }
         match field.name.as_str() {
+            "cart" => true,
             "customer" => true,
             root if STOREFRONT_CONTENT_ROOTS.contains(&root) => {
                 self.has_online_store_content_state()
@@ -1258,6 +1291,7 @@ impl DraftProxy {
         root_payload_json(fields, |field| {
             Some(match field.name.as_str() {
                 "shop" => self.storefront_shop_json(&field.selection),
+                "cart" => self.storefront_cart_query_root(field).value,
                 "localization" => self.storefront_localization_json(context, &field.selection),
                 "locations" => {
                     self.storefront_locations_connection_json(&field.arguments, &field.selection)
@@ -1373,7 +1407,7 @@ impl DraftProxy {
             .collect()
     }
 
-    fn storefront_product_is_visible(&self, product: &ProductRecord) -> bool {
+    pub(in crate::proxy) fn storefront_product_is_visible(&self, product: &ProductRecord) -> bool {
         if product.status != "ACTIVE" {
             return false;
         }
@@ -1407,7 +1441,7 @@ impl DraftProxy {
         storefront_product_sort_key(product, &variants, sort_key)
     }
 
-    fn storefront_currency_code(&self) -> String {
+    pub(in crate::proxy) fn storefront_currency_code(&self) -> String {
         self.store
             .observed_shop_currency_code()
             .unwrap_or_else(|| "USD".to_string())
@@ -3036,7 +3070,7 @@ fn storefront_raw_variant_sort_key(
     }
 }
 
-fn storefront_product_variant_json(
+pub(in crate::proxy) fn storefront_product_variant_json(
     variant: &ProductVariantRecord,
     product: Option<&ProductRecord>,
     currency_code: &str,
@@ -3316,7 +3350,11 @@ fn storefront_parse_price(price: &str) -> Option<f64> {
     price.trim().parse::<f64>().ok()
 }
 
-fn storefront_money_json(price: &str, currency_code: &str, selections: &[SelectedField]) -> Value {
+pub(in crate::proxy) fn storefront_money_json(
+    price: &str,
+    currency_code: &str,
+    selections: &[SelectedField],
+) -> Value {
     let amount = normalize_money_amount(price);
     selected_payload_json(selections, |selection| match selection.name.as_str() {
         "__typename" => Some(json!("MoneyV2")),
@@ -3914,12 +3952,12 @@ fn storefront_token_hash(token: &str) -> String {
     storefront_sha256_hex(&format!("storefront-token:{token}"))
 }
 
-fn storefront_sha256_hex(value: &str) -> String {
+pub(in crate::proxy) fn storefront_sha256_hex(value: &str) -> String {
     let digest = Sha256::digest(value.as_bytes());
     digest.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
-fn storefront_format_timestamp(timestamp: time::OffsetDateTime) -> String {
+pub(in crate::proxy) fn storefront_format_timestamp(timestamp: time::OffsetDateTime) -> String {
     timestamp
         .format(&time::format_description::well_known::Rfc3339)
         .expect("UTC timestamps should format as RFC3339")

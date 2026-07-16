@@ -4209,3 +4209,30 @@ Practical rule:
 - local read-after-write connection parity should use distinct entitlement
   owners so it can exercise product and product-variant connection projection
   instead of failing setup validation
+
+## 100. Storefront cart inventory warnings preserve zero-quantity lines
+
+Storefront GraphQL 2026-04 cart capture showed that line identity includes the
+merchandise, selling plan, and normalized attribute set. Adding the same variant
+with the same attributes merged quantities, while different attributes created
+a new line. When tracked inventory had one remaining unit, Shopify added one
+unit and returned `MERCHANDISE_NOT_ENOUGH_STOCK`. A later distinct line with no
+remaining inventory was retained at quantity zero and returned
+`MERCHANDISE_OUT_OF_STOCK`; that warning remained present on a subsequent
+zero-quantity line-add mutation.
+
+The same capture showed that cart attributes preserve the first position of a
+duplicate key while the last value wins, list inputs over 250 fail as top-level
+`MAX_INPUT_SIZE_EXCEEDED` errors, and notes over 5,000 characters return a
+`NOTE_TOO_LONG` cart user error with a null cart payload.
+
+Practical rule:
+
+- merge cart lines only when merchandise, selling plan, and normalized
+  attributes all match
+- keep a distinct out-of-stock line at quantity zero and derive persistent
+  out-of-stock warnings from that line state
+- cap tracked quantities from shared variant inventory rather than inventing a
+  cart-specific stock value
+- apply size limits before domain mutation and keep note-length failures in the
+  cart user-error payload

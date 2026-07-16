@@ -207,6 +207,34 @@ struct SellingPlanGroupRecord {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct StorefrontCartAttributeRecord {
+    key: String,
+    value: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct StorefrontCartRecord {
+    internal_id: String,
+    sequence: u64,
+    created_at: String,
+    updated_at: String,
+    note: Option<String>,
+    attributes: Vec<StorefrontCartAttributeRecord>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct StorefrontCartLineRecord {
+    internal_id: String,
+    sequence: u64,
+    cart_internal_id: String,
+    merchandise_id: String,
+    quantity: i64,
+    attributes: Vec<StorefrontCartAttributeRecord>,
+    selling_plan_id: Option<String>,
+    out_of_stock_warning: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct ProductOperationRecord {
     id: String,
     kind: ProductOperationKind,
@@ -327,6 +355,12 @@ struct StagedState {
     storefront_customer_access_tokens: BTreeMap<String, Value>,
     next_storefront_customer_access_token_id: u64,
     next_storefront_customer_reset_token_id: u64,
+    storefront_carts: BTreeMap<String, StorefrontCartRecord>,
+    storefront_cart_order: Vec<String>,
+    storefront_cart_lines: BTreeMap<String, StorefrontCartLineRecord>,
+    storefront_cart_line_order: BTreeMap<String, Vec<String>>,
+    next_storefront_cart_id: u64,
+    next_storefront_cart_line_id: u64,
     // Store-wide total customer count baseline reported by `customersCount`.
     // The live shop's total is store-specific and cannot be reconstructed from
     // the handful of customers a scenario stages, so a scenario seeds the
@@ -820,6 +854,8 @@ impl StagedState {
             next_b2b_contact_role_assignment_id: 1,
             next_storefront_customer_access_token_id: 1,
             next_storefront_customer_reset_token_id: 1,
+            next_storefront_cart_id: 1,
+            next_storefront_cart_line_id: 1,
             ..Default::default()
         }
     }
@@ -2169,6 +2205,7 @@ mod selection;
 mod selling_plans;
 mod store_properties;
 mod storefront;
+mod storefront_cart;
 mod storefront_graphql_runtime;
 mod url_redirects;
 mod validation_helpers;

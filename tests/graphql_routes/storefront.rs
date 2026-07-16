@@ -118,6 +118,106 @@ fn add_storefront_inventory_location(proxy: &mut DraftProxy) -> String {
         .to_string()
 }
 
+fn stage_storefront_cart_variant(proxy: &mut DraftProxy, inventory_quantity: i64) -> String {
+    let publication_id = "gid://shopify/Publication/storefront-cart-tests";
+    restore_storefront_current_publication(proxy, publication_id);
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateCartMerchandise($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product {
+              id
+              variants(first: 1) {
+                nodes { id inventoryItem { id } }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "title": "Storefront Cart Test Product",
+                "status": "ACTIVE",
+                "productOptions": [{ "name": "Color", "values": [{ "name": "Blue" }] }]
+            }
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["productCreate"]["userErrors"],
+        json!([]),
+        "{}",
+        create.body
+    );
+    let product_id = create.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .expect("cart test product id")
+        .to_string();
+    let variant_id = create.body["data"]["productCreate"]["product"]["variants"]["nodes"][0]["id"]
+        .as_str()
+        .expect("cart test variant id")
+        .to_string();
+    let inventory_item_id = create.body["data"]["productCreate"]["product"]["variants"]["nodes"][0]
+        ["inventoryItem"]["id"]
+        .as_str()
+        .expect("cart test inventory item id")
+        .to_string();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateCartMerchandise($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+          productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+            productVariants { id price compareAtPrice inventoryItem { id tracked requiresShipping } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "variants": [{
+                "id": variant_id,
+                "price": "12.50",
+                "compareAtPrice": "15.00",
+                "inventoryItem": { "tracked": true, "requiresShipping": false }
+            }]
+        }),
+    ));
+    assert_eq!(
+        update.body["data"]["productVariantsBulkUpdate"]["userErrors"],
+        json!([]),
+        "{}",
+        update.body
+    );
+    let location_id = add_storefront_inventory_location(proxy);
+    let inventory = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SetCartMerchandiseInventory($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) { userErrors { field message code } }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "available",
+                "reason": "correction",
+                "quantities": [{
+                    "inventoryItemId": inventory_item_id,
+                    "locationId": location_id,
+                    "quantity": inventory_quantity,
+                    "changeFromQuantity": null
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        inventory.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([]),
+        "{}",
+        inventory.body
+    );
+    publish_to_current_storefront_channel(proxy, &product_id);
+    variant_id
+}
+
 #[test]
 fn storefront_graphql_route_proxies_request_with_storefront_token_header() {
     let observed_requests = Arc::new(Mutex::new(Vec::<Request>::new()));
@@ -283,7 +383,7 @@ fn storefront_graphql_route_uses_storefront_schema_validation_not_admin_validati
         Response {
             status: 200,
             headers: Default::default(),
-            body: json!({ "data": { "cart": null } }),
+            body: json!({ "data": { "cartCompletionAttempt": null } }),
         }
     });
 
@@ -292,14 +392,14 @@ fn storefront_graphql_route_uses_storefront_schema_validation_not_admin_validati
         path: "/api/2026-04/graphql.json".to_string(),
         headers: Default::default(),
         body: json!({
-            "query": "query StorefrontCart { cart(id: \"gid://shopify/Cart/1\") { id } }",
+            "query": "query StorefrontCartCompletionAttempt { cartCompletionAttempt(attemptId: \"attempt\") { __typename } }",
             "variables": {}
         })
         .to_string(),
     });
 
     assert_eq!(response.status, 200);
-    assert_eq!(response.body["data"]["cart"], Value::Null);
+    assert_eq!(response.body["data"]["cartCompletionAttempt"], Value::Null);
     assert_eq!(observed_requests.lock().unwrap().len(), 1);
 }
 
@@ -431,7 +531,7 @@ fn storefront_graphql_snapshot_mode_rejects_mutations_without_upstream() {
         path: "/api/2026-04/graphql.json".to_string(),
         headers: Default::default(),
         body: json!({
-            "query": "mutation StorefrontCartCreate { cartCreate { cart { id } } }",
+            "query": "mutation StorefrontDiscountCodes { cartDiscountCodesUpdate(cartId: \"gid://shopify/Cart/1\", discountCodes: []) { cart { id } } }",
             "variables": {}
         })
         .to_string(),
@@ -1134,6 +1234,514 @@ fn storefront_products_connection_search_sort_window_and_fragments_use_visible_c
             "handle": "alpha-jacket"
         })
     );
+}
+
+#[test]
+fn storefront_cart_lifecycle_stages_locally_with_aliases_fragments_and_state_round_trip() {
+    let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|_| {
+            panic!("supported Storefront carts must never write upstream")
+        });
+    let variant_id = stage_storefront_cart_variant(&mut proxy, 5);
+
+    let create = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation CreateLocalCart($input: CartInput) {
+          created: cartCreate(input: $input) {
+            cart { ...CartSummary }
+            userErrors { field message code }
+            warnings { code message target }
+          }
+        }
+        fragment CartSummary on Cart {
+          id createdAt updatedAt checkoutUrl totalQuantity note
+          attributes { key value }
+          lines(first: 10) {
+            nodes {
+              id quantity attributes { key value }
+              merchandise { ... on ProductVariant { id title price { amount currencyCode } } }
+              cost { amountPerQuantity { amount currencyCode } subtotalAmount { amount currencyCode } totalAmount { amount currencyCode } }
+            }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          cost { subtotalAmount { amount currencyCode } totalAmount { amount currencyCode } totalTaxAmount { amount currencyCode } }
+        }
+        "#,
+        json!({
+            "input": {
+                "attributes": [{ "key": "channel", "value": "runtime" }],
+                "note": "Initial note",
+                "lines": [{
+                    "merchandiseId": variant_id,
+                    "quantity": 2,
+                    "attributes": [{ "key": "engraving", "value": "A" }]
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200, "{}", create.body);
+    assert_eq!(create.body["data"]["created"]["userErrors"], json!([]));
+    assert_eq!(create.body["data"]["created"]["warnings"], json!([]));
+    let cart = &create.body["data"]["created"]["cart"];
+    let cart_id = cart["id"].as_str().expect("cart id").to_string();
+    assert!(cart_id.starts_with("gid://shopify/Cart/"));
+    assert!(cart_id.contains("?key="));
+    assert_eq!(cart["totalQuantity"], json!(2));
+    assert_eq!(
+        cart["cost"]["subtotalAmount"],
+        json!({ "amount": "25.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        cart["lines"]["nodes"][0]["merchandise"]["id"],
+        json!(variant_id)
+    );
+    let line_id = cart["lines"]["nodes"][0]["id"]
+        .as_str()
+        .expect("cart line id")
+        .to_string();
+
+    let merge = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation MergeLocalCartLine($cartId: ID!, $lines: [CartLineInput!]!) {
+          cartLinesAdd(cartId: $cartId, lines: $lines) {
+            cart { totalQuantity lines(first: 10) { nodes { id quantity attributes { key value } } } }
+            userErrors { field message code }
+            warnings { code message target }
+          }
+        }
+        "#,
+        json!({
+            "cartId": cart_id,
+            "lines": [{
+                "merchandiseId": variant_id,
+                "quantity": 1,
+                "attributes": [{ "key": "engraving", "value": "A" }]
+            }]
+        }),
+    ));
+    assert_eq!(
+        merge.body["data"]["cartLinesAdd"]["cart"]["totalQuantity"],
+        json!(3)
+    );
+    assert_eq!(
+        merge.body["data"]["cartLinesAdd"]["cart"]["lines"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        merge.body["data"]["cartLinesAdd"]["cart"]["lines"]["nodes"][0]["id"],
+        json!(line_id)
+    );
+
+    let attributes = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation ReplaceLocalCartAttributes($cartId: ID!, $attributes: [AttributeInput!]!) {
+          cartAttributesUpdate(cartId: $cartId, attributes: $attributes) {
+            cart { id attributes { key value } }
+            userErrors { field message code }
+            warnings { code message target }
+          }
+        }
+        "#,
+        json!({
+            "cartId": cart_id,
+            "attributes": [
+                { "key": "gift", "value": "yes" },
+                { "key": "channel", "value": "updated" },
+                { "key": "gift", "value": "no" }
+            ]
+        }),
+    ));
+    assert_eq!(
+        attributes.body["data"]["cartAttributesUpdate"]["cart"]["attributes"],
+        json!([{ "key": "gift", "value": "no" }, { "key": "channel", "value": "updated" }])
+    );
+
+    let note = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation UpdateLocalCartNote($cartId: ID!, $note: String!) {
+          cartNoteUpdate(cartId: $cartId, note: $note) {
+            cart { id note }
+            userErrors { field message code }
+            warnings { code message target }
+          }
+        }
+        "#,
+        json!({ "cartId": cart_id, "note": "Updated note" }),
+    ));
+    assert_eq!(
+        note.body["data"]["cartNoteUpdate"]["cart"]["note"],
+        json!("Updated note")
+    );
+
+    let read = proxy.process_request(storefront_graphql_request(
+        r#"
+        query ReadLocalCart($id: ID!) {
+          current: cart(id: $id) { ...CartRead }
+        }
+        fragment CartRead on Cart {
+          id totalQuantity note attributes { key value }
+          lines(first: 10) { nodes { id quantity } }
+        }
+        "#,
+        json!({ "id": cart_id }),
+    ));
+    assert_eq!(read.body["data"]["current"]["totalQuantity"], json!(3));
+    assert_eq!(read.body["data"]["current"]["note"], json!("Updated note"));
+
+    let log = proxy.process_request(request_with_body("GET", "/__meta/log", ""));
+    let cart_log = log.body["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["interpreted"]["primaryRootField"] == json!("cartCreate"))
+        .expect("cart create log entry");
+    assert_eq!(cart_log["status"], json!("handled"));
+    assert_eq!(
+        cart_log["interpreted"]["capability"]["execution"],
+        json!("stage-locally")
+    );
+    assert!(!cart_log.to_string().contains(cart_id.as_str()));
+    assert_eq!(cart_log["query"], json!("<redacted:storefront-cart-query>"));
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    assert!(!dump.body.to_string().contains(cart_id.as_str()));
+    assert_eq!(
+        dump.body["state"]["stagedState"]["storefrontCarts"]
+            .as_object()
+            .unwrap()
+            .len(),
+        1
+    );
+
+    let mut restored = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|_| panic!("restored Storefront carts must stay local"));
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+    let restored_read = restored.process_request(storefront_graphql_request(
+        r#"query ReadRestoredCart($id: ID!) { cart(id: $id) { id totalQuantity note } }"#,
+        json!({ "id": cart_id }),
+    ));
+    assert_eq!(
+        restored_read.body["data"]["cart"]["totalQuantity"],
+        json!(3)
+    );
+    assert_eq!(
+        restored_read.body["data"]["cart"]["note"],
+        json!("Updated note")
+    );
+
+    assert_eq!(
+        restored
+            .process_request(request_with_body("POST", "/__meta/reset", ""))
+            .status,
+        200
+    );
+    let after_reset = restored.process_request(storefront_graphql_request(
+        r#"query ReadResetCart($id: ID!) { cart(id: $id) { id } }"#,
+        json!({ "id": cart_id }),
+    ));
+    assert_eq!(after_reset.body["data"]["cart"], Value::Null);
+}
+
+#[test]
+fn storefront_cart_validations_warnings_limits_and_stale_branches_match_capture() {
+    let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|_| panic!("supported Storefront cart branches must stay local"));
+    let variant_id = stage_storefront_cart_variant(&mut proxy, 5);
+    let create = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation CreateValidationCart($input: CartInput) {
+          cartCreate(input: $input) {
+            cart { id lines(first: 10) { nodes { id quantity } } }
+            userErrors { field message code }
+            warnings { code message target }
+          }
+        }
+        "#,
+        json!({ "input": { "lines": [{ "merchandiseId": variant_id, "quantity": 2 }] } }),
+    ));
+    let cart_id = create.body["data"]["cartCreate"]["cart"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let line_id = create.body["data"]["cartCreate"]["cart"]["lines"]["nodes"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let capped = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation CapCartQuantity($cartId: ID!, $lines: [CartLineUpdateInput!]!) {
+          cartLinesUpdate(cartId: $cartId, lines: $lines) {
+            cart { totalQuantity lines(first: 10) { nodes { id quantity } } }
+            userErrors { field message code }
+            warnings { code message target }
+          }
+        }
+        "#,
+        json!({ "cartId": cart_id, "lines": [{ "id": line_id, "quantity": 10 }] }),
+    ));
+    assert_eq!(
+        capped.body["data"]["cartLinesUpdate"]["cart"]["totalQuantity"],
+        json!(5)
+    );
+    assert_eq!(
+        capped.body["data"]["cartLinesUpdate"]["warnings"][0]["code"],
+        json!("MERCHANDISE_NOT_ENOUGH_STOCK")
+    );
+    assert_eq!(
+        capped.body["data"]["cartLinesUpdate"]["warnings"][0]["target"],
+        json!(line_id)
+    );
+
+    let zero = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation IgnoreZeroQuantity($cartId: ID!, $lines: [CartLineInput!]!) {
+          cartLinesAdd(cartId: $cartId, lines: $lines) {
+            cart { totalQuantity }
+            userErrors { field message code }
+            warnings { code message target }
+          }
+        }
+        "#,
+        json!({ "cartId": cart_id, "lines": [{ "merchandiseId": variant_id, "quantity": 0 }] }),
+    ));
+    assert_eq!(
+        zero.body["data"]["cartLinesAdd"]["cart"]["totalQuantity"],
+        json!(5)
+    );
+    assert_eq!(zero.body["data"]["cartLinesAdd"]["userErrors"], json!([]));
+
+    for (variables, expected_field, expected_code) in [
+        (
+            json!({ "cartId": cart_id, "lines": [{ "merchandiseId": "gid://shopify/ProductVariant/0", "quantity": 1 }] }),
+            json!(["lines", "0", "merchandiseId"]),
+            "INVALID",
+        ),
+        (
+            json!({ "cartId": cart_id, "lines": [{ "merchandiseId": variant_id, "sellingPlanId": "gid://shopify/SellingPlan/0", "quantity": 1 }] }),
+            json!(["lines", "0", "sellingPlanId"]),
+            "SELLING_PLAN_NOT_APPLICABLE",
+        ),
+    ] {
+        let response = proxy.process_request(storefront_graphql_request(
+            r#"
+            mutation InvalidCartLine($cartId: ID!, $lines: [CartLineInput!]!) {
+              cartLinesAdd(cartId: $cartId, lines: $lines) {
+                cart { id }
+                userErrors { field message code }
+                warnings { code message target }
+              }
+            }
+            "#,
+            variables,
+        ));
+        assert_eq!(response.body["data"]["cartLinesAdd"]["cart"], Value::Null);
+        assert_eq!(
+            response.body["data"]["cartLinesAdd"]["userErrors"][0]["field"],
+            expected_field
+        );
+        assert_eq!(
+            response.body["data"]["cartLinesAdd"]["userErrors"][0]["code"],
+            json!(expected_code)
+        );
+    }
+
+    let remove = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation RemoveValidationLine($cartId: ID!, $lineIds: [ID!]!) {
+          cartLinesRemove(cartId: $cartId, lineIds: $lineIds) {
+            cart { totalQuantity }
+            userErrors { field message code }
+            warnings { code message target }
+          }
+        }
+        "#,
+        json!({ "cartId": cart_id, "lineIds": [line_id] }),
+    ));
+    assert_eq!(
+        remove.body["data"]["cartLinesRemove"]["cart"]["totalQuantity"],
+        json!(0)
+    );
+    let stale = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation UpdateStaleLine($cartId: ID!, $lines: [CartLineUpdateInput!]!) {
+          cartLinesUpdate(cartId: $cartId, lines: $lines) {
+            cart { totalQuantity }
+            userErrors { field message code }
+            warnings { code message target }
+          }
+        }
+        "#,
+        json!({ "cartId": cart_id, "lines": [{ "id": line_id, "quantity": 1 }] }),
+    ));
+    assert_eq!(
+        stale.body["data"]["cartLinesUpdate"]["userErrors"][0]["field"],
+        json!(["lines", "0", "id"])
+    );
+    assert_eq!(
+        stale.body["data"]["cartLinesUpdate"]["userErrors"][0]["code"],
+        json!("INVALID_MERCHANDISE_LINE")
+    );
+
+    let note = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation RejectLongNote($cartId: ID!, $note: String!) {
+          cartNoteUpdate(cartId: $cartId, note: $note) {
+            cart { id }
+            userErrors { field message code }
+            warnings { code message target }
+          }
+        }
+        "#,
+        json!({ "cartId": cart_id, "note": "n".repeat(5001) }),
+    ));
+    assert_eq!(note.body["data"]["cartNoteUpdate"]["cart"], Value::Null);
+    assert_eq!(
+        note.body["data"]["cartNoteUpdate"]["userErrors"][0]["code"],
+        json!("NOTE_TOO_LONG")
+    );
+
+    let too_many = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation RejectTooManyAttributes($cartId: ID!, $attributes: [AttributeInput!]!) {
+          cartAttributesUpdate(cartId: $cartId, attributes: $attributes) {
+            cart { id }
+            userErrors { field message code }
+            warnings { code message target }
+          }
+        }
+        "#,
+        json!({
+            "cartId": cart_id,
+            "attributes": (0..251).map(|index| json!({ "key": format!("key-{index}"), "value": "value" })).collect::<Vec<_>>()
+        }),
+    ));
+    assert_eq!(
+        too_many.body["errors"][0]["extensions"]["code"],
+        json!("MAX_INPUT_SIZE_EXCEEDED")
+    );
+    assert_eq!(
+        too_many.body["errors"][0]["path"],
+        json!(["cartAttributesUpdate", "attributes"])
+    );
+
+    let missing = proxy.process_request(storefront_graphql_request(
+        r#"query MissingCart($id: ID!) { cart(id: $id) { id } }"#,
+        json!({ "id": "gid://shopify/Cart/missing?key=missing" }),
+    ));
+    assert_eq!(missing.body["data"]["cart"], Value::Null);
+
+    let missing_update = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation UpdateMissingCartNote($cartId: ID!, $note: String!) {
+          cartNoteUpdate(cartId: $cartId, note: $note) {
+            cart { id note totalQuantity }
+            userErrors { field message code }
+            warnings { code message target }
+          }
+        }
+        "#,
+        json!({ "cartId": "gid://shopify/Cart/missing?key=missing", "note": "replacement" }),
+    ));
+    assert_eq!(
+        missing_update.body["data"]["cartNoteUpdate"]["userErrors"][0],
+        json!({
+            "field": ["cartId"],
+            "message": "The specified cart does not exist.",
+            "code": "INVALID"
+        })
+    );
+    assert_ne!(
+        missing_update.body["data"]["cartNoteUpdate"]["cart"]["id"],
+        json!("gid://shopify/Cart/missing?key=missing")
+    );
+    assert_eq!(
+        missing_update.body["data"]["cartNoteUpdate"]["cart"]["note"],
+        json!("replacement")
+    );
+}
+
+#[test]
+fn storefront_cart_state_is_isolated_between_proxy_instances() {
+    let mut first = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|_| panic!("first cart proxy must stay local"));
+    let mut second = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|_| panic!("second cart proxy must stay local"));
+    let create_query = r#"
+      mutation CreateIsolatedCart($input: CartInput) {
+        cartCreate(input: $input) {
+          cart { id note }
+          userErrors { field message code }
+          warnings { code message target }
+        }
+      }
+    "#;
+    let first_create = first.process_request(storefront_graphql_request(
+        create_query,
+        json!({ "input": { "note": "first" } }),
+    ));
+    let second_create = second.process_request(storefront_graphql_request(
+        create_query,
+        json!({ "input": { "note": "second" } }),
+    ));
+    let first_id = first_create.body["data"]["cartCreate"]["cart"]["id"]
+        .as_str()
+        .unwrap();
+    let second_id = second_create.body["data"]["cartCreate"]["cart"]["id"]
+        .as_str()
+        .unwrap();
+    assert_eq!(
+        first_id, second_id,
+        "synthetic IDs should be deterministic per instance"
+    );
+
+    let read_query = r#"query ReadIsolatedCart($id: ID!) { cart(id: $id) { id note } }"#;
+    let first_read = first.process_request(storefront_graphql_request(
+        read_query,
+        json!({ "id": first_id }),
+    ));
+    let second_read = second.process_request(storefront_graphql_request(
+        read_query,
+        json!({ "id": second_id }),
+    ));
+    assert_eq!(first_read.body["data"]["cart"]["note"], json!("first"));
+    assert_eq!(second_read.body["data"]["cart"]["note"], json!("second"));
+}
+
+#[test]
+fn storefront_cart_mutations_cannot_mix_with_passthrough_roots() {
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(|_| {
+        panic!("mixed Storefront cart mutations must never reach upstream")
+    });
+    let response = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation MixedCartMutation($input: CartInput, $cartId: ID!) {
+          cartCreate(input: $input) { cart { id } userErrors { message } }
+          cartDiscountCodesUpdate(cartId: $cartId, discountCodes: []) { cart { id } userErrors { message } }
+        }
+        "#,
+        json!({ "input": { "note": "must not stage" }, "cartId": "gid://shopify/Cart/missing?key=missing" }),
+    ));
+    assert_eq!(response.status, 400);
+    assert_eq!(
+        response.body["errors"][0]["message"],
+        json!("Storefront cart mutations cannot be mixed with unsupported Storefront roots")
+    );
+    let state = state_snapshot(&proxy);
+    assert_eq!(state["stagedState"]["storefrontCarts"], json!({}));
 }
 
 #[test]
@@ -2670,7 +3278,7 @@ fn storefront_graphql_passthrough_does_not_enter_admin_staging_or_commit() {
         Response {
             status: 200,
             headers: Default::default(),
-            body: json!({ "data": { "cartCreate": { "cart": { "id": "gid://shopify/Cart/1" } } } }),
+            body: json!({ "data": { "cartDiscountCodesUpdate": { "cart": { "id": "gid://shopify/Cart/1" } } } }),
         }
     })
     .with_commit_transport(move |request| {
@@ -2683,7 +3291,7 @@ fn storefront_graphql_passthrough_does_not_enter_admin_staging_or_commit() {
     });
 
     let body = json!({
-        "query": "mutation StorefrontMutationShape { cartCreate { cart { id } } }",
+        "query": "mutation StorefrontMutationShape { cartDiscountCodesUpdate(cartId: \"gid://shopify/Cart/1\", discountCodes: []) { cart { id } } }",
         "variables": {}
     })
     .to_string();

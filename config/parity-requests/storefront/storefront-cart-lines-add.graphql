@@ -1,0 +1,84 @@
+mutation StorefrontCartLinesAdd($cartId: ID!, $lines: [CartLineInput!]!) {
+  cartLinesAdd(cartId: $cartId, lines: $lines) {
+    cart {
+      ...StorefrontCartMutationFields
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+    warnings {
+      code
+      message
+      target
+    }
+  }
+}
+
+fragment StorefrontCartMutationFields on Cart {
+  id
+  updatedAt
+  totalQuantity
+  note
+  attributes {
+    key
+    value
+  }
+  lines(first: 50) {
+    nodes {
+      id
+      quantity
+      attributes {
+        key
+        value
+      }
+      merchandise {
+        ... on ProductVariant {
+          id
+          title
+          availableForSale
+          quantityAvailable
+          price {
+            amount
+            currencyCode
+          }
+        }
+      }
+      sellingPlanAllocation {
+        sellingPlan {
+          id
+          name
+        }
+      }
+      cost {
+        amountPerQuantity {
+          amount
+          currencyCode
+        }
+        subtotalAmount {
+          amount
+          currencyCode
+        }
+        totalAmount {
+          amount
+          currencyCode
+        }
+      }
+    }
+  }
+  cost {
+    subtotalAmount {
+      amount
+      currencyCode
+    }
+    totalAmount {
+      amount
+      currencyCode
+    }
+    totalTaxAmount {
+      amount
+      currencyCode
+    }
+  }
+}

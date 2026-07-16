@@ -1,0 +1,59 @@
+mutation StorefrontCartLinesUpdate($cartId: ID!, $lines: [CartLineUpdateInput!]!) {
+  cartLinesUpdate(cartId: $cartId, lines: $lines) {
+    cart {
+      id
+      updatedAt
+      totalQuantity
+      lines(first: 50) {
+        nodes {
+          id
+          quantity
+          attributes {
+            key
+            value
+          }
+          merchandise {
+            ... on ProductVariant {
+              id
+              title
+            }
+          }
+          cost {
+            amountPerQuantity {
+              amount
+              currencyCode
+            }
+            subtotalAmount {
+              amount
+              currencyCode
+            }
+            totalAmount {
+              amount
+              currencyCode
+            }
+          }
+        }
+      }
+      cost {
+        subtotalAmount {
+          amount
+          currencyCode
+        }
+        totalAmount {
+          amount
+          currencyCode
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+    warnings {
+      code
+      message
+      target
+    }
+  }
+}
