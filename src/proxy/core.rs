@@ -433,6 +433,9 @@ impl DraftProxy {
                 "orders": self.store.base.orders.records.clone(),
                 "orderOrder": self.store.base.orders.order,
                 "orderCountBaselines": self.store.base.order_count_baselines.clone(),
+                "draftOrders": self.store.base.draft_orders.records.clone(),
+                "draftOrderOrder": self.store.base.draft_orders.order,
+                "draftOrderCountBaselines": self.store.base.draft_order_count_baselines.clone(),
                 "discounts": self.store.base.discounts.records.clone(),
                 "discountOrder": self.store.base.discounts.order,
                 "giftCards": self.store.base.gift_cards.clone(),
@@ -1060,11 +1063,14 @@ impl DraftProxy {
                     })
                     .collect::<serde_json::Map<_, _>>(),
             );
-            snapshot["stagedState"]["draftOrderOrder"] = json!(self
+            snapshot["stagedState"]["draftOrderOrder"] =
+                json!(self.store.staged.draft_orders.order.to_vec());
+            snapshot["stagedState"]["deletedDraftOrderIds"] = json!(self
                 .store
                 .staged
                 .draft_orders
-                .keys()
+                .tombstones
+                .iter()
                 .cloned()
                 .collect::<Vec<_>>());
         }
@@ -1354,6 +1360,15 @@ impl DraftProxy {
         );
         self.store.base.order_count_baselines =
             value_map_from_json(state["baseState"].get("orderCountBaselines"));
+        self.store.base.draft_orders.replace_with_order(
+            value_map_from_json(state["baseState"].get("draftOrders")),
+            state["baseState"]
+                .get("draftOrderOrder")
+                .map(string_array_from_json)
+                .unwrap_or_default(),
+        );
+        self.store.base.draft_order_count_baselines =
+            value_map_from_json(state["baseState"].get("draftOrderCountBaselines"));
         self.store.staged.products.replace_with_order(
             product_state_map_from_json(&state["stagedState"]["products"]),
             string_array_from_json(&state["stagedState"]["productOrder"]),
@@ -2010,7 +2025,7 @@ impl DraftProxy {
         // These MUST round-trip because the parity runner restores mainState
         // before every downstream target, so read-after-write across targets
         // (draftOrder reads, duplicate/delete chains) would otherwise lose state.
-        self.store.staged.draft_orders = state["stagedState"]["draftOrders"]
+        let staged_draft_orders = state["stagedState"]["draftOrders"]
             .as_object()
             .map(|drafts| {
                 drafts
@@ -2025,6 +2040,22 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
+        self.store
+            .staged
+            .draft_orders
+            .replace_with_order_and_tombstones(
+                staged_draft_orders,
+                state["stagedState"]
+                    .get("draftOrderOrder")
+                    .map(string_array_from_json)
+                    .unwrap_or_default(),
+                state["stagedState"]
+                    .get("deletedDraftOrderIds")
+                    .map(string_array_from_json)
+                    .unwrap_or_default()
+                    .into_iter()
+                    .collect(),
+            );
         self.store.staged.next_draft_order_id =
             counter_from_json_with_floor(&state["stagedState"], "nextDraftOrderId", 1);
         self.advance_draft_order_counter_from_staged_draft_orders();
@@ -2516,6 +2547,12 @@ impl DraftProxy {
 
     fn advance_draft_order_counter_from_staged_draft_orders(&mut self) {
         let mut next_draft_order_id = self.store.staged.next_draft_order_id.max(1);
+        for (draft_order_id, draft_order) in &self.store.base.draft_orders.records {
+            advance_counter_past_gid_tail(&mut next_draft_order_id, draft_order_id);
+            if let Some(record_id) = draft_order.get("id").and_then(Value::as_str) {
+                advance_counter_past_gid_tail(&mut next_draft_order_id, record_id);
+            }
+        }
         for (draft_order_id, draft_order) in &self.store.staged.draft_orders {
             advance_counter_past_gid_tail(&mut next_draft_order_id, draft_order_id);
             if let Some(record_id) = draft_order.get("id").and_then(Value::as_str) {

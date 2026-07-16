@@ -4575,6 +4575,526 @@ fn live_hybrid_orders_merge_upstream_catalog_with_staged_create_update_delete() 
 }
 
 #[test]
+fn live_hybrid_draft_orders_merge_upstream_catalog_with_staged_create_update_delete() {
+    let upstream_draft_id = "gid://shopify/DraftOrder/9001";
+    let upstream_draft = json!({
+        "id": upstream_draft_id,
+        "name": "#D9001",
+        "email": "existing-live-draft@example.test",
+        "status": "OPEN",
+        "ready": true,
+        "tags": ["hybrid"],
+        "createdAt": "2023-12-31T00:00:00.000Z",
+        "updatedAt": "2023-12-31T00:00:00.000Z",
+        "completedAt": Value::Null,
+        "invoiceSentAt": Value::Null,
+        "invoiceUrl": "https://example.test/draft/9001",
+        "customer": Value::Null,
+        "purchasingEntity": Value::Null,
+        "taxExempt": false,
+        "taxesIncluded": false,
+        "currencyCode": "USD",
+        "presentmentCurrencyCode": "USD",
+        "subtotalPriceSet": { "shopMoney": { "amount": "25.0", "currencyCode": "USD" } },
+        "totalDiscountsSet": { "shopMoney": { "amount": "0.0", "currencyCode": "USD" } },
+        "totalShippingPriceSet": { "shopMoney": { "amount": "0.0", "currencyCode": "USD" } },
+        "totalPriceSet": { "shopMoney": { "amount": "25.0", "currencyCode": "USD" } },
+        "lineItems": { "nodes": [] }
+    });
+    let upstream_calls = Arc::new(AtomicUsize::new(0));
+    let clock = Arc::new(Mutex::new(utc_time(1_704_240_000)));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_clock({
+            let clock = Arc::clone(&clock);
+            move || *clock.lock().unwrap()
+        })
+        .with_upstream_transport({
+            let upstream_draft = upstream_draft.clone();
+            let upstream_calls = Arc::clone(&upstream_calls);
+            move |_request| {
+                upstream_calls.fetch_add(1, Ordering::SeqCst);
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "shop": { "currencyCode": "USD" },
+                            "draftOrder": upstream_draft,
+                            "existing": upstream_draft,
+                            "draftOrders": {
+                                "nodes": [upstream_draft],
+                                "edges": [{ "cursor": upstream_draft_id, "node": upstream_draft }],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": upstream_draft_id,
+                                    "endCursor": upstream_draft_id
+                                }
+                            },
+                            "visible": {
+                                "nodes": [upstream_draft],
+                                "edges": [{ "cursor": upstream_draft_id, "node": upstream_draft }],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": upstream_draft_id,
+                                    "endCursor": upstream_draft_id
+                                }
+                            },
+                            "draftOrdersCount": { "count": 1, "precision": "EXACT" },
+                            "total": { "count": 1, "precision": "EXACT" }
+                        }
+                    }),
+                }
+            }
+        });
+
+    let catalog_query = r#"
+        query LiveHybridMixedDraftOrders($query: String!, $first: Int!) {
+          visible: draftOrders(first: $first, query: $query, sortKey: UPDATED_AT, reverse: true) {
+            nodes {
+              id
+              email
+              tags
+              updatedAt
+            }
+            edges {
+              cursor
+              node { id email }
+            }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+              startCursor
+              endCursor
+            }
+          }
+          total: draftOrdersCount(query: $query) {
+            count
+            precision
+          }
+        }
+    "#;
+    let catalog_variables = json!({ "query": "tag:hybrid", "first": 5 });
+
+    let cold = proxy.process_request(json_graphql_request(
+        catalog_query,
+        catalog_variables.clone(),
+    ));
+    assert_eq!(cold.status, 200);
+    assert_eq!(
+        cold.body["data"]["visible"]["nodes"][0]["id"],
+        json!(upstream_draft_id)
+    );
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateLocalDraftForMixedCatalog($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder { id email tags updatedAt }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "local-live-draft@example.test",
+                "tags": ["hybrid"],
+                "lineItems": [{
+                    "title": "Local mixed draft",
+                    "quantity": 1,
+                    "originalUnitPrice": "10.00"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    let local_draft_id = create.body["data"]["draftOrderCreate"]["draftOrder"]["id"].clone();
+
+    let mixed = proxy.process_request(json_graphql_request(
+        catalog_query,
+        catalog_variables.clone(),
+    ));
+    assert_eq!(mixed.status, 200);
+    assert_eq!(
+        mixed.body["data"]["visible"]["nodes"],
+        json!([
+            {
+                "id": local_draft_id,
+                "email": "local-live-draft@example.test",
+                "tags": ["hybrid"],
+                "updatedAt": "2024-01-01T00:00:01.000Z"
+            },
+            {
+                "id": upstream_draft_id,
+                "email": "existing-live-draft@example.test",
+                "tags": ["hybrid"],
+                "updatedAt": "2023-12-31T00:00:00.000Z"
+            }
+        ])
+    );
+    assert_eq!(
+        mixed.body["data"]["total"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+    let singular = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadExistingLiveDraft($id: ID!) {
+          existing: draftOrder(id: $id) {
+            id
+            email
+            tags
+          }
+        }
+        "#,
+        json!({ "id": upstream_draft_id }),
+    ));
+    assert_eq!(
+        singular.body["data"]["existing"]["email"],
+        json!("existing-live-draft@example.test")
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateExistingLiveDraft($id: ID!, $input: DraftOrderInput!) {
+          draftOrderUpdate(id: $id, input: $input) {
+            draftOrder { id email tags }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": upstream_draft_id,
+            "input": {
+                "email": "edited-live-draft@example.test",
+                "tags": ["hybrid", "edited"]
+            }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["draftOrderUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["draftOrderUpdate"]["draftOrder"]["email"],
+        json!("edited-live-draft@example.test")
+    );
+
+    let after_update = proxy.process_request(json_graphql_request(
+        catalog_query,
+        catalog_variables.clone(),
+    ));
+    assert_eq!(
+        after_update.body["data"]["visible"]["nodes"][0]["email"],
+        json!("edited-live-draft@example.test")
+    );
+    assert_eq!(
+        after_update.body["data"]["total"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+
+    let delete_local = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteLocalDraft($input: DraftOrderDeleteInput!) {
+          draftOrderDelete(input: $input) {
+            deletedId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": local_draft_id.clone() } }),
+    ));
+    assert_eq!(
+        delete_local.body["data"]["draftOrderDelete"],
+        json!({ "deletedId": local_draft_id, "userErrors": [] })
+    );
+
+    let after_local_delete = proxy.process_request(json_graphql_request(
+        catalog_query,
+        catalog_variables.clone(),
+    ));
+    assert_eq!(
+        after_local_delete.body["data"]["visible"]["nodes"],
+        json!([{
+            "id": upstream_draft_id,
+            "email": "edited-live-draft@example.test",
+            "tags": ["edited", "hybrid"],
+            "updatedAt": "2024-01-01T00:00:02.000Z"
+        }])
+    );
+    assert_eq!(
+        after_local_delete.body["data"]["total"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+
+    let delete_existing = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteExistingLiveDraft($input: DraftOrderDeleteInput!) {
+          draftOrderDelete(input: $input) {
+            deletedId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": upstream_draft_id } }),
+    ));
+    assert_eq!(
+        delete_existing.body["data"]["draftOrderDelete"],
+        json!({ "deletedId": upstream_draft_id, "userErrors": [] })
+    );
+
+    let after_existing_delete =
+        proxy.process_request(json_graphql_request(catalog_query, catalog_variables));
+    assert_eq!(
+        after_existing_delete.body["data"]["visible"]["nodes"],
+        json!([])
+    );
+    assert_eq!(
+        after_existing_delete.body["data"]["total"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+    assert!(upstream_calls.load(Ordering::SeqCst) > 0);
+}
+
+#[test]
+fn live_hybrid_draft_orders_observe_upstream_catalog_after_first_staged_create() {
+    let upstream_draft_id = "gid://shopify/DraftOrder/9101";
+    let upstream_draft = json!({
+        "id": upstream_draft_id,
+        "name": "#D9101",
+        "email": "existing-first-read-draft@example.test",
+        "status": "OPEN",
+        "ready": true,
+        "tags": ["hybrid-first-read"],
+        "createdAt": "2023-12-31T00:00:00.000Z",
+        "updatedAt": "2023-12-31T00:00:00.000Z",
+        "completedAt": Value::Null,
+        "invoiceSentAt": Value::Null,
+        "invoiceUrl": "https://example.test/draft/9101",
+        "customer": Value::Null,
+        "purchasingEntity": Value::Null,
+        "taxExempt": false,
+        "taxesIncluded": false,
+        "currencyCode": "USD",
+        "presentmentCurrencyCode": "USD",
+        "subtotalPriceSet": { "shopMoney": { "amount": "25.0", "currencyCode": "USD" } },
+        "totalDiscountsSet": { "shopMoney": { "amount": "0.0", "currencyCode": "USD" } },
+        "totalShippingPriceSet": { "shopMoney": { "amount": "0.0", "currencyCode": "USD" } },
+        "totalPriceSet": { "shopMoney": { "amount": "25.0", "currencyCode": "USD" } },
+        "lineItems": { "nodes": [] }
+    });
+    let upstream_calls = Arc::new(AtomicUsize::new(0));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_draft = upstream_draft.clone();
+        let upstream_calls = Arc::clone(&upstream_calls);
+        move |_request| {
+            upstream_calls.fetch_add(1, Ordering::SeqCst);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "existing": upstream_draft,
+                        "visible": {
+                            "nodes": [upstream_draft],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false
+                            }
+                        },
+                        "existingWindow": {
+                            "nodes": [upstream_draft],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false
+                            }
+                        },
+                        "candidateWindow": {
+                            "nodes": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false
+                            }
+                        },
+                        "total": { "count": 1, "precision": "EXACT" }
+                    }
+                }),
+            }
+        }
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateLocalDraftForFirstCatalogRead($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder { id email tags updatedAt }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "local-first-read-draft@example.test",
+                "tags": ["hybrid-first-read", "hybrid-first-read-candidate"],
+                "lineItems": [{
+                    "title": "Local mixed draft",
+                    "quantity": 1,
+                    "originalUnitPrice": "10.00"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    let local_draft_id = create.body["data"]["draftOrderCreate"]["draftOrder"]["id"].clone();
+
+    let mixed = proxy.process_request(json_graphql_request(
+        r#"
+        query FirstMixedDraftCatalogRead(
+          $existingId: ID!
+          $tagQuery: String!
+          $existingTagQuery: String!
+          $candidateTagQuery: String!
+          $first: Int!
+        ) {
+          existing: draftOrder(id: $existingId) {
+            id
+            email
+            tags
+            updatedAt
+          }
+          visible: draftOrders(first: $first, query: $tagQuery, sortKey: UPDATED_AT, reverse: true) {
+            nodes {
+              id
+              email
+              tags
+              updatedAt
+            }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+            }
+          }
+          existingWindow: draftOrders(first: 1, query: $existingTagQuery) {
+            nodes { email }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+            }
+          }
+          candidateWindow: draftOrders(first: 1, query: $candidateTagQuery) {
+            nodes { email }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+            }
+          }
+          total: draftOrdersCount(query: $tagQuery) {
+            count
+            precision
+          }
+        }
+        "#,
+        json!({
+            "existingId": upstream_draft_id,
+            "tagQuery": "tag:hybrid-first-read",
+            "existingTagQuery": "tag:hybrid-first-read",
+            "candidateTagQuery": "tag:hybrid-first-read-candidate",
+            "first": 5
+        }),
+    ));
+    assert_eq!(mixed.status, 200);
+    assert_eq!(
+        mixed.body["data"]["existing"]["email"],
+        json!("existing-first-read-draft@example.test")
+    );
+    assert_eq!(
+        mixed.body["data"]["visible"]["nodes"],
+        json!([
+            {
+                "id": local_draft_id,
+                "email": "local-first-read-draft@example.test",
+                "tags": ["hybrid-first-read", "hybrid-first-read-candidate"],
+                "updatedAt": "2024-01-01T00:00:01.000Z"
+            },
+            {
+                "id": upstream_draft_id,
+                "email": "existing-first-read-draft@example.test",
+                "tags": ["hybrid-first-read"],
+                "updatedAt": "2023-12-31T00:00:00.000Z"
+            }
+        ])
+    );
+    assert_eq!(
+        mixed.body["data"]["total"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+    assert_eq!(upstream_calls.load(Ordering::SeqCst), 2);
+
+    let saved_search = proxy.process_request(json_graphql_request(
+        r#"
+        query DraftOrderSavedSearchOverlay(
+          $savedSearchId: ID!
+          $candidateTagQuery: String!
+        ) {
+          openDrafts: draftOrders(first: 5, savedSearchId: $savedSearchId) {
+            nodes { email }
+          }
+          openDraftsCount: draftOrdersCount(savedSearchId: $savedSearchId) {
+            count
+            precision
+          }
+          candidateOpenDrafts: draftOrders(
+            first: 5
+            savedSearchId: $savedSearchId
+            query: $candidateTagQuery
+          ) {
+            nodes { email }
+          }
+          candidateOpenDraftsCount: draftOrdersCount(
+            savedSearchId: $savedSearchId
+            query: $candidateTagQuery
+          ) {
+            count
+            precision
+          }
+        }
+        "#,
+        json!({
+            "savedSearchId": "gid://shopify/SavedSearch/default-draft-order-open?shopify-draft-proxy=synthetic",
+            "candidateTagQuery": "tag:hybrid-first-read-candidate"
+        }),
+    ));
+    assert_eq!(saved_search.status, 200);
+    assert_eq!(
+        saved_search.body["data"]["openDrafts"]["nodes"],
+        json!([
+            { "email": "local-first-read-draft@example.test" },
+            { "email": "existing-first-read-draft@example.test" }
+        ])
+    );
+    assert_eq!(
+        saved_search.body["data"]["openDraftsCount"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+    assert_eq!(
+        saved_search.body["data"]["candidateOpenDrafts"]["nodes"],
+        json!([{ "email": "local-first-read-draft@example.test" }])
+    );
+    assert_eq!(
+        saved_search.body["data"]["candidateOpenDraftsCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+}
+
+#[test]
 fn live_hybrid_orders_observe_singular_order_id_when_selection_omits_id() {
     let upstream_order_id = "gid://shopify/Order/9101";
     let upstream_calls = Arc::new(AtomicUsize::new(0));

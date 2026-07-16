@@ -56,6 +56,7 @@ impl DraftProxy {
             let response = (self.upstream_transport)(request.clone());
             if self.config.read_mode == ReadMode::LiveHybrid {
                 self.observe_order_read_response(request, &response);
+                self.observe_draft_order_read_response(request, &response);
             }
             return response;
         }

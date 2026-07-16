@@ -257,6 +257,8 @@ struct BaseState {
     delivery_profiles: OrderedRecords<Value>,
     orders: OrderedRecords<Value>,
     order_count_baselines: BTreeMap<String, Value>,
+    draft_orders: OrderedRecords<Value>,
+    draft_order_count_baselines: BTreeMap<String, Value>,
     discounts: OrderedRecords<Value>,
     marketing_activities: OrderedRecords<Value>,
     marketing_events: OrderedRecords<Value>,
@@ -481,7 +483,7 @@ struct StagedState {
     next_customer_payment_method_id: u64,
     abandonments: BTreeMap<String, Value>,
     orders: StagedRecords<Value>,
-    draft_orders: BTreeMap<String, Value>,
+    draft_orders: StagedRecords<Value>,
     returns: BTreeMap<String, Value>,
     returns_by_order: BTreeMap<String, Vec<String>>,
     reverse_deliveries: BTreeMap<String, Value>,
@@ -765,6 +767,14 @@ impl<T> StagedRecords<T> {
 
     fn values(&self) -> impl Iterator<Item = &T> {
         self.iter().map(|(_, record)| record)
+    }
+
+    fn values_mut(&mut self) -> impl Iterator<Item = &mut T> {
+        let tombstones = &self.tombstones;
+        self.records
+            .iter_mut()
+            .filter(move |(id, _)| !tombstones.contains(*id))
+            .map(|(_, record)| record)
     }
 
     fn is_empty(&self) -> bool {
@@ -1263,6 +1273,38 @@ impl Store {
 
     fn order_count_baseline(&self, key: &str) -> Option<&Value> {
         self.base.order_count_baselines.get(key)
+    }
+
+    fn observed_draft_order_by_id(&self, id: &str) -> Option<&Value> {
+        effective_get(&self.base.draft_orders, &self.staged.draft_orders, id)
+    }
+
+    fn effective_draft_orders(&self) -> Vec<Value> {
+        effective_records(&self.base.draft_orders, &self.staged.draft_orders)
+    }
+
+    fn observe_base_draft_order(&mut self, draft_order: Value) {
+        let Some(id) = draft_order
+            .get("id")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+        else {
+            return;
+        };
+        if self.staged.draft_orders.is_tombstoned(&id)
+            || self.staged.draft_orders.contains_staged(&id)
+        {
+            return;
+        }
+        self.base.draft_orders.insert(id, draft_order);
+    }
+
+    fn observe_draft_order_count_baseline(&mut self, key: String, count: Value) {
+        self.base.draft_order_count_baselines.insert(key, count);
+    }
+
+    fn draft_order_count_baseline(&self, key: &str) -> Option<&Value> {
+        self.base.draft_order_count_baselines.get(key)
     }
 
     fn domain_by_id(&self, id: &str) -> Option<Value> {

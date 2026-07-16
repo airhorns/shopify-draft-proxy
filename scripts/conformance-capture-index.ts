@@ -8465,6 +8465,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'draft-order-live-hybrid-mixed-catalog',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-draft-order-live-hybrid-mixed-catalog-conformance.ts',
+    purpose:
+      'LiveHybrid draftOrders/draftOrder/draftOrdersCount mixed catalog evidence: a real upstream draft order plus a staged candidate draft, update-wins-by-id behavior, and delete tombstone suppression over upstream list/count reads.',
+    requiredAuthScopes: ['read_draft_orders', 'write_draft_orders'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/draft-order-live-hybrid-mixed-catalog.json',
+      'config/parity-specs/orders/draft-order-live-hybrid-mixed-catalog.json',
+      'config/parity-requests/orders/draft-order-live-hybrid-mixed-catalog-create.graphql',
+      'config/parity-requests/orders/draft-order-live-hybrid-mixed-catalog-update.graphql',
+      'config/parity-requests/orders/draft-order-live-hybrid-mixed-catalog-delete.graphql',
+      'config/parity-requests/orders/draft-order-live-hybrid-mixed-catalog-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable draft orders, updates and deletes the upstream-baseline draft, then deletes the candidate draft after recording expected reads.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'order-catalog-count-read',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-order-catalog-count-read-conformance.mts',

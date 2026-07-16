@@ -1,0 +1,45 @@
+query DraftOrderLiveHybridMixedCatalogRead(
+    $existingId: ID!
+    $tagQuery: String!
+    $existingTagQuery: String!
+    $candidateTagQuery: String!
+    $first: Int!
+  ) {
+    existing: draftOrder(id: $existingId) {
+      id
+      email
+      tags
+    }
+    visible: draftOrders(first: $first, query: $tagQuery, sortKey: UPDATED_AT, reverse: true) {
+      nodes {
+        email
+        tags
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+    existingWindow: draftOrders(first: 1, query: $existingTagQuery) {
+      nodes {
+        email
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+    candidateWindow: draftOrders(first: 1, query: $candidateTagQuery) {
+      nodes {
+        email
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+    total: draftOrdersCount(query: $tagQuery) {
+      count
+      precision
+    }
+  }
