@@ -1056,6 +1056,7 @@ fn storefront_shop_metafields_require_storefront_definition_access() {
               type
               value
               list
+              description
             }
             hidden: metafield(namespace: "custom", key: "hidden") { key value }
             selected: metafields(identifiers: [
@@ -1080,7 +1081,8 @@ fn storefront_shop_metafields_require_storefront_definition_access() {
             "key": "visible",
             "type": "single_line_text_field",
             "value": "Visible tagline",
-            "list": false
+            "list": false,
+            "description": null
         })
     );
     assert_eq!(response.body["data"]["shop"]["hidden"], Value::Null);

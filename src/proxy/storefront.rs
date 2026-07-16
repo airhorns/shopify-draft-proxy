@@ -1222,12 +1222,7 @@ impl DraftProxy {
                     .get("type")
                     .and_then(Value::as_str)
                     .is_some_and(|field_type| field_type.starts_with("list.")))),
-                "description" => Some(
-                    record
-                        .pointer("/definition/description")
-                        .cloned()
-                        .unwrap_or(Value::Null),
-                ),
+                "description" => Some(Value::Null),
                 "reference" => {
                     Some(self.storefront_selected_scalar_reference_json(record, selection))
                 }
