@@ -4,7 +4,7 @@ title: 'Storefront API'
 
 # Storefront API
 
-The Storefront API surface covers `/api/<version>/graphql.json` requests. The proxy supports a 2026-04 slice for store-context roots, core catalog product reads, online-store content roots, and customer authentication roots that can be hydrated from authenticated Storefront reads, shared Admin-observed state, locally staged Admin writes, or the shared customer Store. Storefront requests execute against a Storefront-specific GraphQL schema rather than the Admin schema.
+The Storefront API surface covers `/api/<version>/graphql.json` requests. The proxy supports a 2026-04 slice for store-context roots, core catalog product reads, online-store content roots, custom-data roots, and customer authentication roots that can be hydrated from authenticated Storefront reads, shared Admin-observed state, locally staged Admin writes, shared custom-data state, or the shared customer Store. Storefront requests execute against a Storefront-specific GraphQL schema rather than the Admin schema.
 
 ## Current support and limitations
 
@@ -29,6 +29,8 @@ Read roots:
 - `page`
 - `pageByHandle`
 - `pages`
+- `metaobject`
+- `metaobjects`
 - `menu`
 - `sitemap`
 - `urlRedirects`
@@ -102,12 +104,24 @@ Projected content fields include the selected handle, title, body/content HTML a
 
 `products(...)` filters the visible local catalog through the shared product search helper, then applies Storefront sort keys `TITLE`, `PRODUCT_TYPE`, `VENDOR`, `UPDATED_AT`, `CREATED_AT`, `BEST_SELLING`, `PRICE`, `ID`, and `RELEVANCE`, followed by `reverse` and cursor windowing through the shared connection helpers. Opaque Shopify relevance scoring and sales velocity are not reconstructed; those sort keys use deterministic local ordering.
 
+`metaobject(handle:)`, `metaobject(id:)`, and `metaobjects(type:)` read from the shared normalized Admin metaobject and metaobject definition state. Storefront reads only expose entries whose definition has `access.storefront: PUBLIC_READ`; publishable definitions also require the entry status to be `ACTIVE`. Draft, private, deleted, missing, or unsupported-type entries return `null` through singular roots and are omitted from connections. Storefront field projection uses Storefront shape (`key`, `type`, `value`, `reference`, and `references`) and orders `fields` by key to match captured Storefront output.
+
+Storefront metaobject connections support `first`, `after`, `last`, `before`, `reverse`, and representative string `sortKey` values through the shared staged-connection helpers. Locally staged cursors are deterministic staged-resource cursors; captured Storefront cursors remain opaque in fixtures.
+
+Metaobject reference and list-reference fields resolve through the Storefront-visible node boundary. Visible referenced metaobjects project as Storefront `Metaobject` nodes; draft, private, deleted, missing, or unsupported references resolve to `null` or are omitted from reference connections. Cycles are bounded by the caller selection depth because the proxy only projects the selected nested fields.
+
+`shop.metafield(namespace:, key:)` and `shop.metafields(identifiers:)` expose staged Shop-owned metafields only when the matching metafield definition has `access.storefront: PUBLIC_READ`. Definitions with `NONE`, missing identifiers, and missing records return `null` in the selected Storefront shape. Shop metafield reads can be answered from staged Shop owner-metafield state without hydrating broader Shop fields when the caller selects only `metafield`, `metafields`, and `__typename`.
+
 ### Boundaries
 
-This is not local behavioral support for every field exposed by the captured `Shop`, `Localization`, `Location`, `PaymentSettings`, content, menu, sitemap, redirect, `Product`, `ProductVariant`, or related nested types. The schema validates those fields, but fields outside the selected and hydrated boundary have no modeled Storefront state and therefore resolve through the documented null/empty boundary or schema null propagation.
+This is not local behavioral support for every field exposed by the captured `Shop`, `Localization`, `Location`, `PaymentSettings`, content, menu, sitemap, redirect, custom-data, `Product`, `ProductVariant`, or related nested types. The schema validates those fields, but fields outside the selected and hydrated boundary have no modeled Storefront state and therefore resolve through the documented null/empty boundary or schema null propagation.
 
 Admin blog/page/article create, update, and delete effects are visible through the Storefront content roots when those Admin operations are locally supported. Admin menu CRUD is not locally modeled, so Storefront menu support is captured Storefront hydration/restored base-state projection only. URL redirect mutation lifecycle is not implemented for Storefront.
 
-Storefront contextual pricing, selling plan allocations, bundle component/grouping details, store availability, quantity price breaks/rules beyond the default minimum/increment shape, product recommendations, theme rendering, Online Store routing, canonical URL generation, storefront policy pages, product/collection content linked from menus, cart, checkout, customer email delivery, real account/recovery email URLs, real Multipass validation, metaobject, and Storefront mutation domains outside the named customer-auth roots remain outside this slice unless another endpoint document names them explicitly.
+Storefront metafields for Product, ProductVariant, Collection, Customer, Article, Blog, Page, and other HasMetafields owners remain deferred until those owner models expose Storefront-visible owner reads. Metaobject-owned metafields are not a separate owner-metafield surface in this slice; metaobject custom fields are supported through `Metaobject.field` and `Metaobject.fields`.
+
+Storefront field `jsonValue` is not selected by the supported Storefront custom-data projection because the live Storefront schema exposes `value`, `reference`, and `references` for these public types. Admin custom-data serializers still expose Admin `jsonValue` where those Admin roots support it.
+
+Storefront contextual pricing, selling plan allocations, bundle component/grouping details, store availability, quantity price breaks/rules beyond the default minimum/increment shape, product recommendations, theme rendering, Online Store routing, canonical URL generation, storefront policy pages, product/collection content linked from menus, cart, checkout, customer email delivery, real account/recovery email URLs, real Multipass validation, and Storefront mutation domains outside the named customer-auth roots remain outside this slice unless another endpoint document names them explicitly.
 
 Live-hybrid operations that include unimplemented roots are forwarded as one unchanged Storefront request, while snapshot mode returns schema-shaped no-data behavior or rejects mutations.

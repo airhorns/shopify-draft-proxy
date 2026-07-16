@@ -2085,7 +2085,7 @@ fn reference_type_allows_node_resolution(field_type: &str) -> bool {
     field_type == "mixed_reference" || field_type.ends_with("_reference")
 }
 
-fn scalar_reference_id(record: &Value) -> Option<String> {
+pub(in crate::proxy) fn scalar_reference_id(record: &Value) -> Option<String> {
     let field_type = record.get("type").and_then(Value::as_str)?;
     if field_type.starts_with("list.") || !reference_type_allows_node_resolution(field_type) {
         return None;
@@ -2097,7 +2097,7 @@ fn scalar_reference_id(record: &Value) -> Option<String> {
         .map(str::to_string)
 }
 
-fn list_reference_ids(record: &Value) -> Vec<String> {
+pub(in crate::proxy) fn list_reference_ids(record: &Value) -> Vec<String> {
     let Some(inner_type) = record
         .get("type")
         .and_then(Value::as_str)
