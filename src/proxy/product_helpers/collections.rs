@@ -1,5 +1,8 @@
 use super::*;
 
+pub(in crate::proxy) const STOREFRONT_COLLECTION_BASELINE_UPDATED_AT_FIELD: &str =
+    "__storefrontBaselineUpdatedAt";
+
 pub(in crate::proxy) fn collection_summary_json(collection: &Value) -> Value {
     json!({
         "id": collection.get("id").cloned().unwrap_or(Value::Null),
@@ -32,11 +35,11 @@ fn remove_minimal_collection(collections: &mut Vec<Value>, collection_id: &str) 
 }
 
 #[derive(Clone)]
-struct CollectionProductEntry {
-    position: usize,
-    product: ProductRecord,
-    variants: Vec<ProductVariantRecord>,
-    published_on_current_publication: Option<bool>,
+pub(in crate::proxy) struct CollectionProductEntry {
+    pub(in crate::proxy) position: usize,
+    pub(in crate::proxy) product: ProductRecord,
+    pub(in crate::proxy) variants: Vec<ProductVariantRecord>,
+    pub(in crate::proxy) published_on_current_publication: Option<bool>,
 }
 
 #[derive(Clone, Copy)]
@@ -109,21 +112,8 @@ fn collection_products_connection_json(
     shop_currency_code: &str,
 ) -> Value {
     let sort_key = resolved_string_field(&selection.arguments, "sortKey");
-    let sort_plan = collection_product_sort_plan(collection, sort_key.as_deref());
     let reverse = resolved_bool_field(&selection.arguments, "reverse").unwrap_or(false);
-    match sort_plan.key {
-        CollectionProductSortKey::Manual => products.sort_by_key(|entry| entry.position),
-        _ => products.sort_by(|left, right| {
-            collection_product_sort_key(left, sort_plan.key)
-                .cmp(&collection_product_sort_key(right, sort_plan.key))
-                .then_with(|| {
-                    collection_product_cursor(left).cmp(&collection_product_cursor(right))
-                })
-        }),
-    }
-    if sort_plan.descending ^ reverse {
-        products.reverse();
-    }
+    sort_collection_product_entries(collection, &mut products, sort_key.as_deref(), reverse);
 
     selected_typed_connection_with_args(
         &products,
@@ -140,6 +130,28 @@ fn collection_products_connection_json(
         },
         collection_product_cursor,
     )
+}
+
+pub(in crate::proxy) fn sort_collection_product_entries(
+    collection: &Value,
+    products: &mut [CollectionProductEntry],
+    sort_key: Option<&str>,
+    reverse: bool,
+) {
+    let sort_plan = collection_product_sort_plan(collection, sort_key);
+    match sort_plan.key {
+        CollectionProductSortKey::Manual => products.sort_by_key(|entry| entry.position),
+        _ => products.sort_by(|left, right| {
+            collection_product_sort_key(left, sort_plan.key)
+                .cmp(&collection_product_sort_key(right, sort_plan.key))
+                .then_with(|| {
+                    collection_product_cursor(left).cmp(&collection_product_cursor(right))
+                })
+        }),
+    }
+    if sort_plan.descending ^ reverse {
+        products.reverse();
+    }
 }
 
 fn publication_products_connection_json(
@@ -291,7 +303,7 @@ fn collection_product_min_price_cents(entry: &CollectionProductEntry) -> Option<
         .map(|price| (price * 100.0).round() as i64)
 }
 
-fn collection_product_cursor(entry: &CollectionProductEntry) -> String {
+pub(in crate::proxy) fn collection_product_cursor(entry: &CollectionProductEntry) -> String {
     entry.product.id.clone()
 }
 
@@ -535,7 +547,7 @@ impl DraftProxy {
         )
     }
 
-    fn collection_search_decision(
+    pub(in crate::proxy) fn collection_search_decision(
         &self,
         collection: &Value,
         query: Option<&str>,
@@ -1508,11 +1520,10 @@ impl DraftProxy {
         let collection = self.observed_collection_for_staging(collection);
         let products = collection
             .get("products")
-            .and_then(|connection| connection.get("nodes"))
-            .and_then(Value::as_array)
+            .map(connection_nodes)
             .into_iter()
             .flatten()
-            .filter_map(product_state_from_json)
+            .filter_map(|product| product_state_from_json(&product))
             .collect::<Vec<_>>();
         self.store.stage_collection_membership(collection, products);
     }
@@ -1649,6 +1660,7 @@ impl DraftProxy {
         let mut payload_collection = collection.clone();
         apply_collection_create_payload_products_count(&mut payload_collection);
         self.store.stage_collection(collection.clone());
+        self.stage_owner_metafields_from_input(&id, &input);
         self.sync_collection_products(&id, products);
 
         MutationOutcome::staged(
@@ -1744,6 +1756,9 @@ impl DraftProxy {
         let next_updated_at = self.next_product_updated_at(&current_updated_at);
         let mut updated = existing;
         if let Some(object) = updated.as_object_mut() {
+            object
+                .entry(STOREFRONT_COLLECTION_BASELINE_UPDATED_AT_FIELD.to_string())
+                .or_insert_with(|| json!(current_updated_at));
             if let Some(title) = resolved_string_field(&input, "title") {
                 object.insert("title".to_string(), json!(title));
             }
@@ -1777,12 +1792,25 @@ impl DraftProxy {
             if let Some(template_suffix) = resolved_string_field(&input, "templateSuffix") {
                 object.insert("templateSuffix".to_string(), json!(template_suffix));
             }
+            if input.contains_key("image") {
+                object.insert(
+                    "image".to_string(),
+                    collection_image_from_input(&input).unwrap_or(Value::Null),
+                );
+            }
+            if input.contains_key("seo") {
+                object.insert(
+                    "seo".to_string(),
+                    collection_seo_from_input(&input).unwrap_or(Value::Null),
+                );
+            }
             object
                 .entry("createdAt".to_string())
                 .or_insert_with(|| json!(default_product_timestamp()));
             object.insert("updatedAt".to_string(), json!(next_updated_at));
         }
         self.store.stage_collection(updated.clone());
+        self.stage_owner_metafields_from_input(&id, &input);
         self.refresh_collection_summary_on_products(&id);
         let job = input.contains_key("ruleSet").then(|| {
             let staged_job = self.stage_collection_job();
@@ -2221,7 +2249,10 @@ impl DraftProxy {
             .collect()
     }
 
-    fn collection_product_entries(&self, collection: &Value) -> Vec<CollectionProductEntry> {
+    pub(in crate::proxy) fn collection_product_entries(
+        &self,
+        collection: &Value,
+    ) -> Vec<CollectionProductEntry> {
         if collection_is_smart(collection) {
             return self.smart_collection_product_entries(collection);
         }
@@ -2240,6 +2271,10 @@ impl DraftProxy {
             .flatten()
             .enumerate()
             .filter_map(|(position, product)| {
+                let id = product.get("id").and_then(Value::as_str)?;
+                if self.store.product_is_tombstoned(id) {
+                    return None;
+                }
                 let product = product
                     .get("id")
                     .and_then(Value::as_str)
@@ -2477,7 +2512,10 @@ fn collection_normalized_sort_string(value: &str) -> StagedSortValue {
     StagedSortValue::String(value.to_ascii_lowercase())
 }
 
-fn collection_staged_sort_key(collection: &Value, sort_key: Option<&str>) -> StagedSortKey {
+pub(in crate::proxy) fn collection_staged_sort_key(
+    collection: &Value,
+    sort_key: Option<&str>,
+) -> StagedSortKey {
     let id = collection_string_field(collection, "id");
     let primary = match sort_key.unwrap_or("ID") {
         "TITLE" => collection_normalized_sort_string(&collection_string_field(collection, "title")),
@@ -2636,8 +2674,39 @@ fn collection_from_input(
         if let Some(template_suffix) = resolved_string_field(input, "templateSuffix") {
             object.insert("templateSuffix".to_string(), json!(template_suffix));
         }
+        if input.contains_key("image") {
+            object.insert(
+                "image".to_string(),
+                collection_image_from_input(input).unwrap_or(Value::Null),
+            );
+        }
+        if input.contains_key("seo") {
+            object.insert(
+                "seo".to_string(),
+                collection_seo_from_input(input).unwrap_or(Value::Null),
+            );
+        }
     }
     collection
+}
+
+fn collection_image_from_input(input: &BTreeMap<String, ResolvedValue>) -> Option<Value> {
+    let image = resolved_object_field(input, "image")?;
+    let url = resolved_string_field(&image, "src").unwrap_or_default();
+    Some(json!({
+        "url": url,
+        "src": url,
+        "originalSrc": url,
+        "altText": resolved_string_field(&image, "altText")
+    }))
+}
+
+fn collection_seo_from_input(input: &BTreeMap<String, ResolvedValue>) -> Option<Value> {
+    let seo = resolved_object_field(input, "seo")?;
+    Some(json!({
+        "title": resolved_string_field(&seo, "title"),
+        "description": resolved_string_field(&seo, "description")
+    }))
 }
 
 fn apply_collection_timestamps(collection: &mut Value, created_at: &str, updated_at: &str) {

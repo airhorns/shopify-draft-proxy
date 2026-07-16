@@ -1,0 +1,916 @@
+{
+  "scenarioId": "storefront-collections-read-after-admin-setup",
+  "operationNames": ["collection", "collectionByHandle", "collections"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "downstream-read-parity",
+    "pagination-parity",
+    "search-parity",
+    "sort-order",
+    "publication-visibility",
+    "cold-live-hydration",
+    "authenticated-read"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/storefront/storefront-collections-read-after-admin-setup.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/storefront.rs"],
+  "proxyConfig": {
+    "readMode": "live-hybrid"
+  },
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/storefront/storefront-collections-definition-create-admin.graphql",
+    "variablesCapturePath": "$.adminDefinitionCreate.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.byId.id",
+        "matcher": "shopify-gid:Collection",
+        "reason": "Staged lifecycle targets use the proxy's synthetic Collection ID."
+      },
+      {
+        "path": "$.byId.products.nodes[*].id",
+        "matcher": "shopify-gid:Product",
+        "reason": "Staged lifecycle targets project synthetic Product IDs."
+      },
+      {
+        "path": "$.byId.products.pageInfo.startCursor",
+        "matcher": "shopify-gid:Product",
+        "reason": "Shopify Storefront cursors are opaque while local staged connections use stable Product GIDs."
+      },
+      {
+        "path": "$.byId.products.pageInfo.endCursor",
+        "matcher": "shopify-gid:Product",
+        "reason": "Shopify Storefront cursors are opaque while local staged connections use stable Product GIDs."
+      },
+      {
+        "path": "$.byHandle.id",
+        "matcher": "shopify-gid:Collection",
+        "reason": "Staged lifecycle targets use the proxy's synthetic Collection ID."
+      },
+      {
+        "path": "$.catalog.nodes[*].id",
+        "matcher": "shopify-gid:Collection",
+        "reason": "Staged collection catalogs contain proxy-generated Collection IDs."
+      },
+      {
+        "path": "$.catalog.pageInfo.startCursor",
+        "matcher": "shopify-gid:Collection",
+        "reason": "Shopify Storefront cursors are opaque while local staged connections use stable Collection GIDs."
+      },
+      {
+        "path": "$.catalog.pageInfo.endCursor",
+        "matcher": "shopify-gid:Collection",
+        "reason": "Shopify Storefront cursors are opaque while local staged connections use stable Collection GIDs."
+      }
+    ],
+    "targets": [
+      {
+        "name": "admin-collection-metafield-definition-setup",
+        "capturePath": "$.adminDefinitionCreate.response.data.metafieldDefinitionCreate.userErrors",
+        "proxyPath": "$.data.metafieldDefinitionCreate.userErrors"
+      },
+      {
+        "name": "admin-products-create-shared-storefront-members",
+        "capturePath": "$.adminProductsCreate.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.alpha.userErrors", "$.beta.userErrors", "$.gamma.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-collections-products-create-admin.graphql",
+          "variablesCapturePath": "$.adminProductsCreate.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "admin-product-variants-establish-availability-and-price",
+        "capturePath": "$.adminVariantsUpdate.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.alpha.userErrors", "$.beta.userErrors", "$.gamma.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-collections-variants-update-admin.graphql",
+          "variables": {
+            "alphaProductId": {
+              "fromProxyResponse": "admin-products-create-shared-storefront-members",
+              "path": "$.data.alpha.product.id"
+            },
+            "alphaVariants": [
+              {
+                "id": {
+                  "fromProxyResponse": "admin-products-create-shared-storefront-members",
+                  "path": "$.data.alpha.product.variants.nodes[0].id"
+                },
+                "inventoryPolicy": {
+                  "fromCapturePath": "$.adminVariantsUpdate.request.variables.alphaVariants[0].inventoryPolicy"
+                },
+                "price": {
+                  "fromCapturePath": "$.adminVariantsUpdate.request.variables.alphaVariants[0].price"
+                },
+                "inventoryItem": {
+                  "fromCapturePath": "$.adminVariantsUpdate.request.variables.alphaVariants[0].inventoryItem"
+                }
+              }
+            ],
+            "betaProductId": {
+              "fromProxyResponse": "admin-products-create-shared-storefront-members",
+              "path": "$.data.beta.product.id"
+            },
+            "betaVariants": [
+              {
+                "id": {
+                  "fromProxyResponse": "admin-products-create-shared-storefront-members",
+                  "path": "$.data.beta.product.variants.nodes[0].id"
+                },
+                "inventoryPolicy": {
+                  "fromCapturePath": "$.adminVariantsUpdate.request.variables.betaVariants[0].inventoryPolicy"
+                },
+                "price": {
+                  "fromCapturePath": "$.adminVariantsUpdate.request.variables.betaVariants[0].price"
+                },
+                "inventoryItem": {
+                  "fromCapturePath": "$.adminVariantsUpdate.request.variables.betaVariants[0].inventoryItem"
+                }
+              }
+            ],
+            "gammaProductId": {
+              "fromProxyResponse": "admin-products-create-shared-storefront-members",
+              "path": "$.data.gamma.product.id"
+            },
+            "gammaVariants": [
+              {
+                "id": {
+                  "fromProxyResponse": "admin-products-create-shared-storefront-members",
+                  "path": "$.data.gamma.product.variants.nodes[0].id"
+                },
+                "inventoryPolicy": {
+                  "fromCapturePath": "$.adminVariantsUpdate.request.variables.gammaVariants[0].inventoryPolicy"
+                },
+                "price": {
+                  "fromCapturePath": "$.adminVariantsUpdate.request.variables.gammaVariants[0].price"
+                },
+                "inventoryItem": {
+                  "fromCapturePath": "$.adminVariantsUpdate.request.variables.gammaVariants[0].inventoryItem"
+                }
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "admin-products-publish-to-storefront",
+        "capturePath": "$.adminProductsPublish.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.alpha.userErrors", "$.beta.userErrors", "$.gamma.userErrors"],
+        "upstreamCapturePath": "$.upstreamCalls",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-collections-products-publish-admin.graphql",
+          "variables": {
+            "alphaId": {
+              "fromProxyResponse": "admin-products-create-shared-storefront-members",
+              "path": "$.data.alpha.product.id"
+            },
+            "betaId": {
+              "fromProxyResponse": "admin-products-create-shared-storefront-members",
+              "path": "$.data.beta.product.id"
+            },
+            "gammaId": {
+              "fromProxyResponse": "admin-products-create-shared-storefront-members",
+              "path": "$.data.gamma.product.id"
+            },
+            "input": {
+              "fromCapturePath": "$.adminProductsPublish.request.variables.input"
+            },
+            "publicationId": {
+              "fromCapturePath": "$.adminProductsPublish.request.variables.publicationId"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "admin-collections-create-shared-membership",
+        "capturePath": "$.adminCollectionsCreate.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.primary.collection.title",
+          "$.primary.collection.handle",
+          "$.primary.collection.sortOrder",
+          "$.primary.userErrors",
+          "$.secondary.collection.title",
+          "$.secondary.collection.handle",
+          "$.secondary.collection.sortOrder",
+          "$.secondary.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-collections-create-admin.graphql",
+          "variables": {
+            "primary": {
+              "title": {
+                "fromCapturePath": "$.adminCollectionsCreate.request.variables.primary.title"
+              },
+              "handle": {
+                "fromCapturePath": "$.adminCollectionsCreate.request.variables.primary.handle"
+              },
+              "descriptionHtml": {
+                "fromCapturePath": "$.adminCollectionsCreate.request.variables.primary.descriptionHtml"
+              },
+              "sortOrder": {
+                "fromCapturePath": "$.adminCollectionsCreate.request.variables.primary.sortOrder"
+              },
+              "products": [
+                {
+                  "fromProxyResponse": "admin-products-create-shared-storefront-members",
+                  "path": "$.data.alpha.product.id"
+                },
+                {
+                  "fromProxyResponse": "admin-products-create-shared-storefront-members",
+                  "path": "$.data.beta.product.id"
+                },
+                {
+                  "fromProxyResponse": "admin-products-create-shared-storefront-members",
+                  "path": "$.data.gamma.product.id"
+                }
+              ],
+              "image": {
+                "fromCapturePath": "$.adminCollectionsCreate.request.variables.primary.image"
+              },
+              "seo": {
+                "fromCapturePath": "$.adminCollectionsCreate.request.variables.primary.seo"
+              },
+              "metafields": {
+                "fromCapturePath": "$.adminCollectionsCreate.request.variables.primary.metafields"
+              }
+            },
+            "secondary": {
+              "fromCapturePath": "$.adminCollectionsCreate.request.variables.secondary"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "admin-collections-publish-to-storefront",
+        "capturePath": "$.adminCollectionsPublish.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.primary.userErrors", "$.secondary.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-collections-publish-admin.graphql",
+          "variables": {
+            "primaryId": {
+              "fromProxyResponse": "admin-collections-create-shared-membership",
+              "path": "$.data.primary.collection.id"
+            },
+            "secondaryId": {
+              "fromProxyResponse": "admin-collections-create-shared-membership",
+              "path": "$.data.secondary.collection.id"
+            },
+            "input": {
+              "fromCapturePath": "$.adminCollectionsPublish.request.variables.input"
+            },
+            "publicationId": {
+              "fromCapturePath": "$.adminCollectionsPublish.request.variables.publicationId"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "storefront-collections-initial-whole-selected-payload",
+        "capturePath": "$.storefrontInitial.response.body.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-collections-read-after-admin-setup.graphql",
+          "operationName": "StorefrontCollectionsReadAfterAdminSetup",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "admin-collections-create-shared-membership",
+              "path": "$.data.primary.collection.id"
+            },
+            "handle": {
+              "fromProxyResponse": "admin-collections-create-shared-membership",
+              "path": "$.data.primary.collection.handle"
+            },
+            "query": {
+              "fromCapturePath": "$.storefrontInitial.variables.query"
+            },
+            "metafieldNamespace": {
+              "fromCapturePath": "$.storefrontInitial.variables.metafieldNamespace"
+            },
+            "country": {
+              "fromCapturePath": "$.storefrontInitial.variables.country"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.byId.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The proxy projects the staged synthetic primary Collection ID."
+          },
+          {
+            "path": "$.byId.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic staged collection timestamp."
+          },
+          {
+            "path": "$.byId.image.url",
+            "matcher": "non-empty-string",
+            "reason": "Shopify imports the remote image to a CDN URL while the proxy preserves the staged source URL."
+          },
+          {
+            "path": "$.byId.metafield.id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy stages a synthetic Collection metafield ID."
+          },
+          {
+            "path": "$.byId.metafields[0].id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy stages a synthetic Collection metafield ID."
+          },
+          {
+            "path": "$.byId.products.edges[*].cursor",
+            "matcher": "shopify-gid:Product",
+            "reason": "Shopify Storefront cursors are opaque while the local connection uses Product GIDs."
+          },
+          {
+            "path": "$.byId.products.edges[*].node.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy projects staged synthetic Product IDs."
+          },
+          {
+            "path": "$.byId.products.pageInfo.startCursor",
+            "matcher": "shopify-gid:Product",
+            "reason": "Shopify Storefront cursors are opaque while the local connection uses Product GIDs."
+          },
+          {
+            "path": "$.byId.products.pageInfo.endCursor",
+            "matcher": "shopify-gid:Product",
+            "reason": "Shopify Storefront cursors are opaque while the local connection uses Product GIDs."
+          },
+          {
+            "path": "$.byId.productsReverse.nodes[*].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy projects staged synthetic Product IDs."
+          },
+          {
+            "path": "$.byId.productsReverse.pageInfo.startCursor",
+            "matcher": "shopify-gid:Product",
+            "reason": "Shopify Storefront cursors are opaque while the local connection uses Product GIDs."
+          },
+          {
+            "path": "$.byId.productsReverse.pageInfo.endCursor",
+            "matcher": "shopify-gid:Product",
+            "reason": "Shopify Storefront cursors are opaque while the local connection uses Product GIDs."
+          },
+          {
+            "path": "$.byId.productsByTitle.nodes[*].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy projects staged synthetic Product IDs."
+          },
+          {
+            "path": "$.byId.availableProducts.nodes[*].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy projects staged synthetic Product IDs."
+          },
+          {
+            "path": "$.byId.taggedProducts.nodes[*].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy projects staged synthetic Product IDs."
+          },
+          {
+            "path": "$.byHandleArgument.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The proxy projects the staged synthetic primary Collection ID."
+          },
+          {
+            "path": "$.deprecatedByHandle.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The proxy projects the staged synthetic primary Collection ID."
+          },
+          {
+            "path": "$.firstPage.edges[*].cursor",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Shopify Storefront cursors are opaque while the local connection uses Collection GIDs."
+          },
+          {
+            "path": "$.firstPage.edges[*].node.id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The proxy projects staged synthetic Collection IDs."
+          },
+          {
+            "path": "$.firstPage.pageInfo.startCursor",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Shopify Storefront cursors are opaque while the local connection uses Collection GIDs."
+          },
+          {
+            "path": "$.firstPage.pageInfo.endCursor",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Shopify Storefront cursors are opaque while the local connection uses Collection GIDs."
+          },
+          {
+            "path": "$.reverseCatalog.nodes[*].id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The proxy projects staged synthetic Collection IDs."
+          },
+          {
+            "path": "$.reverseCatalog.pageInfo.startCursor",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Shopify Storefront cursors are opaque while the local connection uses Collection GIDs."
+          },
+          {
+            "path": "$.reverseCatalog.pageInfo.endCursor",
+            "matcher": "shopify-gid:Collection",
+            "reason": "Shopify Storefront cursors are opaque while the local connection uses Collection GIDs."
+          }
+        ]
+      },
+      {
+        "name": "admin-collection-reorder-stages-manual-order",
+        "capturePath": "$.adminReorder.response.data.collectionReorderProducts.userErrors",
+        "proxyPath": "$.data.collectionReorderProducts.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-collections-reorder-admin.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "admin-collections-create-shared-membership",
+              "path": "$.data.primary.collection.id"
+            },
+            "moves": [
+              {
+                "id": {
+                  "fromProxyResponse": "admin-products-create-shared-storefront-members",
+                  "path": "$.data.gamma.product.id"
+                },
+                "newPosition": {
+                  "fromCapturePath": "$.adminReorder.request.variables.moves[0].newPosition"
+                }
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "storefront-collection-products-reflect-manual-reorder",
+        "capturePath": "$.storefrontReordered.response.body.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-collections-products-read.graphql",
+          "operationName": "StorefrontCollectionsProductsRead",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "admin-collections-create-shared-membership",
+              "path": "$.data.primary.collection.id"
+            },
+            "handle": {
+              "fromProxyResponse": "admin-collections-create-shared-membership",
+              "path": "$.data.primary.collection.handle"
+            },
+            "query": {
+              "fromCapturePath": "$.storefrontReordered.variables.query"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "admin-collection-and-product-update-stage-shared-content",
+        "capturePath": "$.adminUpdate.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.collectionUpdate.userErrors", "$.productUpdate.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-collections-update-admin.graphql",
+          "variables": {
+            "collection": {
+              "id": {
+                "fromProxyResponse": "admin-collections-create-shared-membership",
+                "path": "$.data.primary.collection.id"
+              },
+              "title": {
+                "fromCapturePath": "$.adminUpdate.request.variables.collection.title"
+              },
+              "handle": {
+                "fromCapturePath": "$.adminUpdate.request.variables.collection.handle"
+              },
+              "descriptionHtml": {
+                "fromCapturePath": "$.adminUpdate.request.variables.collection.descriptionHtml"
+              },
+              "image": {
+                "fromCapturePath": "$.adminUpdate.request.variables.collection.image"
+              },
+              "seo": {
+                "fromCapturePath": "$.adminUpdate.request.variables.collection.seo"
+              }
+            },
+            "product": {
+              "id": {
+                "fromProxyResponse": "admin-products-create-shared-storefront-members",
+                "path": "$.data.beta.product.id"
+              },
+              "title": {
+                "fromCapturePath": "$.adminUpdate.request.variables.product.title"
+              },
+              "handle": {
+                "fromCapturePath": "$.adminUpdate.request.variables.product.handle"
+              }
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "storefront-collection-reflects-collection-and-product-update",
+        "capturePath": "$.storefrontUpdated.response.body.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-collections-products-read.graphql",
+          "operationName": "StorefrontCollectionsProductsRead",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "admin-collections-create-shared-membership",
+              "path": "$.data.primary.collection.id"
+            },
+            "handle": {
+              "fromCapturePath": "$.storefrontUpdated.variables.handle"
+            },
+            "query": {
+              "fromCapturePath": "$.storefrontUpdated.variables.query"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "admin-collection-remove-product-stages-membership",
+        "capturePath": "$.adminRemoveProduct.response.data.collectionRemoveProducts.userErrors",
+        "proxyPath": "$.data.collectionRemoveProducts.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-collections-remove-product-admin.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "admin-collections-create-shared-membership",
+              "path": "$.data.primary.collection.id"
+            },
+            "productIds": [
+              {
+                "fromProxyResponse": "admin-products-create-shared-storefront-members",
+                "path": "$.data.beta.product.id"
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "storefront-collection-reflects-membership-removal",
+        "capturePath": "$.storefrontRemoved.response.body.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-collections-products-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "admin-collections-create-shared-membership",
+              "path": "$.data.primary.collection.id"
+            },
+            "handle": {
+              "fromCapturePath": "$.storefrontRemoved.variables.handle"
+            },
+            "query": {
+              "fromCapturePath": "$.storefrontRemoved.variables.query"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "admin-collection-add-product-restores-membership",
+        "capturePath": "$.adminAddProduct.response.data.collectionAddProducts.userErrors",
+        "proxyPath": "$.data.collectionAddProducts.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-collections-add-product-admin.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "admin-collections-create-shared-membership",
+              "path": "$.data.primary.collection.id"
+            },
+            "productIds": [
+              {
+                "fromProxyResponse": "admin-products-create-shared-storefront-members",
+                "path": "$.data.beta.product.id"
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "storefront-collection-reflects-membership-restoration",
+        "capturePath": "$.storefrontRestored.response.body.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-collections-products-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "admin-collections-create-shared-membership",
+              "path": "$.data.primary.collection.id"
+            },
+            "handle": {
+              "fromCapturePath": "$.storefrontRestored.variables.handle"
+            },
+            "query": {
+              "fromCapturePath": "$.storefrontRestored.variables.query"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "admin-product-unpublish-hides-nested-member",
+        "capturePath": "$.adminProductUnpublish.response.data.publishableUnpublish.userErrors",
+        "proxyPath": "$.data.publishableUnpublish.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-catalog-unpublish-admin.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "admin-products-create-shared-storefront-members",
+              "path": "$.data.gamma.product.id"
+            },
+            "input": {
+              "fromCapturePath": "$.adminProductUnpublish.request.variables.input"
+            },
+            "publicationId": {
+              "fromCapturePath": "$.adminProductUnpublish.request.variables.publicationId"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "storefront-collection-filters-unpublished-product",
+        "capturePath": "$.storefrontProductUnpublished.response.body.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-collections-products-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "admin-collections-create-shared-membership",
+              "path": "$.data.primary.collection.id"
+            },
+            "handle": {
+              "fromCapturePath": "$.storefrontProductUnpublished.variables.handle"
+            },
+            "query": {
+              "fromCapturePath": "$.storefrontProductUnpublished.variables.query"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "admin-product-republish-restores-nested-member",
+        "capturePath": "$.adminProductRepublish.response.data.publishablePublish.userErrors",
+        "proxyPath": "$.data.publishablePublish.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-catalog-publish-admin.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "admin-products-create-shared-storefront-members",
+              "path": "$.data.gamma.product.id"
+            },
+            "input": {
+              "fromCapturePath": "$.adminProductRepublish.request.variables.input"
+            },
+            "publicationId": {
+              "fromCapturePath": "$.adminProductRepublish.request.variables.publicationId"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "storefront-collection-restores-republished-product",
+        "capturePath": "$.storefrontProductRepublished.response.body.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-collections-products-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "admin-collections-create-shared-membership",
+              "path": "$.data.primary.collection.id"
+            },
+            "handle": {
+              "fromCapturePath": "$.storefrontProductRepublished.variables.handle"
+            },
+            "query": {
+              "fromCapturePath": "$.storefrontProductRepublished.variables.query"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "admin-product-delete-tombstones-nested-member",
+        "capturePath": "$.adminProductDelete.response.data.productDelete.userErrors",
+        "proxyPath": "$.data.productDelete.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-catalog-product-delete-admin.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "admin-products-create-shared-storefront-members",
+                "path": "$.data.alpha.product.id"
+              }
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "storefront-collection-filters-deleted-product",
+        "capturePath": "$.storefrontProductDeleted.response.body.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-collections-products-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "admin-collections-create-shared-membership",
+              "path": "$.data.primary.collection.id"
+            },
+            "handle": {
+              "fromCapturePath": "$.storefrontProductDeleted.variables.handle"
+            },
+            "query": {
+              "fromCapturePath": "$.storefrontProductDeleted.variables.query"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "admin-collection-unpublish-hides-storefront-resource",
+        "capturePath": "$.adminCollectionUnpublish.response.data.publishableUnpublish.userErrors",
+        "proxyPath": "$.data.publishableUnpublish.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-collections-unpublish-admin.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "admin-collections-create-shared-membership",
+              "path": "$.data.primary.collection.id"
+            },
+            "input": {
+              "fromCapturePath": "$.adminCollectionUnpublish.request.variables.input"
+            },
+            "publicationId": {
+              "fromCapturePath": "$.adminCollectionUnpublish.request.variables.publicationId"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "storefront-collection-unpublish-null-and-list-absence",
+        "capturePath": "$.storefrontCollectionUnpublished.response.body.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-collections-absent-read.graphql",
+          "operationName": "StorefrontCollectionsAbsentRead",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "admin-collections-create-shared-membership",
+              "path": "$.data.primary.collection.id"
+            },
+            "handle": {
+              "fromCapturePath": "$.storefrontCollectionUnpublished.variables.handle"
+            },
+            "query": {
+              "fromCapturePath": "$.storefrontCollectionUnpublished.variables.query"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "admin-collection-delete-tombstones-storefront-resource",
+        "capturePath": "$.adminCollectionDelete.response.data.collectionDelete.userErrors",
+        "proxyPath": "$.data.collectionDelete.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-collections-delete-admin.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "admin-collections-create-shared-membership",
+                "path": "$.data.primary.collection.id"
+              }
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "storefront-collection-delete-null-and-list-absence",
+        "capturePath": "$.storefrontCollectionDeleted.response.body.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-collections-absent-read.graphql",
+          "operationName": "StorefrontCollectionsAbsentRead",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "admin-collections-create-shared-membership",
+              "path": "$.data.primary.collection.id"
+            },
+            "handle": {
+              "fromCapturePath": "$.storefrontCollectionDeleted.variables.handle"
+            },
+            "query": {
+              "fromCapturePath": "$.storefrontCollectionDeleted.variables.query"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cold-live-hybrid-storefront-collection-hydration",
+        "capturePath": "$.storefrontInitial.response.body.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": "$.upstreamCalls",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-collections-read-after-admin-setup.graphql",
+          "operationName": "StorefrontCollectionsReadAfterAdminSetup",
+          "variablesCapturePath": "$.storefrontInitial.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.byId.products.edges[*].cursor",
+            "matcher": "shopify-gid:Product",
+            "reason": "The hydrated local graph windows with Product GID cursors instead of Shopify's opaque Storefront cursors."
+          },
+          {
+            "path": "$.byId.products.pageInfo.startCursor",
+            "matcher": "shopify-gid:Product",
+            "reason": "The hydrated local graph windows with Product GID cursors instead of Shopify's opaque Storefront cursors."
+          },
+          {
+            "path": "$.byId.products.pageInfo.endCursor",
+            "matcher": "shopify-gid:Product",
+            "reason": "The hydrated local graph windows with Product GID cursors instead of Shopify's opaque Storefront cursors."
+          },
+          {
+            "path": "$.byId.productsReverse.pageInfo.startCursor",
+            "matcher": "shopify-gid:Product",
+            "reason": "The hydrated local graph windows with Product GID cursors instead of Shopify's opaque Storefront cursors."
+          },
+          {
+            "path": "$.byId.productsReverse.pageInfo.endCursor",
+            "matcher": "shopify-gid:Product",
+            "reason": "The hydrated local graph windows with Product GID cursors instead of Shopify's opaque Storefront cursors."
+          },
+          {
+            "path": "$.firstPage.edges[*].cursor",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The hydrated local graph windows with Collection GID cursors instead of Shopify's opaque Storefront cursors."
+          },
+          {
+            "path": "$.firstPage.pageInfo.startCursor",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The hydrated local graph windows with Collection GID cursors instead of Shopify's opaque Storefront cursors."
+          },
+          {
+            "path": "$.firstPage.pageInfo.endCursor",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The hydrated local graph windows with Collection GID cursors instead of Shopify's opaque Storefront cursors."
+          },
+          {
+            "path": "$.reverseCatalog.pageInfo.startCursor",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The hydrated local graph windows with Collection GID cursors instead of Shopify's opaque Storefront cursors."
+          },
+          {
+            "path": "$.reverseCatalog.pageInfo.endCursor",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The hydrated local graph windows with Collection GID cursors instead of Shopify's opaque Storefront cursors."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Authenticated Storefront 2026-04 collection capture. Disposable Admin setup creates three products, sets variant availability/prices, creates a public Collection metafield definition, creates two manual collections with content/SEO/image/metafield state, and publishes products and collections to the captured Online Store publication. Whole Storefront payload targets cover lookup aliases/fragments, free-text query, sort/reverse/windows, nested Product availability/tag filters and manual ordering, collection/product updates, membership remove/add/reorder, product unpublish/republish/delete, collection unpublish/delete, and cold live-hybrid hydration from an exact Storefront cassette. Expected differences are limited to synthetic IDs/timestamps, CDN-vs-source image URLs, and opaque cursors."
+}
