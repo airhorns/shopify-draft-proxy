@@ -1,0 +1,421 @@
+{
+  "capturedAt": "2026-07-15T23:58:27.136Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scenarioId": "b2b-companies-count-overlay",
+  "scope": "B2B companiesCount count-only and small-page overlay over a larger live company catalog",
+  "token": "ZZZB2BCOUNT20260715235825",
+  "baselineAlphaCreate": {
+    "request": {
+      "query": "mutation B2BCompaniesCountOverlayCreate($input: CompanyCreateInput!) {\n  companyCreate(input: $input) {\n    company {\n      id\n      name\n      externalId\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "ZZZB2BCOUNT20260715235825 Alpha Buyer",
+            "externalId": "ZZZB2BCOUNT20260715235825-ALPHA",
+            "note": "B2B companiesCount overlay parity baseline"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "companyCreate": {
+            "company": {
+              "id": "gid://shopify/Company/5750489394",
+              "name": "ZZZB2BCOUNT20260715235825 Alpha Buyer",
+              "externalId": "ZZZB2BCOUNT20260715235825-ALPHA"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "baselineBetaCreate": {
+    "request": {
+      "query": "mutation B2BCompaniesCountOverlayCreate($input: CompanyCreateInput!) {\n  companyCreate(input: $input) {\n    company {\n      id\n      name\n      externalId\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "ZZZB2BCOUNT20260715235825 Beta Buyer",
+            "externalId": "ZZZB2BCOUNT20260715235825-BETA",
+            "note": "B2B companiesCount overlay parity baseline"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "companyCreate": {
+            "company": {
+              "id": "gid://shopify/Company/5750522162",
+              "name": "ZZZB2BCOUNT20260715235825 Beta Buyer",
+              "externalId": "ZZZB2BCOUNT20260715235825-BETA"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "baselineCountOnly": {
+    "request": {
+      "query": "query B2BCompaniesCountOverlayCountOnly {\n  companiesCount(limit: null) {\n    count\n    precision\n  }\n}\n",
+      "variables": {}
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "companiesCount": {
+            "count": 17,
+            "precision": "EXACT"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "baselineSmallPageAndCount": {
+    "request": {
+      "query": "query B2BCompaniesCountOverlaySmallPage($first: Int!) {\n  companies(first: $first) {\n    nodes {\n      id\n      name\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  companiesCount(limit: null) {\n    count\n    precision\n  }\n}\n",
+      "variables": {
+        "first": 1
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "companies": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Company/2983133490",
+                "name": "Powderbound"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": true,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJpZCIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6Mjk4MzEzMzQ5MCwibGFzdF92YWx1ZSI6WyIyOTgzMTMzNDkwIl0sImRpcmVjdGlvbiI6Im5leHQifQ==",
+              "endCursor": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJpZCIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6Mjk4MzEzMzQ5MCwibGFzdF92YWx1ZSI6WyIyOTgzMTMzNDkwIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
+            }
+          },
+          "companiesCount": {
+            "count": 17,
+            "precision": "EXACT"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "companyCreate": {
+    "request": {
+      "query": "mutation B2BCompaniesCountOverlayCreate($input: CompanyCreateInput!) {\n  companyCreate(input: $input) {\n    company {\n      id\n      name\n      externalId\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "ZZZB2BCOUNT20260715235825 Gamma Buyer",
+            "externalId": "ZZZB2BCOUNT20260715235825-GAMMA",
+            "note": "B2B companiesCount overlay parity staged delta"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "companyCreate": {
+            "company": {
+              "id": "gid://shopify/Company/5750554930",
+              "name": "ZZZB2BCOUNT20260715235825 Gamma Buyer",
+              "externalId": "ZZZB2BCOUNT20260715235825-GAMMA"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "countOnlyAfterCreate": {
+    "request": {
+      "query": "query B2BCompaniesCountOverlayCountOnly {\n  companiesCount(limit: null) {\n    count\n    precision\n  }\n}\n",
+      "variables": {}
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "companiesCount": {
+            "count": 18,
+            "precision": "EXACT"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "smallPageAndCountAfterCreate": {
+    "request": {
+      "query": "query B2BCompaniesCountOverlaySmallPage($first: Int!) {\n  companies(first: $first) {\n    nodes {\n      id\n      name\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  companiesCount(limit: null) {\n    count\n    precision\n  }\n}\n",
+      "variables": {
+        "first": 1
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "companies": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Company/2983133490",
+                "name": "Powderbound"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": true,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJpZCIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6Mjk4MzEzMzQ5MCwibGFzdF92YWx1ZSI6WyIyOTgzMTMzNDkwIl0sImRpcmVjdGlvbiI6Im5leHQifQ==",
+              "endCursor": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJpZCIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6Mjk4MzEzMzQ5MCwibGFzdF92YWx1ZSI6WyIyOTgzMTMzNDkwIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
+            }
+          },
+          "companiesCount": {
+            "count": 18,
+            "precision": "EXACT"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "id": "gid://shopify/Company/5750554930",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "companyDelete": {
+              "deletedCompanyId": "gid://shopify/Company/5750554930",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "gid://shopify/Company/5750522162",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "companyDelete": {
+              "deletedCompanyId": "gid://shopify/Company/5750522162",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "gid://shopify/Company/5750489394",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "companyDelete": {
+              "deletedCompanyId": "gid://shopify/Company/5750489394",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "B2BCompaniesCountOverlayCountOnly",
+      "variables": {},
+      "query": "query B2BCompaniesCountOverlayCountOnly {\n  companiesCount(limit: null) {\n    count\n    precision\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "companiesCount": {
+              "count": 17,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "B2BCompaniesCountOverlaySmallPage",
+      "variables": {
+        "first": 1
+      },
+      "query": "query B2BCompaniesCountOverlaySmallPage($first: Int!) {\n  companies(first: $first) {\n    nodes {\n      id\n      name\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  companiesCount(limit: null) {\n    count\n    precision\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "companies": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Company/2983133490",
+                  "name": "Powderbound"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJpZCIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6Mjk4MzEzMzQ5MCwibGFzdF92YWx1ZSI6WyIyOTgzMTMzNDkwIl0sImRpcmVjdGlvbiI6Im5leHQifQ==",
+                "endCursor": "eyJsaW1pdCI6MSwic29ydF9maWVsZHMiOiJpZCIsInNvcnRfZGlyIjoiYXNjIiwibGFzdF9pZCI6Mjk4MzEzMzQ5MCwibGFzdF92YWx1ZSI6WyIyOTgzMTMzNDkwIl0sImRpcmVjdGlvbiI6Im5leHQifQ=="
+              }
+            },
+            "companiesCount": {
+              "count": 17,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

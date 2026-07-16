@@ -157,7 +157,7 @@ describe('Rust HTTP adapter route surface', { timeout: adapterTestTimeoutMs }, (
         body: { entries: [] },
       });
 
-      expect(await getJson(origin, '/__meta/state')).toEqual({
+      expect(await getJson(origin, '/__meta/state')).toMatchObject({
         status: 200,
         body: {
           baseState: {

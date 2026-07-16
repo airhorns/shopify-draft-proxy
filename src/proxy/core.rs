@@ -581,11 +581,14 @@ impl DraftProxy {
             deleted_metafield_definitions_value;
         if !self.store.base.b2b_companies.records.is_empty()
             || !self.store.base.b2b_companies.order.is_empty()
+            || !self.store.base.b2b_company_count_baselines.is_empty()
         {
             snapshot["baseState"]["b2bCompanies"] =
                 json!(self.store.base.b2b_companies.records.clone());
             snapshot["baseState"]["b2bCompanyOrder"] =
                 json!(self.store.base.b2b_companies.order.clone());
+            snapshot["baseState"]["b2bCompanyCountBaselines"] =
+                json!(self.store.base.b2b_company_count_baselines.clone());
         }
         if !self.store.base.b2b_locations.records.is_empty()
             || !self.store.base.b2b_locations.order.is_empty()
@@ -1835,6 +1838,8 @@ impl DraftProxy {
                 .map(string_array_from_json)
                 .unwrap_or_default(),
         );
+        self.store.base.b2b_company_count_baselines =
+            value_map_from_json(state["baseState"].get("b2bCompanyCountBaselines"));
         self.store.base.b2b_locations.replace_with_order(
             value_map_from_json(state["baseState"].get("b2bLocations")),
             state["baseState"]
