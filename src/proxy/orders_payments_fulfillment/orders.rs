@@ -4,6 +4,7 @@ mod order_customer_paths;
 mod order_edit;
 use self::order_customer_paths::*;
 use self::order_edit::*;
+use crate::proxy::storefront::storefront_customer_email_key;
 
 fn order_edit_error_data_response(field: &RootFieldSelection, errors: Vec<Value>) -> Value {
     data_response(
@@ -1977,6 +1978,50 @@ impl DraftProxy {
 
         let order_id = shopify_gid("Order", self.store.staged.next_order_id);
         self.store.staged.next_order_id += 1;
+        if order_create_updates_customer_email_from_order(request) {
+            if let (Some(customer_id), Some(order_email)) = (
+                resolved_string_field(&order_input, "customerId"),
+                resolved_string_field(&order_input, "email"),
+            ) {
+                let updated_at = self.next_product_timestamp();
+                let old_email = self
+                    .store
+                    .staged
+                    .customers
+                    .get(&customer_id)
+                    .and_then(|customer| customer.get("email"))
+                    .and_then(Value::as_str)
+                    .map(storefront_customer_email_key);
+                if let Some(customer) = self.store.staged.customers.get_mut(&customer_id) {
+                    customer["email"] = json!(order_email.clone());
+                    customer["defaultEmailAddress"] = json!({
+                        "emailAddress": order_email.clone(),
+                        "marketingState": "NOT_SUBSCRIBED",
+                        "marketingOptInLevel": "SINGLE_OPT_IN",
+                        "marketingUpdatedAt": Value::Null
+                    });
+                    customer["emailMarketingConsent"] = json!({
+                        "marketingState": "NOT_SUBSCRIBED",
+                        "marketingOptInLevel": "SINGLE_OPT_IN",
+                        "consentUpdatedAt": Value::Null
+                    });
+                    customer["updatedAt"] = json!(updated_at);
+                    if let Some(object) = customer.as_object_mut() {
+                        object.remove("acceptsMarketing");
+                    }
+                    if let Some(old_email) = old_email {
+                        self.store
+                            .staged
+                            .storefront_customer_email_index
+                            .remove(&old_email);
+                    }
+                    self.store
+                        .staged
+                        .storefront_customer_email_index
+                        .insert(storefront_customer_email_key(&order_email), customer_id);
+                }
+            }
+        }
         let order = self.build_order_create_record(&order_id, &order_input);
         self.store
             .staged
@@ -3734,4 +3779,8 @@ impl DraftProxy {
             self.store.staged.reverse_deliveries.remove(&delivery_id);
         }
     }
+}
+
+fn order_create_updates_customer_email_from_order(request: &Request) -> bool {
+    admin_graphql_version(&request.path).is_some_and(|version| version_at_least(version, 2026, 4))
 }

@@ -1,0 +1,27 @@
+#graphql
+query BulkOperationsBaseOverlayPreRun($first: Int!, $sortKey: BulkOperationsSortKeys, $reverse: Boolean) {
+  bulkOperations(first: $first, sortKey: $sortKey, reverse: $reverse) {
+    nodes {
+      
+  id
+  status
+  type
+  errorCode
+  createdAt
+  completedAt
+  objectCount
+  rootObjectCount
+  fileSize
+  url
+  partialDataUrl
+  query
+
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

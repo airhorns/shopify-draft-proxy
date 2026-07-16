@@ -4,7 +4,7 @@ title: 'Storefront API'
 
 # Storefront API
 
-The Storefront API surface covers `/api/<version>/graphql.json` requests. The proxy supports a 2026-04 slice for store-context roots, core catalog product reads, online-store content roots, custom-data roots, and customer authentication roots that can be hydrated from authenticated Storefront reads, shared Admin-observed state, locally staged Admin writes, shared custom-data state, or the shared customer Store. Storefront requests execute against a Storefront-specific GraphQL schema rather than the Admin schema.
+The Storefront API surface covers `/api/<version>/graphql.json` requests. The proxy supports a 2026-04 slice for store-context roots, core catalog product and collection reads, online-store content roots, custom-data roots, and customer authentication roots that can be hydrated from authenticated Storefront reads, shared Admin-observed state, locally staged Admin writes, shared custom-data state, or the shared customer Store. Storefront requests execute against a Storefront-specific GraphQL schema rather than the Admin schema.
 
 ## Current support and limitations
 
@@ -16,6 +16,9 @@ Read roots:
 - `localization`
 - `locations`
 - `paymentSettings`
+- `collection`
+- `collectionByHandle`
+- `collections`
 - `product`
 - `productByHandle`
 - `products`
@@ -47,6 +50,11 @@ Local staged mutation roots:
 - `customerReset`
 - `customerResetByUrl`
 - `customerAccessTokenCreateWithMultipass` for the captured invalid-Multipass boundary only
+- `customerUpdate`
+- `customerAddressCreate`
+- `customerAddressUpdate`
+- `customerAddressDelete`
+- `customerDefaultAddressUpdate`
 
 Unimplemented Storefront mutation roots remain unsupported for local Storefront execution. In snapshot mode, schema-valid unimplemented mutations return the Storefront snapshot mutation rejection response. In live-hybrid mode, operations containing only unimplemented Storefront roots continue through the Storefront passthrough path and are logged as Storefront traffic. Customer-auth mutations cannot be mixed with unsupported Storefront roots because that would risk forwarding a supported local write.
 
@@ -67,6 +75,12 @@ Admin-created `DISABLED` customers can be activated through `customerActivate` o
 `customerRecover`, `customerReset`, and `customerResetByUrl` model the safe local state transitions without sending recovery email. Recovery for a known customer records a hashed local reset token and timestamp; invalid reset tokens and invalid reset URLs return the captured error/nullability shapes. Successful reset updates the password fingerprint, enables the customer when needed, and issues a new local access token.
 
 `customerAccessTokenCreateWithMultipass` is intentionally limited to the captured invalid-request boundary. The proxy has no real Multipass secret, does not decrypt or validate real Multipass payloads, and returns the captured invalid Multipass customer-user-error shape for local replay.
+
+`customerUpdate` authenticates through the local Storefront customer access-token store, updates the shared customer row, and never forwards the profile write to Shopify at runtime. It stages selected Storefront profile fields (`firstName`, `lastName`, `email`, `phone`, and `acceptsMarketing`) into the same customer state Admin reads use, keeps the Storefront email index aligned, and returns payload `customerUserErrors` / deprecated `userErrors` for modeled invalid-token, invalid-email, duplicate-email, blank-password, and HTML-name branches. Updating `password` stores a new non-secret password fingerprint, revokes all existing Storefront access tokens for that customer, and returns a newly issued local access token.
+
+`customerAddressCreate`, `customerAddressUpdate`, `customerAddressDelete`, and `customerDefaultAddressUpdate` authenticate through the same local Storefront token store and mutate the shared customer address graph. Address input uses the existing `MailingAddressInput` normalization and validation path, so country/province normalization, free-text guardrails, duplicate detection, phone normalization, deterministic synthetic address IDs, address connection cursors, default-address assignment, and default reassignment after delete stay aligned with Admin customer address behavior. Storefront payloads use Storefront field names (`customerAddress`, `deletedCustomerAddressId`, and `customer`) and project `CustomerUserError` fields through Storefront selections.
+
+Authenticated `customer(customerAccessToken:)` reads project the shared customer state through Storefront field names. Storefront-created customers, Admin `customerUpdate`, Admin customer address mutations, Storefront profile/address mutations, Admin `orderCreate` / order reassignment state, dump/restore, and reset all observe one customer graph. `defaultAddress` and `addresses` are rendered from the shared `addressesV2` nodes with Storefront `MailingAddress` fields and connection windowing. The `orders` connection is bounded to customer-visible Storefront order fields such as IDs, names, email/phone contact fields, status fields, money fields, processed timestamp, and line-item connection shape; Admin-only order details are not projected into Storefront responses.
 
 Live-hybrid reads hydrate missing first-slice base state through explicit Storefront upstream calls, then answer the caller from the instance-owned store. The hydrated state includes Storefront shop fields, context-keyed localization, payment settings, locations with captured cursors, and public API versions. Snapshot reads do not invent shop, localization, payment, location, market, or API-version values. Empty connections and lists remain empty; absent objects resolve to null when the schema permits it, while absent non-null roots produce a GraphQL execution error and normal null propagation instead of invalid partial data.
 
@@ -104,6 +118,16 @@ Projected content fields include the selected handle, title, body/content HTML a
 
 `products(...)` filters the visible local catalog through the shared product search helper, then applies Storefront sort keys `TITLE`, `PRODUCT_TYPE`, `VENDOR`, `UPDATED_AT`, `CREATED_AT`, `BEST_SELLING`, `PRICE`, `ID`, and `RELEVANCE`, followed by `reverse` and cursor windowing through the shared connection helpers. Opaque Shopify relevance scoring and sales velocity are not reconstructed; those sort keys use deterministic local ordering.
 
+`collection(id:|handle:)`, `collectionByHandle(handle:)`, and `collections(...)` project Storefront collections from the shared normalized Admin collection graph. Visible collection fields include identity, title, handle, description/HTML description, updated time, image, SEO, and Collection-owned metafields whose definitions grant Storefront `PUBLIC_READ` access. Unknown, unpublished, or deleted collections return `null` through singular roots and are omitted from collection connections.
+
+Collection visibility follows the same current-channel publication state used by the shared product catalog. Admin collection create, update, delete, publish/unpublish, product membership changes, and manual reorder operations are reflected by later Storefront reads. Product update, delete, and publish/unpublish operations also flow through the shared product records, so collection membership never forks into a Storefront-only model.
+
+`collections(...)` applies query filtering, Storefront `TITLE`, `UPDATED_AT`, `ID`, and `RELEVANCE` ordering, `reverse`, and cursor windowing through the shared staged-connection helpers. `Collection.products(...)` preserves captured collection-default/manual order before applying product visibility and connection filters. The modeled filters are `available`, `productType`, `productVendor`, and `tag`; modeled sort keys are `COLLECTION_DEFAULT`, `MANUAL`, `TITLE`, `PRICE`, `CREATED`, `ID`, `INVENTORY`, `BEST_SELLING`, and `RELEVANCE`.
+
+Collection product nodes use the same Storefront Product projector as the top-level product roots. The supported nested boundary is the core identity/content, availability/inventory, vendor/type/tags, SEO, media/image, option/variant, and price/compare-at-price fields described for Storefront products above. Fields requiring contextual price lists, selling-plan allocations, bundles, store availability, or unmodeled product subgraphs remain outside that boundary and resolve through the normal null/empty behavior.
+
+When live-hybrid mode has no collection graph, a missing collection read hydrates through an explicit authenticated Storefront request and observes returned collection and product connection aliases into the shared store. Snapshot mode never performs that hydration: absent collections return `null`, while `collections(...)` returns an empty connection with false/null `pageInfo` values.
+
 `metaobject(handle:)`, `metaobject(id:)`, and `metaobjects(type:)` read from the shared normalized Admin metaobject and metaobject definition state. Storefront reads only expose entries whose definition has `access.storefront: PUBLIC_READ`; publishable definitions also require the entry status to be `ACTIVE`. Draft, private, deleted, missing, or unsupported-type entries return `null` through singular roots and are omitted from connections. Storefront field projection uses Storefront shape (`key`, `type`, `value`, `reference`, and `references`) and orders `fields` by key to match captured Storefront output.
 
 Storefront metaobject connections support `first`, `after`, `last`, `before`, `reverse`, and representative string `sortKey` values through the shared staged-connection helpers. Locally staged cursors are deterministic staged-resource cursors; captured Storefront cursors remain opaque in fixtures.
@@ -118,10 +142,12 @@ This is not local behavioral support for every field exposed by the captured `Sh
 
 Admin blog/page/article create, update, and delete effects are visible through the Storefront content roots when those Admin operations are locally supported. Admin menu CRUD is not locally modeled, so Storefront menu support is captured Storefront hydration/restored base-state projection only. URL redirect mutation lifecycle is not implemented for Storefront.
 
-Storefront metafields for Product, ProductVariant, Collection, Customer, Article, Blog, Page, and other HasMetafields owners remain deferred until those owner models expose Storefront-visible owner reads. Metaobject-owned metafields are not a separate owner-metafield surface in this slice; metaobject custom fields are supported through `Metaobject.field` and `Metaobject.fields`.
+Storefront metafields for Product, ProductVariant, Customer, Article, Blog, Page, and other HasMetafields owners remain deferred until those owner models expose Storefront-visible owner reads. Collection-owned metafields are supported for locally staged or hydrated collections when the matching definition grants Storefront `PUBLIC_READ` access. Metaobject-owned metafields are not a separate owner-metafield surface in this slice; metaobject custom fields are supported through `Metaobject.field` and `Metaobject.fields`.
 
 Storefront field `jsonValue` is not selected by the supported Storefront custom-data projection because the live Storefront schema exposes `value`, `reference`, and `references` for these public types. Admin custom-data serializers still expose Admin `jsonValue` where those Admin roots support it.
 
 Storefront contextual pricing, selling plan allocations, bundle component/grouping details, store availability, quantity price breaks/rules beyond the default minimum/increment shape, product recommendations, theme rendering, Online Store routing, canonical URL generation, storefront policy pages, product/collection content linked from menus, cart, checkout, customer email delivery, real account/recovery email URLs, real Multipass validation, and Storefront mutation domains outside the named customer-auth roots remain outside this slice unless another endpoint document names them explicitly.
+
+Storefront customer support intentionally omits unsupported privacy-sensitive and Admin-only fields. Avatar/social-login fields, customer metafields, unsupported order subfields, and sensitive Admin-only customer/order data resolve as null, empty, or schema validation failures according to the Storefront schema and the selected local projection; the proxy does not fabricate private customer data to satisfy Storefront reads.
 
 Live-hybrid operations that include unimplemented roots are forwarded as one unchanged Storefront request, while snapshot mode returns schema-shaped no-data behavior or rejects mutations.

@@ -1,0 +1,14 @@
+mutation StorefrontCustomerAddressDelete($token: String!, $id: ID!) {
+  customerAddressDelete(customerAccessToken: $token, id: $id) {
+    deletedCustomerAddressId
+    customerUserErrors {
+      field
+      message
+      code
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

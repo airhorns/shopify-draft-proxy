@@ -1,0 +1,96 @@
+query MarketMutationFirstUpdateTopLevelRead(
+  $primaryMarketQuery: String!
+  $updateMarketQuery: String!
+  $otherMarketQuery: String!
+  $catalogsFirst: Int!
+  $priceListsFirst: Int!
+  $webPresencesFirst: Int!
+) {
+  primaryMarketFromList: markets(first: 1, query: $primaryMarketQuery, sortKey: ID) {
+    nodes {
+      id
+      name
+      handle
+      status
+      type
+    }
+  }
+  updateMarketFromList: markets(first: 1, query: $updateMarketQuery, sortKey: ID) {
+    nodes {
+      id
+      name
+      handle
+      status
+      type
+    }
+  }
+  otherMarketFromList: markets(first: 1, query: $otherMarketQuery, sortKey: ID) {
+    nodes {
+      id
+      name
+      handle
+      status
+      type
+    }
+  }
+  catalogs(first: $catalogsFirst, type: MARKET, sortKey: ID) {
+    nodes {
+      id
+      title
+      status
+      ... on MarketCatalog {
+        markets(first: 5) {
+          nodes {
+            id
+            name
+            handle
+            status
+            type
+          }
+        }
+      }
+      priceList {
+        id
+        name
+        currency
+      }
+    }
+  }
+  catalogsCount(type: MARKET) {
+    count
+    precision
+  }
+  priceLists(first: $priceListsFirst, sortKey: ID) {
+    nodes {
+      id
+      name
+      currency
+      catalog {
+        id
+        title
+        status
+      }
+    }
+  }
+  webPresences(first: $webPresencesFirst) {
+    nodes {
+      id
+      subfolderSuffix
+      defaultLocale {
+        locale
+        name
+        primary
+        published
+      }
+      markets(first: 5) {
+        nodes {
+          id
+          name
+          handle
+          status
+          type
+        }
+      }
+    }
+  }
+}

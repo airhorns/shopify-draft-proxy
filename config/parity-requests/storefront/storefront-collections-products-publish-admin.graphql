@@ -1,0 +1,44 @@
+mutation StorefrontCollectionsProductsPublish(
+  $alphaId: ID!
+  $betaId: ID!
+  $gammaId: ID!
+  $input: [PublicationInput!]!
+  $publicationId: ID!
+) {
+  alpha: publishablePublish(id: $alphaId, input: $input) {
+    publishable {
+      ... on Product {
+        id
+        publishedOnPublication(publicationId: $publicationId)
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  beta: publishablePublish(id: $betaId, input: $input) {
+    publishable {
+      ... on Product {
+        id
+        publishedOnPublication(publicationId: $publicationId)
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  gamma: publishablePublish(id: $gammaId, input: $input) {
+    publishable {
+      ... on Product {
+        id
+        publishedOnPublication(publicationId: $publicationId)
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

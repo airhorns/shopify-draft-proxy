@@ -1,0 +1,14 @@
+mutation StorefrontCollectionsUnpublish($id: ID!, $input: [PublicationInput!]!, $publicationId: ID!) {
+  publishableUnpublish(id: $id, input: $input) {
+    publishable {
+      ... on Collection {
+        id
+        publishedOnPublication(publicationId: $publicationId)
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
