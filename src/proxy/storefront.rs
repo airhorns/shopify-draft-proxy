@@ -111,11 +111,16 @@ impl StorefrontRequestContext {
             self.buyer_company_location_id.as_deref(),
         ) {
             (None, None, None) => STOREFRONT_DEFAULT_CONTEXT_KEY.to_string(),
-            (country, language, company_location_id) => format!(
+            (country, language, None) => format!(
+                "country={};language={}",
+                country.unwrap_or("*"),
+                language.unwrap_or("*")
+            ),
+            (country, language, Some(company_location_id)) => format!(
                 "country={};language={};companyLocation={}",
                 country.unwrap_or("*"),
                 language.unwrap_or("*"),
-                company_location_id.unwrap_or("*")
+                company_location_id
             ),
         }
     }
