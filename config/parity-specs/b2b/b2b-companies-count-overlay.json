@@ -1,0 +1,48 @@
+{
+  "scenarioId": "b2b-companies-count-overlay",
+  "operationNames": ["companies", "companiesCount", "companyCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["count-shape", "read-after-write", "upstream-hydration-parity", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-companies-count-overlay.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/b2b.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/b2b/b2b-companies-count-overlay-create.graphql",
+    "variablesCapturePath": "$.companyCreate.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "staged-company-create-user-errors",
+        "capturePath": "$.companyCreate.response.payload.data.companyCreate.userErrors",
+        "proxyPath": "$.data.companyCreate.userErrors"
+      },
+      {
+        "name": "count-only-real-total-plus-staged-delta",
+        "capturePath": "$.countOnlyAfterCreate.response.payload.data.companiesCount",
+        "proxyPath": "$.data.companiesCount",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-companies-count-overlay-count.graphql",
+          "variablesCapturePath": "$.countOnlyAfterCreate.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "small-page-plus-count-real-total-plus-staged-delta",
+        "capturePath": "$.smallPageAndCountAfterCreate.response.payload.data.companiesCount",
+        "proxyPath": "$.data.companiesCount",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-companies-count-overlay-small-page.graphql",
+          "variablesCapturePath": "$.smallPageAndCountAfterCreate.request.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Live Admin API 2026-04 evidence for companiesCount overlay behavior. The recorder creates two disposable baseline companies so the live catalog is larger than the small page, captures baseline count-only and small-page-plus-count reads as upstream cassettes, creates one additional company, then captures the two downstream read shapes. Proxy replay stages only that additional company through companyCreate and must report the captured real total plus the staged delta for both count roots."
+}

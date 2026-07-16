@@ -297,6 +297,7 @@ struct BaseState {
     metafield_definition_owner_catalogs: BTreeSet<String>,
     metafield_definition_namespaces: BTreeSet<(String, String)>,
     b2b_companies: OrderedRecords<Value>,
+    b2b_company_count_baselines: BTreeMap<String, Value>,
     b2b_locations: OrderedRecords<Value>,
     b2b_contacts: OrderedRecords<Value>,
     b2b_contact_roles: OrderedRecords<Value>,
