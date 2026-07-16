@@ -13067,6 +13067,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'bulk-operations',
+    captureId: 'bulk-operations-live-hybrid-base-overlay',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-bulk-operations-base-overlay-conformance.ts',
+    purpose: 'LiveHybrid bulkOperations base observation and staged overlay parity after bulkOperationRunQuery.',
+    requiredAuthScopes: ['bulk operation access through active Admin token'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}bulk-operations-live-hybrid-base-overlay.json`,
+      'config/parity-specs/bulk-operations/bulk-operations-live-hybrid-base-overlay.json',
+      'config/parity-requests/bulk-operations/bulk-operations-base-overlay-pre-run.graphql',
+      'config/parity-requests/bulk-operations/bulk-operations-base-overlay-post-run.graphql',
+      'config/parity-requests/bulk-operations/bulk-operations-base-overlay-run-query.graphql',
+    ],
+    cleanupBehavior:
+      'Starts a safe bulkOperationRunQuery against products; Shopify retains the historical BulkOperation record.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'bulk-operations',
     captureId: 'bulk-operation-run-query-validators',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-bulk-operation-run-query-validators-conformance.ts',

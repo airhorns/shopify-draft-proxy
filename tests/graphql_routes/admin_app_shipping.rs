@@ -1,4 +1,5 @@
 use super::common::*;
+use base64::Engine as _;
 use pretty_assertions::assert_eq;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
@@ -22,6 +23,22 @@ fn padded_bulk_document_for_bytes(body: &str, target_bytes: usize, pad: &str) ->
 
 fn synthetic_product_timestamp_for_log_len(log_len: usize) -> String {
     format!("2024-01-01T00:00:{:02}.000Z", (log_len + 1) % 60)
+}
+
+fn bulk_operation_test_cursor(id: &str, timestamp: &str) -> String {
+    let last_id = id
+        .rsplit('/')
+        .next()
+        .unwrap_or_default()
+        .parse::<u64>()
+        .expect("test bulk operation id should have a numeric tail");
+    base64::engine::general_purpose::STANDARD.encode(
+        json!({
+            "last_id": last_id,
+            "last_value": timestamp.strip_suffix('Z').unwrap_or(timestamp).replace('T', " ")
+        })
+        .to_string(),
+    )
 }
 
 fn restore_shipping_packages(proxy: &mut DraftProxy, packages: Vec<Value>) {
@@ -977,13 +994,15 @@ fn bulk_operation_reads_are_operation_name_independent_and_store_backed() {
         read.body["data"]["bulkOperations"]["nodes"][0]["id"],
         json!(id)
     );
-    assert_eq!(
-        read.body["data"]["bulkOperations"]["edges"][0]["cursor"],
-        json!(id)
-    );
+    let cursor = read.body["data"]["bulkOperations"]["edges"][0]["cursor"].clone();
+    assert_ne!(cursor, json!(id));
     assert_eq!(
         read.body["data"]["bulkOperations"]["pageInfo"]["startCursor"],
-        json!(id)
+        cursor
+    );
+    assert_eq!(
+        read.body["data"]["bulkOperations"]["pageInfo"]["endCursor"],
+        read.body["data"]["bulkOperations"]["edges"][0]["cursor"]
     );
 }
 
@@ -3037,6 +3056,8 @@ fn bulk_operation_list_filters_paginates_and_selects_current_by_type() {
         .as_str()
         .unwrap()
         .to_string();
+    let query_cursor = bulk_operation_test_cursor(&query_id, "2024-01-01T00:00:01.000Z");
+    let older_cursor = bulk_operation_test_cursor(older_id, "2023-12-31T23:59:59.000Z");
 
     let cancel = proxy.process_request(json_graphql_request(
         r#"
@@ -3080,7 +3101,7 @@ fn bulk_operation_list_filters_paginates_and_selects_current_by_type() {
           }
         }
         "#,
-        json!({ "after": query_id }),
+        json!({ "after": query_cursor.clone() }),
     ));
 
     assert_eq!(read.status, 200);
@@ -3146,8 +3167,8 @@ fn bulk_operation_list_filters_paginates_and_selects_current_by_type() {
         json!({
             "hasNextPage": true,
             "hasPreviousPage": false,
-            "startCursor": query_id,
-            "endCursor": query_id
+            "startCursor": query_cursor,
+            "endCursor": query_cursor
         })
     );
     assert_eq!(
@@ -3157,6 +3178,10 @@ fn bulk_operation_list_filters_paginates_and_selects_current_by_type() {
     assert_eq!(
         read.body["data"]["secondPage"]["pageInfo"]["hasPreviousPage"],
         json!(true)
+    );
+    assert_eq!(
+        read.body["data"]["secondPage"]["pageInfo"]["startCursor"],
+        json!(older_cursor)
     );
     assert_eq!(
         read.body["data"]["reversePage"]["nodes"][0]["id"],
@@ -3349,6 +3374,159 @@ fn bulk_operation_cold_live_hybrid_sort_key_reads_fall_back_to_upstream_transpor
         json!("gid://shopify/BulkOperation/upstream")
     );
     assert_eq!(forwarded.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn bulk_operation_cold_live_hybrid_fills_missing_forwarded_aliases_locally() {
+    let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured = Arc::clone(&forwarded);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            captured.lock().unwrap().push(request);
+            shopify_draft_proxy::proxy::Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": {} }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query BulkOperationStatusParityRead($unknownId: ID!, $first: Int, $runningQuery: String, $runningMutation: String) {
+          unknown: bulkOperation(id: $unknownId) { id status }
+          runningQueries: bulkOperations(first: $first, query: $runningQuery) { edges { cursor node { id } } nodes { id } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+          runningMutations: bulkOperations(first: $first, query: $runningMutation) { edges { cursor node { id } } nodes { id } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+          currentMutation: currentBulkOperation(type: MUTATION) { id }
+        }
+        "#,
+        json!({
+            "unknownId": "gid://shopify/BulkOperation/unknown",
+            "first": 5,
+            "runningQuery": "status:RUNNING type:QUERY",
+            "runningMutation": "status:RUNNING type:MUTATION"
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(forwarded.lock().unwrap().len(), 1);
+    assert_eq!(response.body["data"]["unknown"], Value::Null);
+    assert_eq!(response.body["data"]["runningQueries"]["nodes"], json!([]));
+    assert_eq!(response.body["data"]["runningQueries"]["edges"], json!([]));
+    assert_eq!(
+        response.body["data"]["runningQueries"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": null,
+            "endCursor": null
+        })
+    );
+    assert_eq!(
+        response.body["data"]["runningMutations"]["nodes"],
+        json!([])
+    );
+    assert_eq!(response.body["data"]["currentMutation"], Value::Null);
+}
+
+#[test]
+fn bulk_operation_overlay_preserves_observed_page_info_cursor_for_base_rows() {
+    let real_id = "gid://shopify/BulkOperation/7749092278578";
+    let observed_cursor = "eyJzaG9waWZ5IjoiY3Vyc29yIn0=";
+    let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured = Arc::clone(&forwarded);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            captured.lock().unwrap().push(request);
+            shopify_draft_proxy::proxy::Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "bulkOperations": {
+                            "nodes": [{
+                                "id": real_id,
+                                "status": "COMPLETED",
+                                "type": "QUERY",
+                                "createdAt": "2026-05-05T20:32:29Z",
+                                "completedAt": "2026-05-05T20:32:30Z"
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": observed_cursor,
+                                "endCursor": observed_cursor
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let cold = proxy.process_request(json_graphql_request(
+        r#"
+        query BulkOperationsSortKeyCapture {
+          bulkOperations(first: 5, sortKey: COMPLETED_AT) {
+            nodes { id status type createdAt completedAt }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(cold.status, 200);
+    assert_eq!(
+        cold.body["data"]["bulkOperations"]["pageInfo"]["startCursor"],
+        json!(observed_cursor)
+    );
+
+    let staged = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageBulkOperation($query: String!) {
+          bulkOperationRunQuery(query: $query) {
+            bulkOperation { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "query": "{ products { edges { node { id } } } }" }),
+    ));
+    assert_eq!(staged.status, 200);
+    assert_eq!(
+        staged.body["data"]["bulkOperationRunQuery"]["userErrors"],
+        json!([])
+    );
+
+    let overlay = proxy.process_request(json_graphql_request(
+        r#"
+        query BulkOperationsSortKeyOverlay {
+          bulkOperations(first: 5, sortKey: COMPLETED_AT, query: "id:gid://shopify/BulkOperation/7749092278578") {
+            edges { cursor node { id } }
+            nodes { id }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(overlay.status, 200);
+    assert_eq!(forwarded.lock().unwrap().len(), 1);
+    assert_eq!(
+        overlay.body["data"]["bulkOperations"]["nodes"],
+        json!([{ "id": real_id }])
+    );
+    assert_eq!(
+        overlay.body["data"]["bulkOperations"]["edges"][0]["cursor"],
+        json!(observed_cursor)
+    );
+    assert_eq!(
+        overlay.body["data"]["bulkOperations"]["pageInfo"]["startCursor"],
+        json!(observed_cursor)
+    );
+    assert_eq!(
+        overlay.body["data"]["bulkOperations"]["pageInfo"]["endCursor"],
+        json!(observed_cursor)
+    );
 }
 
 #[test]
