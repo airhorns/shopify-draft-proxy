@@ -2038,10 +2038,11 @@ fn storefront_first_slice_hydrates_and_projects_local_roots_with_context() {
         Some(&"storefront-token".to_string())
     );
     let hydrate_body: Value = serde_json::from_str(&observed[0].body).unwrap();
-    assert!(hydrate_body["query"]
-        .as_str()
-        .unwrap()
-        .contains("StorefrontFirstSliceHydrateWithContext"));
+    let hydrate_query = hydrate_body["query"].as_str().unwrap();
+    assert!(hydrate_query.contains("StorefrontFirstSliceHydrateWithContext"));
+    assert!(!hydrate_query.contains("contactInformation"));
+    assert!(!hydrate_query.contains("legalNotice"));
+    assert!(!hydrate_query.contains("termsOfSale"));
     assert_eq!(hydrate_body["variables"]["country"], json!("CA"));
     assert_eq!(hydrate_body["variables"]["language"], json!("FR"));
 }
