@@ -1,0 +1,20 @@
+mutation StorefrontCartDeliveryAddressesRemove($cartId: ID!, $addressIds: [ID!]!) {
+  cartDeliveryAddressesRemove(cartId: $cartId, addressIds: $addressIds) {
+    cart { ...StorefrontCartDeliveryFields }
+    userErrors { field message code }
+    warnings { code message target }
+  }
+}
+fragment StorefrontCartDeliveryFields on Cart {
+  id updatedAt checkoutUrl totalQuantity
+  delivery { addresses { id selected oneTimeUse address { __typename ... on CartDeliveryAddress { firstName lastName company address1 address2 city provinceCode countryCode zip phone name formatted formattedArea latitude longitude } } } }
+  deliveryGroups(first: 10) { edges { cursor node { ...StorefrontCartDeliveryGroupFields } } nodes { ...StorefrontCartDeliveryGroupFields } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+}
+fragment StorefrontCartDeliveryGroupFields on CartDeliveryGroup {
+  id groupType
+  deliveryAddress { id firstName lastName company address1 address2 city province provinceCode country countryCode countryCodeV2 zip phone name formatted formattedArea latitude longitude }
+  deliveryOptions { ...StorefrontCartDeliveryOptionFields }
+  selectedDeliveryOption { ...StorefrontCartDeliveryOptionFields }
+  cartLines(first: 10) { edges { cursor node { id quantity merchandise { ... on ProductVariant { id } } } } nodes { id quantity merchandise { ... on ProductVariant { id } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+}
+fragment StorefrontCartDeliveryOptionFields on CartDeliveryOption { handle code title description deliveryMethodType estimatedCost { amount currencyCode } }

@@ -2,6 +2,7 @@
   "scenarioId": "storefront-cart-lifecycle",
   "operationNames": [
     "cart",
+    "localization",
     "cartCreate",
     "cartLinesAdd",
     "cartLinesUpdate",
@@ -14,7 +15,12 @@
     "cartGiftCardCodesRemove",
     "cartGiftCardCodesUpdate",
     "cartMetafieldsSet",
-    "cartMetafieldDelete"
+    "cartMetafieldDelete",
+    "cartDeliveryAddressesAdd",
+    "cartDeliveryAddressesUpdate",
+    "cartDeliveryAddressesRemove",
+    "cartDeliveryAddressesReplace",
+    "cartSelectedDeliveryOptionsUpdate"
   ],
   "scenarioStatus": "captured",
   "assertionKinds": [
@@ -165,22 +171,22 @@
       },
       {
         "path": "$.cart.discountCodes[*].code",
-        "matcher": "any-string",
+        "matcher": "non-empty-string",
         "reason": "Live discount codes are redacted; proxy replay uses explicit safe placeholder codes."
       },
       {
         "path": "$.discountCodes[*].code",
-        "matcher": "any-string",
+        "matcher": "non-empty-string",
         "reason": "Live discount codes are redacted; proxy replay uses explicit safe placeholder codes."
       },
       {
         "path": "$.cart.discountAllocations[*].code",
-        "matcher": "any-string",
+        "matcher": "non-empty-string",
         "reason": "Live discount codes are redacted; proxy replay uses explicit safe placeholder codes."
       },
       {
         "path": "$.discountAllocations[*].code",
-        "matcher": "any-string",
+        "matcher": "non-empty-string",
         "reason": "Live discount codes are redacted; proxy replay uses explicit safe placeholder codes."
       },
       {
@@ -195,12 +201,12 @@
       },
       {
         "path": "$.cart.appliedGiftCards[*].lastCharacters",
-        "matcher": "any-string",
+        "matcher": "non-empty-string",
         "reason": "Live gift-card suffixes are redacted; proxy replay derives the safe placeholder suffix."
       },
       {
         "path": "$.appliedGiftCards[*].lastCharacters",
-        "matcher": "any-string",
+        "matcher": "non-empty-string",
         "reason": "Live gift-card suffixes are redacted; proxy replay derives the safe placeholder suffix."
       },
       {
@@ -262,6 +268,201 @@
         "path": "$.metafield.updatedAt",
         "matcher": "iso-timestamp",
         "reason": "The proxy uses its injected runtime clock for cart metafield timestamps."
+      },
+      {
+        "path": "$.cart.delivery.addresses[*].id",
+        "matcher": "shopify-gid:CartSelectableAddress",
+        "reason": "The proxy allocates deterministic cart-owned delivery-address IDs."
+      },
+      {
+        "path": "$.delivery.addresses[*].id",
+        "matcher": "shopify-gid:CartSelectableAddress",
+        "reason": "The proxy allocates deterministic cart-owned delivery-address IDs."
+      },
+      {
+        "path": "$.cart.deliveryGroups.edges[*].cursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify delivery-group cursors are opaque; the proxy emits stable group cursors."
+      },
+      {
+        "path": "$.deliveryGroups.edges[*].cursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify delivery-group cursors are opaque; the proxy emits stable group cursors."
+      },
+      {
+        "path": "$.cart.deliveryGroups.pageInfo.startCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify delivery-group cursors are opaque; the proxy emits stable group cursors."
+      },
+      {
+        "path": "$.cart.deliveryGroups.pageInfo.endCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify delivery-group cursors are opaque; the proxy emits stable group cursors."
+      },
+      {
+        "path": "$.deliveryGroups.pageInfo.startCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify delivery-group cursors are opaque; the proxy emits stable group cursors."
+      },
+      {
+        "path": "$.deliveryGroups.pageInfo.endCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify delivery-group cursors are opaque; the proxy emits stable group cursors."
+      },
+      {
+        "path": "$.cart.deliveryGroups.edges[*].node.id",
+        "matcher": "shopify-gid:CartDeliveryGroup",
+        "reason": "The proxy derives deterministic delivery-group IDs from cart/profile partitions."
+      },
+      {
+        "path": "$.cart.deliveryGroups.nodes[*].id",
+        "matcher": "shopify-gid:CartDeliveryGroup",
+        "reason": "The proxy derives deterministic delivery-group IDs from cart/profile partitions."
+      },
+      {
+        "path": "$.deliveryGroups.edges[*].node.id",
+        "matcher": "shopify-gid:CartDeliveryGroup",
+        "reason": "The proxy derives deterministic delivery-group IDs from cart/profile partitions."
+      },
+      {
+        "path": "$.deliveryGroups.nodes[*].id",
+        "matcher": "shopify-gid:CartDeliveryGroup",
+        "reason": "The proxy derives deterministic delivery-group IDs from cart/profile partitions."
+      },
+      {
+        "path": "$.cart.deliveryGroups.edges[*].node.deliveryAddress.id",
+        "matcher": "shopify-gid:MailingAddress",
+        "reason": "The proxy derives a deterministic non-secret MailingAddress identity."
+      },
+      {
+        "path": "$.cart.deliveryGroups.nodes[*].deliveryAddress.id",
+        "matcher": "shopify-gid:MailingAddress",
+        "reason": "The proxy derives a deterministic non-secret MailingAddress identity."
+      },
+      {
+        "path": "$.deliveryGroups.edges[*].node.deliveryAddress.id",
+        "matcher": "shopify-gid:MailingAddress",
+        "reason": "The proxy derives a deterministic non-secret MailingAddress identity."
+      },
+      {
+        "path": "$.deliveryGroups.nodes[*].deliveryAddress.id",
+        "matcher": "shopify-gid:MailingAddress",
+        "reason": "The proxy derives a deterministic non-secret MailingAddress identity."
+      },
+      {
+        "path": "$.cart.deliveryGroups.edges[*].node.deliveryOptions[*].handle",
+        "matcher": "non-empty-string",
+        "reason": "Shopify delivery-option handles are opaque; the proxy hashes explicit profile/rate facts."
+      },
+      {
+        "path": "$.cart.deliveryGroups.nodes[*].deliveryOptions[*].handle",
+        "matcher": "non-empty-string",
+        "reason": "Shopify delivery-option handles are opaque; the proxy hashes explicit profile/rate facts."
+      },
+      {
+        "path": "$.deliveryGroups.edges[*].node.deliveryOptions[*].handle",
+        "matcher": "non-empty-string",
+        "reason": "Shopify delivery-option handles are opaque; the proxy hashes explicit profile/rate facts."
+      },
+      {
+        "path": "$.deliveryGroups.nodes[*].deliveryOptions[*].handle",
+        "matcher": "non-empty-string",
+        "reason": "Shopify delivery-option handles are opaque; the proxy hashes explicit profile/rate facts."
+      },
+      {
+        "path": "$.cart.deliveryGroups.edges[*].node.selectedDeliveryOption.handle",
+        "matcher": "non-empty-string",
+        "reason": "Shopify delivery-option handles are opaque; the proxy hashes explicit profile/rate facts."
+      },
+      {
+        "path": "$.cart.deliveryGroups.nodes[*].selectedDeliveryOption.handle",
+        "matcher": "non-empty-string",
+        "reason": "Shopify delivery-option handles are opaque; the proxy hashes explicit profile/rate facts."
+      },
+      {
+        "path": "$.deliveryGroups.edges[*].node.selectedDeliveryOption.handle",
+        "matcher": "non-empty-string",
+        "reason": "Shopify delivery-option handles are opaque; the proxy hashes explicit profile/rate facts."
+      },
+      {
+        "path": "$.deliveryGroups.nodes[*].selectedDeliveryOption.handle",
+        "matcher": "non-empty-string",
+        "reason": "Shopify delivery-option handles are opaque; the proxy hashes explicit profile/rate facts."
+      },
+      {
+        "path": "$.cart.deliveryGroups.edges[*].node.cartLines.edges[*].cursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify nested delivery-group cart-line cursors are opaque; the proxy emits stable per-line cursors."
+      },
+      {
+        "path": "$.cart.deliveryGroups.edges[*].node.cartLines.edges[*].node.id",
+        "matcher": "shopify-gid:CartLine",
+        "reason": "Nested delivery-group lines reference the proxy's deterministic synthetic CartLine IDs."
+      },
+      {
+        "path": "$.cart.deliveryGroups.edges[*].node.cartLines.edges[*].node.merchandise.id",
+        "matcher": "shopify-gid:ProductVariant",
+        "reason": "Nested delivery-group lines reference the proxy's staged synthetic ProductVariant."
+      },
+      {
+        "path": "$.cart.deliveryGroups.edges[*].node.cartLines.nodes[*].id",
+        "matcher": "shopify-gid:CartLine",
+        "reason": "Nested delivery-group lines reference the proxy's deterministic synthetic CartLine IDs."
+      },
+      {
+        "path": "$.cart.deliveryGroups.edges[*].node.cartLines.nodes[*].merchandise.id",
+        "matcher": "shopify-gid:ProductVariant",
+        "reason": "Nested delivery-group lines reference the proxy's staged synthetic ProductVariant."
+      },
+      {
+        "path": "$.cart.deliveryGroups.edges[*].node.cartLines.pageInfo.startCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify nested delivery-group cart-line cursors are opaque; the proxy emits stable per-line cursors."
+      },
+      {
+        "path": "$.cart.deliveryGroups.edges[*].node.cartLines.pageInfo.endCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify nested delivery-group cart-line cursors are opaque; the proxy emits stable per-line cursors."
+      },
+      {
+        "path": "$.cart.deliveryGroups.nodes[*].cartLines.edges[*].cursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify nested delivery-group cart-line cursors are opaque; the proxy emits stable per-line cursors."
+      },
+      {
+        "path": "$.cart.deliveryGroups.nodes[*].cartLines.edges[*].node.id",
+        "matcher": "shopify-gid:CartLine",
+        "reason": "Nested delivery-group lines reference the proxy's deterministic synthetic CartLine IDs."
+      },
+      {
+        "path": "$.cart.deliveryGroups.nodes[*].cartLines.edges[*].node.merchandise.id",
+        "matcher": "shopify-gid:ProductVariant",
+        "reason": "Nested delivery-group lines reference the proxy's staged synthetic ProductVariant."
+      },
+      {
+        "path": "$.cart.deliveryGroups.nodes[*].cartLines.nodes[*].id",
+        "matcher": "shopify-gid:CartLine",
+        "reason": "Nested delivery-group lines reference the proxy's deterministic synthetic CartLine IDs."
+      },
+      {
+        "path": "$.cart.deliveryGroups.nodes[*].cartLines.nodes[*].merchandise.id",
+        "matcher": "shopify-gid:ProductVariant",
+        "reason": "Nested delivery-group lines reference the proxy's staged synthetic ProductVariant."
+      },
+      {
+        "path": "$.cart.deliveryGroups.nodes[*].cartLines.pageInfo.startCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify nested delivery-group cart-line cursors are opaque; the proxy emits stable per-line cursors."
+      },
+      {
+        "path": "$.cart.deliveryGroups.nodes[*].cartLines.pageInfo.endCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify nested delivery-group cart-line cursors are opaque; the proxy emits stable per-line cursors."
+      },
+      {
+        "path": "$.userErrors[*].message",
+        "matcher": "regex:^(?:The delivery address with gid://shopify/CartSelectableAddress/.+|The merchandise line with id .+) does not exist\\.$",
+        "reason": "Delivery-address and stale-line ownership errors embed environment-specific synthetic IDs."
       },
       {
         "path": "$.userErrors[*].message",
@@ -339,6 +540,85 @@
         ]
       },
       {
+        "name": "admin-delivery-product-create-stages-shippable-merchandise",
+        "capturePath": "$.adminDeliveryProductCreate.response.body.data.productCreate",
+        "proxyPath": "$.data.productCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-catalog-product-create-admin.graphql",
+          "variablesCapturePath": "$.adminDeliveryProductCreate.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy stages a synthetic delivery Product ID."
+          },
+          {
+            "path": "$.product.variants.nodes[*].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "The proxy stages a synthetic delivery ProductVariant ID."
+          },
+          {
+            "path": "$.product.variants.nodes[*].inventoryItem.id",
+            "matcher": "shopify-gid:InventoryItem",
+            "reason": "The proxy stages a synthetic delivery InventoryItem ID."
+          },
+          {
+            "path": "$.product.seo.title",
+            "matcher": "regex:^$",
+            "reason": "The local setup serializer uses an empty omitted SEO title."
+          },
+          {
+            "path": "$.product.seo.description",
+            "matcher": "regex:^$",
+            "reason": "The local setup serializer uses an empty omitted SEO description."
+          }
+        ]
+      },
+      {
+        "name": "admin-delivery-variant-update-stages-shipping-state",
+        "capturePath": "$.adminDeliveryVariantUpdate.response.body.data.updateVariant",
+        "proxyPath": "$.data.updateVariant",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-catalog-variant-update-admin.graphql",
+          "variables": {
+            "productId": {
+              "fromProxyResponse": "admin-delivery-product-create-stages-shippable-merchandise",
+              "path": "$.data.productCreate.product.id"
+            },
+            "variants": [
+              {
+                "id": {
+                  "fromProxyResponse": "admin-delivery-product-create-stages-shippable-merchandise",
+                  "path": "$.data.productCreate.product.variants.nodes[0].id"
+                },
+                "price": { "fromCapturePath": "$.adminDeliveryVariantUpdate.variables.variants[0].price" },
+                "compareAtPrice": {
+                  "fromCapturePath": "$.adminDeliveryVariantUpdate.variables.variants[0].compareAtPrice"
+                },
+                "inventoryItem": {
+                  "fromCapturePath": "$.adminDeliveryVariantUpdate.variables.variants[0].inventoryItem"
+                }
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.productVariants[*].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "The proxy updates its staged delivery variant."
+          },
+          {
+            "path": "$.productVariants[*].inventoryItem.id",
+            "matcher": "shopify-gid:InventoryItem",
+            "reason": "The proxy updates its staged delivery inventory item."
+          }
+        ]
+      },
+      {
         "name": "admin-location-add-stages-cart-inventory-location",
         "capturePath": "$.adminLocationAdd.response.body.data.locationAdd",
         "proxyPath": "$.data.locationAdd",
@@ -391,6 +671,113 @@
         }
       },
       {
+        "name": "admin-delivery-inventory-set-stages-availability",
+        "capturePath": "$.adminDeliveryInventorySet.response.body.data.inventorySetQuantities.userErrors",
+        "proxyPath": "$.data.inventorySetQuantities.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-catalog-inventory-set-admin.graphql",
+          "variables": {
+            "input": {
+              "name": { "fromCapturePath": "$.adminDeliveryInventorySet.variables.input.name" },
+              "reason": { "fromCapturePath": "$.adminDeliveryInventorySet.variables.input.reason" },
+              "referenceDocumentUri": {
+                "fromCapturePath": "$.adminDeliveryInventorySet.variables.input.referenceDocumentUri"
+              },
+              "quantities": [
+                {
+                  "inventoryItemId": {
+                    "fromProxyResponse": "admin-delivery-variant-update-stages-shipping-state",
+                    "path": "$.data.updateVariant.productVariants[0].inventoryItem.id"
+                  },
+                  "locationId": {
+                    "fromProxyResponse": "admin-location-add-stages-cart-inventory-location",
+                    "path": "$.data.locationAdd.location.id"
+                  },
+                  "quantity": {
+                    "fromCapturePath": "$.adminDeliveryInventorySet.variables.input.quantities[0].quantity"
+                  },
+                  "changeFromQuantity": {
+                    "fromCapturePath": "$.adminDeliveryInventorySet.variables.input.quantities[0].changeFromQuantity"
+                  }
+                }
+              ]
+            },
+            "idempotencyKey": { "fromCapturePath": "$.adminDeliveryInventorySet.variables.idempotencyKey" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "admin-delivery-profile-stages-cart-rates",
+        "capturePath": "$.adminDeliveryProfileCreate.response.body.data.deliveryProfileCreate",
+        "proxyPath": "$.data.deliveryProfileCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/delivery-profile-lifecycle-create.graphql",
+          "variables": {
+            "profile": {
+              "name": { "fromCapturePath": "$.adminDeliveryProfileCreate.variables.profile.name" },
+              "variantsToAssociate": [
+                {
+                  "fromProxyResponse": "admin-delivery-variant-update-stages-shipping-state",
+                  "path": "$.data.updateVariant.productVariants[0].id"
+                }
+              ],
+              "locationGroupsToCreate": [
+                {
+                  "locations": [
+                    {
+                      "fromProxyResponse": "admin-location-add-stages-cart-inventory-location",
+                      "path": "$.data.locationAdd.location.id"
+                    }
+                  ],
+                  "zonesToCreate": {
+                    "fromCapturePath": "$.adminDeliveryProfileCreate.variables.profile.locationGroupsToCreate[0].zonesToCreate"
+                  }
+                }
+              ]
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.profile.id",
+            "matcher": "shopify-gid:DeliveryProfile",
+            "reason": "The proxy stages a synthetic delivery profile."
+          },
+          {
+            "path": "$.profile.profileItems.nodes[*].product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The profile references the proxy's staged product."
+          },
+          {
+            "path": "$.profile.profileItems.nodes[*].variants.nodes[*].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "The profile references the proxy's staged variant."
+          },
+          {
+            "path": "$.profile.profileLocationGroups[*].locationGroup.id",
+            "matcher": "regex:^gid://shopify/DeliveryLocationGroup/.+$",
+            "reason": "The proxy stages a synthetic delivery location group."
+          },
+          {
+            "path": "$.profile.profileLocationGroups[*].locationGroupZones.nodes[*].zone.id",
+            "matcher": "regex:^gid://shopify/DeliveryZone/.+$",
+            "reason": "The proxy stages a synthetic delivery zone."
+          },
+          {
+            "path": "$.profile.profileLocationGroups[*].locationGroupZones.nodes[*].methodDefinitions.nodes[*].id",
+            "matcher": "regex:^gid://shopify/DeliveryMethodDefinition/.+$",
+            "reason": "The proxy stages synthetic delivery methods."
+          },
+          {
+            "path": "$.profile.profileLocationGroups[*].locationGroupZones.nodes[*].methodDefinitions.nodes[*].rateProvider.id",
+            "matcher": "regex:^gid://shopify/DeliveryRateDefinition/.+$",
+            "reason": "The proxy stages synthetic fixed-rate definitions."
+          }
+        ]
+      },
+      {
         "name": "admin-publish-makes-cart-merchandise-visible",
         "capturePath": "$.adminPublish.response.body.data.publishablePublish",
         "proxyPath": "$.data.publishablePublish",
@@ -408,6 +795,30 @@
             "path": "$.publishable.id",
             "matcher": "shopify-gid:Product",
             "reason": "The proxy publishes its staged synthetic Product."
+          }
+        ]
+      },
+      {
+        "name": "admin-delivery-publish-makes-shippable-merchandise-visible",
+        "capturePath": "$.adminDeliveryPublish.response.body.data.publishablePublish",
+        "proxyPath": "$.data.publishablePublish",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-catalog-publish-admin.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "admin-delivery-product-create-stages-shippable-merchandise",
+              "path": "$.data.productCreate.product.id"
+            },
+            "input": { "fromCapturePath": "$.adminDeliveryPublish.variables.input" },
+            "publicationId": { "fromCapturePath": "$.adminDeliveryPublish.variables.publicationId" }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.publishable.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy publishes its staged delivery product."
           }
         ]
       },
@@ -622,6 +1033,398 @@
                 }
               ]
             }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "storefront-delivery-us-context-hydration",
+        "capturePath": "$.storefrontDeliveryContextHydrate.response.body.data.localization",
+        "proxyPath": "$.data.localization",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-enrichment-context-hydrate.graphql",
+          "operationName": "StorefrontEnrichmentContextHydrate",
+          "variablesCapturePath": "$.storefrontDeliveryContextHydrate.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.market.id",
+            "matcher": "shopify-gid:Market",
+            "reason": "The context preserves Shopify's selected Market identity through the recorded hydration path."
+          }
+        ]
+      },
+      {
+        "name": "cart-delivery-primary-cart-create",
+        "capturePath": "$.cartDeliveryPrimaryCartCreate.response.body.data.cartCreate.userErrors",
+        "proxyPath": "$.data.cartCreate.userErrors",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-create.graphql",
+          "operationName": "StorefrontCartCreate",
+          "variables": {
+            "input": {
+              "buyerIdentity": { "fromCapturePath": "$.cartDeliveryPrimaryCartCreate.variables.input.buyerIdentity" },
+              "lines": [
+                {
+                  "merchandiseId": {
+                    "fromProxyResponse": "admin-delivery-variant-update-stages-shipping-state",
+                    "path": "$.data.updateVariant.productVariants[0].id"
+                  },
+                  "quantity": { "fromCapturePath": "$.cartDeliveryPrimaryCartCreate.variables.input.lines[0].quantity" }
+                }
+              ]
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-delivery-read-before-addresses",
+        "capturePath": "$.cartDeliveryReadBeforeAddresses.response.body.data.cart",
+        "proxyPath": "$.data.cart",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-delivery-read.graphql",
+          "operationName": "StorefrontCartDeliveryRead",
+          "variables": {
+            "id": { "fromProxyResponse": "cart-delivery-primary-cart-create", "path": "$.data.cartCreate.cart.id" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-delivery-add-missing-country-user-error",
+        "capturePath": "$.cartDeliveryAddressesAddMissingCountry.response.body.data.cartDeliveryAddressesAdd",
+        "proxyPath": "$.data.cartDeliveryAddressesAdd",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-delivery-addresses-add.graphql",
+          "operationName": "StorefrontCartDeliveryAddressesAdd",
+          "variables": {
+            "cartId": { "fromProxyResponse": "cart-delivery-primary-cart-create", "path": "$.data.cartCreate.cart.id" },
+            "addresses": { "fromCapturePath": "$.cartDeliveryAddressesAddMissingCountry.variables.addresses" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-delivery-add-strict-required-fields-order",
+        "capturePath": "$.cartDeliveryAddressesAddStrictInvalid.response.body.data.cartDeliveryAddressesAdd",
+        "proxyPath": "$.data.cartDeliveryAddressesAdd",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-delivery-addresses-add.graphql",
+          "operationName": "StorefrontCartDeliveryAddressesAdd",
+          "variables": {
+            "cartId": { "fromProxyResponse": "cart-delivery-primary-cart-create", "path": "$.data.cartCreate.cart.id" },
+            "addresses": { "fromCapturePath": "$.cartDeliveryAddressesAddStrictInvalid.variables.addresses" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-delivery-addresses-add-whole-payload",
+        "capturePath": "$.cartDeliveryAddressesAdd.response.body.data.cartDeliveryAddressesAdd",
+        "proxyPath": "$.data.cartDeliveryAddressesAdd",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-delivery-addresses-add.graphql",
+          "operationName": "StorefrontCartDeliveryAddressesAdd",
+          "variables": {
+            "cartId": { "fromProxyResponse": "cart-delivery-primary-cart-create", "path": "$.data.cartCreate.cart.id" },
+            "addresses": { "fromCapturePath": "$.cartDeliveryAddressesAdd.variables.addresses" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-delivery-ownership-cart-create",
+        "capturePath": "$.cartDeliveryOwnershipCartCreate.response.body.data.cartCreate.userErrors",
+        "proxyPath": "$.data.cartCreate.userErrors",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-create.graphql",
+          "operationName": "StorefrontCartCreate",
+          "variables": {
+            "input": {
+              "buyerIdentity": { "fromCapturePath": "$.cartDeliveryOwnershipCartCreate.variables.input.buyerIdentity" },
+              "lines": [
+                {
+                  "merchandiseId": {
+                    "fromProxyResponse": "admin-delivery-variant-update-stages-shipping-state",
+                    "path": "$.data.updateVariant.productVariants[0].id"
+                  },
+                  "quantity": {
+                    "fromCapturePath": "$.cartDeliveryOwnershipCartCreate.variables.input.lines[0].quantity"
+                  }
+                }
+              ]
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-delivery-address-update-rejects-foreign-cart-id",
+        "capturePath": "$.cartDeliveryAddressesUpdateForeignCart.response.body.data.cartDeliveryAddressesUpdate",
+        "proxyPath": "$.data.cartDeliveryAddressesUpdate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-delivery-addresses-update.graphql",
+          "operationName": "StorefrontCartDeliveryAddressesUpdate",
+          "variables": {
+            "cartId": {
+              "fromProxyResponse": "cart-delivery-ownership-cart-create",
+              "path": "$.data.cartCreate.cart.id"
+            },
+            "addresses": [
+              {
+                "id": {
+                  "fromProxyResponse": "cart-delivery-addresses-add-whole-payload",
+                  "path": "$.data.cartDeliveryAddressesAdd.cart.delivery.addresses[0].id"
+                },
+                "selected": true
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-delivery-address-remove-rejects-foreign-cart-id",
+        "capturePath": "$.cartDeliveryAddressesRemoveForeignCart.response.body.data.cartDeliveryAddressesRemove",
+        "proxyPath": "$.data.cartDeliveryAddressesRemove",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-delivery-addresses-remove.graphql",
+          "operationName": "StorefrontCartDeliveryAddressesRemove",
+          "variables": {
+            "cartId": {
+              "fromProxyResponse": "cart-delivery-ownership-cart-create",
+              "path": "$.data.cartCreate.cart.id"
+            },
+            "addressIds": [
+              {
+                "fromProxyResponse": "cart-delivery-addresses-add-whole-payload",
+                "path": "$.data.cartDeliveryAddressesAdd.cart.delivery.addresses[0].id"
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-delivery-address-update-rejects-missing-id",
+        "capturePath": "$.cartDeliveryAddressesUpdateMissing.response.body.data.cartDeliveryAddressesUpdate",
+        "proxyPath": "$.data.cartDeliveryAddressesUpdate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-delivery-addresses-update.graphql",
+          "operationName": "StorefrontCartDeliveryAddressesUpdate",
+          "variables": {
+            "cartId": { "fromProxyResponse": "cart-delivery-primary-cart-create", "path": "$.data.cartCreate.cart.id" },
+            "addresses": { "fromCapturePath": "$.cartDeliveryAddressesUpdateMissing.variables.addresses" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-delivery-address-update-selection-whole-payload",
+        "capturePath": "$.cartDeliveryAddressesUpdateSelectOneTime.response.body.data.cartDeliveryAddressesUpdate",
+        "proxyPath": "$.data.cartDeliveryAddressesUpdate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-delivery-addresses-update.graphql",
+          "operationName": "StorefrontCartDeliveryAddressesUpdate",
+          "variables": {
+            "cartId": { "fromProxyResponse": "cart-delivery-primary-cart-create", "path": "$.data.cartCreate.cart.id" },
+            "addresses": [
+              {
+                "id": {
+                  "fromProxyResponse": "cart-delivery-addresses-add-whole-payload",
+                  "path": "$.data.cartDeliveryAddressesAdd.cart.delivery.addresses[1].id"
+                },
+                "address": {
+                  "fromCapturePath": "$.cartDeliveryAddressesUpdateSelectOneTime.variables.addresses[0].address"
+                },
+                "selected": true,
+                "oneTimeUse": false,
+                "validationStrategy": "COUNTRY_CODE_ONLY"
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-selected-delivery-option-update-whole-payload",
+        "capturePath": "$.cartSelectedDeliveryOptionsUpdate.response.body.data.cartSelectedDeliveryOptionsUpdate",
+        "proxyPath": "$.data.cartSelectedDeliveryOptionsUpdate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-selected-delivery-options-update.graphql",
+          "operationName": "StorefrontCartSelectedDeliveryOptionsUpdate",
+          "variables": {
+            "cartId": { "fromProxyResponse": "cart-delivery-primary-cart-create", "path": "$.data.cartCreate.cart.id" },
+            "selectedDeliveryOptions": [
+              {
+                "deliveryGroupId": {
+                  "fromProxyResponse": "cart-delivery-address-update-selection-whole-payload",
+                  "path": "$.data.cartDeliveryAddressesUpdate.cart.deliveryGroups.nodes[0].id"
+                },
+                "deliveryOptionHandle": {
+                  "fromProxyResponse": "cart-delivery-address-update-selection-whole-payload",
+                  "path": "$.data.cartDeliveryAddressesUpdate.cart.deliveryGroups.nodes[0].deliveryOptions[0].handle"
+                }
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-selected-delivery-option-invalid-handle",
+        "capturePath": "$.cartSelectedDeliveryOptionsUpdateInvalidHandle.response.body.data.cartSelectedDeliveryOptionsUpdate",
+        "proxyPath": "$.data.cartSelectedDeliveryOptionsUpdate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-selected-delivery-options-update.graphql",
+          "operationName": "StorefrontCartSelectedDeliveryOptionsUpdate",
+          "variables": {
+            "cartId": { "fromProxyResponse": "cart-delivery-primary-cart-create", "path": "$.data.cartCreate.cart.id" },
+            "selectedDeliveryOptions": [
+              {
+                "deliveryGroupId": {
+                  "fromProxyResponse": "cart-delivery-address-update-selection-whole-payload",
+                  "path": "$.data.cartDeliveryAddressesUpdate.cart.deliveryGroups.nodes[0].id"
+                },
+                "deliveryOptionHandle": {
+                  "fromCapturePath": "$.cartSelectedDeliveryOptionsUpdateInvalidHandle.variables.selectedDeliveryOptions[0].deliveryOptionHandle"
+                }
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-delivery-address-context-invalidates-selection-and-lines",
+        "capturePath": "$.cartDeliveryAddressesUpdateInvalidatesSelection.response.body.data.cartDeliveryAddressesUpdate",
+        "proxyPath": "$.data.cartDeliveryAddressesUpdate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-delivery-addresses-update.graphql",
+          "operationName": "StorefrontCartDeliveryAddressesUpdate",
+          "variables": {
+            "cartId": { "fromProxyResponse": "cart-delivery-primary-cart-create", "path": "$.data.cartCreate.cart.id" },
+            "addresses": [
+              {
+                "id": {
+                  "fromProxyResponse": "cart-delivery-addresses-add-whole-payload",
+                  "path": "$.data.cartDeliveryAddressesAdd.cart.delivery.addresses[1].id"
+                },
+                "address": {
+                  "fromCapturePath": "$.cartDeliveryAddressesUpdateInvalidatesSelection.variables.addresses[0].address"
+                },
+                "selected": true,
+                "validationStrategy": "COUNTRY_CODE_ONLY"
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-delivery-address-restores-domestic-with-stale-warning",
+        "capturePath": "$.cartDeliveryAddressesUpdateRestoresDomesticAddress.response.body.data.cartDeliveryAddressesUpdate",
+        "proxyPath": "$.data.cartDeliveryAddressesUpdate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-delivery-addresses-update.graphql",
+          "operationName": "StorefrontCartDeliveryAddressesUpdate",
+          "variables": {
+            "cartId": { "fromProxyResponse": "cart-delivery-primary-cart-create", "path": "$.data.cartCreate.cart.id" },
+            "addresses": [
+              {
+                "id": {
+                  "fromProxyResponse": "cart-delivery-addresses-add-whole-payload",
+                  "path": "$.data.cartDeliveryAddressesAdd.cart.delivery.addresses[1].id"
+                },
+                "address": {
+                  "fromCapturePath": "$.cartDeliveryAddressesUpdateRestoresDomesticAddress.variables.addresses[0].address"
+                },
+                "selected": true,
+                "validationStrategy": "COUNTRY_CODE_ONLY"
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-delivery-address-remove-preserves-order",
+        "capturePath": "$.cartDeliveryAddressesRemove.response.body.data.cartDeliveryAddressesRemove",
+        "proxyPath": "$.data.cartDeliveryAddressesRemove",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-delivery-addresses-remove.graphql",
+          "operationName": "StorefrontCartDeliveryAddressesRemove",
+          "variables": {
+            "cartId": { "fromProxyResponse": "cart-delivery-primary-cart-create", "path": "$.data.cartCreate.cart.id" },
+            "addressIds": [
+              {
+                "fromProxyResponse": "cart-delivery-addresses-add-whole-payload",
+                "path": "$.data.cartDeliveryAddressesAdd.cart.delivery.addresses[0].id"
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-delivery-addresses-replace-whole-payload",
+        "capturePath": "$.cartDeliveryAddressesReplace.response.body.data.cartDeliveryAddressesReplace",
+        "proxyPath": "$.data.cartDeliveryAddressesReplace",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-delivery-addresses-replace.graphql",
+          "operationName": "StorefrontCartDeliveryAddressesReplace",
+          "variables": {
+            "cartId": { "fromProxyResponse": "cart-delivery-primary-cart-create", "path": "$.data.cartCreate.cart.id" },
+            "addresses": { "fromCapturePath": "$.cartDeliveryAddressesReplace.variables.addresses" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-delivery-addresses-replace-empty-whole-payload",
+        "capturePath": "$.cartDeliveryAddressesReplaceEmpty.response.body.data.cartDeliveryAddressesReplace",
+        "proxyPath": "$.data.cartDeliveryAddressesReplace",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-delivery-addresses-replace.graphql",
+          "operationName": "StorefrontCartDeliveryAddressesReplace",
+          "variables": {
+            "cartId": { "fromProxyResponse": "cart-delivery-primary-cart-create", "path": "$.data.cartCreate.cart.id" },
+            "addresses": []
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-delivery-address-input-limit-top-level-error",
+        "capturePath": "$.cartDeliveryAddressesAddTooMany.response.body.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-delivery-addresses-add.graphql",
+          "operationName": "StorefrontCartDeliveryAddressesAdd",
+          "variables": {
+            "cartId": { "fromProxyResponse": "cart-delivery-primary-cart-create", "path": "$.data.cartCreate.cart.id" },
+            "addresses": { "fromCapturePath": "$.cartDeliveryAddressesAddTooMany.variables.addresses" }
           },
           "apiVersion": "2026-04"
         }
@@ -1285,5 +2088,5 @@
       }
     ]
   },
-  "notes": "Live 2026-04 Storefront evidence creates disposable catalog merchandise, discounts, a gift card, a customer, and a real cart; exercises cart core plus buyer identity, discount, gift-card, metafield, recalculation, warning, and error branches; and cleans up every Admin resource. Cart secrets, discount and gift-card codes, gift-card suffixes, passwords, and customer tokens are consistently redacted. Proxy replay stages every scoped write locally from shared product, inventory, publication, money, discount, gift-card, customer, market-context, and metafield semantics. Checkout, payment capture, and order creation remain intentionally unsupported."
+  "notes": "Live 2026-04 Storefront evidence creates disposable catalog merchandise, a fixed-rate delivery profile, discounts, a gift card, a customer, and real carts; exercises cart core plus delivery-address ownership/order/validation/limits, delivery groups/options/selections, checkout URL shape, buyer identity, discount, gift-card, metafield, recalculation, warning, and error branches; and cleans up every Admin resource. Cart secrets, personal address fields, adjustment secrets, passwords, and customer tokens are consistently redacted. Shopify accepted a recorded Admin delivery-profile rate update but the existing cart did not expose the change during the bounded capture window, so immediate Admin-to-cart propagation is runtime-test-only and is not a parity claim. Proxy replay stages every scoped write locally from shared product, inventory, location, shipping-profile/rate, publication, money, customer, market-context, and metafield semantics. Carrier-service execution, checkout navigation/payment capture, and order creation remain intentionally unsupported."
 }

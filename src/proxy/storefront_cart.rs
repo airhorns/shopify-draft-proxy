@@ -40,6 +40,27 @@ struct StorefrontCartCalculation {
     gift_cards: Vec<StorefrontCartGiftCardApplication>,
 }
 
+#[derive(Clone)]
+struct StorefrontCartDeliveryOption {
+    handle: String,
+    code: Option<String>,
+    title: Option<String>,
+    description: Option<String>,
+    delivery_method_type: String,
+    amount: f64,
+    currency_code: String,
+}
+
+#[derive(Clone)]
+struct StorefrontCartDeliveryGroup {
+    key: String,
+    id: String,
+    group_type: String,
+    lines: Vec<StorefrontCartLineRecord>,
+    options: Vec<StorefrontCartDeliveryOption>,
+    selected_option: Option<StorefrontCartDeliveryOption>,
+}
+
 impl DraftProxy {
     pub(in crate::proxy) fn storefront_cart_query_root(
         &self,
@@ -73,6 +94,15 @@ impl DraftProxy {
             "cartGiftCardCodesUpdate" => self.storefront_cart_gift_card_codes_update(field),
             "cartMetafieldsSet" => self.storefront_cart_metafields_set(field),
             "cartMetafieldDelete" => self.storefront_cart_metafield_delete(field),
+            "cartDeliveryAddressesAdd" => self.storefront_cart_delivery_addresses_add(field),
+            "cartDeliveryAddressesUpdate" => self.storefront_cart_delivery_addresses_update(field),
+            "cartDeliveryAddressesRemove" => self.storefront_cart_delivery_addresses_remove(field),
+            "cartDeliveryAddressesReplace" => {
+                self.storefront_cart_delivery_addresses_replace(field)
+            }
+            "cartSelectedDeliveryOptionsUpdate" => {
+                self.storefront_cart_selected_delivery_options_update(field)
+            }
             _ => StorefrontCartOutcome {
                 value: Value::Null,
                 errors: Vec::new(),
@@ -164,12 +194,17 @@ impl DraftProxy {
             discount_codes: Vec::new(),
             applied_gift_cards: Vec::new(),
             metafields: Vec::new(),
+            delivery_addresses: Vec::new(),
+            selected_delivery_options: BTreeMap::new(),
+            delivery_warning_lines: Vec::new(),
         };
         let mut lines = Vec::new();
         let mut warnings = Vec::new();
+        self.storefront_cart_save(cart.clone(), Vec::new());
         for input in &line_inputs {
             self.storefront_cart_apply_line_add(&cart, &mut lines, input, &mut warnings);
         }
+        warnings.extend(self.storefront_cart_reconcile_buyer_country_lines(&cart, &mut lines));
         self.storefront_cart_save(cart.clone(), lines);
         let warnings = self.storefront_cart_all_warnings(&cart, warnings);
         self.storefront_cart_user_error_outcome(
@@ -498,6 +533,321 @@ impl DraftProxy {
         }
         cart.updated_at = self.next_mutation_timestamp();
         let lines = self.storefront_cart_lines(&cart.internal_id);
+        self.storefront_cart_save(cart.clone(), lines);
+        let warnings = self.storefront_cart_all_warnings(&cart, Vec::new());
+        self.storefront_cart_user_error_outcome(
+            field,
+            self.storefront_cart_json(&cart, &cart_selection(field)),
+            Vec::new(),
+            warnings,
+        )
+    }
+
+    fn storefront_cart_delivery_addresses_add(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> StorefrontCartOutcome {
+        let inputs = resolved_object_list_field(&field.arguments, "addresses");
+        if inputs.len() > CART_INPUT_LIMIT {
+            return storefront_cart_input_limit_outcome(field, "addresses", "", inputs.len());
+        }
+        let cart_id = resolved_string_field(&field.arguments, "cartId").unwrap_or_default();
+        let Some(mut cart) = self.storefront_cart_by_public_id(&cart_id) else {
+            return self.storefront_cart_missing_mutation_outcome(field, &cart_id, None);
+        };
+        let mut parsed = Vec::new();
+        let mut user_errors = Vec::new();
+        for (index, input) in inputs.iter().enumerate() {
+            match self.storefront_cart_delivery_address_fields(&cart, input, index) {
+                Ok(fields) => parsed.push((input, fields)),
+                Err(mut errors) => user_errors.append(&mut errors),
+            }
+        }
+        if !user_errors.is_empty() {
+            let warnings = self.storefront_cart_all_warnings(&cart, Vec::new());
+            return self.storefront_cart_user_error_outcome(
+                field,
+                self.storefront_cart_json(&cart, &cart_selection(field)),
+                user_errors,
+                warnings,
+            );
+        }
+
+        let mut selection_changed = false;
+        for (input, fields) in parsed {
+            let selected = resolved_bool_field(input, "selected").unwrap_or(false);
+            if selected {
+                for address in &mut cart.delivery_addresses {
+                    address.selected = false;
+                }
+                selection_changed = true;
+            }
+            let sequence = self.store.staged.next_storefront_cart_delivery_address_id;
+            self.store.staged.next_storefront_cart_delivery_address_id += 1;
+            cart.delivery_addresses
+                .push(StorefrontCartDeliveryAddressRecord {
+                    sequence,
+                    selected,
+                    one_time_use: resolved_bool_field(input, "oneTimeUse").unwrap_or(false),
+                    fields,
+                });
+        }
+        if selection_changed {
+            cart.selected_delivery_options.clear();
+        }
+        cart.updated_at = self.next_mutation_timestamp();
+        let lines = self.storefront_cart_lines(&cart.internal_id);
+        let (lines, reconciliation_warnings) =
+            self.storefront_cart_reconcile_delivery_lines(&mut cart, lines);
+        self.storefront_cart_save(cart.clone(), lines);
+        let warnings = self.storefront_cart_all_warnings(&cart, reconciliation_warnings);
+        self.storefront_cart_user_error_outcome(
+            field,
+            self.storefront_cart_json(&cart, &cart_selection(field)),
+            Vec::new(),
+            warnings,
+        )
+    }
+
+    fn storefront_cart_delivery_addresses_update(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> StorefrontCartOutcome {
+        let inputs = resolved_object_list_field(&field.arguments, "addresses");
+        if inputs.len() > CART_INPUT_LIMIT {
+            return storefront_cart_input_limit_outcome(field, "addresses", "", inputs.len());
+        }
+        let cart_id = resolved_string_field(&field.arguments, "cartId").unwrap_or_default();
+        let Some(mut cart) = self.storefront_cart_by_public_id(&cart_id) else {
+            return self.storefront_cart_missing_mutation_outcome(field, &cart_id, None);
+        };
+        let mut parsed_fields = BTreeMap::new();
+        let mut user_errors = Vec::new();
+        for (index, input) in inputs.iter().enumerate() {
+            let id = resolved_string_field(input, "id").unwrap_or_default();
+            if !cart.delivery_addresses.iter().any(|address| {
+                storefront_cart_delivery_address_id(cart.sequence, address.sequence) == id
+            }) {
+                user_errors.push(cart_user_error(
+                    ["addresses", &index.to_string()],
+                    &format!("The delivery address with {id} does not exist."),
+                    "INVALID_DELIVERY_ADDRESS_ID",
+                ));
+                continue;
+            }
+            if input.contains_key("address") {
+                match self.storefront_cart_delivery_address_fields(&cart, input, index) {
+                    Ok(fields) => {
+                        parsed_fields.insert(index, fields);
+                    }
+                    Err(mut errors) => user_errors.append(&mut errors),
+                }
+            }
+        }
+        if !user_errors.is_empty() {
+            let warnings = self.storefront_cart_all_warnings(&cart, Vec::new());
+            return self.storefront_cart_user_error_outcome(
+                field,
+                self.storefront_cart_json(&cart, &cart_selection(field)),
+                user_errors,
+                warnings,
+            );
+        }
+
+        let mut delivery_context_changed = false;
+        for (index, input) in inputs.iter().enumerate() {
+            let id = resolved_string_field(input, "id").unwrap_or_default();
+            let Some(position) = cart.delivery_addresses.iter().position(|address| {
+                storefront_cart_delivery_address_id(cart.sequence, address.sequence) == id
+            }) else {
+                continue;
+            };
+            if let Some(selected) = resolved_bool_field(input, "selected") {
+                if selected {
+                    for address in &mut cart.delivery_addresses {
+                        address.selected = false;
+                    }
+                }
+                if cart.delivery_addresses[position].selected != selected || selected {
+                    delivery_context_changed = true;
+                }
+                cart.delivery_addresses[position].selected = selected;
+            }
+            if let Some(one_time_use) = resolved_bool_field(input, "oneTimeUse") {
+                cart.delivery_addresses[position].one_time_use = one_time_use;
+            }
+            if let Some(fields) = parsed_fields.remove(&index) {
+                cart.delivery_addresses[position].fields = fields;
+                delivery_context_changed = true;
+            }
+        }
+        if delivery_context_changed {
+            cart.selected_delivery_options.clear();
+        }
+        cart.updated_at = self.next_mutation_timestamp();
+        let lines = self.storefront_cart_lines(&cart.internal_id);
+        let (lines, reconciliation_warnings) =
+            self.storefront_cart_reconcile_delivery_lines(&mut cart, lines);
+        self.storefront_cart_save(cart.clone(), lines);
+        let warnings = self.storefront_cart_all_warnings(&cart, reconciliation_warnings);
+        self.storefront_cart_user_error_outcome(
+            field,
+            self.storefront_cart_json(&cart, &cart_selection(field)),
+            Vec::new(),
+            warnings,
+        )
+    }
+
+    fn storefront_cart_delivery_addresses_remove(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> StorefrontCartOutcome {
+        let address_ids = list_string_field(&field.arguments, "addressIds");
+        if address_ids.len() > CART_INPUT_LIMIT {
+            return storefront_cart_input_limit_outcome(field, "addressIds", "", address_ids.len());
+        }
+        let cart_id = resolved_string_field(&field.arguments, "cartId").unwrap_or_default();
+        let Some(mut cart) = self.storefront_cart_by_public_id(&cart_id) else {
+            return self.storefront_cart_missing_mutation_outcome(field, &cart_id, None);
+        };
+        let mut user_errors = Vec::new();
+        for (index, id) in address_ids.iter().enumerate() {
+            if !cart.delivery_addresses.iter().any(|address| {
+                storefront_cart_delivery_address_id(cart.sequence, address.sequence) == *id
+            }) {
+                user_errors.push(cart_user_error(
+                    ["addressIds", &index.to_string()],
+                    &format!("The delivery address with {id} does not exist."),
+                    "INVALID_DELIVERY_ADDRESS_ID",
+                ));
+            }
+        }
+        if user_errors.is_empty() {
+            let removed_selected = cart.delivery_addresses.iter().any(|address| {
+                address.selected
+                    && address_ids.contains(&storefront_cart_delivery_address_id(
+                        cart.sequence,
+                        address.sequence,
+                    ))
+            });
+            cart.delivery_addresses.retain(|address| {
+                !address_ids.contains(&storefront_cart_delivery_address_id(
+                    cart.sequence,
+                    address.sequence,
+                ))
+            });
+            if removed_selected {
+                cart.selected_delivery_options.clear();
+            }
+            cart.updated_at = self.next_mutation_timestamp();
+            let lines = self.storefront_cart_lines(&cart.internal_id);
+            self.storefront_cart_save(cart.clone(), lines);
+        }
+        let warnings = self.storefront_cart_all_warnings(&cart, Vec::new());
+        self.storefront_cart_user_error_outcome(
+            field,
+            self.storefront_cart_json(&cart, &cart_selection(field)),
+            user_errors,
+            warnings,
+        )
+    }
+
+    fn storefront_cart_delivery_addresses_replace(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> StorefrontCartOutcome {
+        let inputs = resolved_object_list_field(&field.arguments, "addresses");
+        if inputs.len() > CART_INPUT_LIMIT {
+            return storefront_cart_input_limit_outcome(field, "addresses", "", inputs.len());
+        }
+        let cart_id = resolved_string_field(&field.arguments, "cartId").unwrap_or_default();
+        let Some(mut cart) = self.storefront_cart_by_public_id(&cart_id) else {
+            return self.storefront_cart_missing_mutation_outcome(field, &cart_id, None);
+        };
+        let mut parsed = Vec::new();
+        let mut user_errors = Vec::new();
+        for (index, input) in inputs.iter().enumerate() {
+            match self.storefront_cart_delivery_address_fields(&cart, input, index) {
+                Ok(fields) => parsed.push((input, fields)),
+                Err(mut errors) => user_errors.append(&mut errors),
+            }
+        }
+        if !user_errors.is_empty() {
+            let warnings = self.storefront_cart_all_warnings(&cart, Vec::new());
+            return self.storefront_cart_user_error_outcome(
+                field,
+                self.storefront_cart_json(&cart, &cart_selection(field)),
+                user_errors,
+                warnings,
+            );
+        }
+
+        let mut addresses = Vec::<StorefrontCartDeliveryAddressRecord>::new();
+        for (input, fields) in parsed {
+            let selected = resolved_bool_field(input, "selected").unwrap_or(false);
+            if selected {
+                for address in &mut addresses {
+                    address.selected = false;
+                }
+            }
+            let sequence = self.store.staged.next_storefront_cart_delivery_address_id;
+            self.store.staged.next_storefront_cart_delivery_address_id += 1;
+            addresses.push(StorefrontCartDeliveryAddressRecord {
+                sequence,
+                selected,
+                one_time_use: resolved_bool_field(input, "oneTimeUse").unwrap_or(false),
+                fields,
+            });
+        }
+        cart.delivery_addresses = addresses;
+        cart.selected_delivery_options.clear();
+        cart.updated_at = self.next_mutation_timestamp();
+        let lines = self.storefront_cart_lines(&cart.internal_id);
+        let (lines, reconciliation_warnings) =
+            self.storefront_cart_reconcile_delivery_lines(&mut cart, lines);
+        self.storefront_cart_save(cart.clone(), lines);
+        let warnings = self.storefront_cart_all_warnings(&cart, reconciliation_warnings);
+        self.storefront_cart_user_error_outcome(
+            field,
+            self.storefront_cart_json(&cart, &cart_selection(field)),
+            Vec::new(),
+            warnings,
+        )
+    }
+
+    fn storefront_cart_selected_delivery_options_update(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> StorefrontCartOutcome {
+        let inputs = resolved_object_list_field(&field.arguments, "selectedDeliveryOptions");
+        if inputs.len() > CART_INPUT_LIMIT {
+            return storefront_cart_input_limit_outcome(
+                field,
+                "selectedDeliveryOptions",
+                "",
+                inputs.len(),
+            );
+        }
+        let cart_id = resolved_string_field(&field.arguments, "cartId").unwrap_or_default();
+        let Some(mut cart) = self.storefront_cart_by_public_id(&cart_id) else {
+            return self.storefront_cart_missing_mutation_outcome(field, &cart_id, None);
+        };
+        let lines = self.storefront_cart_lines(&cart.internal_id);
+        let groups = self.storefront_cart_delivery_groups(&cart, &lines);
+        let mut selected = BTreeMap::new();
+        for input in &inputs {
+            let group_id = resolved_string_field(input, "deliveryGroupId").unwrap_or_default();
+            let handle = resolved_string_field(input, "deliveryOptionHandle").unwrap_or_default();
+            let Some(group) = groups.iter().find(|group| group.id == group_id) else {
+                return self.storefront_cart_invalid_delivery_option_outcome(field, &handle);
+            };
+            if !group.options.iter().any(|option| option.handle == handle) {
+                return self.storefront_cart_invalid_delivery_option_outcome(field, &handle);
+            }
+            selected.insert(group.key.clone(), handle);
+        }
+        cart.selected_delivery_options = selected;
+        cart.updated_at = self.next_mutation_timestamp();
         self.storefront_cart_save(cart.clone(), lines);
         let warnings = self.storefront_cart_all_warnings(&cart, Vec::new());
         self.storefront_cart_user_error_outcome(
@@ -842,6 +1192,9 @@ impl DraftProxy {
                 discount_codes: Vec::new(),
                 applied_gift_cards: Vec::new(),
                 metafields: Vec::new(),
+                delivery_addresses: Vec::new(),
+                selected_delivery_options: BTreeMap::new(),
+                delivery_warning_lines: Vec::new(),
             };
             self.storefront_cart_save(cart.clone(), Vec::new());
             self.storefront_cart_json(&cart, &cart_selection(field))
@@ -954,6 +1307,481 @@ impl DraftProxy {
             .staged
             .storefront_carts
             .insert(cart.internal_id.clone(), cart);
+    }
+
+    fn storefront_cart_invalid_delivery_option_outcome(
+        &self,
+        field: &RootFieldSelection,
+        handle: &str,
+    ) -> StorefrontCartOutcome {
+        self.storefront_cart_user_error_outcome(
+            field,
+            Value::Null,
+            vec![cart_user_error(
+                ["selectedDeliveryOptions"],
+                &format!("The delivery option with handle {handle} is not valid."),
+                "INVALID_DELIVERY_OPTION",
+            )],
+            Vec::new(),
+        )
+    }
+
+    fn storefront_cart_delivery_address_fields(
+        &self,
+        cart: &StorefrontCartRecord,
+        input: &BTreeMap<String, ResolvedValue>,
+        index: usize,
+    ) -> Result<StorefrontCartDeliveryAddressFields, Vec<Value>> {
+        let address = resolved_object_field(input, "address").unwrap_or_default();
+        if let Some(customer_address_id) =
+            resolved_string_field(&address, "copyFromCustomerAddressId")
+        {
+            let owned = cart
+                .buyer_identity
+                .customer_id
+                .as_deref()
+                .zip(
+                    self.store
+                        .staged
+                        .customer_address_owners
+                        .get(&customer_address_id)
+                        .map(String::as_str),
+                )
+                .is_some_and(|(customer_id, owner_id)| customer_id == owner_id);
+            let Some(customer_address) = owned
+                .then(|| {
+                    self.store
+                        .staged
+                        .customer_addresses
+                        .get(&customer_address_id)
+                })
+                .flatten()
+            else {
+                return Err(vec![cart_user_error(
+                    [
+                        "addresses",
+                        &index.to_string(),
+                        "address",
+                        "copyFromCustomerAddressId",
+                    ],
+                    "The customer address is invalid.",
+                    "INVALID",
+                )]);
+            };
+            return Ok(storefront_cart_delivery_fields_from_json(customer_address));
+        }
+
+        let delivery_address =
+            resolved_object_field(&address, "deliveryAddress").unwrap_or_default();
+        let fields = StorefrontCartDeliveryAddressFields {
+            first_name: normalized_cart_address_field(&delivery_address, "firstName"),
+            last_name: normalized_cart_address_field(&delivery_address, "lastName"),
+            company: normalized_cart_address_field(&delivery_address, "company"),
+            address1: normalized_cart_address_field(&delivery_address, "address1"),
+            address2: normalized_cart_address_field(&delivery_address, "address2"),
+            city: normalized_cart_address_field(&delivery_address, "city"),
+            province_code: normalized_cart_address_field(&delivery_address, "provinceCode")
+                .map(|value| value.to_ascii_uppercase()),
+            country_code: normalized_cart_address_field(&delivery_address, "countryCode")
+                .map(|value| value.to_ascii_uppercase()),
+            zip: normalized_cart_address_field(&delivery_address, "zip"),
+            phone: normalized_cart_address_field(&delivery_address, "phone"),
+        };
+        if fields.country_code.is_none() {
+            return Err(vec![cart_user_error(
+                [
+                    "addresses",
+                    &index.to_string(),
+                    "address",
+                    "deliveryAddress",
+                    "countryCode",
+                ],
+                "invalid value",
+                "INVALID",
+            )]);
+        }
+        if resolved_string_field(input, "validationStrategy").as_deref() != Some("STRICT") {
+            return Ok(fields);
+        }
+
+        let mut errors = Vec::new();
+        for (name, missing, message) in [
+            (
+                "lastName",
+                fields.last_name.is_none(),
+                "A last name is required in order to continue.",
+            ),
+            (
+                "address1",
+                fields.address1.is_none(),
+                "An address is required in order to continue.",
+            ),
+            (
+                "provinceCode",
+                fields.province_code.is_none()
+                    && fields
+                        .country_code
+                        .as_deref()
+                        .is_some_and(|code| matches!(code, "US" | "CA")),
+                "The specified country requires a zone.",
+            ),
+            (
+                "zip",
+                fields.zip.is_none(),
+                "Country specified requires a postal code in order to continue.",
+            ),
+            (
+                "city",
+                fields.city.is_none(),
+                "A city is required in order to continue.",
+            ),
+        ] {
+            if missing {
+                errors.push(cart_user_error(
+                    [
+                        "addresses",
+                        &index.to_string(),
+                        "address",
+                        "deliveryAddress",
+                        name,
+                    ],
+                    message,
+                    "ADDRESS_FIELD_IS_REQUIRED",
+                ));
+            }
+        }
+        if errors.is_empty() {
+            Ok(fields)
+        } else {
+            Err(errors)
+        }
+    }
+
+    fn storefront_cart_reconcile_delivery_lines(
+        &self,
+        cart: &mut StorefrontCartRecord,
+        lines: Vec<StorefrontCartLineRecord>,
+    ) -> (Vec<StorefrontCartLineRecord>, Vec<Value>) {
+        let country_code = cart
+            .delivery_addresses
+            .iter()
+            .find(|address| address.selected)
+            .and_then(|address| address.fields.country_code.as_deref())
+            .or(cart.buyer_identity.country_code.as_deref());
+        let Some(country_code) = country_code else {
+            return (lines, Vec::new());
+        };
+        let mut retained = Vec::new();
+        let mut warnings = Vec::new();
+        for line in lines {
+            let requires_shipping = self
+                .store
+                .product_variant_by_id(&line.merchandise_id)
+                .is_some_and(|variant| variant.inventory_item.requires_shipping);
+            if !requires_shipping
+                || self.storefront_cart_line_has_delivery_option(cart, &line, country_code)
+            {
+                retained.push(line);
+            } else {
+                warnings.push(self.storefront_cart_out_of_stock_warning(&line));
+                if !cart
+                    .delivery_warning_lines
+                    .iter()
+                    .any(|warning_line| warning_line.internal_id == line.internal_id)
+                {
+                    cart.delivery_warning_lines.push(line.clone());
+                }
+            }
+        }
+        if !warnings.is_empty() {
+            cart.selected_delivery_options.clear();
+        }
+        (retained, warnings)
+    }
+
+    fn storefront_cart_reconcile_buyer_country_lines(
+        &self,
+        cart: &StorefrontCartRecord,
+        lines: &mut [StorefrontCartLineRecord],
+    ) -> Vec<Value> {
+        let Some(country_code) = cart.buyer_identity.country_code.as_deref() else {
+            return Vec::new();
+        };
+        let mut warnings = Vec::new();
+        for line in lines {
+            let requires_shipping = self
+                .store
+                .product_variant_by_id(&line.merchandise_id)
+                .is_some_and(|variant| variant.inventory_item.requires_shipping);
+            if requires_shipping
+                && !self.storefront_cart_line_has_delivery_option(cart, line, country_code)
+            {
+                warnings.push(self.storefront_cart_out_of_stock_warning(line));
+                line.quantity = 0;
+                line.out_of_stock_warning = false;
+            }
+        }
+        warnings
+    }
+
+    fn storefront_cart_line_has_delivery_option(
+        &self,
+        cart: &StorefrontCartRecord,
+        line: &StorefrontCartLineRecord,
+        country_code: &str,
+    ) -> bool {
+        let Some((_, profile)) = self.storefront_cart_delivery_profile_for_line(line) else {
+            return true;
+        };
+        !self
+            .storefront_cart_delivery_options_for_profile(
+                &profile,
+                country_code,
+                std::slice::from_ref(line),
+                cart,
+            )
+            .is_empty()
+    }
+
+    fn storefront_cart_delivery_groups(
+        &self,
+        cart: &StorefrontCartRecord,
+        lines: &[StorefrontCartLineRecord],
+    ) -> Vec<StorefrontCartDeliveryGroup> {
+        let Some(address) = cart
+            .delivery_addresses
+            .iter()
+            .find(|address| address.selected)
+        else {
+            return Vec::new();
+        };
+        let Some(country_code) = address.fields.country_code.as_deref() else {
+            return Vec::new();
+        };
+        let mut partitions =
+            BTreeMap::<(String, String), (Value, Vec<StorefrontCartLineRecord>)>::new();
+        for line in lines {
+            let Some(variant) = self.store.product_variant_by_id(&line.merchandise_id) else {
+                continue;
+            };
+            if !variant.inventory_item.requires_shipping
+                || self.storefront_cart_available_quantity(&line.merchandise_id) <= 0
+            {
+                continue;
+            }
+            let Some((profile_id, profile)) = self.storefront_cart_delivery_profile_for_line(line)
+            else {
+                continue;
+            };
+            let group_type = if line.selling_plan_id.is_some() {
+                "SUBSCRIPTION"
+            } else {
+                "ONE_TIME_PURCHASE"
+            };
+            partitions
+                .entry((profile_id, group_type.to_string()))
+                .or_insert_with(|| (profile, Vec::new()))
+                .1
+                .push(line.clone());
+        }
+
+        partitions
+            .into_iter()
+            .filter_map(|((profile_id, group_type), (profile, group_lines))| {
+                let options = self.storefront_cart_delivery_options_for_profile(
+                    &profile,
+                    country_code,
+                    &group_lines,
+                    cart,
+                );
+                if options.is_empty() {
+                    return None;
+                }
+                let key = format!("{profile_id}:{group_type}");
+                let selected_option = cart
+                    .selected_delivery_options
+                    .get(&key)
+                    .and_then(|handle| options.iter().find(|option| option.handle == *handle))
+                    .cloned()
+                    .or_else(|| {
+                        options
+                            .iter()
+                            .min_by(|left, right| left.amount.total_cmp(&right.amount))
+                            .cloned()
+                    });
+                Some(StorefrontCartDeliveryGroup {
+                    id: storefront_cart_delivery_group_id(cart.sequence, &key),
+                    key,
+                    group_type,
+                    lines: group_lines,
+                    options,
+                    selected_option,
+                })
+            })
+            .collect()
+    }
+
+    fn storefront_cart_delivery_profile_for_line(
+        &self,
+        line: &StorefrontCartLineRecord,
+    ) -> Option<(String, Value)> {
+        self.effective_delivery_profiles()
+            .into_iter()
+            .find_map(|profile| {
+                let profile_id = profile.get("id").and_then(Value::as_str)?.to_string();
+                storefront_cart_delivery_profile_contains_variant(&profile, &line.merchandise_id)
+                    .then_some((profile_id, profile))
+            })
+    }
+
+    fn storefront_cart_delivery_options_for_profile(
+        &self,
+        profile: &Value,
+        country_code: &str,
+        lines: &[StorefrontCartLineRecord],
+        cart: &StorefrontCartRecord,
+    ) -> Vec<StorefrontCartDeliveryOption> {
+        let currency_code = self.storefront_cart_currency_code(cart, lines);
+        let subtotal = self.storefront_cart_lines_subtotal(cart, lines);
+        let mut options = Vec::new();
+        for group in storefront_cart_json_array_or_nodes(&profile["profileLocationGroups"]) {
+            let active_location =
+                storefront_cart_json_array_or_nodes(&group["locationGroup"]["locations"])
+                    .into_iter()
+                    .any(|location| self.storefront_cart_delivery_location_is_eligible(location));
+            if !active_location {
+                continue;
+            }
+            for zone in storefront_cart_json_array_or_nodes(&group["locationGroupZones"]) {
+                let country_matches =
+                    storefront_cart_json_array_or_nodes(&zone["zone"]["countries"])
+                        .into_iter()
+                        .any(|country| {
+                            country.pointer("/code/countryCode").and_then(Value::as_str)
+                                == Some(country_code)
+                                || country
+                                    .pointer("/code/restOfWorld")
+                                    .and_then(Value::as_bool)
+                                    == Some(true)
+                        });
+                if !country_matches {
+                    continue;
+                }
+                for method in storefront_cart_json_array_or_nodes(&zone["methodDefinitions"]) {
+                    if method.get("active").and_then(Value::as_bool) == Some(false)
+                        || !storefront_cart_delivery_conditions_match(method, subtotal)
+                    {
+                        continue;
+                    }
+                    let Some(amount) = method
+                        .pointer("/rateProvider/price/amount")
+                        .and_then(Value::as_str)
+                        .and_then(|amount| amount.parse::<f64>().ok())
+                    else {
+                        continue;
+                    };
+                    let Some(option_currency) = method
+                        .pointer("/rateProvider/price/currencyCode")
+                        .and_then(Value::as_str)
+                    else {
+                        continue;
+                    };
+                    if option_currency != currency_code {
+                        continue;
+                    }
+                    let method_id = method.get("id").and_then(Value::as_str).unwrap_or_default();
+                    let name = method
+                        .get("name")
+                        .and_then(Value::as_str)
+                        .map(str::to_string);
+                    let description = method
+                        .get("description")
+                        .and_then(Value::as_str)
+                        .map(str::to_string);
+                    options.push(StorefrontCartDeliveryOption {
+                        handle: storefront_cart_delivery_option_handle(
+                            profile
+                                .get("id")
+                                .and_then(Value::as_str)
+                                .unwrap_or_default(),
+                            method_id,
+                            country_code,
+                            option_currency,
+                            amount,
+                            name.as_deref(),
+                        ),
+                        code: name.clone(),
+                        title: name,
+                        description,
+                        delivery_method_type: "SHIPPING".to_string(),
+                        amount,
+                        currency_code: option_currency.to_string(),
+                    });
+                }
+            }
+        }
+        options
+    }
+
+    fn storefront_cart_delivery_location_is_eligible(&self, profile_location: &Value) -> bool {
+        let Some(location_id) = profile_location.get("id").and_then(Value::as_str) else {
+            return false;
+        };
+        if self.store.staged.locations.is_tombstoned(location_id) {
+            return false;
+        }
+        let current_location = self.location_for_read(location_id);
+        let location = current_location.as_ref().unwrap_or(profile_location);
+        location.get("isActive").and_then(Value::as_bool) == Some(true)
+            && location
+                .get("isFulfillmentService")
+                .and_then(Value::as_bool)
+                != Some(true)
+            && location
+                .get("fulfillsOnlineOrders")
+                .and_then(Value::as_bool)
+                != Some(false)
+            && location.get("shipsInventory").and_then(Value::as_bool) != Some(false)
+    }
+
+    fn storefront_cart_currency_code(
+        &self,
+        cart: &StorefrontCartRecord,
+        lines: &[StorefrontCartLineRecord],
+    ) -> String {
+        let context = self.storefront_cart_context(cart);
+        lines
+            .iter()
+            .find_map(|line| {
+                self.store
+                    .product_variant_by_id(&line.merchandise_id)
+                    .map(|variant| {
+                        self.storefront_variant_pricing(variant, &context)
+                            .currency_code
+                    })
+            })
+            .filter(|currency| !currency.is_empty())
+            .unwrap_or_else(|| self.storefront_currency_code())
+    }
+
+    fn storefront_cart_lines_subtotal(
+        &self,
+        cart: &StorefrontCartRecord,
+        lines: &[StorefrontCartLineRecord],
+    ) -> f64 {
+        let context = self.storefront_cart_context(cart);
+        lines
+            .iter()
+            .filter_map(|line| {
+                let variant = self.store.product_variant_by_id(&line.merchandise_id)?;
+                let price = self
+                    .storefront_variant_pricing(variant, &context)
+                    .price
+                    .parse::<f64>()
+                    .ok()?;
+                Some(price * line.quantity as f64)
+            })
+            .sum()
     }
 
     fn storefront_cart_variant(&self, id: &str) -> Option<ProductVariantRecord> {
@@ -1248,7 +2076,12 @@ impl DraftProxy {
             .flat_map(|discount| discount.discounted_amounts.iter().copied())
             .sum::<f64>()
             .min(subtotal);
-        let mut total = (subtotal - discount_total).max(0.0);
+        let delivery_total = self
+            .storefront_cart_delivery_groups(cart, lines)
+            .iter()
+            .filter_map(|group| group.selected_option.as_ref().map(|option| option.amount))
+            .sum::<f64>();
+        let mut total = (subtotal - discount_total + delivery_total).max(0.0);
         let mut gift_cards = Vec::new();
         for applied in &cart.applied_gift_cards {
             let Some(card) = self.storefront_cart_gift_card_by_id(&applied.gift_card_id) else {
@@ -1396,6 +2229,9 @@ impl DraftProxy {
         cart: &StorefrontCartRecord,
         mut immediate: Vec<Value>,
     ) -> Vec<Value> {
+        for line in &cart.delivery_warning_lines {
+            immediate.push(self.storefront_cart_out_of_stock_warning(line));
+        }
         for line in self.storefront_cart_lines(&cart.internal_id) {
             if line.out_of_stock_warning {
                 immediate.push(self.storefront_cart_out_of_stock_warning(&line));
@@ -1545,11 +2381,13 @@ impl DraftProxy {
             "buyerIdentity" => {
                 Some(self.storefront_cart_buyer_identity_json(cart, &selection.selection))
             }
-            "delivery" => Some(selected_json(
-                &json!({ "addresses": [], "groups": [] }),
+            "delivery" => Some(self.storefront_cart_delivery_json(cart, &selection.selection)),
+            "deliveryGroups" => Some(self.storefront_cart_delivery_groups_json(
+                cart,
+                &lines,
+                &selection.arguments,
                 &selection.selection,
             )),
-            "deliveryGroups" => Some(selected_empty_connection_json(&selection.selection)),
             "metafield" => Some(
                 storefront_cart_metafield_lookup(cart, selection)
                     .map(|metafield| {
@@ -1737,6 +2575,113 @@ impl DraftProxy {
         })
     }
 
+    fn storefront_cart_delivery_json(
+        &self,
+        cart: &StorefrontCartRecord,
+        selections: &[SelectedField],
+    ) -> Value {
+        selected_payload_json(selections, |selection| match selection.name.as_str() {
+            "addresses" => Some(Value::Array(
+                cart.delivery_addresses
+                    .iter()
+                    .map(|address| {
+                        self.storefront_cart_selectable_address_json(
+                            cart,
+                            address,
+                            &selection.selection,
+                        )
+                    })
+                    .collect(),
+            )),
+            _ => None,
+        })
+    }
+
+    fn storefront_cart_delivery_groups_json(
+        &self,
+        cart: &StorefrontCartRecord,
+        lines: &[StorefrontCartLineRecord],
+        arguments: &BTreeMap<String, ResolvedValue>,
+        selections: &[SelectedField],
+    ) -> Value {
+        let groups = self.storefront_cart_delivery_groups(cart, lines);
+        selected_typed_connection_with_args(
+            &groups,
+            arguments,
+            selections,
+            |group, selections| self.storefront_cart_delivery_group_json(cart, group, selections),
+            |group| storefront_cart_delivery_group_cursor(&group.id),
+        )
+    }
+
+    fn storefront_cart_delivery_group_json(
+        &self,
+        cart: &StorefrontCartRecord,
+        group: &StorefrontCartDeliveryGroup,
+        selections: &[SelectedField],
+    ) -> Value {
+        let selected_address = cart
+            .delivery_addresses
+            .iter()
+            .find(|address| address.selected);
+        selected_payload_json(selections, |selection| match selection.name.as_str() {
+            "__typename" => Some(json!("CartDeliveryGroup")),
+            "id" => Some(json!(group.id)),
+            "groupType" => Some(json!(group.group_type)),
+            "deliveryAddress" => selected_address.map(|address| {
+                storefront_cart_group_delivery_address_json(address, &selection.selection)
+            }),
+            "deliveryOptions" => Some(Value::Array(
+                group
+                    .options
+                    .iter()
+                    .map(|option| {
+                        storefront_cart_delivery_option_json(option, &selection.selection)
+                    })
+                    .collect(),
+            )),
+            "selectedDeliveryOption" => Some(
+                group
+                    .selected_option
+                    .as_ref()
+                    .map(|option| {
+                        storefront_cart_delivery_option_json(option, &selection.selection)
+                    })
+                    .unwrap_or(Value::Null),
+            ),
+            "cartLines" => Some(selected_typed_connection_with_args(
+                &group.lines,
+                &selection.arguments,
+                &selection.selection,
+                |line, selections| self.storefront_cart_line_json(cart, line, selections),
+                |line| self.storefront_cart_line_cursor(line),
+            )),
+            _ => None,
+        })
+    }
+
+    fn storefront_cart_selectable_address_json(
+        &self,
+        cart: &StorefrontCartRecord,
+        address: &StorefrontCartDeliveryAddressRecord,
+        selections: &[SelectedField],
+    ) -> Value {
+        selected_payload_json(selections, |selection| match selection.name.as_str() {
+            "__typename" => Some(json!("CartSelectableAddress")),
+            "id" => Some(json!(storefront_cart_delivery_address_id(
+                cart.sequence,
+                address.sequence
+            ))),
+            "selected" => Some(json!(address.selected)),
+            "oneTimeUse" => Some(json!(address.one_time_use)),
+            "address" => Some(storefront_cart_delivery_address_json(
+                address,
+                &selection.selection,
+            )),
+            _ => None,
+        })
+    }
+
     fn storefront_cart_checkout_url(&self, sequence: u64) -> String {
         format!(
             "{}/cart/c/{}?key={}",
@@ -1768,6 +2713,312 @@ impl DraftProxy {
             &storefront_sha256_hex(&self.storefront_cart_line_public_id(line))[..16]
         )
     }
+}
+
+fn normalized_cart_address_field(
+    input: &BTreeMap<String, ResolvedValue>,
+    field: &str,
+) -> Option<String> {
+    resolved_string_field(input, field)
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn storefront_cart_delivery_fields_from_json(value: &Value) -> StorefrontCartDeliveryAddressFields {
+    let string = |field: &str| {
+        value
+            .get(field)
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string)
+    };
+    StorefrontCartDeliveryAddressFields {
+        first_name: string("firstName"),
+        last_name: string("lastName"),
+        company: string("company"),
+        address1: string("address1"),
+        address2: string("address2"),
+        city: string("city"),
+        province_code: string("provinceCode").map(|value| value.to_ascii_uppercase()),
+        country_code: string("countryCodeV2")
+            .or_else(|| string("countryCode"))
+            .map(|value| value.to_ascii_uppercase()),
+        zip: string("zip"),
+        phone: string("phone"),
+    }
+}
+
+fn storefront_cart_json_array_or_nodes(value: &Value) -> Vec<&Value> {
+    value
+        .as_array()
+        .or_else(|| value.get("nodes").and_then(Value::as_array))
+        .map(|values| values.iter().collect())
+        .unwrap_or_default()
+}
+
+fn storefront_cart_delivery_profile_contains_variant(profile: &Value, variant_id: &str) -> bool {
+    storefront_cart_json_array_or_nodes(&profile["profileItems"])
+        .into_iter()
+        .any(|item| {
+            storefront_cart_json_array_or_nodes(&item["variants"])
+                .into_iter()
+                .any(|variant| variant.get("id").and_then(Value::as_str) == Some(variant_id))
+        })
+}
+
+fn storefront_cart_delivery_conditions_match(method: &Value, subtotal: f64) -> bool {
+    storefront_cart_json_array_or_nodes(&method["methodConditions"])
+        .into_iter()
+        .all(|condition| {
+            if condition.get("field").and_then(Value::as_str) != Some("TOTAL_PRICE") {
+                return false;
+            }
+            let Some(criteria) = condition
+                .pointer("/conditionCriteria/amount")
+                .and_then(Value::as_str)
+                .and_then(|amount| amount.parse::<f64>().ok())
+            else {
+                return false;
+            };
+            match condition.get("operator").and_then(Value::as_str) {
+                Some("GREATER_THAN") => subtotal > criteria,
+                Some("GREATER_THAN_OR_EQUAL_TO") => subtotal >= criteria,
+                Some("LESS_THAN") => subtotal < criteria,
+                Some("LESS_THAN_OR_EQUAL_TO") => subtotal <= criteria,
+                Some("EQUAL_TO") => (subtotal - criteria).abs() < f64::EPSILON,
+                _ => false,
+            }
+        })
+}
+
+fn storefront_cart_delivery_address_id(cart_sequence: u64, address_sequence: u64) -> String {
+    synthetic_shopify_gid(
+        "CartSelectableAddress",
+        format!("cart-{cart_sequence}-{address_sequence}"),
+    )
+}
+
+fn storefront_cart_delivery_group_id(cart_sequence: u64, key: &str) -> String {
+    let digest = storefront_sha256_hex(&format!("cart-delivery-group:{cart_sequence}:{key}"));
+    format!(
+        "gid://shopify/CartDeliveryGroup/{}?cart={}",
+        &digest[..32],
+        storefront_cart_token(cart_sequence)
+    )
+}
+
+fn storefront_cart_delivery_group_cursor(id: &str) -> String {
+    format!(
+        "storefront-cart-delivery-group-cursor-{}",
+        &storefront_sha256_hex(id)[..24]
+    )
+}
+
+fn storefront_cart_delivery_option_handle(
+    profile_id: &str,
+    method_id: &str,
+    country_code: &str,
+    currency_code: &str,
+    amount: f64,
+    name: Option<&str>,
+) -> String {
+    storefront_sha256_hex(&format!(
+        "storefront-cart-delivery-option:{profile_id}:{method_id}:{country_code}:{currency_code}:{}:{}",
+        format_money_amount(amount),
+        name.unwrap_or_default()
+    ))[..32]
+        .to_string()
+}
+
+fn storefront_cart_optional_string(value: &Option<String>) -> Value {
+    value
+        .as_ref()
+        .map(|value| json!(value))
+        .unwrap_or(Value::Null)
+}
+
+fn storefront_cart_address_name(fields: &StorefrontCartDeliveryAddressFields) -> Option<String> {
+    let name = [fields.first_name.as_deref(), fields.last_name.as_deref()]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>()
+        .join(" ");
+    (!name.is_empty()).then_some(name)
+}
+
+fn storefront_cart_delivery_address_json(
+    address: &StorefrontCartDeliveryAddressRecord,
+    selections: &[SelectedField],
+) -> Value {
+    let fields = &address.fields;
+    let country_name = fields
+        .country_code
+        .as_deref()
+        .and_then(country_name_for_code)
+        .map(str::to_string);
+    let mut formatted = Vec::new();
+    if let Some(address1) = &fields.address1 {
+        formatted.push(json!(address1));
+    }
+    let area_line = [
+        fields.city.as_deref(),
+        fields.province_code.as_deref(),
+        fields.zip.as_deref(),
+    ]
+    .into_iter()
+    .flatten()
+    .collect::<Vec<_>>()
+    .join(" ");
+    if !area_line.is_empty() {
+        formatted.push(json!(area_line));
+    }
+    if let Some(country_name) = &country_name {
+        formatted.push(json!(country_name));
+    }
+    let formatted_area = match (
+        fields.city.as_deref(),
+        fields.province_code.as_deref(),
+        country_name.as_deref(),
+    ) {
+        (Some(city), Some(province), Some(country)) => {
+            Some(format!("{city} {province}, {country}"))
+        }
+        (Some(city), None, Some(country)) => Some(format!("{city}, {country}")),
+        _ => None,
+    };
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "__typename" => Some(json!("CartDeliveryAddress")),
+        "firstName" => Some(storefront_cart_optional_string(&fields.first_name)),
+        "lastName" => Some(storefront_cart_optional_string(&fields.last_name)),
+        "company" => Some(storefront_cart_optional_string(&fields.company)),
+        "address1" => Some(storefront_cart_optional_string(&fields.address1)),
+        "address2" => Some(storefront_cart_optional_string(&fields.address2)),
+        "city" => Some(storefront_cart_optional_string(&fields.city)),
+        "provinceCode" => Some(storefront_cart_optional_string(&fields.province_code)),
+        "countryCode" => Some(storefront_cart_optional_string(&fields.country_code)),
+        "zip" => Some(storefront_cart_optional_string(&fields.zip)),
+        "phone" => Some(storefront_cart_optional_string(&fields.phone)),
+        "name" => Some(
+            storefront_cart_address_name(fields)
+                .map(|name| json!(name))
+                .unwrap_or(Value::Null),
+        ),
+        "formatted" => Some(Value::Array(formatted.clone())),
+        "formattedArea" => Some(
+            formatted_area
+                .as_ref()
+                .map(|area| json!(area))
+                .unwrap_or(Value::Null),
+        ),
+        "latitude" | "longitude" => Some(Value::Null),
+        _ => None,
+    })
+}
+
+fn storefront_cart_group_delivery_address_json(
+    address: &StorefrontCartDeliveryAddressRecord,
+    selections: &[SelectedField],
+) -> Value {
+    let fields = &address.fields;
+    let formatted = [fields.address1.as_deref(), fields.city.as_deref()]
+        .into_iter()
+        .flatten()
+        .map(|value| json!(value))
+        .collect::<Vec<_>>();
+    let second_line = [fields.city.as_deref(), fields.zip.as_deref()]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>()
+        .join(" ");
+    let formatted = if formatted.is_empty() {
+        Vec::new()
+    } else {
+        let mut values = Vec::new();
+        if let Some(address1) = &fields.address1 {
+            values.push(json!(address1));
+        }
+        if !second_line.is_empty() {
+            values.push(json!(second_line));
+        }
+        values
+    };
+    let formatted_area = match (fields.city.as_deref(), fields.province_code.as_deref()) {
+        (Some(city), Some(province)) => Some(format!("{city} {province}")),
+        (Some(city), None) => Some(city.to_string()),
+        _ => None,
+    };
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "__typename" => Some(json!("MailingAddress")),
+        "id" => Some(json!(synthetic_shopify_gid(
+            "MailingAddress",
+            format!("cart-delivery-address-{}", address.sequence)
+        ))),
+        "firstName" => Some(storefront_cart_optional_string(&fields.first_name)),
+        "lastName" => Some(storefront_cart_optional_string(&fields.last_name)),
+        "company" => Some(storefront_cart_optional_string(&fields.company)),
+        "address1" => Some(storefront_cart_optional_string(&fields.address1)),
+        "address2" => Some(storefront_cart_optional_string(&fields.address2)),
+        "city" => Some(storefront_cart_optional_string(&fields.city)),
+        "province" => Some(storefront_cart_optional_string(&fields.province_code)),
+        "provinceCode" => Some(Value::Null),
+        "country" => Some(storefront_cart_optional_string(&fields.country_code)),
+        "countryCode" => Some(json!("*")),
+        "countryCodeV2" => Some(json!("ZZ")),
+        "zip" => Some(storefront_cart_optional_string(&fields.zip)),
+        "phone" => Some(storefront_cart_optional_string(&fields.phone)),
+        "name" => Some(
+            storefront_cart_address_name(fields)
+                .map(|name| json!(name))
+                .unwrap_or(Value::Null),
+        ),
+        "formatted" => Some(Value::Array(formatted.clone())),
+        "formattedArea" => Some(
+            formatted_area
+                .as_ref()
+                .map(|area| json!(area))
+                .unwrap_or(Value::Null),
+        ),
+        "latitude" | "longitude" => Some(Value::Null),
+        _ => None,
+    })
+}
+
+fn storefront_cart_delivery_option_json(
+    option: &StorefrontCartDeliveryOption,
+    selections: &[SelectedField],
+) -> Value {
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "__typename" => Some(json!("CartDeliveryOption")),
+        "handle" => Some(json!(option.handle)),
+        "code" => Some(
+            option
+                .code
+                .as_ref()
+                .map(|code| json!(code))
+                .unwrap_or(Value::Null),
+        ),
+        "title" => Some(
+            option
+                .title
+                .as_ref()
+                .map(|title| json!(title))
+                .unwrap_or(Value::Null),
+        ),
+        "description" => Some(
+            option
+                .description
+                .as_ref()
+                .map(|description| json!(description))
+                .unwrap_or(Value::Null),
+        ),
+        "deliveryMethodType" => Some(json!(option.delivery_method_type)),
+        "estimatedCost" => Some(selected_json(
+            &storefront_money_value(option.amount, &option.currency_code),
+            &selection.selection,
+        )),
+        _ => None,
+    })
 }
 
 fn cart_selection(field: &RootFieldSelection) -> Vec<SelectedField> {

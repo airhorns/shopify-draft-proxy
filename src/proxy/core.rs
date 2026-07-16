@@ -555,6 +555,7 @@ impl DraftProxy {
                 "nextStorefrontCartLineId": self.store.staged.next_storefront_cart_line_id,
                 "nextStorefrontCartAppliedGiftCardId": self.store.staged.next_storefront_cart_applied_gift_card_id,
                 "nextStorefrontCartMetafieldId": self.store.staged.next_storefront_cart_metafield_id,
+                "nextStorefrontCartDeliveryAddressId": self.store.staged.next_storefront_cart_delivery_address_id,
                 "customersCountBase": self.store.staged.customers_count_base,
                 "storeCreditAccounts": self.store.staged.store_credit_accounts.records.clone(),
                 "storeCreditAccountOrder": self.store.staged.store_credit_accounts.order.clone(),
@@ -2178,6 +2179,11 @@ impl DraftProxy {
         );
         self.store.staged.next_storefront_cart_metafield_id =
             counter_from_json_with_floor(&state["stagedState"], "nextStorefrontCartMetafieldId", 1);
+        self.store.staged.next_storefront_cart_delivery_address_id = counter_from_json_with_floor(
+            &state["stagedState"],
+            "nextStorefrontCartDeliveryAddressId",
+            1,
+        );
         self.store.staged.customers_count_base =
             state["stagedState"]["customersCountBase"].as_u64();
         replace_staged_value_records(

@@ -228,6 +228,34 @@ struct StorefrontCartRecord {
     applied_gift_cards: Vec<StorefrontCartAppliedGiftCardRecord>,
     #[serde(default)]
     metafields: Vec<StorefrontCartMetafieldRecord>,
+    #[serde(default)]
+    delivery_addresses: Vec<StorefrontCartDeliveryAddressRecord>,
+    #[serde(default)]
+    selected_delivery_options: BTreeMap<String, String>,
+    #[serde(default)]
+    delivery_warning_lines: Vec<StorefrontCartLineRecord>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+struct StorefrontCartDeliveryAddressFields {
+    first_name: Option<String>,
+    last_name: Option<String>,
+    company: Option<String>,
+    address1: Option<String>,
+    address2: Option<String>,
+    city: Option<String>,
+    province_code: Option<String>,
+    country_code: Option<String>,
+    zip: Option<String>,
+    phone: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct StorefrontCartDeliveryAddressRecord {
+    sequence: u64,
+    selected: bool,
+    one_time_use: bool,
+    fields: StorefrontCartDeliveryAddressFields,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -409,6 +437,7 @@ struct StagedState {
     next_storefront_cart_line_id: u64,
     next_storefront_cart_applied_gift_card_id: u64,
     next_storefront_cart_metafield_id: u64,
+    next_storefront_cart_delivery_address_id: u64,
     // Store-wide total customer count baseline reported by `customersCount`.
     // The live shop's total is store-specific and cannot be reconstructed from
     // the handful of customers a scenario stages, so a scenario seeds the
@@ -907,6 +936,7 @@ impl StagedState {
             next_storefront_cart_line_id: 1,
             next_storefront_cart_applied_gift_card_id: 1,
             next_storefront_cart_metafield_id: 1,
+            next_storefront_cart_delivery_address_id: 1,
             ..Default::default()
         }
     }

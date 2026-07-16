@@ -4346,3 +4346,41 @@ Practical rule:
 - preserve the last valid buyer identity when a new token fails validation
 - keep cart metafields normalized and typed in cart state instead of reusing an
   owner model that has different identifier-list null behavior
+
+## 103. Storefront cart delivery groups expose a privacy-shaped address and stale line warnings
+
+Authenticated Storefront GraphQL 2026-04 cart capture showed that a selected US
+delivery address plus a fixed-rate delivery profile produces one
+`ONE_TIME_PURCHASE` group and automatically selects its lowest-cost option. The
+selectable `CartDeliveryAddress` retains the submitted `countryCode`, while the
+same address projected through `CartDeliveryGroup.deliveryAddress` uses
+Shopify's privacy-shaped `MailingAddress` values: `countryCode: "*"` and
+`countryCodeV2: "ZZ"`. Those sentinels are a captured projection rule, not a
+missing-country fallback; the selected address still drives country-zone
+matching from its real normalized country code.
+
+Changing the selected address invalidated an explicit delivery-option
+selection. Changing it to a country outside the configured delivery zone
+removed the shippable line and returned `MERCHANDISE_OUT_OF_STOCK`. Restoring a
+domestic address did not restore that removed line and the warning remained, so
+the warning belongs to persistent cart reconciliation state rather than the
+current option list alone.
+
+The same live flow accepted an Admin delivery-profile fixed-rate update, but an
+existing Storefront cart did not expose the new rate during a bounded 40-second
+poll. Immediate Admin-to-existing-cart propagation is therefore not live parity
+evidence. It can remain a local regression rule for shared-state recalculation,
+but must not be described as captured Shopify behavior until a dedicated live
+scenario observes it.
+
+Practical rule:
+
+- derive delivery groups from the selected normalized address and explicit
+  product, inventory, location, profile, zone, and fixed-rate state
+- treat the privacy-shaped group `MailingAddress` country codes as a field-level
+  captured projection, never as an input or zone-matching default
+- clear stale option handles when delivery context changes and keep removed-line
+  warnings stable until cart state explicitly changes
+- keep carrier callbacks and checkout navigation outside local delivery
+  calculation; a local checkout URL is an opaque deterministic reference, not a
+  claim that checkout can execute
