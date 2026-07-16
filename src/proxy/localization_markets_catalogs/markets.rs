@@ -248,7 +248,7 @@ impl DraftProxy {
     fn catalogs_effective_count(&self, arguments: &BTreeMap<String, ResolvedValue>) -> Value {
         let key = markets_hydration_scope_key("catalogs", arguments);
         let Some(upstream_count) = self.store.staged.markets_upstream_counts.get(&key) else {
-            return staged_count_with_limit_precision(
+            return snapshot_count_with_limit_precision(
                 self.matching_catalogs_query(arguments).total_count,
                 arguments,
             );
@@ -265,7 +265,7 @@ impl DraftProxy {
             return count_object_with_precision(base_count, precision);
         }
         let local_created = self.matching_created_catalog_count(arguments) as u64;
-        staged_count_with_limit_precision((base_count + local_created) as usize, arguments)
+        snapshot_count_with_limit_precision((base_count + local_created) as usize, arguments)
     }
 
     fn matching_created_catalog_count(&self, arguments: &BTreeMap<String, ResolvedValue>) -> usize {

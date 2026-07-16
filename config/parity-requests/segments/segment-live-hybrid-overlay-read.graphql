@@ -1,0 +1,73 @@
+query SegmentLiveHybridOverlayRead(
+  $realId: ID!
+  $catalogQuery: String!
+  $baseQuery: String!
+  $stagedQuery: String!
+  $first: Int!
+) {
+  realSegment: segment(id: $realId) {
+    id
+    name
+    query
+    creationDate
+    lastEditDate
+  }
+  combinedWindow: segments(first: 1, query: $catalogQuery) {
+    edges {
+      cursor
+      node {
+        id
+        name
+        query
+        creationDate
+        lastEditDate
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  baseWindow: segments(first: $first, query: $baseQuery) {
+    edges {
+      cursor
+      node {
+        id
+        name
+        query
+        creationDate
+        lastEditDate
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  stagedWindow: segments(first: $first, query: $stagedQuery) {
+    edges {
+      cursor
+      node {
+        id
+        name
+        query
+        creationDate
+        lastEditDate
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  totalCount: segmentsCount {
+    count
+    precision
+  }
+}

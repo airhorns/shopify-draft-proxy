@@ -1,0 +1,1596 @@
+{
+  "scenarioId": "storefront-catalog-read-after-admin-setup",
+  "capturedAt": "2026-07-15T22:30:32.086Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "apiSurface": "storefront",
+  "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+  "authMode": "storefront-access-token",
+  "storefrontToken": {
+    "id": "gid://shopify/StorefrontAccessToken/130666922290",
+    "title": "hermes-conformance-storefront-recording",
+    "accessScopes": [
+      "unauthenticated_read_checkouts",
+      "unauthenticated_read_content",
+      "unauthenticated_read_customer_tags",
+      "unauthenticated_read_customers",
+      "unauthenticated_read_metaobjects",
+      "unauthenticated_read_product_inventory",
+      "unauthenticated_read_product_listings",
+      "unauthenticated_read_product_pickup_locations",
+      "unauthenticated_read_product_tags",
+      "unauthenticated_read_selling_plans",
+      "unauthenticated_write_checkouts",
+      "unauthenticated_write_customers"
+    ],
+    "obtainedAt": "2026-07-14T23:55:26.161Z"
+  },
+  "adminProductCreate": {
+    "name": "admin-product-create",
+    "request": {
+      "query": "mutation StorefrontCatalogProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      descriptionHtml\n      seo {\n        title\n        description\n      }\n      variants(first: 1) {\n        nodes {\n          id\n          title\n          selectedOptions {\n            name\n            value\n          }\n          inventoryItem {\n            id\n            tracked\n            requiresShipping\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "product": {
+          "title": "Storefront Catalog Product 20260715223007",
+          "handle": "storefront-catalog-product-20260715223007",
+          "status": "ACTIVE",
+          "vendor": "Hermes",
+          "productType": "Catalog Fixture",
+          "tags": ["storefront-catalog", "storefront-catalog-20260715223007"],
+          "descriptionHtml": "<p>Storefront catalog body 20260715223007</p>",
+          "seo": {
+            "title": "Storefront Catalog SEO 20260715223007",
+            "description": "Storefront catalog SEO description 20260715223007"
+          },
+          "productOptions": [
+            {
+              "name": "Color",
+              "values": [
+                {
+                  "name": "Red"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "productCreate": {
+          "product": {
+            "id": "gid://shopify/Product/10241258225970",
+            "title": "Storefront Catalog Product 20260715223007",
+            "handle": "storefront-catalog-product-20260715223007",
+            "status": "ACTIVE",
+            "vendor": "Hermes",
+            "productType": "Catalog Fixture",
+            "tags": ["storefront-catalog", "storefront-catalog-20260715223007"],
+            "descriptionHtml": "<p>Storefront catalog body 20260715223007</p>",
+            "seo": {
+              "title": "Storefront Catalog SEO 20260715223007",
+              "description": "Storefront catalog SEO description 20260715223007"
+            },
+            "variants": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ProductVariant/51478133473586",
+                  "title": "Red",
+                  "selectedOptions": [
+                    {
+                      "name": "Color",
+                      "value": "Red"
+                    }
+                  ],
+                  "inventoryItem": {
+                    "id": "gid://shopify/InventoryItem/53583624110386",
+                    "tracked": false,
+                    "requiresShipping": true
+                  }
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 16,
+          "actualQueryCost": 16,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1984,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "adminVariantUpdate": {
+    "name": "admin-variant-update",
+    "request": {
+      "query": "mutation StorefrontCatalogVariantUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n  updateVariant: productVariantsBulkUpdate(productId: $productId, variants: $variants) {\n    productVariants {\n      id\n      title\n      sku\n      barcode\n      price\n      compareAtPrice\n      inventoryQuantity\n      selectedOptions {\n        name\n        value\n      }\n      inventoryItem {\n        id\n        tracked\n        requiresShipping\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "productId": "gid://shopify/Product/10241258225970",
+        "variants": [
+          {
+            "id": "gid://shopify/ProductVariant/51478133473586",
+            "barcode": "sfc-barcode-20260715223007",
+            "price": "14.25",
+            "compareAtPrice": "18.00",
+            "inventoryItem": {
+              "sku": "SFC-20260715223007",
+              "tracked": true,
+              "requiresShipping": false
+            }
+          }
+        ]
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "updateVariant": {
+          "productVariants": [
+            {
+              "id": "gid://shopify/ProductVariant/51478133473586",
+              "title": "Red",
+              "sku": "SFC-20260715223007",
+              "barcode": "sfc-barcode-20260715223007",
+              "price": "14.25",
+              "compareAtPrice": "18.00",
+              "inventoryQuantity": 0,
+              "selectedOptions": [
+                {
+                  "name": "Color",
+                  "value": "Red"
+                }
+              ],
+              "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/53583624110386",
+                "tracked": true,
+                "requiresShipping": false
+              }
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "adminLocationAdd": {
+    "name": "admin-location-add",
+    "request": {
+      "query": "mutation StorefrontCatalogLocationAdd($input: LocationAddInput!) {\n  locationAdd(input: $input) {\n    location {\n      id\n      name\n      isActive\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Storefront Catalog 20260715223007",
+          "address": {
+            "countryCode": "US"
+          }
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "locationAdd": {
+          "location": {
+            "id": "gid://shopify/Location/113975525682",
+            "name": "Storefront Catalog 20260715223007",
+            "isActive": true
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "adminStockLocationHydrate": {
+    "name": "admin-stock-location-hydrate",
+    "method": "POST",
+    "apiSurface": "admin",
+    "apiVersion": "2026-04",
+    "path": "/admin/api/2026-04/graphql.json",
+    "endpoint": "https://harry-test-heelo.myshopify.com/admin/api/2026-04/graphql.json",
+    "authMode": "admin-access-token",
+    "operationName": "StorefrontCatalogStockLocationHydrate",
+    "query": "query StorefrontCatalogStockLocationHydrate {\n  locations(first: 100, includeInactive: false) {\n    nodes {\n      id\n      name\n      isActive\n      fulfillsOnlineOrders\n      shipsInventory\n    }\n  }\n}\n",
+    "variables": {},
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "locations": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Location/113884102962",
+                "name": "HAR-2332 Probe Destination 1783701294047",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113884070194",
+                "name": "HAR-2332 Probe Source 1783701294047",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/112829759794",
+                "name": "HAR-571 transfer destination 20260505000619",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/112829956402",
+                "name": "HAR-571 transfer destination 20260505000856",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/112833036594",
+                "name": "HAR-654 Main 20260505044352",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/112833069362",
+                "name": "HAR-654 Sub 20260505044352",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/112831103282",
+                "name": "HAR-658 lifecycle 20260505013332",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113792155954",
+                "name": "Inventory Connection 1783176639366",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113792188722",
+                "name": "Inventory Connection 1783176661046",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113792254258",
+                "name": "Inventory Connection Destination 1783176696678",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113792319794",
+                "name": "Inventory Connection Destination 1783176724719",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113792385330",
+                "name": "Inventory Connection Destination 1783176747737",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113792450866",
+                "name": "Inventory Connection Destination 1783176762212",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113792581938",
+                "name": "Inventory Connection Destination 1783177091466",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113883939122",
+                "name": "Inventory Item Levels Destination 1783700896198",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113883906354",
+                "name": "Inventory Item Levels Source 1783700896198",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113903960370",
+                "name": "Inventory Node destination 1783758629488",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113904025906",
+                "name": "Inventory Node destination 1783758654275",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113904091442",
+                "name": "Inventory Node destination 1783758683233",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113904156978",
+                "name": "Inventory Node destination 1783758715358",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113904222514",
+                "name": "Inventory Node destination 1783758737178",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113904288050",
+                "name": "Inventory Node destination 1783758783805",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113904353586",
+                "name": "Inventory Node destination 1783758830212",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113903927602",
+                "name": "Inventory Node origin 1783758629488",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113903993138",
+                "name": "Inventory Node origin 1783758654275",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113904058674",
+                "name": "Inventory Node origin 1783758683233",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113904124210",
+                "name": "Inventory Node origin 1783758715358",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113904189746",
+                "name": "Inventory Node origin 1783758737178",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113904255282",
+                "name": "Inventory Node origin 1783758783805",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113904320818",
+                "name": "Inventory Node origin 1783758830212",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113828626738",
+                "name": "Inventory path product sibling 1783395879236",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/112864788786",
+                "name": "Inventory transfer conformance destination 1778105212772",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/112864919858",
+                "name": "Inventory transfer conformance destination 1778105301908",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/112864985394",
+                "name": "Inventory transfer conformance destination 1778105349016",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/112865149234",
+                "name": "Inventory transfer conformance destination 1778105966307",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113491640626",
+                "name": "Inventory transfer conformance destination 1781556548951",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113783505202",
+                "name": "Inventory transfer conformance destination 1783120727262",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113783570738",
+                "name": "Inventory transfer conformance destination 1783120727262-zero-origin",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/112864756018",
+                "name": "Inventory transfer conformance origin 1778105212772",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/112864887090",
+                "name": "Inventory transfer conformance origin 1778105301908",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/112864952626",
+                "name": "Inventory transfer conformance origin 1778105349016",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/112865116466",
+                "name": "Inventory transfer conformance origin 1778105966307",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113491607858",
+                "name": "Inventory transfer conformance origin 1781556548951",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113783472434",
+                "name": "Inventory transfer conformance origin 1783120727262",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113783537970",
+                "name": "Inventory transfer conformance origin 1783120727262-zero-origin",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/112885236018",
+                "name": "location-delete-inventory-level-cascade destination 20260508023013",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/112885137714",
+                "name": "location-delete-inventory-level-cascade target 20260508022925",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/112850207026",
+                "name": "location-lifecycle-deprecated-user-errors candidate 20260506025819",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/112850174258",
+                "name": "location-lifecycle-deprecated-user-errors duplicate 20260506025819",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/106318463282",
+                "name": "My Custom Location",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113895080242",
+                "name": "Overlay A 20260711021323",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113895113010",
+                "name": "Overlay B 20260711021323",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113895145778",
+                "name": "Overlay Fill 20260711021323 1",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113895440690",
+                "name": "Overlay Fill 20260711021323 10",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113895473458",
+                "name": "Overlay Fill 20260711021323 11",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113895506226",
+                "name": "Overlay Fill 20260711021323 12",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113895538994",
+                "name": "Overlay Fill 20260711021323 13",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113895571762",
+                "name": "Overlay Fill 20260711021323 14",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113895604530",
+                "name": "Overlay Fill 20260711021323 15",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113895637298",
+                "name": "Overlay Fill 20260711021323 16",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113895670066",
+                "name": "Overlay Fill 20260711021323 17",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113895702834",
+                "name": "Overlay Fill 20260711021323 18",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113895735602",
+                "name": "Overlay Fill 20260711021323 19",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113895178546",
+                "name": "Overlay Fill 20260711021323 2",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113895768370",
+                "name": "Overlay Fill 20260711021323 20",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113895801138",
+                "name": "Overlay Fill 20260711021323 21",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113895833906",
+                "name": "Overlay Fill 20260711021323 22",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113895866674",
+                "name": "Overlay Fill 20260711021323 23",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113895899442",
+                "name": "Overlay Fill 20260711021323 24",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113895932210",
+                "name": "Overlay Fill 20260711021323 25",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113895964978",
+                "name": "Overlay Fill 20260711021323 26",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113895997746",
+                "name": "Overlay Fill 20260711021323 27",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113896030514",
+                "name": "Overlay Fill 20260711021323 28",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113896063282",
+                "name": "Overlay Fill 20260711021323 29",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113895211314",
+                "name": "Overlay Fill 20260711021323 3",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113896096050",
+                "name": "Overlay Fill 20260711021323 30",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113896128818",
+                "name": "Overlay Fill 20260711021323 31",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113895244082",
+                "name": "Overlay Fill 20260711021323 4",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113895276850",
+                "name": "Overlay Fill 20260711021323 5",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113895309618",
+                "name": "Overlay Fill 20260711021323 6",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113895342386",
+                "name": "Overlay Fill 20260711021323 7",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113895375154",
+                "name": "Overlay Fill 20260711021323 8",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/113895407922",
+                "name": "Overlay Fill 20260711021323 9",
+                "isActive": true,
+                "fulfillsOnlineOrders": false,
+                "shipsInventory": false
+              },
+              {
+                "id": "gid://shopify/Location/106318430514",
+                "name": "Shop location",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": true
+              },
+              {
+                "id": "gid://shopify/Location/113975525682",
+                "name": "Storefront Catalog 20260715223007",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "adminInventorySet": {
+    "name": "admin-inventory-set",
+    "request": {
+      "query": "mutation StorefrontCatalogInventorySet($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {\n  inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "available",
+          "reason": "correction",
+          "referenceDocumentUri": "logistics://storefront-catalog/20260715223007",
+          "quantities": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53583624110386",
+              "locationId": "gid://shopify/Location/106318430514",
+              "quantity": 5,
+              "changeFromQuantity": 0
+            }
+          ]
+        },
+        "idempotencyKey": "storefront-catalog-inventory-set-20260715223007"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "inventorySetQuantities": {
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "adminPublicationHydrate": {
+    "name": "admin-storefront-publications-hydrate",
+    "method": "POST",
+    "apiSurface": "admin",
+    "apiVersion": "2026-04",
+    "path": "/admin/api/2026-04/graphql.json",
+    "endpoint": "https://harry-test-heelo.myshopify.com/admin/api/2026-04/graphql.json",
+    "authMode": "admin-access-token",
+    "operationName": "StorePropertiesPublishableInputValidationHydrate",
+    "query": "#graphql\n  query StorePropertiesPublishableInputValidationHydrate {\n    shop {\n      publicationCount\n      currencyCode\n    }\n    publications(first: 20) {\n      nodes {\n        id\n        name\n      }\n    }\n  }\n",
+    "variables": {},
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "shop": {
+            "publicationCount": 6,
+            "currencyCode": "CAD"
+          },
+          "publications": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Publication/268039389490",
+                "name": "Online Store"
+              },
+              {
+                "id": "gid://shopify/Publication/268039455026",
+                "name": "Point of Sale"
+              },
+              {
+                "id": "gid://shopify/Publication/268039487794",
+                "name": "Shop"
+              },
+              {
+                "id": "gid://shopify/Publication/273897881906",
+                "name": "Shopify GraphiQL App"
+              },
+              {
+                "id": "gid://shopify/Publication/302536393010",
+                "name": "example.com"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 8,
+            "actualQueryCost": 5,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1995,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "adminPublishStorefront": {
+    "name": "admin-publish-storefront",
+    "request": {
+      "query": "mutation StorefrontCatalogPublish($id: ID!, $input: [PublicationInput!]!, $publicationId: ID!) {\n  publishablePublish(id: $id, input: $input) {\n    publishable {\n      ... on Product {\n        id\n        publishedOnPublication(publicationId: $publicationId)\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Product/10241258225970",
+        "input": [
+          {
+            "publicationId": "gid://shopify/Publication/268039389490"
+          }
+        ],
+        "publicationId": "gid://shopify/Publication/268039389490"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "publishablePublish": {
+          "publishable": {
+            "id": "gid://shopify/Product/10241258225970",
+            "publishedOnPublication": true
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "storefrontRead": {
+    "name": "storefront-catalog-read-after-admin-setup",
+    "method": "POST",
+    "apiSurface": "storefront",
+    "apiVersion": "2026-04",
+    "path": "/api/2026-04/graphql.json",
+    "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+    "authMode": "storefront-access-token",
+    "headers": {
+      "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+    },
+    "operationName": "StorefrontCatalogReadAfterAdminSetup",
+    "query": "query StorefrontCatalogReadAfterAdminSetup(\n  $id: ID!\n  $handle: String!\n  $query: String!\n  $selectedOptions: [SelectedOptionInput!]!\n) {\n  byId: product(id: $id) {\n    ...StorefrontCatalogProductFields\n  }\n  byHandle: productByHandle(handle: $handle) {\n    id\n    title\n    handle\n  }\n  products(first: 2, query: $query, sortKey: PRICE) {\n    edges {\n      cursor\n      node {\n        id\n        title\n        handle\n        availableForSale\n        totalInventory\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  productsReverse: products(first: 1, query: $query, sortKey: TITLE, reverse: true) {\n    nodes {\n      id\n      title\n      handle\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  emptyProducts: products(first: 3, query: \"__shopify_draft_proxy_missing_catalog_product__\") {\n    nodes {\n      id\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n\nfragment StorefrontCatalogProductFields on Product {\n  __typename\n  id\n  title\n  handle\n  createdAt\n  updatedAt\n  description\n  descriptionHtml\n  vendor\n  productType\n  tags\n  seo {\n    title\n    description\n  }\n  publishedAt\n  availableForSale\n  totalInventory\n  featuredImage {\n    id\n    url\n    altText\n    width\n    height\n  }\n  images(first: 1) {\n    nodes {\n      id\n      url\n      altText\n      width\n      height\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  options(first: 3) {\n    name\n    values\n    optionValues {\n      name\n    }\n  }\n  variantsCount {\n    count\n    precision\n  }\n  variants(first: 3, sortKey: POSITION) {\n    edges {\n      cursor\n      node {\n        __typename\n        id\n        title\n        sku\n        barcode\n        availableForSale\n        currentlyNotInStock\n        quantityAvailable\n        requiresShipping\n        price {\n          amount\n          currencyCode\n        }\n        compareAtPrice {\n          amount\n          currencyCode\n        }\n        selectedOptions {\n          name\n          value\n        }\n        quantityRule {\n          increment\n          minimum\n          maximum\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  variantsReverse: variants(first: 1, sortKey: TITLE, reverse: true) {\n    nodes {\n      id\n      sku\n      title\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  priceRange {\n    minVariantPrice {\n      amount\n      currencyCode\n    }\n    maxVariantPrice {\n      amount\n      currencyCode\n    }\n  }\n  compareAtPriceRange {\n    minVariantPrice {\n      amount\n      currencyCode\n    }\n    maxVariantPrice {\n      amount\n      currencyCode\n    }\n  }\n  selectedOrFirstAvailableVariant {\n    id\n    title\n    sku\n    barcode\n    quantityAvailable\n    price {\n      amount\n      currencyCode\n    }\n    selectedOptions {\n      name\n      value\n    }\n  }\n  variantBySelectedOptions(selectedOptions: $selectedOptions) {\n    id\n    title\n    sku\n    barcode\n    quantityAvailable\n    price {\n      amount\n      currencyCode\n    }\n    selectedOptions {\n      name\n      value\n    }\n  }\n  metafield(namespace: \"custom\", key: \"missing\") {\n    id\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Product/10241258225970",
+      "handle": "storefront-catalog-product-20260715223007",
+      "query": "tag:storefront-catalog-20260715223007",
+      "selectedOptions": [
+        {
+          "name": "Color",
+          "value": "Red"
+        }
+      ]
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "byId": {
+            "__typename": "Product",
+            "id": "gid://shopify/Product/10241258225970",
+            "title": "Storefront Catalog Product 20260715223007",
+            "handle": "storefront-catalog-product-20260715223007",
+            "createdAt": "2026-07-15T22:30:07Z",
+            "updatedAt": "2026-07-15T22:30:17Z",
+            "description": "Storefront catalog body 20260715223007",
+            "descriptionHtml": "<p>Storefront catalog body 20260715223007</p>",
+            "vendor": "Hermes",
+            "productType": "Catalog Fixture",
+            "tags": ["storefront-catalog", "storefront-catalog-20260715223007"],
+            "seo": {
+              "title": "Storefront Catalog SEO 20260715223007",
+              "description": "Storefront catalog SEO description 20260715223007"
+            },
+            "publishedAt": "2026-07-15T22:30:08Z",
+            "availableForSale": true,
+            "totalInventory": 5,
+            "featuredImage": null,
+            "images": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            },
+            "options": [
+              {
+                "name": "Color",
+                "values": ["Red"],
+                "optionValues": [
+                  {
+                    "name": "Red"
+                  }
+                ]
+              }
+            ],
+            "variantsCount": {
+              "count": 1,
+              "precision": "EXACT"
+            },
+            "variants": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo1MTQ3ODEzMzQ3MzU4NiwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ==",
+                  "node": {
+                    "__typename": "ProductVariant",
+                    "id": "gid://shopify/ProductVariant/51478133473586",
+                    "title": "Red",
+                    "sku": "SFC-20260715223007",
+                    "barcode": "sfc-barcode-20260715223007",
+                    "availableForSale": true,
+                    "currentlyNotInStock": false,
+                    "quantityAvailable": 5,
+                    "requiresShipping": false,
+                    "price": {
+                      "amount": "14.25",
+                      "currencyCode": "CAD"
+                    },
+                    "compareAtPrice": {
+                      "amount": "18.0",
+                      "currencyCode": "CAD"
+                    },
+                    "selectedOptions": [
+                      {
+                        "name": "Color",
+                        "value": "Red"
+                      }
+                    ],
+                    "quantityRule": {
+                      "increment": 1,
+                      "minimum": 1,
+                      "maximum": null
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo1MTQ3ODEzMzQ3MzU4NiwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ==",
+                "endCursor": "eyJsYXN0X2lkIjo1MTQ3ODEzMzQ3MzU4NiwibGFzdF92YWx1ZSI6MSwib2Zmc2V0IjowfQ=="
+              }
+            },
+            "variantsReverse": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ProductVariant/51478133473586",
+                  "sku": "SFC-20260715223007",
+                  "title": "Red"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo1MTQ3ODEzMzQ3MzU4NiwibGFzdF92YWx1ZSI6IlJlZCIsIm9mZnNldCI6MH0=",
+                "endCursor": "eyJsYXN0X2lkIjo1MTQ3ODEzMzQ3MzU4NiwibGFzdF92YWx1ZSI6IlJlZCIsIm9mZnNldCI6MH0="
+              }
+            },
+            "priceRange": {
+              "minVariantPrice": {
+                "amount": "14.25",
+                "currencyCode": "CAD"
+              },
+              "maxVariantPrice": {
+                "amount": "14.25",
+                "currencyCode": "CAD"
+              }
+            },
+            "compareAtPriceRange": {
+              "minVariantPrice": {
+                "amount": "18.0",
+                "currencyCode": "CAD"
+              },
+              "maxVariantPrice": {
+                "amount": "18.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "selectedOrFirstAvailableVariant": {
+              "id": "gid://shopify/ProductVariant/51478133473586",
+              "title": "Red",
+              "sku": "SFC-20260715223007",
+              "barcode": "sfc-barcode-20260715223007",
+              "quantityAvailable": 5,
+              "price": {
+                "amount": "14.25",
+                "currencyCode": "CAD"
+              },
+              "selectedOptions": [
+                {
+                  "name": "Color",
+                  "value": "Red"
+                }
+              ]
+            },
+            "variantBySelectedOptions": {
+              "id": "gid://shopify/ProductVariant/51478133473586",
+              "title": "Red",
+              "sku": "SFC-20260715223007",
+              "barcode": "sfc-barcode-20260715223007",
+              "quantityAvailable": 5,
+              "price": {
+                "amount": "14.25",
+                "currencyCode": "CAD"
+              },
+              "selectedOptions": [
+                {
+                  "name": "Color",
+                  "value": "Red"
+                }
+              ]
+            },
+            "metafield": null
+          },
+          "byHandle": {
+            "id": "gid://shopify/Product/10241258225970",
+            "title": "Storefront Catalog Product 20260715223007",
+            "handle": "storefront-catalog-product-20260715223007"
+          },
+          "products": {
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMDI0MTI1ODIyNTk3MCwibGFzdF92YWx1ZSI6MTQuMjUsIm9mZnNldCI6MH0=",
+                "node": {
+                  "id": "gid://shopify/Product/10241258225970",
+                  "title": "Storefront Catalog Product 20260715223007",
+                  "handle": "storefront-catalog-product-20260715223007",
+                  "availableForSale": true,
+                  "totalInventory": 5
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxMDI0MTI1ODIyNTk3MCwibGFzdF92YWx1ZSI6MTQuMjUsIm9mZnNldCI6MH0=",
+              "endCursor": "eyJsYXN0X2lkIjoxMDI0MTI1ODIyNTk3MCwibGFzdF92YWx1ZSI6MTQuMjUsIm9mZnNldCI6MH0="
+            }
+          },
+          "productsReverse": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10241258225970",
+                "title": "Storefront Catalog Product 20260715223007",
+                "handle": "storefront-catalog-product-20260715223007"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxMDI0MTI1ODIyNTk3MCwibGFzdF92YWx1ZSI6InN0b3JlZnJvbnQgY2F0YWxvZyBwcm9kdWN0IDIwMjYwNzE1MjIzMDA3Iiwib2Zmc2V0IjowfQ==",
+              "endCursor": "eyJsYXN0X2lkIjoxMDI0MTI1ODIyNTk3MCwibGFzdF92YWx1ZSI6InN0b3JlZnJvbnQgY2F0YWxvZyBwcm9kdWN0IDIwMjYwNzE1MjIzMDA3Iiwib2Zmc2V0IjowfQ=="
+            }
+          },
+          "emptyProducts": {
+            "nodes": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 56
+          }
+        }
+      }
+    }
+  },
+  "adminProductUpdate": {
+    "name": "admin-product-update",
+    "request": {
+      "query": "mutation StorefrontCatalogProductUpdate($product: ProductUpdateInput!) {\n  productUpdate(product: $product) {\n    product {\n      id\n      title\n      handle\n      updatedAt\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "product": {
+          "id": "gid://shopify/Product/10241258225970",
+          "title": "Storefront Catalog Updated 20260715223007",
+          "handle": "storefront-catalog-updated-20260715223007"
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "productUpdate": {
+          "product": {
+            "id": "gid://shopify/Product/10241258225970",
+            "title": "Storefront Catalog Updated 20260715223007",
+            "handle": "storefront-catalog-updated-20260715223007",
+            "updatedAt": "2026-07-15T22:30:24Z"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "storefrontUpdatedRead": {
+    "name": "storefront-catalog-updated-read",
+    "method": "POST",
+    "apiSurface": "storefront",
+    "apiVersion": "2026-04",
+    "path": "/api/2026-04/graphql.json",
+    "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+    "authMode": "storefront-access-token",
+    "headers": {
+      "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+    },
+    "operationName": "StorefrontCatalogUpdatedRead",
+    "query": "query StorefrontCatalogUpdatedRead($id: ID!, $oldHandle: String!, $newHandle: String!, $query: String!) {\n  oldHandle: productByHandle(handle: $oldHandle) {\n    id\n  }\n  byId: product(id: $id) {\n    id\n    title\n    handle\n    updatedAt\n  }\n  byNewHandle: productByHandle(handle: $newHandle) {\n    id\n    title\n    handle\n  }\n  products(first: 2, query: $query, sortKey: TITLE) {\n    nodes {\n      id\n      title\n      handle\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Product/10241258225970",
+      "oldHandle": "storefront-catalog-product-20260715223007",
+      "newHandle": "storefront-catalog-updated-20260715223007",
+      "query": "tag:storefront-catalog-20260715223007"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "oldHandle": null,
+          "byId": {
+            "id": "gid://shopify/Product/10241258225970",
+            "title": "Storefront Catalog Updated 20260715223007",
+            "handle": "storefront-catalog-updated-20260715223007",
+            "updatedAt": "2026-07-15T22:30:24Z"
+          },
+          "byNewHandle": {
+            "id": "gid://shopify/Product/10241258225970",
+            "title": "Storefront Catalog Updated 20260715223007",
+            "handle": "storefront-catalog-updated-20260715223007"
+          },
+          "products": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10241258225970",
+                "title": "Storefront Catalog Updated 20260715223007",
+                "handle": "storefront-catalog-updated-20260715223007"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxMDI0MTI1ODIyNTk3MCwibGFzdF92YWx1ZSI6InN0b3JlZnJvbnQgY2F0YWxvZyBwcm9kdWN0IDIwMjYwNzE1MjIzMDA3Iiwib2Zmc2V0IjowfQ==",
+              "endCursor": "eyJsYXN0X2lkIjoxMDI0MTI1ODIyNTk3MCwibGFzdF92YWx1ZSI6InN0b3JlZnJvbnQgY2F0YWxvZyBwcm9kdWN0IDIwMjYwNzE1MjIzMDA3Iiwib2Zmc2V0IjowfQ=="
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 6
+          }
+        }
+      }
+    }
+  },
+  "adminUnpublishStorefront": {
+    "name": "admin-unpublish-storefront",
+    "request": {
+      "query": "mutation StorefrontCatalogUnpublish($id: ID!, $input: [PublicationInput!]!, $publicationId: ID!) {\n  publishableUnpublish(id: $id, input: $input) {\n    publishable {\n      ... on Product {\n        id\n        publishedOnPublication(publicationId: $publicationId)\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Product/10241258225970",
+        "input": [
+          {
+            "publicationId": "gid://shopify/Publication/268039389490"
+          }
+        ],
+        "publicationId": "gid://shopify/Publication/268039389490"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "publishableUnpublish": {
+          "publishable": {
+            "id": "gid://shopify/Product/10241258225970",
+            "publishedOnPublication": false
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "storefrontUnpublishedRead": {
+    "name": "storefront-catalog-unpublished-read",
+    "method": "POST",
+    "apiSurface": "storefront",
+    "apiVersion": "2026-04",
+    "path": "/api/2026-04/graphql.json",
+    "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+    "authMode": "storefront-access-token",
+    "headers": {
+      "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+    },
+    "operationName": "StorefrontCatalogHiddenRead",
+    "query": "query StorefrontCatalogHiddenRead($id: ID!, $handle: String!, $query: String!) {\n  byId: product(id: $id) {\n    id\n  }\n  byHandle: productByHandle(handle: $handle) {\n    id\n  }\n  products(first: 5, query: $query, sortKey: TITLE) {\n    nodes {\n      id\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Product/10241258225970",
+      "handle": "storefront-catalog-updated-20260715223007",
+      "query": "tag:storefront-catalog-20260715223007"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "byId": null,
+          "byHandle": null,
+          "products": {
+            "nodes": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 9
+          }
+        }
+      }
+    }
+  },
+  "adminProductDelete": {
+    "name": "admin-product-delete",
+    "request": {
+      "query": "mutation StorefrontCatalogProductDelete($input: ProductDeleteInput!) {\n  productDelete(input: $input) {\n    deletedProductId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Product/10241258225970"
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "productDelete": {
+          "deletedProductId": "gid://shopify/Product/10241258225970",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "storefrontDeletedRead": {
+    "name": "storefront-catalog-deleted-read",
+    "method": "POST",
+    "apiSurface": "storefront",
+    "apiVersion": "2026-04",
+    "path": "/api/2026-04/graphql.json",
+    "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+    "authMode": "storefront-access-token",
+    "headers": {
+      "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+    },
+    "operationName": "StorefrontCatalogHiddenRead",
+    "query": "query StorefrontCatalogHiddenRead($id: ID!, $handle: String!, $query: String!) {\n  byId: product(id: $id) {\n    id\n  }\n  byHandle: productByHandle(handle: $handle) {\n    id\n  }\n  products(first: 5, query: $query, sortKey: TITLE) {\n    nodes {\n      id\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Product/10241258225970",
+      "handle": "storefront-catalog-updated-20260715223007",
+      "query": "tag:storefront-catalog-20260715223007"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "byId": null,
+          "byHandle": null,
+          "products": {
+            "nodes": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 9
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "name": "locationDeactivate-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation StorefrontCatalogLocationDeactivateCleanup($locationId: ID!, $idempotencyKey: String!) {\n    locationDeactivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {\n      location { id isActive }\n      locationDeactivateUserErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "locationId": "gid://shopify/Location/113975525682",
+          "idempotencyKey": "storefront-catalog-location-deactivate-20260715223007"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "locationDeactivate": {
+            "location": {
+              "id": "gid://shopify/Location/113975525682",
+              "isActive": false
+            },
+            "locationDeactivateUserErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "locationDelete-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation StorefrontCatalogLocationDeleteCleanup($locationId: ID!) {\n    locationDelete(locationId: $locationId) {\n      deletedLocationId\n      locationDeleteUserErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "locationId": "gid://shopify/Location/113975525682"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "locationDelete": {
+            "deletedLocationId": "gid://shopify/Location/113975525682",
+            "locationDeleteUserErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "name": "admin-storefront-publications-hydrate",
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2026-04",
+      "path": "/admin/api/2026-04/graphql.json",
+      "endpoint": "https://harry-test-heelo.myshopify.com/admin/api/2026-04/graphql.json",
+      "authMode": "admin-access-token",
+      "operationName": "StorePropertiesPublishableInputValidationHydrate",
+      "query": "#graphql\n  query StorePropertiesPublishableInputValidationHydrate {\n    shop {\n      publicationCount\n      currencyCode\n    }\n    publications(first: 20) {\n      nodes {\n        id\n        name\n      }\n    }\n  }\n",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shop": {
+              "publicationCount": 6,
+              "currencyCode": "CAD"
+            },
+            "publications": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Publication/268039389490",
+                  "name": "Online Store"
+                },
+                {
+                  "id": "gid://shopify/Publication/268039455026",
+                  "name": "Point of Sale"
+                },
+                {
+                  "id": "gid://shopify/Publication/268039487794",
+                  "name": "Shop"
+                },
+                {
+                  "id": "gid://shopify/Publication/273897881906",
+                  "name": "Shopify GraphiQL App"
+                },
+                {
+                  "id": "gid://shopify/Publication/302536393010",
+                  "name": "example.com"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 8,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1995,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

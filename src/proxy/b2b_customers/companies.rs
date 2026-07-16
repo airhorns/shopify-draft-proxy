@@ -730,6 +730,7 @@ impl DraftProxy {
                 Some(ok_json(json!({ "data": data })))
             }
             OperationType::Query => {
+                let mut upstream_data = None;
                 if self.config.read_mode == ReadMode::LiveHybrid
                     && Self::b2b_query_has_catalog_root(&fields)
                 {
@@ -738,6 +739,7 @@ impl DraftProxy {
                         return Some(response);
                     }
                     self.hydrate_b2b_base_from_read_data(&fields, &response.body["data"]);
+                    upstream_data = response.body.get("data").cloned();
                 }
                 let mut declined = false;
                 let data = root_payload_json(&fields, |field| {
@@ -783,7 +785,7 @@ impl DraftProxy {
                         }
                         "companyLocations" => self.b2b_company_locations_connection(field),
                         "companies" => self.b2b_companies_connection(field),
-                        "companiesCount" => self.b2b_companies_count(field),
+                        "companiesCount" => self.b2b_companies_count(field, upstream_data.as_ref()),
                         "node" => {
                             let id =
                                 resolved_string_field(&field.arguments, "id").unwrap_or_default();
@@ -3575,7 +3577,20 @@ impl DraftProxy {
         )
     }
 
-    fn b2b_companies_count(&self, field: &RootFieldSelection) -> Value {
+    fn b2b_companies_count(
+        &self,
+        field: &RootFieldSelection,
+        upstream_data: Option<&Value>,
+    ) -> Value {
+        if let Some(count) = upstream_count_with_staged_delta(
+            field,
+            upstream_data,
+            self.b2b_companies_count_delta(),
+            &field.arguments,
+        ) {
+            return selected_json(&count, &field.selection);
+        }
+
         let result = staged_connection_query(
             self.b2b_effective_companies(),
             &field.arguments,
@@ -3584,9 +3599,27 @@ impl DraftProxy {
             value_id_cursor,
         );
         selected_json(
-            &staged_count_with_limit_precision(result.total_count, &field.arguments),
+            &snapshot_count_with_limit_precision(result.total_count, &field.arguments),
             &field.selection,
         )
+    }
+
+    fn b2b_companies_count_delta(&self) -> isize {
+        let mut delta = 0isize;
+        for id in &self.store.staged.deleted_b2b_company_ids {
+            if self.store.base.b2b_companies.get(id).is_some() {
+                delta -= 1;
+            }
+        }
+        for id in self.store.staged.b2b_companies.keys() {
+            if self.store.staged.deleted_b2b_company_ids.contains(id)
+                || self.store.base.b2b_companies.get(id).is_some()
+            {
+                continue;
+            }
+            delta += 1;
+        }
+        delta
     }
 
     fn b2b_company_locations_connection(&self, field: &RootFieldSelection) -> Value {

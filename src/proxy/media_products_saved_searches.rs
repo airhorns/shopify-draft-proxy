@@ -891,7 +891,7 @@ impl DraftProxy {
             selected_options,
             inventory_item: ProductVariantInventoryItem {
                 id: self.next_proxy_synthetic_gid("InventoryItem"),
-                tracked: true,
+                tracked: false,
                 requires_shipping: true,
                 extra_fields: BTreeMap::new(),
             },
