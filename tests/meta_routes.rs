@@ -1269,8 +1269,14 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "storeCreditAccounts": {},
                     "storeCreditTransactionOrder": [],
                     "storeCreditTransactions": {},
+                    "storefrontCartLineOrder": {},
+                    "storefrontCartLines": {},
+                    "storefrontCartOrder": [],
+                    "storefrontCarts": {},
                     "storefrontCustomerAccessTokens": {},
                     "storefrontCustomerEmailIndex": {},
+                    "nextStorefrontCartId": 1,
+                    "nextStorefrontCartLineId": 1,
                     "nextStorefrontCustomerAccessTokenId": 1,
                     "nextStorefrontCustomerResetTokenId": 1,
                     "taggableResources": {},
@@ -1418,6 +1424,8 @@ fn restore_state_round_trips_dumped_staged_counter_fields() {
     staged_state.insert("nextB2bCompanyId".to_string(), json!(47));
     staged_state.insert("nextB2bContactId".to_string(), json!(53));
     staged_state.insert("nextB2bContactRoleAssignmentId".to_string(), json!(59));
+    staged_state.insert("nextStorefrontCartId".to_string(), json!(61));
+    staged_state.insert("nextStorefrontCartLineId".to_string(), json!(67));
     staged_state.insert(
         "orderCustomerOrders".to_string(),
         json!({
@@ -1445,6 +1453,8 @@ fn restore_state_round_trips_dumped_staged_counter_fields() {
         "nextB2bCompanyId",
         "nextB2bContactId",
         "nextB2bContactRoleAssignmentId",
+        "nextStorefrontCartId",
+        "nextStorefrontCartLineId",
     ];
     let expected_counters = counter_fields
         .iter()
