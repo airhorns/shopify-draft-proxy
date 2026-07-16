@@ -263,6 +263,7 @@ struct BaseState {
     discount_count_baselines: BTreeMap<String, Value>,
     marketing_activities: OrderedRecords<Value>,
     marketing_events: OrderedRecords<Value>,
+    segments: OrderedRecords<Value>,
     gift_cards: BTreeMap<String, Value>,
     gift_card_configuration: Option<Value>,
     gift_card_complete_queries: BTreeSet<String>,
@@ -358,17 +359,7 @@ struct StagedState {
     locations: StagedRecords<Value>,
     location_limit_reached: bool,
     delivery_customizations: StagedRecords<Value>,
-    segments: BTreeMap<String, Value>,
-    // Recorded segment-catalog read baselines, keyed by root field name
-    // (`segments` / `segmentsCount` / `segmentFilters` / `segmentFilterSuggestions`
-    // / `segmentValueSuggestions` / `segmentMigrations`). These roots expose
-    // Shopify-internal catalog/derived data whose opaque pagination cursors encode
-    // backend-private values (microsecond timestamps, customer ids) that cannot be
-    // reconstructed from arbitrary store state, so a scenario seeds the recorded
-    // connection values and the read resolver projects the requested selection over
-    // them. Empty for every scenario that does not seed a catalog, leaving the
-    // generic staged-segment read path untouched.
-    segment_catalog: BTreeMap<String, Value>,
+    segments: StagedRecords<Value>,
     collections: StagedRecords<Value>,
     collection_jobs: BTreeMap<String, Value>,
     fulfillment_order_deadlines: BTreeMap<String, String>,
@@ -1268,6 +1259,41 @@ impl Store {
 
     fn effective_orders(&self) -> Vec<Value> {
         effective_records(&self.base.orders, &self.staged.orders)
+    }
+
+    fn segment_by_id(&self, id: &str) -> Option<&Value> {
+        effective_get(&self.base.segments, &self.staged.segments, id)
+    }
+
+    fn effective_segment_count(&self) -> usize {
+        self.base
+            .segments
+            .records
+            .keys()
+            .filter(|id| !self.staged.segments.is_tombstoned(id))
+            .count()
+            + self
+                .staged
+                .segments
+                .records
+                .keys()
+                .filter(|id| !self.base.segments.records.contains_key(*id))
+                .filter(|id| !self.staged.segments.is_tombstoned(id))
+                .count()
+    }
+
+    fn observe_base_segment(&mut self, segment: Value) {
+        let Some(id) = segment
+            .get("id")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+        else {
+            return;
+        };
+        if self.staged.segments.is_tombstoned(&id) || self.staged.segments.contains_staged(&id) {
+            return;
+        }
+        self.base.segments.insert(id, segment);
     }
 
     fn observe_base_order(&mut self, order: Value) {
