@@ -1,0 +1,99 @@
+mutation StorefrontCustomDataPrimaryAdminSetup(
+  $targetDefinition: MetaobjectDefinitionCreateInput!
+  $privateDefinition: MetaobjectDefinitionCreateInput!
+  $visibleMetafieldDefinition: MetafieldDefinitionInput!
+  $hiddenMetafieldDefinition: MetafieldDefinitionInput!
+) {
+  targetDefinition: metaobjectDefinitionCreate(definition: $targetDefinition) {
+    metaobjectDefinition {
+      id
+      type
+      access {
+        storefront
+      }
+      capabilities {
+        publishable {
+          enabled
+        }
+      }
+      fieldDefinitions {
+        key
+        type {
+          name
+        }
+        required
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  privateDefinition: metaobjectDefinitionCreate(definition: $privateDefinition) {
+    metaobjectDefinition {
+      id
+      type
+      access {
+        storefront
+      }
+      capabilities {
+        publishable {
+          enabled
+        }
+      }
+      fieldDefinitions {
+        key
+        type {
+          name
+        }
+        required
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  visibleMetafieldDefinition: metafieldDefinitionCreate(definition: $visibleMetafieldDefinition) {
+    createdDefinition {
+      id
+      ownerType
+      namespace
+      key
+      type {
+        name
+      }
+      description
+      access {
+        storefront
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  hiddenMetafieldDefinition: metafieldDefinitionCreate(definition: $hiddenMetafieldDefinition) {
+    createdDefinition {
+      id
+      ownerType
+      namespace
+      key
+      type {
+        name
+      }
+      description
+      access {
+        storefront
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

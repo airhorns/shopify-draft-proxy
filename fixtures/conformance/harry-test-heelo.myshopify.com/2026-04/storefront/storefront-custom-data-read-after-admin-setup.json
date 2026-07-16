@@ -1,0 +1,1119 @@
+{
+  "scenarioId": "storefront-custom-data-read-after-admin-setup",
+  "capturedAt": "2026-07-15T22:41:33.523Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "apiSurface": "storefront",
+  "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+  "authMode": "storefront-access-token",
+  "storefrontToken": {
+    "id": "gid://shopify/StorefrontAccessToken/130666922290",
+    "title": "hermes-conformance-storefront-recording",
+    "accessScopes": [
+      "unauthenticated_read_checkouts",
+      "unauthenticated_read_content",
+      "unauthenticated_read_customer_tags",
+      "unauthenticated_read_customers",
+      "unauthenticated_read_metaobjects",
+      "unauthenticated_read_product_inventory",
+      "unauthenticated_read_product_listings",
+      "unauthenticated_read_product_pickup_locations",
+      "unauthenticated_read_product_tags",
+      "unauthenticated_read_selling_plans",
+      "unauthenticated_write_checkouts",
+      "unauthenticated_write_customers"
+    ],
+    "obtainedAt": "2026-07-14T23:55:26.161Z"
+  },
+  "adminShop": {
+    "name": "admin-shop",
+    "request": {
+      "query": "#graphql\n  query StorefrontCustomDataAdminShop {\n    shop {\n      id\n      name\n    }\n  }\n",
+      "variables": {}
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "shop": {
+          "id": "gid://shopify/Shop/92891250994",
+          "name": "harry-test-heelo"
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 1,
+          "actualQueryCost": 1,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1999,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "primarySetup": {
+    "name": "admin-primary-setup",
+    "request": {
+      "query": "mutation StorefrontCustomDataPrimaryAdminSetup(\n  $targetDefinition: MetaobjectDefinitionCreateInput!\n  $privateDefinition: MetaobjectDefinitionCreateInput!\n  $visibleMetafieldDefinition: MetafieldDefinitionInput!\n  $hiddenMetafieldDefinition: MetafieldDefinitionInput!\n) {\n  targetDefinition: metaobjectDefinitionCreate(definition: $targetDefinition) {\n    metaobjectDefinition {\n      id\n      type\n      access {\n        storefront\n      }\n      capabilities {\n        publishable {\n          enabled\n        }\n      }\n      fieldDefinitions {\n        key\n        type {\n          name\n        }\n        required\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  privateDefinition: metaobjectDefinitionCreate(definition: $privateDefinition) {\n    metaobjectDefinition {\n      id\n      type\n      access {\n        storefront\n      }\n      capabilities {\n        publishable {\n          enabled\n        }\n      }\n      fieldDefinitions {\n        key\n        type {\n          name\n        }\n        required\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  visibleMetafieldDefinition: metafieldDefinitionCreate(definition: $visibleMetafieldDefinition) {\n    createdDefinition {\n      id\n      ownerType\n      namespace\n      key\n      type {\n        name\n      }\n      description\n      access {\n        storefront\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  hiddenMetafieldDefinition: metafieldDefinitionCreate(definition: $hiddenMetafieldDefinition) {\n    createdDefinition {\n      id\n      ownerType\n      namespace\n      key\n      type {\n        name\n      }\n      description\n      access {\n        storefront\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "targetDefinition": {
+          "type": "codex_sfc_target_20260715224130",
+          "name": "Storefront custom data target 20260715224130",
+          "access": {
+            "storefront": "PUBLIC_READ"
+          },
+          "capabilities": {
+            "publishable": {
+              "enabled": true
+            }
+          },
+          "displayNameKey": "title",
+          "fieldDefinitions": [
+            {
+              "key": "title",
+              "name": "Title",
+              "type": "single_line_text_field",
+              "required": true
+            },
+            {
+              "key": "body",
+              "name": "Body",
+              "type": "multi_line_text_field",
+              "required": false
+            }
+          ]
+        },
+        "privateDefinition": {
+          "type": "codex_sfc_private_20260715224130",
+          "name": "Storefront custom data private 20260715224130",
+          "access": {
+            "storefront": "NONE"
+          },
+          "capabilities": {
+            "publishable": {
+              "enabled": true
+            }
+          },
+          "displayNameKey": "title",
+          "fieldDefinitions": [
+            {
+              "key": "title",
+              "name": "Title",
+              "type": "single_line_text_field",
+              "required": true
+            }
+          ]
+        },
+        "visibleMetafieldDefinition": {
+          "ownerType": "SHOP",
+          "namespace": "sfc_20260715224130",
+          "key": "visible",
+          "name": "Visible Storefront tagline",
+          "description": "Visible Storefront custom data tagline.",
+          "type": "single_line_text_field",
+          "access": {
+            "storefront": "PUBLIC_READ"
+          }
+        },
+        "hiddenMetafieldDefinition": {
+          "ownerType": "SHOP",
+          "namespace": "sfc_20260715224130",
+          "key": "hidden",
+          "name": "Hidden Storefront tagline",
+          "description": "Hidden Storefront custom data tagline.",
+          "type": "single_line_text_field",
+          "access": {
+            "storefront": "NONE"
+          }
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "targetDefinition": {
+          "metaobjectDefinition": {
+            "id": "gid://shopify/MetaobjectDefinition/19878314290",
+            "type": "codex_sfc_target_20260715224130",
+            "access": {
+              "storefront": "PUBLIC_READ"
+            },
+            "capabilities": {
+              "publishable": {
+                "enabled": true
+              }
+            },
+            "fieldDefinitions": [
+              {
+                "key": "title",
+                "type": {
+                  "name": "single_line_text_field"
+                },
+                "required": true
+              },
+              {
+                "key": "body",
+                "type": {
+                  "name": "multi_line_text_field"
+                },
+                "required": false
+              }
+            ]
+          },
+          "userErrors": []
+        },
+        "privateDefinition": {
+          "metaobjectDefinition": {
+            "id": "gid://shopify/MetaobjectDefinition/19878347058",
+            "type": "codex_sfc_private_20260715224130",
+            "access": {
+              "storefront": "NONE"
+            },
+            "capabilities": {
+              "publishable": {
+                "enabled": true
+              }
+            },
+            "fieldDefinitions": [
+              {
+                "key": "title",
+                "type": {
+                  "name": "single_line_text_field"
+                },
+                "required": true
+              }
+            ]
+          },
+          "userErrors": []
+        },
+        "visibleMetafieldDefinition": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/226299117874",
+            "ownerType": "SHOP",
+            "namespace": "sfc_20260715224130",
+            "key": "visible",
+            "type": {
+              "name": "single_line_text_field"
+            },
+            "description": "Visible Storefront custom data tagline.",
+            "access": {
+              "storefront": "PUBLIC_READ"
+            }
+          },
+          "userErrors": []
+        },
+        "hiddenMetafieldDefinition": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/226299150642",
+            "ownerType": "SHOP",
+            "namespace": "sfc_20260715224130",
+            "key": "hidden",
+            "type": {
+              "name": "single_line_text_field"
+            },
+            "description": "Hidden Storefront custom data tagline.",
+            "access": {
+              "storefront": "NONE"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 54,
+          "actualQueryCost": 54,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1946,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "targetEntriesSetup": {
+    "name": "admin-target-entries-setup",
+    "request": {
+      "query": "mutation StorefrontCustomDataTargetEntriesAdminSetup(\n  $visibleTarget: MetaobjectCreateInput!\n  $draftTarget: MetaobjectCreateInput!\n  $privateEntry: MetaobjectCreateInput!\n) {\n  visibleTarget: metaobjectCreate(metaobject: $visibleTarget) {\n    metaobject {\n      id\n      handle\n      type\n      updatedAt\n      capabilities {\n        publishable {\n          status\n        }\n      }\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n  draftTarget: metaobjectCreate(metaobject: $draftTarget) {\n    metaobject {\n      id\n      handle\n      type\n      updatedAt\n      capabilities {\n        publishable {\n          status\n        }\n      }\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n  privateEntry: metaobjectCreate(metaobject: $privateEntry) {\n    metaobject {\n      id\n      handle\n      type\n      updatedAt\n      capabilities {\n        publishable {\n          status\n        }\n      }\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "visibleTarget": {
+          "type": "codex_sfc_target_20260715224130",
+          "handle": "visible-target-20260715224130",
+          "capabilities": {
+            "publishable": {
+              "status": "ACTIVE"
+            }
+          },
+          "fields": [
+            {
+              "key": "title",
+              "value": "Visible Storefront Entry 20260715224130"
+            },
+            {
+              "key": "body",
+              "value": "Body for visible Storefront Entry 20260715224130"
+            }
+          ]
+        },
+        "draftTarget": {
+          "type": "codex_sfc_target_20260715224130",
+          "handle": "draft-target-20260715224130",
+          "capabilities": {
+            "publishable": {
+              "status": "DRAFT"
+            }
+          },
+          "fields": [
+            {
+              "key": "title",
+              "value": "Draft Storefront Entry 20260715224130"
+            },
+            {
+              "key": "body",
+              "value": "Body for draft Storefront Entry 20260715224130"
+            }
+          ]
+        },
+        "privateEntry": {
+          "type": "codex_sfc_private_20260715224130",
+          "handle": "private-entry-20260715224130",
+          "capabilities": {
+            "publishable": {
+              "status": "ACTIVE"
+            }
+          },
+          "fields": [
+            {
+              "key": "title",
+              "value": "Private Storefront Entry 20260715224130"
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "visibleTarget": {
+          "metaobject": {
+            "id": "gid://shopify/Metaobject/206110622002",
+            "handle": "visible-target-20260715224130",
+            "type": "codex_sfc_target_20260715224130",
+            "updatedAt": "2026-07-15T22:41:31Z",
+            "capabilities": {
+              "publishable": {
+                "status": "ACTIVE"
+              }
+            },
+            "fields": [
+              {
+                "key": "title",
+                "type": "single_line_text_field",
+                "value": "Visible Storefront Entry 20260715224130",
+                "jsonValue": "Visible Storefront Entry 20260715224130"
+              },
+              {
+                "key": "body",
+                "type": "multi_line_text_field",
+                "value": "Body for visible Storefront Entry 20260715224130",
+                "jsonValue": "Body for visible Storefront Entry 20260715224130"
+              }
+            ]
+          },
+          "userErrors": []
+        },
+        "draftTarget": {
+          "metaobject": {
+            "id": "gid://shopify/Metaobject/206110654770",
+            "handle": "draft-target-20260715224130",
+            "type": "codex_sfc_target_20260715224130",
+            "updatedAt": "2026-07-15T22:41:31Z",
+            "capabilities": {
+              "publishable": {
+                "status": "DRAFT"
+              }
+            },
+            "fields": [
+              {
+                "key": "title",
+                "type": "single_line_text_field",
+                "value": "Draft Storefront Entry 20260715224130",
+                "jsonValue": "Draft Storefront Entry 20260715224130"
+              },
+              {
+                "key": "body",
+                "type": "multi_line_text_field",
+                "value": "Body for draft Storefront Entry 20260715224130",
+                "jsonValue": "Body for draft Storefront Entry 20260715224130"
+              }
+            ]
+          },
+          "userErrors": []
+        },
+        "privateEntry": {
+          "metaobject": {
+            "id": "gid://shopify/Metaobject/206110687538",
+            "handle": "private-entry-20260715224130",
+            "type": "codex_sfc_private_20260715224130",
+            "updatedAt": "2026-07-15T22:41:31Z",
+            "capabilities": {
+              "publishable": {
+                "status": "ACTIVE"
+              }
+            },
+            "fields": [
+              {
+                "key": "title",
+                "type": "single_line_text_field",
+                "value": "Private Storefront Entry 20260715224130",
+                "jsonValue": "Private Storefront Entry 20260715224130"
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 39,
+          "actualQueryCost": 39,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1947,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "sourceDefinitionSetup": {
+    "name": "admin-source-definition-setup",
+    "request": {
+      "query": "mutation StorefrontCustomDataSourceDefinitionAdminSetup($sourceDefinition: MetaobjectDefinitionCreateInput!) {\n  sourceDefinition: metaobjectDefinitionCreate(definition: $sourceDefinition) {\n    metaobjectDefinition {\n      id\n      type\n      access {\n        storefront\n      }\n      capabilities {\n        publishable {\n          enabled\n        }\n      }\n      fieldDefinitions {\n        key\n        type {\n          name\n        }\n        required\n        validations {\n          name\n          value\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "sourceDefinition": {
+          "type": "codex_sfc_source_20260715224130",
+          "name": "Storefront custom data source 20260715224130",
+          "access": {
+            "storefront": "PUBLIC_READ"
+          },
+          "capabilities": {
+            "publishable": {
+              "enabled": true
+            }
+          },
+          "displayNameKey": "title",
+          "fieldDefinitions": [
+            {
+              "key": "title",
+              "name": "Title",
+              "type": "single_line_text_field",
+              "required": true
+            },
+            {
+              "key": "featured",
+              "name": "Featured",
+              "type": "metaobject_reference",
+              "required": false,
+              "validations": [
+                {
+                  "name": "metaobject_definition_id",
+                  "value": "gid://shopify/MetaobjectDefinition/19878314290"
+                }
+              ]
+            },
+            {
+              "key": "draft_featured",
+              "name": "Draft featured",
+              "type": "metaobject_reference",
+              "required": false,
+              "validations": [
+                {
+                  "name": "metaobject_definition_id",
+                  "value": "gid://shopify/MetaobjectDefinition/19878314290"
+                }
+              ]
+            },
+            {
+              "key": "related",
+              "name": "Related",
+              "type": "list.metaobject_reference",
+              "required": false,
+              "validations": [
+                {
+                  "name": "metaobject_definition_id",
+                  "value": "gid://shopify/MetaobjectDefinition/19878314290"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "sourceDefinition": {
+          "metaobjectDefinition": {
+            "id": "gid://shopify/MetaobjectDefinition/19878379826",
+            "type": "codex_sfc_source_20260715224130",
+            "access": {
+              "storefront": "PUBLIC_READ"
+            },
+            "capabilities": {
+              "publishable": {
+                "enabled": true
+              }
+            },
+            "fieldDefinitions": [
+              {
+                "key": "title",
+                "type": {
+                  "name": "single_line_text_field"
+                },
+                "required": true,
+                "validations": []
+              },
+              {
+                "key": "featured",
+                "type": {
+                  "name": "metaobject_reference"
+                },
+                "required": false,
+                "validations": [
+                  {
+                    "name": "metaobject_definition_id",
+                    "value": "gid://shopify/MetaobjectDefinition/19878314290"
+                  }
+                ]
+              },
+              {
+                "key": "draft_featured",
+                "type": {
+                  "name": "metaobject_reference"
+                },
+                "required": false,
+                "validations": [
+                  {
+                    "name": "metaobject_definition_id",
+                    "value": "gid://shopify/MetaobjectDefinition/19878314290"
+                  }
+                ]
+              },
+              {
+                "key": "related",
+                "type": {
+                  "name": "list.metaobject_reference"
+                },
+                "required": false,
+                "validations": [
+                  {
+                    "name": "metaobject_definition_id",
+                    "value": "gid://shopify/MetaobjectDefinition/19878314290"
+                  }
+                ]
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 16,
+          "actualQueryCost": 16,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1959,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "sourceEntrySetup": {
+    "name": "admin-source-entry-setup",
+    "request": {
+      "query": "mutation StorefrontCustomDataSourceEntryAdminSetup($sourceEntry: MetaobjectCreateInput!) {\n  sourceEntry: metaobjectCreate(metaobject: $sourceEntry) {\n    metaobject {\n      id\n      handle\n      type\n      updatedAt\n      capabilities {\n        publishable {\n          status\n        }\n      }\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "sourceEntry": {
+          "type": "codex_sfc_source_20260715224130",
+          "handle": "source-entry-20260715224130",
+          "capabilities": {
+            "publishable": {
+              "status": "ACTIVE"
+            }
+          },
+          "fields": [
+            {
+              "key": "title",
+              "value": "Source Storefront Entry 20260715224130"
+            },
+            {
+              "key": "featured",
+              "value": "gid://shopify/Metaobject/206110622002"
+            },
+            {
+              "key": "draft_featured",
+              "value": "gid://shopify/Metaobject/206110654770"
+            },
+            {
+              "key": "related",
+              "value": "[\"gid://shopify/Metaobject/206110622002\"]"
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "sourceEntry": {
+          "metaobject": {
+            "id": "gid://shopify/Metaobject/206110720306",
+            "handle": "source-entry-20260715224130",
+            "type": "codex_sfc_source_20260715224130",
+            "updatedAt": "2026-07-15T22:41:31Z",
+            "capabilities": {
+              "publishable": {
+                "status": "ACTIVE"
+              }
+            },
+            "fields": [
+              {
+                "key": "title",
+                "type": "single_line_text_field",
+                "value": "Source Storefront Entry 20260715224130",
+                "jsonValue": "Source Storefront Entry 20260715224130"
+              },
+              {
+                "key": "featured",
+                "type": "metaobject_reference",
+                "value": "gid://shopify/Metaobject/206110622002",
+                "jsonValue": "gid://shopify/Metaobject/206110622002"
+              },
+              {
+                "key": "draft_featured",
+                "type": "metaobject_reference",
+                "value": "gid://shopify/Metaobject/206110654770",
+                "jsonValue": "gid://shopify/Metaobject/206110654770"
+              },
+              {
+                "key": "related",
+                "type": "list.metaobject_reference",
+                "value": "[\"gid://shopify/Metaobject/206110622002\"]",
+                "jsonValue": ["gid://shopify/Metaobject/206110622002"]
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1973,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "shopMetafieldsSet": {
+    "name": "admin-shop-metafields-set",
+    "request": {
+      "query": "mutation StorefrontCustomDataShopMetafieldsSetAdmin($metafields: [MetafieldsSetInput!]!) {\n  metafieldsSet(metafields: $metafields) {\n    metafields {\n      id\n      namespace\n      key\n      type\n      value\n      jsonValue\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "metafields": [
+          {
+            "ownerId": "gid://shopify/Shop/92891250994",
+            "namespace": "sfc_20260715224130",
+            "key": "visible",
+            "type": "single_line_text_field",
+            "value": "Visible tagline 20260715224130"
+          },
+          {
+            "ownerId": "gid://shopify/Shop/92891250994",
+            "namespace": "sfc_20260715224130",
+            "key": "hidden",
+            "type": "single_line_text_field",
+            "value": "Hidden tagline 20260715224130"
+          }
+        ]
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldsSet": {
+          "metafields": [
+            {
+              "id": "gid://shopify/Metafield/45076125385010",
+              "namespace": "sfc_20260715224130",
+              "key": "visible",
+              "type": "single_line_text_field",
+              "value": "Visible tagline 20260715224130",
+              "jsonValue": "Visible tagline 20260715224130"
+            },
+            {
+              "id": "gid://shopify/Metafield/45076125417778",
+              "namespace": "sfc_20260715224130",
+              "key": "hidden",
+              "type": "single_line_text_field",
+              "value": "Hidden tagline 20260715224130",
+              "jsonValue": "Hidden tagline 20260715224130"
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1982,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "storefrontRead": {
+    "name": "storefront-custom-data-read-after-admin-setup",
+    "method": "POST",
+    "apiSurface": "storefront",
+    "apiVersion": "2026-04",
+    "path": "/api/2026-04/graphql.json",
+    "endpoint": "https://harry-test-heelo.myshopify.com/api/2026-04/graphql.json",
+    "authMode": "storefront-access-token",
+    "headers": {
+      "X-Shopify-Storefront-Access-Token": "<redacted:storefront-access-token>"
+    },
+    "operationName": "StorefrontCustomDataReadAfterAdminSetup",
+    "query": "query StorefrontCustomDataReadAfterAdminSetup(\n  $targetHandle: MetaobjectHandleInput!\n  $sourceHandle: MetaobjectHandleInput!\n  $draftHandle: MetaobjectHandleInput!\n  $privateHandle: MetaobjectHandleInput!\n  $targetType: String!\n  $metafieldNamespace: String!\n) {\n  byHandle: metaobject(handle: $targetHandle) {\n    id\n    handle\n    type\n    updatedAt\n    title: field(key: \"title\") {\n      key\n      type\n      value\n    }\n    fields {\n      key\n      type\n      value\n    }\n  }\n  entries: metaobjects(type: $targetType, first: 5, sortKey: \"updated_at\") {\n    nodes {\n      id\n      handle\n      type\n      updatedAt\n      fields {\n        key\n        type\n        value\n      }\n    }\n    edges {\n      cursor\n      node {\n        handle\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  source: metaobject(handle: $sourceHandle) {\n    handle\n    featured: field(key: \"featured\") {\n      key\n      type\n      value\n      reference {\n        __typename\n        ... on Metaobject {\n          handle\n          type\n        }\n      }\n    }\n    draftFeatured: field(key: \"draft_featured\") {\n      key\n      type\n      value\n      reference {\n        __typename\n        ... on Metaobject {\n          handle\n          type\n        }\n      }\n    }\n    related: field(key: \"related\") {\n      key\n      type\n      value\n      references(first: 5) {\n        nodes {\n          __typename\n          ... on Metaobject {\n            handle\n            type\n          }\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n    }\n  }\n  draft: metaobject(handle: $draftHandle) {\n    id\n    handle\n  }\n  privateEntry: metaobject(handle: $privateHandle) {\n    id\n    handle\n  }\n  shop {\n    visible: metafield(namespace: $metafieldNamespace, key: \"visible\") {\n      namespace\n      key\n      type\n      value\n      list\n      description\n    }\n    hidden: metafield(namespace: $metafieldNamespace, key: \"hidden\") {\n      key\n      value\n    }\n    selected: metafields(\n      identifiers: [\n        { namespace: $metafieldNamespace, key: \"visible\" }\n        { namespace: $metafieldNamespace, key: \"hidden\" }\n        { namespace: $metafieldNamespace, key: \"missing\" }\n      ]\n    ) {\n      namespace\n      key\n      type\n      value\n    }\n  }\n}\n",
+    "variables": {
+      "targetHandle": {
+        "type": "codex_sfc_target_20260715224130",
+        "handle": "visible-target-20260715224130"
+      },
+      "sourceHandle": {
+        "type": "codex_sfc_source_20260715224130",
+        "handle": "source-entry-20260715224130"
+      },
+      "draftHandle": {
+        "type": "codex_sfc_target_20260715224130",
+        "handle": "draft-target-20260715224130"
+      },
+      "privateHandle": {
+        "type": "codex_sfc_private_20260715224130",
+        "handle": "private-entry-20260715224130"
+      },
+      "targetType": "codex_sfc_target_20260715224130",
+      "metafieldNamespace": "sfc_20260715224130"
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "data": {
+          "byHandle": {
+            "id": "gid://shopify/Metaobject/206110622002",
+            "handle": "visible-target-20260715224130",
+            "type": "codex_sfc_target_20260715224130",
+            "updatedAt": "2026-07-15T22:41:31Z",
+            "title": {
+              "key": "title",
+              "type": "single_line_text_field",
+              "value": "Visible Storefront Entry 20260715224130"
+            },
+            "fields": [
+              {
+                "key": "body",
+                "type": "multi_line_text_field",
+                "value": "Body for visible Storefront Entry 20260715224130"
+              },
+              {
+                "key": "title",
+                "type": "single_line_text_field",
+                "value": "Visible Storefront Entry 20260715224130"
+              }
+            ]
+          },
+          "entries": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Metaobject/206110622002",
+                "handle": "visible-target-20260715224130",
+                "type": "codex_sfc_target_20260715224130",
+                "updatedAt": "2026-07-15T22:41:31Z",
+                "fields": [
+                  {
+                    "key": "body",
+                    "type": "multi_line_text_field",
+                    "value": "Body for visible Storefront Entry 20260715224130"
+                  },
+                  {
+                    "key": "title",
+                    "type": "single_line_text_field",
+                    "value": "Visible Storefront Entry 20260715224130"
+                  }
+                ]
+              }
+            ],
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoyMDYxMTA2MjIwMDIsImxhc3RfdmFsdWUiOiIyMDI2LTA3LTE1IDIyOjQxOjMxLjAwMDAwMCIsIm9mZnNldCI6MH0=",
+                "node": {
+                  "handle": "visible-target-20260715224130"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoyMDYxMTA2MjIwMDIsImxhc3RfdmFsdWUiOiIyMDI2LTA3LTE1IDIyOjQxOjMxLjAwMDAwMCIsIm9mZnNldCI6MH0=",
+              "endCursor": "eyJsYXN0X2lkIjoyMDYxMTA2MjIwMDIsImxhc3RfdmFsdWUiOiIyMDI2LTA3LTE1IDIyOjQxOjMxLjAwMDAwMCIsIm9mZnNldCI6MH0="
+            }
+          },
+          "source": {
+            "handle": "source-entry-20260715224130",
+            "featured": {
+              "key": "featured",
+              "type": "metaobject_reference",
+              "value": "gid://shopify/Metaobject/206110622002",
+              "reference": {
+                "__typename": "Metaobject",
+                "handle": "visible-target-20260715224130",
+                "type": "codex_sfc_target_20260715224130"
+              }
+            },
+            "draftFeatured": {
+              "key": "draft_featured",
+              "type": "metaobject_reference",
+              "value": "gid://shopify/Metaobject/206110654770",
+              "reference": null
+            },
+            "related": {
+              "key": "related",
+              "type": "list.metaobject_reference",
+              "value": "[\"gid://shopify/Metaobject/206110622002\"]",
+              "references": {
+                "nodes": [
+                  {
+                    "__typename": "Metaobject",
+                    "handle": "visible-target-20260715224130",
+                    "type": "codex_sfc_target_20260715224130"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoxLCJsYXN0X3ZhbHVlIjoyMDYxMTA2MjIwMDJ9",
+                  "endCursor": "eyJsYXN0X2lkIjoxLCJsYXN0X3ZhbHVlIjoyMDYxMTA2MjIwMDJ9"
+                }
+              }
+            }
+          },
+          "draft": null,
+          "privateEntry": null,
+          "shop": {
+            "visible": {
+              "namespace": "sfc_20260715224130",
+              "key": "visible",
+              "type": "single_line_text_field",
+              "value": "Visible tagline 20260715224130",
+              "list": false,
+              "description": null
+            },
+            "hidden": null,
+            "selected": [
+              {
+                "namespace": "sfc_20260715224130",
+                "key": "visible",
+                "type": "single_line_text_field",
+                "value": "Visible tagline 20260715224130"
+              },
+              null,
+              null
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 43
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "name": "metaobjectDelete-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation StorefrontCustomDataMetaobjectCleanup($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors { field message code elementKey elementIndex }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/206110720306"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": "gid://shopify/Metaobject/206110720306",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "metaobjectDelete-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation StorefrontCustomDataMetaobjectCleanup($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors { field message code elementKey elementIndex }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/206110687538"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": "gid://shopify/Metaobject/206110687538",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "metaobjectDelete-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation StorefrontCustomDataMetaobjectCleanup($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors { field message code elementKey elementIndex }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/206110654770"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": "gid://shopify/Metaobject/206110654770",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "metaobjectDelete-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation StorefrontCustomDataMetaobjectCleanup($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors { field message code elementKey elementIndex }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/206110622002"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": "gid://shopify/Metaobject/206110622002",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "metafieldDefinitionDelete-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation StorefrontCustomDataMetafieldDefinitionCleanup($id: ID!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n      deletedDefinitionId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/226299150642"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/226299150642",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "metafieldDefinitionDelete-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation StorefrontCustomDataMetafieldDefinitionCleanup($id: ID!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n      deletedDefinitionId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/226299117874"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/226299117874",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "metaobjectDefinitionDelete-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation StorefrontCustomDataMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors { field message code elementKey elementIndex }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/19878379826"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/19878379826",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "metaobjectDefinitionDelete-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation StorefrontCustomDataMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors { field message code elementKey elementIndex }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/19878347058"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/19878347058",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "metaobjectDefinitionDelete-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation StorefrontCustomDataMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors { field message code elementKey elementIndex }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/19878314290"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/19878314290",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}
