@@ -1,20 +1,59 @@
 {
-  "capturedAt": "2026-07-10T11:39:44.001Z",
+  "capturedAt": "2026-07-16T00:20:45.376Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "scope": "Markets mutation-first hydration for existing marketUpdate and marketDelete targets, with catalog/web-presence relations and unknown-id validation.",
+  "scope": "Markets mutation-first hydration for existing marketUpdate and marketDelete targets, with catalog/price-list/web-presence relations, top-level list/count readback, and unknown-id validation.",
   "liveSetup": {
     "setupCreatesDisposableNonPrimaryMarkets": true,
-    "updateMarketId": "gid://shopify/Market/98851389746",
-    "updateCatalogId": "gid://shopify/MarketCatalog/154612531506",
-    "updateWebPresenceId": "gid://shopify/MarketWebPresence/70727500082",
-    "deleteMarketId": "gid://shopify/Market/98851422514",
-    "deleteCatalogId": "gid://shopify/MarketCatalog/154612564274",
-    "deleteWebPresenceId": "gid://shopify/MarketWebPresence/70727532850",
+    "primaryMarketId": "gid://shopify/Market/92276785458",
+    "updateMarketId": "gid://shopify/Market/98924396850",
+    "updateCatalogId": "gid://shopify/MarketCatalog/154902397234",
+    "updatePriceListId": "gid://shopify/PriceList/32314196274",
+    "updateWebPresenceId": "gid://shopify/MarketWebPresence/70817906994",
+    "otherMarketId": "gid://shopify/Market/98924429618",
+    "otherCatalogId": "gid://shopify/MarketCatalog/154902430002",
+    "otherPriceListId": "gid://shopify/PriceList/32314229042",
+    "otherWebPresenceId": "gid://shopify/MarketWebPresence/70817939762",
+    "deleteMarketId": "gid://shopify/Market/98924462386",
+    "deleteCatalogId": "gid://shopify/MarketCatalog/154902462770",
+    "deletePriceListId": "gid://shopify/PriceList/32314261810",
+    "deleteWebPresenceId": "gid://shopify/MarketWebPresence/70817972530",
     "unknownMarketId": "gid://shopify/Market/999999999999",
     "wrongResourceProductId": "gid://shopify/Product/9801098789170"
   },
   "mutationFirstUpdate": {
+    "primaryMarketProbe": {
+      "name": "primary market probe",
+      "query": "#graphql\nquery MutationFirstPrimaryMarketProbe {\n  primaryMarket {\n    id\n    name\n    handle\n    status\n    type\n  }\n}\n",
+      "request": {
+        "variables": {}
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "primaryMarket": {
+              "id": "gid://shopify/Market/92276785458",
+              "name": "International",
+              "handle": "international",
+              "status": "ACTIVE",
+              "type": "REGION"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
     "setup": [
       {
         "name": "setup market create",
@@ -22,7 +61,7 @@
         "request": {
           "variables": {
             "input": {
-              "name": "Mutation First Update mrev5eaj"
+              "name": "Mutation First Update mrmrj4bj"
             }
           }
         },
@@ -32,9 +71,9 @@
             "data": {
               "marketCreate": {
                 "market": {
-                  "id": "gid://shopify/Market/98851389746",
-                  "name": "Mutation First Update mrev5eaj",
-                  "handle": "mutation-first-update-mrev5eaj",
+                  "id": "gid://shopify/Market/98924396850",
+                  "name": "Mutation First Update mrmrj4bj",
+                  "handle": "mutation-first-update-mrmrj4bj",
                   "status": "DRAFT",
                   "enabled": false
                 },
@@ -61,10 +100,10 @@
         "request": {
           "variables": {
             "input": {
-              "title": "Mutation First Update Catalog mrev5eaj",
+              "title": "Mutation First Update Catalog mrmrj4bj",
               "status": "ACTIVE",
               "context": {
-                "marketIds": ["gid://shopify/Market/98851389746"]
+                "marketIds": ["gid://shopify/Market/98924396850"]
               }
             }
           }
@@ -75,8 +114,8 @@
             "data": {
               "catalogCreate": {
                 "catalog": {
-                  "id": "gid://shopify/MarketCatalog/154612531506",
-                  "title": "Mutation First Update Catalog mrev5eaj",
+                  "id": "gid://shopify/MarketCatalog/154902397234",
+                  "title": "Mutation First Update Catalog mrmrj4bj",
                   "status": "ACTIVE"
                 },
                 "userErrors": []
@@ -97,6 +136,56 @@
         }
       },
       {
+        "name": "setup price list create",
+        "query": "#graphql\nmutation MutationFirstPriceListCreate($input: PriceListCreateInput!) {\n  priceListCreate(input: $input) {\n    priceList {\n      id\n      name\n      currency\n      catalog {\n        id\n        title\n        status\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "request": {
+          "variables": {
+            "input": {
+              "name": "Mutation First Update Prices mrmrj4bj",
+              "currency": "USD",
+              "catalogId": "gid://shopify/MarketCatalog/154902397234",
+              "parent": {
+                "adjustment": {
+                  "type": "PERCENTAGE_DECREASE",
+                  "value": 10
+                }
+              }
+            }
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "priceListCreate": {
+                "priceList": {
+                  "id": "gid://shopify/PriceList/32314196274",
+                  "name": "Mutation First Update Prices mrmrj4bj",
+                  "currency": "USD",
+                  "catalog": {
+                    "id": "gid://shopify/MarketCatalog/154902397234",
+                    "title": "Mutation First Update Catalog mrmrj4bj",
+                    "status": "ACTIVE"
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 11,
+                "actualQueryCost": 11,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1989,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      {
         "name": "setup web presence create",
         "query": "#graphql\nmutation MutationFirstWebPresenceCreate($input: WebPresenceCreateInput!) {\n  webPresenceCreate(input: $input) {\n    webPresence {\n      id\n      subfolderSuffix\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
         "request": {
@@ -104,7 +193,7 @@
             "input": {
               "defaultLocale": "en",
               "alternateLocales": [],
-              "subfolderSuffix": "updatemrevfeaj"
+              "subfolderSuffix": "updatemrmrjebj"
             }
           }
         },
@@ -114,8 +203,8 @@
             "data": {
               "webPresenceCreate": {
                 "webPresence": {
-                  "id": "gid://shopify/MarketWebPresence/70727500082",
-                  "subfolderSuffix": "updatemrevfeaj"
+                  "id": "gid://shopify/MarketWebPresence/70817906994",
+                  "subfolderSuffix": "updatemrmrjebj"
                 },
                 "userErrors": []
               }
@@ -139,9 +228,9 @@
         "query": "#graphql\nmutation MutationFirstMarketLinkWebPresence($id: ID!, $input: MarketUpdateInput!) {\n  marketUpdate(id: $id, input: $input) {\n    market {\n      id\n      webPresences(first: 10) {\n        nodes {\n          id\n          subfolderSuffix\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
         "request": {
           "variables": {
-            "id": "gid://shopify/Market/98851389746",
+            "id": "gid://shopify/Market/98924396850",
             "input": {
-              "webPresencesToAdd": ["gid://shopify/MarketWebPresence/70727500082"]
+              "webPresencesToAdd": ["gid://shopify/MarketWebPresence/70817906994"]
             }
           }
         },
@@ -151,12 +240,226 @@
             "data": {
               "marketUpdate": {
                 "market": {
-                  "id": "gid://shopify/Market/98851389746",
+                  "id": "gid://shopify/Market/98924396850",
                   "webPresences": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/MarketWebPresence/70727500082",
-                        "subfolderSuffix": "updatemrevfeaj"
+                        "id": "gid://shopify/MarketWebPresence/70817906994",
+                        "subfolderSuffix": "updatemrmrjebj"
+                      }
+                    ]
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 16,
+                "actualQueryCost": 13,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1987,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    ],
+    "otherSetup": [
+      {
+        "name": "setup market create",
+        "query": "#graphql\nmutation MutationFirstMarketCreate($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      handle\n      status\n      enabled\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "request": {
+          "variables": {
+            "input": {
+              "name": "Mutation First Other mrmrj4bj"
+            }
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "marketCreate": {
+                "market": {
+                  "id": "gid://shopify/Market/98924429618",
+                  "name": "Mutation First Other mrmrj4bj",
+                  "handle": "mutation-first-other-mrmrj4bj",
+                  "status": "DRAFT",
+                  "enabled": false
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "setup catalog create",
+        "query": "#graphql\nmutation MutationFirstCatalogCreate($input: CatalogCreateInput!) {\n  catalogCreate(input: $input) {\n    catalog {\n      id\n      title\n      status\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "request": {
+          "variables": {
+            "input": {
+              "title": "Mutation First Other Catalog mrmrj4bj",
+              "status": "ACTIVE",
+              "context": {
+                "marketIds": ["gid://shopify/Market/98924429618"]
+              }
+            }
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "catalogCreate": {
+                "catalog": {
+                  "id": "gid://shopify/MarketCatalog/154902430002",
+                  "title": "Mutation First Other Catalog mrmrj4bj",
+                  "status": "ACTIVE"
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "setup price list create",
+        "query": "#graphql\nmutation MutationFirstPriceListCreate($input: PriceListCreateInput!) {\n  priceListCreate(input: $input) {\n    priceList {\n      id\n      name\n      currency\n      catalog {\n        id\n        title\n        status\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "request": {
+          "variables": {
+            "input": {
+              "name": "Mutation First Other Prices mrmrj4bj",
+              "currency": "USD",
+              "catalogId": "gid://shopify/MarketCatalog/154902430002",
+              "parent": {
+                "adjustment": {
+                  "type": "PERCENTAGE_DECREASE",
+                  "value": 10
+                }
+              }
+            }
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "priceListCreate": {
+                "priceList": {
+                  "id": "gid://shopify/PriceList/32314229042",
+                  "name": "Mutation First Other Prices mrmrj4bj",
+                  "currency": "USD",
+                  "catalog": {
+                    "id": "gid://shopify/MarketCatalog/154902430002",
+                    "title": "Mutation First Other Catalog mrmrj4bj",
+                    "status": "ACTIVE"
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 11,
+                "actualQueryCost": 11,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1989,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "setup web presence create",
+        "query": "#graphql\nmutation MutationFirstWebPresenceCreate($input: WebPresenceCreateInput!) {\n  webPresenceCreate(input: $input) {\n    webPresence {\n      id\n      subfolderSuffix\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "request": {
+          "variables": {
+            "input": {
+              "defaultLocale": "en",
+              "alternateLocales": [],
+              "subfolderSuffix": "othermrmrjebj"
+            }
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "webPresenceCreate": {
+                "webPresence": {
+                  "id": "gid://shopify/MarketWebPresence/70817939762",
+                  "subfolderSuffix": "othermrmrjebj"
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "setup market web presence link",
+        "query": "#graphql\nmutation MutationFirstMarketLinkWebPresence($id: ID!, $input: MarketUpdateInput!) {\n  marketUpdate(id: $id, input: $input) {\n    market {\n      id\n      webPresences(first: 10) {\n        nodes {\n          id\n          subfolderSuffix\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "request": {
+          "variables": {
+            "id": "gid://shopify/Market/98924429618",
+            "input": {
+              "webPresencesToAdd": ["gid://shopify/MarketWebPresence/70817939762"]
+            }
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "marketUpdate": {
+                "market": {
+                  "id": "gid://shopify/Market/98924429618",
+                  "webPresences": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/MarketWebPresence/70817939762",
+                        "subfolderSuffix": "othermrmrjebj"
                       }
                     ]
                   }
@@ -183,7 +486,7 @@
       "operationName": "MarketsMutationPreflightHydrate",
       "query": "query MarketsMutationPreflightHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    ... on Market {\n      id\n      name\n      handle\n      status\n      enabled\n      type\n      conditions {\n        conditionTypes\n        regionsCondition {\n          applicationLevel\n          regions(first: 250) {\n            nodes {\n              __typename\n              id\n              name\n              ... on MarketRegionCountry {\n                code\n              }\n            }\n          }\n        }\n      }\n      currencySettings {\n        baseCurrency {\n          currencyCode\n          currencyName\n        }\n        localCurrencies\n        roundingEnabled\n      }\n      priceInclusions {\n        inclusiveDutiesPricingStrategy\n        inclusiveTaxPricingStrategy\n      }\n      catalogs(first: 250) {\n        nodes {\n          __typename\n          id\n          title\n          status\n          priceList {\n            id\n          }\n          publication {\n            id\n          }\n          ... on MarketCatalog {\n            markets(first: 250) {\n              nodes {\n                __typename\n                id\n                name\n                handle\n                status\n                type\n              }\n            }\n          }\n        }\n      }\n      webPresences(first: 250) {\n        nodes {\n          __typename\n          id\n          subfolderSuffix\n          domain {\n            id\n            host\n            url\n            sslEnabled\n          }\n          rootUrls {\n            locale\n            url\n          }\n          defaultLocale {\n            locale\n            name\n            primary\n            published\n          }\n          alternateLocales {\n            locale\n            name\n            primary\n            published\n          }\n          markets(first: 250) {\n            nodes {\n              __typename\n              id\n              name\n              handle\n              status\n              type\n            }\n          }\n        }\n      }\n    }\n  }\n}\n",
       "variables": {
-        "ids": ["gid://shopify/Market/98851389746"]
+        "ids": ["gid://shopify/Market/98924396850"]
       },
       "response": {
         "status": 200,
@@ -192,9 +495,9 @@
             "nodes": [
               {
                 "__typename": "Market",
-                "id": "gid://shopify/Market/98851389746",
-                "name": "Mutation First Update mrev5eaj",
-                "handle": "mutation-first-update-mrev5eaj",
+                "id": "gid://shopify/Market/98924396850",
+                "name": "Mutation First Update mrmrj4bj",
+                "handle": "mutation-first-update-mrmrj4bj",
                 "status": "DRAFT",
                 "enabled": false,
                 "type": "NONE",
@@ -208,18 +511,20 @@
                   "nodes": [
                     {
                       "__typename": "MarketCatalog",
-                      "id": "gid://shopify/MarketCatalog/154612531506",
-                      "title": "Mutation First Update Catalog mrev5eaj",
+                      "id": "gid://shopify/MarketCatalog/154902397234",
+                      "title": "Mutation First Update Catalog mrmrj4bj",
                       "status": "ACTIVE",
-                      "priceList": null,
+                      "priceList": {
+                        "id": "gid://shopify/PriceList/32314196274"
+                      },
                       "publication": null,
                       "markets": {
                         "nodes": [
                           {
                             "__typename": "Market",
-                            "id": "gid://shopify/Market/98851389746",
-                            "name": "Mutation First Update mrev5eaj",
-                            "handle": "mutation-first-update-mrev5eaj",
+                            "id": "gid://shopify/Market/98924396850",
+                            "name": "Mutation First Update mrmrj4bj",
+                            "handle": "mutation-first-update-mrmrj4bj",
                             "status": "DRAFT",
                             "type": "NONE"
                           }
@@ -232,13 +537,13 @@
                   "nodes": [
                     {
                       "__typename": "MarketWebPresence",
-                      "id": "gid://shopify/MarketWebPresence/70727500082",
-                      "subfolderSuffix": "updatemrevfeaj",
+                      "id": "gid://shopify/MarketWebPresence/70817906994",
+                      "subfolderSuffix": "updatemrmrjebj",
                       "domain": null,
                       "rootUrls": [
                         {
                           "locale": "en",
-                          "url": "https://harry-test-heelo.myshopify.com/en-updatemrevfeaj/"
+                          "url": "https://harry-test-heelo.myshopify.com/en-updatemrmrjebj/"
                         }
                       ],
                       "defaultLocale": {
@@ -252,9 +557,9 @@
                         "nodes": [
                           {
                             "__typename": "Market",
-                            "id": "gid://shopify/Market/98851389746",
-                            "name": "Mutation First Update mrev5eaj",
-                            "handle": "mutation-first-update-mrev5eaj",
+                            "id": "gid://shopify/Market/98924396850",
+                            "name": "Mutation First Update mrmrj4bj",
+                            "handle": "mutation-first-update-mrmrj4bj",
                             "status": "DRAFT",
                             "type": "NONE"
                           }
@@ -285,10 +590,10 @@
       "query": "mutation MarketMutationFirstUpdate($id: ID!, $input: MarketUpdateInput!) {\n  marketUpdate(id: $id, input: $input) {\n    market {\n      id\n      name\n      handle\n      status\n      enabled\n      catalogs(first: 10) {\n        nodes {\n          id\n          title\n          markets(first: 10) {\n            nodes {\n              id\n              name\n              handle\n              status\n              type\n            }\n          }\n        }\n      }\n      webPresences(first: 10) {\n        nodes {\n          id\n          subfolderSuffix\n          markets(first: 10) {\n            nodes {\n              id\n              name\n              handle\n              status\n              type\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "request": {
         "variables": {
-          "id": "gid://shopify/Market/98851389746",
+          "id": "gid://shopify/Market/98924396850",
           "input": {
-            "name": "Mutation First Update Renamed mrev5eaj",
-            "handle": "mutation-first-update-renamed-mrev5eaj"
+            "name": "Mutation First Update Renamed mrmrj4bj",
+            "handle": "mutation-first-update-renamed-mrmrj4bj"
           }
         }
       },
@@ -298,22 +603,22 @@
           "data": {
             "marketUpdate": {
               "market": {
-                "id": "gid://shopify/Market/98851389746",
-                "name": "Mutation First Update Renamed mrev5eaj",
-                "handle": "mutation-first-update-renamed-mrev5eaj",
+                "id": "gid://shopify/Market/98924396850",
+                "name": "Mutation First Update Renamed mrmrj4bj",
+                "handle": "mutation-first-update-renamed-mrmrj4bj",
                 "status": "DRAFT",
                 "enabled": false,
                 "catalogs": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/MarketCatalog/154612531506",
-                      "title": "Mutation First Update Catalog mrev5eaj",
+                      "id": "gid://shopify/MarketCatalog/154902397234",
+                      "title": "Mutation First Update Catalog mrmrj4bj",
                       "markets": {
                         "nodes": [
                           {
-                            "id": "gid://shopify/Market/98851389746",
-                            "name": "Mutation First Update Renamed mrev5eaj",
-                            "handle": "mutation-first-update-renamed-mrev5eaj",
+                            "id": "gid://shopify/Market/98924396850",
+                            "name": "Mutation First Update Renamed mrmrj4bj",
+                            "handle": "mutation-first-update-renamed-mrmrj4bj",
                             "status": "DRAFT",
                             "type": "NONE"
                           }
@@ -325,14 +630,14 @@
                 "webPresences": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/MarketWebPresence/70727500082",
-                      "subfolderSuffix": "updatemrevfeaj",
+                      "id": "gid://shopify/MarketWebPresence/70817906994",
+                      "subfolderSuffix": "updatemrmrjebj",
                       "markets": {
                         "nodes": [
                           {
-                            "id": "gid://shopify/Market/98851389746",
-                            "name": "Mutation First Update Renamed mrev5eaj",
-                            "handle": "mutation-first-update-renamed-mrev5eaj",
+                            "id": "gid://shopify/Market/98924396850",
+                            "name": "Mutation First Update Renamed mrmrj4bj",
+                            "handle": "mutation-first-update-renamed-mrmrj4bj",
                             "status": "DRAFT",
                             "type": "NONE"
                           }
@@ -364,8 +669,8 @@
       "query": "query MarketMutationFirstUpdateRead($marketId: ID!, $catalogId: ID!) {\n  market(id: $marketId) {\n    id\n    name\n    handle\n    status\n    enabled\n    catalogs(first: 10) {\n      nodes {\n        id\n        title\n        markets(first: 10) {\n          nodes {\n            id\n            name\n            handle\n            status\n            type\n          }\n        }\n      }\n    }\n    webPresences(first: 10) {\n      nodes {\n        id\n        subfolderSuffix\n        markets(first: 10) {\n          nodes {\n            id\n            name\n            handle\n            status\n            type\n          }\n        }\n      }\n    }\n  }\n  catalog(id: $catalogId) {\n    id\n    title\n    status\n    ... on MarketCatalog {\n      markets(first: 10) {\n        nodes {\n          id\n          name\n          handle\n          status\n          type\n        }\n      }\n    }\n  }\n}\n",
       "request": {
         "variables": {
-          "marketId": "gid://shopify/Market/98851389746",
-          "catalogId": "gid://shopify/MarketCatalog/154612531506"
+          "marketId": "gid://shopify/Market/98924396850",
+          "catalogId": "gid://shopify/MarketCatalog/154902397234"
         }
       },
       "response": {
@@ -373,22 +678,22 @@
         "payload": {
           "data": {
             "market": {
-              "id": "gid://shopify/Market/98851389746",
-              "name": "Mutation First Update Renamed mrev5eaj",
-              "handle": "mutation-first-update-renamed-mrev5eaj",
+              "id": "gid://shopify/Market/98924396850",
+              "name": "Mutation First Update Renamed mrmrj4bj",
+              "handle": "mutation-first-update-renamed-mrmrj4bj",
               "status": "DRAFT",
               "enabled": false,
               "catalogs": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/MarketCatalog/154612531506",
-                    "title": "Mutation First Update Catalog mrev5eaj",
+                    "id": "gid://shopify/MarketCatalog/154902397234",
+                    "title": "Mutation First Update Catalog mrmrj4bj",
                     "markets": {
                       "nodes": [
                         {
-                          "id": "gid://shopify/Market/98851389746",
-                          "name": "Mutation First Update Renamed mrev5eaj",
-                          "handle": "mutation-first-update-renamed-mrev5eaj",
+                          "id": "gid://shopify/Market/98924396850",
+                          "name": "Mutation First Update Renamed mrmrj4bj",
+                          "handle": "mutation-first-update-renamed-mrmrj4bj",
                           "status": "DRAFT",
                           "type": "NONE"
                         }
@@ -400,14 +705,14 @@
               "webPresences": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/MarketWebPresence/70727500082",
-                    "subfolderSuffix": "updatemrevfeaj",
+                    "id": "gid://shopify/MarketWebPresence/70817906994",
+                    "subfolderSuffix": "updatemrmrjebj",
                     "markets": {
                       "nodes": [
                         {
-                          "id": "gid://shopify/Market/98851389746",
-                          "name": "Mutation First Update Renamed mrev5eaj",
-                          "handle": "mutation-first-update-renamed-mrev5eaj",
+                          "id": "gid://shopify/Market/98924396850",
+                          "name": "Mutation First Update Renamed mrmrj4bj",
+                          "handle": "mutation-first-update-renamed-mrmrj4bj",
                           "status": "DRAFT",
                           "type": "NONE"
                         }
@@ -418,15 +723,15 @@
               }
             },
             "catalog": {
-              "id": "gid://shopify/MarketCatalog/154612531506",
-              "title": "Mutation First Update Catalog mrev5eaj",
+              "id": "gid://shopify/MarketCatalog/154902397234",
+              "title": "Mutation First Update Catalog mrmrj4bj",
               "status": "ACTIVE",
               "markets": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/Market/98851389746",
-                    "name": "Mutation First Update Renamed mrev5eaj",
-                    "handle": "mutation-first-update-renamed-mrev5eaj",
+                    "id": "gid://shopify/Market/98924396850",
+                    "name": "Mutation First Update Renamed mrmrj4bj",
+                    "handle": "mutation-first-update-renamed-mrmrj4bj",
                     "status": "DRAFT",
                     "type": "NONE"
                   }
@@ -447,6 +752,290 @@
           }
         }
       }
+    },
+    "topLevelRead": {
+      "name": "mutation-first update top-level read",
+      "query": "query MarketMutationFirstUpdateTopLevelRead(\n  $primaryMarketQuery: String!\n  $updateMarketQuery: String!\n  $otherMarketQuery: String!\n  $catalogsFirst: Int!\n  $priceListsFirst: Int!\n  $webPresencesFirst: Int!\n) {\n  primaryMarketFromList: markets(first: 1, query: $primaryMarketQuery, sortKey: ID) {\n    nodes {\n      id\n      name\n      handle\n      status\n      type\n    }\n  }\n  updateMarketFromList: markets(first: 1, query: $updateMarketQuery, sortKey: ID) {\n    nodes {\n      id\n      name\n      handle\n      status\n      type\n    }\n  }\n  otherMarketFromList: markets(first: 1, query: $otherMarketQuery, sortKey: ID) {\n    nodes {\n      id\n      name\n      handle\n      status\n      type\n    }\n  }\n  catalogs(first: $catalogsFirst, type: MARKET, sortKey: ID) {\n    nodes {\n      id\n      title\n      status\n      ... on MarketCatalog {\n        markets(first: 5) {\n          nodes {\n            id\n            name\n            handle\n            status\n            type\n          }\n        }\n      }\n      priceList {\n        id\n        name\n        currency\n      }\n    }\n  }\n  catalogsCount(type: MARKET) {\n    count\n    precision\n  }\n  priceLists(first: $priceListsFirst, sortKey: ID) {\n    nodes {\n      id\n      name\n      currency\n      catalog {\n        id\n        title\n        status\n      }\n    }\n  }\n  webPresences(first: $webPresencesFirst) {\n    nodes {\n      id\n      subfolderSuffix\n      defaultLocale {\n        locale\n        name\n        primary\n        published\n      }\n      markets(first: 5) {\n        nodes {\n          id\n          name\n          handle\n          status\n          type\n        }\n      }\n    }\n  }\n}\n",
+      "request": {
+        "variables": {
+          "primaryMarketQuery": "id:92276785458",
+          "updateMarketQuery": "id:98924396850",
+          "otherMarketQuery": "id:98924429618",
+          "catalogsFirst": 100,
+          "priceListsFirst": 100,
+          "webPresencesFirst": 100
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "primaryMarketFromList": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Market/92276785458",
+                  "name": "International",
+                  "handle": "international",
+                  "status": "ACTIVE",
+                  "type": "REGION"
+                }
+              ]
+            },
+            "updateMarketFromList": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Market/98924396850",
+                  "name": "Mutation First Update Renamed mrmrj4bj",
+                  "handle": "mutation-first-update-renamed-mrmrj4bj",
+                  "status": "DRAFT",
+                  "type": "NONE"
+                }
+              ]
+            },
+            "otherMarketFromList": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Market/98924429618",
+                  "name": "Mutation First Other mrmrj4bj",
+                  "handle": "mutation-first-other-mrmrj4bj",
+                  "status": "DRAFT",
+                  "type": "NONE"
+                }
+              ]
+            },
+            "catalogs": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MarketCatalog/128893452594",
+                  "title": "Mexico",
+                  "status": "ACTIVE",
+                  "markets": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/Market/92276818226",
+                        "name": "Mexico",
+                        "handle": "mexico",
+                        "status": "ACTIVE",
+                        "type": "REGION"
+                      }
+                    ]
+                  },
+                  "priceList": {
+                    "id": "gid://shopify/PriceList/31575408946",
+                    "name": "Mexico Buyers",
+                    "currency": "MXN"
+                  }
+                },
+                {
+                  "id": "gid://shopify/MarketCatalog/154902397234",
+                  "title": "Mutation First Update Catalog mrmrj4bj",
+                  "status": "ACTIVE",
+                  "markets": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/Market/98924396850",
+                        "name": "Mutation First Update Renamed mrmrj4bj",
+                        "handle": "mutation-first-update-renamed-mrmrj4bj",
+                        "status": "DRAFT",
+                        "type": "NONE"
+                      }
+                    ]
+                  },
+                  "priceList": {
+                    "id": "gid://shopify/PriceList/32314196274",
+                    "name": "Mutation First Update Prices mrmrj4bj",
+                    "currency": "USD"
+                  }
+                },
+                {
+                  "id": "gid://shopify/MarketCatalog/154902430002",
+                  "title": "Mutation First Other Catalog mrmrj4bj",
+                  "status": "ACTIVE",
+                  "markets": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/Market/98924429618",
+                        "name": "Mutation First Other mrmrj4bj",
+                        "handle": "mutation-first-other-mrmrj4bj",
+                        "status": "DRAFT",
+                        "type": "NONE"
+                      }
+                    ]
+                  },
+                  "priceList": {
+                    "id": "gid://shopify/PriceList/32314229042",
+                    "name": "Mutation First Other Prices mrmrj4bj",
+                    "currency": "USD"
+                  }
+                }
+              ]
+            },
+            "catalogsCount": {
+              "count": 3,
+              "precision": "EXACT"
+            },
+            "priceLists": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/PriceList/31575376178",
+                  "name": "Price List example Buyers",
+                  "currency": "CAD",
+                  "catalog": null
+                },
+                {
+                  "id": "gid://shopify/PriceList/31575408946",
+                  "name": "Mexico Buyers",
+                  "currency": "MXN",
+                  "catalog": {
+                    "id": "gid://shopify/MarketCatalog/128893452594",
+                    "title": "Mexico",
+                    "status": "ACTIVE"
+                  }
+                },
+                {
+                  "id": "gid://shopify/PriceList/32128106802",
+                  "name": "Snowdevil - 5ab8ea7a-2a02-46a0-af55-01cdb431d3ca",
+                  "currency": "CAD",
+                  "catalog": {
+                    "id": "gid://shopify/CompanyLocationCatalog/132931223858",
+                    "title": "Snowdevil",
+                    "status": "ACTIVE"
+                  }
+                },
+                {
+                  "id": "gid://shopify/PriceList/32314196274",
+                  "name": "Mutation First Update Prices mrmrj4bj",
+                  "currency": "USD",
+                  "catalog": {
+                    "id": "gid://shopify/MarketCatalog/154902397234",
+                    "title": "Mutation First Update Catalog mrmrj4bj",
+                    "status": "ACTIVE"
+                  }
+                },
+                {
+                  "id": "gid://shopify/PriceList/32314229042",
+                  "name": "Mutation First Other Prices mrmrj4bj",
+                  "currency": "USD",
+                  "catalog": {
+                    "id": "gid://shopify/MarketCatalog/154902430002",
+                    "title": "Mutation First Other Catalog mrmrj4bj",
+                    "status": "ACTIVE"
+                  }
+                }
+              ]
+            },
+            "webPresences": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MarketWebPresence/62842765618",
+                  "subfolderSuffix": null,
+                  "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                  },
+                  "markets": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/MarketWebPresence/69720899890",
+                  "subfolderSuffix": "harerhkjdulik",
+                  "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                  },
+                  "markets": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/MarketWebPresence/69720998194",
+                  "subfolderSuffix": "harsipqvpnehc",
+                  "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                  },
+                  "markets": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/MarketWebPresence/70628245810",
+                  "subfolderSuffix": "harprobebb",
+                  "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                  },
+                  "markets": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/MarketWebPresence/70817906994",
+                  "subfolderSuffix": "updatemrmrjebj",
+                  "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                  },
+                  "markets": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/Market/98924396850",
+                        "name": "Mutation First Update Renamed mrmrj4bj",
+                        "handle": "mutation-first-update-renamed-mrmrj4bj",
+                        "status": "DRAFT",
+                        "type": "NONE"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/MarketWebPresence/70817939762",
+                  "subfolderSuffix": "othermrmrjebj",
+                  "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                  },
+                  "markets": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/Market/98924429618",
+                        "name": "Mutation First Other mrmrj4bj",
+                        "handle": "mutation-first-other-mrmrj4bj",
+                        "status": "DRAFT",
+                        "type": "NONE"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 169,
+              "actualQueryCost": 30,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1968,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
     }
   },
   "mutationFirstDelete": {
@@ -457,7 +1046,7 @@
         "request": {
           "variables": {
             "input": {
-              "name": "Mutation First Delete mrev5eaj"
+              "name": "Mutation First Delete mrmrj4bj"
             }
           }
         },
@@ -467,9 +1056,9 @@
             "data": {
               "marketCreate": {
                 "market": {
-                  "id": "gid://shopify/Market/98851422514",
-                  "name": "Mutation First Delete mrev5eaj",
-                  "handle": "mutation-first-delete-mrev5eaj",
+                  "id": "gid://shopify/Market/98924462386",
+                  "name": "Mutation First Delete mrmrj4bj",
+                  "handle": "mutation-first-delete-mrmrj4bj",
                   "status": "DRAFT",
                   "enabled": false
                 },
@@ -482,7 +1071,7 @@
                 "actualQueryCost": 10,
                 "throttleStatus": {
                   "maximumAvailable": 2000,
-                  "currentlyAvailable": 1986,
+                  "currentlyAvailable": 1978,
                   "restoreRate": 100
                 }
               }
@@ -496,10 +1085,10 @@
         "request": {
           "variables": {
             "input": {
-              "title": "Mutation First Delete Catalog mrev5eaj",
+              "title": "Mutation First Delete Catalog mrmrj4bj",
               "status": "ACTIVE",
               "context": {
-                "marketIds": ["gid://shopify/Market/98851422514"]
+                "marketIds": ["gid://shopify/Market/98924462386"]
               }
             }
           }
@@ -510,8 +1099,8 @@
             "data": {
               "catalogCreate": {
                 "catalog": {
-                  "id": "gid://shopify/MarketCatalog/154612564274",
-                  "title": "Mutation First Delete Catalog mrev5eaj",
+                  "id": "gid://shopify/MarketCatalog/154902462770",
+                  "title": "Mutation First Delete Catalog mrmrj4bj",
                   "status": "ACTIVE"
                 },
                 "userErrors": []
@@ -532,6 +1121,56 @@
         }
       },
       {
+        "name": "setup price list create",
+        "query": "#graphql\nmutation MutationFirstPriceListCreate($input: PriceListCreateInput!) {\n  priceListCreate(input: $input) {\n    priceList {\n      id\n      name\n      currency\n      catalog {\n        id\n        title\n        status\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "request": {
+          "variables": {
+            "input": {
+              "name": "Mutation First Delete Prices mrmrj4bj",
+              "currency": "USD",
+              "catalogId": "gid://shopify/MarketCatalog/154902462770",
+              "parent": {
+                "adjustment": {
+                  "type": "PERCENTAGE_DECREASE",
+                  "value": 10
+                }
+              }
+            }
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "priceListCreate": {
+                "priceList": {
+                  "id": "gid://shopify/PriceList/32314261810",
+                  "name": "Mutation First Delete Prices mrmrj4bj",
+                  "currency": "USD",
+                  "catalog": {
+                    "id": "gid://shopify/MarketCatalog/154902462770",
+                    "title": "Mutation First Delete Catalog mrmrj4bj",
+                    "status": "ACTIVE"
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 11,
+                "actualQueryCost": 11,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1989,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      {
         "name": "setup web presence create",
         "query": "#graphql\nmutation MutationFirstWebPresenceCreate($input: WebPresenceCreateInput!) {\n  webPresenceCreate(input: $input) {\n    webPresence {\n      id\n      subfolderSuffix\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
         "request": {
@@ -539,7 +1178,7 @@
             "input": {
               "defaultLocale": "en",
               "alternateLocales": [],
-              "subfolderSuffix": "deletemrevfeaj"
+              "subfolderSuffix": "deletemrmrjebj"
             }
           }
         },
@@ -549,8 +1188,8 @@
             "data": {
               "webPresenceCreate": {
                 "webPresence": {
-                  "id": "gid://shopify/MarketWebPresence/70727532850",
-                  "subfolderSuffix": "deletemrevfeaj"
+                  "id": "gid://shopify/MarketWebPresence/70817972530",
+                  "subfolderSuffix": "deletemrmrjebj"
                 },
                 "userErrors": []
               }
@@ -574,9 +1213,9 @@
         "query": "#graphql\nmutation MutationFirstMarketLinkWebPresence($id: ID!, $input: MarketUpdateInput!) {\n  marketUpdate(id: $id, input: $input) {\n    market {\n      id\n      webPresences(first: 10) {\n        nodes {\n          id\n          subfolderSuffix\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
         "request": {
           "variables": {
-            "id": "gid://shopify/Market/98851422514",
+            "id": "gid://shopify/Market/98924462386",
             "input": {
-              "webPresencesToAdd": ["gid://shopify/MarketWebPresence/70727532850"]
+              "webPresencesToAdd": ["gid://shopify/MarketWebPresence/70817972530"]
             }
           }
         },
@@ -586,12 +1225,12 @@
             "data": {
               "marketUpdate": {
                 "market": {
-                  "id": "gid://shopify/Market/98851422514",
+                  "id": "gid://shopify/Market/98924462386",
                   "webPresences": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/MarketWebPresence/70727532850",
-                        "subfolderSuffix": "deletemrevfeaj"
+                        "id": "gid://shopify/MarketWebPresence/70817972530",
+                        "subfolderSuffix": "deletemrmrjebj"
                       }
                     ]
                   }
@@ -618,7 +1257,7 @@
       "operationName": "MarketsMutationPreflightHydrate",
       "query": "query MarketsMutationPreflightHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    ... on Market {\n      id\n      name\n      handle\n      status\n      enabled\n      type\n      conditions {\n        conditionTypes\n        regionsCondition {\n          applicationLevel\n          regions(first: 250) {\n            nodes {\n              __typename\n              id\n              name\n              ... on MarketRegionCountry {\n                code\n              }\n            }\n          }\n        }\n      }\n      currencySettings {\n        baseCurrency {\n          currencyCode\n          currencyName\n        }\n        localCurrencies\n        roundingEnabled\n      }\n      priceInclusions {\n        inclusiveDutiesPricingStrategy\n        inclusiveTaxPricingStrategy\n      }\n      catalogs(first: 250) {\n        nodes {\n          __typename\n          id\n          title\n          status\n          priceList {\n            id\n          }\n          publication {\n            id\n          }\n          ... on MarketCatalog {\n            markets(first: 250) {\n              nodes {\n                __typename\n                id\n                name\n                handle\n                status\n                type\n              }\n            }\n          }\n        }\n      }\n      webPresences(first: 250) {\n        nodes {\n          __typename\n          id\n          subfolderSuffix\n          domain {\n            id\n            host\n            url\n            sslEnabled\n          }\n          rootUrls {\n            locale\n            url\n          }\n          defaultLocale {\n            locale\n            name\n            primary\n            published\n          }\n          alternateLocales {\n            locale\n            name\n            primary\n            published\n          }\n          markets(first: 250) {\n            nodes {\n              __typename\n              id\n              name\n              handle\n              status\n              type\n            }\n          }\n        }\n      }\n    }\n  }\n}\n",
       "variables": {
-        "ids": ["gid://shopify/Market/98851422514"]
+        "ids": ["gid://shopify/Market/98924462386"]
       },
       "response": {
         "status": 200,
@@ -627,9 +1266,9 @@
             "nodes": [
               {
                 "__typename": "Market",
-                "id": "gid://shopify/Market/98851422514",
-                "name": "Mutation First Delete mrev5eaj",
-                "handle": "mutation-first-delete-mrev5eaj",
+                "id": "gid://shopify/Market/98924462386",
+                "name": "Mutation First Delete mrmrj4bj",
+                "handle": "mutation-first-delete-mrmrj4bj",
                 "status": "DRAFT",
                 "enabled": false,
                 "type": "NONE",
@@ -643,18 +1282,20 @@
                   "nodes": [
                     {
                       "__typename": "MarketCatalog",
-                      "id": "gid://shopify/MarketCatalog/154612564274",
-                      "title": "Mutation First Delete Catalog mrev5eaj",
+                      "id": "gid://shopify/MarketCatalog/154902462770",
+                      "title": "Mutation First Delete Catalog mrmrj4bj",
                       "status": "ACTIVE",
-                      "priceList": null,
+                      "priceList": {
+                        "id": "gid://shopify/PriceList/32314261810"
+                      },
                       "publication": null,
                       "markets": {
                         "nodes": [
                           {
                             "__typename": "Market",
-                            "id": "gid://shopify/Market/98851422514",
-                            "name": "Mutation First Delete mrev5eaj",
-                            "handle": "mutation-first-delete-mrev5eaj",
+                            "id": "gid://shopify/Market/98924462386",
+                            "name": "Mutation First Delete mrmrj4bj",
+                            "handle": "mutation-first-delete-mrmrj4bj",
                             "status": "DRAFT",
                             "type": "NONE"
                           }
@@ -667,13 +1308,13 @@
                   "nodes": [
                     {
                       "__typename": "MarketWebPresence",
-                      "id": "gid://shopify/MarketWebPresence/70727532850",
-                      "subfolderSuffix": "deletemrevfeaj",
+                      "id": "gid://shopify/MarketWebPresence/70817972530",
+                      "subfolderSuffix": "deletemrmrjebj",
                       "domain": null,
                       "rootUrls": [
                         {
                           "locale": "en",
-                          "url": "https://harry-test-heelo.myshopify.com/en-deletemrevfeaj/"
+                          "url": "https://harry-test-heelo.myshopify.com/en-deletemrmrjebj/"
                         }
                       ],
                       "defaultLocale": {
@@ -687,9 +1328,9 @@
                         "nodes": [
                           {
                             "__typename": "Market",
-                            "id": "gid://shopify/Market/98851422514",
-                            "name": "Mutation First Delete mrev5eaj",
-                            "handle": "mutation-first-delete-mrev5eaj",
+                            "id": "gid://shopify/Market/98924462386",
+                            "name": "Mutation First Delete mrmrj4bj",
+                            "handle": "mutation-first-delete-mrmrj4bj",
                             "status": "DRAFT",
                             "type": "NONE"
                           }
@@ -720,7 +1361,7 @@
       "query": "mutation MarketDeleteCascadeDelete($id: ID!) {\n  marketDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "request": {
         "variables": {
-          "id": "gid://shopify/Market/98851422514"
+          "id": "gid://shopify/Market/98924462386"
         }
       },
       "response": {
@@ -728,7 +1369,7 @@
         "payload": {
           "data": {
             "marketDelete": {
-              "deletedId": "gid://shopify/Market/98851422514",
+              "deletedId": "gid://shopify/Market/98924462386",
               "userErrors": []
             }
           },
@@ -751,8 +1392,8 @@
       "query": "query MarketDeleteCascadeRead($marketId: ID!, $catalogId: ID!, $webPresencesFirst: Int!) {\n  webPresences(first: $webPresencesFirst) {\n    nodes {\n      id\n      markets(first: 10) {\n        nodes {\n          id\n        }\n      }\n    }\n  }\n  market(id: $marketId) {\n    id\n  }\n  catalog(id: $catalogId) {\n    id\n    ... on MarketCatalog {\n      markets(first: 10) {\n        nodes {\n          id\n        }\n      }\n    }\n  }\n}\n",
       "request": {
         "variables": {
-          "marketId": "gid://shopify/Market/98851422514",
-          "catalogId": "gid://shopify/MarketCatalog/154612564274",
+          "marketId": "gid://shopify/Market/98924462386",
+          "catalogId": "gid://shopify/MarketCatalog/154902462770",
           "webPresencesFirst": 100
         }
       },
@@ -787,11 +1428,21 @@
                   }
                 },
                 {
-                  "id": "gid://shopify/MarketWebPresence/70727500082",
+                  "id": "gid://shopify/MarketWebPresence/70817906994",
                   "markets": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/Market/98851389746"
+                        "id": "gid://shopify/Market/98924396850"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/MarketWebPresence/70817939762",
+                  "markets": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/Market/98924429618"
                       }
                     ]
                   }
@@ -800,7 +1451,7 @@
             },
             "market": null,
             "catalog": {
-              "id": "gid://shopify/MarketCatalog/154612564274",
+              "id": "gid://shopify/MarketCatalog/154902462770",
               "markets": {
                 "nodes": []
               }
@@ -937,7 +1588,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1988,
+                "currentlyAvailable": 1990,
                 "restoreRate": 100
               }
             }
@@ -980,7 +1631,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1987,
+                "currentlyAvailable": 1988,
                 "restoreRate": 100
               }
             }
@@ -990,12 +1641,12 @@
     }
   },
   "cleanup": {
-    "updateMarketDelete": {
+    "updatePriceListDelete": {
       "status": 200,
       "payload": {
         "data": {
-          "marketDelete": {
-            "deletedId": "gid://shopify/Market/98851389746",
+          "priceListDelete": {
+            "deletedId": "gid://shopify/PriceList/32314196274",
             "userErrors": []
           }
         },
@@ -1005,7 +1656,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1985,
+              "currentlyAvailable": 1987,
               "restoreRate": 100
             }
           }
@@ -1017,7 +1668,7 @@
       "payload": {
         "data": {
           "catalogDelete": {
-            "deletedId": "gid://shopify/MarketCatalog/154612531506",
+            "deletedId": "gid://shopify/MarketCatalog/154902397234",
             "userErrors": []
           }
         },
@@ -1039,14 +1690,140 @@
       "payload": {
         "data": {
           "webPresenceDelete": {
-            "deletedId": null,
-            "userErrors": [
-              {
-                "field": ["id"],
-                "message": "The market web presence wasn't found.",
-                "code": "WEB_PRESENCE_NOT_FOUND"
-              }
-            ]
+            "deletedId": "gid://shopify/MarketWebPresence/70817906994",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "updateMarketDelete": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "marketDelete": {
+            "deletedId": "gid://shopify/Market/98924396850",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "otherPriceListDelete": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "priceListDelete": {
+            "deletedId": "gid://shopify/PriceList/32314229042",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "otherCatalogDelete": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "catalogDelete": {
+            "deletedId": "gid://shopify/MarketCatalog/154902430002",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "otherWebPresenceDelete": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "webPresenceDelete": {
+            "deletedId": "gid://shopify/MarketWebPresence/70817939762",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "otherMarketDelete": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "marketDelete": {
+            "deletedId": "gid://shopify/Market/98924429618",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "deletePriceListDelete": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "priceListDelete": {
+            "deletedId": "gid://shopify/PriceList/32314261810",
+            "userErrors": []
           }
         },
         "extensions": {
@@ -1067,7 +1844,7 @@
       "payload": {
         "data": {
           "catalogDelete": {
-            "deletedId": "gid://shopify/MarketCatalog/154612564274",
+            "deletedId": "gid://shopify/MarketCatalog/154902462770",
             "userErrors": []
           }
         },
@@ -1077,7 +1854,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1987,
+              "currentlyAvailable": 1990,
               "restoreRate": 100
             }
           }
@@ -1105,7 +1882,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1989,
+              "currentlyAvailable": 1990,
               "restoreRate": 100
             }
           }
@@ -1118,7 +1895,7 @@
       "operationName": "MarketsMutationPreflightHydrate",
       "query": "query MarketsMutationPreflightHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    ... on Market {\n      id\n      name\n      handle\n      status\n      enabled\n      type\n      conditions {\n        conditionTypes\n        regionsCondition {\n          applicationLevel\n          regions(first: 250) {\n            nodes {\n              __typename\n              id\n              name\n              ... on MarketRegionCountry {\n                code\n              }\n            }\n          }\n        }\n      }\n      currencySettings {\n        baseCurrency {\n          currencyCode\n          currencyName\n        }\n        localCurrencies\n        roundingEnabled\n      }\n      priceInclusions {\n        inclusiveDutiesPricingStrategy\n        inclusiveTaxPricingStrategy\n      }\n      catalogs(first: 250) {\n        nodes {\n          __typename\n          id\n          title\n          status\n          priceList {\n            id\n          }\n          publication {\n            id\n          }\n          ... on MarketCatalog {\n            markets(first: 250) {\n              nodes {\n                __typename\n                id\n                name\n                handle\n                status\n                type\n              }\n            }\n          }\n        }\n      }\n      webPresences(first: 250) {\n        nodes {\n          __typename\n          id\n          subfolderSuffix\n          domain {\n            id\n            host\n            url\n            sslEnabled\n          }\n          rootUrls {\n            locale\n            url\n          }\n          defaultLocale {\n            locale\n            name\n            primary\n            published\n          }\n          alternateLocales {\n            locale\n            name\n            primary\n            published\n          }\n          markets(first: 250) {\n            nodes {\n              __typename\n              id\n              name\n              handle\n              status\n              type\n            }\n          }\n        }\n      }\n    }\n  }\n}\n",
       "variables": {
-        "ids": ["gid://shopify/Market/98851389746"]
+        "ids": ["gid://shopify/Market/98924396850"]
       },
       "response": {
         "status": 200,
@@ -1127,9 +1904,9 @@
             "nodes": [
               {
                 "__typename": "Market",
-                "id": "gid://shopify/Market/98851389746",
-                "name": "Mutation First Update mrev5eaj",
-                "handle": "mutation-first-update-mrev5eaj",
+                "id": "gid://shopify/Market/98924396850",
+                "name": "Mutation First Update mrmrj4bj",
+                "handle": "mutation-first-update-mrmrj4bj",
                 "status": "DRAFT",
                 "enabled": false,
                 "type": "NONE",
@@ -1143,18 +1920,20 @@
                   "nodes": [
                     {
                       "__typename": "MarketCatalog",
-                      "id": "gid://shopify/MarketCatalog/154612531506",
-                      "title": "Mutation First Update Catalog mrev5eaj",
+                      "id": "gid://shopify/MarketCatalog/154902397234",
+                      "title": "Mutation First Update Catalog mrmrj4bj",
                       "status": "ACTIVE",
-                      "priceList": null,
+                      "priceList": {
+                        "id": "gid://shopify/PriceList/32314196274"
+                      },
                       "publication": null,
                       "markets": {
                         "nodes": [
                           {
                             "__typename": "Market",
-                            "id": "gid://shopify/Market/98851389746",
-                            "name": "Mutation First Update mrev5eaj",
-                            "handle": "mutation-first-update-mrev5eaj",
+                            "id": "gid://shopify/Market/98924396850",
+                            "name": "Mutation First Update mrmrj4bj",
+                            "handle": "mutation-first-update-mrmrj4bj",
                             "status": "DRAFT",
                             "type": "NONE"
                           }
@@ -1167,13 +1946,13 @@
                   "nodes": [
                     {
                       "__typename": "MarketWebPresence",
-                      "id": "gid://shopify/MarketWebPresence/70727500082",
-                      "subfolderSuffix": "updatemrevfeaj",
+                      "id": "gid://shopify/MarketWebPresence/70817906994",
+                      "subfolderSuffix": "updatemrmrjebj",
                       "domain": null,
                       "rootUrls": [
                         {
                           "locale": "en",
-                          "url": "https://harry-test-heelo.myshopify.com/en-updatemrevfeaj/"
+                          "url": "https://harry-test-heelo.myshopify.com/en-updatemrmrjebj/"
                         }
                       ],
                       "defaultLocale": {
@@ -1187,9 +1966,9 @@
                         "nodes": [
                           {
                             "__typename": "Market",
-                            "id": "gid://shopify/Market/98851389746",
-                            "name": "Mutation First Update mrev5eaj",
-                            "handle": "mutation-first-update-mrev5eaj",
+                            "id": "gid://shopify/Market/98924396850",
+                            "name": "Mutation First Update mrmrj4bj",
+                            "handle": "mutation-first-update-mrmrj4bj",
                             "status": "DRAFT",
                             "type": "NONE"
                           }
@@ -1216,10 +1995,292 @@
       }
     },
     {
+      "operationName": "MarketMutationFirstUpdateTopLevelRead",
+      "query": "query MarketMutationFirstUpdateTopLevelRead(\n  $primaryMarketQuery: String!\n  $updateMarketQuery: String!\n  $otherMarketQuery: String!\n  $catalogsFirst: Int!\n  $priceListsFirst: Int!\n  $webPresencesFirst: Int!\n) {\n  primaryMarketFromList: markets(first: 1, query: $primaryMarketQuery, sortKey: ID) {\n    nodes {\n      id\n      name\n      handle\n      status\n      type\n    }\n  }\n  updateMarketFromList: markets(first: 1, query: $updateMarketQuery, sortKey: ID) {\n    nodes {\n      id\n      name\n      handle\n      status\n      type\n    }\n  }\n  otherMarketFromList: markets(first: 1, query: $otherMarketQuery, sortKey: ID) {\n    nodes {\n      id\n      name\n      handle\n      status\n      type\n    }\n  }\n  catalogs(first: $catalogsFirst, type: MARKET, sortKey: ID) {\n    nodes {\n      id\n      title\n      status\n      ... on MarketCatalog {\n        markets(first: 5) {\n          nodes {\n            id\n            name\n            handle\n            status\n            type\n          }\n        }\n      }\n      priceList {\n        id\n        name\n        currency\n      }\n    }\n  }\n  catalogsCount(type: MARKET) {\n    count\n    precision\n  }\n  priceLists(first: $priceListsFirst, sortKey: ID) {\n    nodes {\n      id\n      name\n      currency\n      catalog {\n        id\n        title\n        status\n      }\n    }\n  }\n  webPresences(first: $webPresencesFirst) {\n    nodes {\n      id\n      subfolderSuffix\n      defaultLocale {\n        locale\n        name\n        primary\n        published\n      }\n      markets(first: 5) {\n        nodes {\n          id\n          name\n          handle\n          status\n          type\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "primaryMarketQuery": "id:92276785458",
+        "updateMarketQuery": "id:98924396850",
+        "otherMarketQuery": "id:98924429618",
+        "catalogsFirst": 100,
+        "priceListsFirst": 100,
+        "webPresencesFirst": 100
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "primaryMarketFromList": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Market/92276785458",
+                  "name": "International",
+                  "handle": "international",
+                  "status": "ACTIVE",
+                  "type": "REGION"
+                }
+              ]
+            },
+            "updateMarketFromList": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Market/98924396850",
+                  "name": "Mutation First Update Renamed mrmrj4bj",
+                  "handle": "mutation-first-update-renamed-mrmrj4bj",
+                  "status": "DRAFT",
+                  "type": "NONE"
+                }
+              ]
+            },
+            "otherMarketFromList": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Market/98924429618",
+                  "name": "Mutation First Other mrmrj4bj",
+                  "handle": "mutation-first-other-mrmrj4bj",
+                  "status": "DRAFT",
+                  "type": "NONE"
+                }
+              ]
+            },
+            "catalogs": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MarketCatalog/128893452594",
+                  "title": "Mexico",
+                  "status": "ACTIVE",
+                  "markets": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/Market/92276818226",
+                        "name": "Mexico",
+                        "handle": "mexico",
+                        "status": "ACTIVE",
+                        "type": "REGION"
+                      }
+                    ]
+                  },
+                  "priceList": {
+                    "id": "gid://shopify/PriceList/31575408946",
+                    "name": "Mexico Buyers",
+                    "currency": "MXN"
+                  }
+                },
+                {
+                  "id": "gid://shopify/MarketCatalog/154902397234",
+                  "title": "Mutation First Update Catalog mrmrj4bj",
+                  "status": "ACTIVE",
+                  "markets": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/Market/98924396850",
+                        "name": "Mutation First Update Renamed mrmrj4bj",
+                        "handle": "mutation-first-update-renamed-mrmrj4bj",
+                        "status": "DRAFT",
+                        "type": "NONE"
+                      }
+                    ]
+                  },
+                  "priceList": {
+                    "id": "gid://shopify/PriceList/32314196274",
+                    "name": "Mutation First Update Prices mrmrj4bj",
+                    "currency": "USD"
+                  }
+                },
+                {
+                  "id": "gid://shopify/MarketCatalog/154902430002",
+                  "title": "Mutation First Other Catalog mrmrj4bj",
+                  "status": "ACTIVE",
+                  "markets": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/Market/98924429618",
+                        "name": "Mutation First Other mrmrj4bj",
+                        "handle": "mutation-first-other-mrmrj4bj",
+                        "status": "DRAFT",
+                        "type": "NONE"
+                      }
+                    ]
+                  },
+                  "priceList": {
+                    "id": "gid://shopify/PriceList/32314229042",
+                    "name": "Mutation First Other Prices mrmrj4bj",
+                    "currency": "USD"
+                  }
+                }
+              ]
+            },
+            "catalogsCount": {
+              "count": 3,
+              "precision": "EXACT"
+            },
+            "priceLists": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/PriceList/31575376178",
+                  "name": "Price List example Buyers",
+                  "currency": "CAD",
+                  "catalog": null
+                },
+                {
+                  "id": "gid://shopify/PriceList/31575408946",
+                  "name": "Mexico Buyers",
+                  "currency": "MXN",
+                  "catalog": {
+                    "id": "gid://shopify/MarketCatalog/128893452594",
+                    "title": "Mexico",
+                    "status": "ACTIVE"
+                  }
+                },
+                {
+                  "id": "gid://shopify/PriceList/32128106802",
+                  "name": "Snowdevil - 5ab8ea7a-2a02-46a0-af55-01cdb431d3ca",
+                  "currency": "CAD",
+                  "catalog": {
+                    "id": "gid://shopify/CompanyLocationCatalog/132931223858",
+                    "title": "Snowdevil",
+                    "status": "ACTIVE"
+                  }
+                },
+                {
+                  "id": "gid://shopify/PriceList/32314196274",
+                  "name": "Mutation First Update Prices mrmrj4bj",
+                  "currency": "USD",
+                  "catalog": {
+                    "id": "gid://shopify/MarketCatalog/154902397234",
+                    "title": "Mutation First Update Catalog mrmrj4bj",
+                    "status": "ACTIVE"
+                  }
+                },
+                {
+                  "id": "gid://shopify/PriceList/32314229042",
+                  "name": "Mutation First Other Prices mrmrj4bj",
+                  "currency": "USD",
+                  "catalog": {
+                    "id": "gid://shopify/MarketCatalog/154902430002",
+                    "title": "Mutation First Other Catalog mrmrj4bj",
+                    "status": "ACTIVE"
+                  }
+                }
+              ]
+            },
+            "webPresences": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MarketWebPresence/62842765618",
+                  "subfolderSuffix": null,
+                  "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                  },
+                  "markets": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/MarketWebPresence/69720899890",
+                  "subfolderSuffix": "harerhkjdulik",
+                  "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                  },
+                  "markets": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/MarketWebPresence/69720998194",
+                  "subfolderSuffix": "harsipqvpnehc",
+                  "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                  },
+                  "markets": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/MarketWebPresence/70628245810",
+                  "subfolderSuffix": "harprobebb",
+                  "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                  },
+                  "markets": {
+                    "nodes": []
+                  }
+                },
+                {
+                  "id": "gid://shopify/MarketWebPresence/70817906994",
+                  "subfolderSuffix": "updatemrmrjebj",
+                  "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                  },
+                  "markets": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/Market/98924396850",
+                        "name": "Mutation First Update Renamed mrmrj4bj",
+                        "handle": "mutation-first-update-renamed-mrmrj4bj",
+                        "status": "DRAFT",
+                        "type": "NONE"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/MarketWebPresence/70817939762",
+                  "subfolderSuffix": "othermrmrjebj",
+                  "defaultLocale": {
+                    "locale": "en",
+                    "name": "English",
+                    "primary": true,
+                    "published": true
+                  },
+                  "markets": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/Market/98924429618",
+                        "name": "Mutation First Other mrmrj4bj",
+                        "handle": "mutation-first-other-mrmrj4bj",
+                        "status": "DRAFT",
+                        "type": "NONE"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 169,
+              "actualQueryCost": 30,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1968,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
       "operationName": "MarketsMutationPreflightHydrate",
       "query": "query MarketsMutationPreflightHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    ... on Market {\n      id\n      name\n      handle\n      status\n      enabled\n      type\n      conditions {\n        conditionTypes\n        regionsCondition {\n          applicationLevel\n          regions(first: 250) {\n            nodes {\n              __typename\n              id\n              name\n              ... on MarketRegionCountry {\n                code\n              }\n            }\n          }\n        }\n      }\n      currencySettings {\n        baseCurrency {\n          currencyCode\n          currencyName\n        }\n        localCurrencies\n        roundingEnabled\n      }\n      priceInclusions {\n        inclusiveDutiesPricingStrategy\n        inclusiveTaxPricingStrategy\n      }\n      catalogs(first: 250) {\n        nodes {\n          __typename\n          id\n          title\n          status\n          priceList {\n            id\n          }\n          publication {\n            id\n          }\n          ... on MarketCatalog {\n            markets(first: 250) {\n              nodes {\n                __typename\n                id\n                name\n                handle\n                status\n                type\n              }\n            }\n          }\n        }\n      }\n      webPresences(first: 250) {\n        nodes {\n          __typename\n          id\n          subfolderSuffix\n          domain {\n            id\n            host\n            url\n            sslEnabled\n          }\n          rootUrls {\n            locale\n            url\n          }\n          defaultLocale {\n            locale\n            name\n            primary\n            published\n          }\n          alternateLocales {\n            locale\n            name\n            primary\n            published\n          }\n          markets(first: 250) {\n            nodes {\n              __typename\n              id\n              name\n              handle\n              status\n              type\n            }\n          }\n        }\n      }\n    }\n  }\n}\n",
       "variables": {
-        "ids": ["gid://shopify/Market/98851422514"]
+        "ids": ["gid://shopify/Market/98924462386"]
       },
       "response": {
         "status": 200,
@@ -1228,9 +2289,9 @@
             "nodes": [
               {
                 "__typename": "Market",
-                "id": "gid://shopify/Market/98851422514",
-                "name": "Mutation First Delete mrev5eaj",
-                "handle": "mutation-first-delete-mrev5eaj",
+                "id": "gid://shopify/Market/98924462386",
+                "name": "Mutation First Delete mrmrj4bj",
+                "handle": "mutation-first-delete-mrmrj4bj",
                 "status": "DRAFT",
                 "enabled": false,
                 "type": "NONE",
@@ -1244,18 +2305,20 @@
                   "nodes": [
                     {
                       "__typename": "MarketCatalog",
-                      "id": "gid://shopify/MarketCatalog/154612564274",
-                      "title": "Mutation First Delete Catalog mrev5eaj",
+                      "id": "gid://shopify/MarketCatalog/154902462770",
+                      "title": "Mutation First Delete Catalog mrmrj4bj",
                       "status": "ACTIVE",
-                      "priceList": null,
+                      "priceList": {
+                        "id": "gid://shopify/PriceList/32314261810"
+                      },
                       "publication": null,
                       "markets": {
                         "nodes": [
                           {
                             "__typename": "Market",
-                            "id": "gid://shopify/Market/98851422514",
-                            "name": "Mutation First Delete mrev5eaj",
-                            "handle": "mutation-first-delete-mrev5eaj",
+                            "id": "gid://shopify/Market/98924462386",
+                            "name": "Mutation First Delete mrmrj4bj",
+                            "handle": "mutation-first-delete-mrmrj4bj",
                             "status": "DRAFT",
                             "type": "NONE"
                           }
@@ -1268,13 +2331,13 @@
                   "nodes": [
                     {
                       "__typename": "MarketWebPresence",
-                      "id": "gid://shopify/MarketWebPresence/70727532850",
-                      "subfolderSuffix": "deletemrevfeaj",
+                      "id": "gid://shopify/MarketWebPresence/70817972530",
+                      "subfolderSuffix": "deletemrmrjebj",
                       "domain": null,
                       "rootUrls": [
                         {
                           "locale": "en",
-                          "url": "https://harry-test-heelo.myshopify.com/en-deletemrevfeaj/"
+                          "url": "https://harry-test-heelo.myshopify.com/en-deletemrmrjebj/"
                         }
                       ],
                       "defaultLocale": {
@@ -1288,9 +2351,9 @@
                         "nodes": [
                           {
                             "__typename": "Market",
-                            "id": "gid://shopify/Market/98851422514",
-                            "name": "Mutation First Delete mrev5eaj",
-                            "handle": "mutation-first-delete-mrev5eaj",
+                            "id": "gid://shopify/Market/98924462386",
+                            "name": "Mutation First Delete mrmrj4bj",
+                            "handle": "mutation-first-delete-mrmrj4bj",
                             "status": "DRAFT",
                             "type": "NONE"
                           }
@@ -1360,7 +2423,7 @@
               "actualQueryCost": 1,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1996,
+                "currentlyAvailable": 1999,
                 "restoreRate": 100
               }
             }

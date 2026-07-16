@@ -1090,12 +1090,25 @@ impl DraftProxy {
         if !self.store.staged.catalogs.is_empty() {
             snapshot["stagedState"]["catalogs"] = json!(self.store.staged.catalogs.clone());
         }
+        if !self.store.staged.created_catalog_ids.is_empty() {
+            snapshot["stagedState"]["createdCatalogIds"] = json!(self
+                .store
+                .staged
+                .created_catalog_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
         if !self.store.staged.price_lists.is_empty() {
             snapshot["stagedState"]["priceLists"] = json!(self.store.staged.price_lists.clone());
         }
         if !self.store.staged.web_presences.is_empty() {
             snapshot["stagedState"]["webPresences"] =
                 json!(self.store.staged.web_presences.clone());
+        }
+        if !self.store.staged.markets_upstream_counts.is_empty() {
+            snapshot["stagedState"]["marketsUpstreamCounts"] =
+                json!(self.store.staged.markets_upstream_counts.clone());
         }
         if !self.store.staged.available_backup_regions.is_empty() {
             snapshot["stagedState"]["availableBackupRegions"] =
@@ -2355,9 +2368,17 @@ impl DraftProxy {
             .into_iter()
             .collect();
         self.store.staged.catalogs = value_map_from_json(state["stagedState"].get("catalogs"));
+        self.store.staged.created_catalog_ids = state["stagedState"]
+            .get("createdCatalogIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         self.store.staged.price_lists = value_map_from_json(state["stagedState"].get("priceLists"));
         self.store.staged.web_presences =
             value_map_from_json(state["stagedState"].get("webPresences"));
+        self.store.staged.markets_upstream_counts =
+            value_map_from_json(state["stagedState"].get("marketsUpstreamCounts"));
         self.store.staged.available_backup_regions =
             value_map_from_json(state["stagedState"].get("availableBackupRegions"));
         self.store.staged.shop_locales = state["stagedState"]

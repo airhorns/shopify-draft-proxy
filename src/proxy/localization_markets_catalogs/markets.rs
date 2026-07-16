@@ -240,12 +240,50 @@ impl DraftProxy {
 
     fn catalogs_count_value(&self, field: &RootFieldSelection) -> Value {
         selected_json(
-            &staged_count_with_limit_precision(
-                self.matching_catalogs_query(&field.arguments).total_count,
-                &field.arguments,
-            ),
+            &self.catalogs_effective_count(&field.arguments),
             &field.selection,
         )
+    }
+
+    fn catalogs_effective_count(&self, arguments: &BTreeMap<String, ResolvedValue>) -> Value {
+        let key = markets_hydration_scope_key("catalogs", arguments);
+        let Some(upstream_count) = self.store.staged.markets_upstream_counts.get(&key) else {
+            return staged_count_with_limit_precision(
+                self.matching_catalogs_query(arguments).total_count,
+                arguments,
+            );
+        };
+        let base_count = upstream_count
+            .get("count")
+            .and_then(Value::as_u64)
+            .unwrap_or_default();
+        let precision = upstream_count
+            .get("precision")
+            .and_then(Value::as_str)
+            .unwrap_or("EXACT");
+        if precision != "EXACT" {
+            return count_object_with_precision(base_count, precision);
+        }
+        let local_created = self.matching_created_catalog_count(arguments) as u64;
+        staged_count_with_limit_precision((base_count + local_created) as usize, arguments)
+    }
+
+    fn matching_created_catalog_count(&self, arguments: &BTreeMap<String, ResolvedValue>) -> usize {
+        let type_filter = resolved_string_field(arguments, "type");
+        staged_connection_query(
+            self.store
+                .staged
+                .created_catalog_ids
+                .iter()
+                .filter_map(|id| self.store.staged.catalogs.get(id))
+                .cloned()
+                .collect::<Vec<_>>(),
+            arguments,
+            move |catalog, query| catalog_search_decision(catalog, query, type_filter.as_deref()),
+            catalog_staged_sort_key,
+            value_id_cursor,
+        )
+        .total_count
     }
 
     fn matching_catalogs_query(
@@ -505,26 +543,32 @@ impl DraftProxy {
         web_presence: &Value,
         selections: &[SelectedField],
     ) -> Value {
-        let market_ids = web_presence_market_ids(web_presence);
         selected_record_with_connections(web_presence, selections, |selection| {
             match selection.name.as_str() {
-                "markets" => Some(self.selected_markets_by_ids_connection(
-                    market_ids.clone(),
-                    &selection.arguments,
-                    &selection.selection,
-                )),
+                "markets" => {
+                    Some(self.selected_web_presence_markets_connection(web_presence, selection))
+                }
                 _ => None,
             }
         })
     }
 
-    fn selected_markets_by_ids_connection(
+    fn selected_web_presence_markets_connection(
         &self,
-        market_ids: Vec<String>,
-        arguments: &BTreeMap<String, ResolvedValue>,
-        selection: &[SelectedField],
+        web_presence: &Value,
+        selection: &SelectedField,
     ) -> Value {
-        let records = market_ids
+        let embedded = web_presence["markets"]["nodes"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|market| {
+                market["id"]
+                    .as_str()
+                    .map(|id| (id.to_string(), market.clone()))
+            })
+            .collect::<BTreeMap<_, _>>();
+        let records = web_presence_market_ids(web_presence)
             .into_iter()
             .map(|id| {
                 self.store
@@ -532,13 +576,14 @@ impl DraftProxy {
                     .markets
                     .get(&id)
                     .cloned()
+                    .or_else(|| embedded.get(&id).cloned())
                     .unwrap_or_else(|| json!({ "id": id }))
             })
             .collect::<Vec<_>>();
         selected_typed_connection_with_args(
             &records,
-            arguments,
-            selection,
+            &selection.arguments,
+            &selection.selection,
             |market, node_selection| self.selected_market_json(market, node_selection),
             value_id_cursor,
         )
@@ -752,13 +797,6 @@ impl DraftProxy {
         });
         self.run_markets_preflight(request, body, |proxy, body| {
             proxy.hydrate_markets_from_upstream(body);
-            for family in ["markets", "catalogs", "priceLists", "webPresences"] {
-                proxy
-                    .store
-                    .staged
-                    .markets_hydrated_scopes
-                    .insert(format!("{family}:{{}}"));
-            }
         });
     }
 
@@ -1348,14 +1386,15 @@ impl DraftProxy {
                         .contains_key(&resource_id)
                 })
                 .unwrap_or(true),
-            "markets"
-            | "catalogs"
-            | "catalogsCount"
-            | "priceLists"
-            | "webPresences"
-            | "marketsResolvedValues" => markets_hydration_scope_keys(field)
-                .iter()
-                .any(|key| self.markets_scope_needs_upstream(key)),
+            "markets" | "catalogs" | "priceLists" | "webPresences" | "marketsResolvedValues" => {
+                markets_hydration_scope_keys(field)
+                    .iter()
+                    .any(|key| self.markets_scope_needs_upstream(key))
+            }
+            "catalogsCount" => {
+                let key = markets_hydration_scope_key("catalogs", &field.arguments);
+                !self.store.staged.markets_upstream_counts.contains_key(&key)
+            }
             "marketLocalizableResources" => !self.has_market_localizable_resource_state(),
             "marketLocalizableResourcesByIds" => {
                 !plural_localizable_state_selected
@@ -1385,7 +1424,10 @@ impl DraftProxy {
     #[allow(dead_code)]
     fn markets_family_has_records(&self, family: &str) -> bool {
         match family {
-            "markets" => !self.store.staged.markets.is_empty(),
+            "markets" => {
+                !self.store.staged.markets.is_empty()
+                    || !self.store.staged.deleted_market_ids.is_empty()
+            }
             "catalogs" => !self.store.staged.catalogs.is_empty(),
             "priceLists" => !self.store.staged.price_lists.is_empty(),
             "webPresences" => !self.store.staged.web_presences.is_empty(),
@@ -1401,7 +1443,37 @@ impl DraftProxy {
     ) {
         let normalized = markets_body_with_canonical_response_keys(body, fields);
         self.hydrate_markets_from_upstream(&normalized);
+        self.stage_markets_upstream_counts_from_fields(&normalized, fields);
         self.mark_markets_hydrated_scopes_from_fields(&normalized, fields);
+    }
+
+    fn stage_markets_upstream_counts_from_fields(
+        &mut self,
+        body: &Value,
+        fields: &[RootFieldSelection],
+    ) {
+        let Some(data) = body.get("data").and_then(Value::as_object) else {
+            return;
+        };
+        for field in fields.iter().filter(|field| field.name == "catalogsCount") {
+            let Some(count) = data
+                .get(&field.response_key)
+                .and_then(|value| value.get("count"))
+                .and_then(Value::as_u64)
+            else {
+                continue;
+            };
+            let precision = data
+                .get(&field.response_key)
+                .and_then(|value| value.get("precision"))
+                .and_then(Value::as_str)
+                .unwrap_or("EXACT");
+            let key = markets_hydration_scope_key("catalogs", &field.arguments);
+            self.store
+                .staged
+                .markets_upstream_counts
+                .insert(key, count_object_with_precision(count, precision));
+        }
     }
 
     #[allow(dead_code)]
@@ -1414,6 +1486,9 @@ impl DraftProxy {
             return;
         };
         for field in fields {
+            if field.name == "catalogsCount" {
+                continue;
+            }
             if !markets_response_connection_complete(data.get(&field.response_key)) {
                 continue;
             }
@@ -1460,7 +1535,15 @@ impl DraftProxy {
         for record in &market_records {
             if let Some(id) = record_gid(record, "Market") {
                 if !self.store.staged.deleted_market_ids.contains(&id) {
-                    self.store.staged.markets.insert(id, record.clone());
+                    let hydrated = self
+                        .store
+                        .staged
+                        .markets
+                        .get(&id)
+                        .filter(|_| self.store.staged.markets_dirty_families.contains("markets"))
+                        .map(|existing| shallow_merged_object(record.clone(), existing.clone()))
+                        .unwrap_or_else(|| record.clone());
+                    self.store.staged.markets.insert(id, hydrated);
                 }
             }
         }
@@ -1476,7 +1559,20 @@ impl DraftProxy {
         }
         for record in &catalog_records {
             if let Some(id) = record_gid(record, "") {
-                self.store.staged.catalogs.insert(id, record.clone());
+                let hydrated = self
+                    .store
+                    .staged
+                    .catalogs
+                    .get(&id)
+                    .filter(|_| {
+                        self.store
+                            .staged
+                            .markets_dirty_families
+                            .contains("catalogs")
+                    })
+                    .map(|existing| shallow_merged_object(record.clone(), existing.clone()))
+                    .unwrap_or_else(|| record.clone());
+                self.store.staged.catalogs.insert(id, hydrated);
             }
         }
         // Price lists: top-level plus nested under each catalog (singular field).
@@ -1488,7 +1584,24 @@ impl DraftProxy {
         }
         for record in &price_list_records {
             if let Some(id) = record_gid(record, "PriceList") {
-                if markets_record_is_richer_than_existing(
+                if let Some(existing) = self
+                    .store
+                    .staged
+                    .price_lists
+                    .get(&id)
+                    .filter(|_| {
+                        self.store
+                            .staged
+                            .markets_dirty_families
+                            .contains("priceLists")
+                    })
+                    .cloned()
+                {
+                    self.store
+                        .staged
+                        .price_lists
+                        .insert(id, shallow_merged_object(record.clone(), existing));
+                } else if markets_record_is_richer_than_existing(
                     &self.store.staged.price_lists,
                     &id,
                     record,
@@ -1529,12 +1642,33 @@ impl DraftProxy {
                     .web_presences
                     .get(&id)
                     .map(|existing| {
+                        if self
+                            .store
+                            .staged
+                            .markets_dirty_families
+                            .contains("webPresences")
+                        {
+                            return true;
+                        }
                         record.as_object().map_or(0, serde_json::Map::len)
                             > existing.as_object().map_or(0, serde_json::Map::len)
                     })
                     .unwrap_or(true);
                 if richer {
-                    self.store.staged.web_presences.insert(id, record.clone());
+                    let hydrated = self
+                        .store
+                        .staged
+                        .web_presences
+                        .get(&id)
+                        .filter(|_| {
+                            self.store
+                                .staged
+                                .markets_dirty_families
+                                .contains("webPresences")
+                        })
+                        .map(|existing| shallow_merged_object(record.clone(), existing.clone()))
+                        .unwrap_or_else(|| record.clone());
+                    self.store.staged.web_presences.insert(id, hydrated);
                 }
             }
         }
@@ -1681,12 +1815,36 @@ fn markets_body_with_canonical_response_keys(body: &Value, fields: &[RootFieldSe
         return normalized;
     };
     for field in fields {
-        if field.response_key == field.name || data.contains_key(&field.name) {
+        if field.response_key == field.name {
             continue;
         }
         if let Some(value) = data.get(&field.response_key).cloned() {
-            data.insert(field.name.clone(), value);
+            if let Some(existing) = data.get_mut(&field.name) {
+                merge_markets_canonical_response_value(existing, value);
+            } else {
+                data.insert(field.name.clone(), value);
+            }
         }
     }
     normalized
+}
+
+fn merge_markets_canonical_response_value(existing: &mut Value, incoming: Value) {
+    let Some(existing_nodes) = existing.get_mut("nodes").and_then(Value::as_array_mut) else {
+        *existing = incoming;
+        return;
+    };
+    let Some(incoming_nodes) = incoming.get("nodes").and_then(Value::as_array) else {
+        return;
+    };
+    let mut seen_ids = existing_nodes
+        .iter()
+        .filter_map(|node| node.get("id").and_then(Value::as_str).map(str::to_string))
+        .collect::<BTreeSet<_>>();
+    for node in incoming_nodes {
+        let id = node.get("id").and_then(Value::as_str);
+        if id.map(|id| seen_ids.insert(id.to_string())).unwrap_or(true) {
+            existing_nodes.push(node.clone());
+        }
+    }
 }

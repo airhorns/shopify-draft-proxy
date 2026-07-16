@@ -5649,7 +5649,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-market-mutation-first-hydration-conformance.mts',
     purpose:
-      'Mutation-first marketUpdate and marketDelete hydration for existing disposable markets with catalog and web-presence relations, plus unknown-id validation branches.',
+      'Mutation-first marketUpdate and marketDelete hydration for existing disposable markets with catalog, price-list, and web-presence relations, top-level list/count readback, plus unknown-id validation branches.',
     requiredAuthScopes: ['read_markets', 'write_markets'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}market-mutation-first-hydration.json`,
@@ -5657,9 +5657,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/markets/market-mutation-targets-hydrate.graphql',
       'config/parity-requests/markets/market-mutation-first-update.graphql',
       'config/parity-requests/markets/market-mutation-first-update-read.graphql',
+      'config/parity-requests/markets/market-mutation-first-update-top-level-read.graphql',
     ],
     cleanupBehavior:
-      'Creates two disposable non-primary markets, two market catalogs, and two web presences; records mutation-first update/delete and validation probes, then deletes the remaining disposable resources.',
+      'Creates three disposable non-primary markets, three market catalogs, three price lists, and three web presences; records mutation-first update/delete, top-level readback, and validation probes, then deletes the remaining disposable resources.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
