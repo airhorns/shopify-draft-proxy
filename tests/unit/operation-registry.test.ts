@@ -171,7 +171,7 @@ describe('operation registry', () => {
     ).toBe(true);
   });
 
-  it('loads Storefront roots from the captured Storefront root inventory with promoted content roots implemented', () => {
+  it('loads Storefront roots from the captured Storefront root inventory with promoted content, customer, and catalog roots implemented', () => {
     const storefrontEntries = listStorefrontOperationRegistryEntries();
     expect(storefrontEntries.length).toBeGreaterThan(0);
     for (const root of [

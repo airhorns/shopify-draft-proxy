@@ -344,6 +344,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}b2b-mixed-company-location-overlay.json`,
       'config/parity-specs/b2b/b2b-mixed-company-location-overlay.json',
       'config/parity-requests/b2b/b2b-mixed-overlay-company-create.graphql',
+      'config/parity-requests/b2b/b2b-mixed-overlay-companies-count-only.graphql',
       'config/parity-requests/b2b/b2b-mixed-overlay-location-create.graphql',
       'config/parity-requests/b2b/b2b-mixed-overlay-company-update.graphql',
       'config/parity-requests/b2b/b2b-mixed-overlay-location-update.graphql',
@@ -6787,6 +6788,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'segments',
+    captureId: 'segment-live-hybrid-overlay',
+    scriptPath: 'scripts/capture-segment-live-hybrid-overlay-conformance.ts',
+    purpose: 'LiveHybrid segment(id), segments, and segmentsCount overlay evidence after local segmentCreate staging.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'customer segment access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}segment-live-hybrid-overlay.json`,
+      'config/parity-specs/segments/segment-live-hybrid-overlay.json',
+      'config/parity-requests/segments/segment-live-hybrid-overlay-create.graphql',
+      'config/parity-requests/segments/segment-live-hybrid-overlay-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable segments, records a base-only read before the second segment exists, records the final read after the second segment exists, then deletes both segments.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'segments',
     captureId: 'segment-query-grammar',
     scriptPath: 'scripts/capture-segment-query-grammar-conformance.ts',
     purpose:
@@ -7073,6 +7090,47 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
       'Menu evidence is read-only Storefront hydration from the conformance shop; Admin menu lifecycle remains out of scope for this recorder.',
+  },
+  {
+    domain: 'storefront',
+    captureId: 'storefront-catalog-read-after-admin-setup',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-storefront-catalog-conformance.mts',
+    purpose:
+      'Authenticated Storefront API catalog evidence for product/productByHandle/products read-after-Admin-setup, variant inventory and price projection, visibility, search, sorting, and no-data behavior.',
+    requiredAuthScopes: [
+      'read_products',
+      'write_products',
+      'read_inventory',
+      'write_inventory',
+      'read_locations',
+      'write_locations',
+      'read_publications',
+      'write_publications',
+      'stored Storefront access token from corepack pnpm conformance:grant-storefront-token',
+    ],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/storefront/storefront-catalog-read-after-admin-setup.json',
+      'config/parity-specs/storefront/storefront-catalog-read-after-admin-setup.json',
+      'config/parity-requests/storefront/storefront-catalog-hidden-read.graphql',
+      'config/parity-requests/storefront/storefront-catalog-inventory-set-admin.graphql',
+      'config/parity-requests/storefront/storefront-catalog-location-add-admin.graphql',
+      'config/parity-requests/storefront/storefront-catalog-product-create-admin.graphql',
+      'config/parity-requests/storefront/storefront-catalog-product-delete-admin.graphql',
+      'config/parity-requests/storefront/storefront-catalog-product-update-admin.graphql',
+      'config/parity-requests/storefront/storefront-catalog-publications-hydrate-admin.graphql',
+      'config/parity-requests/storefront/storefront-catalog-publish-admin.graphql',
+      'config/parity-requests/storefront/storefront-catalog-read-after-admin-setup.graphql',
+      'config/parity-requests/storefront/storefront-catalog-stock-location-hydrate-admin.graphql',
+      'config/parity-requests/storefront/storefront-catalog-unpublish-admin.graphql',
+      'config/parity-requests/storefront/storefront-catalog-updated-read.graphql',
+      'config/parity-requests/storefront/storefront-catalog-variant-update-admin.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product and location through Admin GraphQL, sets variant inventory, publishes to the current channel, polls authenticated Storefront reads until visible/hidden, then deletes the product and location during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The recorder captures the Admin publication hydrate as an exact upstream call, then publishes to the captured Online Store publication so proxy replay never invents a Storefront-visible publication ID.',
   },
   {
     domain: 'storefront',
@@ -9718,6 +9776,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}discount-mixed-catalog.json`,
       'config/parity-specs/discounts/discount-mixed-catalog.json',
+      'config/parity-requests/discounts/discount-mixed-catalog-count-only.graphql',
       'config/parity-requests/discounts/discount-mixed-catalog-create.graphql',
       'config/parity-requests/discounts/discount-mixed-catalog-delete-code.graphql',
       'config/parity-requests/discounts/discount-mixed-catalog-read-after-mutations.graphql',

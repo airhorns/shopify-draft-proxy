@@ -1,0 +1,19 @@
+query StorefrontCatalogHiddenRead($id: ID!, $handle: String!, $query: String!) {
+  byId: product(id: $id) {
+    id
+  }
+  byHandle: productByHandle(handle: $handle) {
+    id
+  }
+  products(first: 5, query: $query, sortKey: TITLE) {
+    nodes {
+      id
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}
