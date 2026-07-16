@@ -314,6 +314,7 @@ pub(super) fn shopify_storefront_engine_response(
             ));
         }
     }
+    ensure_storefront_path_errors_have_locations(&mut body);
     let validation_only = body
         .get("errors")
         .and_then(Value::as_array)
@@ -442,6 +443,17 @@ pub(super) fn shopify_storefront_engine_response(
         }
     }
     body
+}
+
+fn ensure_storefront_path_errors_have_locations(body: &mut Value) {
+    let Some(errors) = body.get_mut("errors").and_then(Value::as_array_mut) else {
+        return;
+    };
+    for error in errors {
+        if error.get("path").is_some() && error.get("locations").is_none() {
+            error["locations"] = json!([]);
+        }
+    }
 }
 
 fn normalize_engine_error_paths(body: &mut Value) {

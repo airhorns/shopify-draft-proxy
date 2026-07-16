@@ -7090,6 +7090,45 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'Menu evidence is read-only Storefront hydration from the conformance shop; Admin menu lifecycle remains out of scope for this recorder.',
   },
   {
+    domain: 'storefront',
+    captureId: 'storefront-customer-auth-lifecycle',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-storefront-customer-auth-conformance.mts',
+    purpose:
+      'Authenticated Storefront API customer creation, access-token lifecycle, activation, recovery/reset boundaries, invalid credentials, Multipass invalid boundary, and Admin/Storefront cross-surface customer read behavior.',
+    requiredAuthScopes: [
+      'read_customers',
+      'write_customers',
+      'stored Storefront access token from corepack pnpm conformance:grant-storefront-token',
+      'unauthenticated_read_customers',
+      'unauthenticated_write_customers',
+    ],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/storefront/storefront-customer-auth-lifecycle.json',
+      'config/parity-specs/storefront/storefront-customer-auth-lifecycle.json',
+      'config/parity-requests/storefront/storefront-customer-auth-activate.graphql',
+      'config/parity-requests/storefront/storefront-customer-auth-activate-by-url.graphql',
+      'config/parity-requests/storefront/storefront-customer-auth-admin-activation-url.graphql',
+      'config/parity-requests/storefront/storefront-customer-auth-admin-create.graphql',
+      'config/parity-requests/storefront/storefront-customer-auth-admin-delete.graphql',
+      'config/parity-requests/storefront/storefront-customer-auth-admin-update.graphql',
+      'config/parity-requests/storefront/storefront-customer-auth-create.graphql',
+      'config/parity-requests/storefront/storefront-customer-auth-multipass.graphql',
+      'config/parity-requests/storefront/storefront-customer-auth-read.graphql',
+      'config/parity-requests/storefront/storefront-customer-auth-recover.graphql',
+      'config/parity-requests/storefront/storefront-customer-auth-reset.graphql',
+      'config/parity-requests/storefront/storefront-customer-auth-reset-by-url.graphql',
+      'config/parity-requests/storefront/storefront-customer-auth-token-create.graphql',
+      'config/parity-requests/storefront/storefront-customer-auth-token-delete.graphql',
+      'config/parity-requests/storefront/storefront-customer-auth-token-renew.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one Storefront customer and one Admin customer as disposable safe-address identities, captures Storefront token/activation/recovery/reset branches, deletes both customers through Admin GraphQL cleanup, and redacts passwords, activation/reset URLs, Multipass tokens, and Storefront access tokens in the fixture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Email delivery is intentionally not captured. Recovery success records only Shopify mutation payloads; reset success with a real emailed URL remains runtime-test-backed because mailbox access is outside the proxy runtime contract.',
+  },
+  {
     domain: 'online-store',
     captureId: 'storefront-shop-name-proxy-parity',
     scriptPath: 'scripts/capture-storefront-shop-name-proxy-conformance.mts',
@@ -10387,6 +10426,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates disposable app-managed, code-basic, and automatic-basic discounts, captures app lifecycle and bulk job payloads, then deletes remaining created discounts.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
+    captureId: 'discount-app-count-only-read-after-create',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-app-count-only-conformance.ts',
+    purpose:
+      'Count-only discountNodesCount(query: "type:app") LiveHybrid evidence with a real upstream app-discount baseline and one locally staged app-discount delta.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-app-count-only-read-after-create.json`,
+      'config/parity-specs/discounts/discount-app-count-only-read-after-create.json',
+      'config/parity-requests/discounts/discount-app-count-only-create.graphql',
+      'config/parity-requests/discounts/discount-app-count-only-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable app-managed automatic discount as the real upstream baseline, creates one local-equivalent app-managed automatic discount for read-after-create capture, then deletes both discounts.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

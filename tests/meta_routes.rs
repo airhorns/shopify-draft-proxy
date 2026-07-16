@@ -922,10 +922,6 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
     assert_eq!(state.body["stagedState"]["deletedCollectionIds"], json!([]));
     assert_eq!(state.body["stagedState"]["collectionJobs"], json!({}));
     let mut state_body = state.body.clone();
-    state_body["baseState"]
-        .as_object_mut()
-        .expect("baseState is object")
-        .remove("discountCountBaselines");
     state_body["stagedState"]
         .as_object_mut()
         .expect("stagedState is object")
@@ -1037,8 +1033,13 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "storefrontShop": null,
                     "deliveryProfileOrder": [],
                     "deliveryProfiles": {},
+                    "deliveryPromiseParticipantOrder": [],
+                    "deliveryPromiseParticipants": {},
+                    "deliveryPromiseProviderOrder": [],
+                    "deliveryPromiseProviders": {},
                     "discountOrder": [],
-                    "discounts": {}
+                    "discounts": {},
+                    "discountCountBaselines": {}
                 },
                 "stagedState": {
                     "abandonments": {},
@@ -1057,6 +1058,8 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "deletedCustomerIds": [],
                     "deletedDeliveryCustomizationIds": [],
                     "deletedDeliveryProfileIds": [],
+                    "deletedDeliveryPromiseParticipantIds": [],
+                    "deletedDeliveryPromiseProviderIds": [],
                     "deletedDiscountIds": [],
                     "deletedLocationIds": [],
                     "deletedMetafieldDefinitions": [],
@@ -1075,6 +1078,10 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "deliveryCustomizations": {},
                     "deliveryProfileOrder": [],
                     "deliveryProfiles": {},
+                    "deliveryPromiseParticipantOrder": [],
+                    "deliveryPromiseParticipants": {},
+                    "deliveryPromiseProviderOrder": [],
+                    "deliveryPromiseProviders": {},
                     "discountCodeIndex": {},
                     "discountRedeemCodeBulkCreations": {},
                     "discounts": {},
@@ -1262,6 +1269,10 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "storeCreditAccounts": {},
                     "storeCreditTransactionOrder": [],
                     "storeCreditTransactions": {},
+                    "storefrontCustomerAccessTokens": {},
+                    "storefrontCustomerEmailIndex": {},
+                    "nextStorefrontCustomerAccessTokenId": 1,
+                    "nextStorefrontCustomerResetTokenId": 1,
                     "taggableResources": {},
                     "uninstalledAppIds": []
                 }
