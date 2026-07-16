@@ -10,7 +10,12 @@
     "inventoryTransfers"
   ],
   "scenarioStatus": "captured",
-  "assertionKinds": ["connection-window-parity", "query-filter-parity", "runtime-staging"],
+  "assertionKinds": [
+    "connection-window-parity",
+    "query-filter-parity",
+    "runtime-staging",
+    "live-hybrid-read-through-parity"
+  ],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/inventory-connection-query-windowing.json"
   ],
@@ -233,6 +238,21 @@
         ]
       },
       {
+        "name": "inventory-transfers-cold-live-hybrid-window",
+        "capturePath": "$.operations.transfersColdWindow.response.data.inventoryTransfers",
+        "proxyPath": "$.data.inventoryTransfers",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-connection-transfers-window.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "query": {
+              "fromCapturePath": "$.operations.transfersColdWindow.variables.query"
+            }
+          }
+        }
+      },
+      {
         "name": "inventory-transfer-create-draft",
         "capturePath": "$.operations.transferCreate.response.data.inventoryTransferCreate",
         "proxyPath": "$.data.inventoryTransferCreate",
@@ -249,7 +269,9 @@
                 "fromProxyResponse": "destination-location-add",
                 "path": "$.data.locationAdd.location.id"
               },
-              "dateCreated": "2024-01-02T00:00:00Z",
+              "dateCreated": {
+                "fromCapturePath": "$.operations.transferCreate.variables.input.dateCreated"
+              },
               "tags": {
                 "fromCapturePath": "$.operations.transferCreate.variables.input.tags"
               },
@@ -279,6 +301,46 @@
         ]
       },
       {
+        "name": "inventory-transfers-after-staged-create-keeps-real-transfer",
+        "capturePath": "$.operations.transfersAfterCreateWindow.response.data.inventoryTransfers",
+        "proxyPath": "$.data.inventoryTransfers",
+        "preserveProxyState": true,
+        "selectedPaths": [
+          "$.nodes[*].dateCreated",
+          "$.nodes[*].status",
+          "$.nodes[*].tags",
+          "$.nodes[*].totalQuantity",
+          "$.nodes[*].origin.name",
+          "$.nodes[*].destination.name",
+          "$.nodes[*].lineItems.nodes[*].totalQuantity",
+          "$.pageInfo.hasNextPage",
+          "$.pageInfo.hasPreviousPage",
+          "$.pageInfo.startCursor",
+          "$.pageInfo.endCursor"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-connection-transfers-window.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "query": {
+              "fromCapturePath": "$.setup.transferAfterCreateProxyQuery"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.pageInfo.startCursor",
+            "matcher": "any-string",
+            "reason": "Shopify and the local proxy use different opaque connection cursor encodings."
+          },
+          {
+            "path": "$.pageInfo.endCursor",
+            "matcher": "any-string",
+            "reason": "Shopify and the local proxy use different opaque connection cursor encodings."
+          }
+        ]
+      },
+      {
         "name": "inventory-transfer-create-ready",
         "capturePath": "$.operations.transferCreateReady.response.data.inventoryTransferCreateAsReadyToShip",
         "proxyPath": "$.data.inventoryTransferCreateAsReadyToShip",
@@ -295,7 +357,9 @@
                 "fromProxyResponse": "destination-location-add",
                 "path": "$.data.locationAdd.location.id"
               },
-              "dateCreated": "2024-01-03T00:00:00Z",
+              "dateCreated": {
+                "fromCapturePath": "$.operations.transferCreateReady.variables.input.dateCreated"
+              },
               "tags": {
                 "fromCapturePath": "$.operations.transferCreateReady.variables.input.tags"
               },
@@ -333,7 +397,6 @@
           "$.nodes[0].status",
           "$.nodes[0].totalQuantity",
           "$.pageInfo.hasNextPage",
-          "$.pageInfo.hasPreviousPage",
           "$.pageInfo.startCursor",
           "$.pageInfo.endCursor"
         ],
@@ -341,7 +404,9 @@
           "documentPath": "config/parity-requests/products/inventory-connection-transfers-page.graphql",
           "apiVersion": "2025-01",
           "variables": {
-            "query": "date_created:>=2024-01-02T00:00:00Z date_created:<=2024-01-03T23:59:59Z",
+            "query": {
+              "fromCapturePath": "$.setup.transferPageProxyQuery"
+            },
             "after": null
           }
         },
@@ -375,7 +440,9 @@
           "documentPath": "config/parity-requests/products/inventory-connection-transfers-page.graphql",
           "apiVersion": "2025-01",
           "variables": {
-            "query": "date_created:>=2024-01-02T00:00:00Z date_created:<=2024-01-03T23:59:59Z",
+            "query": {
+              "fromCapturePath": "$.setup.transferPageProxyQuery"
+            },
             "after": {
               "fromProxyResponse": "inventory-transfers-first-page",
               "path": "$.data.inventoryTransfers.pageInfo.endCursor"
@@ -418,8 +485,12 @@
           "documentPath": "config/parity-requests/products/inventory-connection-transfers-reverse-status.graphql",
           "apiVersion": "2025-01",
           "variables": {
-            "query": "date_created:>=2024-01-02T00:00:00Z date_created:<=2024-01-03T23:59:59Z",
-            "statusQuery": "status:READY_TO_SHIP date_created:>=2024-01-02T00:00:00Z date_created:<=2024-01-03T23:59:59Z"
+            "query": {
+              "fromCapturePath": "$.setup.transferPageProxyQuery"
+            },
+            "statusQuery": {
+              "fromCapturePath": "$.setup.transferStatusProxyQuery"
+            }
           }
         },
         "expectedDifferences": [
@@ -447,5 +518,5 @@
       }
     ]
   },
-  "notes": "Live 2025-01 capture for inventoryItems query terms (sku, tracked, id ranges, updated_at no-match) and inventoryTransfers origin/status query filters, NAME sorting, reverse ordering, cursor windowing, and computed pageInfo. The proxy replay creates disposable locations, product-backed inventory items, and transfers through public GraphQL requests; it does not seed internal state."
+  "notes": "Live 2025-01 capture for inventoryItems query terms (sku, tracked, id ranges, updated_at no-match), inventoryTransfers cold LiveHybrid hydration of a real baseline transfer, post-inventoryTransferCreate overlay keeping that real transfer visible beside the staged transfer, origin/status query filters, CREATED_AT sorting, reverse ordering, cursor windowing, and computed pageInfo. The proxy replay creates disposable locations, product-backed inventory items, and transfers through public GraphQL requests; it does not seed internal state. The cold inventoryTransfers upstreamCalls cassette records the exact Shopify read that the proxy uses to earn the real baseline transfer."
 }

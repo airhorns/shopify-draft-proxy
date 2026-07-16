@@ -1,26 +1,32 @@
 {
   "scenario": "inventory-connection-query-windowing",
-  "capturedAt": "2026-07-04T14:58:15.783Z",
+  "capturedAt": "2026-07-16T01:48:21.887Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "setup": {
-    "skuAlpha": "INV-CONN-1783177091466-ALPHA",
-    "skuBeta": "INV-CONN-1783177091466-BETA",
-    "transferTag": "icqw-1783177091466",
-    "productId": "gid://shopify/Product/10231546806578",
-    "originLocationId": "gid://shopify/Location/113792549170",
-    "destinationLocationId": "gid://shopify/Location/113792581938",
-    "alphaInventoryItemId": "gid://shopify/InventoryItem/53528746950962",
-    "betaInventoryItemId": "gid://shopify/InventoryItem/53528746983730",
-    "alphaInventoryItemTail": "53528746950962",
-    "betaInventoryItemTail": "53528746983730"
+    "skuAlpha": "INV-CONN-1784166496235-ALPHA",
+    "skuBeta": "INV-CONN-1784166496235-BETA",
+    "transferTag": "icqw-1784166496235",
+    "productId": "gid://shopify/Product/10241329987890",
+    "originLocationId": "gid://shopify/Location/113977622834",
+    "destinationLocationId": "gid://shopify/Location/113977655602",
+    "alphaInventoryItemId": "gid://shopify/InventoryItem/53583779922226",
+    "betaInventoryItemId": "gid://shopify/InventoryItem/53583779954994",
+    "alphaInventoryItemTail": "53583779922226",
+    "betaInventoryItemTail": "53583779954994",
+    "transferBaselineCreatedAt": "2026-07-16T01:48:16Z",
+    "transferCreateCreatedAt": "2026-07-16T01:48:17Z",
+    "transferReadyCreatedAt": "2026-07-16T01:48:18Z",
+    "transferAfterCreateProxyQuery": "date_created:>=2026-07-16T01:48:16Z date_created:<=2026-07-16T01:48:17Z",
+    "transferPageProxyQuery": "date_created:>=2026-07-16T01:48:16Z date_created:<=2026-07-16T01:48:18Z",
+    "transferStatusProxyQuery": "status:READY_TO_SHIP date_created:>=2026-07-16T01:48:16Z date_created:<=2026-07-16T01:48:18Z"
   },
   "operations": {
     "originLocationAdd": {
       "query": "mutation InventoryConnectionLocationAdd($input: LocationAddInput!) {\n  locationAdd(input: $input) {\n    location {\n      id\n      name\n      isActive\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "name": "Inventory Connection Origin 1783177091466",
+          "name": "Inventory Connection Origin 1784166496235",
           "address": {
             "countryCode": "US"
           }
@@ -30,8 +36,8 @@
         "data": {
           "locationAdd": {
             "location": {
-              "id": "gid://shopify/Location/113792549170",
-              "name": "Inventory Connection Origin 1783177091466",
+              "id": "gid://shopify/Location/113977622834",
+              "name": "Inventory Connection Origin 1784166496235",
               "isActive": true
             },
             "userErrors": []
@@ -54,7 +60,7 @@
       "query": "mutation InventoryConnectionLocationAdd($input: LocationAddInput!) {\n  locationAdd(input: $input) {\n    location {\n      id\n      name\n      isActive\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "name": "Inventory Connection Destination 1783177091466",
+          "name": "Inventory Connection Destination 1784166496235",
           "address": {
             "countryCode": "US"
           }
@@ -64,8 +70,8 @@
         "data": {
           "locationAdd": {
             "location": {
-              "id": "gid://shopify/Location/113792581938",
-              "name": "Inventory Connection Destination 1783177091466",
+              "id": "gid://shopify/Location/113977655602",
+              "name": "Inventory Connection Destination 1784166496235",
               "isActive": true
             },
             "userErrors": []
@@ -89,7 +95,7 @@
       "variables": {
         "synchronous": true,
         "input": {
-          "title": "Inventory connection 1783177091466",
+          "title": "Inventory connection 1784166496235",
           "status": "ACTIVE",
           "productOptions": [
             {
@@ -114,14 +120,14 @@
                 }
               ],
               "price": "10.00",
-              "sku": "INV-CONN-1783177091466-ALPHA",
+              "sku": "INV-CONN-1784166496235-ALPHA",
               "inventoryItem": {
                 "tracked": true,
                 "requiresShipping": true
               },
               "inventoryQuantities": [
                 {
-                  "locationId": "gid://shopify/Location/113792549170",
+                  "locationId": "gid://shopify/Location/113977622834",
                   "name": "available",
                   "quantity": 6
                 }
@@ -135,14 +141,14 @@
                 }
               ],
               "price": "11.00",
-              "sku": "INV-CONN-1783177091466-BETA",
+              "sku": "INV-CONN-1784166496235-BETA",
               "inventoryItem": {
                 "tracked": true,
                 "requiresShipping": true
               },
               "inventoryQuantities": [
                 {
-                  "locationId": "gid://shopify/Location/113792549170",
+                  "locationId": "gid://shopify/Location/113977622834",
                   "name": "available",
                   "quantity": 8
                 }
@@ -155,30 +161,30 @@
         "data": {
           "productSet": {
             "product": {
-              "id": "gid://shopify/Product/10231546806578",
-              "title": "Inventory connection 1783177091466",
-              "handle": "inventory-connection-1783177091466",
+              "id": "gid://shopify/Product/10241329987890",
+              "title": "Inventory connection 1784166496235",
+              "handle": "inventory-connection-1784166496235",
               "status": "ACTIVE",
               "variants": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/ProductVariant/51423684198706",
+                    "id": "gid://shopify/ProductVariant/51478286270770",
                     "title": "Alpha",
-                    "sku": "INV-CONN-1783177091466-ALPHA",
+                    "sku": "INV-CONN-1784166496235-ALPHA",
                     "inventoryQuantity": 6,
                     "inventoryItem": {
-                      "id": "gid://shopify/InventoryItem/53528746950962",
+                      "id": "gid://shopify/InventoryItem/53583779922226",
                       "tracked": true,
                       "requiresShipping": true
                     }
                   },
                   {
-                    "id": "gid://shopify/ProductVariant/51423684231474",
+                    "id": "gid://shopify/ProductVariant/51478286303538",
                     "title": "Beta",
-                    "sku": "INV-CONN-1783177091466-BETA",
+                    "sku": "INV-CONN-1784166496235-BETA",
                     "inventoryQuantity": 8,
                     "inventoryItem": {
-                      "id": "gid://shopify/InventoryItem/53528746983730",
+                      "id": "gid://shopify/InventoryItem/53583779954994",
                       "tracked": true,
                       "requiresShipping": true
                     }
@@ -206,7 +212,7 @@
     "itemUpdate": {
       "query": "mutation InventoryConnectionItemUpdate($id: ID!, $input: InventoryItemInput!) {\n  inventoryItemUpdate(id: $id, input: $input) {\n    inventoryItem {\n      id\n      tracked\n      requiresShipping\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/InventoryItem/53528746983730",
+        "id": "gid://shopify/InventoryItem/53583779954994",
         "input": {
           "tracked": false
         }
@@ -215,7 +221,7 @@
         "data": {
           "inventoryItemUpdate": {
             "inventoryItem": {
-              "id": "gid://shopify/InventoryItem/53528746983730",
+              "id": "gid://shopify/InventoryItem/53583779954994",
               "tracked": false,
               "requiresShipping": true
             },
@@ -238,73 +244,73 @@
     "itemsQuery": {
       "query": "query InventoryConnectionItemsQuery(\n  $skuQuery: String!\n  $trackedFalseQuery: String!\n  $idRangeQuery: String!\n  $updatedBeforeQuery: String!\n) {\n  skuMatch: inventoryItems(first: 5, query: $skuQuery) {\n    nodes {\n      id\n      tracked\n      variant {\n        id\n        sku\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  trackedFalse: inventoryItems(first: 5, query: $trackedFalseQuery) {\n    nodes {\n      id\n      tracked\n      variant {\n        id\n        sku\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  idRange: inventoryItems(first: 5, query: $idRangeQuery) {\n    nodes {\n      id\n      tracked\n      variant {\n        id\n        sku\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  updatedBefore: inventoryItems(first: 5, query: $updatedBeforeQuery) {\n    nodes {\n      id\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
       "variables": {
-        "skuQuery": "sku:'INV-CONN-1783177091466-ALPHA'",
-        "trackedFalseQuery": "tracked:false sku:'INV-CONN-1783177091466-BETA'",
-        "idRangeQuery": "id:>=53528746950962 id:<=53528746983730",
-        "updatedBeforeQuery": "updated_at:<2000-01-01T00:00:00Z sku:'INV-CONN-1783177091466-ALPHA'"
+        "skuQuery": "sku:'INV-CONN-1784166496235-ALPHA'",
+        "trackedFalseQuery": "tracked:false sku:'INV-CONN-1784166496235-BETA'",
+        "idRangeQuery": "id:>=53583779922226 id:<=53583779954994",
+        "updatedBeforeQuery": "updated_at:<2000-01-01T00:00:00Z sku:'INV-CONN-1784166496235-ALPHA'"
       },
       "response": {
         "data": {
           "skuMatch": {
             "nodes": [
               {
-                "id": "gid://shopify/InventoryItem/53528746950962",
+                "id": "gid://shopify/InventoryItem/53583779922226",
                 "tracked": true,
                 "variant": {
-                  "id": "gid://shopify/ProductVariant/51423684198706",
-                  "sku": "INV-CONN-1783177091466-ALPHA"
+                  "id": "gid://shopify/ProductVariant/51478286270770",
+                  "sku": "INV-CONN-1784166496235-ALPHA"
                 }
               }
             ],
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false,
-              "startCursor": "eyJsYXN0X2lkIjo1MzUyODc0Njk1MDk2MiwibGFzdF92YWx1ZSI6IjUzNTI4NzQ2OTUwOTYyIn0=",
-              "endCursor": "eyJsYXN0X2lkIjo1MzUyODc0Njk1MDk2MiwibGFzdF92YWx1ZSI6IjUzNTI4NzQ2OTUwOTYyIn0="
+              "startCursor": "eyJsYXN0X2lkIjo1MzU4Mzc3OTkyMjIyNiwibGFzdF92YWx1ZSI6IjUzNTgzNzc5OTIyMjI2In0=",
+              "endCursor": "eyJsYXN0X2lkIjo1MzU4Mzc3OTkyMjIyNiwibGFzdF92YWx1ZSI6IjUzNTgzNzc5OTIyMjI2In0="
             }
           },
           "trackedFalse": {
             "nodes": [
               {
-                "id": "gid://shopify/InventoryItem/53528746983730",
+                "id": "gid://shopify/InventoryItem/53583779954994",
                 "tracked": false,
                 "variant": {
-                  "id": "gid://shopify/ProductVariant/51423684231474",
-                  "sku": "INV-CONN-1783177091466-BETA"
+                  "id": "gid://shopify/ProductVariant/51478286303538",
+                  "sku": "INV-CONN-1784166496235-BETA"
                 }
               }
             ],
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false,
-              "startCursor": "eyJsYXN0X2lkIjo1MzUyODc0Njk4MzczMCwibGFzdF92YWx1ZSI6IjUzNTI4NzQ2OTgzNzMwIn0=",
-              "endCursor": "eyJsYXN0X2lkIjo1MzUyODc0Njk4MzczMCwibGFzdF92YWx1ZSI6IjUzNTI4NzQ2OTgzNzMwIn0="
+              "startCursor": "eyJsYXN0X2lkIjo1MzU4Mzc3OTk1NDk5NCwibGFzdF92YWx1ZSI6IjUzNTgzNzc5OTU0OTk0In0=",
+              "endCursor": "eyJsYXN0X2lkIjo1MzU4Mzc3OTk1NDk5NCwibGFzdF92YWx1ZSI6IjUzNTgzNzc5OTU0OTk0In0="
             }
           },
           "idRange": {
             "nodes": [
               {
-                "id": "gid://shopify/InventoryItem/53528746950962",
+                "id": "gid://shopify/InventoryItem/53583779922226",
                 "tracked": true,
                 "variant": {
-                  "id": "gid://shopify/ProductVariant/51423684198706",
-                  "sku": "INV-CONN-1783177091466-ALPHA"
+                  "id": "gid://shopify/ProductVariant/51478286270770",
+                  "sku": "INV-CONN-1784166496235-ALPHA"
                 }
               },
               {
-                "id": "gid://shopify/InventoryItem/53528746983730",
+                "id": "gid://shopify/InventoryItem/53583779954994",
                 "tracked": false,
                 "variant": {
-                  "id": "gid://shopify/ProductVariant/51423684231474",
-                  "sku": "INV-CONN-1783177091466-BETA"
+                  "id": "gid://shopify/ProductVariant/51478286303538",
+                  "sku": "INV-CONN-1784166496235-BETA"
                 }
               }
             ],
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false,
-              "startCursor": "eyJsYXN0X2lkIjo1MzUyODc0Njk1MDk2MiwibGFzdF92YWx1ZSI6IjUzNTI4NzQ2OTUwOTYyIn0=",
-              "endCursor": "eyJsYXN0X2lkIjo1MzUyODc0Njk4MzczMCwibGFzdF92YWx1ZSI6IjUzNTI4NzQ2OTgzNzMwIn0="
+              "startCursor": "eyJsYXN0X2lkIjo1MzU4Mzc3OTkyMjIyNiwibGFzdF92YWx1ZSI6IjUzNTgzNzc5OTIyMjI2In0=",
+              "endCursor": "eyJsYXN0X2lkIjo1MzU4Mzc3OTk1NDk5NCwibGFzdF92YWx1ZSI6IjUzNTgzNzc5OTU0OTk0In0="
             }
           },
           "updatedBefore": {
@@ -330,7 +336,7 @@
           "search": [
             {
               "path": ["trackedFalse"],
-              "query": "tracked:false sku:'INV-CONN-1783177091466-BETA'",
+              "query": "tracked:false sku:'INV-CONN-1784166496235-BETA'",
               "parsed": {
                 "and": [
                   {
@@ -339,7 +345,7 @@
                   },
                   {
                     "field": "sku",
-                    "match_phrase": "INV-CONN-1783177091466-BETA"
+                    "match_phrase": "INV-CONN-1784166496235-BETA"
                   }
                 ]
               },
@@ -353,7 +359,7 @@
             },
             {
               "path": ["updatedBefore"],
-              "query": "updated_at:<2000-01-01T00:00:00Z sku:'INV-CONN-1783177091466-ALPHA'",
+              "query": "updated_at:<2000-01-01T00:00:00Z sku:'INV-CONN-1784166496235-ALPHA'",
               "parsed": {
                 "and": [
                   {
@@ -366,7 +372,7 @@
                   },
                   {
                     "field": "sku",
-                    "match_phrase": "INV-CONN-1783177091466-ALPHA"
+                    "match_phrase": "INV-CONN-1784166496235-ALPHA"
                   }
                 ]
               },
@@ -382,17 +388,133 @@
         }
       }
     },
+    "baselineTransferCreate": {
+      "query": "mutation InventoryTransferCreateParity($input: InventoryTransferCreateInput!) {\n  inventoryTransferCreate(input: $input) {\n    inventoryTransfer {\n      id\n      name\n      status\n      totalQuantity\n      lineItems(first: 10) {\n        nodes {\n          totalQuantity\n          shippableQuantity\n          shippedQuantity\n          processableQuantity\n          pickedForShipmentQuantity\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "originLocationId": "gid://shopify/Location/113977622834",
+          "destinationLocationId": "gid://shopify/Location/113977655602",
+          "dateCreated": "2026-07-16T01:48:16Z",
+          "tags": ["icqw-1784166496235", "baseline"],
+          "lineItems": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53583779922226",
+              "quantity": 1
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "inventoryTransferCreate": {
+            "inventoryTransfer": {
+              "id": "gid://shopify/InventoryTransfer/5894177074",
+              "name": "#T0070",
+              "status": "DRAFT",
+              "totalQuantity": 1,
+              "lineItems": {
+                "nodes": [
+                  {
+                    "totalQuantity": 1,
+                    "shippableQuantity": 0,
+                    "shippedQuantity": 0,
+                    "processableQuantity": 1,
+                    "pickedForShipmentQuantity": 0
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1984,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "transfersColdWindow": {
+      "query": "query InventoryConnectionTransfersWindow($query: String!) {\n  inventoryTransfers(first: 10, query: $query, sortKey: CREATED_AT) {\n    nodes {\n      id\n      name\n      dateCreated\n      status\n      tags\n      totalQuantity\n      origin {\n        name\n        location {\n          id\n          name\n        }\n      }\n      destination {\n        name\n        location {\n          id\n          name\n        }\n      }\n      lineItems(first: 10) {\n        nodes {\n          id\n          totalQuantity\n          inventoryItem {\n            id\n          }\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "query": "origin_id:113977622834"
+      },
+      "response": {
+        "data": {
+          "inventoryTransfers": {
+            "nodes": [
+              {
+                "id": "gid://shopify/InventoryTransfer/5894177074",
+                "name": "#T0070",
+                "dateCreated": "2026-07-16T01:48:16Z",
+                "status": "DRAFT",
+                "tags": ["baseline", "icqw-1784166496235"],
+                "totalQuantity": 1,
+                "origin": {
+                  "name": "Inventory Connection Origin 1784166496235",
+                  "location": {
+                    "id": "gid://shopify/Location/113977622834",
+                    "name": "Inventory Connection Origin 1784166496235"
+                  }
+                },
+                "destination": {
+                  "name": "Inventory Connection Destination 1784166496235",
+                  "location": {
+                    "id": "gid://shopify/Location/113977655602",
+                    "name": "Inventory Connection Destination 1784166496235"
+                  }
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/InventoryTransferLineItem/31477498162",
+                      "totalQuantity": 1,
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53583779922226"
+                      }
+                    }
+                  ]
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjo1ODk0MTc3MDc0LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0xNiAwMTo0ODoxNi4wMDAwMDAifQ==",
+              "endCursor": "eyJsYXN0X2lkIjo1ODk0MTc3MDc0LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0xNiAwMTo0ODoxNi4wMDAwMDAifQ=="
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 62,
+            "actualQueryCost": 6,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1994,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
     "transferCreate": {
       "query": "mutation InventoryTransferCreateParity($input: InventoryTransferCreateInput!) {\n  inventoryTransferCreate(input: $input) {\n    inventoryTransfer {\n      id\n      name\n      status\n      totalQuantity\n      lineItems(first: 10) {\n        nodes {\n          totalQuantity\n          shippableQuantity\n          shippedQuantity\n          processableQuantity\n          pickedForShipmentQuantity\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "originLocationId": "gid://shopify/Location/113792549170",
-          "destinationLocationId": "gid://shopify/Location/113792581938",
-          "dateCreated": "2024-01-02T00:00:00Z",
-          "tags": ["icqw-1783177091466", "alpha"],
+          "originLocationId": "gid://shopify/Location/113977622834",
+          "destinationLocationId": "gid://shopify/Location/113977655602",
+          "dateCreated": "2026-07-16T01:48:17Z",
+          "tags": ["icqw-1784166496235", "alpha"],
           "lineItems": [
             {
-              "inventoryItemId": "gid://shopify/InventoryItem/53528746950962",
+              "inventoryItemId": "gid://shopify/InventoryItem/53583779922226",
               "quantity": 2
             }
           ]
@@ -402,8 +524,8 @@
         "data": {
           "inventoryTransferCreate": {
             "inventoryTransfer": {
-              "id": "gid://shopify/InventoryTransfer/5852954930",
-              "name": "#T0041",
+              "id": "gid://shopify/InventoryTransfer/5894242610",
+              "name": "#T0071",
               "status": "DRAFT",
               "totalQuantity": 2,
               "lineItems": {
@@ -427,7 +549,104 @@
             "actualQueryCost": 13,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1979,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "transfersAfterCreateWindow": {
+      "query": "query InventoryConnectionTransfersWindow($query: String!) {\n  inventoryTransfers(first: 10, query: $query, sortKey: CREATED_AT) {\n    nodes {\n      id\n      name\n      dateCreated\n      status\n      tags\n      totalQuantity\n      origin {\n        name\n        location {\n          id\n          name\n        }\n      }\n      destination {\n        name\n        location {\n          id\n          name\n        }\n      }\n      lineItems(first: 10) {\n        nodes {\n          id\n          totalQuantity\n          inventoryItem {\n            id\n          }\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "query": "origin_id:113977622834"
+      },
+      "response": {
+        "data": {
+          "inventoryTransfers": {
+            "nodes": [
+              {
+                "id": "gid://shopify/InventoryTransfer/5894177074",
+                "name": "#T0070",
+                "dateCreated": "2026-07-16T01:48:16Z",
+                "status": "DRAFT",
+                "tags": ["baseline", "icqw-1784166496235"],
+                "totalQuantity": 1,
+                "origin": {
+                  "name": "Inventory Connection Origin 1784166496235",
+                  "location": {
+                    "id": "gid://shopify/Location/113977622834",
+                    "name": "Inventory Connection Origin 1784166496235"
+                  }
+                },
+                "destination": {
+                  "name": "Inventory Connection Destination 1784166496235",
+                  "location": {
+                    "id": "gid://shopify/Location/113977655602",
+                    "name": "Inventory Connection Destination 1784166496235"
+                  }
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/InventoryTransferLineItem/31477498162",
+                      "totalQuantity": 1,
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53583779922226"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "gid://shopify/InventoryTransfer/5894242610",
+                "name": "#T0071",
+                "dateCreated": "2026-07-16T01:48:17Z",
+                "status": "DRAFT",
+                "tags": ["alpha", "icqw-1784166496235"],
+                "totalQuantity": 2,
+                "origin": {
+                  "name": "Inventory Connection Origin 1784166496235",
+                  "location": {
+                    "id": "gid://shopify/Location/113977622834",
+                    "name": "Inventory Connection Origin 1784166496235"
+                  }
+                },
+                "destination": {
+                  "name": "Inventory Connection Destination 1784166496235",
+                  "location": {
+                    "id": "gid://shopify/Location/113977655602",
+                    "name": "Inventory Connection Destination 1784166496235"
+                  }
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/InventoryTransferLineItem/31477563698",
+                      "totalQuantity": 2,
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53583779922226"
+                      }
+                    }
+                  ]
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjo1ODk0MTc3MDc0LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0xNiAwMTo0ODoxNi4wMDAwMDAifQ==",
+              "endCursor": "eyJsYXN0X2lkIjo1ODk0MjQyNjEwLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0xNiAwMTo0ODoxNy4wMDAwMDAifQ=="
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 62,
+            "actualQueryCost": 9,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1991,
               "restoreRate": 100
             }
           }
@@ -438,13 +657,13 @@
       "query": "mutation InventoryTransferCreateReadyParity($input: InventoryTransferCreateAsReadyToShipInput!) {\n  inventoryTransferCreateAsReadyToShip(input: $input) {\n    inventoryTransfer {\n      id\n      status\n      totalQuantity\n      lineItems(first: 10) {\n        nodes {\n          id\n          totalQuantity\n          shippableQuantity\n          shippedQuantity\n          processableQuantity\n          pickedForShipmentQuantity\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "originLocationId": "gid://shopify/Location/113792549170",
-          "destinationLocationId": "gid://shopify/Location/113792581938",
-          "dateCreated": "2024-01-03T00:00:00Z",
-          "tags": ["icqw-1783177091466", "beta"],
+          "originLocationId": "gid://shopify/Location/113977622834",
+          "destinationLocationId": "gid://shopify/Location/113977655602",
+          "dateCreated": "2026-07-16T01:48:18Z",
+          "tags": ["icqw-1784166496235", "beta"],
           "lineItems": [
             {
-              "inventoryItemId": "gid://shopify/InventoryItem/53528746950962",
+              "inventoryItemId": "gid://shopify/InventoryItem/53583779922226",
               "quantity": 3
             }
           ]
@@ -454,13 +673,13 @@
         "data": {
           "inventoryTransferCreateAsReadyToShip": {
             "inventoryTransfer": {
-              "id": "gid://shopify/InventoryTransfer/5852987698",
+              "id": "gid://shopify/InventoryTransfer/5894275378",
               "status": "READY_TO_SHIP",
               "totalQuantity": 3,
               "lineItems": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/InventoryTransferLineItem/31021924658",
+                    "id": "gid://shopify/InventoryTransferLineItem/31477596466",
                     "totalQuantity": 3,
                     "shippableQuantity": 3,
                     "shippedQuantity": 0,
@@ -487,9 +706,9 @@
       }
     },
     "transfersPage1": {
-      "query": "query InventoryConnectionTransfersPage($query: String!, $after: String) {\n  inventoryTransfers(first: 1, query: $query, sortKey: NAME, after: $after) {\n    nodes {\n      id\n      name\n      status\n      totalQuantity\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "query": "query InventoryConnectionTransfersPage($query: String!, $after: String) {\n  inventoryTransfers(first: 1, query: $query, sortKey: CREATED_AT, after: $after) {\n    nodes {\n      id\n      name\n      status\n      totalQuantity\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
       "variables": {
-        "query": "origin_id:113792549170",
+        "query": "origin_id:113977622834",
         "after": null
       },
       "response": {
@@ -497,17 +716,17 @@
           "inventoryTransfers": {
             "nodes": [
               {
-                "id": "gid://shopify/InventoryTransfer/5852954930",
-                "name": "#T0041",
+                "id": "gid://shopify/InventoryTransfer/5894177074",
+                "name": "#T0070",
                 "status": "DRAFT",
-                "totalQuantity": 2
+                "totalQuantity": 1
               }
             ],
             "pageInfo": {
               "hasNextPage": true,
               "hasPreviousPage": false,
-              "startCursor": "eyJsYXN0X2lkIjo1ODUyOTU0OTMwLCJsYXN0X3ZhbHVlIjoiI1QwMDQxIn0=",
-              "endCursor": "eyJsYXN0X2lkIjo1ODUyOTU0OTMwLCJsYXN0X3ZhbHVlIjoiI1QwMDQxIn0="
+              "startCursor": "eyJsYXN0X2lkIjo1ODk0MTc3MDc0LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0xNiAwMTo0ODoxNi4wMDAwMDAifQ==",
+              "endCursor": "eyJsYXN0X2lkIjo1ODk0MTc3MDc0LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0xNiAwMTo0ODoxNi4wMDAwMDAifQ=="
             }
           }
         },
@@ -525,27 +744,27 @@
       }
     },
     "transfersPage2": {
-      "query": "query InventoryConnectionTransfersPage($query: String!, $after: String) {\n  inventoryTransfers(first: 1, query: $query, sortKey: NAME, after: $after) {\n    nodes {\n      id\n      name\n      status\n      totalQuantity\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "query": "query InventoryConnectionTransfersPage($query: String!, $after: String) {\n  inventoryTransfers(first: 1, query: $query, sortKey: CREATED_AT, after: $after) {\n    nodes {\n      id\n      name\n      status\n      totalQuantity\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
       "variables": {
-        "query": "origin_id:113792549170",
-        "after": "eyJsYXN0X2lkIjo1ODUyOTU0OTMwLCJsYXN0X3ZhbHVlIjoiI1QwMDQxIn0="
+        "query": "origin_id:113977622834",
+        "after": "eyJsYXN0X2lkIjo1ODk0MTc3MDc0LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0xNiAwMTo0ODoxNi4wMDAwMDAifQ=="
       },
       "response": {
         "data": {
           "inventoryTransfers": {
             "nodes": [
               {
-                "id": "gid://shopify/InventoryTransfer/5852987698",
-                "name": "#T0042",
-                "status": "READY_TO_SHIP",
-                "totalQuantity": 3
+                "id": "gid://shopify/InventoryTransfer/5894242610",
+                "name": "#T0071",
+                "status": "DRAFT",
+                "totalQuantity": 2
               }
             ],
             "pageInfo": {
-              "hasNextPage": false,
+              "hasNextPage": true,
               "hasPreviousPage": true,
-              "startCursor": "eyJsYXN0X2lkIjo1ODUyOTg3Njk4LCJsYXN0X3ZhbHVlIjoiI1QwMDQyIn0=",
-              "endCursor": "eyJsYXN0X2lkIjo1ODUyOTg3Njk4LCJsYXN0X3ZhbHVlIjoiI1QwMDQyIn0="
+              "startCursor": "eyJsYXN0X2lkIjo1ODk0MjQyNjEwLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0xNiAwMTo0ODoxNy4wMDAwMDAifQ==",
+              "endCursor": "eyJsYXN0X2lkIjo1ODk0MjQyNjEwLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0xNiAwMTo0ODoxNy4wMDAwMDAifQ=="
             }
           }
         },
@@ -563,18 +782,18 @@
       }
     },
     "transfersReverseStatus": {
-      "query": "query InventoryConnectionTransfersReverseStatus($query: String!, $statusQuery: String!) {\n  reversePage: inventoryTransfers(first: 1, query: $query, sortKey: NAME, reverse: true) {\n    nodes {\n      id\n      name\n      status\n      totalQuantity\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  statusMatch: inventoryTransfers(first: 5, query: $statusQuery, sortKey: NAME) {\n    nodes {\n      id\n      name\n      status\n      totalQuantity\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "query": "query InventoryConnectionTransfersReverseStatus($query: String!, $statusQuery: String!) {\n  reversePage: inventoryTransfers(first: 1, query: $query, sortKey: CREATED_AT, reverse: true) {\n    nodes {\n      id\n      name\n      status\n      totalQuantity\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  statusMatch: inventoryTransfers(first: 5, query: $statusQuery, sortKey: CREATED_AT) {\n    nodes {\n      id\n      name\n      status\n      totalQuantity\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
       "variables": {
-        "query": "origin_id:113792549170",
-        "statusQuery": "status:READY_TO_SHIP origin_id:113792549170"
+        "query": "origin_id:113977622834",
+        "statusQuery": "status:READY_TO_SHIP origin_id:113977622834"
       },
       "response": {
         "data": {
           "reversePage": {
             "nodes": [
               {
-                "id": "gid://shopify/InventoryTransfer/5852987698",
-                "name": "#T0042",
+                "id": "gid://shopify/InventoryTransfer/5894275378",
+                "name": "#T0072",
                 "status": "READY_TO_SHIP",
                 "totalQuantity": 3
               }
@@ -582,15 +801,15 @@
             "pageInfo": {
               "hasNextPage": true,
               "hasPreviousPage": false,
-              "startCursor": "eyJsYXN0X2lkIjo1ODUyOTg3Njk4LCJsYXN0X3ZhbHVlIjoiI1QwMDQyIn0=",
-              "endCursor": "eyJsYXN0X2lkIjo1ODUyOTg3Njk4LCJsYXN0X3ZhbHVlIjoiI1QwMDQyIn0="
+              "startCursor": "eyJsYXN0X2lkIjo1ODk0Mjc1Mzc4LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0xNiAwMTo0ODoxOC4wMDAwMDAifQ==",
+              "endCursor": "eyJsYXN0X2lkIjo1ODk0Mjc1Mzc4LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0xNiAwMTo0ODoxOC4wMDAwMDAifQ=="
             }
           },
           "statusMatch": {
             "nodes": [
               {
-                "id": "gid://shopify/InventoryTransfer/5852987698",
-                "name": "#T0042",
+                "id": "gid://shopify/InventoryTransfer/5894275378",
+                "name": "#T0072",
                 "status": "READY_TO_SHIP",
                 "totalQuantity": 3
               }
@@ -598,8 +817,8 @@
             "pageInfo": {
               "hasNextPage": false,
               "hasPreviousPage": false,
-              "startCursor": "eyJsYXN0X2lkIjo1ODUyOTg3Njk4LCJsYXN0X3ZhbHVlIjoiI1QwMDQyIn0=",
-              "endCursor": "eyJsYXN0X2lkIjo1ODUyOTg3Njk4LCJsYXN0X3ZhbHVlIjoiI1QwMDQyIn0="
+              "startCursor": "eyJsYXN0X2lkIjo1ODk0Mjc1Mzc4LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0xNiAwMTo0ODoxOC4wMDAwMDAifQ==",
+              "endCursor": "eyJsYXN0X2lkIjo1ODk0Mjc1Mzc4LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0xNiAwMTo0ODoxOC4wMDAwMDAifQ=="
             }
           }
         },
@@ -617,12 +836,86 @@
       }
     }
   },
+  "upstreamCalls": [
+    {
+      "method": "POST",
+      "apiSurface": "admin",
+      "apiVersion": "2025-01",
+      "path": "/admin/api/2025-01/graphql.json",
+      "operationName": "InventoryConnectionTransfersWindow",
+      "variables": {
+        "query": "origin_id:113977622834"
+      },
+      "query": "query InventoryConnectionTransfersWindow($query: String!) {\n  inventoryTransfers(first: 10, query: $query, sortKey: CREATED_AT) {\n    nodes {\n      id\n      name\n      dateCreated\n      status\n      tags\n      totalQuantity\n      origin {\n        name\n        location {\n          id\n          name\n        }\n      }\n      destination {\n        name\n        location {\n          id\n          name\n        }\n      }\n      lineItems(first: 10) {\n        nodes {\n          id\n          totalQuantity\n          inventoryItem {\n            id\n          }\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "inventoryTransfers": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/InventoryTransfer/5894177074",
+                  "name": "#T0070",
+                  "dateCreated": "2026-07-16T01:48:16Z",
+                  "status": "DRAFT",
+                  "tags": ["baseline", "icqw-1784166496235"],
+                  "totalQuantity": 1,
+                  "origin": {
+                    "name": "Inventory Connection Origin 1784166496235",
+                    "location": {
+                      "id": "gid://shopify/Location/113977622834",
+                      "name": "Inventory Connection Origin 1784166496235"
+                    }
+                  },
+                  "destination": {
+                    "name": "Inventory Connection Destination 1784166496235",
+                    "location": {
+                      "id": "gid://shopify/Location/113977655602",
+                      "name": "Inventory Connection Destination 1784166496235"
+                    }
+                  },
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/InventoryTransferLineItem/31477498162",
+                        "totalQuantity": 1,
+                        "inventoryItem": {
+                          "id": "gid://shopify/InventoryItem/53583779922226"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo1ODk0MTc3MDc0LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0xNiAwMTo0ODoxNi4wMDAwMDAifQ==",
+                "endCursor": "eyJsYXN0X2lkIjo1ODk0MTc3MDc0LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0xNiAwMTo0ODoxNi4wMDAwMDAifQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 62,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
   "cleanup": {
-    "transferCancel:gid://shopify/InventoryTransfer/5852954930": {
+    "transferCancel:gid://shopify/InventoryTransfer/5894177074": {
       "data": {
         "inventoryTransferCancel": {
           "inventoryTransfer": {
-            "id": "gid://shopify/InventoryTransfer/5852954930",
+            "id": "gid://shopify/InventoryTransfer/5894177074",
             "status": "CANCELED"
           },
           "userErrors": []
@@ -640,7 +933,7 @@
         }
       }
     },
-    "transferDelete:gid://shopify/InventoryTransfer/5852954930": {
+    "transferDelete:gid://shopify/InventoryTransfer/5894177074": {
       "data": {
         "inventoryTransferDelete": {
           "deletedId": null,
@@ -664,11 +957,11 @@
         }
       }
     },
-    "transferCancel:gid://shopify/InventoryTransfer/5852987698": {
+    "transferCancel:gid://shopify/InventoryTransfer/5894242610": {
       "data": {
         "inventoryTransferCancel": {
           "inventoryTransfer": {
-            "id": "gid://shopify/InventoryTransfer/5852987698",
+            "id": "gid://shopify/InventoryTransfer/5894242610",
             "status": "CANCELED"
           },
           "userErrors": []
@@ -686,7 +979,53 @@
         }
       }
     },
-    "transferDelete:gid://shopify/InventoryTransfer/5852987698": {
+    "transferDelete:gid://shopify/InventoryTransfer/5894242610": {
+      "data": {
+        "inventoryTransferDelete": {
+          "deletedId": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "Can't delete the transfer if it's not in the draft status."
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "transferCancel:gid://shopify/InventoryTransfer/5894275378": {
+      "data": {
+        "inventoryTransferCancel": {
+          "inventoryTransfer": {
+            "id": "gid://shopify/InventoryTransfer/5894275378",
+            "status": "CANCELED"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "transferDelete:gid://shopify/InventoryTransfer/5894275378": {
       "data": {
         "inventoryTransferDelete": {
           "deletedId": null,
@@ -713,7 +1052,7 @@
     "productDelete": {
       "data": {
         "productDelete": {
-          "deletedProductId": "gid://shopify/Product/10231546806578",
+          "deletedProductId": "gid://shopify/Product/10241329987890",
           "userErrors": []
         }
       },
@@ -723,7 +1062,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1989,
+            "currentlyAvailable": 1990,
             "restoreRate": 100
           }
         }
@@ -733,7 +1072,7 @@
       "data": {
         "locationDeactivate": {
           "location": {
-            "id": "gid://shopify/Location/113792549170",
+            "id": "gid://shopify/Location/113977622834",
             "isActive": false
           },
           "locationDeactivateUserErrors": []
@@ -754,14 +1093,8 @@
     "locationDelete": {
       "data": {
         "locationDelete": {
-          "deletedLocationId": null,
-          "locationDeleteUserErrors": [
-            {
-              "field": ["locationId"],
-              "message": "The location cannot be deleted while it has inventory.",
-              "code": "LOCATION_HAS_INVENTORY"
-            }
-          ]
+          "deletedLocationId": "gid://shopify/Location/113977622834",
+          "locationDeleteUserErrors": []
         }
       },
       "extensions": {
@@ -780,14 +1113,14 @@
       "data": {
         "locationDeactivate": {
           "location": {
-            "id": "gid://shopify/Location/113792581938",
+            "id": "gid://shopify/Location/113977655602",
             "isActive": true
           },
           "locationDeactivateUserErrors": [
             {
               "field": ["locationId"],
-              "message": "%{location_name} has incoming inventory. You'll be able to deactivate it once the inventory has been received.",
-              "code": "TEMPORARILY_BLOCKED_FROM_DEACTIVATION_ERROR"
+              "message": "Location could not be deactivated without specifying where to relocate inventory stocked at the location.",
+              "code": "HAS_ACTIVE_INVENTORY_ERROR"
             }
           ]
         }
@@ -798,7 +1131,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1989,
+            "currentlyAvailable": 1990,
             "restoreRate": 100
           }
         }
@@ -828,7 +1161,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1988,
+            "currentlyAvailable": 1990,
             "restoreRate": 100
           }
         }

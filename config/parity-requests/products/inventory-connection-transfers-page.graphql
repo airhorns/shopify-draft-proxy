@@ -1,5 +1,5 @@
 query InventoryConnectionTransfersPage($query: String!, $after: String) {
-  inventoryTransfers(first: 1, query: $query, sortKey: NAME, after: $after) {
+  inventoryTransfers(first: 1, query: $query, sortKey: CREATED_AT, after: $after) {
     nodes {
       id
       name

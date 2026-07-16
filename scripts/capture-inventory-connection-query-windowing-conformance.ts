@@ -25,6 +25,7 @@ const requestPaths = {
   itemsQuery: path.join(requestDir, 'inventory-connection-items-query.graphql'),
   transferCreate: path.join(requestDir, 'inventory-transfer-create.graphql'),
   transferCreateReady: path.join(requestDir, 'inventory-transfer-create-ready.graphql'),
+  transfersWindow: path.join(requestDir, 'inventory-connection-transfers-window.graphql'),
   transfersPage: path.join(requestDir, 'inventory-connection-transfers-page.graphql'),
   transfersReverseStatus: path.join(requestDir, 'inventory-connection-transfers-reverse-status.graphql'),
 } as const;
@@ -140,6 +141,14 @@ const runId = Date.now().toString();
 const skuAlpha = `INV-CONN-${runId}-ALPHA`;
 const skuBeta = `INV-CONN-${runId}-BETA`;
 const transferTag = `icqw-${runId}`;
+const runTimestamp = Number(runId);
+const transferBaselineCreatedAt = isoSecond(runTimestamp);
+const transferCreateCreatedAt = isoSecond(runTimestamp + 1_000);
+const transferReadyCreatedAt = isoSecond(runTimestamp + 2_000);
+
+function isoSecond(timestamp: number): string {
+  return new Date(timestamp).toISOString().replace(/\.\d{3}Z$/u, 'Z');
+}
 
 async function runOperation(
   key: keyof typeof requestPaths,
@@ -155,6 +164,22 @@ async function runOperation(
     throw new Error(`${label} returned GraphQL errors: ${JSON.stringify(result.payload.errors)}`);
   }
   return { query, variables, response: result.payload };
+}
+
+function recordedAdminUpstreamCall(operationName: string, operation: CapturedOperation): JsonRecord {
+  return {
+    method: 'POST',
+    apiSurface: 'admin',
+    apiVersion,
+    path: `/admin/api/${apiVersion}/graphql.json`,
+    operationName,
+    variables: operation.variables,
+    query: operation.query,
+    response: {
+      status: 200,
+      body: operation.response,
+    },
+  };
 }
 
 async function cleanup(
@@ -344,13 +369,50 @@ try {
     'inventoryItems query',
   );
 
+  const baselineTransferCreate = await runOperation(
+    'transferCreate',
+    {
+      input: {
+        originLocationId,
+        destinationLocationId,
+        dateCreated: transferBaselineCreatedAt,
+        tags: [transferTag, 'baseline'],
+        lineItems: [{ inventoryItemId: alphaInventoryItemId, quantity: 1 }],
+      },
+    },
+    'baseline inventoryTransferCreate',
+  );
+  assertNoUserErrors(baselineTransferCreate.response, 'inventoryTransferCreate');
+  transferIds.push(
+    stringValue(
+      asRecord(
+        asRecord(
+          asRecord(baselineTransferCreate.response.data, 'baselineTransferCreate.data')['inventoryTransferCreate'],
+          'payload',
+        )['inventoryTransfer'],
+        'inventoryTransfer',
+      )['id'],
+      'baselineInventoryTransferCreate.inventoryTransfer.id',
+    ),
+  );
+
+  const transferOriginQuery = `origin_id:${resourceTail(originLocationId)}`;
+  const transferAfterCreateProxyQuery = `date_created:>=${transferBaselineCreatedAt} date_created:<=${transferCreateCreatedAt}`;
+  const transferPageProxyQuery = `date_created:>=${transferBaselineCreatedAt} date_created:<=${transferReadyCreatedAt}`;
+  const transferStatusProxyQuery = `status:READY_TO_SHIP ${transferPageProxyQuery}`;
+  const transfersColdWindow = await runOperation(
+    'transfersWindow',
+    { query: transferOriginQuery },
+    'inventoryTransfers cold live-hybrid window',
+  );
+
   const transferCreate = await runOperation(
     'transferCreate',
     {
       input: {
         originLocationId,
         destinationLocationId,
-        dateCreated: '2024-01-02T00:00:00Z',
+        dateCreated: transferCreateCreatedAt,
         tags: [transferTag, 'alpha'],
         lineItems: [{ inventoryItemId: alphaInventoryItemId, quantity: 2 }],
       },
@@ -370,13 +432,19 @@ try {
     ),
   );
 
+  const transfersAfterCreateWindow = await runOperation(
+    'transfersWindow',
+    { query: transferOriginQuery },
+    'inventoryTransfers after inventoryTransferCreate window',
+  );
+
   const transferCreateReady = await runOperation(
     'transferCreateReady',
     {
       input: {
         originLocationId,
         destinationLocationId,
-        dateCreated: '2024-01-03T00:00:00Z',
+        dateCreated: transferReadyCreatedAt,
         tags: [transferTag, 'beta'],
         lineItems: [{ inventoryItemId: alphaInventoryItemId, quantity: 3 }],
       },
@@ -399,7 +467,7 @@ try {
     ),
   );
 
-  const transferPageQuery = `origin_id:${resourceTail(originLocationId)}`;
+  const transferPageQuery = transferOriginQuery;
   const transfersPage1 = await runOperation(
     'transfersPage',
     { query: transferPageQuery, after: null },
@@ -414,7 +482,7 @@ try {
     'transfersReverseStatus',
     {
       query: transferPageQuery,
-      statusQuery: `status:READY_TO_SHIP origin_id:${resourceTail(originLocationId)}`,
+      statusQuery: `status:READY_TO_SHIP ${transferOriginQuery}`,
     },
     'inventoryTransfers reverse/status',
   );
@@ -440,6 +508,12 @@ try {
           betaInventoryItemId,
           alphaInventoryItemTail: resourceTail(alphaInventoryItemId),
           betaInventoryItemTail: resourceTail(betaInventoryItemId),
+          transferBaselineCreatedAt,
+          transferCreateCreatedAt,
+          transferReadyCreatedAt,
+          transferAfterCreateProxyQuery,
+          transferPageProxyQuery,
+          transferStatusProxyQuery,
         },
         operations: {
           originLocationAdd,
@@ -447,12 +521,16 @@ try {
           productSet,
           itemUpdate,
           itemsQuery,
+          baselineTransferCreate,
+          transfersColdWindow,
           transferCreate,
+          transfersAfterCreateWindow,
           transferCreateReady,
           transfersPage1,
           transfersPage2,
           transfersReverseStatus,
         },
+        upstreamCalls: [recordedAdminUpstreamCall('InventoryConnectionTransfersWindow', transfersColdWindow)],
         cleanup: cleanupResult,
       },
       null,

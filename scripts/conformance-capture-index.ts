@@ -2729,7 +2729,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-inventory-connection-query-windowing-conformance.ts',
     purpose:
-      'inventoryItems query filters and inventoryTransfers query/sort/reverse/windowing behavior over disposable product-backed inventory and transfers.',
+      'inventoryItems query filters and inventoryTransfers cold LiveHybrid hydration, post-create overlay, query/sort/reverse/windowing behavior over disposable product-backed inventory and transfers.',
     requiredAuthScopes: [
       'read_products',
       'write_products',
@@ -2745,11 +2745,12 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/products/inventory-connection-product-set.graphql',
       'config/parity-requests/products/inventory-connection-item-update.graphql',
       'config/parity-requests/products/inventory-connection-items-query.graphql',
+      'config/parity-requests/products/inventory-connection-transfers-window.graphql',
       'config/parity-requests/products/inventory-connection-transfers-page.graphql',
       'config/parity-requests/products/inventory-connection-transfers-reverse-status.graphql',
     ],
     cleanupBehavior:
-      'Creates two disposable locations, one disposable two-variant product, updates one inventory item, creates one draft and one ready transfer, records filtered connection reads, then cancels/deletes transfers and deletes the product and locations best-effort.',
+      'Creates two disposable locations, one disposable two-variant product, updates one inventory item, creates one baseline draft transfer, records a cold window, creates one draft and one ready transfer, records filtered connection reads, then cancels/deletes transfers and deletes the product and locations best-effort.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

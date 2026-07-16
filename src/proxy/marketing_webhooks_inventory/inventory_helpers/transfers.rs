@@ -32,11 +32,7 @@ impl DraftProxy {
         let id = self.next_proxy_synthetic_gid("InventoryTransfer");
         let name = format!(
             "#T{:04}",
-            self.store
-                .staged
-                .inventory_transfers
-                .len()
-                .saturating_add(1)
+            self.store.inventory_transfer_count().saturating_add(1)
         );
         let mut line_items = Vec::new();
         for item_input in line_item_inputs {
@@ -51,7 +47,7 @@ impl DraftProxy {
             id: id.clone(),
             name,
             created_at: resolved_string_field(&input, "dateCreated").unwrap_or_else(|| {
-                inventory_transfer_default_created_at(self.store.staged.inventory_transfers.len())
+                inventory_transfer_default_created_at(self.store.inventory_transfer_count())
             }),
             status: if ready_to_ship {
                 "READY_TO_SHIP".to_string()
@@ -60,7 +56,7 @@ impl DraftProxy {
             },
             origin_location_id,
             destination_location_id,
-            tags: list_string_field(&input, "tags"),
+            tags: inventory_transfer_tags_from_input(&input),
             line_items,
         };
         self.ensure_transfer_inventory_levels(&record);
@@ -84,7 +80,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> MutationFieldOutcome {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let Some(existing) = self.store.staged.inventory_transfers.get(&id).cloned() else {
+        let Some(existing) = self.store.inventory_transfer_by_id(&id).cloned() else {
             return MutationFieldOutcome::unlogged(
                 self.inventory_transfer_missing_payload(&field.selection, "inventoryTransfer"),
             );
@@ -112,7 +108,7 @@ impl DraftProxy {
     ) -> MutationFieldOutcome {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let id = resolved_string_field(&input, "id").unwrap_or_default();
-        let Some(existing) = self.store.staged.inventory_transfers.get(&id).cloned() else {
+        let Some(existing) = self.store.inventory_transfer_by_id(&id).cloned() else {
             return MutationFieldOutcome::unlogged(
                 self.inventory_transfer_missing_payload(&field.selection, "inventoryTransfer"),
             );
@@ -188,7 +184,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> MutationFieldOutcome {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let Some(existing) = self.store.staged.inventory_transfers.get(&id).cloned() else {
+        let Some(existing) = self.store.inventory_transfer_by_id(&id).cloned() else {
             return MutationFieldOutcome::unlogged(
                 self.inventory_transfer_missing_payload(&field.selection, "inventoryTransfer"),
             );
@@ -239,7 +235,7 @@ impl DraftProxy {
             record.created_at = date_created;
         }
         if input.contains_key("tags") {
-            record.tags = list_string_field(&input, "tags");
+            record.tags = inventory_transfer_tags_from_input(&input);
         }
         self.ensure_transfer_inventory_levels(&record);
         if was_ready {
@@ -263,7 +259,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> MutationFieldOutcome {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let Some(existing) = self.store.staged.inventory_transfers.get(&id).cloned() else {
+        let Some(existing) = self.store.inventory_transfer_by_id(&id).cloned() else {
             return MutationFieldOutcome::unlogged(
                 self.inventory_transfer_missing_payload(&field.selection, "inventoryTransfer"),
             );
@@ -301,17 +297,13 @@ impl DraftProxy {
         let new_id = self.next_proxy_synthetic_gid("InventoryTransfer");
         let name = format!(
             "#T{:04}",
-            self.store
-                .staged
-                .inventory_transfers
-                .len()
-                .saturating_add(1)
+            self.store.inventory_transfer_count().saturating_add(1)
         );
         let record = InventoryTransferRecord {
             id: new_id.clone(),
             name,
             created_at: inventory_transfer_default_created_at(
-                self.store.staged.inventory_transfers.len(),
+                self.store.inventory_transfer_count(),
             ),
             status: "DRAFT".to_string(),
             origin_location_id: existing.origin_location_id,
@@ -346,7 +338,7 @@ impl DraftProxy {
     ) -> MutationFieldOutcome {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let id = resolved_string_field(&input, "id").unwrap_or_default();
-        let Some(existing) = self.store.staged.inventory_transfers.get(&id).cloned() else {
+        let Some(existing) = self.store.inventory_transfer_by_id(&id).cloned() else {
             return MutationFieldOutcome::unlogged(
                 self.inventory_transfer_missing_payload(&field.selection, "inventoryTransfer"),
             );
@@ -397,7 +389,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> MutationFieldOutcome {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let Some(existing) = self.store.staged.inventory_transfers.get(&id).cloned() else {
+        let Some(existing) = self.store.inventory_transfer_by_id(&id).cloned() else {
             return MutationFieldOutcome::unlogged(
                 self.inventory_transfer_missing_payload(&field.selection, "inventoryTransfer"),
             );
@@ -424,7 +416,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> MutationFieldOutcome {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let Some(record) = self.store.staged.inventory_transfers.get(&id).cloned() else {
+        let Some(record) = self.store.inventory_transfer_by_id(&id).cloned() else {
             return MutationFieldOutcome::unlogged(
                 self.inventory_transfer_missing_payload(&field.selection, "deletedId"),
             );
@@ -439,6 +431,7 @@ impl DraftProxy {
             ));
         }
         self.store.staged.inventory_transfers.remove(&id);
+        self.store.staged.inventory_transfers.tombstone(id.clone());
         MutationFieldOutcome::staged(
             selected_json(
                 &json!({ "deletedId": id, "userErrors": [] }),
@@ -499,9 +492,7 @@ impl DraftProxy {
         selection: &[SelectedField],
     ) -> Value {
         self.store
-            .staged
-            .inventory_transfers
-            .get(id)
+            .inventory_transfer_by_id(id)
             .map(|record| selected_json(&self.inventory_transfer_full_json(record), selection))
             .unwrap_or(Value::Null)
     }
@@ -512,9 +503,8 @@ impl DraftProxy {
         selection: &[SelectedField],
     ) -> Value {
         self.store
-            .staged
-            .inventory_transfers
-            .values()
+            .inventory_transfers()
+            .iter()
             .find_map(|record| {
                 record
                     .line_items
@@ -528,6 +518,43 @@ impl DraftProxy {
                     })
             })
             .unwrap_or(Value::Null)
+    }
+
+    pub(in crate::proxy) fn observe_inventory_transfer_read_response(&mut self, body: &Value) {
+        self.observe_inventory_transfer_value(body);
+    }
+
+    fn observe_inventory_transfer_value(&mut self, value: &Value) {
+        if let Some(record) = inventory_transfer_record_from_json(value) {
+            self.store.observe_base_inventory_transfer(record);
+            if let Some(location) = value.get("origin") {
+                let location = location.get("location").unwrap_or(location);
+                self.merge_staged_location(
+                    location,
+                    &[("__typename", json!("Location")), ("isActive", json!(true))],
+                );
+            }
+            if let Some(location) = value.get("destination") {
+                let location = location.get("location").unwrap_or(location);
+                self.merge_staged_location(
+                    location,
+                    &[("__typename", json!("Location")), ("isActive", json!(true))],
+                );
+            }
+        }
+        match value {
+            Value::Array(items) => {
+                for item in items {
+                    self.observe_inventory_transfer_value(item);
+                }
+            }
+            Value::Object(object) => {
+                for child in object.values() {
+                    self.observe_inventory_transfer_value(child);
+                }
+            }
+            _ => {}
+        }
     }
 
     pub(super) fn inventory_transfers_connection_selected_json(
@@ -1120,4 +1147,101 @@ impl DraftProxy {
             .entry("on_hand".to_string())
             .or_insert(available + reserved);
     }
+}
+
+fn inventory_transfer_record_from_json(value: &Value) -> Option<InventoryTransferRecord> {
+    let id = value.get("id").and_then(Value::as_str)?;
+    if !is_shopify_gid_of_type(id, "InventoryTransfer") {
+        return None;
+    }
+    let line_items = connection_node_values(value.get("lineItems"))
+        .into_iter()
+        .filter_map(inventory_transfer_line_item_record_from_json)
+        .collect::<Vec<_>>();
+    Some(InventoryTransferRecord {
+        id: id.to_string(),
+        name: value
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        created_at: value
+            .get("dateCreated")
+            .or_else(|| value.get("createdAt"))
+            .or_else(|| value.get("created_at"))
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        status: value
+            .get("status")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        origin_location_id: value
+            .get("origin")
+            .and_then(|origin| origin.get("id").or_else(|| origin.pointer("/location/id")))
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        destination_location_id: value
+            .get("destination")
+            .and_then(|destination| {
+                destination
+                    .get("id")
+                    .or_else(|| destination.pointer("/location/id"))
+            })
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        tags: value
+            .get("tags")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|tag| tag.as_str().map(str::to_string))
+            .collect(),
+        line_items,
+    })
+}
+
+fn inventory_transfer_tags_from_input(input: &BTreeMap<String, ResolvedValue>) -> Vec<String> {
+    let mut tags = list_string_field(input, "tags");
+    tags.sort_by_key(|tag| tag.to_ascii_lowercase());
+    tags
+}
+
+fn inventory_transfer_line_item_record_from_json(
+    value: &Value,
+) -> Option<InventoryTransferLineItemRecord> {
+    let id = value.get("id").and_then(Value::as_str)?.to_string();
+    Some(InventoryTransferLineItemRecord {
+        id,
+        inventory_item_id: value
+            .get("inventoryItem")
+            .and_then(|item| item.get("id"))
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        quantity: value
+            .get("totalQuantity")
+            .or_else(|| value.get("quantity"))
+            .and_then(Value::as_i64)
+            .unwrap_or_default(),
+    })
+}
+
+fn connection_node_values(connection: Option<&Value>) -> Vec<&Value> {
+    let Some(connection) = connection else {
+        return Vec::new();
+    };
+    if let Some(nodes) = connection.get("nodes").and_then(Value::as_array) {
+        return nodes.iter().collect();
+    }
+    connection
+        .get("edges")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|edge| edge.get("node"))
+        .collect()
 }
