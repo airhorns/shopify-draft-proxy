@@ -1,0 +1,37 @@
+mutation StorefrontCatalogProductCreate($product: ProductCreateInput!) {
+  productCreate(product: $product) {
+    product {
+      id
+      title
+      handle
+      status
+      vendor
+      productType
+      tags
+      descriptionHtml
+      seo {
+        title
+        description
+      }
+      variants(first: 1) {
+        nodes {
+          id
+          title
+          selectedOptions {
+            name
+            value
+          }
+          inventoryItem {
+            id
+            tracked
+            requiresShipping
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

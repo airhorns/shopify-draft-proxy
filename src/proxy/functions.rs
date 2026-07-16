@@ -10,6 +10,7 @@ const FUNCTION_VALIDATIONS_HYDRATE_QUERY: &str = "query FunctionValidationsHydra
 const FUNCTION_VALIDATION_HYDRATE_BY_ID_QUERY: &str = "query FunctionValidationHydrateById($id: ID!) {\n  validation(id: $id) {\n    id\n    title\n    enabled\n    blockOnFailure\n    shopifyFunction {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n    metafields(first: 100) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n        updatedAt\n      }\n    }\n  }\n}\n";
 const FUNCTION_CART_TRANSFORMS_HYDRATE_QUERY: &str = "query FunctionCartTransformsHydrate {\n  cartTransforms(first: 100) {\n    nodes {\n      id\n      functionId\n      blockOnFailure\n      metafields(first: 100) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          ownerType\n          createdAt\n          updatedAt\n        }\n      }\n    }\n  }\n}\n";
 const FUNCTION_CART_TRANSFORM_HYDRATE_BY_ID_QUERY: &str = "query FunctionCartTransformHydrateById($id: ID!) {\n  node(id: $id) {\n    ... on CartTransform {\n      id\n      functionId\n      blockOnFailure\n      metafields(first: 100) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          ownerType\n          createdAt\n          updatedAt\n        }\n      }\n    }\n  }\n}\n";
+const FUNCTION_FULFILLMENT_CONSTRAINT_RULES_HYDRATE_QUERY: &str = "query FunctionFulfillmentConstraintRulesHydrate {\n  fulfillmentConstraintRules {\n    id\n    deliveryMethodTypes\n    function {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n    metafields(first: 100) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n        compareDigest\n        ownerType\n        createdAt\n        updatedAt\n      }\n    }\n  }\n}\n";
 
 impl DraftProxy {
     pub(in crate::proxy) fn resolve_functions_graphql(
@@ -733,6 +734,7 @@ impl DraftProxy {
         let mut functions = Vec::new();
         let mut validations = Vec::new();
         let mut cart_transforms = Vec::new();
+        let mut fulfillment_constraint_rules = Vec::new();
         collect_function_connection_nodes(data, &mut functions);
         collect_function_metadata_values(data, &mut functions);
         for function in functions {
@@ -746,6 +748,13 @@ impl DraftProxy {
         for cart_transform in cart_transforms {
             self.stage_base_function_cart_transform(cart_transform);
         }
+        collect_function_fulfillment_constraint_rule_values(
+            data,
+            &mut fulfillment_constraint_rules,
+        );
+        for rule in fulfillment_constraint_rules {
+            self.stage_base_function_fulfillment_constraint_rule(rule);
+        }
     }
 
     pub(in crate::proxy) fn mark_function_read_fields_hydrated(
@@ -753,10 +762,24 @@ impl DraftProxy {
         fields: &[RootFieldSelection],
     ) {
         for field in fields {
-            if field.name == "shopifyFunctions" {
-                self.mark_function_metadata_catalog_hydrated(requested_function_api_type(
-                    &field.arguments,
-                ));
+            match field.name.as_str() {
+                "validations" => {
+                    self.store.base.function_validations_catalog_hydrated = true;
+                }
+                "cartTransforms" => {
+                    self.store.base.function_cart_transforms_catalog_hydrated = true;
+                }
+                "fulfillmentConstraintRules" => {
+                    self.store
+                        .base
+                        .function_fulfillment_constraint_rules_catalog_hydrated = true;
+                }
+                "shopifyFunctions" => {
+                    self.mark_function_metadata_catalog_hydrated(requested_function_api_type(
+                        &field.arguments,
+                    ));
+                }
+                _ => {}
             }
         }
     }
@@ -789,6 +812,15 @@ impl DraftProxy {
                 "cartTransforms" => {
                     if !self.store.base.function_cart_transforms_catalog_hydrated {
                         self.hydrate_function_cart_transform_catalog(request);
+                    }
+                }
+                "fulfillmentConstraintRules" => {
+                    if !self
+                        .store
+                        .base
+                        .function_fulfillment_constraint_rules_catalog_hydrated
+                    {
+                        self.hydrate_function_fulfillment_constraint_rule_catalog(request);
                     }
                 }
                 "shopifyFunctions" => {
@@ -922,6 +954,23 @@ impl DraftProxy {
         }
     }
 
+    fn hydrate_function_fulfillment_constraint_rule_catalog(&mut self, request: &Request) {
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": FUNCTION_FULFILLMENT_CONSTRAINT_RULES_HYDRATE_QUERY,
+                "operationName": "FunctionFulfillmentConstraintRulesHydrate",
+                "variables": {}
+            }),
+        );
+        if response.status == 200 {
+            self.hydrate_function_metadata_from_response_data(&response.body["data"]);
+            self.store
+                .base
+                .function_fulfillment_constraint_rules_catalog_hydrated = true;
+        }
+    }
+
     fn hydrate_function_cart_transform_by_id(
         &mut self,
         request: &Request,
@@ -1042,6 +1091,48 @@ impl DraftProxy {
             .base
             .function_cart_transforms
             .insert(id, cart_transform);
+    }
+
+    fn stage_base_function_fulfillment_constraint_rule(&mut self, mut rule: Value) {
+        let Some(id) = rule["id"].as_str().map(str::to_string) else {
+            return;
+        };
+        if let Some(function) = rule
+            .get("function")
+            .or_else(|| rule.get("shopifyFunction"))
+            .and_then(|function| normalized_function_metadata(function.clone()))
+        {
+            rule["function"] = function.clone();
+            rule["shopifyFunction"] = function.clone();
+            self.stage_function_metadata(function);
+        }
+        if rule.get("metafields").is_none() {
+            rule["metafields"] = json!({ "nodes": [] });
+        }
+        if rule.get("metafield").is_none_or(Value::is_null) {
+            if let Some(first) = rule["metafields"]["nodes"]
+                .as_array()
+                .and_then(|nodes| nodes.first())
+                .cloned()
+            {
+                rule["metafield"] = first;
+            }
+        }
+        if !self
+            .store
+            .base
+            .function_fulfillment_constraint_rules
+            .contains_key(&id)
+        {
+            self.store
+                .base
+                .function_fulfillment_constraint_rule_order
+                .push(id.clone());
+        }
+        self.store
+            .base
+            .function_fulfillment_constraint_rules
+            .insert(id, rule);
     }
 
     fn has_function_validation_overlay_state(&self) -> bool {
@@ -1434,6 +1525,61 @@ fn collect_function_cart_transform_values(value: &Value, cart_transforms: &mut V
         Value::Object(object) => {
             for value in object.values() {
                 collect_function_cart_transform_values(value, cart_transforms);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn normalized_function_fulfillment_constraint_rule(mut rule: Value) -> Option<Value> {
+    rule.get("id").and_then(Value::as_str)?;
+    if !looks_like_function_fulfillment_constraint_rule(&rule) {
+        return None;
+    }
+    if let Some(function) = rule
+        .get("function")
+        .or_else(|| rule.get("shopifyFunction"))
+        .and_then(|function| normalized_function_metadata(function.clone()))
+    {
+        rule["function"] = function.clone();
+        rule["shopifyFunction"] = function;
+    }
+    if rule.get("metafields").is_none() {
+        rule["metafields"] = json!({ "nodes": [] });
+    }
+    if rule.get("metafield").is_none_or(Value::is_null) {
+        if let Some(first) = rule["metafields"]["nodes"]
+            .as_array()
+            .and_then(|nodes| nodes.first())
+            .cloned()
+        {
+            rule["metafield"] = first;
+        }
+    }
+    Some(rule)
+}
+
+fn looks_like_function_fulfillment_constraint_rule(value: &Value) -> bool {
+    shopify_gid_resource_type(value.get("id").and_then(Value::as_str).unwrap_or_default())
+        == Some("FulfillmentConstraintRule")
+        || (value.get("deliveryMethodTypes").is_some()
+            && (value.get("function").is_some() || value.get("shopifyFunction").is_some()))
+}
+
+fn collect_function_fulfillment_constraint_rule_values(value: &Value, rules: &mut Vec<Value>) {
+    if let Some(rule) = normalized_function_fulfillment_constraint_rule(value.clone()) {
+        rules.push(rule);
+        return;
+    }
+    match value {
+        Value::Array(values) => {
+            for value in values {
+                collect_function_fulfillment_constraint_rule_values(value, rules);
+            }
+        }
+        Value::Object(object) => {
+            for value in object.values() {
+                collect_function_fulfillment_constraint_rule_values(value, rules);
             }
         }
         _ => {}

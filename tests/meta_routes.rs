@@ -1019,6 +1019,8 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "publicationIds": [],
                     "savedSearchOrder": [],
                     "savedSearches": {},
+                    "segmentOrder": [],
+                    "segments": {},
                     "shop": null,
                     "shopLocales": null,
                     "shopPolicies": {},
@@ -1072,6 +1074,7 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     ],
                     "deletedProductVariantIds": [],
                     "deletedSavedSearchIds": [],
+                    "deletedSegmentIds": [],
                     "deletedShippingPackageIds": {},
                     "deletedShopPolicyIds": [],
                     "deliveryCustomizationOrder": [],
@@ -1260,6 +1263,8 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                             "resourceType": "PRODUCT"
                         }
                     },
+                    "segmentOrder": [],
+                    "segments": {},
                     "shippingPackages": {},
                     "shopPolicies": {},
                     "shopPolicyOrder": [],

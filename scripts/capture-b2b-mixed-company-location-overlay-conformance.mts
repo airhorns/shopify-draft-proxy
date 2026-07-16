@@ -47,6 +47,7 @@ const locationUpdateDocument = await readDocument('b2b-mixed-overlay-location-up
 const locationDeleteDocument = await readDocument('b2b-mixed-overlay-location-delete.graphql');
 const companyDeleteDocument = await readDocument('b2b-mixed-overlay-company-delete.graphql');
 const mixedReadDocument = await readDocument('b2b-mixed-overlay-read.graphql');
+const countOnlyDocument = await readDocument('b2b-mixed-overlay-companies-count-only.graphql');
 
 const cases: CapturedCase[] = [];
 const cleanup: Array<{ type: string; id: string; response: ConformanceGraphqlResult<unknown> }> = [];
@@ -203,6 +204,26 @@ async function captureWhen(
   throw new Error(`${name} never reached expected rows: ${JSON.stringify(latest?.response, null, 2)}`);
 }
 
+async function captureCountOnlyWhen(name: string, expectedCount: number): Promise<CapturedCase> {
+  let latest: CapturedCase | undefined;
+  const variables = {};
+  for (let attempt = 1; attempt <= 18; attempt += 1) {
+    latest = await captureCase(name, countOnlyDocument, variables);
+    assertNoGraphqlErrors(latest.response, `${name} attempt ${attempt}`);
+    if (countValue(latest.response) === expectedCount) {
+      return latest;
+    }
+    await sleep(5_000);
+  }
+  throw new Error(`${name} never reached count ${expectedCount}: ${JSON.stringify(latest?.response, null, 2)}`);
+}
+
+async function captureCountOnly(name: string): Promise<CapturedCase> {
+  const capture = await captureCase(name, countOnlyDocument, {});
+  assertNoGraphqlErrors(capture.response, name);
+  return capture;
+}
+
 async function createCompany(
   name: string,
   externalId: string,
@@ -267,11 +288,20 @@ async function cleanupCompany(id: string): Promise<void> {
 
 let captureFailure: unknown = null;
 let baselineRead: CapturedCase | null = null;
+let baselineCountOnlyRead: CapturedCase | null = null;
+let countOnlyReadAfterStagedCreate: CapturedCase | null = null;
 
 try {
   const alpha = await createCompany(alphaCompanyName, `${token}-ALPHA`, alphaHqName);
   const alphaAnnex = await createLocation(alpha.companyId, alphaAnnexName, `${token}-ALPHA-ANNEX`);
   const beta = await createCompany(betaCompanyName, `${token}-BETA`, betaHqName);
+  baselineCountOnlyRead = await captureCountOnly('baseline B2B companiesCount count-only before staged overlay');
+  const baselineCompaniesCount = countValue(baselineCountOnlyRead.response);
+  if (baselineCompaniesCount === null || baselineCompaniesCount <= 1) {
+    throw new Error(
+      `B2B companiesCount baseline must exceed staged delta: ${JSON.stringify(baselineCountOnlyRead.response, null, 2)}`,
+    );
+  }
 
   baselineRead = await captureWhen('baseline B2B mixed read before staged overlay', {
     companyNames: [alphaCompanyName, betaCompanyName],
@@ -281,6 +311,10 @@ try {
   const alphaDefaultLocationId = locationIdByName(baselineRead.response, alphaHqName);
 
   const gamma = await createCompany(gammaCompanyName, `${token}-GAMMA`, gammaHqName);
+  countOnlyReadAfterStagedCreate = await captureCountOnlyWhen(
+    'B2B companiesCount count-only after staged company create',
+    baselineCompaniesCount + 1,
+  );
   await createLocation(gamma.companyId, gammaRemoteName, `${token}-GAMMA-REMOTE`);
 
   await captureWhen('B2B mixed read after staged company and location create', {
@@ -359,7 +393,19 @@ if (captureFailure) {
 if (!baselineRead) {
   throw new Error('Missing baseline B2B mixed read for upstreamCalls cassette.');
 }
+if (!baselineCountOnlyRead || !countOnlyReadAfterStagedCreate) {
+  throw new Error('Missing count-only B2B companiesCount reads for upstreamCalls cassette.');
+}
 
+const baselineCountOnlyUpstreamCall = {
+  operationName: 'B2BMixedOverlayCompaniesCountOnly',
+  variables: baselineCountOnlyRead.variables,
+  query: countOnlyDocument,
+  response: {
+    status: baselineCountOnlyRead.response.status,
+    body: baselineCountOnlyRead.response.payload,
+  },
+};
 const baselineUpstreamCall = {
   operationName: 'B2BMixedOverlayRead',
   variables: baselineRead.variables,
@@ -381,8 +427,12 @@ await writeFile(
       scope: 'B2B LiveHybrid baseline company/location catalog plus staged lifecycle overlay',
       token,
       cases,
+      countOnly: {
+        baseline: baselineCountOnlyRead,
+        afterStagedCreate: countOnlyReadAfterStagedCreate,
+      },
       cleanup,
-      upstreamCalls: Array.from({ length: 5 }, () => baselineUpstreamCall),
+      upstreamCalls: [baselineCountOnlyUpstreamCall, ...Array.from({ length: 5 }, () => baselineUpstreamCall)],
     },
     null,
     2,
@@ -399,8 +449,12 @@ console.log(
       apiVersion,
       token,
       cases: cases.map((entry) => ({ name: entry.name, status: entry.response.status })),
+      countOnly: {
+        baseline: baselineCountOnlyRead.response.status,
+        afterStagedCreate: countOnlyReadAfterStagedCreate.response.status,
+      },
       cleanup: cleanup.map((entry) => ({ type: entry.type, id: entry.id, status: entry.response.status })),
-      upstreamCalls: 5,
+      upstreamCalls: 6,
     },
     null,
     2,
