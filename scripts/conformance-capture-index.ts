@@ -10414,6 +10414,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-app-count-only-read-after-create',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-app-count-only-conformance.ts',
+    purpose:
+      'Count-only discountNodesCount(query: "type:app") LiveHybrid evidence with a real upstream app-discount baseline and one locally staged app-discount delta.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-app-count-only-read-after-create.json`,
+      'config/parity-specs/discounts/discount-app-count-only-read-after-create.json',
+      'config/parity-requests/discounts/discount-app-count-only-create.graphql',
+      'config/parity-requests/discounts/discount-app-count-only-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable app-managed automatic discount as the real upstream baseline, creates one local-equivalent app-managed automatic discount for read-after-create capture, then deletes both discounts.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-amount-applies-on-each-item',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-amount-applies-on-each-item-conformance.ts',
