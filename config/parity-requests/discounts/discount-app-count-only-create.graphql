@@ -1,0 +1,21 @@
+mutation DiscountAppCountOnlyCreate($input: DiscountAutomaticAppInput!) {
+  discountAutomaticAppCreate(automaticAppDiscount: $input) {
+    automaticAppDiscount {
+      __typename
+      discountId
+      title
+      status
+      appDiscountType {
+        functionId
+        title
+        description
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

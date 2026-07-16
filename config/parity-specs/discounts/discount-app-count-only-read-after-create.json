@@ -1,0 +1,51 @@
+{
+  "scenarioId": "discount-app-count-only-read-after-create",
+  "operationNames": ["discountAutomaticAppCreate", "discountNodesCount"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["downstream-read-parity", "search-filter-contract", "count-precision"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-app-count-only-read-after-create.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-app-count-only-create.graphql",
+    "variablesCapturePath": "$.requests.localCreate.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "targets": [
+      {
+        "name": "app-count-only-local-create",
+        "capturePath": "$.localCreate.payload.data",
+        "proxyPath": "$.data",
+        "preserveProxyState": true,
+        "selectedPaths": [
+          "$.discountAutomaticAppCreate.automaticAppDiscount.__typename",
+          "$.discountAutomaticAppCreate.automaticAppDiscount.title",
+          "$.discountAutomaticAppCreate.automaticAppDiscount.status",
+          "$.discountAutomaticAppCreate.automaticAppDiscount.appDiscountType.functionId",
+          "$.discountAutomaticAppCreate.automaticAppDiscount.appDiscountType.title",
+          "$.discountAutomaticAppCreate.automaticAppDiscount.appDiscountType.description",
+          "$.discountAutomaticAppCreate.userErrors"
+        ]
+      },
+      {
+        "name": "app-count-only-baseline-plus-staged-create",
+        "capturePath": "$.readAfterCreate.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": "$.upstreamCalls",
+        "preserveProxyState": true,
+        "selectedPaths": ["$.appCount", "$.limitedAppCount"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-app-count-only-read.graphql",
+          "variablesCapturePath": "$.requests.readAfterCreate.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ],
+    "expectedDifferences": []
+  },
+  "notes": "Live Shopify 2026-04 evidence for a count-only `discountNodesCount(query: \"type:app\")` read after staging one local-equivalent app-managed automatic discount. The recorder creates one real baseline app discount, captures the count-only upstream baseline as an `upstreamCalls` cassette entry, creates a second app discount live, and captures the count-only read-after-create. Proxy replay stages the second create locally through public GraphQL, hydrates the Function and baseline count through recorded upstream calls, then proves the count response is the real baseline plus the staged delta with limit precision recomputed against the effective total."
+}

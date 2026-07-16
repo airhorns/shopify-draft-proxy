@@ -258,6 +258,7 @@ struct BaseState {
     orders: OrderedRecords<Value>,
     order_count_baselines: BTreeMap<String, Value>,
     discounts: OrderedRecords<Value>,
+    discount_count_baselines: BTreeMap<String, Value>,
     marketing_activities: OrderedRecords<Value>,
     marketing_events: OrderedRecords<Value>,
     gift_cards: BTreeMap<String, Value>,
@@ -1263,6 +1264,14 @@ impl Store {
 
     fn order_count_baseline(&self, key: &str) -> Option<&Value> {
         self.base.order_count_baselines.get(key)
+    }
+
+    fn observe_discount_count_baseline(&mut self, key: String, count: Value) {
+        self.base.discount_count_baselines.insert(key, count);
+    }
+
+    fn discount_count_baseline(&self, key: &str) -> Option<&Value> {
+        self.base.discount_count_baselines.get(key)
     }
 
     fn domain_by_id(&self, id: &str) -> Option<Value> {
