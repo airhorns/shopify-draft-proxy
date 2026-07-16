@@ -7142,6 +7142,40 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'storefront',
+    captureId: 'storefront-discovery',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-storefront-discovery-conformance.mts',
+    purpose:
+      'Authenticated Storefront API evidence for node/nodes dispatch plus mixed search and predictiveSearch behavior after disposable Admin catalog/content setup.',
+    requiredAuthScopes: [
+      'read_products',
+      'write_products',
+      'read_content',
+      'write_content',
+      'read_publications',
+      'write_publications',
+      'stored Storefront access token from corepack pnpm conformance:grant-storefront-token',
+    ],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/storefront/storefront-discovery.json',
+      'config/parity-specs/storefront/storefront-discovery.json',
+      'config/parity-requests/storefront/storefront-discovery-article-setup-admin.graphql',
+      'config/parity-requests/storefront/storefront-discovery-invalid-id.graphql',
+      'config/parity-requests/storefront/storefront-discovery-invalid-limit.graphql',
+      'config/parity-requests/storefront/storefront-discovery-page-two-setup-admin.graphql',
+      'config/parity-requests/storefront/storefront-discovery-pagination.graphql',
+      'config/parity-requests/storefront/storefront-discovery-publish-admin.graphql',
+      'config/parity-requests/storefront/storefront-discovery-read.graphql',
+      'config/parity-requests/storefront/storefront-discovery-setup-admin.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product, collection, blog, article, and two pages through Admin GraphQL; publishes catalog resources to Online Store; polls authenticated Storefront discovery until indexed; then deletes every created resource.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The recorder captures exact publication hydration for proxy replay. Query suggestions use a stable broad prefix only as input; runtime behavior must derive suggestions and tracking parameters without response-keying on the captured term.',
+  },
+  {
+    domain: 'storefront',
     captureId: 'storefront-catalog-read-after-admin-setup',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-storefront-catalog-conformance.mts',

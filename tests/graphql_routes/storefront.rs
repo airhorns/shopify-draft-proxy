@@ -5882,3 +5882,419 @@ fn storefront_collections_live_hybrid_hydrates_once_and_snapshot_absence_stays_l
         })
     );
 }
+
+struct StorefrontDiscoveryFixture {
+    product_id: String,
+    collection_id: String,
+    article_id: String,
+    page_id: String,
+}
+
+fn stage_storefront_discovery_fixture(proxy: &mut DraftProxy) -> StorefrontDiscoveryFixture {
+    let catalog = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageStorefrontDiscoveryCatalog(
+          $product: ProductCreateInput!
+          $collection: CollectionInput!
+        ) {
+          productCreate(product: $product) {
+            product { id title handle }
+            userErrors { field message }
+          }
+          collectionCreate(input: $collection) {
+            collection { id title handle }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "title": "Aurora Discovery Product",
+                "handle": "aurora-discovery-product",
+                "status": "ACTIVE",
+                "vendor": "Hermes Discovery",
+                "productType": "Discovery Fixture",
+                "tags": ["aurora", "discovery"],
+                "productOptions": [{ "name": "Color", "values": [{ "name": "Blue" }] }]
+            },
+            "collection": {
+                "title": "Aurora Discovery Collection",
+                "handle": "aurora-discovery-collection"
+            }
+        }),
+    ));
+    assert_eq!(catalog.status, 200);
+    assert_eq!(
+        catalog.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        catalog.body["data"]["collectionCreate"]["userErrors"],
+        json!([])
+    );
+    let product_id = catalog.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let collection_id = catalog.body["data"]["collectionCreate"]["collection"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    publish_to_current_storefront_channel(proxy, &product_id);
+    publish_to_current_storefront_channel(proxy, &collection_id);
+
+    let content = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageStorefrontDiscoveryContent($blog: BlogCreateInput!, $page: PageCreateInput!) {
+          blogCreate(blog: $blog) {
+            blog { id }
+            userErrors { field message code }
+          }
+          pageCreate(page: $page) {
+            page { id title handle }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "blog": {
+                "title": "Aurora Discovery Blog",
+                "handle": "aurora-discovery-blog"
+            },
+            "page": {
+                "title": "Aurora Discovery Page",
+                "handle": "aurora-discovery-page",
+                "body": "<p>Aurora discovery page body</p>",
+                "isPublished": true
+            }
+        }),
+    ));
+    assert_eq!(content.status, 200);
+    assert_eq!(content.body["data"]["blogCreate"]["userErrors"], json!([]));
+    assert_eq!(content.body["data"]["pageCreate"]["userErrors"], json!([]));
+    let blog_id = content.body["data"]["blogCreate"]["blog"]["id"]
+        .as_str()
+        .unwrap();
+    let page_id = content.body["data"]["pageCreate"]["page"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let article = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageStorefrontDiscoveryArticle($article: ArticleCreateInput!) {
+          articleCreate(article: $article) {
+            article { id title handle }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "article": {
+            "title": "Aurora Discovery Article",
+            "handle": "aurora-discovery-article",
+            "body": "<p>Aurora discovery article body</p>",
+            "summary": "Aurora discovery article summary",
+            "tags": ["aurora", "discovery"],
+            "author": { "name": "Discovery Author" },
+            "blogId": blog_id,
+            "isPublished": true
+        }}),
+    ));
+    assert_eq!(article.status, 200);
+    assert_eq!(
+        article.body["data"]["articleCreate"]["userErrors"],
+        json!([])
+    );
+    let article_id = article.body["data"]["articleCreate"]["article"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    StorefrontDiscoveryFixture {
+        product_id,
+        collection_id,
+        article_id,
+        page_id,
+    }
+}
+
+#[test]
+fn storefront_node_and_nodes_dispatch_supported_visible_types_and_preserve_slots() {
+    let publication_id = "gid://shopify/Publication/storefront-discovery";
+    let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|_| panic!("snapshot Storefront discovery must stay local"));
+    restore_storefront_current_publication(&mut proxy, publication_id);
+    let fixture = stage_storefront_discovery_fixture(&mut proxy);
+
+    let response = proxy.process_request(storefront_graphql_request(
+        r#"
+        query StorefrontNodeDiscovery($productId: ID!, $ids: [ID!]!) {
+          aliasedNode: node(id: $productId) {
+            ...NodeIdentity
+            ... on Product { aliasedTitle: title handle }
+          }
+          aliasedNodes: nodes(ids: $ids) {
+            ...NodeIdentity
+            ... on Product { title handle }
+            ... on Collection { title handle }
+            ... on Article { title handle }
+            ... on Page { title handle }
+          }
+        }
+
+        fragment NodeIdentity on Node { __typename id }
+        "#,
+        json!({
+            "productId": fixture.product_id,
+            "ids": [
+                fixture.page_id,
+                "gid://shopify/Product/missing",
+                fixture.collection_id,
+                fixture.article_id,
+                fixture.product_id,
+                fixture.page_id
+            ]
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body["errors"], Value::Null);
+    assert_eq!(
+        response.body["data"]["aliasedNode"]["__typename"],
+        json!("Product")
+    );
+    assert_eq!(
+        response.body["data"]["aliasedNode"]["aliasedTitle"],
+        json!("Aurora Discovery Product")
+    );
+    let nodes = response.body["data"]["aliasedNodes"].as_array().unwrap();
+    assert_eq!(nodes.len(), 6);
+    assert_eq!(nodes[0]["__typename"], json!("Page"));
+    assert_eq!(nodes[1], Value::Null);
+    assert_eq!(nodes[2]["__typename"], json!("Collection"));
+    assert_eq!(nodes[3]["__typename"], json!("Article"));
+    assert_eq!(nodes[4]["__typename"], json!("Product"));
+    assert_eq!(nodes[5]["id"], nodes[0]["id"]);
+}
+
+#[test]
+fn storefront_discovery_rejects_malformed_global_ids_like_shopify() {
+    let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|_| panic!("invalid snapshot node must not call upstream"));
+    let response = proxy.process_request(storefront_graphql_request(
+        r#"query MalformedStorefrontNode { node(id: "not-a-gid") { id } }"#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["errors"][0]["message"],
+        json!("Invalid global id 'not-a-gid'")
+    );
+    assert_eq!(
+        response.body["errors"][0]["extensions"],
+        json!({ "code": "argumentLiteralsIncompatible", "typeName": "CoercionError" })
+    );
+    assert_eq!(response.body.get("data"), None);
+}
+
+#[test]
+fn storefront_discovery_parity_document_with_operation_name_stays_local() {
+    let publication_id = "gid://shopify/Publication/storefront-discovery-parity-document";
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(|_| panic!("staged Storefront discovery must stay local"));
+    restore_storefront_current_publication(&mut proxy, publication_id);
+    let fixture = stage_storefront_discovery_fixture(&mut proxy);
+    let document =
+        include_str!("../../config/parity-requests/storefront/storefront-discovery-read.graphql");
+    let response = proxy.process_request(request_with_body(
+        "POST",
+        "/api/2026-04/graphql.json",
+        &json!({
+            "query": document,
+            "operationName": "StorefrontDiscoveryRead",
+            "variables": {
+                "productId": fixture.product_id.clone(),
+                "nodeIds": [
+                    fixture.page_id.clone(),
+                    "gid://shopify/Product/missing",
+                    fixture.collection_id.clone(),
+                    fixture.article_id.clone(),
+                    fixture.product_id.clone(),
+                    fixture.page_id.clone()
+                ],
+                "query": "Aurora Discovery",
+                "prefixQuery": "Aurora Disc",
+                "emptyQuery": "zz-no-storefront-discovery-result",
+                "suggestionsQuery": "aur",
+                "tag": "discovery",
+                "after": null
+            }
+        })
+        .to_string(),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body["errors"], Value::Null, "{}", response.body);
+    assert_eq!(response.body["data"]["mixed"]["totalCount"], json!(1));
+    assert_eq!(response.body["data"]["prefixLast"]["totalCount"], json!(3));
+    assert_eq!(response.body["data"]["aliasedNodes"][1], Value::Null);
+}
+
+#[test]
+fn storefront_search_and_predictive_search_use_effective_visible_state() {
+    let publication_id = "gid://shopify/Publication/storefront-discovery-search";
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(|_| panic!("staged Storefront discovery must stay local"));
+    restore_storefront_current_publication(&mut proxy, publication_id);
+    let fixture = stage_storefront_discovery_fixture(&mut proxy);
+
+    let query = r#"
+      query StorefrontSearchDiscovery($after: String) {
+        search(
+          first: 2
+          after: $after
+          query: "Aurora Discovery"
+          prefix: LAST
+          unavailableProducts: SHOW
+        ) {
+          totalCount
+          edges {
+            cursor
+            node {
+              __typename
+              ... on Product { id title handle }
+              ... on Article { id title handle }
+              ... on Page { id title handle }
+            }
+          }
+          nodes { __typename ... on Product { id } ... on Article { id } ... on Page { id } }
+          pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          productFilters { id label type presentation values { id label count input } }
+        }
+        explicitTypes: search(
+          first: 10
+          query: "Aurora Discovery"
+          prefix: LAST
+          types: [PRODUCT, ARTICLE, PAGE]
+          unavailableProducts: SHOW
+        ) {
+          totalCount
+          nodes { __typename ... on Product { id } ... on Article { id } ... on Page { id } }
+        }
+        predictive: predictiveSearch(
+          query: "Aurora Disc"
+          limit: 10
+          limitScope: EACH
+          searchableFields: [TITLE, TAG, PRODUCT_TYPE, VENDOR]
+          types: [PRODUCT, COLLECTION, ARTICLE, PAGE, QUERY]
+          unavailableProducts: SHOW
+        ) {
+          products { id title handle }
+          collections { id title handle }
+          articles { id title handle }
+          pages { id title handle }
+          queries { text styledText trackingParameters }
+        }
+      }
+    "#;
+    let first = proxy.process_request(storefront_graphql_request(query, json!({ "after": null })));
+    assert_eq!(first.status, 200);
+    assert_eq!(first.body["errors"], Value::Null, "{}", first.body);
+    assert_eq!(first.body["data"]["search"]["totalCount"], json!(3));
+    assert_eq!(
+        first.body["data"]["search"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    assert_eq!(
+        first.body["data"]["search"]["pageInfo"]["hasNextPage"],
+        json!(true)
+    );
+    assert_eq!(first.body["data"]["explicitTypes"]["totalCount"], json!(1));
+    assert_eq!(
+        first.body["data"]["explicitTypes"]["nodes"][0]["__typename"],
+        json!("Product")
+    );
+    assert_eq!(
+        first.body["data"]["predictive"]["products"][0]["id"],
+        json!(fixture.product_id)
+    );
+    assert_eq!(
+        first.body["data"]["predictive"]["collections"][0]["id"],
+        json!(fixture.collection_id)
+    );
+    assert_eq!(
+        first.body["data"]["predictive"]["articles"][0]["id"],
+        json!(fixture.article_id)
+    );
+    assert_eq!(
+        first.body["data"]["predictive"]["pages"][0]["id"],
+        json!(fixture.page_id)
+    );
+
+    let cursor = first.body["data"]["search"]["pageInfo"]["endCursor"]
+        .as_str()
+        .unwrap();
+    let second = proxy.process_request(storefront_graphql_request(
+        query,
+        json!({ "after": cursor }),
+    ));
+    assert_eq!(second.body["data"]["search"]["totalCount"], json!(3));
+    assert_eq!(
+        second.body["data"]["search"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        second.body["data"]["search"]["pageInfo"]["hasPreviousPage"],
+        json!(true)
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RemoveStorefrontDiscoveryArticle($articleId: ID!) {
+          articleDelete(id: $articleId) { deletedArticleId userErrors { field message code } }
+        }
+        "#,
+        json!({ "articleId": fixture.article_id }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["articleDelete"]["userErrors"],
+        json!([])
+    );
+    let hide_page = proxy.process_request(json_graphql_request(
+        r#"
+        mutation HideStorefrontDiscoveryPage($pageId: ID!, $page: PageUpdateInput!) {
+          pageUpdate(id: $pageId, page: $page) { page { id isPublished } userErrors { field message code } }
+        }
+        "#,
+        json!({ "pageId": fixture.page_id, "page": { "isPublished": false } }),
+    ));
+    assert_eq!(hide_page.status, 200);
+    assert_eq!(
+        hide_page.body["data"]["pageUpdate"]["userErrors"],
+        json!([])
+    );
+    unpublish_from_current_storefront_channel(&mut proxy, &fixture.product_id);
+    unpublish_from_current_storefront_channel(&mut proxy, &fixture.collection_id);
+
+    let hidden = proxy.process_request(storefront_graphql_request(query, json!({ "after": null })));
+    assert_eq!(hidden.body["data"]["search"]["totalCount"], json!(0));
+    assert_eq!(hidden.body["data"]["search"]["nodes"], json!([]));
+    assert_eq!(hidden.body["data"]["predictive"]["products"], json!([]));
+    assert_eq!(hidden.body["data"]["predictive"]["collections"], json!([]));
+    assert_eq!(hidden.body["data"]["predictive"]["articles"], json!([]));
+    assert_eq!(hidden.body["data"]["predictive"]["pages"], json!([]));
+}

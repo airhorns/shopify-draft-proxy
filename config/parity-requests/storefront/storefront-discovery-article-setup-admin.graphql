@@ -1,0 +1,26 @@
+mutation StorefrontDiscoveryArticleSetup($article: ArticleCreateInput!) {
+  articleCreate(article: $article) {
+    article {
+      id
+      title
+      handle
+      body
+      summary
+      tags
+      isPublished
+      author {
+        name
+      }
+      blog {
+        id
+        title
+        handle
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

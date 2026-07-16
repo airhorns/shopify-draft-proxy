@@ -3,7 +3,8 @@
 use super::graphql_error_compat::shopify_storefront_engine_response;
 use super::graphql_runtime::with_request_owned_proxy;
 use super::storefront::{
-    storefront_request_context, StorefrontCustomerAuthLogDetails, STOREFRONT_CART_MUTATION_ROOTS,
+    storefront_discovery_argument_error, storefront_request_context,
+    StorefrontCustomerAuthLogDetails, STOREFRONT_CART_MUTATION_ROOTS,
     STOREFRONT_CUSTOMER_AUTH_MUTATION_ROOTS,
 };
 use super::*;
@@ -343,6 +344,31 @@ impl DraftProxy {
                 }));
             }
         }
+        if let Some((field, (message, extensions))) =
+            prepared.as_ref().and_then(|(document, _, _)| {
+                document.root_fields.iter().find_map(|field| {
+                    storefront_discovery_argument_error(field).map(|error| (field, error))
+                })
+            })
+        {
+            self.record_storefront_log_entry(
+                request,
+                "rejected",
+                "overlay-read",
+                "Storefront discovery arguments failed captured Shopify validation.",
+            );
+            let error = json!({
+                "message": message,
+                "path": [field.response_key],
+                "extensions": extensions
+            });
+            if field.name == "predictiveSearch" {
+                let mut data = serde_json::Map::new();
+                data.insert(field.response_key.clone(), Value::Null);
+                return ok_json(json!({ "data": Value::Object(data), "errors": [error] }));
+            }
+            return ok_json(json!({ "errors": [error] }));
+        }
         let all_local = !capabilities.is_empty()
             && capabilities.iter().all(|capability| {
                 capability.api_surface == ApiSurface::Storefront
@@ -528,7 +554,19 @@ fn storefront_errors_only_expand_null_local_values(
     !errors.is_empty()
         && errors.iter().all(|error| {
             if let Some(path) = error.get("path").and_then(Value::as_array) {
-                return storefront_path_descends_through_local_null(
+                let message = error.get("message").and_then(Value::as_str);
+                if message.is_some_and(|message| {
+                    message.starts_with("Storefront snapshot has no value for non-null root")
+                        || message.starts_with("Local resolver did not implement")
+                }) && storefront_path_value(local_body.pointer("/data"), path)
+                    .is_some_and(|value| !value.is_null())
+                {
+                    return true;
+                }
+                return message.is_some_and(|message| {
+                    message.contains("invalid value for interface")
+                        || message.contains("\"null\" is not of the expected type")
+                }) && storefront_path_descends_through_local_null(
                     local_body.pointer("/data"),
                     path,
                 );
@@ -539,6 +577,18 @@ fn storefront_errors_only_expand_null_local_values(
                 .is_some_and(|message| message.contains("\"null\" is not of the expected type"))
                 && storefront_local_data_contains_null_list_item(local_body.pointer("/data"))
         })
+}
+
+fn storefront_path_value<'a>(root: Option<&'a Value>, path: &[Value]) -> Option<&'a Value> {
+    let mut value = root?;
+    for segment in path {
+        value = match value {
+            Value::Object(fields) => fields.get(segment.as_str()?)?,
+            Value::Array(items) => items.get(segment.as_u64()? as usize)?,
+            _ => return None,
+        };
+    }
+    Some(value)
 }
 
 fn storefront_path_descends_through_local_null(root: Option<&Value>, path: &[Value]) -> bool {
@@ -571,7 +621,7 @@ fn storefront_path_descends_through_local_null(root: Option<&Value>, path: &[Val
             _ => return false,
         }
     }
-    false
+    value.is_null()
 }
 
 fn storefront_local_data_contains_null_list_item(root: Option<&Value>) -> bool {

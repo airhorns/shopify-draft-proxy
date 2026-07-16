@@ -4298,3 +4298,17 @@ Practical rule:
 - do not send locally allocated preferred-location IDs upstream, and do not
   claim positive company-catalog quantity pricing or availability without a
   separate authenticated capture
+
+## 101. Storefront discovery separates direct identity, asynchronous indexing, and opaque suggestions
+
+Authenticated Storefront GraphQL 2026-04 discovery capture established three different consistency boundaries in one disposable product/collection/article/page lifecycle:
+
+- `node` and `nodes` exposed newly created visible resources immediately. `nodes` retained caller order and duplicates, returned a null slot for a valid missing Product GID, and projected concrete fragments through the Storefront `Node` interface. A malformed literal ID failed before data with `Invalid global id`, `argumentLiteralsIncompatible`, and `CoercionError`.
+- Storefront search indexing was asynchronous and its count could temporarily retain recently deleted rows. A full freshly unique phrase with explicit `types: [PRODUCT, ARTICLE, PAGE]` returned only the first requested type, while omitting `types` and using `prefix: LAST` on the final partial term returned the current product, article, and page. The selected node payloads were stable even while `totalCount` reflected index lag.
+- Predictive search returned the current product, collection, article, and page for the partial phrase. `limitScope: ALL` allocated the shared limit in Product, Collection, Page, then Article order in this capture. Query suggestions for a broad prefix came from Shopify's private corpus and carried a request-scoped `_psid`; a limit outside 1–10 returned `INVALID_FIELD_ARGUMENTS` with `limit must be within 1..10`.
+
+Practical rule:
+
+- derive direct Node results from effective visible store state and preserve null/order semantics exactly
+- implement computable search grammar, filters, visibility, pagination, resource types, and limit allocation from store state, but use deterministic local relevance and suggestion terms instead of replaying captured rows
+- compare whole selected abstract resource payloads; scope unavoidable differences to synthetic IDs and opaque suggestion scalar values rather than hiding type, visibility, or payload-shape mismatches

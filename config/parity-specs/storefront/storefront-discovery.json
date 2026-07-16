@@ -1,0 +1,393 @@
+{
+  "scenarioId": "storefront-discovery",
+  "operationNames": ["node", "nodes", "search", "predictiveSearch"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "downstream-read-parity",
+    "pagination-parity",
+    "search-parity",
+    "storefront-api-local-overlay",
+    "authenticated-read",
+    "error-parity"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/storefront/storefront-discovery.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/storefront.rs"],
+  "proxyConfig": { "readMode": "live-hybrid" },
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/storefront/storefront-discovery-setup-admin.graphql",
+    "variablesCapturePath": "$.adminSetup.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "admin-discovery-setup-stages-supported-domains",
+        "capturePath": "$.adminSetup.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.productCreate.userErrors",
+          "$.collectionCreate.userErrors",
+          "$.blogCreate.userErrors",
+          "$.pageCreate.userErrors"
+        ]
+      },
+      {
+        "name": "admin-discovery-article-setup-stages-against-proxy-blog",
+        "capturePath": "$.adminArticleSetup.response.data.articleCreate",
+        "proxyPath": "$.data.articleCreate",
+        "selectedPaths": ["$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-discovery-article-setup-admin.graphql",
+          "variables": {
+            "article": {
+              "title": { "fromCapturePath": "$.adminArticleSetup.request.variables.article.title" },
+              "handle": { "fromCapturePath": "$.adminArticleSetup.request.variables.article.handle" },
+              "body": { "fromCapturePath": "$.adminArticleSetup.request.variables.article.body" },
+              "summary": { "fromCapturePath": "$.adminArticleSetup.request.variables.article.summary" },
+              "tags": { "fromCapturePath": "$.adminArticleSetup.request.variables.article.tags" },
+              "author": { "fromCapturePath": "$.adminArticleSetup.request.variables.article.author" },
+              "isPublished": {
+                "fromCapturePath": "$.adminArticleSetup.request.variables.article.isPublished"
+              },
+              "blogId": { "fromPrimaryProxyPath": "$.data.blogCreate.blog.id" }
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "admin-discovery-publish-makes-catalog-resources-visible",
+        "capturePath": "$.adminPublish.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.product.userErrors", "$.collection.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-discovery-publish-admin.graphql",
+          "variables": {
+            "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+            "collectionId": { "fromPrimaryProxyPath": "$.data.collectionCreate.collection.id" },
+            "input": { "fromCapturePath": "$.adminPublish.request.variables.input" },
+            "publicationId": { "fromCapturePath": "$.adminPublish.request.variables.publicationId" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "storefront-discovery-whole-selected-abstract-payloads",
+        "capturePath": "$.storefrontDiscovery.response.body.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.aliasedNode",
+          "$.aliasedNodes",
+          "$.mixed",
+          "$.prefixLast",
+          "$.prefixNone",
+          "$.filteredProducts",
+          "$.hiddenUnavailableProducts",
+          "$.predictiveEach",
+          "$.predictiveAll",
+          "$.empty",
+          "$.suggestions",
+          "$.emptyPredictive"
+        ],
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-discovery-read.graphql",
+          "operationName": "StorefrontDiscoveryRead",
+          "variables": {
+            "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+            "nodeIds": [
+              { "fromPrimaryProxyPath": "$.data.pageCreate.page.id" },
+              "gid://shopify/Product/999999999999999999",
+              { "fromPrimaryProxyPath": "$.data.collectionCreate.collection.id" },
+              {
+                "fromProxyResponse": "admin-discovery-article-setup-stages-against-proxy-blog",
+                "path": "$.data.articleCreate.article.id"
+              },
+              { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+              { "fromPrimaryProxyPath": "$.data.pageCreate.page.id" }
+            ],
+            "query": { "fromCapturePath": "$.storefrontDiscovery.variables.query" },
+            "prefixQuery": { "fromCapturePath": "$.storefrontDiscovery.variables.prefixQuery" },
+            "emptyQuery": { "fromCapturePath": "$.storefrontDiscovery.variables.emptyQuery" },
+            "suggestionsQuery": {
+              "fromCapturePath": "$.storefrontDiscovery.variables.suggestionsQuery"
+            },
+            "tag": { "fromCapturePath": "$.storefrontDiscovery.variables.tag" },
+            "after": null
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.aliasedNode.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy projects the staged synthetic Product ID."
+          },
+          {
+            "path": "$.aliasedNodes[0].id",
+            "matcher": "shopify-gid:Page",
+            "reason": "The proxy projects the staged synthetic Page ID."
+          },
+          {
+            "path": "$.aliasedNodes[2].id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The proxy projects the staged synthetic Collection ID."
+          },
+          {
+            "path": "$.aliasedNodes[3].id",
+            "matcher": "shopify-gid:Article",
+            "reason": "The proxy projects the staged synthetic Article ID."
+          },
+          {
+            "path": "$.aliasedNodes[3].blog.id",
+            "matcher": "shopify-gid:Blog",
+            "reason": "The proxy links the article to the staged synthetic Blog ID."
+          },
+          {
+            "path": "$.aliasedNodes[4].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy projects the staged synthetic Product ID."
+          },
+          {
+            "path": "$.aliasedNodes[5].id",
+            "matcher": "shopify-gid:Page",
+            "reason": "The proxy preserves the duplicate staged Page ID."
+          },
+          {
+            "path": "$.mixed.edges[0].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify search cursors are opaque; the proxy uses stable resource-ID cursors."
+          },
+          {
+            "path": "$.mixed.edges[0].node.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy projects the staged synthetic Product ID."
+          },
+          {
+            "path": "$.mixed.nodes[0].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy projects the staged synthetic Product ID."
+          },
+          {
+            "path": "$.mixed.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify search cursors are opaque; the proxy uses stable resource-ID cursors."
+          },
+          {
+            "path": "$.mixed.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify search cursors are opaque; the proxy uses stable resource-ID cursors."
+          },
+          {
+            "path": "$.prefixLast.nodes[0].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy projects the staged synthetic Product ID."
+          },
+          {
+            "path": "$.prefixLast.nodes[0].priceRange.minVariantPrice.currencyCode",
+            "matcher": "non-empty-string",
+            "reason": "Currency is hydrated from the recorded shop context."
+          },
+          {
+            "path": "$.prefixLast.nodes[0].priceRange.maxVariantPrice.currencyCode",
+            "matcher": "non-empty-string",
+            "reason": "Currency is hydrated from the recorded shop context."
+          },
+          {
+            "path": "$.prefixLast.nodes[1].id",
+            "matcher": "shopify-gid:Article",
+            "reason": "The proxy projects the staged synthetic Article ID."
+          },
+          {
+            "path": "$.prefixLast.nodes[1].blog.id",
+            "matcher": "shopify-gid:Blog",
+            "reason": "The proxy links the staged synthetic Blog ID."
+          },
+          {
+            "path": "$.prefixLast.nodes[2].id",
+            "matcher": "shopify-gid:Page",
+            "reason": "The proxy projects the staged synthetic Page ID."
+          },
+          {
+            "path": "$.prefixNone.nodes[0].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy projects the staged synthetic Product ID."
+          },
+          {
+            "path": "$.filteredProducts.nodes[0].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy projects the staged synthetic Product ID."
+          },
+          {
+            "path": "$.hiddenUnavailableProducts.nodes[0].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy projects the staged synthetic Product ID."
+          },
+          {
+            "path": "$.predictiveEach.products[0].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy projects the staged synthetic Product ID."
+          },
+          {
+            "path": "$.predictiveEach.collections[0].id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The proxy projects the staged synthetic Collection ID."
+          },
+          {
+            "path": "$.predictiveEach.articles[0].id",
+            "matcher": "shopify-gid:Article",
+            "reason": "The proxy projects the staged synthetic Article ID."
+          },
+          {
+            "path": "$.predictiveEach.pages[0].id",
+            "matcher": "shopify-gid:Page",
+            "reason": "The proxy projects the staged synthetic Page ID."
+          },
+          {
+            "path": "$.predictiveAll.products[0].id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy projects the staged synthetic Product ID."
+          },
+          {
+            "path": "$.predictiveAll.collections[0].id",
+            "matcher": "shopify-gid:Collection",
+            "reason": "The proxy projects the staged synthetic Collection ID."
+          },
+          {
+            "path": "$.predictiveAll.pages[0].id",
+            "matcher": "shopify-gid:Page",
+            "reason": "The proxy projects the staged synthetic Page ID."
+          },
+          {
+            "path": "$.suggestions.queries[*].text",
+            "matcher": "non-empty-string",
+            "reason": "Shopify's query-suggestion corpus/ranking is opaque; the proxy emits deterministic visible-state terms."
+          },
+          {
+            "path": "$.suggestions.queries[*].styledText",
+            "matcher": "non-empty-string",
+            "reason": "Styled suggestion text follows the deterministic local term rather than Shopify's opaque corpus."
+          },
+          {
+            "path": "$.suggestions.queries[*].trackingParameters",
+            "matcher": "non-empty-string",
+            "reason": "Shopify's request-scoped tracking session is opaque; the proxy emits deterministic tracking parameters."
+          }
+        ]
+      },
+      {
+        "name": "admin-discovery-second-page-setup",
+        "capturePath": "$.adminPageTwoSetup.response.data.pageCreate",
+        "proxyPath": "$.data.pageCreate",
+        "selectedPaths": ["$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-discovery-page-two-setup-admin.graphql",
+          "variables": {
+            "page": { "fromCapturePath": "$.adminPageTwoSetup.request.variables.page" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "storefront-discovery-search-first-page",
+        "capturePath": "$.storefrontDiscoveryPagination.response.body.data.pagination",
+        "proxyPath": "$.data.pagination",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-discovery-pagination.graphql",
+          "operationName": "StorefrontDiscoveryPagination",
+          "variables": {
+            "query": { "fromCapturePath": "$.storefrontDiscoveryPagination.variables.query" },
+            "after": null
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.nodes[0].id",
+            "matcher": "shopify-gid:Page",
+            "reason": "The first disposable search page projects a staged synthetic Page ID."
+          },
+          {
+            "path": "$.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify search cursors are opaque; the proxy uses stable resource-ID cursors."
+          },
+          {
+            "path": "$.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify search cursors are opaque; the proxy uses stable resource-ID cursors."
+          }
+        ]
+      },
+      {
+        "name": "storefront-discovery-search-second-page",
+        "capturePath": "$.storefrontDiscoveryPageTwo.response.body.data.pagination",
+        "proxyPath": "$.data.pagination",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-discovery-pagination.graphql",
+          "operationName": "StorefrontDiscoveryPagination",
+          "variables": {
+            "query": { "fromCapturePath": "$.storefrontDiscoveryPagination.variables.query" },
+            "after": {
+              "fromProxyResponse": "storefront-discovery-search-first-page",
+              "path": "$.data.pagination.pageInfo.endCursor"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.nodes[0].id",
+            "matcher": "shopify-gid:Page",
+            "reason": "The second disposable search page projects the second staged synthetic Page ID."
+          },
+          {
+            "path": "$.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify search cursors are opaque; the proxy uses stable resource-ID cursors."
+          },
+          {
+            "path": "$.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify search cursors are opaque; the proxy uses stable resource-ID cursors."
+          }
+        ]
+      },
+      {
+        "name": "storefront-node-invalid-global-id-error",
+        "capturePath": "$.storefrontInvalidId.response.body",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-discovery-invalid-id.graphql",
+          "operationName": "StorefrontDiscoveryInvalidId",
+          "variables": {},
+          "apiVersion": "2026-04"
+        },
+        "excludedPaths": ["$.errors[*].locations", "$.errors[*].path"]
+      },
+      {
+        "name": "storefront-predictive-invalid-limit-error",
+        "capturePath": "$.storefrontInvalidLimit.response.body",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-discovery-invalid-limit.graphql",
+          "operationName": "StorefrontDiscoveryInvalidLimit",
+          "variables": {},
+          "apiVersion": "2026-04"
+        },
+        "excludedPaths": ["$.extensions", "$.errors[*].locations", "$.errors[*].path"]
+      }
+    ]
+  },
+  "notes": "Captured Storefront 2026-04 evidence uses disposable Admin setup/cleanup. Search result indexing and query-suggestion ranking are Shopify-opaque; whole selected resource payloads are compared where computable, while suggestion scalar values use non-empty matchers against a deterministic visible-state approximation."
+}

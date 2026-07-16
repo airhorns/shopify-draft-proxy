@@ -1,0 +1,66 @@
+mutation StorefrontDiscoverySetup(
+  $product: ProductCreateInput!
+  $collection: CollectionInput!
+  $blog: BlogCreateInput!
+  $page: PageCreateInput!
+) {
+  productCreate(product: $product) {
+    product {
+      id
+      title
+      handle
+      status
+      vendor
+      productType
+      tags
+      variants(first: 1) {
+        nodes {
+          id
+          price
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  collectionCreate(input: $collection) {
+    collection {
+      id
+      title
+      handle
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  blogCreate(blog: $blog) {
+    blog {
+      id
+      title
+      handle
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  pageCreate(page: $page) {
+    page {
+      id
+      title
+      handle
+      body
+      bodySummary
+      isPublished
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -343,6 +343,10 @@ fn storefront_root_is_implemented(operation_type: OperationType, name: &str) -> 
                 | "urlRedirects"
                 | "metaobject"
                 | "metaobjects"
+                | "node"
+                | "nodes"
+                | "search"
+                | "predictiveSearch"
         ),
         OperationType::Mutation => matches!(
             name,
