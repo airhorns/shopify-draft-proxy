@@ -239,6 +239,9 @@ impl DraftProxy {
             .as_ref()
             .map(|operation| operation.operation_type.keyword())
             .unwrap_or("unknown");
+        let cart_sensitive = root_fields
+            .iter()
+            .any(|root| storefront_cart::storefront_cart_root_is_sensitive(root));
         let raw_query = parsed_body
             .as_ref()
             .map(|body| body.query.clone())
@@ -247,21 +250,29 @@ impl DraftProxy {
             .as_ref()
             .map(|body| resolved_variables_json(&body.variables))
             .unwrap_or_else(|| json!({}));
-        let variables =
-            super::storefront::storefront_redact_sensitive_json(raw_variables.clone(), None);
-        let contains_sensitive_context = variables != raw_variables
+        let variables = if cart_sensitive {
+            json!({ "redacted": true })
+        } else {
+            super::storefront::storefront_redact_sensitive_json(raw_variables.clone(), None)
+        };
+        let contains_sensitive_context = cart_sensitive
+            || variables != raw_variables
             || raw_query.contains("customerAccessToken")
             || raw_query.contains("multipassToken")
             || raw_query.contains("resetToken")
             || raw_query.contains("activationToken");
-        let query = if contains_sensitive_context {
+        let query = if cart_sensitive {
+            json!("<redacted:storefront-cart-query>")
+        } else if contains_sensitive_context {
             json!("<redacted:storefront-sensitive-query>")
         } else if raw_query.is_empty() {
             Value::Null
         } else {
             json!(raw_query)
         };
-        let raw_body = if contains_sensitive_context {
+        let raw_body = if cart_sensitive {
+            json!("<redacted:storefront-cart-request>")
+        } else if contains_sensitive_context {
             json!("<redacted:storefront-sensitive-request>")
         } else {
             json!(request.body)
@@ -536,6 +547,12 @@ impl DraftProxy {
                 "storefrontCustomerAccessTokens": self.store.staged.storefront_customer_access_tokens.clone(),
                 "nextStorefrontCustomerAccessTokenId": self.store.staged.next_storefront_customer_access_token_id,
                 "nextStorefrontCustomerResetTokenId": self.store.staged.next_storefront_customer_reset_token_id,
+                "storefrontCarts": self.store.staged.storefront_carts.clone(),
+                "storefrontCartOrder": self.store.staged.storefront_cart_order.clone(),
+                "storefrontCartLines": self.store.staged.storefront_cart_lines.clone(),
+                "storefrontCartLineOrder": self.store.staged.storefront_cart_line_order.clone(),
+                "nextStorefrontCartId": self.store.staged.next_storefront_cart_id,
+                "nextStorefrontCartLineId": self.store.staged.next_storefront_cart_line_id,
                 "customersCountBase": self.store.staged.customers_count_base,
                 "storeCreditAccounts": self.store.staged.store_credit_accounts.records.clone(),
                 "storeCreditAccountOrder": self.store.staged.store_credit_accounts.order.clone(),
@@ -2132,6 +2149,26 @@ impl DraftProxy {
             "nextStorefrontCustomerResetTokenId",
             1,
         );
+        self.store.staged.storefront_carts = state["stagedState"]
+            .get("storefrontCarts")
+            .and_then(|value| serde_json::from_value(value.clone()).ok())
+            .unwrap_or_default();
+        self.store.staged.storefront_cart_order = state["stagedState"]
+            .get("storefrontCartOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| self.store.staged.storefront_carts.keys().cloned().collect());
+        self.store.staged.storefront_cart_lines = state["stagedState"]
+            .get("storefrontCartLines")
+            .and_then(|value| serde_json::from_value(value.clone()).ok())
+            .unwrap_or_default();
+        self.store.staged.storefront_cart_line_order = state["stagedState"]
+            .get("storefrontCartLineOrder")
+            .and_then(|value| serde_json::from_value(value.clone()).ok())
+            .unwrap_or_default();
+        self.store.staged.next_storefront_cart_id =
+            counter_from_json_with_floor(&state["stagedState"], "nextStorefrontCartId", 1);
+        self.store.staged.next_storefront_cart_line_id =
+            counter_from_json_with_floor(&state["stagedState"], "nextStorefrontCartLineId", 1);
         self.store.staged.customers_count_base =
             state["stagedState"]["customersCountBase"].as_u64();
         replace_staged_value_records(

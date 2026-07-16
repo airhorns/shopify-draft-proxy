@@ -3,7 +3,7 @@
 use super::graphql_error_compat::shopify_storefront_engine_response;
 use super::graphql_runtime::with_request_owned_proxy;
 use super::storefront::{
-    storefront_request_context, StorefrontCustomerAuthLogDetails,
+    storefront_request_context, StorefrontCustomerAuthLogDetails, STOREFRONT_CART_MUTATION_ROOTS,
     STOREFRONT_CUSTOMER_AUTH_MUTATION_ROOTS,
 };
 use super::*;
@@ -358,31 +358,49 @@ impl DraftProxy {
                     }
                     OperationType::Subscription => false,
                 });
-        if prepared.as_ref().is_some_and(|(document, _, _)| {
+        let has_customer_auth_mutation = prepared.as_ref().is_some_and(|(document, _, _)| {
             document.operation_type == OperationType::Mutation
                 && document.root_fields.iter().any(|field| {
                     STOREFRONT_CUSTOMER_AUTH_MUTATION_ROOTS.contains(&field.name.as_str())
                 })
-                && !all_local
-        }) {
+        });
+        let has_cart_mutation = prepared.as_ref().is_some_and(|(document, _, _)| {
+            document.operation_type == OperationType::Mutation
+                && document
+                    .root_fields
+                    .iter()
+                    .any(|field| STOREFRONT_CART_MUTATION_ROOTS.contains(&field.name.as_str()))
+        });
+        if (has_customer_auth_mutation || has_cart_mutation) && !all_local {
             let (document, variables, _) = prepared
                 .as_ref()
-                .expect("prepared document should exist for mixed customer-auth rejection");
-            self.record_storefront_customer_auth_log_entry(
-                request,
-                selected_query.as_deref().unwrap_or(&graphql_request.query),
-                variables,
-                &document.root_fields,
-                StorefrontCustomerAuthLogDetails {
-                    status: "rejected",
-                    execution: "stage-locally",
-                    notes: "Storefront customer-auth mutations cannot be mixed with unsupported Storefront roots.",
-                },
-            );
-            return json_error(
-                400,
-                "Storefront customer-auth mutations cannot be mixed with unsupported Storefront roots",
-            );
+                .expect("prepared document should exist for mixed local Storefront rejection");
+            if has_customer_auth_mutation {
+                self.record_storefront_customer_auth_log_entry(
+                    request,
+                    selected_query.as_deref().unwrap_or(&graphql_request.query),
+                    variables,
+                    &document.root_fields,
+                    StorefrontCustomerAuthLogDetails {
+                        status: "rejected",
+                        execution: "stage-locally",
+                        notes: "Storefront customer-auth mutations cannot be mixed with unsupported Storefront roots.",
+                    },
+                );
+            } else {
+                self.record_storefront_log_entry(
+                    request,
+                    "rejected",
+                    "stage-locally",
+                    "Storefront cart mutations cannot be mixed with unsupported Storefront roots.",
+                );
+            }
+            let message = if has_customer_auth_mutation {
+                "Storefront customer-auth mutations cannot be mixed with unsupported Storefront roots"
+            } else {
+                "Storefront cart mutations cannot be mixed with unsupported Storefront roots"
+            };
+            return json_error(400, message);
         }
         let mode = match (self.config.read_mode.clone(), operation_type, all_local) {
             (ReadMode::Snapshot, Some(OperationType::Mutation), true) => {
@@ -625,7 +643,18 @@ fn storefront_root_result(
                         })
                         .collect()
                 }),
-                locations: Vec::new(),
+                locations: error
+                    .get("locations")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|location| {
+                        Some(async_graphql::Pos {
+                            line: location.get("line")?.as_u64()? as usize,
+                            column: location.get("column")?.as_u64()? as usize,
+                        })
+                    })
+                    .collect(),
             })
         })
         .collect::<Vec<_>>();

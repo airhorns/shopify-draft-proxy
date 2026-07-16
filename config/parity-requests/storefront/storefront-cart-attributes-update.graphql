@@ -1,0 +1,22 @@
+mutation StorefrontCartAttributesUpdate($cartId: ID!, $attributes: [AttributeInput!]!) {
+  cartAttributesUpdate(cartId: $cartId, attributes: $attributes) {
+    cart {
+      id
+      updatedAt
+      attributes {
+        key
+        value
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+    warnings {
+      code
+      message
+      target
+    }
+  }
+}

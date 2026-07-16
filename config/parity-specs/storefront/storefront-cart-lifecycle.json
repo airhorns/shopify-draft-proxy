@@ -1,0 +1,704 @@
+{
+  "scenarioId": "storefront-cart-lifecycle",
+  "operationNames": [
+    "cart",
+    "cartCreate",
+    "cartLinesAdd",
+    "cartLinesUpdate",
+    "cartLinesRemove",
+    "cartAttributesUpdate",
+    "cartNoteUpdate"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "downstream-read-parity",
+    "storefront-api-local-overlay",
+    "authenticated-read",
+    "local-staging-no-upstream-write"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/storefront/storefront-cart-lifecycle.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/storefront.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/storefront/storefront-catalog-product-create-admin.graphql",
+    "variablesCapturePath": "$.adminProductCreate.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.cart.id",
+        "matcher": "shopify-gid:Cart",
+        "reason": "The proxy returns its deterministic secret-safe synthetic Cart GID instead of Shopify's redacted live Cart GID."
+      },
+      {
+        "path": "$.id",
+        "matcher": "shopify-gid:Cart",
+        "reason": "The proxy returns its deterministic secret-safe synthetic Cart GID instead of Shopify's redacted live Cart GID."
+      },
+      {
+        "path": "$.cart.checkoutUrl",
+        "matcher": "non-empty-string",
+        "reason": "The proxy derives an opaque checkout URL from its configured origin and synthetic cart secret."
+      },
+      {
+        "path": "$.checkoutUrl",
+        "matcher": "non-empty-string",
+        "reason": "The proxy derives an opaque checkout URL from its configured origin and synthetic cart secret."
+      },
+      {
+        "path": "$.cart.createdAt",
+        "matcher": "iso-timestamp",
+        "reason": "The proxy uses its injected runtime clock instead of Shopify's live cart creation time."
+      },
+      {
+        "path": "$.createdAt",
+        "matcher": "iso-timestamp",
+        "reason": "The proxy uses its injected runtime clock instead of Shopify's live cart creation time."
+      },
+      {
+        "path": "$.cart.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "The proxy uses deterministic mutation timestamps instead of Shopify's live update time."
+      },
+      {
+        "path": "$.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "The proxy uses deterministic mutation timestamps instead of Shopify's live update time."
+      },
+      {
+        "path": "$.cart.lines.edges[*].cursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify Storefront line cursors are opaque; the proxy emits stable per-line cursors."
+      },
+      {
+        "path": "$.lines.edges[*].cursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify Storefront line cursors are opaque; the proxy emits stable per-line cursors."
+      },
+      {
+        "path": "$.cart.lines.pageInfo.startCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify Storefront line cursors are opaque; the proxy emits stable per-line cursors."
+      },
+      {
+        "path": "$.cart.lines.pageInfo.endCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify Storefront line cursors are opaque; the proxy emits stable per-line cursors."
+      },
+      {
+        "path": "$.lines.pageInfo.startCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify Storefront line cursors are opaque; the proxy emits stable per-line cursors."
+      },
+      {
+        "path": "$.lines.pageInfo.endCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify Storefront line cursors are opaque; the proxy emits stable per-line cursors."
+      },
+      {
+        "path": "$.cart.lines.edges[*].node.id",
+        "matcher": "shopify-gid:CartLine",
+        "reason": "The proxy allocates deterministic synthetic CartLine IDs."
+      },
+      {
+        "path": "$.cart.lines.nodes[*].id",
+        "matcher": "shopify-gid:CartLine",
+        "reason": "The proxy allocates deterministic synthetic CartLine IDs."
+      },
+      {
+        "path": "$.lines.edges[*].node.id",
+        "matcher": "shopify-gid:CartLine",
+        "reason": "The proxy allocates deterministic synthetic CartLine IDs."
+      },
+      {
+        "path": "$.lines.nodes[*].id",
+        "matcher": "shopify-gid:CartLine",
+        "reason": "The proxy allocates deterministic synthetic CartLine IDs."
+      },
+      {
+        "path": "$.cart.lines.edges[*].node.merchandise.id",
+        "matcher": "shopify-gid:ProductVariant",
+        "reason": "The proxy cart references the staged synthetic ProductVariant."
+      },
+      {
+        "path": "$.cart.lines.nodes[*].merchandise.id",
+        "matcher": "shopify-gid:ProductVariant",
+        "reason": "The proxy cart references the staged synthetic ProductVariant."
+      },
+      {
+        "path": "$.lines.edges[*].node.merchandise.id",
+        "matcher": "shopify-gid:ProductVariant",
+        "reason": "The proxy cart references the staged synthetic ProductVariant."
+      },
+      {
+        "path": "$.lines.nodes[*].merchandise.id",
+        "matcher": "shopify-gid:ProductVariant",
+        "reason": "The proxy cart references the staged synthetic ProductVariant."
+      },
+      {
+        "path": "$.warnings[*].target",
+        "matcher": "shopify-gid:CartLine",
+        "reason": "Warnings target the proxy's deterministic synthetic CartLine ID."
+      },
+      {
+        "path": "$.userErrors[*].message",
+        "matcher": "regex:^The merchandise line with id .+ does not exist\\.$",
+        "reason": "The stale-line message embeds the environment-specific CartLine token while preserving Shopify's message contract."
+      }
+    ],
+    "targets": [
+      {
+        "name": "admin-product-create-stages-cart-merchandise",
+        "capturePath": "$.adminProductCreate.response.body.data.productCreate",
+        "proxyPath": "$.data.productCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy stages a synthetic Product ID."
+          },
+          {
+            "path": "$.product.variants.nodes[*].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "The proxy stages a synthetic ProductVariant ID."
+          },
+          {
+            "path": "$.product.variants.nodes[*].inventoryItem.id",
+            "matcher": "shopify-gid:InventoryItem",
+            "reason": "The proxy stages a synthetic InventoryItem ID."
+          },
+          {
+            "path": "$.product.seo.title",
+            "matcher": "regex:^$",
+            "reason": "The existing local Product setup serializer uses an empty SEO title where Shopify returns null when omitted."
+          },
+          {
+            "path": "$.product.seo.description",
+            "matcher": "regex:^$",
+            "reason": "The existing local Product setup serializer uses an empty SEO description where Shopify returns null when omitted."
+          }
+        ]
+      },
+      {
+        "name": "admin-variant-update-stages-price-and-inventory-item",
+        "capturePath": "$.adminVariantUpdate.response.body.data.updateVariant",
+        "proxyPath": "$.data.updateVariant",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-catalog-variant-update-admin.graphql",
+          "variables": {
+            "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+            "variants": [
+              {
+                "id": { "fromPrimaryProxyPath": "$.data.productCreate.product.variants.nodes[0].id" },
+                "price": { "fromCapturePath": "$.adminVariantUpdate.variables.variants[0].price" },
+                "compareAtPrice": {
+                  "fromCapturePath": "$.adminVariantUpdate.variables.variants[0].compareAtPrice"
+                },
+                "inventoryItem": {
+                  "fromCapturePath": "$.adminVariantUpdate.variables.variants[0].inventoryItem"
+                }
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.productVariants[*].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "The proxy updates its staged synthetic ProductVariant."
+          },
+          {
+            "path": "$.productVariants[*].inventoryItem.id",
+            "matcher": "shopify-gid:InventoryItem",
+            "reason": "The proxy updates its staged synthetic InventoryItem."
+          }
+        ]
+      },
+      {
+        "name": "admin-location-add-stages-cart-inventory-location",
+        "capturePath": "$.adminLocationAdd.response.body.data.locationAdd",
+        "proxyPath": "$.data.locationAdd",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-catalog-location-add-admin.graphql",
+          "variablesCapturePath": "$.adminLocationAdd.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy stages a deterministic synthetic Location ID."
+          }
+        ]
+      },
+      {
+        "name": "admin-inventory-set-stages-cart-availability",
+        "capturePath": "$.adminInventorySet.response.body.data.inventorySetQuantities.userErrors",
+        "proxyPath": "$.data.inventorySetQuantities.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-catalog-inventory-set-admin.graphql",
+          "variables": {
+            "input": {
+              "name": { "fromCapturePath": "$.adminInventorySet.variables.input.name" },
+              "reason": { "fromCapturePath": "$.adminInventorySet.variables.input.reason" },
+              "referenceDocumentUri": {
+                "fromCapturePath": "$.adminInventorySet.variables.input.referenceDocumentUri"
+              },
+              "quantities": [
+                {
+                  "inventoryItemId": {
+                    "fromProxyResponse": "admin-variant-update-stages-price-and-inventory-item",
+                    "path": "$.data.updateVariant.productVariants[0].inventoryItem.id"
+                  },
+                  "locationId": {
+                    "fromProxyResponse": "admin-location-add-stages-cart-inventory-location",
+                    "path": "$.data.locationAdd.location.id"
+                  },
+                  "quantity": { "fromCapturePath": "$.adminInventorySet.variables.input.quantities[0].quantity" },
+                  "changeFromQuantity": {
+                    "fromCapturePath": "$.adminInventorySet.variables.input.quantities[0].changeFromQuantity"
+                  }
+                }
+              ]
+            },
+            "idempotencyKey": { "fromCapturePath": "$.adminInventorySet.variables.idempotencyKey" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "admin-publish-makes-cart-merchandise-visible",
+        "capturePath": "$.adminPublish.response.body.data.publishablePublish",
+        "proxyPath": "$.data.publishablePublish",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/storefront/storefront-catalog-publish-admin.graphql",
+          "variables": {
+            "id": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+            "input": { "fromCapturePath": "$.adminPublish.variables.input" },
+            "publicationId": { "fromCapturePath": "$.adminPublish.variables.publicationId" }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.publishable.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy publishes its staged synthetic Product."
+          }
+        ]
+      },
+      {
+        "name": "cart-create-whole-payload",
+        "capturePath": "$.cartCreate.response.body.data.cartCreate",
+        "proxyPath": "$.data.cartCreate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-create.graphql",
+          "operationName": "StorefrontCartCreate",
+          "variables": {
+            "input": {
+              "attributes": { "fromCapturePath": "$.cartCreate.variables.input.attributes" },
+              "note": { "fromCapturePath": "$.cartCreate.variables.input.note" },
+              "lines": [
+                {
+                  "merchandiseId": {
+                    "fromProxyResponse": "admin-variant-update-stages-price-and-inventory-item",
+                    "path": "$.data.updateVariant.productVariants[0].id"
+                  },
+                  "quantity": { "fromCapturePath": "$.cartCreate.variables.input.lines[0].quantity" },
+                  "attributes": { "fromCapturePath": "$.cartCreate.variables.input.lines[0].attributes" }
+                }
+              ]
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-read-after-create-whole-resource",
+        "capturePath": "$.cartReadAfterCreate.response.body.data.cart",
+        "proxyPath": "$.data.cart",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-read.graphql",
+          "variables": {
+            "id": { "fromProxyResponse": "cart-create-whole-payload", "path": "$.data.cartCreate.cart.id" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-lines-add-merges-identical-line",
+        "capturePath": "$.cartLinesAddMerge.response.body.data.cartLinesAdd",
+        "proxyPath": "$.data.cartLinesAdd",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-lines-add.graphql",
+          "variables": {
+            "cartId": { "fromProxyResponse": "cart-create-whole-payload", "path": "$.data.cartCreate.cart.id" },
+            "lines": [
+              {
+                "merchandiseId": {
+                  "fromProxyResponse": "admin-variant-update-stages-price-and-inventory-item",
+                  "path": "$.data.updateVariant.productVariants[0].id"
+                },
+                "quantity": { "fromCapturePath": "$.cartLinesAddMerge.variables.lines[0].quantity" },
+                "attributes": { "fromCapturePath": "$.cartLinesAddMerge.variables.lines[0].attributes" }
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-lines-add-keeps-distinct-attributes",
+        "capturePath": "$.cartLinesAddDistinct.response.body.data.cartLinesAdd",
+        "proxyPath": "$.data.cartLinesAdd",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-lines-add.graphql",
+          "variables": {
+            "cartId": { "fromProxyResponse": "cart-create-whole-payload", "path": "$.data.cartCreate.cart.id" },
+            "lines": [
+              {
+                "merchandiseId": {
+                  "fromProxyResponse": "admin-variant-update-stages-price-and-inventory-item",
+                  "path": "$.data.updateVariant.productVariants[0].id"
+                },
+                "quantity": { "fromCapturePath": "$.cartLinesAddDistinct.variables.lines[0].quantity" },
+                "attributes": { "fromCapturePath": "$.cartLinesAddDistinct.variables.lines[0].attributes" }
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-lines-update-caps-inventory-with-warning",
+        "capturePath": "$.cartLinesUpdate.response.body.data.cartLinesUpdate",
+        "proxyPath": "$.data.cartLinesUpdate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-lines-update.graphql",
+          "variables": {
+            "cartId": { "fromProxyResponse": "cart-create-whole-payload", "path": "$.data.cartCreate.cart.id" },
+            "lines": [
+              {
+                "id": {
+                  "fromProxyResponse": "cart-lines-add-keeps-distinct-attributes",
+                  "path": "$.data.cartLinesAdd.cart.lines.nodes[0].id"
+                },
+                "quantity": { "fromCapturePath": "$.cartLinesUpdate.variables.lines[0].quantity" },
+                "attributes": { "fromCapturePath": "$.cartLinesUpdate.variables.lines[0].attributes" }
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-attributes-update-last-duplicate-wins",
+        "capturePath": "$.cartAttributesUpdate.response.body.data.cartAttributesUpdate",
+        "proxyPath": "$.data.cartAttributesUpdate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-attributes-update.graphql",
+          "variables": {
+            "cartId": { "fromProxyResponse": "cart-create-whole-payload", "path": "$.data.cartCreate.cart.id" },
+            "attributes": { "fromCapturePath": "$.cartAttributesUpdate.variables.attributes" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-note-update-readback",
+        "capturePath": "$.cartNoteUpdate.response.body.data.cartNoteUpdate",
+        "proxyPath": "$.data.cartNoteUpdate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-note-update.graphql",
+          "variables": {
+            "cartId": { "fromProxyResponse": "cart-create-whole-payload", "path": "$.data.cartCreate.cart.id" },
+            "note": { "fromCapturePath": "$.cartNoteUpdate.variables.note" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-lines-remove-downstream-readback",
+        "capturePath": "$.cartLinesRemove.response.body.data.cartLinesRemove",
+        "proxyPath": "$.data.cartLinesRemove",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-lines-remove.graphql",
+          "variables": {
+            "cartId": { "fromProxyResponse": "cart-create-whole-payload", "path": "$.data.cartCreate.cart.id" },
+            "lineIds": [
+              {
+                "fromProxyResponse": "cart-lines-add-keeps-distinct-attributes",
+                "path": "$.data.cartLinesAdd.cart.lines.nodes[1].id"
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-lines-update-stale-line-user-error",
+        "capturePath": "$.cartLinesUpdateStale.response.body.data.cartLinesUpdate",
+        "proxyPath": "$.data.cartLinesUpdate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-lines-update.graphql",
+          "variables": {
+            "cartId": { "fromProxyResponse": "cart-create-whole-payload", "path": "$.data.cartCreate.cart.id" },
+            "lines": [
+              {
+                "id": {
+                  "fromProxyResponse": "cart-lines-add-keeps-distinct-attributes",
+                  "path": "$.data.cartLinesAdd.cart.lines.nodes[1].id"
+                },
+                "quantity": { "fromCapturePath": "$.cartLinesUpdateStale.variables.lines[0].quantity" }
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-lines-add-invalid-merchandise-user-error",
+        "capturePath": "$.cartLinesAddInvalidMerchandise.response.body.data.cartLinesAdd",
+        "proxyPath": "$.data.cartLinesAdd",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-lines-add.graphql",
+          "variables": {
+            "cartId": { "fromProxyResponse": "cart-create-whole-payload", "path": "$.data.cartCreate.cart.id" },
+            "lines": { "fromCapturePath": "$.cartLinesAddInvalidMerchandise.variables.lines" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-lines-add-invalid-selling-plan-user-error",
+        "capturePath": "$.cartLinesAddInvalidSellingPlan.response.body.data.cartLinesAdd",
+        "proxyPath": "$.data.cartLinesAdd",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-lines-add.graphql",
+          "variables": {
+            "cartId": { "fromProxyResponse": "cart-create-whole-payload", "path": "$.data.cartCreate.cart.id" },
+            "lines": [
+              {
+                "merchandiseId": {
+                  "fromProxyResponse": "admin-variant-update-stages-price-and-inventory-item",
+                  "path": "$.data.updateVariant.productVariants[0].id"
+                },
+                "sellingPlanId": {
+                  "fromCapturePath": "$.cartLinesAddInvalidSellingPlan.variables.lines[0].sellingPlanId"
+                },
+                "quantity": { "fromCapturePath": "$.cartLinesAddInvalidSellingPlan.variables.lines[0].quantity" }
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-lines-add-inventory-cap-warning",
+        "capturePath": "$.cartLinesAddInventoryWarning.response.body.data.cartLinesAdd",
+        "proxyPath": "$.data.cartLinesAdd",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-lines-add.graphql",
+          "variables": {
+            "cartId": { "fromProxyResponse": "cart-create-whole-payload", "path": "$.data.cartCreate.cart.id" },
+            "lines": [
+              {
+                "merchandiseId": {
+                  "fromProxyResponse": "admin-variant-update-stages-price-and-inventory-item",
+                  "path": "$.data.updateVariant.productVariants[0].id"
+                },
+                "quantity": { "fromCapturePath": "$.cartLinesAddInventoryWarning.variables.lines[0].quantity" },
+                "attributes": {
+                  "fromCapturePath": "$.cartLinesAddInventoryWarning.variables.lines[0].attributes"
+                }
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-lines-add-out-of-stock-zero-line-warning",
+        "capturePath": "$.cartLinesAddOutOfStock.response.body.data.cartLinesAdd",
+        "proxyPath": "$.data.cartLinesAdd",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-lines-add.graphql",
+          "variables": {
+            "cartId": { "fromProxyResponse": "cart-create-whole-payload", "path": "$.data.cartCreate.cart.id" },
+            "lines": [
+              {
+                "merchandiseId": {
+                  "fromProxyResponse": "admin-variant-update-stages-price-and-inventory-item",
+                  "path": "$.data.updateVariant.productVariants[0].id"
+                },
+                "quantity": { "fromCapturePath": "$.cartLinesAddOutOfStock.variables.lines[0].quantity" },
+                "attributes": { "fromCapturePath": "$.cartLinesAddOutOfStock.variables.lines[0].attributes" }
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-lines-add-zero-quantity-no-op",
+        "capturePath": "$.cartLinesAddZeroQuantity.response.body.data.cartLinesAdd",
+        "proxyPath": "$.data.cartLinesAdd",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-lines-add.graphql",
+          "variables": {
+            "cartId": { "fromProxyResponse": "cart-create-whole-payload", "path": "$.data.cartCreate.cart.id" },
+            "lines": [
+              {
+                "merchandiseId": {
+                  "fromProxyResponse": "admin-variant-update-stages-price-and-inventory-item",
+                  "path": "$.data.updateVariant.productVariants[0].id"
+                },
+                "quantity": { "fromCapturePath": "$.cartLinesAddZeroQuantity.variables.lines[0].quantity" }
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-note-too-long-user-error",
+        "capturePath": "$.cartNoteTooLong.response.body.data.cartNoteUpdate",
+        "proxyPath": "$.data.cartNoteUpdate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-note-update.graphql",
+          "variables": {
+            "cartId": { "fromProxyResponse": "cart-create-whole-payload", "path": "$.data.cartCreate.cart.id" },
+            "note": { "fromCapturePath": "$.cartNoteTooLong.variables.note" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-attributes-input-limit-top-level-error",
+        "capturePath": "$.cartAttributesTooMany.response.body.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-attributes-update.graphql",
+          "variables": {
+            "cartId": { "fromProxyResponse": "cart-create-whole-payload", "path": "$.data.cartCreate.cart.id" },
+            "attributes": { "fromCapturePath": "$.cartAttributesTooMany.variables.attributes" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-lines-input-limit-top-level-error",
+        "capturePath": "$.cartLinesTooMany.response.body.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-lines-add.graphql",
+          "variables": {
+            "cartId": { "fromProxyResponse": "cart-create-whole-payload", "path": "$.data.cartCreate.cart.id" },
+            "lines": { "fromCapturePath": "$.cartLinesTooMany.variables.lines" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-read-missing-is-null",
+        "capturePath": "$.cartReadMissing.response.body.data.cart",
+        "proxyPath": "$.data.cart",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-read.graphql",
+          "variablesCapturePath": "$.cartReadMissing.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-note-update-missing-cart-user-error",
+        "capturePath": "$.cartNoteUpdateMissing.response.body.data.cartNoteUpdate",
+        "proxyPath": "$.data.cartNoteUpdate",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-note-update.graphql",
+          "variablesCapturePath": "$.cartNoteUpdateMissing.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-read-before-final-remove-whole-resource",
+        "capturePath": "$.cartReadBeforeCleanup.response.body.data.cart",
+        "proxyPath": "$.data.cart",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-read.graphql",
+          "variables": {
+            "id": { "fromProxyResponse": "cart-create-whole-payload", "path": "$.data.cartCreate.cart.id" }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-lines-remove-all",
+        "capturePath": "$.cartLinesRemoveAll.response.body.data.cartLinesRemove",
+        "proxyPath": "$.data.cartLinesRemove",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-lines-remove.graphql",
+          "variables": {
+            "cartId": { "fromProxyResponse": "cart-create-whole-payload", "path": "$.data.cartCreate.cart.id" },
+            "lineIds": [
+              {
+                "fromProxyResponse": "cart-lines-add-out-of-stock-zero-line-warning",
+                "path": "$.data.cartLinesAdd.cart.lines.nodes[0].id"
+              },
+              {
+                "fromProxyResponse": "cart-lines-add-out-of-stock-zero-line-warning",
+                "path": "$.data.cartLinesAdd.cart.lines.nodes[1].id"
+              },
+              {
+                "fromProxyResponse": "cart-lines-add-out-of-stock-zero-line-warning",
+                "path": "$.data.cartLinesAdd.cart.lines.nodes[2].id"
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-read-empty-whole-resource",
+        "capturePath": "$.cartReadEmpty.response.body.data.cart",
+        "proxyPath": "$.data.cart",
+        "proxyRequest": {
+          "apiSurface": "storefront",
+          "documentPath": "config/parity-requests/storefront/storefront-cart-read.graphql",
+          "variables": {
+            "id": { "fromProxyResponse": "cart-create-whole-payload", "path": "$.data.cartCreate.cart.id" }
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Live 2026-04 Storefront evidence creates disposable catalog merchandise and a real cart, waits for inventory availability, exercises the full scoped lifecycle and captured error/warning branches, deletes the product during cleanup, and consistently redacts live cart GID/checkout tokens and keys. Proxy replay stages all scoped cart writes locally from shared product, variant, inventory, publication, and money state. Checkout, delivery, discounts, gift cards, buyer/customer identity, and completion remain deferred."
+}

@@ -1,0 +1,19 @@
+mutation StorefrontCartNoteUpdate($cartId: ID!, $note: String!) {
+  cartNoteUpdate(cartId: $cartId, note: $note) {
+    cart {
+      id
+      updatedAt
+      note
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+    warnings {
+      code
+      message
+      target
+    }
+  }
+}

@@ -127,13 +127,14 @@ selected root.
 - exposes schema-registry metadata used by compatibility error formatting and bulk-query planning, replacing the former partial mutation/output schema models
 - provides generic root and nested object resolvers, including explicit missing-field errors and abstract-type resolution from `__typename` or unambiguous schema metadata
 
-### `src/storefront_graphql.rs`, `src/proxy/storefront_graphql_runtime.rs`, `src/proxy/storefront.rs`
+### `src/storefront_graphql.rs`, `src/proxy/storefront_graphql_runtime.rs`, `src/proxy/storefront.rs`, `src/proxy/storefront_cart.rs`
 
 - render the captured Storefront introspection graph into the shared dynamic schema builder and cache it independently from Admin
 - select the executable Storefront schema by route version without falling back to a different version or API surface
 - bridge engine root invocations to surface-qualified Storefront registrations, or forward one unchanged request when the complete operation is passthrough-only
 - preserve the original operation for Storefront context interpretation while validating an engine-only copy without `@inContext`
 - own Storefront hydration, context-keyed state, local projections, and schema-enforced snapshot no-data/null behavior
+- keep normalized Storefront cart/line staging, shared catalog/money projection, inventory warnings, opaque synthetic cart identity, and secret-redacted cart observability in a dedicated domain module
 
 ### `src/resolver_registry.rs`, `src/node_resolver_inventory.rs`, `src/proxy/node_registry.rs`
 
@@ -235,7 +236,7 @@ The Python package is not a second proxy implementation and does not spawn the R
 
 The runtime should use normalized state rather than raw GraphQL blobs.
 
-`DraftProxy` owns a typed Rust `Store` for runtime resource state. Products and saved searches use normalized records with shared effective-read helpers, while other staged domain data also lives under `Store::staged` so reset, dump/restore plumbing, and future normalization work have one ownership boundary. Order and gift-card LiveHybrid hydration also stores known base records and related baseline/configuration data in `BaseState` so supported local mutations can overlay real upstream reads without runtime Shopify writes.
+`DraftProxy` owns a typed Rust `Store` for runtime resource state. Products, saved searches, and Storefront carts/lines use normalized records with shared effective-read helpers or deterministic order indexes, while other staged domain data also lives under `Store::staged` so reset, dump/restore plumbing, and future normalization work have one ownership boundary. Order and gift-card LiveHybrid hydration also stores known base records and related baseline/configuration data in `BaseState` so supported local mutations can overlay real upstream reads without runtime Shopify writes.
 
 The normalized product and saved-search portions currently include:
 

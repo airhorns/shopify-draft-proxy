@@ -7063,6 +7063,35 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'storefront',
+    captureId: 'storefront-cart-lifecycle',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-storefront-cart-conformance.mts',
+    purpose:
+      'Authenticated Storefront cart lifecycle evidence for cart creation, reads, lines, attributes, notes, totals, warnings, limits, and stale or missing resource branches.',
+    requiredAuthScopes: [
+      'read_products and write_products for disposable Admin catalog setup and cleanup',
+      'read_inventory and write_inventory for available quantity setup',
+      'stored Storefront access token with unauthenticated_read_checkouts and unauthenticated_write_checkouts',
+    ],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/storefront/storefront-cart-lifecycle.json',
+      'config/parity-specs/storefront/storefront-cart-lifecycle.json',
+      'config/parity-requests/storefront/storefront-cart-create.graphql',
+      'config/parity-requests/storefront/storefront-cart-read.graphql',
+      'config/parity-requests/storefront/storefront-cart-lines-add.graphql',
+      'config/parity-requests/storefront/storefront-cart-lines-update.graphql',
+      'config/parity-requests/storefront/storefront-cart-lines-remove.graphql',
+      'config/parity-requests/storefront/storefront-cart-attributes-update.graphql',
+      'config/parity-requests/storefront/storefront-cart-note-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable active product with inventory, one disposable location for public-surface proxy replay, and one or more real Storefront carts. Deletes the product and location during cleanup; Storefront has no cart deletion mutation, so live cart tokens and keys are redacted and discarded.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Every cart request uses the exact checked-in Storefront document. The recorder sends real variables live, then consistently redacts the opaque Cart GID token/key and checkout URL token/key before writing the fixture.',
+  },
+  {
+    domain: 'storefront',
     captureId: 'storefront-first-slice',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-storefront-first-slice-conformance.mts',

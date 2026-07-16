@@ -319,6 +319,7 @@ fn storefront_root_is_implemented(operation_type: OperationType, name: &str) -> 
                 | "blog"
                 | "blogByHandle"
                 | "blogs"
+                | "cart"
                 | "collection"
                 | "collectionByHandle"
                 | "collections"
@@ -345,7 +346,13 @@ fn storefront_root_is_implemented(operation_type: OperationType, name: &str) -> 
         ),
         OperationType::Mutation => matches!(
             name,
-            "customerCreate"
+            "cartCreate"
+                | "cartLinesAdd"
+                | "cartLinesUpdate"
+                | "cartLinesRemove"
+                | "cartAttributesUpdate"
+                | "cartNoteUpdate"
+                | "customerCreate"
                 | "customerAccessTokenCreate"
                 | "customerAccessTokenRenew"
                 | "customerAccessTokenDelete"
