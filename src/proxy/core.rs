@@ -41,9 +41,19 @@ fn registered_stage_locally_mutation_upstream_root(request: &Request) -> Option<
     if operation.operation_type != OperationType::Mutation {
         return None;
     }
+    let api_surface = if storefront_graphql_version(&request.path).is_some() {
+        ApiSurface::Storefront
+    } else {
+        ApiSurface::Admin
+    };
     let registry = upstream_guard_registry();
     operation.root_fields.iter().find_map(|root_field| {
-        let capability = operation_capability(registry, OperationType::Mutation, Some(root_field));
+        let capability = operation_capability_for_surface(
+            registry,
+            api_surface,
+            OperationType::Mutation,
+            Some(root_field),
+        );
         (capability.execution == CapabilityExecution::StageLocally
             && capability.domain != CapabilityDomain::Unknown)
             .then(|| root_field.clone())
@@ -74,7 +84,7 @@ impl DraftProxy {
             upstream_transport: guarded_upstream_transport_from_arc(Arc::clone(
                 &upstream_transport,
             )),
-            storefront_upstream_transport: upstream_transport,
+            storefront_upstream_transport: guarded_upstream_transport_from_arc(upstream_transport),
         }
     }
 
@@ -102,7 +112,7 @@ impl DraftProxy {
     ) -> Self {
         let transport: UpstreamTransport = Arc::new(transport);
         self.upstream_transport = guarded_upstream_transport_from_arc(Arc::clone(&transport));
-        self.storefront_upstream_transport = transport;
+        self.storefront_upstream_transport = guarded_upstream_transport_from_arc(transport);
         self
     }
 
@@ -430,6 +440,10 @@ impl DraftProxy {
                 "shopPolicyOrder": self.store.base.shop_policies.order,
                 "deliveryProfiles": self.store.base.delivery_profiles.records.clone(),
                 "deliveryProfileOrder": self.store.base.delivery_profiles.order,
+                "deliveryPromiseProviders": self.store.base.delivery_promise_providers.records.clone(),
+                "deliveryPromiseProviderOrder": self.store.base.delivery_promise_providers.order,
+                "deliveryPromiseParticipants": self.store.base.delivery_promise_participants.records.clone(),
+                "deliveryPromiseParticipantOrder": self.store.base.delivery_promise_participants.order,
                 "orders": self.store.base.orders.records.clone(),
                 "orderOrder": self.store.base.orders.order,
                 "orderCountBaselines": self.store.base.order_count_baselines.clone(),
@@ -494,6 +508,10 @@ impl DraftProxy {
                 "customerMergeRequests": self.store.staged.customer_merge_requests.clone(),
                 "customerDataErasureRequests": self.store.staged.customer_data_erasure_requests.clone(),
                 "locallyCreatedCustomerIds": self.store.staged.locally_created_customer_ids.iter().cloned().collect::<Vec<_>>(),
+                "storefrontCustomerEmailIndex": self.store.staged.storefront_customer_email_index.clone(),
+                "storefrontCustomerAccessTokens": self.store.staged.storefront_customer_access_tokens.clone(),
+                "nextStorefrontCustomerAccessTokenId": self.store.staged.next_storefront_customer_access_token_id,
+                "nextStorefrontCustomerResetTokenId": self.store.staged.next_storefront_customer_reset_token_id,
                 "customersCountBase": self.store.staged.customers_count_base,
                 "storeCreditAccounts": self.store.staged.store_credit_accounts.records.clone(),
                 "storeCreditAccountOrder": self.store.staged.store_credit_accounts.order.clone(),
@@ -520,6 +538,12 @@ impl DraftProxy {
                 "deliveryProfiles": self.store.staged.delivery_profiles.records.clone(),
                 "deliveryProfileOrder": self.store.staged.delivery_profiles.order.clone(),
                 "deletedDeliveryProfileIds": self.store.staged.delivery_profiles.tombstones.iter().cloned().collect::<Vec<_>>(),
+                "deliveryPromiseProviders": self.store.staged.delivery_promise_providers.records.clone(),
+                "deliveryPromiseProviderOrder": self.store.staged.delivery_promise_providers.order.clone(),
+                "deletedDeliveryPromiseProviderIds": self.store.staged.delivery_promise_providers.tombstones.iter().cloned().collect::<Vec<_>>(),
+                "deliveryPromiseParticipants": self.store.staged.delivery_promise_participants.records.clone(),
+                "deliveryPromiseParticipantOrder": self.store.staged.delivery_promise_participants.order.clone(),
+                "deletedDeliveryPromiseParticipantIds": self.store.staged.delivery_promise_participants.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "deliveryCustomizations": self.store.staged.delivery_customizations.records.clone(),
                 "deliveryCustomizationOrder": self.store.staged.delivery_customizations.order.clone(),
                 "deletedDeliveryCustomizationIds": self.store.staged.delivery_customizations.tombstones.iter().cloned().collect::<Vec<_>>(),
@@ -1625,6 +1649,32 @@ impl DraftProxy {
             .base
             .delivery_profiles
             .replace_with_order(base_delivery_profiles, base_delivery_profile_order);
+        let base_delivery_promise_providers =
+            value_map_from_json(state["baseState"].get("deliveryPromiseProviders"));
+        let base_delivery_promise_provider_order = state["baseState"]
+            .get("deliveryPromiseProviderOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| base_delivery_promise_providers.keys().cloned().collect());
+        self.store
+            .base
+            .delivery_promise_providers
+            .replace_with_order(
+                base_delivery_promise_providers,
+                base_delivery_promise_provider_order,
+            );
+        let base_delivery_promise_participants =
+            value_map_from_json(state["baseState"].get("deliveryPromiseParticipants"));
+        let base_delivery_promise_participant_order = state["baseState"]
+            .get("deliveryPromiseParticipantOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| base_delivery_promise_participants.keys().cloned().collect());
+        self.store
+            .base
+            .delivery_promise_participants
+            .replace_with_order(
+                base_delivery_promise_participants,
+                base_delivery_promise_participant_order,
+            );
         self.store.base.shop = base_shop;
         self.store.base.publication_ids =
             string_array_from_json(&state["baseState"]["publicationIds"])
@@ -1919,6 +1969,32 @@ impl DraftProxy {
             .unwrap_or_default()
             .into_iter()
             .collect();
+        self.store.staged.storefront_customer_email_index = state["stagedState"]
+            .get("storefrontCustomerEmailIndex")
+            .and_then(Value::as_object)
+            .map(|index| {
+                index
+                    .iter()
+                    .filter_map(|(email, customer_id)| {
+                        customer_id
+                            .as_str()
+                            .map(|customer_id| (email.clone(), customer_id.to_string()))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.storefront_customer_access_tokens =
+            value_map_from_json(state["stagedState"].get("storefrontCustomerAccessTokens"));
+        self.store.staged.next_storefront_customer_access_token_id = counter_from_json_with_floor(
+            &state["stagedState"],
+            "nextStorefrontCustomerAccessTokenId",
+            1,
+        );
+        self.store.staged.next_storefront_customer_reset_token_id = counter_from_json_with_floor(
+            &state["stagedState"],
+            "nextStorefrontCustomerResetTokenId",
+            1,
+        );
         self.store.staged.customers_count_base =
             state["stagedState"]["customersCountBase"].as_u64();
         replace_staged_value_records(
@@ -2128,6 +2204,20 @@ impl DraftProxy {
             "deliveryProfiles",
             Some("deliveryProfileOrder"),
             Some("deletedDeliveryProfileIds"),
+        );
+        replace_staged_value_records(
+            &mut self.store.staged.delivery_promise_providers,
+            &state["stagedState"],
+            "deliveryPromiseProviders",
+            Some("deliveryPromiseProviderOrder"),
+            Some("deletedDeliveryPromiseProviderIds"),
+        );
+        replace_staged_value_records(
+            &mut self.store.staged.delivery_promise_participants,
+            &state["stagedState"],
+            "deliveryPromiseParticipants",
+            Some("deliveryPromiseParticipantOrder"),
+            Some("deletedDeliveryPromiseParticipantIds"),
         );
         replace_staged_value_records(
             &mut self.store.staged.delivery_customizations,
