@@ -1,0 +1,82 @@
+query StorefrontCustomerProfileAddressOrderRead($token: String!) {
+  customer(customerAccessToken: $token) {
+    id
+    email
+    firstName
+    lastName
+    displayName
+    phone
+    acceptsMarketing
+    createdAt
+    updatedAt
+    defaultAddress {
+      id
+      firstName
+      lastName
+      address1
+      address2
+      city
+      company
+      province
+      provinceCode
+      country
+      countryCode
+      countryCodeV2
+      zip
+      phone
+      name
+      formattedArea
+    }
+    addresses(first: 5) {
+      nodes {
+        id
+        firstName
+        lastName
+        address1
+        address2
+        city
+        company
+        province
+        provinceCode
+        country
+        countryCode
+        countryCodeV2
+        zip
+        phone
+        name
+        formattedArea
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    orders(first: 5) {
+      nodes {
+        id
+        name
+        email
+        currencyCode
+        financialStatus
+        fulfillmentStatus
+        processedAt
+        totalPrice {
+          amount
+          currencyCode
+        }
+        totalPriceV2 {
+          amount
+          currencyCode
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+}

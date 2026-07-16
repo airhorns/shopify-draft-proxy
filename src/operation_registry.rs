@@ -319,6 +319,9 @@ fn storefront_root_is_implemented(operation_type: OperationType, name: &str) -> 
                 | "blog"
                 | "blogByHandle"
                 | "blogs"
+                | "collection"
+                | "collectionByHandle"
+                | "collections"
                 | "customer"
                 | "menu"
                 | "page"
@@ -352,6 +355,11 @@ fn storefront_root_is_implemented(operation_type: OperationType, name: &str) -> 
                 | "customerReset"
                 | "customerResetByUrl"
                 | "customerAccessTokenCreateWithMultipass"
+                | "customerUpdate"
+                | "customerAddressCreate"
+                | "customerAddressUpdate"
+                | "customerAddressDelete"
+                | "customerDefaultAddressUpdate"
         ),
         OperationType::Subscription => false,
     }

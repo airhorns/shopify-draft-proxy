@@ -2532,6 +2532,30 @@ Live evidence refreshed on this host:
 - `collections-catalog.json` now captures title wildcard search, `collection_type:custom`, `collection_type:smart`, `UPDATED_AT` reverse sorting, `product_id` filtering, and an unmatched empty query
 - local parity replays those captured branches from the seeded snapshot graph; expected differences are limited to Shopify's opaque collection cursors versus local synthetic cursors
 
+### 45b. Storefront collection ordering has a separate projection timestamp
+
+Authenticated Storefront 2026-04 lifecycle capture showed that
+`collections(sortKey: UPDATED_AT, reverse: true)` cannot blindly reuse the
+Admin collection row's latest local timestamp:
+
+- a collection content update, manual reorder, and explicit membership
+  remove/add kept the later-created sibling ahead of the updated collection
+- unpublishing or deleting a member moved the affected collection ahead while
+  that member was absent from the Storefront projection
+- republishing the member restored the earlier catalog order
+
+The same capture selected several differently filtered/sorted aliases of
+`Collection.products`. A cold live-hybrid hydration must preserve the default
+connection prefix, merge richer fields for repeated product IDs across aliases,
+and append members revealed by wider aliases. Iterating JSON object keys and
+taking the first occurrence loses manual order and can retain only a sparse
+filtered node.
+
+Practical rule: keep Storefront collection ordering metadata separate from the
+Admin mutation timestamp, derive visibility changes from the shared product and
+publication graph, and merge captured product aliases by ID without creating a
+second Storefront product model.
+
 ## 46. Customer-area registry coverage needs to separate likely local staging from side-effect roots
 
 An audit against the current Shopify Admin GraphQL customer docs showed that the first implemented slice (`customer`, `customers`, `customersCount`, `customerCreate`, `customerUpdate`, `customerDelete`) is only the beginning of the customer area. The registry now deliberately accounts for the missing roots future issues are likely to depend on without claiming runtime support.

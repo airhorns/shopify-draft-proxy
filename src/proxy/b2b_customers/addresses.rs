@@ -404,7 +404,7 @@ impl DraftProxy {
     }
 }
 
-pub(super) fn customer_address_cursor(address: &Value) -> Option<String> {
+pub(in crate::proxy) fn customer_address_cursor(address: &Value) -> Option<String> {
     address
         .get("id")
         .and_then(Value::as_str)
@@ -791,7 +791,7 @@ fn customer_address_resource_not_found_error(response_key: &str) -> Value {
     })
 }
 
-pub(super) fn customer_address_nodes(customer: &Value) -> Vec<Value> {
+pub(in crate::proxy) fn customer_address_nodes(customer: &Value) -> Vec<Value> {
     customer
         .get("addressesV2")
         .and_then(|connection| connection.get("nodes"))
@@ -818,7 +818,7 @@ fn customer_address_node_index(nodes: &[Value], address_id: &str) -> Option<usiz
 /// Derived fields (`name`, `formattedArea`, `country`/`province` names) are a
 /// deterministic function of the inputs, so comparing the whole node is
 /// equivalent to comparing the input field-set.
-pub(super) fn customer_address_dedup_key(node: &Value) -> String {
+pub(in crate::proxy) fn customer_address_dedup_key(node: &Value) -> String {
     let mut node = node.clone();
     if let Some(object) = node.as_object_mut() {
         object.remove("id");
@@ -830,7 +830,7 @@ pub(super) fn customer_address_dedup_key(node: &Value) -> String {
 /// and `defaultAddress` from the given ordered node list. `default_id` selects
 /// which node (if any) is the default. Cursors are the deterministic
 /// `cursor:<id>` form, matched leniently as `any-string` by the parity rules.
-pub(super) fn customer_rebuild_addresses(
+pub(in crate::proxy) fn customer_rebuild_addresses(
     customer: &mut Value,
     nodes: Vec<Value>,
     default_id: Option<&str>,
@@ -875,7 +875,7 @@ pub(super) fn customer_rebuild_addresses(
 ///
 /// Returns `(Some(node), [])` on success or `(None, errors)` on validation
 /// failure.
-fn customer_address_input_node(
+pub(in crate::proxy) fn customer_address_input_node(
     input: &BTreeMap<String, ResolvedValue>,
     existing: Option<&Value>,
     customer_first: Option<&str>,

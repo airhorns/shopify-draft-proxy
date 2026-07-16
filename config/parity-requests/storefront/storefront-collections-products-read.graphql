@@ -1,0 +1,39 @@
+query StorefrontCollectionsProductsRead($id: ID!, $handle: String!, $query: String!) {
+  byId: collection(id: $id) {
+    id
+    title
+    handle
+    products(first: 3, sortKey: COLLECTION_DEFAULT) {
+      nodes {
+        id
+        title
+        handle
+        availableForSale
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+  byHandle: collectionByHandle(handle: $handle) {
+    id
+    title
+    handle
+  }
+  catalog: collections(first: 3, query: $query, sortKey: UPDATED_AT, reverse: true) {
+    nodes {
+      id
+      title
+      handle
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}
