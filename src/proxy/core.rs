@@ -430,6 +430,10 @@ impl DraftProxy {
                 "shopPolicyOrder": self.store.base.shop_policies.order,
                 "deliveryProfiles": self.store.base.delivery_profiles.records.clone(),
                 "deliveryProfileOrder": self.store.base.delivery_profiles.order,
+                "deliveryPromiseProviders": self.store.base.delivery_promise_providers.records.clone(),
+                "deliveryPromiseProviderOrder": self.store.base.delivery_promise_providers.order,
+                "deliveryPromiseParticipants": self.store.base.delivery_promise_participants.records.clone(),
+                "deliveryPromiseParticipantOrder": self.store.base.delivery_promise_participants.order,
                 "orders": self.store.base.orders.records.clone(),
                 "orderOrder": self.store.base.orders.order,
                 "orderCountBaselines": self.store.base.order_count_baselines.clone(),
@@ -517,6 +521,12 @@ impl DraftProxy {
                 "deliveryProfiles": self.store.staged.delivery_profiles.records.clone(),
                 "deliveryProfileOrder": self.store.staged.delivery_profiles.order.clone(),
                 "deletedDeliveryProfileIds": self.store.staged.delivery_profiles.tombstones.iter().cloned().collect::<Vec<_>>(),
+                "deliveryPromiseProviders": self.store.staged.delivery_promise_providers.records.clone(),
+                "deliveryPromiseProviderOrder": self.store.staged.delivery_promise_providers.order.clone(),
+                "deletedDeliveryPromiseProviderIds": self.store.staged.delivery_promise_providers.tombstones.iter().cloned().collect::<Vec<_>>(),
+                "deliveryPromiseParticipants": self.store.staged.delivery_promise_participants.records.clone(),
+                "deliveryPromiseParticipantOrder": self.store.staged.delivery_promise_participants.order.clone(),
+                "deletedDeliveryPromiseParticipantIds": self.store.staged.delivery_promise_participants.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "deliveryCustomizations": self.store.staged.delivery_customizations.records.clone(),
                 "deliveryCustomizationOrder": self.store.staged.delivery_customizations.order.clone(),
                 "deletedDeliveryCustomizationIds": self.store.staged.delivery_customizations.tombstones.iter().cloned().collect::<Vec<_>>(),
@@ -1613,6 +1623,32 @@ impl DraftProxy {
             .base
             .delivery_profiles
             .replace_with_order(base_delivery_profiles, base_delivery_profile_order);
+        let base_delivery_promise_providers =
+            value_map_from_json(state["baseState"].get("deliveryPromiseProviders"));
+        let base_delivery_promise_provider_order = state["baseState"]
+            .get("deliveryPromiseProviderOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| base_delivery_promise_providers.keys().cloned().collect());
+        self.store
+            .base
+            .delivery_promise_providers
+            .replace_with_order(
+                base_delivery_promise_providers,
+                base_delivery_promise_provider_order,
+            );
+        let base_delivery_promise_participants =
+            value_map_from_json(state["baseState"].get("deliveryPromiseParticipants"));
+        let base_delivery_promise_participant_order = state["baseState"]
+            .get("deliveryPromiseParticipantOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| base_delivery_promise_participants.keys().cloned().collect());
+        self.store
+            .base
+            .delivery_promise_participants
+            .replace_with_order(
+                base_delivery_promise_participants,
+                base_delivery_promise_participant_order,
+            );
         self.store.base.shop = base_shop;
         self.store.base.publication_ids =
             string_array_from_json(&state["baseState"]["publicationIds"])
@@ -2102,6 +2138,20 @@ impl DraftProxy {
             "deliveryProfiles",
             Some("deliveryProfileOrder"),
             Some("deletedDeliveryProfileIds"),
+        );
+        replace_staged_value_records(
+            &mut self.store.staged.delivery_promise_providers,
+            &state["stagedState"],
+            "deliveryPromiseProviders",
+            Some("deliveryPromiseProviderOrder"),
+            Some("deletedDeliveryPromiseProviderIds"),
+        );
+        replace_staged_value_records(
+            &mut self.store.staged.delivery_promise_participants,
+            &state["stagedState"],
+            "deliveryPromiseParticipants",
+            Some("deliveryPromiseParticipantOrder"),
+            Some("deletedDeliveryPromiseParticipantIds"),
         );
         replace_staged_value_records(
             &mut self.store.staged.delivery_customizations,

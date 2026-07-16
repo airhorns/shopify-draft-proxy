@@ -237,17 +237,15 @@ describe('operation registry', () => {
     expect(adminMutationCoverageAudit()).toEqual({
       capturedMutationCount: 514,
       registeredMutationCount: 438,
-      implementedMutationCount: 411,
+      implementedMutationCount: 413,
       implementedMutationRuntimeTestEvidence: {
-        withRuntimeTests: 136,
+        withRuntimeTests: 138,
         withoutRuntimeTests: 275,
       },
       declaredUnimplemented: [
         'companyContactSendWelcomeEmail',
         'consentPolicyUpdate',
         'customerPaymentMethodSendUpdateEmail',
-        'deliveryPromiseParticipantsUpdate',
-        'deliveryPromiseProviderUpsert',
         'deliverySettingUpdate',
         'disputeEvidenceUpdate',
         'menuCreate',
@@ -356,9 +354,9 @@ describe('operation registry', () => {
   it('audits captured Shopify Node implementors against the explicit Rust resolver inventory', () => {
     expect(nodeResolverCoverageAudit()).toEqual({
       capturedNodeImplementorCount: 203,
-      localNodeResolverTypeCount: 82,
+      localNodeResolverTypeCount: 84,
       localResolverBehaviorCounts: {
-        projectLocalRecord: 79,
+        projectLocalRecord: 81,
         returnKnownNull: 3,
       },
       unsupported: [
@@ -402,8 +400,6 @@ describe('operation registry', () => {
         'DeliveryParticipant',
         'DeliveryProfile',
         'DeliveryProfileItem',
-        'DeliveryPromiseParticipant',
-        'DeliveryPromiseProvider',
         'DeliveryProvince',
         'DeliveryRateDefinition',
         'DeliveryZone',
