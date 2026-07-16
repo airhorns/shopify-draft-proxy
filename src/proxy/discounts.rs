@@ -601,9 +601,7 @@ impl DraftProxy {
         });
         backfill_context_names(context, "segments", "id", "name", |id| {
             self.store
-                .staged
-                .segments
-                .get(id)
+                .segment_by_id(id)
                 .and_then(|record| record.get("name"))
                 .filter(|value| !value.is_null())
                 .cloned()
@@ -705,7 +703,7 @@ impl DraftProxy {
                 }
             }
             for id in resolved_string_list_path(&input, &["context", "customerSegments", "add"]) {
-                if !self.store.staged.segments.contains_key(&id) && seen.insert(id.clone()) {
+                if self.store.segment_by_id(&id).is_none() && seen.insert(id.clone()) {
                     ids.push(id);
                 }
             }
@@ -750,9 +748,7 @@ impl DraftProxy {
                 }
                 Some("Segment") => {
                     self.store
-                        .staged
-                        .segments
-                        .insert(id.clone(), discount_context_segment_record(node, &id));
+                        .observe_base_segment(discount_context_segment_record(node, &id));
                 }
                 _ => {}
             }

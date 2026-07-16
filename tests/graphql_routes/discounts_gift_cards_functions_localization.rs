@@ -821,6 +821,92 @@ fn function_metadata_proxy_with_hits(hits: Arc<Mutex<Vec<Value>>>) -> DraftProxy
     })
 }
 
+fn function_fulfillment_constraint_rule_proxy_with_hits(
+    hits: Arc<Mutex<Vec<Value>>>,
+) -> DraftProxy {
+    let upstream_function = function_metadata_record(
+        "gid://shopify/ShopifyFunction/upstream-fulfillment-constraint",
+        "Upstream Fulfillment Constraint",
+        "upstream-fulfillment-constraint",
+        "FULFILLMENT_CONSTRAINT_RULE",
+        "upstream-fulfillment-key",
+        "upstream-fulfillment-app",
+    );
+    let upstream_rule = json!({
+        "id": "gid://shopify/FulfillmentConstraintRule/upstream-rule",
+        "deliveryMethodTypes": ["SHIPPING"],
+        "function": upstream_function.clone(),
+        "metafields": {
+            "nodes": [{
+                "id": "gid://shopify/Metafield/upstream-fulfillment-config",
+                "namespace": "custom",
+                "key": "config",
+                "type": "json",
+                "value": "{\"mode\":\"upstream\"}",
+                "ownerType": "FULFILLMENT_CONSTRAINT_RULE",
+                "createdAt": "2026-01-01T00:00:00Z",
+                "updatedAt": "2026-01-01T00:00:00Z"
+            }]
+        }
+    });
+    configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body)
+            .expect("fulfillment constraint rule hydrate body should parse");
+        hits.lock().unwrap().push(body.clone());
+        let operation_name = body["operationName"].as_str().unwrap_or_default();
+        let query = body["query"].as_str().unwrap_or_default();
+        let response_body = match operation_name {
+            "FunctionHydrateByHandle" => {
+                let handle = body["variables"]["handle"].as_str().unwrap_or_default();
+                let nodes = test_function_metadata_by_id_or_handle(None, Some(handle))
+                    .into_iter()
+                    .collect::<Vec<_>>();
+                json!({ "data": { "shopifyFunctions": { "nodes": nodes } } })
+            }
+            "FunctionHydrateById" => {
+                let id = body["variables"]["id"].as_str().unwrap_or_default();
+                let function = test_function_metadata_by_id_or_handle(Some(id), None)
+                    .or_else(|| {
+                        (upstream_function["id"].as_str() == Some(id))
+                            .then(|| upstream_function.clone())
+                    })
+                    .unwrap_or(Value::Null);
+                json!({ "data": { "shopifyFunction": function } })
+            }
+            _ if query.contains("validations") => {
+                json!({ "data": { "validations": { "nodes": [] } } })
+            }
+            _ if query.contains("cartTransforms") => {
+                json!({ "data": { "cartTransforms": { "nodes": [] } } })
+            }
+            _ if query.contains("shopifyFunctions") => json!({
+                "data": {
+                    "shopifyFunctions": {
+                        "nodes": [upstream_function.clone()]
+                    }
+                }
+            }),
+            _ if query.contains("fulfillmentConstraintRules") => {
+                json!({ "data": { "fulfillmentConstraintRules": [upstream_rule.clone()] } })
+            }
+            _ => json!({
+                "errors": [{
+                    "message": format!("unexpected fulfillment constraint rule upstream request: {body}")
+                }]
+            }),
+        };
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: response_body,
+        }
+    })
+}
+
 fn discount_app_test_function() -> Value {
     json!({
         "id": "gid://shopify/ShopifyFunction/discount-function",
@@ -7724,8 +7810,193 @@ fn functions_fulfillment_constraint_rules_stage_locally_and_read_after_write() {
         empty_read.body["data"]["fulfillmentConstraintRules"],
         json!([])
     );
-    assert_eq!(hydrate_requests.lock().unwrap().len(), 1);
+    assert_eq!(hydrate_requests.lock().unwrap().len(), 2);
     assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 3);
+
+    let upstream_hydrate_requests = Arc::new(Mutex::new(Vec::new()));
+    let mut upstream_proxy = function_fulfillment_constraint_rule_proxy_with_hits(Arc::clone(
+        &upstream_hydrate_requests,
+    ));
+    let create = upstream_proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageFulfillmentConstraintRuleBesideUpstream {
+          fulfillmentConstraintRuleCreate(
+            functionHandle: "fulfillment-constraint-local"
+            deliveryMethodTypes: [LOCAL]
+          ) {
+            fulfillmentConstraintRule { id deliveryMethodTypes function { handle } }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        create.body["data"]["fulfillmentConstraintRuleCreate"]["userErrors"],
+        json!([])
+    );
+    let staged_rule_id = json_string(
+        &create.body["data"]["fulfillmentConstraintRuleCreate"]["fulfillmentConstraintRule"]["id"],
+        "staged fulfillment constraint rule id",
+    );
+    let read = upstream_proxy.process_request(json_graphql_request(
+        r#"
+        query ReadFulfillmentConstraintRulesWithUpstreamBase {
+          fulfillmentConstraintRules {
+            id
+            deliveryMethodTypes
+            function { handle apiType app { apiKey } }
+            metafield(namespace: "custom", key: "config") { value ownerType }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(read.status, 200);
+    let rules = read.body["data"]["fulfillmentConstraintRules"]
+        .as_array()
+        .expect("fulfillment constraint rules should be a list");
+    assert_eq!(rules.len(), 2);
+    assert_eq!(
+        rules
+            .iter()
+            .map(|rule| json_string(&rule["id"], "fulfillment constraint rule id"))
+            .collect::<Vec<_>>(),
+        vec![
+            "gid://shopify/FulfillmentConstraintRule/upstream-rule".to_string(),
+            staged_rule_id.clone()
+        ]
+    );
+    assert_eq!(
+        rules[0]["function"],
+        json!({
+            "handle": "upstream-fulfillment-constraint",
+            "apiType": "FULFILLMENT_CONSTRAINT_RULE",
+            "app": { "apiKey": "upstream-fulfillment-key" }
+        })
+    );
+    assert_eq!(
+        rules[0]["metafield"],
+        json!({ "value": "{\"mode\":\"upstream\"}", "ownerType": "FULFILLMENT_CONSTRAINT_RULE" })
+    );
+    assert_eq!(
+        rules[1]["function"],
+        json!({
+            "handle": "fulfillment-constraint-local",
+            "apiType": "FULFILLMENT_CONSTRAINT_RULE",
+            "app": { "apiKey": "fulfillment-app-key" }
+        })
+    );
+    assert!(
+        upstream_hydrate_requests
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|body| body["query"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("fulfillmentConstraintRules")),
+        "post-stage read should hydrate upstream fulfillment constraint rules"
+    );
+    let delete_base = upstream_proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteBaseFulfillmentConstraintRule {
+          fulfillmentConstraintRuleDelete(
+            id: "gid://shopify/FulfillmentConstraintRule/upstream-rule"
+          ) {
+            success
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        delete_base.body["data"]["fulfillmentConstraintRuleDelete"],
+        json!({ "success": true, "userErrors": [] })
+    );
+    let tombstone_read = upstream_proxy.process_request(json_graphql_request(
+        r#"
+        query ReadFulfillmentConstraintRulesAfterBaseDelete {
+          fulfillmentConstraintRules { id deliveryMethodTypes function { handle } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        tombstone_read.body["data"]["fulfillmentConstraintRules"],
+        json!([{
+            "id": staged_rule_id,
+            "deliveryMethodTypes": ["LOCAL"],
+            "function": { "handle": "fulfillment-constraint-local" }
+        }])
+    );
+
+    let cross_root_hydrate_requests = Arc::new(Mutex::new(Vec::new()));
+    let mut cross_root_proxy = function_fulfillment_constraint_rule_proxy_with_hits(Arc::clone(
+        &cross_root_hydrate_requests,
+    ));
+    let create_validation = cross_root_proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageValidationBeforeCombinedFunctionRead {
+          validationCreate(validation: {
+            functionHandle: "validation-local"
+            title: "Local validation"
+            enable: true
+          }) {
+            validation { id title }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        create_validation.body["data"]["validationCreate"]["userErrors"],
+        json!([])
+    );
+    let read = cross_root_proxy.process_request(json_graphql_request(
+        r#"
+        query ReadValidationOverlayAndFulfillmentConstraintRules {
+          validations(first: 10) {
+            nodes { id title }
+          }
+          fulfillmentConstraintRules {
+            id
+            deliveryMethodTypes
+            function { handle app { apiKey } }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["validations"]["nodes"][0]["title"],
+        json!("Local validation")
+    );
+    assert_eq!(
+        read.body["data"]["fulfillmentConstraintRules"],
+        json!([{
+            "id": "gid://shopify/FulfillmentConstraintRule/upstream-rule",
+            "deliveryMethodTypes": ["SHIPPING"],
+            "function": {
+                "handle": "upstream-fulfillment-constraint",
+                "app": { "apiKey": "upstream-fulfillment-key" }
+            }
+        }])
+    );
+    assert!(
+        cross_root_hydrate_requests
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|body| body["query"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("fulfillmentConstraintRules")),
+        "combined read opened by validation overlay should hydrate fulfillmentConstraintRules"
+    );
 }
 
 #[test]
