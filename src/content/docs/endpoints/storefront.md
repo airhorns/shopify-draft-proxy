@@ -41,7 +41,7 @@ Live-hybrid reads hydrate missing first-slice base state through explicit Storef
 
 `@inContext(country:, language:)` is parsed from the original operation into a reusable Storefront request context. The engine-facing copy removes only that custom directive and variables used exclusively by it because the dynamic executor cannot register its runtime behavior; all other directives and variable uses remain under normal GraphQL validation. The current context model stores country and language values.
 
-`shop` projects selected Storefront fields from captured Storefront shop state when available. It may reuse Admin-observed `shop`, `primaryDomain`, shop policy, money-format, and payment-setting fields when those shapes line up. It does not fabricate policy handles, domains, brand assets, or payment account values when neither Storefront nor Admin state has supplied them.
+`shop` projects selected Storefront fields from captured Storefront shop state when available. It may reuse Admin-observed `shop`, `primaryDomain`, shop policy, money-format, and payment-setting fields when those shapes line up. First-slice Storefront hydration records the stable shop policy fields `privacyPolicy`, `refundPolicy`, `shippingPolicy`, and `termsOfService`; fields such as `contactInformation`, `legalNotice`, and `termsOfSale` are version- or availability-sensitive and are outside the first-slice hydration request. The proxy does not fabricate policy handles, domains, brand assets, or payment account values when neither Storefront nor Admin state has supplied them.
 
 `localization` is context-keyed. Default context and `@inContext(country:, language:)` reads hydrate separate records so later Storefront calls can observe the same country, language, and market selection without another upstream request.
 
@@ -67,7 +67,7 @@ Projected content fields include the selected handle, title, body/content HTML a
 
 ### Boundaries
 
-This is not local behavioral support for every field exposed by the captured `Shop`, `Localization`, `Location`, `PaymentSettings`, content, menu, sitemap, redirect, or related nested types. The schema validates those fields, but fields outside the selected and hydrated boundary have no modeled Storefront state and therefore resolve through the documented null/empty boundary or schema null propagation.
+This is not local behavioral support for every field exposed by the captured `Shop`, `Localization`, `Location`, `PaymentSettings`, content, menu, sitemap, redirect, or related nested types. The schema validates those fields, but fields outside the selected and hydrated boundary have no modeled Storefront state and therefore resolve through the documented null/empty boundary or schema null propagation. Storefront `Shop` policy fields that are not selected by first-slice hydration, including `contactInformation`, `legalNotice`, and `termsOfSale`, should be treated as availability-sensitive until a dedicated live Storefront capture promotes them.
 
 Admin blog/page/article create, update, and delete effects are visible through the Storefront content roots when those Admin operations are locally supported. Admin menu CRUD is not locally modeled, so Storefront menu support is captured Storefront hydration/restored base-state projection only. URL redirect mutation lifecycle is not implemented for Storefront.
 
