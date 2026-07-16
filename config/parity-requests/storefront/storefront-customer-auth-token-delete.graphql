@@ -1,0 +1,10 @@
+mutation StorefrontCustomerAuthTokenDelete($token: String!) {
+  customerAccessTokenDelete(customerAccessToken: $token) {
+    deletedAccessToken
+    deletedCustomerAccessTokenId
+    userErrors {
+      field
+      message
+    }
+  }
+}

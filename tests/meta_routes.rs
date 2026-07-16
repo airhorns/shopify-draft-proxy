@@ -1036,7 +1036,8 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "deliveryPromiseProviderOrder": [],
                     "deliveryPromiseProviders": {},
                     "discountOrder": [],
-                    "discounts": {}
+                    "discounts": {},
+                    "discountCountBaselines": {}
                 },
                 "stagedState": {
                     "abandonments": {},
@@ -1263,6 +1264,10 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "storeCreditAccounts": {},
                     "storeCreditTransactionOrder": [],
                     "storeCreditTransactions": {},
+                    "storefrontCustomerAccessTokens": {},
+                    "storefrontCustomerEmailIndex": {},
+                    "nextStorefrontCustomerAccessTokenId": 1,
+                    "nextStorefrontCustomerResetTokenId": 1,
                     "taggableResources": {},
                     "uninstalledAppIds": []
                 }

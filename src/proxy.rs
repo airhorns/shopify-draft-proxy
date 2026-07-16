@@ -14,8 +14,8 @@ use crate::graphql::{
     ResolvedValue, RootFieldSelection, SelectedField, SourceLocation,
 };
 use crate::operation_registry::{
-    default_registry, operation_capability, ApiSurface, CapabilityDomain, CapabilityExecution,
-    OperationRegistryEntry,
+    default_registry, operation_capability_for_surface, ApiSurface, CapabilityDomain,
+    CapabilityExecution, OperationRegistryEntry,
 };
 use crate::resolver_registry::ResolverRegistry;
 pub(in crate::proxy) use crate::resolver_registry::{LocalResolverMode, RootResolverContext};
@@ -260,6 +260,7 @@ struct BaseState {
     orders: OrderedRecords<Value>,
     order_count_baselines: BTreeMap<String, Value>,
     discounts: OrderedRecords<Value>,
+    discount_count_baselines: BTreeMap<String, Value>,
     marketing_activities: OrderedRecords<Value>,
     marketing_events: OrderedRecords<Value>,
     gift_cards: BTreeMap<String, Value>,
@@ -322,6 +323,10 @@ struct StagedState {
     customer_merge_requests: BTreeMap<String, Value>,
     customer_data_erasure_requests: BTreeMap<String, Value>,
     locally_created_customer_ids: BTreeSet<String>,
+    storefront_customer_email_index: BTreeMap<String, String>,
+    storefront_customer_access_tokens: BTreeMap<String, Value>,
+    next_storefront_customer_access_token_id: u64,
+    next_storefront_customer_reset_token_id: u64,
     // Store-wide total customer count baseline reported by `customersCount`.
     // The live shop's total is store-specific and cannot be reconstructed from
     // the handful of customers a scenario stages, so a scenario seeds the
@@ -813,6 +818,8 @@ impl StagedState {
             order_edit_variant_catalog: Value::Object(serde_json::Map::new()),
             next_b2b_contact_id: 1,
             next_b2b_contact_role_assignment_id: 1,
+            next_storefront_customer_access_token_id: 1,
+            next_storefront_customer_reset_token_id: 1,
             ..Default::default()
         }
     }
@@ -1268,6 +1275,14 @@ impl Store {
 
     fn order_count_baseline(&self, key: &str) -> Option<&Value> {
         self.base.order_count_baselines.get(key)
+    }
+
+    fn observe_discount_count_baseline(&mut self, key: String, count: Value) {
+        self.base.discount_count_baselines.insert(key, count);
+    }
+
+    fn discount_count_baseline(&self, key: &str) -> Option<&Value> {
+        self.base.discount_count_baselines.get(key)
     }
 
     fn domain_by_id(&self, id: &str) -> Option<Value> {
@@ -2166,6 +2181,7 @@ pub(in crate::proxy) use self::markets_catalog_helpers::*;
 pub(in crate::proxy) use self::media_products_saved_searches::*;
 pub(in crate::proxy) use self::metafield_metaobject_definitions::*;
 pub(in crate::proxy) use self::metafields_orders_payments::*;
+pub(in crate::proxy) use self::metaobjects::metaobject_cursor;
 pub(in crate::proxy) use self::money::*;
 pub(in crate::proxy) use self::orders_payments_fulfillment::*;
 pub(in crate::proxy) use self::phone::*;
@@ -2184,10 +2200,14 @@ mod upstream_guard_tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    fn graphql_request(query: String) -> Request {
+    fn graphql_request(query: String, api_surface: ApiSurface) -> Request {
+        let path = match api_surface {
+            ApiSurface::Admin => "/admin/api/2026-04/graphql.json",
+            ApiSurface::Storefront => "/api/2026-04/graphql.json",
+        };
         Request {
             method: "POST".to_string(),
-            path: "/admin/api/2026-04/graphql.json".to_string(),
+            path: path.to_string(),
             headers: BTreeMap::new(),
             body: json!({ "query": query }).to_string(),
         }
@@ -2213,10 +2233,13 @@ mod upstream_guard_tests {
                     ok_json(json!({ "data": { "unexpected": true } }))
                 }
             });
-            let response = transport(graphql_request(format!(
-                "mutation UpstreamSafetyRegression {{ {} {{ __typename }} }}",
-                entry.name
-            )));
+            let response = transport(graphql_request(
+                format!(
+                    "mutation UpstreamSafetyRegression {{ {} {{ __typename }} }}",
+                    entry.name
+                ),
+                entry.api_surface,
+            ));
 
             assert_eq!(
                 forwarded.load(Ordering::SeqCst),
@@ -2250,12 +2273,14 @@ mod upstream_guard_tests {
         let query_response = transport(graphql_request(
             r#"query HydrateOrderForLocalMutation { order(id: "gid://shopify/Order/1") { id } }"#
                 .to_string(),
+            ApiSurface::Admin,
         ));
         assert_eq!(query_response.status, 200);
         assert_eq!(forwarded.load(Ordering::SeqCst), 1);
 
         let unknown_mutation_response = transport(graphql_request(
             "mutation UnsupportedMutationPassthrough { definitelyUnknownRoot { id } }".to_string(),
+            ApiSurface::Admin,
         ));
         assert_eq!(unknown_mutation_response.status, 200);
         assert_eq!(forwarded.load(Ordering::SeqCst), 2);

@@ -282,6 +282,615 @@ fn storefront_graphql_snapshot_mode_rejects_mutations_without_upstream() {
 }
 
 #[test]
+fn storefront_customer_auth_lifecycle_stages_locally_and_redacts_meta() {
+    let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|_| panic!("Storefront customer auth must stay local"));
+
+    let create = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation StorefrontCustomerCreate($input: CustomerCreateInput!) {
+          customerCreate(input: $input) {
+            customer { id email firstName lastName acceptsMarketing numberOfOrders tags addresses(first: 2) { nodes { id } pageInfo { hasNextPage hasPreviousPage } } }
+            customerUserErrors { field message code }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "storefront-auth@example.test",
+                "password": "CodexPass123!",
+                "firstName": "Storefront",
+                "lastName": "Auth",
+                "acceptsMarketing": true
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200, "{}", create.body);
+    let customer_id = create.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .expect("created customer id")
+        .to_string();
+    assert_eq!(
+        create.body["data"]["customerCreate"]["customer"]["email"],
+        json!("storefront-auth@example.test")
+    );
+    assert_eq!(
+        create.body["data"]["customerCreate"]["customer"]["numberOfOrders"],
+        json!("0")
+    );
+    assert_eq!(
+        create.body["data"]["customerCreate"]["customerUserErrors"],
+        json!([])
+    );
+
+    let bad_token = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation StorefrontCustomerBadToken($input: CustomerAccessTokenCreateInput!) {
+          customerAccessTokenCreate(input: $input) {
+            customerAccessToken { accessToken expiresAt }
+            customerUserErrors { field message code }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "storefront-auth@example.test",
+                "password": "wrong"
+            }
+        }),
+    ));
+    assert_eq!(
+        bad_token.body["data"]["customerAccessTokenCreate"]["customerUserErrors"],
+        json!([{
+            "field": null,
+            "message": "Unidentified customer",
+            "code": "UNIDENTIFIED_CUSTOMER"
+        }])
+    );
+
+    let token_create = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation StorefrontCustomerToken($input: CustomerAccessTokenCreateInput!) {
+          customerAccessTokenCreate(input: $input) {
+            customerAccessToken { accessToken expiresAt }
+            customerUserErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "storefront-auth@example.test",
+                "password": "CodexPass123!"
+            }
+        }),
+    ));
+    let access_token = token_create.body["data"]["customerAccessTokenCreate"]
+        ["customerAccessToken"]["accessToken"]
+        .as_str()
+        .expect("access token")
+        .to_string();
+    assert!(access_token.starts_with("sdp_ca_"));
+
+    let read = proxy.process_request(storefront_graphql_request(
+        r#"
+        query StorefrontCustomerRead($token: String!) {
+          customer(customerAccessToken: $token) { id email displayName acceptsMarketing }
+        }
+        "#,
+        json!({ "token": access_token }),
+    ));
+    assert_eq!(read.body["data"]["customer"]["id"], json!(customer_id));
+    assert_eq!(
+        read.body["data"]["customer"]["displayName"],
+        json!("Storefront Auth")
+    );
+
+    let renew = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation StorefrontCustomerRenew($token: String!) {
+          customerAccessTokenRenew(customerAccessToken: $token) {
+            customerAccessToken { accessToken expiresAt }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "token": access_token }),
+    ));
+    assert_eq!(
+        renew.body["data"]["customerAccessTokenRenew"]["customerAccessToken"]["accessToken"],
+        json!(access_token)
+    );
+
+    let delete = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation StorefrontCustomerDeleteToken($token: String!) {
+          customerAccessTokenDelete(customerAccessToken: $token) {
+            deletedAccessToken
+            deletedCustomerAccessTokenId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "token": access_token }),
+    ));
+    assert_eq!(
+        delete.body["data"]["customerAccessTokenDelete"]["deletedAccessToken"],
+        json!(access_token)
+    );
+    assert!(
+        delete.body["data"]["customerAccessTokenDelete"]["deletedCustomerAccessTokenId"]
+            .as_str()
+            .unwrap_or_default()
+            .starts_with("gid://shopify/CustomerAccessToken/")
+    );
+
+    let read_after_delete = proxy.process_request(storefront_graphql_request(
+        r#"query($token: String!) { customer(customerAccessToken: $token) { id } }"#,
+        json!({ "token": access_token }),
+    ));
+    assert_eq!(read_after_delete.body["data"]["customer"], Value::Null);
+
+    let delete_again = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation StorefrontCustomerDeleteTokenAgain($token: String!) {
+          customerAccessTokenDelete(customerAccessToken: $token) {
+            deletedAccessToken
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "token": access_token }),
+    ));
+    assert_eq!(
+        delete_again.body["data"]["customerAccessTokenDelete"],
+        Value::Null
+    );
+    assert_eq!(
+        delete_again.body["errors"][0]["extensions"]["code"],
+        json!("ACCESS_DENIED")
+    );
+    assert_eq!(delete_again.body["errors"][0]["locations"], json!([]));
+
+    let log = log_snapshot(&proxy);
+    for entry in log["entries"].as_array().expect("log entries") {
+        assert_eq!(
+            entry["rawBody"],
+            json!("<redacted:storefront-customer-auth-request>")
+        );
+        assert_eq!(
+            entry["query"],
+            json!("<redacted:storefront-customer-auth-query>")
+        );
+    }
+    assert_eq!(
+        log["entries"][0]["variables"]["input"]["password"],
+        json!("<redacted:storefront-customer-auth>")
+    );
+    assert_eq!(
+        log["entries"][2]["variables"]["input"]["password"],
+        json!("<redacted:storefront-customer-auth>")
+    );
+    assert_eq!(
+        log["entries"][3]["variables"]["token"],
+        json!("<redacted:storefront-customer-auth>")
+    );
+
+    let state = state_snapshot(&proxy);
+    assert_ne!(
+        state["stagedState"]["customers"][customer_id.as_str()]["__storefrontPasswordFingerprint"],
+        json!("CodexPass123!")
+    );
+    let token_state = state["stagedState"]["storefrontCustomerAccessTokens"]
+        .as_object()
+        .expect("token state");
+    assert_eq!(token_state.len(), 1);
+    assert!(!token_state.contains_key(&access_token));
+    assert!(token_state
+        .values()
+        .all(|record| record.get("accessToken").is_none()));
+}
+
+#[test]
+fn storefront_customer_activation_recovery_and_reset_are_local_only() {
+    let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|_| panic!("Storefront customer auth must stay local"));
+
+    let admin_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AdminCreateDisabledCustomer($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id email state }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "email": "storefront-activate@example.test" } }),
+    ));
+    let customer_id = admin_create.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .expect("admin customer id")
+        .to_string();
+    assert_eq!(
+        admin_create.body["data"]["customerCreate"]["customer"]["state"],
+        json!("DISABLED")
+    );
+
+    let activation = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AdminGenerateActivation($customerId: ID!) {
+          customerGenerateAccountActivationUrl(customerId: $customerId) {
+            accountActivationUrl
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "customerId": customer_id }),
+    ));
+    let activation_url = activation.body["data"]["customerGenerateAccountActivationUrl"]
+        ["accountActivationUrl"]
+        .as_str()
+        .expect("activation URL")
+        .to_string();
+
+    let invalid = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation StorefrontActivateInvalid($id: ID!, $input: CustomerActivateInput!) {
+          customerActivate(id: $id, input: $input) {
+            customer { id }
+            customerAccessToken { accessToken expiresAt }
+            customerUserErrors { field message code }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": customer_id,
+            "input": {
+                "activationToken": "bad-token",
+                "password": "CodexPass123!"
+            }
+        }),
+    ));
+    assert_eq!(
+        invalid.body["data"]["customerActivate"]["customerUserErrors"],
+        json!([{
+            "field": ["input"],
+            "message": "Invalid activation token",
+            "code": "TOKEN_INVALID"
+        }]),
+        "{}",
+        invalid.body
+    );
+    assert_eq!(
+        invalid.body["data"]["customerActivate"]["userErrors"],
+        json!([{ "field": null, "message": "Invalid activation token" }])
+    );
+
+    let activated = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation StorefrontActivateByUrl($activationUrl: URL!, $password: String!) {
+          customerActivateByUrl(activationUrl: $activationUrl, password: $password) {
+            customer { id email }
+            customerAccessToken { accessToken expiresAt }
+            customerUserErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "activationUrl": activation_url,
+            "password": "CodexPass123!"
+        }),
+    ));
+    let activation_token = activated.body["data"]["customerActivateByUrl"]["customerAccessToken"]
+        ["accessToken"]
+        .as_str()
+        .expect("activation token")
+        .to_string();
+    assert_eq!(
+        activated.body["data"]["customerActivateByUrl"]["customer"]["id"],
+        json!(customer_id)
+    );
+
+    let recover = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation StorefrontRecover($email: String!) {
+          customerRecover(email: $email) {
+            customerUserErrors { field message code }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "email": "storefront-activate@example.test" }),
+    ));
+    assert_eq!(
+        recover.body["data"]["customerRecover"]["customerUserErrors"],
+        json!([])
+    );
+    let reset_token = format!(
+        "sdp-reset-{}-1",
+        customer_id.rsplit('/').next().expect("customer id tail")
+    );
+
+    let reset = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation StorefrontReset($id: ID!, $input: CustomerResetInput!) {
+          customerReset(id: $id, input: $input) {
+            customer { id email }
+            customerAccessToken { accessToken expiresAt }
+            customerUserErrors { field message code }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": customer_id,
+            "input": {
+                "resetToken": reset_token,
+                "password": "NewCodexPass123!"
+            }
+        }),
+    ));
+    let reset_access_token = reset.body["data"]["customerReset"]["customerAccessToken"]
+        ["accessToken"]
+        .as_str()
+        .expect("reset access token")
+        .to_string();
+    assert_ne!(activation_token, reset_access_token);
+    assert_eq!(
+        reset.body["data"]["customerReset"]["customer"]["email"],
+        json!("storefront-activate@example.test")
+    );
+
+    let invalid_reset = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation StorefrontResetInvalid($id: ID!, $input: CustomerResetInput!) {
+          customerReset(id: $id, input: $input) {
+            customer { id }
+            customerAccessToken { accessToken }
+            customerUserErrors { field message code }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": customer_id,
+            "input": {
+                "resetToken": "bad-token",
+                "password": "AnotherCodexPass123!"
+            }
+        }),
+    ));
+    assert_eq!(
+        invalid_reset.body["data"]["customerReset"]["customerUserErrors"],
+        json!([{
+            "field": ["input"],
+            "message": "Invalid reset token",
+            "code": "TOKEN_INVALID"
+        }])
+    );
+    assert_eq!(
+        invalid_reset.body["data"]["customerReset"]["userErrors"],
+        json!([{ "field": null, "message": "Invalid reset token" }])
+    );
+
+    let invalid_reset_url = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation StorefrontResetByUrlInvalid($resetUrl: URL!, $password: String!) {
+          customerResetByUrl(resetUrl: $resetUrl, password: $password) {
+            customer { id }
+            customerAccessToken { accessToken }
+            customerUserErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "resetUrl": "https://example.test/account/reset/bad-token",
+            "password": "AnotherCodexPass123!"
+        }),
+    ));
+    assert_eq!(
+        invalid_reset_url.body["data"]["customerResetByUrl"],
+        Value::Null
+    );
+    assert_eq!(
+        invalid_reset_url.body["errors"][0]["extensions"]["code"],
+        json!("NOT_FOUND")
+    );
+    assert_eq!(invalid_reset_url.body["errors"][0]["locations"], json!([]));
+
+    let old_password = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation OldPassword($input: CustomerAccessTokenCreateInput!) {
+          customerAccessTokenCreate(input: $input) {
+            customerAccessToken { accessToken }
+            customerUserErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "storefront-activate@example.test",
+                "password": "CodexPass123!"
+            }
+        }),
+    ));
+    assert_eq!(
+        old_password.body["data"]["customerAccessTokenCreate"]["customerUserErrors"][0]["code"],
+        json!("UNIDENTIFIED_CUSTOMER")
+    );
+
+    let new_password = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation NewPassword($input: CustomerAccessTokenCreateInput!) {
+          customerAccessTokenCreate(input: $input) {
+            customerAccessToken { accessToken expiresAt }
+            customerUserErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "storefront-activate@example.test",
+                "password": "NewCodexPass123!"
+            }
+        }),
+    ));
+    assert!(
+        new_password.body["data"]["customerAccessTokenCreate"]["customerAccessToken"]
+            ["accessToken"]
+            .as_str()
+            .unwrap_or_default()
+            .starts_with("sdp_ca_")
+    );
+}
+
+#[test]
+fn storefront_customer_tokens_survive_dump_restore_expire_and_reset_without_cleartext() {
+    let clock = Arc::new(Mutex::new(utc_time(1_800_000_000)));
+    let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_clock({
+            let clock = Arc::clone(&clock);
+            move || *clock.lock().unwrap()
+        })
+        .with_upstream_transport(|_| panic!("Storefront customer auth must stay local"));
+
+    let create = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation CreateStorefrontCustomer($input: CustomerCreateInput!) {
+          customerCreate(input: $input) {
+            customer { id email }
+            customerUserErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "storefront-expiry@example.test",
+                "password": "CodexPass123!"
+            }
+        }),
+    ));
+    let customer_id = create.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .expect("created customer id")
+        .to_string();
+
+    let token_create = proxy.process_request(storefront_graphql_request(
+        r#"
+        mutation CreateStorefrontToken($input: CustomerAccessTokenCreateInput!) {
+          customerAccessTokenCreate(input: $input) {
+            customerAccessToken { accessToken expiresAt }
+            customerUserErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "storefront-expiry@example.test",
+                "password": "CodexPass123!"
+            }
+        }),
+    ));
+    let access_token = token_create.body["data"]["customerAccessTokenCreate"]
+        ["customerAccessToken"]["accessToken"]
+        .as_str()
+        .expect("access token")
+        .to_string();
+    let expires_at = token_create.body["data"]["customerAccessTokenCreate"]["customerAccessToken"]
+        ["expiresAt"]
+        .as_str()
+        .expect("expires at")
+        .to_string();
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    let dumped_state = &dump.body["state"];
+    assert_eq!(
+        dumped_state["stagedState"]["storefrontCustomerAccessTokens"]
+            .as_object()
+            .expect("token map")
+            .len(),
+        1
+    );
+    assert!(!dumped_state.to_string().contains(access_token.as_str()));
+    assert!(
+        dumped_state["stagedState"]["customers"][customer_id.as_str()]
+            ["__storefrontPasswordFingerprint"]
+            .as_str()
+            .is_some()
+    );
+
+    let mut restored = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_clock({
+            let clock = Arc::clone(&clock);
+            move || *clock.lock().unwrap()
+        })
+        .with_upstream_transport(|_| panic!("restored Storefront customer auth must stay local"));
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let restored_read = restored.process_request(storefront_graphql_request(
+        r#"query ReadRestoredCustomer($token: String!) { customer(customerAccessToken: $token) { id email } }"#,
+        json!({ "token": access_token }),
+    ));
+    assert_eq!(
+        restored_read.body["data"]["customer"]["id"],
+        json!(customer_id)
+    );
+
+    set_clock(&clock, 1_800_000_000 + 43 * 24 * 60 * 60);
+    let expired_read = restored.process_request(storefront_graphql_request(
+        r#"query ReadExpiredCustomer($token: String!) { customer(customerAccessToken: $token) { id } }"#,
+        json!({ "token": access_token }),
+    ));
+    assert_eq!(expired_read.body["data"]["customer"], Value::Null);
+
+    let expired_renew = restored.process_request(storefront_graphql_request(
+        r#"
+        mutation RenewExpiredToken($token: String!) {
+          customerAccessTokenRenew(customerAccessToken: $token) {
+            customerAccessToken { accessToken expiresAt }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "token": access_token }),
+    ));
+    assert_eq!(
+        expired_renew.body["data"]["customerAccessTokenRenew"]["customerAccessToken"],
+        Value::Null
+    );
+    assert_eq!(
+        expired_renew.body["data"]["customerAccessTokenRenew"]["userErrors"],
+        json!([{ "field": ["customerAccessToken"], "message": "access token does not exist" }])
+    );
+
+    let reset = restored.process_request(request_with_body("POST", "/__meta/reset", ""));
+    assert_eq!(reset.status, 200);
+    let after_reset = restored.process_request(storefront_graphql_request(
+        r#"query ReadAfterReset($token: String!) { customer(customerAccessToken: $token) { id } }"#,
+        json!({ "token": access_token }),
+    ));
+    assert_eq!(after_reset.body["data"]["customer"], Value::Null);
+    let state_after_reset = state_snapshot(&restored);
+    assert_eq!(
+        state_after_reset["stagedState"]["storefrontCustomerAccessTokens"],
+        json!({})
+    );
+    assert_eq!(
+        state_after_reset["stagedState"]["nextStorefrontCustomerAccessTokenId"],
+        json!(1)
+    );
+    assert_eq!(expires_at, "2027-02-26T08:00:00Z");
+}
+
+#[test]
 fn storefront_first_slice_hydrates_and_projects_local_roots_with_context() {
     let observed_requests = Arc::new(Mutex::new(Vec::<Request>::new()));
     let observed_for_proxy = Arc::clone(&observed_requests);
@@ -733,6 +1342,465 @@ fn storefront_shop_can_observe_admin_hydrated_store_state_without_storefront_ups
 }
 
 #[test]
+fn storefront_metaobjects_resolve_public_active_admin_staged_entries() {
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(|_| {
+        panic!("staged Storefront custom-data reads should stay local in live-hybrid mode")
+    });
+
+    stage_storefront_metaobject_definition(
+        &mut proxy,
+        "codex_storefront_public",
+        "PUBLIC_READ",
+        true,
+    );
+    let entry = stage_storefront_metaobject(
+        &mut proxy,
+        "codex_storefront_public",
+        "visible-entry",
+        "ACTIVE",
+        "Visible Storefront Entry",
+    );
+
+    let response = proxy.process_request(storefront_graphql_request(
+        r#"
+        query StorefrontPublicMetaobjects($handle: MetaobjectHandleInput!) {
+          byHandle: metaobject(handle: $handle) {
+            ...StorefrontMetaobjectFields
+            title: field(key: "title") { key type value }
+          }
+          entries: metaobjects(type: "codex_storefront_public", first: 2, sortKey: "updated_at") {
+            edges { cursor node { ...StorefrontMetaobjectFields } }
+            nodes { ...StorefrontMetaobjectFields }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+
+        fragment StorefrontMetaobjectFields on Metaobject {
+          id
+          handle
+          type
+          updatedAt
+          fields { key type value }
+        }
+        "#,
+        json!({
+            "handle": {
+                "type": "codex_storefront_public",
+                "handle": "visible-entry"
+            }
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    let expected_node = json!({
+        "id": entry["id"],
+        "handle": "visible-entry",
+        "type": "codex_storefront_public",
+        "updatedAt": entry["updatedAt"],
+        "fields": [
+            { "key": "body", "type": "multi_line_text_field", "value": "Body for Visible Storefront Entry" },
+            { "key": "title", "type": "single_line_text_field", "value": "Visible Storefront Entry" }
+        ]
+    });
+    assert_eq!(response.body["data"]["byHandle"]["id"], entry["id"]);
+    assert_eq!(
+        response.body["data"]["byHandle"]["title"],
+        json!({ "key": "title", "type": "single_line_text_field", "value": "Visible Storefront Entry" })
+    );
+    assert_eq!(
+        response.body["data"]["entries"]["nodes"],
+        json!([expected_node])
+    );
+    assert_eq!(
+        response.body["data"]["entries"]["edges"][0]["node"]["handle"],
+        json!("visible-entry")
+    );
+    assert_eq!(
+        response.body["data"]["entries"]["pageInfo"]["hasNextPage"],
+        json!(false)
+    );
+}
+
+#[test]
+fn storefront_metaobject_fields_resolve_visible_nested_references() {
+    let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|_| panic!("snapshot Storefront reads should stay local"));
+
+    stage_storefront_metaobject_definition(
+        &mut proxy,
+        "codex_storefront_reference_target",
+        "PUBLIC_READ",
+        true,
+    );
+    let visible_target = stage_storefront_metaobject(
+        &mut proxy,
+        "codex_storefront_reference_target",
+        "visible-target",
+        "ACTIVE",
+        "Visible Target",
+    );
+    let draft_target = stage_storefront_metaobject(
+        &mut proxy,
+        "codex_storefront_reference_target",
+        "draft-target",
+        "DRAFT",
+        "Draft Target",
+    );
+    stage_storefront_reference_definition(&mut proxy, "codex_storefront_reference_source");
+    stage_storefront_reference_metaobject(
+        &mut proxy,
+        visible_target["id"].as_str().unwrap(),
+        draft_target["id"].as_str().unwrap(),
+    );
+
+    let response = proxy.process_request(storefront_graphql_request(
+        r#"
+        query StorefrontReferenceFields {
+          source: metaobject(handle: {
+            type: "codex_storefront_reference_source",
+            handle: "source-entry"
+          }) {
+            featured: field(key: "featured") {
+              key
+              type
+              value
+              reference { ... on Metaobject { handle type } }
+            }
+            related: field(key: "related") {
+              key
+              type
+              references(first: 5) {
+                nodes { ... on Metaobject { handle type } }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["source"]["featured"]["reference"],
+        json!({
+            "handle": "visible-target",
+            "type": "codex_storefront_reference_target"
+        })
+    );
+    assert_eq!(
+        response.body["data"]["source"]["related"]["references"]["nodes"],
+        json!([{
+            "handle": "visible-target",
+            "type": "codex_storefront_reference_target"
+        }])
+    );
+    assert_eq!(
+        response.body["data"]["source"]["related"]["references"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": visible_target["id"],
+            "endCursor": visible_target["id"]
+        })
+    );
+}
+
+#[test]
+fn storefront_metaobjects_hide_non_public_draft_and_deleted_entries() {
+    let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|_| panic!("snapshot Storefront reads should stay local"));
+
+    stage_storefront_metaobject_definition(
+        &mut proxy,
+        "codex_storefront_public",
+        "PUBLIC_READ",
+        true,
+    );
+    let active = stage_storefront_metaobject(
+        &mut proxy,
+        "codex_storefront_public",
+        "active-entry",
+        "ACTIVE",
+        "Active Entry",
+    );
+    stage_storefront_metaobject(
+        &mut proxy,
+        "codex_storefront_public",
+        "draft-entry",
+        "DRAFT",
+        "Draft Entry",
+    );
+    stage_storefront_metaobject_definition(&mut proxy, "codex_storefront_private", "NONE", true);
+    stage_storefront_metaobject(
+        &mut proxy,
+        "codex_storefront_private",
+        "private-entry",
+        "ACTIVE",
+        "Private Entry",
+    );
+
+    let before_delete = proxy.process_request(storefront_graphql_request(
+        r#"
+        query StorefrontVisibility {
+          active: metaobject(handle: { type: "codex_storefront_public", handle: "active-entry" }) { id handle }
+          draft: metaobject(handle: { type: "codex_storefront_public", handle: "draft-entry" }) { id handle }
+          privateEntry: metaobject(handle: { type: "codex_storefront_private", handle: "private-entry" }) { id handle }
+          publicEntries: metaobjects(type: "codex_storefront_public", first: 10) { nodes { handle } }
+          privateEntries: metaobjects(type: "codex_storefront_private", first: 10) { nodes { handle } }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(before_delete.status, 200);
+    assert_eq!(
+        before_delete.body["data"]["active"]["handle"],
+        json!("active-entry")
+    );
+    assert_eq!(before_delete.body["data"]["draft"], Value::Null);
+    assert_eq!(before_delete.body["data"]["privateEntry"], Value::Null);
+    assert_eq!(
+        before_delete.body["data"]["publicEntries"]["nodes"],
+        json!([{ "handle": "active-entry" }])
+    );
+    assert_eq!(
+        before_delete.body["data"]["privateEntries"]["nodes"],
+        json!([])
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteMetaobject($id: ID!) {
+          metaobjectDelete(id: $id) {
+            deletedId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": active["id"] }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["metaobjectDelete"]["userErrors"],
+        json!([])
+    );
+
+    let after_delete = proxy.process_request(storefront_graphql_request(
+        r#"
+        query StorefrontAfterDelete {
+          active: metaobject(handle: { type: "codex_storefront_public", handle: "active-entry" }) { id handle }
+          publicEntries: metaobjects(type: "codex_storefront_public", first: 10) { nodes { handle } }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(after_delete.status, 200);
+    assert_eq!(after_delete.body["data"]["active"], Value::Null);
+    assert_eq!(
+        after_delete.body["data"]["publicEntries"]["nodes"],
+        json!([])
+    );
+}
+
+#[test]
+fn storefront_shop_metafields_require_storefront_definition_access() {
+    let mut proxy = configured_proxy(ReadMode::Snapshot, Some(UnsupportedMutationMode::Reject))
+        .with_upstream_transport(|_| panic!("snapshot Storefront reads should stay local"));
+    restore_state_with(&mut proxy, |state| {
+        state["baseState"]["shop"] = json!({
+            "id": "gid://shopify/Shop/storefront-metafields",
+            "name": "Storefront metafields shop"
+        });
+    });
+
+    stage_metafield_definition(
+        &mut proxy,
+        "SHOP",
+        "custom",
+        "visible",
+        "single_line_text_field",
+        "PUBLIC_READ",
+    );
+    stage_metafield_definition(
+        &mut proxy,
+        "SHOP",
+        "custom",
+        "hidden",
+        "single_line_text_field",
+        "NONE",
+    );
+    stage_metafields_set(
+        &mut proxy,
+        "gid://shopify/Shop/storefront-metafields",
+        json!([
+            {
+                "namespace": "custom",
+                "key": "visible",
+                "type": "single_line_text_field",
+                "value": "Visible tagline"
+            },
+            {
+                "namespace": "custom",
+                "key": "hidden",
+                "type": "single_line_text_field",
+                "value": "Hidden tagline"
+            }
+        ]),
+    );
+
+    let response = proxy.process_request(storefront_graphql_request(
+        r#"
+        query StorefrontShopMetafields {
+          shop {
+            name
+            visible: metafield(namespace: "custom", key: "visible") {
+              namespace
+              key
+              type
+              value
+              list
+              description
+            }
+            hidden: metafield(namespace: "custom", key: "hidden") { key value }
+            selected: metafields(identifiers: [
+              { namespace: "custom", key: "visible" },
+              { namespace: "custom", key: "hidden" },
+              { namespace: "custom", key: "missing" }
+            ]) {
+              key
+              value
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["shop"]["visible"],
+        json!({
+            "namespace": "custom",
+            "key": "visible",
+            "type": "single_line_text_field",
+            "value": "Visible tagline",
+            "list": false,
+            "description": null
+        })
+    );
+    assert_eq!(response.body["data"]["shop"]["hidden"], Value::Null);
+    assert_eq!(
+        response.body["data"]["shop"]["selected"],
+        json!([{ "key": "visible", "value": "Visible tagline" }, null, null])
+    );
+}
+
+#[test]
+fn storefront_shop_metafields_use_staged_shop_owner_without_hydration() {
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(UnsupportedMutationMode::Passthrough),
+    );
+
+    stage_metafield_definition(
+        &mut proxy,
+        "SHOP",
+        "custom",
+        "visible",
+        "single_line_text_field",
+        "PUBLIC_READ",
+    );
+    stage_metafield_definition(
+        &mut proxy,
+        "SHOP",
+        "custom",
+        "hidden",
+        "single_line_text_field",
+        "NONE",
+    );
+    stage_metafields_set(
+        &mut proxy,
+        "gid://shopify/Shop/storefront-metafields-no-hydrate",
+        json!([
+            {
+                "namespace": "custom",
+                "key": "visible",
+                "type": "single_line_text_field",
+                "value": "Visible tagline"
+            },
+            {
+                "namespace": "custom",
+                "key": "hidden",
+                "type": "single_line_text_field",
+                "value": "Hidden tagline"
+            }
+        ]),
+    );
+    let mut proxy = proxy.with_upstream_transport(|_| {
+        panic!("staged Storefront shop metafields should not require first-slice hydration")
+    });
+
+    let response = proxy.process_request(storefront_graphql_request(
+        r#"
+        query StorefrontShopMetafieldsWithoutHydration {
+          shop {
+            visible: metafield(namespace: "custom", key: "visible") {
+              namespace
+              key
+              type
+              value
+              list
+            }
+            hidden: metafield(namespace: "custom", key: "hidden") { key value }
+            selected: metafields(identifiers: [
+              { namespace: "custom", key: "visible" },
+              { namespace: "custom", key: "hidden" },
+              { namespace: "custom", key: "missing" }
+            ]) {
+              namespace
+              key
+              type
+              value
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["shop"],
+        json!({
+            "visible": {
+                "namespace": "custom",
+                "key": "visible",
+                "type": "single_line_text_field",
+                "value": "Visible tagline",
+                "list": false
+            },
+            "hidden": null,
+            "selected": [
+                {
+                    "namespace": "custom",
+                    "key": "visible",
+                    "type": "single_line_text_field",
+                    "value": "Visible tagline"
+                },
+                null,
+                null
+            ]
+        })
+    );
+}
+
+#[test]
 fn storefront_graphql_passthrough_does_not_enter_admin_staging_or_commit() {
     let observed_requests = Arc::new(Mutex::new(Vec::<Request>::new()));
     let observed_for_proxy = Arc::clone(&observed_requests);
@@ -1128,11 +2196,273 @@ fn storefront_menu_projects_restored_captured_base_state_without_snapshot_fabric
     );
 }
 
-fn storefront_graphql_request(query: &str, variables: serde_json::Value) -> Request {
+fn storefront_graphql_request(query: &str, variables: Value) -> Request {
     Request {
         method: "POST".to_string(),
         path: "/api/2026-04/graphql.json".to_string(),
         headers: Default::default(),
         body: json!({ "query": query, "variables": variables }).to_string(),
     }
+}
+
+fn stage_storefront_metaobject_definition(
+    proxy: &mut DraftProxy,
+    meta_type: &str,
+    storefront_access: &str,
+    publishable_enabled: bool,
+) -> Value {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition {
+              id
+              type
+              access { storefront }
+              capabilities { publishable { enabled } }
+              fieldDefinitions { key type { name } required }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "definition": {
+                "type": meta_type,
+                "name": meta_type.replace('_', " "),
+                "access": { "storefront": storefront_access },
+                "capabilities": { "publishable": { "enabled": publishable_enabled } },
+                "displayNameKey": "title",
+                "fieldDefinitions": [
+                    {
+                        "key": "title",
+                        "name": "Title",
+                        "type": "single_line_text_field",
+                        "required": true
+                    },
+                    {
+                        "key": "body",
+                        "name": "Body",
+                        "type": "multi_line_text_field",
+                        "required": false
+                    }
+                ]
+            }
+        }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["metaobjectDefinitionCreate"]["metaobjectDefinition"].clone()
+}
+
+fn stage_storefront_metaobject(
+    proxy: &mut DraftProxy,
+    meta_type: &str,
+    handle: &str,
+    status: &str,
+    title: &str,
+) -> Value {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMetaobject($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject {
+              id
+              handle
+              type
+              updatedAt
+              capabilities { publishable { status } }
+              fields { key type value jsonValue }
+            }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({
+            "metaobject": {
+                "type": meta_type,
+                "handle": handle,
+                "capabilities": { "publishable": { "status": status } },
+                "fields": [
+                    { "key": "title", "value": title },
+                    { "key": "body", "value": format!("Body for {title}") }
+                ]
+            }
+        }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["metaobjectCreate"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["metaobjectCreate"]["metaobject"].clone()
+}
+
+fn stage_storefront_reference_definition(proxy: &mut DraftProxy, meta_type: &str) -> Value {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateReferenceDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition {
+              id
+              type
+              access { storefront }
+              fieldDefinitions { key type { name } }
+            }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({
+            "definition": {
+                "type": meta_type,
+                "name": "codex storefront reference source",
+                "access": { "storefront": "PUBLIC_READ" },
+                "capabilities": { "publishable": { "enabled": true } },
+                "displayNameKey": "title",
+                "fieldDefinitions": [
+                    {
+                        "key": "title",
+                        "name": "Title",
+                        "type": "single_line_text_field",
+                        "required": true
+                    },
+                    {
+                        "key": "featured",
+                        "name": "Featured",
+                        "type": "metaobject_reference",
+                        "required": false
+                    },
+                    {
+                        "key": "related",
+                        "name": "Related",
+                        "type": "list.metaobject_reference",
+                        "required": false
+                    }
+                ]
+            }
+        }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["metaobjectDefinitionCreate"]["metaobjectDefinition"].clone()
+}
+
+fn stage_storefront_reference_metaobject(
+    proxy: &mut DraftProxy,
+    visible_target_id: &str,
+    draft_target_id: &str,
+) -> Value {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateReferenceMetaobject($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject {
+              id
+              handle
+              type
+              fields { key type value jsonValue }
+            }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({
+            "metaobject": {
+                "type": "codex_storefront_reference_source",
+                "handle": "source-entry",
+                "capabilities": { "publishable": { "status": "ACTIVE" } },
+                "fields": [
+                    { "key": "title", "value": "Source Entry" },
+                    { "key": "featured", "value": visible_target_id },
+                    { "key": "related", "value": json!([visible_target_id, draft_target_id]).to_string() }
+                ]
+            }
+        }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["metaobjectCreate"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["metaobjectCreate"]["metaobject"].clone()
+}
+
+fn stage_metafield_definition(
+    proxy: &mut DraftProxy,
+    owner_type: &str,
+    namespace: &str,
+    key: &str,
+    field_type: &str,
+    storefront_access: &str,
+) -> Value {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMetafieldDefinition($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition {
+              id
+              ownerType
+              namespace
+              key
+              type { name }
+              access { storefront }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "definition": {
+                "ownerType": owner_type,
+                "namespace": namespace,
+                "key": key,
+                "name": key.replace('_', " "),
+                "type": field_type,
+                "access": { "storefront": storefront_access }
+            }
+        }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["metafieldDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["metafieldDefinitionCreate"]["createdDefinition"].clone()
+}
+
+fn stage_metafields_set(proxy: &mut DraftProxy, owner_id: &str, metafields: Value) -> Value {
+    let metafields = metafields
+        .as_array()
+        .expect("test metafields must be an array")
+        .iter()
+        .map(|metafield| {
+            let mut metafield = metafield.clone();
+            metafield["ownerId"] = json!(owner_id);
+            metafield
+        })
+        .collect::<Vec<_>>();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SetMetafields($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { id namespace key type value }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({ "metafields": metafields }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["metafieldsSet"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["metafieldsSet"]["metafields"].clone()
 }
