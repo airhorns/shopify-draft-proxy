@@ -202,12 +202,12 @@ impl DraftProxy {
             let Some(value) = data.get(&field.response_key) else {
                 continue;
             };
-            self.observe_discount_root_value(&field.name, value);
+            self.observe_discount_root_value(field, value);
         }
     }
 
-    fn observe_discount_root_value(&mut self, root: &str, value: &Value) {
-        match root {
+    fn observe_discount_root_value(&mut self, field: &RootFieldSelection, value: &Value) {
+        match field.name.as_str() {
             "discountNode" => self.observe_discount_node_value(value, None, "discount"),
             "codeDiscountNode" | "codeDiscountNodeByCode" => {
                 self.observe_discount_node_value(value, Some("code"), "codeDiscount")
@@ -224,6 +224,12 @@ impl DraftProxy {
                 Some("automatic"),
                 "automaticDiscount",
             ),
+            "discountNodesCount" if value.get("count").and_then(Value::as_u64).is_some() => {
+                self.store.observe_discount_count_baseline(
+                    discount_count_baseline_key(&field.arguments),
+                    value.clone(),
+                );
+            }
             _ => {}
         }
     }
@@ -1831,7 +1837,7 @@ impl DraftProxy {
         upstream_count_with_staged_delta(
             field,
             upstream_data,
-            self.discount_nodes_count_delta(),
+            self.staged_discount_count_delta(&field.arguments),
             &field.arguments,
         )
         .unwrap_or_else(|| {
@@ -1849,25 +1855,6 @@ impl DraftProxy {
         })
     }
 
-    fn discount_nodes_count_delta(&self) -> isize {
-        let mut delta = 0isize;
-        for id in &self.store.staged.discounts.tombstones {
-            if self.store.base.discounts.get(id).is_some() {
-                delta -= 1;
-            }
-        }
-        for (id, record) in &self.store.staged.discounts {
-            if self.store.staged.discounts.is_tombstoned(id)
-                || self.store.base.discounts.get(id).is_some()
-                || discount_id(record).is_empty()
-            {
-                continue;
-            }
-            delta += 1;
-        }
-        delta
-    }
-
     fn discount_connection_records(&self) -> Vec<Value> {
         effective_records(&self.store.base.discounts, &self.store.staged.discounts)
             .iter()
@@ -1880,6 +1867,34 @@ impl DraftProxy {
             })
             .map(|record| self.discount_record_with_effective_status(record))
             .collect()
+    }
+
+    fn staged_discount_count_delta(&self, arguments: &BTreeMap<String, ResolvedValue>) -> isize {
+        let query = resolved_string_field(arguments, "query").unwrap_or_default();
+        let mut delta = 0isize;
+        for id in &self.store.staged.discounts.tombstones {
+            if let Some(base_discount) = self.store.base.discounts.records.get(id) {
+                let base_discount = self.discount_record_with_effective_status(base_discount);
+                if discount_matches_query(&base_discount, &query) {
+                    delta -= 1;
+                }
+            }
+        }
+        for (id, staged_discount) in &self.store.staged.discounts.records {
+            if self.store.staged.discounts.is_tombstoned(id) {
+                continue;
+            }
+            let staged_discount = self.discount_record_with_effective_status(staged_discount);
+            let staged_matches = discount_matches_query(&staged_discount, &query);
+            if let Some(base_discount) = self.store.base.discounts.records.get(id) {
+                let base_discount = self.discount_record_with_effective_status(base_discount);
+                let base_matches = discount_matches_query(&base_discount, &query);
+                delta += staged_matches as isize - base_matches as isize;
+            } else if staged_matches {
+                delta += 1;
+            }
+        }
+        delta
     }
 
     fn effective_discount_status(&self, record: &Value) -> &'static str {
@@ -4169,6 +4184,17 @@ fn discount_matches_query(record: &Value, query: &str) -> bool {
         .and_then(Value::as_str)
         .unwrap_or_default();
     discount_matches_query_with_status(record, query, status)
+}
+
+fn discount_count_baseline_key(arguments: &BTreeMap<String, ResolvedValue>) -> String {
+    let query = resolved_string_field(arguments, "query").unwrap_or_default();
+    let limit = match arguments.get("limit") {
+        Some(ResolvedValue::Int(limit)) => limit.to_string(),
+        Some(ResolvedValue::Null) => "null".to_string(),
+        Some(_) => "other".to_string(),
+        None => "omitted".to_string(),
+    };
+    format!("query:{query}\nlimit:{limit}")
 }
 
 fn discount_staged_sort_key(record: &Value, sort_key: Option<&str>) -> StagedSortKey {

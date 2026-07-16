@@ -1,0 +1,10 @@
+query DiscountAppCountOnlyRead($query: String!, $limit: Int!) {
+  appCount: discountNodesCount(query: $query) {
+    count
+    precision
+  }
+  limitedAppCount: discountNodesCount(query: $query, limit: $limit) {
+    count
+    precision
+  }
+}

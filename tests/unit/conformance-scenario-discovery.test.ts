@@ -484,6 +484,8 @@ describe('conformance scenario discovery', () => {
       'localization',
       'locations',
       'menu',
+      'metaobject',
+      'metaobjects',
       'page',
       'pageByHandle',
       'pages',

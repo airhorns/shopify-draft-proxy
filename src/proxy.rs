@@ -260,6 +260,7 @@ struct BaseState {
     orders: OrderedRecords<Value>,
     order_count_baselines: BTreeMap<String, Value>,
     discounts: OrderedRecords<Value>,
+    discount_count_baselines: BTreeMap<String, Value>,
     marketing_activities: OrderedRecords<Value>,
     marketing_events: OrderedRecords<Value>,
     gift_cards: BTreeMap<String, Value>,
@@ -1275,6 +1276,10 @@ impl Store {
         self.base.order_count_baselines.get(key)
     }
 
+    fn observe_discount_count_baseline(&mut self, key: String, count: Value) {
+        self.base.discount_count_baselines.insert(key, count);
+    }
+
     fn domain_by_id(&self, id: &str) -> Option<Value> {
         if id.is_empty() {
             return None;
@@ -2171,6 +2176,7 @@ pub(in crate::proxy) use self::markets_catalog_helpers::*;
 pub(in crate::proxy) use self::media_products_saved_searches::*;
 pub(in crate::proxy) use self::metafield_metaobject_definitions::*;
 pub(in crate::proxy) use self::metafields_orders_payments::*;
+pub(in crate::proxy) use self::metaobjects::metaobject_cursor;
 pub(in crate::proxy) use self::money::*;
 pub(in crate::proxy) use self::orders_payments_fulfillment::*;
 pub(in crate::proxy) use self::phone::*;
