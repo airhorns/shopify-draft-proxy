@@ -198,10 +198,6 @@ export function loadNodeResolverInventory(repoRoot = defaultRepoRoot): NodeResol
 function runRustJsonExporter(repoRoot: string, binName: string): string {
   return execFileSync('cargo', ['run', '--quiet', '--bin', binName], {
     cwd: repoRoot,
-    env: {
-      ...process.env,
-      CARGO_TARGET_DIR: path.join(repoRoot, 'target', 'conformance-json-exporters'),
-    },
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
   });
