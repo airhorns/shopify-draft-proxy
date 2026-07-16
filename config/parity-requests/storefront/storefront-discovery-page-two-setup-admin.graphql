@@ -1,0 +1,17 @@
+mutation StorefrontDiscoverySecondPageSetup($page: PageCreateInput!) {
+  pageCreate(page: $page) {
+    page {
+      id
+      title
+      handle
+      body
+      bodySummary
+      isPublished
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

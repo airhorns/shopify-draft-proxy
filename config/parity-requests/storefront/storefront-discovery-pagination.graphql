@@ -1,0 +1,20 @@
+query StorefrontDiscoveryPagination($query: String!, $after: String) {
+  pagination: search(first: 1, after: $after, query: $query, prefix: LAST, types: [PAGE]) {
+    nodes {
+      __typename
+      ... on Page {
+        id
+        title
+        handle
+        bodySummary
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+    totalCount
+  }
+}

@@ -41,6 +41,10 @@ Read roots:
 - `menu`
 - `sitemap`
 - `urlRedirects`
+- `node`
+- `nodes`
+- `search`
+- `predictiveSearch`
 
 Local staged mutation roots:
 
@@ -133,6 +137,14 @@ Storefront catalog reads dispatch locally only when the proxy has shared product
 
 `publicApiVersions` returns captured Storefront API version records only after Storefront hydration. Snapshot mode returns an empty list rather than deriving API versions from checked-in schema metadata.
 
+`node(id:)` and `nodes(ids:)` parse the Shopify GID resource type and dispatch through the same Storefront-visible serializers as the dedicated roots. The supported local Node types are `Product`, `ProductVariant`, `Collection`, `Article`, `Blog`, `Page`, `Metaobject`, `Location`, and `Menu`. `nodes(ids:)` preserves input order, duplicates, and null slots. Valid but missing, deleted, unpublished, or inaccessible IDs return `null`; malformed global IDs return Shopify's captured coercion error. Aliases, named and inline fragments, the `Node` interface, and concrete type fragments remain under the Storefront executable schema.
+
+`search(...)` indexes the effective locally known Storefront-visible `Product`, `Article`, and `Page` state. It excludes product/content tombstones, unpublished catalog resources, draft content, and records hidden by the active Storefront publication context. Terms use AND semantics; `prefix: LAST` applies word-prefix matching to the final term. An omitted `types` argument spans all supported result types, while Shopify's captured explicit multi-type list constrains search to its first entry. Product availability/tag/type/vendor/price/variant-option filters, `unavailableProducts`, `PRICE`/deterministic `RELEVANCE` ordering, `reverse`, cursor windows, `totalCount`, `pageInfo`, and availability/price filter payloads are computed from that effective candidate set.
+
+`predictiveSearch(...)` supports `PRODUCT`, `COLLECTION`, `ARTICLE`, `PAGE`, and `QUERY` results. Resource lists reuse the supported Storefront serializers and visibility rules. `searchableFields`, `unavailableProducts`, the 1–10 limit, and `EACH`/`ALL` limit scopes are applied locally; an out-of-range limit returns Shopify's captured `INVALID_FIELD_ARGUMENTS` error. Query suggestions are derived deterministically from visible resource terms, with matching highlighted text and stable tracking parameters. Shopify's suggestion corpus and relevance ranking are opaque, so captured parity limits the difference to suggestion scalar values after resource matching, result types, limits, payload shapes, and computable order are aligned.
+
+Snapshot discovery reads use local snapshot plus staged state and never hydrate upstream. Live-hybrid discovery stays passthrough when no supported discovery state is locally known; once shared supported-domain state exists, these roots resolve locally so staged Admin additions, updates, publication changes, unpublishes, and tombstones are immediately reflected without runtime Shopify writes.
+
 `article` and `page` support ID lookup for locally staged visible content. `blog` and `pageByHandle` support handle lookup, and `blogByHandle` follows the Storefront alias root for blog handle lookup. Missing IDs or handles return `null`.
 
 `articles`, `blogs`, and `pages` project Storefront connections from shared staged Admin online-store content. They support `first`, `after`, `last`, `before`, `reverse`, representative `sortKey` values, and Storefront-style search terms through the shared staged-connection helpers. Locally staged cursors are deterministic resource-ID cursors; captured Storefront cursors are preserved only for hydrated Storefront base state.
@@ -196,3 +208,5 @@ Cart checkout/completion, delivery-option selection, tax/duty finalization, paym
 Storefront customer support intentionally omits unsupported privacy-sensitive and Admin-only fields. Avatar/social-login fields, customer metafields, unsupported order subfields, and sensitive Admin-only customer/order data resolve as null, empty, or schema validation failures according to the Storefront schema and the selected local projection; the proxy does not fabricate private customer data to satisfy Storefront reads.
 
 Live-hybrid operations that include unimplemented roots are forwarded as one unchanged Storefront request, while snapshot mode returns schema-shaped no-data behavior or rejects mutations.
+
+Generic Storefront Node dispatch does not claim the remaining Storefront `Node` implementors. Search does not return collections because the captured `SearchResultItem` interface contains only products, articles, and pages; collection results are supported through `predictiveSearch`. Query suggestions are a deterministic approximation, not a reconstruction of Shopify's private search corpus or request-scoped ranking session.
